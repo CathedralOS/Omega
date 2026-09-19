@@ -510,3 +510,112 @@ machine Main::run(&mut self) {
         "{diagnostics:#?}"
     );
 }
+
+#[test]
+fn exact_machine_route_authorizes_its_own_invocation() {
+    let source = r#"
+data Token {
+    value: u64;
+}
+
+domain Token::Issued
+established by Token::issue;
+
+machine Token::issue(value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Main {
+}
+
+machine Main::consume(&self, token: Token)
+requires
+    token in Token::Issued
+{
+}
+
+machine Main::run(&mut self) {
+    let token: Token = Token::issue(7);
+    self.consume(token);
+}
+"#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("the exact-machine route may establish its own result domain");
+    let issued = checked
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Issued")
+        .expect("issued domain");
+    let issuer = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Token::issue")
+        .expect("issuer machine");
+    assert_eq!(
+        issued.establishment_routes,
+        [DomainEstablishmentRoute::ExactMachine {
+            machine: issuer.symbol,
+        }]
+    );
+    let call_fact = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| {
+            fact.origin == FactOrigin::CallEnsures
+                && matches!(
+                    fact.payload,
+                    FactPayload::ContractDomainMembership { domain_symbol, .. }
+                        if domain_symbol == issued.symbol
+                )
+        })
+        .expect("call ensure membership");
+    assert_eq!(
+        call_fact.evidence.origin,
+        QualificationEvidenceOrigin::AuthorizedRouteEstablishment
+    );
+}
+
+#[test]
+fn exact_machine_route_does_not_authorize_other_machines() {
+    let source = r#"
+data Token {
+    value: u64;
+}
+
+domain Token::Issued
+established by Token::issue;
+
+machine Token::issue(value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Forger {
+}
+
+machine Forger::mint(&self, value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+"#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an exact-machine route authorizes only the named machine");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+        "{diagnostics:#?}"
+    );
+}

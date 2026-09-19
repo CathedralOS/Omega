@@ -217,6 +217,10 @@ fn machine_domain_establishment_origin(
                     })
                     .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment)
             }
+            DomainEstablishmentRoute::ExactMachine {
+                machine: authorized,
+            } => (*authorized == machine.symbol)
+                .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment),
             DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
         })
 }

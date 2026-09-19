@@ -68,6 +68,104 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
     })
 }
 
+/// One exact machine declaration selected by a path that carries no call
+/// signature. Domain establishment routes may name a free or attached machine
+/// (`a::b::make` or `Data::method`); neither visible conformers nor an
+/// expected call shape may select among same-named machines.
+pub(crate) struct ExactSignatureFreeMachine<'program> {
+    pub(crate) machine: &'program symbol_resolved_trees::machine::Machine,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SignatureFreeMachineResolutionError {
+    NotUnique,
+}
+
+pub(crate) fn resolve_signature_free_machine<'program>(
+    program: &'program SymbolResolvedTrees,
+    path: &[DiagnosticName],
+) -> Result<ExactSignatureFreeMachine<'program>, SignatureFreeMachineResolutionError> {
+    let machine_name = path
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let use_span = path
+        .last()
+        .expect("establishment route paths are nonempty")
+        .source_span();
+    let matching = signature_free_machine_candidates(program, &machine_name, use_span);
+    let [machine] = matching.as_slice() else {
+        return Err(SignatureFreeMachineResolutionError::NotUnique);
+    };
+    Ok(ExactSignatureFreeMachine { machine })
+}
+
+/// Pool the machine candidates an occurrence may name under the same
+/// module/dependency scope law as signature-free trait candidates: the
+/// occurrence's own module (or unmoduled package frontier) wins, authored
+/// imports outrank unrelated unmoduled declarations, and a genuinely
+/// contested spelling stays `NotUnique` instead of silently selecting.
+pub(crate) fn signature_free_machine_candidates<'program>(
+    program: &'program SymbolResolvedTrees,
+    machine_name: &str,
+    use_span: source::SourceSpan,
+) -> Vec<&'program symbol_resolved_trees::machine::Machine> {
+    let candidates = program
+        .machines
+        .iter()
+        .filter(|machine| {
+            machine.spelling.is_none()
+                && same_semantic_name(machine.name.as_str(), machine_name)
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(use_span, machine.symbol)
+        })
+        .collect::<Vec<_>>();
+    if use_span.span.start == use_span.span.end {
+        return candidates;
+    }
+    let symbols = &program.symbols;
+    let occurrence_module = symbols.source_module(use_span.source_id);
+    let local = candidates
+        .iter()
+        .copied()
+        .filter(|machine| {
+            symbols.symbol_module(machine.symbol) == occurrence_module
+                && symbols
+                    .symbol_provenance_source_span(machine.symbol)
+                    .is_some_and(|declaration| symbols.same_source_package(use_span, declaration))
+        })
+        .collect::<Vec<_>>();
+    if !local.is_empty() {
+        return local;
+    }
+    let imported = candidates
+        .iter()
+        .copied()
+        .filter(|machine| {
+            symbols
+                .source_module_import_paths(use_span.source_id)
+                .any(|path| {
+                    symbols.source_module_import_target(use_span.source_id, path)
+                        == Some(machine.symbol)
+                })
+        })
+        .collect::<Vec<_>>();
+    if !imported.is_empty() {
+        return imported;
+    }
+    let unmoduled = candidates
+        .iter()
+        .copied()
+        .filter(|machine| !symbols.symbol_module(machine.symbol).is_valid())
+        .collect::<Vec<_>>();
+    if !unmoduled.is_empty() {
+        return unmoduled;
+    }
+    candidates
+}
+
 pub(crate) fn same_semantic_name(left: &str, right: &str) -> bool {
     left == right
         || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
@@ -186,6 +284,14 @@ pub(crate) fn validate_signature_free_requirement_compatibility(
     }
     for domain in &program.domain_definitions {
         for route in &domain.authored_routes {
+            // A path that uniquely names a machine declaration is an
+            // exact-machine route; trait-requirement overload ambiguity does
+            // not apply to it (cross-kind ambiguity rejects at normalization).
+            if resolve_signature_free_machine(program, route).is_ok()
+                && resolve_signature_free_requirement(program, route).is_err()
+            {
+                continue;
+            }
             let rendered = route
                 .iter()
                 .map(|member| member.as_str())

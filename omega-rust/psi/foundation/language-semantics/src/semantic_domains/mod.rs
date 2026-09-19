@@ -128,6 +128,12 @@ pub enum DomainEstablishmentRoute {
         boundary_trait: symbols::SymbolHandle,
         requirement: symbols::SymbolHandle,
     },
+    /// An exact free or attached concrete machine declaration authored by
+    /// `established by`. Only that machine's own invocation may establish the
+    /// authorized provenance; other conformers of a requirement it satisfies
+    /// are not issuers. Resolution is signature-free, so the named path must
+    /// select exactly one machine declaration.
+    ExactMachine { machine: symbols::SymbolHandle },
 }
 
 impl DomainEstablishmentRoute {
@@ -135,6 +141,7 @@ impl DomainEstablishmentRoute {
         match self {
             Self::CheckedRequirement { .. } => "checked_requirement",
             Self::BoundaryRequirement { .. } => "boundary_requirement",
+            Self::ExactMachine { .. } => "exact_machine",
         }
     }
 
@@ -144,13 +151,31 @@ impl DomainEstablishmentRoute {
                 trait_definition, ..
             } => trait_definition,
             Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
+            Self::ExactMachine { machine } => machine,
         }
     }
 
+    /// The leaf declaration the authored path selects: the requirement for
+    /// requirement routes, the machine declaration for an exact-machine
+    /// route. Use this when recording the route's terminal path segment;
+    /// `requirement_symbol` stays requirement-only for contract lookups.
+    pub const fn established_declaration(self) -> symbols::SymbolHandle {
+        match self {
+            Self::CheckedRequirement { requirement, .. }
+            | Self::BoundaryRequirement { requirement, .. } => requirement,
+            Self::ExactMachine { machine } => machine,
+        }
+    }
+
+    /// The authorized trait requirement, or an invalid handle for an
+    /// exact-machine route. Callers that look the requirement up by symbol
+    /// must arm exact-machine routes separately instead of treating an
+    /// invalid result as a matching requirement.
     pub const fn requirement_symbol(self) -> symbols::SymbolHandle {
         match self {
             Self::CheckedRequirement { requirement, .. }
             | Self::BoundaryRequirement { requirement, .. } => requirement,
+            Self::ExactMachine { .. } => symbols::SymbolHandle::invalid(),
         }
     }
 }

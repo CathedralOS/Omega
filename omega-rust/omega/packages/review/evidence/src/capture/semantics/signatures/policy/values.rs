@@ -71,11 +71,14 @@ pub(crate) fn termination(
             }
             let mut projected = projected.into_iter().map(|premise| {
                 let (_, profile) = exactly_one(profiles.iter().filter(|(identity, _)| *identity == premise.profile), "public policy termination", "projected progress profile")?;
-                let mut establishment_routes = profile.establishment_routes.iter().map(|route| {
+                // Progress profiles project only requirement routes; exact-machine
+                // routes are ineligible for admitted boundary progress profiles.
+                let mut establishment_routes = profile.establishment_routes.iter().filter(|route| !matches!(route, language_semantics::DomainEstablishmentRoute::ExactMachine { .. })).map(|route| {
                     Ok(PackagePolicyServiceProgressRoute {
                         kind: match route {
                             language_semantics::DomainEstablishmentRoute::CheckedRequirement { .. } => effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
                             language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. } => effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                            language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => unreachable!("exact-machine routes are filtered above"),
                         },
                         requirement_owner: nominal_identity(compilation, route.source_symbol())?,
                         requirement: trait_requirement_identity_from_symbols(compilation, route.source_symbol(), route.requirement_symbol(), "public policy progress establishment")?,

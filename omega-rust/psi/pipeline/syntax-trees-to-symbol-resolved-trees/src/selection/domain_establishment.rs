@@ -20,15 +20,19 @@ use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
 
 use crate::selection::signature_free_requirements::{
-    SignatureFreeRequirementResolutionError, resolve_signature_free_requirement,
+    SignatureFreeMachineResolutionError, SignatureFreeRequirementResolutionError,
+    resolve_signature_free_machine, resolve_signature_free_requirement,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct AuthoredRouteResolution {
     domain_symbol: SymbolHandle,
     route: DomainEstablishmentRoute,
-    trait_source_span: SourceSpan,
-    requirement_source_span: SourceSpan,
+    /// `(source span, selection kind, selected symbol)` records the authored
+    /// path's segment resolutions: requirement routes retain their trait
+    /// prefix and requirement leaf; a machine route retains its optional
+    /// data-owner prefix plus the machine leaf.
+    selections: Vec<(SourceSpan, SelectionKind, SymbolHandle)>,
     exposure: Exposure,
 }
 
@@ -56,20 +60,9 @@ pub(crate) fn normalize_domain_establishment_routes(
     });
 
     for resolution in resolutions {
-        record_route_selection_once(
-            program,
-            resolution.trait_source_span,
-            resolution.exposure,
-            SelectionKind::TypeReference,
-            resolution.route.source_symbol(),
-        )?;
-        record_route_selection_once(
-            program,
-            resolution.requirement_source_span,
-            resolution.exposure,
-            SelectionKind::StaticPathSegment,
-            resolution.route.requirement_symbol(),
-        )?;
+        for (source_span, kind, symbol) in resolution.selections {
+            record_route_selection_once(program, source_span, resolution.exposure, kind, symbol)?;
+        }
     }
     Ok(())
 }
@@ -116,33 +109,78 @@ fn collect_authored_requirement_routes(
             )));
         }
         for path in &domain.authored_routes {
-            let resolved = resolve_signature_free_requirement(program, path).map_err(|error| {
-                let route = path
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
-                match error {
+            let rendered = path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let requirement = resolve_signature_free_requirement(program, path);
+            let machine = resolve_signature_free_machine(program, path);
+            let resolved = match (requirement, machine) {
+                (Ok(_), Ok(machine)) => {
+                    return Err(Diagnostic::error(format!(
+                        "domain `{}` establishment route `{rendered}` is ambiguous across declaration kinds: it names both a trait requirement and machine `{}`",
+                        domain.name,
+                        machine.machine.name
+                    )));
+                }
+                (Err(_), Ok(machine)) => {
+                    if !machine_authorizes_domain_subject(program, machine.machine, domain.symbol) {
+                        return Err(Diagnostic::error(format!(
+                            "domain `{}` authorizes `{rendered}` but that machine does not name the domain on its exact result",
+                            domain.name
+                        )));
+                    }
+                    let mut selections = Vec::new();
+                    if machine.machine.attached_data_symbol.is_valid() {
+                        selections.push((
+                            path_source_span(&path[..path.len() - 1]),
+                            SelectionKind::TypeReference,
+                            machine.machine.attached_data_symbol,
+                        ));
+                    }
+                    selections.push((
+                        path.last().expect("route path nonempty").source_span(),
+                        SelectionKind::StaticPathSegment,
+                        machine.machine.symbol,
+                    ));
+                    resolutions.push(AuthoredRouteResolution {
+                        domain_symbol: domain.symbol,
+                        route: DomainEstablishmentRoute::ExactMachine {
+                            machine: machine.machine.symbol,
+                        },
+                        selections,
+                        exposure: if domain.is_public {
+                            Exposure::PublicInterface
+                        } else {
+                            Exposure::PrivateImplementation
+                        },
+                    });
+                    continue;
+                }
+                (resolved, Err(machine_error)) => resolved.map_err(|error| match error {
                     SignatureFreeRequirementResolutionError::InvalidPath => Diagnostic::error(
                         format!(
-                            "domain `{}` establishment route must name an exact `Trait::requirement`",
+                            "domain `{}` establishment route must name an exact `Trait::requirement` or one exact machine declaration",
                             domain.name
                         ),
                     ),
                     SignatureFreeRequirementResolutionError::TraitNotUnique => {
                         Diagnostic::error(format!(
-                            "domain `{}` establishment route `{route}` does not resolve to one exact trait",
+                            "domain `{}` establishment route `{rendered}` does not resolve to one exact trait",
                             domain.name
                         ))
                     }
                     SignatureFreeRequirementResolutionError::RequirementNotUnique => {
-                        Diagnostic::error(format!(
-                            "domain `{}` establishment route `{route}` does not resolve to one exact trait requirement",
-                            domain.name
-                        ))
+                        match machine_error {
+                            SignatureFreeMachineResolutionError::NotUnique => Diagnostic::error(format!(
+                                "domain `{}` establishment route `{rendered}` resolves to neither one exact trait requirement nor one exact machine declaration",
+                                domain.name
+                            )),
+                        }
                     }
-                }
-            })?;
+                })?,
+            };
             let trait_definition = resolved.trait_definition;
             let requirement = resolved.requirement;
             if !requirement_authorizes_domain_subject(
@@ -177,8 +215,18 @@ fn collect_authored_requirement_routes(
             resolutions.push(AuthoredRouteResolution {
                 domain_symbol: domain.symbol,
                 route,
-                trait_source_span: path_source_span(trait_path),
-                requirement_source_span: requirement_name.source_span(),
+                selections: vec![
+                    (
+                        path_source_span(trait_path),
+                        SelectionKind::TypeReference,
+                        route.source_symbol(),
+                    ),
+                    (
+                        requirement_name.source_span(),
+                        SelectionKind::StaticPathSegment,
+                        route.established_declaration(),
+                    ),
+                ],
                 exposure: if domain.is_public {
                     Exposure::PublicInterface
                 } else {
@@ -188,6 +236,32 @@ fn collect_authored_requirement_routes(
         }
     }
     Ok(())
+}
+
+/// An exact-machine route is authorized only when the named machine's own
+/// invocation produces the domain subject: its `ensures` memberships on
+/// `result` or a state return type that names the domain. Parameter subjects
+/// stay boundary-requirement-only; a machine route cannot borrow requirement
+/// authority it does not declare.
+fn machine_authorizes_domain_subject(
+    program: &SymbolResolvedTrees,
+    machine: &symbol_resolved_trees::machine::Machine,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    if ensured_result_domain_symbols(program, program.machine_contracts(machine))
+        .contains(&domain_symbol)
+    {
+        return true;
+    }
+    program
+        .machine_state_handles(machine.states)
+        .iter()
+        .map(|state_handle| program.machine_state(*state_handle))
+        .any(|state| {
+            state.return_type.as_ref().is_some_and(|return_type| {
+                type_reference_domain_symbols(program, return_type).contains(&domain_symbol)
+            })
+        })
 }
 
 fn path_source_span(path: &[DiagnosticName]) -> SourceSpan {
