@@ -114,8 +114,11 @@ pub(super) fn lower(
         .ok_or(LoweringError::Unsupported(
             "dynamic realization prefix overflowed",
         ))?;
-    let all_realizations = collect_dynamic_realizations(checked, plan, first_realization)?;
-    let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
+    let callable_table = plan.into();
+    let all_realizations =
+        collect_dynamic_realizations(checked, &callable_table, first_realization)?;
+    let lowered_realizations =
+        retain_realizations_for_lane(&all_realizations, &callable_table, lane)?;
     let realization_prefix = lowered_realizations
         .iter()
         .map(|realization| realization.machine.get())
@@ -162,8 +165,12 @@ pub(super) fn lower(
     {
         return unsupported("direct dynamic selected realization callable drifted");
     }
-    let (application, selected_row) =
-        lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let (application, selected_row) = lower_exact_application(
+        checked,
+        &callable_table,
+        caller_machine,
+        &lowered_realizations,
+    )?;
     let initial_application = match lane {
         DynamicLoweringLane::Rebound(initial)
             if initial.fact.conformance != plan.selection.conformance
@@ -327,7 +334,7 @@ pub(super) fn lower(
     source_call_occurrences.append(&mut leaf_source_call_occurrences);
     let realization_machines = materialize_dynamic_realizations(
         checked,
-        plan,
+        &callable_table,
         &lowered_realizations,
         source_type,
         &catalogs.structural_types,

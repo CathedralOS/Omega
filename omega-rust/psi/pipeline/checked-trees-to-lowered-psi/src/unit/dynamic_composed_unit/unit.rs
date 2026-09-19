@@ -1,13 +1,15 @@
 //! Source-free Terminal custody for result-less dynamic requirement calls.
 //!
 //! This lane shares descriptor/application infrastructure with scalar dynamic
-//! dispatch, but its operations and machines are Unit-typed throughout. It
-//! never allocates a value id or scalar result carrier.
+//! dispatch. The selected invocation is Unit-typed; other members in its complete
+//! conformance table retain their own scalar or Unit bodies.
+use super::realizations::{
+    collect_dynamic_realizations, materialize_dynamic_realizations, retain_realizations_for_lane,
+};
 use super::{
     Block, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralPathSegment,
-    ClosedConformanceApplication, ClosedConformanceCallableResult,
-    ClosedConformanceRealizationCallable, ClosedConformanceRow, LoweredPsi,
-    LoweredSourceCallOccurrence, LoweringError, Multiplicity, Operation, OperationKind,
+    ClosedConformanceApplication, ClosedConformanceCallableResult, ClosedConformanceRow,
+    LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Multiplicity, Operation, OperationKind,
     OperationResult, ProofBundle, StructuralAccess, StructuralArgument,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
     TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
@@ -15,13 +17,12 @@ use super::{
     TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog,
     TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
     TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, Terminator,
-    VocabularyMarker, allocate_dense, block_id, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint, edge_id, evidence_lowering, lookup_type_id,
+    VocabularyMarker, allocate_dense, block_id, edge_id, evidence_lowering, lookup_type_id,
     lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
     place_id, unsupported,
 };
 use crate::unit::dynamic_composed_unit::applications::{
-    count_selected_family_rows, exact_empty_machine_service_ceiling, exact_machine_service_summary,
+    count_selected_family_rows, exact_machine_service_summary, lower_exact_application,
     lower_initial_rebound_application, validate_empty_contract, validate_empty_service_summary,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
@@ -35,8 +36,7 @@ use crate::unit::dynamic_composed_unit::source_lowering::{
 };
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
 use crate::unit::dynamic_composed_unit::structural_types::{
-    lower_dynamic_structural_types_for_source, terminal_projected_source_multiplicity_for,
-    terminal_structural_multiplicity,
+    lower_dynamic_structural_types_for_source, terminal_structural_multiplicity,
 };
 use checked_trees::{
     CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan, CheckedReboundDynamicUnitCallPlan,
@@ -111,8 +111,10 @@ fn lower_dynamic_unit_machine(
     let caller_machine = machine_id(1);
     let call_operation = operation_id(1);
     let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
-    let all_realizations = collect_unit_realizations(checked, plan)?;
-    let lowered_realizations = retain_unit_realizations(&all_realizations, plan, lane)?;
+    let callable_table = plan.into();
+    let all_realizations = collect_dynamic_realizations(checked, &callable_table, 2)?;
+    let lowered_realizations =
+        retain_realizations_for_lane(&all_realizations, &callable_table, lane)?;
     let selected = lowered_realizations
         .iter()
         .filter(|candidate| {
@@ -130,8 +132,12 @@ fn lower_dynamic_unit_machine(
     }
     let realization_machine = selected.machine;
     let callable_identity = selected.callable_identity.clone();
-    let (application, selected_row) =
-        lower_exact_unit_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let (application, selected_row) = lower_exact_application(
+        checked,
+        &callable_table,
+        caller_machine,
+        &lowered_realizations,
+    )?;
     let initial_application = match lane {
         DynamicLoweringLane::Rebound(initial)
             if initial.fact.conformance != plan.selection.conformance
@@ -151,6 +157,7 @@ fn lower_dynamic_unit_machine(
     let mut next_place = 2_u64;
     let mut next_operation = 2_u64;
     let mut next_edge = 2_u64;
+    let mut next_value = 1_u64;
     let forwarded_helpers = forwarded_unit_helper_ids(
         plan,
         &lowered_realizations,
@@ -192,13 +199,16 @@ fn lower_dynamic_unit_machine(
         &[],
     )?;
     let root_service_reach = lower_root_service_reach(checked, plan.caller_machine, &[])?;
-    let realization_machines = materialize_unit_realizations(
+    let realization_machines = materialize_dynamic_realizations(
         checked,
-        plan,
+        &callable_table,
         &lowered_realizations,
         source_type,
+        &structural_types,
         &mut next_block,
         &mut next_place,
+        &mut next_operation,
+        &mut next_value,
         &mut next_edge,
     )?;
     let forwarded_helper_machines = materialize_forwarded_unit_helper_chain(
@@ -405,6 +415,10 @@ pub(super) fn validate_exact_unit_plan(
                 && callable.requirement_identity == plan.requirement_identity
                 && callable.realization_identity == plan.realization_identity
                 && callable.family_tuple.as_ref() == plan.family_tuple.as_ref()
+                && matches!(
+                    callable.body,
+                    checked_trees::CheckedDynamicRealizationBodyPlan::Unit
+                )
         })
         .count();
     if selected_rows != 1 || selected_callables != 1 {
@@ -533,166 +547,6 @@ pub(super) fn validate_exact_unit_plan(
         return unsupported("dynamic Unit caller service reach drifted from checking");
     }
     validate_empty_service_summary(checked, caller_reach)
-}
-
-pub(super) fn collect_unit_realizations(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicUnitCallPlan,
-) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
-    if plan.realization_callables.is_empty() {
-        return unsupported("dynamic Unit conformance has no checked realization callables");
-    }
-    plan.realization_callables
-        .iter()
-        .enumerate()
-        .map(|(ordinal, callable)| {
-            let ordinal = u64::try_from(ordinal).map_err(|_| {
-                LoweringError::Unsupported("dynamic Unit realization ordinal exceeds u64")
-            })?;
-            let checked_identity = evidence_lowering::checked_dynamic_machine_identity(
-                checked,
-                callable.realization_machine,
-            )?;
-            if checked_identity != callable.realization_identity {
-                return unsupported("dynamic Unit realization callable identity drifted");
-            }
-            let callable_identity = evidence_lowering::checked_evidence_machine_identity(
-                checked,
-                callable.realization_machine,
-            )?;
-            Ok(LoweredDynamicRealization {
-                source_machine: callable.realization_machine,
-                source_state: callable.realization_state,
-                checked_identity,
-                callable_identity,
-                machine: machine_id(ordinal.checked_add(2).ok_or(LoweringError::Unsupported(
-                    "dynamic Unit realization machine identity overflowed",
-                ))?),
-                result: ClosedConformanceCallableResult::Unit,
-            })
-        })
-        .collect()
-}
-
-fn retain_unit_realizations(
-    all: &[LoweredDynamicRealization],
-    plan: &CheckedDynamicUnitCallPlan,
-    lane: DynamicLoweringLane<'_>,
-) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
-    // Rebound descriptors and forwarded descriptor parameters both expose the
-    // complete table: every expanded family row must bind a callable, so the
-    // full roster is retained. A strictly local direct dispatch names its
-    // selected callable outright; its application keeps the unselected family
-    // rows as evidence without materializing their instances.
-    let retains_full_roster = matches!(lane, DynamicLoweringLane::Rebound(_))
-        || matches!(plan.origin, CheckedDynamicUnitCallOrigin::Forwarded { .. });
-    let retained = all
-        .iter()
-        .filter(|candidate| {
-            retains_full_roster
-                || (candidate.source_machine == plan.realization_machine
-                    && candidate.source_state == plan.realization_state)
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    if retained.is_empty() {
-        return unsupported("dynamic Unit selected realization callable is absent");
-    }
-    Ok(retained)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn materialize_unit_realizations(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicUnitCallPlan,
-    lowered: &[LoweredDynamicRealization],
-    source_type: semantic_vocabulary::StructuralTypeId,
-    next_block: &mut u64,
-    next_place: &mut u64,
-    next_edge: &mut u64,
-) -> Result<Vec<TerminalMachine>, LoweringError> {
-    lowered
-        .iter()
-        .map(|realization| {
-            let matching = plan
-                .realization_callables
-                .iter()
-                .filter(|candidate| {
-                    candidate.realization_machine == realization.source_machine
-                        && candidate.realization_state == realization.source_state
-                        && candidate.realization_identity == realization.checked_identity
-                })
-                .collect::<Vec<_>>();
-            let [callable] = matching.as_slice() else {
-                return unsupported("dynamic Unit realization body is absent or ambiguous");
-            };
-            validate_empty_contract(
-                checked,
-                callable.realization_machine,
-                callable.contract_report_fingerprint,
-                callable.contract_commitment,
-            )?;
-            let summary = exact_machine_service_summary(checked, callable.realization_machine)?;
-            validate_empty_service_summary(checked, summary)?;
-            let published_service_ceiling = exact_empty_machine_service_ceiling(
-                checked,
-                callable.realization_machine,
-                summary,
-            )?;
-            let block = block_id(allocate_dense(next_block)?);
-            let place = place_id(allocate_dense(next_place)?);
-            let edge = edge_id(allocate_dense(next_edge)?);
-            let parameter = StructuralParameterDeclaration {
-                place,
-                position: 0,
-                is_self: true,
-                structural_type: source_type,
-                multiplicity: terminal_projected_source_multiplicity_for(plan.caller_multiplicity),
-                access: match plan.source_access {
-                    CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                    CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-                    _ => unreachable!("borrowed dynamic Unit source access was validated"),
-                },
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            };
-            Ok(TerminalMachine {
-                closed_reach_application: None,
-                declared_service_reach: Vec::new(),
-                id: realization.machine,
-                attachment: Some(source_type),
-                parameters: Vec::new(),
-                structural_parameters: vec![parameter.clone()],
-                ranked_scc: None,
-                result: TerminalMachineResult::Unit,
-                structural_places: vec![StructuralPlaceDeclaration {
-                    id: parameter.place,
-                    kind: StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    },
-                }],
-                entry_claims: Vec::new(),
-                published_service_ceiling,
-                content_entry_claims: Vec::new(),
-                content_identity_reshuffles: Vec::new(),
-                content_partition_compositions: Vec::new(),
-                entry: block,
-                blocks: vec![Block {
-                    structural_parameters: Vec::new(),
-                    id: block,
-                    parameters: Vec::new(),
-                    erased_scalar_formals: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::ReturnUnit {
-                        edge,
-                        trivial_affine_discards: Vec::new(),
-                    },
-                }],
-                contract: empty_terminal_contract(realization.machine.get()),
-            })
-        })
-        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1189,174 +1043,6 @@ pub(super) fn materialize_forwarded_unit_helper_chain(
             )
         })
         .collect()
-}
-
-pub(super) fn lower_exact_unit_application(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicUnitCallPlan,
-    owner: semantic_vocabulary::MachineId,
-    lowered_realizations: &[LoweredDynamicRealization],
-) -> Result<(ClosedConformanceApplication, ClosedConformanceRow), LoweringError> {
-    let conformance = checked
-        .typed
-        .conformances()
-        .iter()
-        .filter(|candidate| candidate.symbol == plan.selected_conformance)
-        .collect::<Vec<_>>();
-    let [conformance] = conformance.as_slice() else {
-        return unsupported("dynamic Unit selection lost its exact conformance declaration");
-    };
-    let target_trait = checked
-        .typed
-        .traits()
-        .iter()
-        .filter(|candidate| candidate.symbol == plan.target_trait)
-        .collect::<Vec<_>>();
-    let [target_trait] = target_trait.as_slice() else {
-        return unsupported("dynamic Unit selection lost its exact target trait");
-    };
-    if conformance.carrier_symbol != plan.selection.source_data
-        || conformance.trait_symbol != plan.target_trait
-        || !conformance.lifetime_parameters.is_empty()
-        || !checked
-            .typed
-            .conformance_type_parameters(conformance)
-            .is_empty()
-        || !checked
-            .typed
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-            .is_empty()
-        || !conformance.trait_lifetime_arguments.is_empty()
-        || !target_trait.lifetime_parameters.is_empty()
-        || !checked.typed.trait_type_parameters(target_trait).is_empty()
-    {
-        return unsupported("generic dynamic Unit applications require a later producer");
-    }
-    let closed_rows =
-        checked
-            .typed
-            .closed_conformance_rows(conformance)
-            .ok_or(LoweringError::Unsupported(
-                "dynamic Unit selection is not a closed conformance",
-            ))?;
-    if closed_rows.len() != plan.selection.rows.len() {
-        return unsupported("dynamic Unit selection row map is incomplete");
-    }
-    let mut rows = Vec::with_capacity(closed_rows.len());
-    let mut selected_row = None;
-    for (closed, retained) in closed_rows.iter().zip(&plan.selection.rows) {
-        let requirement_identity = evidence_lowering::checked_evidence_requirement_identity(
-            checked,
-            closed.declaring_trait,
-            closed.requirement,
-        )?;
-        let realization_identity = evidence_lowering::checked_evidence_machine_identity(
-            checked,
-            closed.realization_machine,
-        )?;
-        if closed.declaring_trait != retained.declaring_trait
-            || closed.requirement != retained.requirement
-            || closed.realization_machine != retained.realization_machine
-            || closed.realization_state != retained.realization_state
-            || requirement_identity != retained.requirement_identity
-            || realization_identity != retained.realization_identity
-        {
-            return unsupported("dynamic Unit row map drifted from checking");
-        }
-        // The retained row names the provider template. A finite generic
-        // requirement expands to one table row per declared roster tuple, each
-        // naming the tuple's bare specialization instance; the call's
-        // `family_tuple` selects exactly one of them.
-        for family_row in evidence_lowering::checked_requirement_family_rows(
-            checked,
-            closed.declaring_trait,
-            closed.requirement,
-            closed.realization_machine,
-            closed.realization_state,
-        )? {
-            let family_realization_identity = evidence_lowering::checked_evidence_machine_identity(
-                checked,
-                family_row.realization_machine,
-            )?;
-            let selected = closed.declaring_trait == plan.declaring_trait
-                && closed.requirement == plan.requirement
-                && family_row.family_tuple.as_slice() == plan.family_tuple.as_ref()
-                && family_row.realization_machine == plan.realization_machine
-                && family_row.realization_state == plan.realization_state;
-            let matching = lowered_realizations
-                .iter()
-                .filter(|candidate| {
-                    candidate.source_machine == family_row.realization_machine
-                        && candidate.source_state == family_row.realization_state
-                        && candidate.callable_identity == family_realization_identity
-                })
-                .collect::<Vec<_>>();
-            // A lane that retains only the selected realization still emits
-            // the complete row catalog; rows the lane did not materialize
-            // stay unbound evidence.
-            let matching = match matching.as_slice() {
-                [] if !selected => None,
-                [matching] => Some(*matching),
-                _ => return unsupported("dynamic Unit row callable is absent or ambiguous"),
-            };
-            let row = ClosedConformanceRow {
-                declaring_trait_identity: checked
-                    .symbols
-                    .display_path(closed.declaring_trait, "::"),
-                public_requirement_identity: requirement_identity.clone(),
-                family_tuple: family_row.family_tuple,
-                requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
-                realization_identity: checked
-                    .symbols
-                    .display_path(family_row.realization_state, "::"),
-                realization_callable_identity: matching
-                    .map(|matching| matching.callable_identity.clone()),
-            };
-            if selected && selected_row.replace(row.clone()).is_some() {
-                return unsupported("dynamic Unit selected row is duplicated");
-            }
-            rows.push(row);
-        }
-    }
-    let selected_row = selected_row.ok_or(LoweringError::Unsupported(
-        "dynamic Unit selected row is absent",
-    ))?;
-    if selected_row.public_requirement_identity != plan.requirement_identity {
-        return unsupported("dynamic Unit public requirement identity drifted");
-    }
-    let mut realization_callables = lowered_realizations
-        .iter()
-        .map(|callable| ClosedConformanceRealizationCallable {
-            source_callable_identity: callable.callable_identity.clone(),
-            machine: callable.machine,
-            result: ClosedConformanceCallableResult::Unit,
-        })
-        .collect::<Vec<_>>();
-    realization_callables.sort();
-    realization_callables.dedup();
-    if realization_callables.len() != lowered_realizations.len() {
-        return unsupported("dynamic Unit callable registry is not one-to-one");
-    }
-    let mut application = ClosedConformanceApplication {
-        owner,
-        declaration_identity: checked
-            .symbols
-            .display_path(plan.selected_conformance, "::"),
-        telescope: Vec::new(),
-        subject_identity: Some(plan.source_type_identity.clone()),
-        trait_identity: checked.symbols.display_path(plan.target_trait, "::"),
-        trait_lifetime_arguments: Vec::new(),
-        trait_arguments: Vec::new(),
-        realization_callables,
-        rows,
-        report_fingerprint: 0,
-        commitment: Default::default(),
-    };
-    application.report_fingerprint =
-        closed_conformance_application_report_fingerprint(&application);
-    application.commitment = closed_conformance_application_commitment(&application);
-    Ok((application, selected_row))
 }
 
 fn unit_source_call_occurrences(

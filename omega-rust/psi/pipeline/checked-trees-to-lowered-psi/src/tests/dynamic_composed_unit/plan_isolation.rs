@@ -55,7 +55,7 @@ fn assert_neighboring_machine_is_isolated(supported: &str, unsupported: &str) {
     }
 }
 
-fn assert_supported_artifact_executes(
+pub(super) fn assert_supported_artifact_executes(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     module: &terminal_psi::TerminalModule,
 ) {

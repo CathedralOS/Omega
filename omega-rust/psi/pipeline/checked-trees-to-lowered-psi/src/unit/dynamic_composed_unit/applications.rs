@@ -1,13 +1,14 @@
 //! Lowering the initial rebound and exact conformance applications with
 //! their contracts and service summaries.
 
+use super::realizations::DynamicCallableTable;
 use crate::unit::dynamic_composed_unit::dynamic_lanes::LoweredDynamicRealization;
 use crate::unit::{
     CheckedTrees, LoweringError, PrimitiveType, checked_unit_target_reach_matches,
     collect_service_summary, evidence_lowering, lower_installation_machine_service_ceiling,
     unsupported,
 };
-use checked_trees::{CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan};
+use checked_trees::CheckedDynamicSelectionPlan;
 use language_semantics::ServiceReachSummary;
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
@@ -137,7 +138,7 @@ pub(crate) fn lower_initial_rebound_application(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_exact_application(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallableTable<'_>,
     owner: semantic_vocabulary::MachineId,
     lowered_realizations: &[LoweredDynamicRealization],
 ) -> Result<(ClosedConformanceApplication, ClosedConformanceRow), LoweringError> {
@@ -226,7 +227,7 @@ pub(crate) fn lower_exact_application(
             )?;
             let selected = closed.declaring_trait == plan.declaring_trait
                 && closed.requirement == plan.requirement
-                && family_row.family_tuple.as_slice() == plan.family_tuple.as_ref()
+                && family_row.family_tuple.as_slice() == plan.family_tuple
                 && family_row.realization_machine == plan.realization_machine
                 && family_row.realization_state == plan.realization_state;
             let matching_realizations = lowered_realizations
@@ -293,7 +294,7 @@ pub(crate) fn lower_exact_application(
             .symbols
             .display_path(plan.selected_conformance, "::"),
         telescope: Vec::new(),
-        subject_identity: Some(plan.source_type_identity.clone()),
+        subject_identity: Some(plan.source_type_identity.to_owned()),
         trait_identity: checked.symbols.display_path(plan.target_trait, "::"),
         trait_lifetime_arguments: Vec::new(),
         trait_arguments: Vec::new(),

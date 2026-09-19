@@ -279,9 +279,17 @@ fn validate_exact_dynamic_plan(
     let [selected_callable] = selected_callables.as_slice() else {
         return unsupported("direct dynamic selected callable is absent or ambiguous");
     };
-    if selected_callable.return_expression != plan.realization_return_expression
-        || selected_callable.structural_scalar_field_stores
-            != plan.realization_structural_scalar_field_stores
+    let checked_trees::CheckedDynamicRealizationBodyPlan::Scalar {
+        result_type,
+        return_expression,
+        structural_scalar_field_stores,
+    } = &selected_callable.body
+    else {
+        return unsupported("direct dynamic scalar call selected a Unit body");
+    };
+    if *result_type != plan.result.primitive_type
+        || *return_expression != plan.realization_return_expression
+        || *structural_scalar_field_stores != plan.realization_structural_scalar_field_stores
     {
         return unsupported("direct dynamic selected body drifted from checked custody");
     }

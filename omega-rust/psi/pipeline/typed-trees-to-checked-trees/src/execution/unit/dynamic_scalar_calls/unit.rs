@@ -5,14 +5,16 @@
 //! realization at the end of an attached Unit state, with either one selection
 //! or one exact same-conformance reassignment. It publishes no fabricated
 //! result carrier.
+use super::realization_callables::{
+    checked_dynamic_realization_callables, dynamic_family_realization, dynamic_family_tuple,
+};
 use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate, Identifier, MachineSupplyMode,
-    ServiceReachSummary, StatementNode, TypedTrees,
+    CheckFacts, CheckedUnitCallCoordinate, Identifier, MachineSupplyMode, ServiceReachSummary,
+    StatementNode, TypedTrees,
 };
 use crate::execution::terminal_unit::dynamic_scalar_calls::realization_bodies::checked_call_service_reach;
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::{
     checked_rebound_dynamic_selection, checked_self_attachment_source, checked_source_argument,
-    dynamic_family_realization, dynamic_family_tuple, family_tuple_roster,
 };
 use crate::execution::terminal_unit::{
     ShapeCollector, is_unit, machine_binders, state_flow, structural_access_for_type_reference,
@@ -334,7 +336,7 @@ pub(super) fn build_checked_dynamic_unit_call(
     let contract = facts
         .contract_plans
         .for_machine(realization_machine.symbol)?;
-    let realization_callables = checked_dynamic_unit_realization_callables(
+    let realization_callables = checked_dynamic_realization_callables(
         program,
         facts,
         conformance,
@@ -652,110 +654,4 @@ fn forwarded_unit_transfer_path_is_exact(forwarded: &ForwardedDynamicUnitCall<'_
     machine == forwarded.machine.symbol
         && state == forwarded.state.symbol
         && dispatch_parameter == forwarded.flow_call.receiver_symbol
-}
-
-fn checked_dynamic_unit_realization_callables(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    conformance: &typed_trees::trait_definition::Conformance,
-    selection: &checked_trees::DynamicConformanceBindingFact,
-    source_access: CheckedStructuralAccess,
-) -> Option<Vec<checked_trees::CheckedDynamicUnitRealizationCallablePlan>> {
-    let closed_rows = program.closed_conformance_rows(conformance)?;
-    if closed_rows.len() != selection.rows.len() {
-        return None;
-    }
-    let mut callables = Vec::new();
-    for (closed, retained) in closed_rows.iter().zip(&selection.rows) {
-        if closed.declaring_trait != retained.declaring_trait
-            || closed.requirement != retained.requirement
-            || closed.realization_machine != retained.realization_machine
-            || closed.realization_state != retained.realization_state
-        {
-            return None;
-        }
-        let (requirement_identity, row_realization_identity) =
-            crate::facts::normalized_dynamic_row_identities(program, closed).ok()?;
-        if requirement_identity != retained.requirement_identity
-            || row_realization_identity != retained.realization_identity
-        {
-            return None;
-        }
-        let declaring_trait = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == closed.declaring_trait)?;
-        let requirement = program
-            .trait_machine_signatures(declaring_trait)
-            .iter()
-            .find(|candidate| candidate.symbol == closed.requirement)?;
-        let row_realization_machine = program
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == closed.realization_machine)?;
-        let row_realization_state = program
-            .machine_states(row_realization_machine)
-            .iter()
-            .find(|candidate| candidate.symbol == closed.realization_state)?;
-        let [requirement_self] = program.state_signature_parameters(requirement) else {
-            return None;
-        };
-        if !is_unit(program, requirement.return_type)
-            || !requirement_self.is_self
-            || structural_access_for_type_reference(program, requirement_self.type_reference)
-                != Some(source_access)
-            || row_realization_machine.supply_mode != MachineSupplyMode::CheckedBody
-            || row_realization_machine.attached_data_symbol != selection.source_data
-        {
-            return None;
-        }
-        // A generic requirement contributes one callable per roster tuple,
-        // each naming that tuple's exact specialization instance.
-        let family_tuples = family_tuple_roster(program, requirement)?;
-        for family_tuple in family_tuples {
-            let (realization_machine, realization_state, realization_identity) =
-                dynamic_family_realization(
-                    program,
-                    row_realization_machine,
-                    row_realization_state,
-                    row_realization_identity.clone(),
-                    &family_tuple,
-                )?;
-            let [realization_self] = program.state_parameters(realization_state) else {
-                return None;
-            };
-            if !is_unit(program, realization_state.return_type)
-                || !realization_self.is_self
-                || structural_access_for_type_reference(program, realization_self.type_reference)
-                    != Some(source_access)
-                || realization_machine.supply_mode != MachineSupplyMode::CheckedBody
-                || realization_machine.attached_data_symbol != selection.source_data
-                || !program
-                    .statement_table
-                    .statements(realization_state.statement_nodes)
-                    .is_empty()
-                || !program.state_contracts(realization_state).is_empty()
-            {
-                return None;
-            }
-            let contract = facts
-                .contract_plans
-                .for_machine(realization_machine.symbol)?;
-            if contract.report_fingerprint == 0 || contract.commitment.is_zero() {
-                return None;
-            }
-            callables.push(checked_trees::CheckedDynamicUnitRealizationCallablePlan {
-                declaring_trait: closed.declaring_trait,
-                requirement: closed.requirement,
-                requirement_identity: requirement_identity.clone(),
-                realization_machine: realization_machine.symbol,
-                realization_state: realization_state.symbol,
-                realization_identity,
-                family_tuple,
-                contract_report_fingerprint: contract.report_fingerprint,
-                contract_commitment: contract.commitment,
-            });
-        }
-    }
-    Some(callables)
 }

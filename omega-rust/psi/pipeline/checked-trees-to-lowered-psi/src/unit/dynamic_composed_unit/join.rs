@@ -96,10 +96,18 @@ pub(super) fn lower(
         .map(|branch| realizations_for_plan(branch, &lowered_realizations))
         .collect::<Result<Vec<_>, _>>()?;
     let caller_machine = machine_id(1);
-    let (first_application, first_row) =
-        lower_exact_application(checked, first, caller_machine, &branch_realizations[0])?;
-    let (second_application, second_row) =
-        lower_exact_application(checked, second, caller_machine, &branch_realizations[1])?;
+    let (first_application, first_row) = lower_exact_application(
+        checked,
+        &first.into(),
+        caller_machine,
+        &branch_realizations[0],
+    )?;
+    let (second_application, second_row) = lower_exact_application(
+        checked,
+        &second.into(),
+        caller_machine,
+        &branch_realizations[1],
+    )?;
     let (requirements, requirement_slot) =
         dynamic_parameter_interface(&first_application, &first_row)?;
     let (second_requirements, second_slot) =
@@ -210,7 +218,7 @@ pub(super) fn lower(
             ))?;
         realization_machines.extend(materialize_dynamic_realizations(
             checked,
-            owner,
+            &owner.into(),
             std::slice::from_ref(realization),
             source_type,
             &structural_types,
@@ -568,7 +576,7 @@ fn joined_realizations(
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     let mut joined = Vec::new();
     for branch in branches {
-        for candidate in collect_dynamic_realizations(checked, branch, 2)? {
+        for candidate in collect_dynamic_realizations(checked, &(*branch).into(), 2)? {
             if let Some(existing) = joined.iter().find(|existing: &&LoweredDynamicRealization| {
                 existing.source_machine == candidate.source_machine
                     && existing.source_state == candidate.source_state
