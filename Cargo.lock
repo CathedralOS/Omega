@@ -2410,7 +2410,10 @@ dependencies = [
 name = "topology-plan"
 version = "0.1.0"
 dependencies = [
+ "component-description",
+ "semantic-vocabulary",
  "sha2",
+ "terminal-psi",
 ]
 
 [[package]]

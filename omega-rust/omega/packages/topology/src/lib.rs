@@ -31,6 +31,11 @@
 //!   Policies whose recorded verifier differs from the request's selected
 //!   verifier reject by identity comparison — policy executables are never
 //!   loaded or run by this crate.
+//! - Component facts arrive as evidence, not assertions. The verifier is
+//!   handed the admitted component descriptions and reconstructs every
+//!   instance's component record and endpoint inventory from them; a plan
+//!   that merely decodes a `VerifiedComplete` tag or closure digest no
+//!   admitted description establishes rejects. See [`verified_components`].
 //! - `composition checked` and `installation admitted` stay distinct.
 //!   Publication of exact plan bytes is not an installation claim; only the
 //!   `topology_installation` module's gated activation produces the second, and its
@@ -38,19 +43,17 @@
 //!   assumptions, and installation occurrence — evidence for one
 //!   generation, never a reusable authorization.
 //!
-//! What this slice deliberately does not do: consume verified component
-//! descriptions produced by the component verifier (COMPONENT-SUBSTRATE owns
-//! that consumer), run inside a build evaluation (the scoped build output
-//! route owns that), or prove OS-level confinement — the pipe adapter's
-//! named assumptions disclose what the hosts must establish. Plan instances
-//! carry the component identities and endpoint inventories a verified
-//! description will supply; nothing here may treat hand-authored inventory
-//! as verified closure.
+//! What this slice deliberately does not do: run inside a build evaluation
+//! (the scoped build output route owns that orchestration) or prove OS-level
+//! confinement — the pipe adapter's named assumptions disclose what the
+//! hosts must establish. Hand-authored inventory is never verified closure:
+//! every `Component`-role roster entry must bind an [`AdmittedComponent`].
 
 pub mod deployment_plan;
 pub mod plan_composition;
 pub mod plan_verification;
 pub mod topology_installation;
+pub mod verified_components;
 
 pub use deployment_plan::codec::{
     CodecError, MAX_ASSUMPTIONS, MAX_BINDINGS, MAX_ENDPOINTS_PER_INSTANCE, MAX_INSTANCES,
@@ -71,3 +74,7 @@ pub use deployment_plan::{
 };
 pub use plan_composition::{CompositionError, CompositionFailure, compose_plan};
 pub use plan_verification::{CheckedPlan, PlanRejection, verify_plan};
+pub use verified_components::{
+    AdmittedComponent, ComponentBindingFailure, component_subject_identity, verified_instance,
+    verified_instance_facts,
+};

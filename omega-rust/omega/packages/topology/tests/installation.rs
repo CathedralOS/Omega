@@ -273,7 +273,8 @@ impl<E: PhysicalToken> SimSupervisor<E> {
 
 fn checked_payment_plan() -> (CheckedPlan, Vec<u8>, Vec<u8>) {
     let (request_bytes, plan_bytes, _) = payment_pair();
-    let checked = verify_plan(&plan_bytes, &request_bytes).expect("golden plan verifies");
+    let checked = verify_plan(&plan_bytes, &request_bytes, &payment_components())
+        .expect("golden plan verifies");
     (checked, request_bytes, plan_bytes)
 }
 
@@ -281,20 +282,14 @@ fn payment_installation_request(request_bytes: &[u8], occurrence: u64) -> Instal
     InstallationRequest {
         expected_request: request_commitment(request_bytes),
         occurrence,
-        artifacts: vec![
-            AdmittedArtifact {
-                artifact: identity(0xA1),
-                component_subject: identity(0x11),
-            },
-            AdmittedArtifact {
-                artifact: identity(0xA2),
-                component_subject: identity(0x22),
-            },
-            AdmittedArtifact {
-                artifact: identity(0xA3),
-                component_subject: identity(0x33),
-            },
-        ],
+        artifacts: payment_components()
+            .iter()
+            .enumerate()
+            .map(|(index, admission)| AdmittedArtifact {
+                artifact: identity(0xA1 + index as u8),
+                component_subject: subject_of(admission),
+            })
+            .collect(),
     }
 }
 
