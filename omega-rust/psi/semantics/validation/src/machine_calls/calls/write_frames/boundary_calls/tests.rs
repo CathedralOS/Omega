@@ -139,17 +139,18 @@ fn boundary_results_bound_to_locals_join_their_proven_single_origin() {
             "let r: &mut u64 = self.device.make(); self.device.touch(r);",
             Some(&["self.device"][..]),
         ),
-        // A second admitted route leaves the bound result without a single
-        // proven origin, so the whole frame stays opaque.
+        // A second admitted route gives the bound result a divergent
+        // referent set; lending it through the call argument unions every
+        // proven route.
         (
             "receiver_and_argument",
             "let r: &mut u64 = self.device.reference(&mut self.value); self.device.touch(r);",
-            None,
+            Some(&["self.device", "self.value"][..]),
         ),
         (
             "two_arguments",
             "let r: &mut u64 = Device::pick(&mut self.value, &mut self.other); self.device.touch(r);",
-            None,
+            Some(&["self.device", "self.other", "self.value"][..]),
         ),
         // A result with no admitted caller route cannot prove a referent.
         (
@@ -427,11 +428,9 @@ fn generic_boundary_carriers_still_fail_closed() {
             "unbound_result_parameter",
             "data Cell { value: u64; } data Main { device: Device; cell: Cell; } boundary trait Device { machine spawn<T>() -> &mut T; machine output(value: &mut Cell); } machine Main::inspect(&mut self) { let r: &mut Cell = Device::spawn(); self.device.output(r); }",
         ),
-        // Both exclusive arguments admit the referent, so no single origin.
-        (
-            "two_admitted_origins",
-            "data Cell { value: u64; } data Main { device: Device; cell: Cell; other: Cell; } boundary trait Device { machine pick<T>(hit: &mut T, other: &mut T) -> &mut T; machine output(value: &mut Cell); } machine Main::inspect(&mut self) { let r: &mut Cell = Device::pick(&mut self.cell, &mut self.other); self.device.output(r); }",
-        ),
+        // Both exclusive arguments admit the referent: the divergent
+        // referent set converges through the call argument (covered in
+        // `boundary_results_bound_to_locals_join_their_proven_single_origin`).
         // A carrier whose stored exclusive reference may already reach the
         // referent cannot name where the result lands.
         (
