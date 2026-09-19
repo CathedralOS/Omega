@@ -141,7 +141,10 @@ macOS arm64 (24.2 seconds), including owner/witness counts, the per-rule row
 totals — which contain no symmetry rows — and the 204 maximum premise depth.
 The same gap blocks production through the selected chain: the certificate
 is ~8 times the evaluator's 16,777,212-byte buffered-output provision.
-Admission is escalated as owner decision `beta-encoding-certificate-admission`.
+Owner decision `beta-encoding-certificate-admission` settles admission on the
+native-backing route, recorded at the
+[checking ledger](../checker/CHECKING.md#complete-generic-execution-provision);
+the buffered-output provision is one of the extents that grows with it.
 The request
 cannot be admitted by the selected checker; the projected work uses the
 measured 13.9-16.5 work/row across the checked encoder batches, not an

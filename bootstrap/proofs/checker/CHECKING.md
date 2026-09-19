@@ -146,6 +146,19 @@ pending frames and completed memo insertions are bounded by consumed units;
 discarded local memos and replaced frames still count toward allocation.
 These provisions are adjustable engineering choices, not calculus restrictions.
 
+Owner decision `beta-encoding-certificate-admission` selects more native
+backing over a checker composition rule for the complete Beta-encoding
+certificate. The five rules of [FORMAT.md](FORMAT.md#certificate-section-gce1)
+stay as they are and admission grows the provisions instead, so no certificate
+is admitted under a premise the checker did not derive in its own table.
+The measured certificate needs an evaluator frame holding its request at about
+129 MiB against 16,777,216 bytes today, about 45-52M work against 655,360, and
+the arena this ledger implies for that work at about 2.17-2.50 billion pairs
+against the selected 40,265,318. Those are measurement targets, not selected
+provisions: each requires rederived ground, index, memo and allocation bounds
+first, and the resulting extent no longer fits a static image, so the Alpha
+realization supplies it. **GAMMA-DERIVATION-CHECKER** owns that work.
+
 The complete cumulative pair bound is
 `7,864,346 + 655,360*48 + 128 = 39,321,754`, below the selected Gamma arena of
 40,265,318 pairs. The first term covers formation and Grounded. `P+1` units pay
