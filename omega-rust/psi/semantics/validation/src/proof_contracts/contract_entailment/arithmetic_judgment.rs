@@ -468,8 +468,8 @@ impl<'program> Engine<'program> {
         }
     }
 
-    /// Replace the strict symbol table with one scoped roster. Every bound
-    /// term is read under its own nested roster before the table changes, so
+    /// Replace the strict symbol, result and projection tables with one scoped
+    /// roster. Every bound term is read under its own nested roster, so
     /// no term can see the roster it is bound into. Declared atoms, installed
     /// hypotheses and bounds persist: the rosters of one implication share
     /// each atom by identity. Returns false for an invalid symbol, a binder
@@ -482,7 +482,9 @@ impl<'program> Engine<'program> {
         if !self.strict_symbol_bindings_valid {
             return false;
         }
+        self.strict_projections.clear();
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
+        let mut projections = Vec::new();
         let mut result = None;
         for binding in bindings {
             let polynomial = match &binding.value {
@@ -524,10 +526,21 @@ impl<'program> Engine<'program> {
                     }
                     result = Some(polynomial);
                 }
+                ScopedArithmeticBinder::Projection(expression) => {
+                    projections.push((expression, polynomial));
+                }
             }
         }
         self.strict_symbol_bindings = Some(symbols);
         self.strict_result_binding = result;
+        // Nested terms installed their own projection tables. Publish only
+        // this roster, including when it has no projections at all.
+        self.strict_projections.clear();
+        for (expression, polynomial) in projections {
+            if !self.bind_strict_projection(expression, polynomial) {
+                return false;
+            }
+        }
         true
     }
 
@@ -538,6 +551,10 @@ impl<'program> Engine<'program> {
     ) -> bool {
         if self.strict_symbol_bindings.is_none()
             || !self.strict_symbol_bindings_valid
+            || !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
             || !matches!(
                 self.program.expression_table.expression(expression),
                 ExpressionNode::Member(_)

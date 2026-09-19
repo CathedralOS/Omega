@@ -35,6 +35,88 @@ fn result_field_guarantee_is_available_to_a_caller() {
 }
 
 #[test]
+fn returned_residual_establishes_the_next_capacity_requirement() {
+    for (bound, source, after, accepted) in [
+        ("48", "capacity", "", true),
+        ("47", "capacity", "", false),
+        ("48", "other", "", false),
+        ("48", "capacity", "value.count.remaining = 0;", false),
+        ("48", "capacity", "capacity = 16;", false),
+    ] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+             data Issued [copy] {{ count: Count; }}
+             machine produce(capacity: u64, length: u64) -> Issued
+             requires length <= capacity
+             ensures result.count.remaining == capacity - length
+             {{ Issued {{ count: Count {{ remaining: capacity - length }} }} }}
+             machine consume(value: Issued) requires 32 <= value.count.remaining {{}}
+             machine caller(mut capacity: u64, other: u64)
+             requires {bound} <= capacity; 16 <= other
+             {{
+                 let mut value: Issued = produce({source}, 16);
+                 {after}
+                 consume(value);
+             }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn residual_bounds_follow_live_copies_and_distinct_invocations() {
+    for (body, accepted) in [
+        (
+            "let copied: Issued = value; value.count.remaining = 0; consume(copied);",
+            true,
+        ),
+        (
+            "let mut copied: Issued = value; copied.count.remaining = 0; consume(copied);",
+            false,
+        ),
+        ("value = produce(other, 16); consume(value);", false),
+        (
+            "let later: Issued = produce(other, 16); consume(later);",
+            false,
+        ),
+    ] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+             data Issued [copy] {{ count: Count; }}
+             machine produce(capacity: u64, length: u64) -> Issued
+             requires length <= capacity
+             ensures result.count.remaining == capacity - length
+             {{ Issued {{ count: Count {{ remaining: capacity - length }} }} }}
+             machine consume(value: Issued) requires 32 <= value.count.remaining {{}}
+             machine caller(capacity: u64, other: u64)
+             requires 48 <= capacity; 16 <= other
+             {{ let mut value: Issued = produce(capacity, 16); {body} }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn residual_bounds_do_not_reinterpret_wrapping_arithmetic() {
+    check(
+        "data Count [copy] { remaining: u8; }
+         machine produce(input: u8) -> Count
+         ensures result.remaining == ((input as u8 in Wrapping) + 1) as u8
+         { Count { remaining: ((input as u8 in Wrapping) + 1) as u8 } }
+         machine consume(value: Count) requires 1 <= value.remaining {}
+         machine caller(input: u8) requires input == 255 {
+             let value: Count = produce(input);
+             consume(value);
+         }",
+        false,
+    );
+}
+
+#[test]
 fn caller_scalar_bound_survives_unrelated_owned_transfer() {
     for (parameters, arguments) in [
         ("capacity: u64", "capacity"),

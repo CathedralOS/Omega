@@ -23,8 +23,7 @@
 // demand on that count: `allocate` requires `length <= strategy.remaining`,
 // the exact capacity requirement.
 //
-// Carrying the count is necessary, not cosmetic, and the caller must
-// restate it per request:
+// Carrying the count is necessary, not cosmetic:
 // - `split`'s conservation law fixes only the union of the two parts'
 //   content and never `result.taken.length`, so the residual left after an
 //   allocation is not derivable through `separate` and cannot be discharged
@@ -32,17 +31,15 @@
 // - `allocate` publishes the decrement as `result.strategy.remaining ==
 //   strategy.remaining - length`. Exit checking proves that nested field's
 //   exact computation, and `check_remaining` consumes the relation from the
-//   exact first and second allocations. Turning that equality into the next
-//   request's capacity bound still needs arithmetic entailment. Scalar and
-//   content facts remain separate proof obligations.
+//   exact first and second allocations. The second request consumes that
+//   returned residual: its bound follows from the decrement and `48 <= capacity`.
+//   Scalar and content facts remain separate proof obligations.
 // - Independent scalar entry bounds survive consumption of the backing:
 //   `check_remaining` proves `16 <= capacity` after the first request. Each
 //   arithmetic obligation substitutes only the parameters it uses, so the
-//   sibling result-field argument no longer blocks that bound. The returned
-//   residual still cannot prove the next request's `>= 32` requirement from
-//   the decrement equality — so `exercise` grants the second request a
-//   stated residual floor equal to its own demand
-//   (`remaining: 32`), the minimal authority the call needs.
+//   sibling result-field argument does not block that bound. Both `exercise`
+//   and `exercise_fallible` then use `issued_first.strategy.remaining`, not
+//   a caller-invented floor, for the second allocation.
 // `reset` restores the residual from the recomposed range's own geometry.
 //
 // Shape decisions a next reader needs:
@@ -386,10 +383,9 @@ reaches ExtentPartition
 // Two coexisting allocations, cleanup of each, then reset to the whole range,
 // chained through the package machines `allocate` and `reset`. The caller
 // proves the exact capacity requirement at the entry — `capacity` covers the
-// whole 16 + 32 plan and equals the backing's geometry — then grants each
-// request its stated residual: the full `capacity` first, then the literal
-// floor `32`, since the derived residual `capacity - 16` cannot be spelled
-// or proved here. Each returned record's qualified fields are restated
+// whole 16 + 32 plan and equals the backing's geometry — then threads the
+// actual returned residual into the second request. Each returned record's
+// qualified fields are restated
 // through exactly typed locals in the custody order described in the header.
 machine exercise(
     partition: &ExtentPartition,
@@ -410,10 +406,10 @@ reaches ExtentPartition
     check_remaining(issued_first.strategy.remaining, capacity, 16);
     let issued_second: Issued = allocate(
         partition,
-        Bump { tail: first_tail, remaining: 32 },
+        Bump { tail: first_tail, remaining: issued_first.strategy.remaining },
         32,
     );
-    check_remaining(issued_second.strategy.remaining, 32, 32);
+    check_remaining(issued_second.strategy.remaining, issued_first.strategy.remaining, 32);
     let second_residual: u64 = issued_second.strategy.remaining;
     let second_tail: Extent in Granted & Vacant = issued_second.strategy.tail;
     let second_allocation: Extent in Granted & Vacant = issued_second.allocation;
@@ -455,7 +451,7 @@ reaches ExtentPartition
     let first_tail: Extent in Granted & Vacant = issued_first.strategy.tail;
     let issued_second: Issued = allocate(
         partition,
-        Bump { tail: first_tail, remaining: 32 },
+        Bump { tail: first_tail, remaining: issued_first.strategy.remaining },
         32,
     );
     let second_residual: u64 = issued_second.strategy.remaining;

@@ -15,6 +15,8 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 
+mod projections;
+
 /// `descend(n, previous)`: `requires n <= previous`, the backedge
 /// `descend(n - 1, n)` under `n > 0`, the exit returning `previous`, and the
 /// guarantee `result <= previous`.
