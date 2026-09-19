@@ -239,23 +239,32 @@ impl BuildTimeSelectionAuthority for AllowAllSelections {
 }
 
 #[test]
-fn package_permission_does_not_authorize_builtin_operator_substitution() {
+fn a_unique_visible_provider_does_not_authorize_operator_execution() {
+    assert_unselected_operator_rejects("");
+}
+
+#[test]
+fn multiple_visible_providers_do_not_authorize_operator_execution() {
+    assert_unselected_operator_rejects(
+        "data Other {}\n\
+         machine Other::remainder(left: u64, right: u64) -> u64 \
+         satisfies Math::remainder { 1 }",
+    );
+}
+
+fn assert_unselected_operator_rejects(additional_declarations: &str) {
     let package = PackageKeyIdentity::from_digest([0x73; 32]).expect("nonzero package");
-    // Two `satisfies` providers keep the authored `%` selection ambiguous, so
-    // blanket package permission still cannot substitute a meaning for it. A
-    // unique provider now legitimately executes its checked body instead.
     let source = r#"
         data Math {}
         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
         data Provider {}
-        data Other {}
         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 0 }
-        machine Other::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 1 }
         machine count() -> u64 { 7u64 % 2 }
         data Buffer<const N: u64> { values: [u8; N]; }
         data Main { value: Buffer<count()>; }
     "#;
-    let (syntax, sources) = parsed_source(source, package);
+    let source = format!("{source}\n{additional_declarations}");
+    let (syntax, sources) = parsed_source(&source, package);
     let result = evaluate_pre_resolution(BuildTimeEvaluationRequest {
         syntax_trees: syntax,
         source_context: Some(BuildTimeSourceContext {

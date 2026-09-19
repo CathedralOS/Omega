@@ -2925,17 +2925,6 @@ Owners include
   execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
   evaluation keep their separate supply routes.
 
-  Flag: `unique_provider_rebinding` in
-  `build-time-evaluation/src/machine_execution/admission/selection_authority.rs`
-  (called from `const_evaluation/const_generic_calls.rs`) scans every machine
-  for exactly one `satisfies` provider of a boundary operator requirement and
-  rebinds the use to that body without an authored selection;
-  `generics/authored_const_call_operator_selected_provider` has no
-  `build.omg`. That is the implicit unique-satisfier search the supply
-  contract forbids, and a second provider in an unrelated package turns the
-  accepted program into a rejection. The general mechanism is the explicit
-  provider selection `machine_execution/selected_operators.rs` consumes.
-
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
   `syntax-trees-to-symbol-resolved-trees/src/preparation/`
@@ -3783,14 +3772,6 @@ Owners include
   general mechanism is one checked evaluation/control graph lowered by one
   producer, with each family deleted as the graph covers it.
 
-  Flag: 4cd64b462b met the `Buffer<0>` acceptance by rebinding an authored
-  binary operator use to the evaluated program's only `satisfies` machine
-  inside Psi admission (`rebind_selected_provider_operators`), before any
-  provider plan exists; two providers reject. Provider selection is Omega's,
-  and the evaluation README's stated route is the deferred continuation that
-  Omega completes with the actual plan. Uniqueness in one program is not that
-  selection; **TARGET-SEMANTIC-APPLICATIONS** owns exact selected execution.
-
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Ordinary generic
   `drop<T>` now checks, lowers, and invokes the exact owner-attached hook
   selection under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup)
@@ -4080,14 +4061,22 @@ Owners include
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
   hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  Ordinary selected provider-body execution and generic-application
-  evaluation at declared const-argument destinations (fields, `let`
-  annotations, return types) run through the [semantic evaluation owner](omega-rust/psi/semantics/build-time-evaluation/README.md#semantic-admission-boundary)
-  with exact provider selection and independently checked result custody
-  (`const_evaluation/const_generic_calls.rs`,
-  `tests/omega/pass/generics/authored_const_application_local_destination`);
-  named boundary-operator calls inside early probes still wait on
-  admission-owned rebinding (`machine_execution/admission`). Complete the
+  Connect provider-dependent const-generic arguments (fields, `let`
+  annotations, return types) to Omega's actual provider plan through the
+  [semantic evaluation owner](omega-rust/psi/semantics/build-time-evaluation/README.md#semantic-admission-boundary).
+  `const_evaluation/const_generic_calls.rs` runs before Build and currently
+  rejects these uses; it cannot choose a body by scanning visible satisfiers.
+  Preserve the dependent application until selected execution is available,
+  using `machine_execution/selected_operators.rs` and independently checked
+  fold custody, as the fixed-array-length continuation does. If Build itself
+  depends on that pending application, report the dependency cycle.
+  Acceptance: the same const application selects either of two authored
+  provider bodies through distinct build plans and materializes their distinct
+  results; adding an unselected satisfier changes neither result nor admission.
+  Cover named and token calls, reject absent/substituted selection and forged
+  results, and preserve provider-free const application evaluation
+  (`tests/omega/pass/generics/authored_const_application_local_destination`).
+  Complete the
   portable target capsule and its application identity; a checked
   source fold alone does not establish cross-artifact closure. Finish
   artifact-qualified symbolic substitution for separately compiled generics;

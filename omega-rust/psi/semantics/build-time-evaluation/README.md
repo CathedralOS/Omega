@@ -239,9 +239,12 @@ checking rejoins independently derived operator facts and evaluates the retained
 invocation again before accepting its literal length. This establishes custody
 within checked source compilation; the portable target capsule and application
 closure described below remain separate obligations. Closed scalar calls in
-const-generic arguments now evaluate through the application probe above;
-selected ordinary provider bodies and the remaining const-generic
-normalization forms still need connected execution paths.
+const-generic arguments evaluate through the application probe above. Unlike
+fixed-array lengths, these pre-resolution probes do not yet retain a continuation
+for Omega's provider plan. Provider-dependent const arguments therefore reject;
+neither a unique visible satisfier nor package admission selects a provider.
+Connect those arguments to exact selected execution before admitting them.
+The remaining const-generic normalization forms also need connected paths.
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
 is broader than the current implementation. [admission.rs](src/admission.rs)
