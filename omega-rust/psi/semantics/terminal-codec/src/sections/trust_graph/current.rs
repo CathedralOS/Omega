@@ -15,24 +15,25 @@ use super::{
 
 use super::{
     BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, BYTE_READ_VALIDATION_SOURCE,
-    BYTE_VIEW_VALIDATION_SOURCE, BYTE_WRITE_VALIDATION_SOURCE, CODEC_SOURCE, CURRENT_ENTRY,
-    EVIDENCE_PROVENANCE_SOURCE, MACHINE_RECONSTRUCTION_CONTEXT_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
-    OBLIGATION_LEDGER_CODEC_SOURCE, OPERATION_FACTS_SOURCE, PREDICATE_DENOTATION_BUDGET_SOURCE,
-    PREDICATE_DENOTATION_SOURCE, PROOF_ADMISSION_CLOSED_INTEGER_SOURCE,
-    PROOF_ADMISSION_EVIDENCE_SOURCE, PROOF_ADMISSION_INTEGER_AFFINE_SOURCE,
-    PROOF_ADMISSION_INTEGER_CAST_SOURCE, PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
-    PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE,
-    PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
-    PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE,
-    PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
-    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
-    TERMINAL_FIXED_BYTE_VIEW_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
-    TERMINAL_RECORD_FIELD_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
-    TERMINAL_SCALAR_ARRAY_SOURCE, TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE,
-    TrustAcceptingPolicy, TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus,
-    TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
-    VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
-    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
+    BYTE_VIEW_VALIDATION_SOURCE, BYTE_WRITE_VALIDATION_SOURCE, CODEC_SOURCE, CODEC_SOURCE_CLOSURE,
+    CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE, MACHINE_RECONSTRUCTION_CONTEXT_SOURCE,
+    MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE, OPERATION_FACTS_SOURCE,
+    PREDICATE_DENOTATION_BUDGET_SOURCE, PREDICATE_DENOTATION_SOURCE,
+    PROOF_ADMISSION_CLOSED_INTEGER_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
+    PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
+    PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
+    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
+    PROOF_ADMISSION_PROOF_SOURCE, PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE,
+    PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE,
+    SOURCE_CLOSURE_BUILD_SOURCE, SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
+    TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE, TERMINAL_FIXED_BYTE_VIEW_SOURCE,
+    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_RECORD_FIELD_SOURCE,
+    TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SCALAR_ARRAY_SOURCE,
+    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
+    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
+    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
+    VERIFIER_SOURCE_CLOSURE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
+    validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
 use terminal_semantics::{
@@ -104,10 +105,7 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                     "terminal/representation-source-closure",
                     TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
                 ),
-                (
-                    "terminal-codec/build.rs",
-                    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE,
-                ),
+                ("terminal-codec/build.rs", SOURCE_CLOSURE_BUILD_SOURCE),
             ],
         ),
         TrustDependencyNode::new(
@@ -200,6 +198,7 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             TrustAcceptingPolicy::RegisteredSemanticFoundation,
             Vec::new(),
             &[
+                ("terminal-codec/source-closure", CODEC_SOURCE_CLOSURE),
                 ("terminal-codec/lib.rs", CODEC_SOURCE),
                 ("terminal-codec/machine_wire.rs", MACHINE_WIRE_SOURCE),
                 ("terminal-codec/block_wire.rs", BLOCK_WIRE_SOURCE),
@@ -323,6 +322,7 @@ fn decoder_node() -> TrustDependencyNode {
             "root:explicit-rust-migration-policy",
         ]),
         &[
+            ("terminal-codec/source-closure", CODEC_SOURCE_CLOSURE),
             ("terminal-codec/lib.rs", CODEC_SOURCE),
             ("terminal-codec/machine_wire.rs", MACHINE_WIRE_SOURCE),
             ("terminal-codec/block_wire.rs", BLOCK_WIRE_SOURCE),
@@ -359,10 +359,7 @@ fn verifier_node() -> TrustDependencyNode {
             "root:explicit-rust-migration-policy",
         ]),
         &[
-            (
-                "terminal-codec/build.rs",
-                VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE,
-            ),
+            ("terminal-codec/build.rs", SOURCE_CLOSURE_BUILD_SOURCE),
             ("terminal-verifier/source-closure", VERIFIER_SOURCE_CLOSURE),
             ("terminal-verifier/lib.rs", VERIFIER_LIB_SOURCE),
             (
@@ -415,10 +412,7 @@ fn ledger_framework_node() -> TrustDependencyNode {
                 "terminal-codec/obligation_ledger.rs",
                 OBLIGATION_LEDGER_CODEC_SOURCE,
             ),
-            (
-                "terminal-codec/build.rs",
-                VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE,
-            ),
+            ("terminal-codec/build.rs", SOURCE_CLOSURE_BUILD_SOURCE),
             ("terminal-verifier/source-closure", VERIFIER_SOURCE_CLOSURE),
             (
                 "terminal-verifier/validation.rs",

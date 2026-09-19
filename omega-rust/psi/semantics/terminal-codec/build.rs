@@ -12,6 +12,11 @@ fn main() -> io::Result<()> {
         Path::new("../../representations/terminal-psi/src"),
         b"PSI-TERMINAL-REPRESENTATION-SOURCE-CLOSURE-v1\0",
         "psi-terminal-representation-source-closure.bin",
+    )?;
+    write_source_closure(
+        Path::new("src"),
+        b"PSI-TERMINAL-CODEC-SOURCE-CLOSURE-v1\0",
+        "psi-terminal-codec-source-closure.bin",
     )
 }
 
