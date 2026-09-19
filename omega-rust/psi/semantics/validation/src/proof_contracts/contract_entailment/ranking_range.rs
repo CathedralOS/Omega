@@ -833,6 +833,8 @@ fn prove_edge(
                 state,
                 entry_parameters,
                 destination,
+                parameter,
+                &required_symbols,
                 &mut engine,
                 source_symbol,
                 *argument,

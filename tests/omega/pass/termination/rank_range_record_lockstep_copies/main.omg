@@ -1,0 +1,19 @@
+// PASS CANARY. Both record copies of the required `remaining` step in
+// lockstep, so discovery cannot name one slot as the continuation and the
+// claims stay contested. A required entry's copies are held equal at every
+// arrival, though: each claimant's own record transports the role and the
+// two stepped actuals re-prove equal rather than picking a first/last
+// winner, and `s` still descends through `first.left`.
+data Pair { left: u32 [0..=5]; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> s(Pair { left: remaining }, Pair { left: remaining }) }
+    state s(first: Pair, second: Pair) {
+        transition first.left > 0 {
+            true -> s(Pair { left: first.left - 1 }, Pair { left: first.left - 1 })
+            false -> first.left
+        }
+    }
+}
