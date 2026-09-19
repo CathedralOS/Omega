@@ -15,10 +15,10 @@
 // differential-excluded with a reason (the windows leg waits on fs
 // open-work #2's stat rows, exactly as TASKS_TIME #9 records).
 // Expected exit: 70.
-use omega::language::std::filesystem_host;
-use omega::language::std::time;
+use omega_language_std::filesystem_host;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

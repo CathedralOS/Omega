@@ -4729,17 +4729,29 @@ Owners include
   `named_float_to_integer_no_context_compile` and
   `tests/omega/run/float/sqrt_probe` remain standalone), so its directed
   and twin canaries now reach the package route and expose the open
-  composed-Unit and checked-operator legs there. The dependent
-  data-where/gated-construction set and the remaining ownership,
-  constants, calls, arithmetic, and versioning std consumers followed the
-  same edge (28 more packaged roots: dependent 34, ownership 12,
-  constants 3, calls 176, arithmetic 140, versioning 4, all checked-only);
-  proofs, generics, filesystem, host, time, and objc still hold bundled
-  imports, with `proofs/kernel_*` drift owned by the kernel items.
-  Structural writeback
-  shares the blocker recorded in `WRITE-ONLY-BORROW`. Feed consumer-scoped
-  Console, Filesystem, and UEFI bindings through normal package-aware
-  compilation.
+  composed-Unit and checked-operator legs there. The dependent,
+  ownership, constants, calls, arithmetic, and versioning consumers
+  followed the same edge (28 roots, all checked-only), and the generics,
+  filesystem-straggler, host, and time holdouts joined them (packaged
+  counts: generics 37, filesystem 85, host 23/22, time 17) — macOS-gated
+  filesystem and fs-time-interop roots bind only `macos_arm64`, the
+  windows_* seams bind only `windows_x86_64`, and the interpreter-only
+  `runtime_time_host_virtual_exit` binds none. Five of the nine
+  remaining proofs consumers migrated; `citation_requires_discharged`,
+  `proof_nat_structural_lemmas`, `ring_identity_slot_bridge_compile`,
+  and `real_boundary_package_compile` stay bundled because they select
+  private `boundary machine` entries in core (`add_zero_right`,
+  `add_comm`, `add_assoc`, `mul_comm`, `mul_identity`, `zero`, `one` on
+  nat/ring; `real_add_commutative` on real) — the package route rejects
+  private-machine selection, so they need a per-root declaration
+  exception until core exports them or a semantic binding admits them.
+  `proofs/kernel_*` drift stays owned by the kernel items.
+  `objc` (18) and `arithmetic/saturating_divide_native` are
+  macOS-only and unmigrated here; `fail/` and `run/` corpora plus
+  `platform/` member sources still hold bundled spellings. Structural
+  writeback shares the blocker recorded in `WRITE-ONLY-BORROW`. Feed
+  consumer-scoped Console, Filesystem, and UEFI bindings through normal
+  package-aware compilation.
 
   Acceptance: removing a dependency rejects its imports/provider selections;
   name, alias, path, or same-spelled declarations cannot restore it, and stale

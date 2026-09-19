@@ -3,8 +3,8 @@ use omega::language::core::float_operations;
 // The first shipped units package: closed named indices, explicit scaling and
 // truncation, and per-pair domain-selected operators execute in both engines.
 
-use omega::language::std::console;
-use omega::language::std::units;
+use omega_language_std::console;
+use omega_language_std::units;
 
 data Main {
     console: Console;

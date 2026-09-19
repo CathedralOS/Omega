@@ -1,5 +1,5 @@
 // PDI3: a generic result retains an erased expression over its input indices.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain<T, const I: u64> T::Indexed<I>;
 

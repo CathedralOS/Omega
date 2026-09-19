@@ -1,0 +1,6 @@
+// Interpreter-only time-host canary: the virtual host has no native entry.
+
+machine build(builder: &mut Build) {
+    builder.application("runtime-time-host-virtual-exit");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+}

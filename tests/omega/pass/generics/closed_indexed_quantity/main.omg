@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // PDI2: one erased domain family spans carriers and distinguishes canonical
 // closed proof-static indices without changing either carrier's layout.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Unit [copy] {
     scale: i32;

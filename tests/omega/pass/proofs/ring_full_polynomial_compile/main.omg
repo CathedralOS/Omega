@@ -4,7 +4,7 @@
 // appears here; the license comes solely from explicit conformance.
 use omega::language::core::nat;
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 
