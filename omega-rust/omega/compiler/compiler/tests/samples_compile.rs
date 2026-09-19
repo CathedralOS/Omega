@@ -188,22 +188,9 @@ fn compile_native_and_publish(
     let build_dir = options.build_dir();
     let package_inputs =
         sample_native_package_inputs(&options.root_path, options.target_name.as_deref())?;
-    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
-        package_inputs
-            .accepted_semantic_bindings()
-            .flat_map(|binding| binding.terminal_authority_permissions())
-            .cloned()
-            .collect(),
-    )
-    .map_err(|error| {
-        vec![diagnostics::Diagnostic::error(format!(
-            "cannot construct sample fixture terminal-authority policy: {error:?}"
-        ))]
-    })?;
     let report = compiler::compile(
         compiler::CompileRequest::new(options)
             .with_package_inputs(package_inputs)
-            .with_terminal_authority_permission_policy(permission_policy)
             .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)?;
@@ -475,16 +462,6 @@ const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "shape_area",
     "shapes_area",
 ];
-
-#[cfg(windows)]
-fn executable_name() -> &'static str {
-    "omega-program.exe"
-}
-
-#[cfg(not(windows))]
-fn executable_name() -> &'static str {
-    "omega-program"
-}
 
 /// Parse a `// Expected exit: N` annotation (any casing) from a sample's source.
 /// The COLON is required: a comment merely MENTIONING the phrase ("this sample
@@ -1160,7 +1137,7 @@ fn cli_mvp_preserves_both_lines_with_eof_and_enter() {
         std::env::temp_dir().join(format!("omega-cli-mvp-input-{}", std::process::id()));
     // Use the same explicit test-owned package policy as the corpus probe; this
     // does not accept the user's project or replace the shipped CLI review path.
-    compile_native_and_publish(CompileOptions {
+    let report = compile_native_and_publish(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: Some(host_target_name().to_owned()),
@@ -1171,8 +1148,14 @@ fn cli_mvp_preserves_both_lines_with_eof_and_enter() {
             build_dir.display()
         )
     });
+    // Run the executable the report receipts, not a guessed build_dir name:
+    // bundled or otherwise non-default output names stay reachable.
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("cli_mvp publication retained no checked executable path"))
+        .to_owned();
     for input in [b"".as_slice(), b"\n".as_slice()] {
-        let mut child = Command::new(build_dir.join(executable_name()))
+        let mut child = Command::new(&executable)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -1251,13 +1234,17 @@ fn samples_with_documented_exit_run_correctly() {
                 ));
                 continue;
             }
-            Ok(_) => {
+            Ok(report) => {
                 // stdin is closed (Stdio::null): a sample that reads input sees EOF
-                // and must still reach its documented deterministic exit.
-                match Command::new(build_dir.join(executable_name()))
-                    .stdin(Stdio::null())
-                    .output()
-                {
+                // and must still reach its documented deterministic exit. The
+                // report's checked executable path is the only receipt-bound name.
+                let Some(executable) = report.checked_native_executable_path() else {
+                    failures.push(format!(
+                        "{name}: publication retained no checked executable path"
+                    ));
+                    continue;
+                };
+                match Command::new(executable).stdin(Stdio::null()).output() {
                     Ok(output) => {
                         if output.status.code() != Some(expected) {
                             failures.push(format!(
