@@ -388,10 +388,11 @@ impl SymbolicFieldInnerLayout {
     }
 
     /// Binds a repeated conventional sum interior to the outer field named
-    /// `field`. The outer plan retains the field's whole array extent as one
-    /// `At` placement; a symbolic path crossing the boundary carries the
-    /// element index on the field hop, then the selected case and that
-    /// case's payload field as its last two hops.
+    /// `field`. The outer plan retains the field's array extent either as
+    /// one whole `At` placement or as one `At` per element replaying this
+    /// stride; a symbolic path crossing the boundary carries the element
+    /// index on the field hop, then the selected case and that case's
+    /// payload field as its last two hops.
     pub fn new_sum_array(
         field: impl Into<String>,
         element_layout: ConventionalSumLayoutReport,
@@ -426,12 +427,13 @@ impl SymbolicFieldInnerLayout {
     }
 
     /// Binds a repeated record interior to the outer field named `field`.
-    /// The outer plan retains the field's whole array extent as one `At`
-    /// placement; a symbolic path crossing the boundary carries the element
-    /// index on the field hop, then resolves the next segment inside the
-    /// addressed element's record interior — `field[index].member` —
-    /// composing the same `index * element_stride` hop a repeated sum field
-    /// spells before its case and payload hops.
+    /// The outer plan retains the field's array extent either as one whole
+    /// `At` placement or as one `At` per element replaying this stride; a
+    /// symbolic path crossing the boundary carries the element index on the
+    /// field hop, then resolves the next segment inside the addressed
+    /// element's record interior — `field[index].member` — composing the
+    /// same `index * element_stride` hop a repeated sum field spells before
+    /// its case and payload hops.
     pub fn new_record_array(
         field: impl Into<String>,
         element_layout: LayoutPlanReport,

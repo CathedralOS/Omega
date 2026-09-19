@@ -26,11 +26,13 @@ use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
 /// runtime layout: one closed `[copy]` record with one or more direct,
 /// runtime-relevant conventional pure-sum fields.
 ///
-/// The outer report contains only whole-field `At` placements. The nested
-/// reports remain compiler-owned tag/payload overlays; this function does not
-/// expose programmable tag or case placement. Every nested report is paired
-/// with its outer field name and stable member identity in authored runtime
-/// field order, so repeated uses of the same sum type remain distinguishable.
+/// The outer report transcribes every placement vocabulary the target plan
+/// carries — whole-field `At`, per-element `At`, `IntegerAt`, and `Bits`
+/// entries all survive the projection unchanged. The nested reports remain
+/// compiler-owned tag/payload overlays; this function does not expose
+/// programmable tag or case placement. Every nested report is paired with
+/// its outer field name and stable member identity in authored runtime field
+/// order, so repeated uses of the same sum type remain distinguishable.
 /// Arrays of sums, recursively nested sums, and mixed data shapes reject.
 pub fn project_conventional_record_with_sum_materialization_layout(
     program: &CheckedTrees,
@@ -135,7 +137,10 @@ struct RecordLevelChildren<'a> {
 /// whose record element still reaches sums enters `record_array_paths` for
 /// the caller's own depth rule; a record field still reaching sums enters
 /// `record_paths` for the caller's own depth rule; anything else is an
-/// ordinary whole-field `At` entry. Under `LiteralArrayHopRule::Flattened`,
+/// ordinary field. Whatever the classification, each field's report entries
+/// transcribe the plan's own placement vocabulary — whole `At`, per-element
+/// `At`, `IntegerAt`, or `Bits` — through `project_field_placement_entries`.
+/// Under `LiteralArrayHopRule::Flattened`,
 /// arrays reaching sums through consecutive literal element hops — nested
 /// literal arrays of sums or of records still reaching sums — flatten into
 /// one packed row; mixed elements, non-literal lengths, and zero-length hops
@@ -193,15 +198,6 @@ fn project_record_level_children<'a>(
         if declared.symbol != laid.symbol || declared.name != laid.name {
             return Err(Diagnostic::error(format!(
                 "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "{owner} outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
                 declared.name
             )));
         }
@@ -366,13 +362,16 @@ fn project_record_level_children<'a>(
                 }
             }
         }
-        let offset = laid.offset as u64;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
+        let (field_entries, field_offset) = project_field_placement_entries(
+            program,
+            plan,
+            declared,
+            laid,
+            data_layout.layout.size,
+            owner,
+        )?;
+        entries.extend(field_entries);
+        offsets.push(field_offset);
     }
 
     Ok(RecordLevelChildren {
@@ -381,7 +380,7 @@ fn project_record_level_children<'a>(
                 program, definition,
             ),
             entries,
-            offsets: Some(offsets),
+            offsets: offsets.into_iter().collect(),
             size: Some(data_layout.layout.size as u64),
             align: data_layout.layout.alignment as u64,
         },
@@ -390,6 +389,144 @@ fn project_record_level_children<'a>(
         record_array_paths,
         record_paths,
     })
+}
+
+/// Project one declared field's placement entries from the target plan's own
+/// metadata. `LayoutPlan` already records every placement vocabulary the
+/// normalized plan admits, so the report transcribes it exactly: a repeated
+/// literal fixed array retains one `At` entry per element at the plan's
+/// constant element stride, a fragmented scalar retains its `Bits`
+/// fragments, a stored integer retains its `IntegerAt` write, and every
+/// other field retains one whole `At`. The returned offset is the field's
+/// contribution to the report's declaration-order `offsets`; the normalized
+/// convention keeps that projection only when every field carries one whole
+/// `At` extent, so any other placement yields `None`.
+///
+/// `record_extent` is the enclosing record's fixed byte extent: the repeated
+/// placements must keep every element inside it, exactly as plan validation
+/// bounded the destinations they were derived from.
+fn project_field_placement_entries(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    declared: &typed_trees::data::DataField,
+    laid: &crate::FieldLayout,
+    record_extent: usize,
+    owner: &str,
+) -> Result<(Vec<LayoutFieldEntryReport>, Option<u64>), Diagnostic> {
+    let entry = |placement| LayoutFieldEntryReport {
+        field: declared.name.to_string(),
+        member_identity: declared.identity,
+        placement,
+    };
+    if let Some(repeated) = plan.repeated_field(declared.symbol) {
+        let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(element_count),
+            ..
+        } = program
+            .type_reference_table
+            .type_reference(declared.type_reference)
+        else {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` uses repeated element placement but is not a literal outer fixed array",
+                declared.name
+            )));
+        };
+        if *element_count == 0 || laid.layout.size % *element_count != 0 {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` repeated placement does not divide its extent into whole elements",
+                declared.name
+            )));
+        }
+        let element_extent = laid.layout.size / *element_count;
+        let stride = repeated.element_stride;
+        if stride < element_extent {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` repeated element stride {stride} overlaps its {element_extent}-byte elements",
+                declared.name
+            )));
+        }
+        // The carrier's per-element placements are whole-field evidence: the
+        // last element's extent must still fit inside the enclosing record.
+        // The checked bound also proves every `laid.offset + index * stride`
+        // below cannot overflow.
+        let extent_end = (*element_count - 1)
+            .checked_mul(stride)
+            .and_then(|span| laid.offset.checked_add(span))
+            .and_then(|last_start| last_start.checked_add(element_extent))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{owner} outer field `{}` repeated placement overflows the compiler host",
+                    declared.name
+                ))
+            })?;
+        if extent_end > record_extent {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` repeated placement escapes the enclosing {record_extent}-byte record extent",
+                declared.name
+            )));
+        }
+        let mut entries = Vec::with_capacity(*element_count);
+        for index in 0..*element_count {
+            entries.push(entry(LayoutPlacementReport::At {
+                offset: usize_to_u64(laid.offset + index * stride, "repeated element offset")?,
+            }));
+        }
+        return Ok((entries, None));
+    }
+    if let Some(bits) = plan.bit_field(declared.symbol) {
+        if program
+            .primitive_type_reference(declared.type_reference)
+            .is_none()
+            || bits.fragments.is_empty()
+        {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` uses bit-fragment placement but is not a primitive scalar field with fragments",
+                declared.name
+            )));
+        }
+        return Ok((
+            bits.fragments
+                .iter()
+                .map(|fragment| {
+                    Ok(entry(LayoutPlacementReport::Bits {
+                        container: usize_to_u64(
+                            fragment.container_byte_offset,
+                            "bit-fragment container offset",
+                        )?,
+                        container_width: u64::from(fragment.container_width_bits),
+                        destination_lsb: u64::from(fragment.destination_lsb),
+                        source_lsb: u64::from(fragment.source_lsb),
+                        width: u64::from(fragment.width),
+                    }))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?,
+            None,
+        ));
+    }
+    if let Some(stored) = plan.stored_integer(declared.symbol) {
+        if program
+            .primitive_type_reference(declared.type_reference)
+            .is_none()
+        {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` uses stored-integer placement but is not a primitive scalar field",
+                declared.name
+            )));
+        }
+        return Ok((
+            vec![entry(LayoutPlacementReport::IntegerAt {
+                offset: usize_to_u64(laid.offset, "stored-integer offset")?,
+                stored_width: u64::from(stored.stored_width_bits),
+                interpretation: stored.interpretation,
+            })],
+            None,
+        ));
+    }
+    let offset = usize_to_u64(laid.offset, "field offset")?;
+    Ok((
+        vec![entry(LayoutPlacementReport::At { offset })],
+        Some(offset),
+    ))
 }
 
 /// Peel `descriptor` through `hops` fixed-array levels — each level must
@@ -500,11 +637,36 @@ fn project_sum_array_row(
             declared.name
         )));
     }
+    // A repeated placement may space the elements wider than their semantic
+    // extent; the row carries that exact physical stride so an indexed path
+    // composes the element's real offset. The check above still proves the
+    // packed semantic size. A multi-hop flattened field cannot carry this
+    // vocabulary: its outer stride describes outer elements, not the packed
+    // innermost elements the row spells.
+    let element_stride = match plan.repeated_field(declared.symbol) {
+        Some(repeated) => {
+            if hops.len() != 1 {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated placement cannot flatten into more than one literal element hop",
+                    declared.name
+                )));
+            }
+            let stride = usize_to_u64(repeated.element_stride, "repeated sum-array stride")?;
+            if stride < element_layout.size {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated element stride {stride} overlaps its {}-byte sum elements",
+                    declared.name, element_layout.size
+                )));
+            }
+            stride
+        }
+        None => element_layout.size,
+    };
     Ok(ConventionalSumArrayFieldLayoutReport {
         field: declared.name.to_string(),
         member_identity: declared.identity,
         element_count,
-        element_stride: element_layout.size,
+        element_stride,
         element_layout,
     })
 }
@@ -596,11 +758,32 @@ fn project_record_array_row(
             declared.name
         )));
     }
+    // As in `project_sum_array_row`: a repeated placement's physical stride
+    // is the row's stride, and it cannot survive a multi-hop flattening.
+    let element_stride = match plan.repeated_field(declared.symbol) {
+        Some(repeated) => {
+            if candidate.hops.len() != 1 {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated placement cannot flatten into more than one literal element hop",
+                    declared.name
+                )));
+            }
+            let stride = usize_to_u64(repeated.element_stride, "repeated record-array stride")?;
+            if stride < element_size {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated element stride {stride} overlaps its {element_size}-byte record elements",
+                    declared.name
+                )));
+            }
+            stride
+        }
+        None => element_size,
+    };
     Ok(ConventionalRecordArrayFieldLayoutReport {
         field: declared.name.to_string(),
         member_identity: declared.identity,
         element_count,
-        element_stride: element_size,
+        element_stride,
         inner,
     })
 }
@@ -708,15 +891,6 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
                 declared.name
             )));
         }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "nested-record sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
 
         if matches!(
             program
@@ -808,13 +982,16 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
             }
         }
 
-        let offset = usize_to_u64(laid.offset, "outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
+        let (field_entries, field_offset) = project_field_placement_entries(
+            program,
+            plan,
+            declared,
+            laid,
+            data_layout.layout.size,
+            "nested-record sum",
+        )?;
+        entries.extend(field_entries);
+        offsets.push(field_offset);
     }
     if paths.is_empty() {
         return Err(Diagnostic::error(
@@ -826,7 +1003,7 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
             program, definition,
         ),
         entries,
-        offsets: Some(offsets),
+        offsets: offsets.into_iter().collect(),
         size: Some(usize_to_u64(
             data_layout.layout.size,
             "outer record extent",

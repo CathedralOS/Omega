@@ -634,6 +634,39 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
         error.0
     );
 
+    // A fragmented placement is the same dead end: bit containers describe a
+    // scalar's storage, not the contiguous record extent an interior needs.
+    let bits_outer = LayoutPlanReport {
+        entries: vec![LayoutFieldEntryReport {
+            field: "address".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::Bits {
+                container: 0,
+                container_width: 32,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 32,
+            },
+        }],
+        ..integer_outer.clone()
+    };
+    let bits_carrier = SymbolicFieldInnerLayout::new("address", record_interior(&carrier));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &bits_outer,
+        &[bits_carrier],
+        std::slice::from_ref(&through_integer),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a fragmented outer placement cannot enclose a record interior");
+    assert!(
+        error
+            .0
+            .contains("requires the outer field `address` to use a whole `At` placement"),
+        "{}",
+        error.0
+    );
+
     // The inner member must exist in the retained interior plan.
     let missing_member = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")

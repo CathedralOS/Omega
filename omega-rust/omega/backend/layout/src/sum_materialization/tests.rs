@@ -1134,8 +1134,42 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             two_array_owner.symbol,
         )
         .is_err(),
-        "target-dependent placement on the second qualifying array must reject"
+        "a repeated placement escaping the record's own extent must reject"
     );
+    // At the packed stride the repeated vocabulary projects exactly: `second`
+    // retains one `At` entry per element and the row keeps the physical
+    // stride, while `offsets` retires because not every field has one whole
+    // `At` extent.
+    let mut packed_second_array_plan = plan.clone();
+    packed_second_array_plan
+        .repeated_fields
+        .push(crate::RepeatedFieldLayout {
+            field: second_array_symbol,
+            element_stride: 8,
+        });
+    let (packed_outer, packed_rows) =
+        project_conventional_record_with_sum_arrays_materialization_layout(
+            &checked,
+            &packed_second_array_plan,
+            two_array_owner.symbol,
+        )
+        .expect("repeated placement at the packed stride projects per-element entries");
+    assert_eq!(
+        packed_outer
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        [
+            ("first", LayoutPlacementReport::At { offset: 0 }),
+            ("second", LayoutPlacementReport::At { offset: 8 }),
+            ("second", LayoutPlacementReport::At { offset: 16 }),
+        ]
+    );
+    assert_eq!(packed_outer.offsets, None);
+    assert_eq!(packed_rows.len(), 2);
+    assert_eq!(packed_rows[1].element_count, 2);
+    assert_eq!(packed_rows[1].element_stride, 8);
 
     let array_data_layout = unique_data_layout(&plan, array_owner.symbol, "ArrayOwner").unwrap();
     let DataShape::Record {
@@ -1226,15 +1260,130 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             field: neighbor_field_symbol,
             element_stride: 2,
         });
-    assert!(
-        project_conventional_record_with_sum_array_materialization_layout(
-            &checked,
-            &repeated_neighbor_plan,
-            neighbor_owner.symbol,
-        )
-        .is_err(),
-        "target-dependent repeated placement on a neighboring field must reject"
+    let (repeated_outer, _) = project_conventional_record_with_sum_array_materialization_layout(
+        &checked,
+        &repeated_neighbor_plan,
+        neighbor_owner.symbol,
+    )
+    .expect("repeated placement on a neighboring field transcribes per-element entries");
+    assert_eq!(
+        repeated_outer
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        [
+            ("bytes", LayoutPlacementReport::At { offset: 0 }),
+            ("bytes", LayoutPlacementReport::At { offset: 2 }),
+            ("choices", LayoutPlacementReport::At { offset: 4 }),
+            ("suffix", LayoutPlacementReport::At { offset: 20 }),
+        ]
     );
+    assert_eq!(
+        repeated_outer.offsets, None,
+        "a repeated field's per-element placements retire the one-offset-per-field projection"
+    );
+
+    // Scalar target-dependent placements transcribe exactly as well: a
+    // stored-integer `suffix` keeps its physical width and interpretation,
+    // and a fragmented `suffix` keeps every `Bits` row. Either vocabulary
+    // retires `offsets`, which exists only when every field carries one
+    // whole `At` extent.
+    let suffix_field_symbol = plan.fields.span_or_empty(neighbor_fields)[2].symbol;
+    let mut integer_neighbor_plan = plan.clone();
+    integer_neighbor_plan
+        .stored_integers
+        .push(crate::StoredIntegerLayout {
+            field: suffix_field_symbol,
+            stored_width_bits: 24,
+            interpretation: layout_plans::IntegerInterpretation::Signed,
+            write_is_total: false,
+        });
+    let (integer_outer, _) = project_conventional_record_with_sum_array_materialization_layout(
+        &checked,
+        &integer_neighbor_plan,
+        neighbor_owner.symbol,
+    )
+    .expect("stored-integer placement on a scalar neighbor transcribes its exact entry");
+    assert_eq!(
+        integer_outer
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        [
+            ("bytes", LayoutPlacementReport::At { offset: 0 }),
+            ("choices", LayoutPlacementReport::At { offset: 4 }),
+            (
+                "suffix",
+                LayoutPlacementReport::IntegerAt {
+                    offset: 20,
+                    stored_width: 24,
+                    interpretation: layout_plans::IntegerInterpretation::Signed,
+                },
+            ),
+        ]
+    );
+    assert_eq!(integer_outer.offsets, None);
+
+    let mut bits_neighbor_plan = plan.clone();
+    bits_neighbor_plan.bit_fields.push(crate::BitFieldLayout {
+        field: suffix_field_symbol,
+        fragments: vec![
+            crate::BitFieldFragment {
+                container_byte_offset: 20,
+                container_width_bits: 8,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 8,
+            },
+            crate::BitFieldFragment {
+                container_byte_offset: 21,
+                container_width_bits: 8,
+                destination_lsb: 8,
+                source_lsb: 8,
+                width: 8,
+            },
+        ],
+    });
+    let (bits_outer, _) = project_conventional_record_with_sum_array_materialization_layout(
+        &checked,
+        &bits_neighbor_plan,
+        neighbor_owner.symbol,
+    )
+    .expect("bit-fragment placement on a scalar neighbor transcribes every fragment");
+    assert_eq!(
+        bits_outer
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        [
+            ("bytes", LayoutPlacementReport::At { offset: 0 }),
+            ("choices", LayoutPlacementReport::At { offset: 4 }),
+            (
+                "suffix",
+                LayoutPlacementReport::Bits {
+                    container: 20,
+                    container_width: 8,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 8,
+                },
+            ),
+            (
+                "suffix",
+                LayoutPlacementReport::Bits {
+                    container: 21,
+                    container_width: 8,
+                    destination_lsb: 8,
+                    source_lsb: 8,
+                    width: 8,
+                },
+            ),
+        ]
+    );
+    assert_eq!(bits_outer.offsets, None);
 
     let multiple_layout = unique_data_layout(&plan, multiple.symbol, "Multiple").unwrap();
     let DataShape::Record {
@@ -1258,7 +1407,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             multiple.symbol,
         )
         .is_err(),
-        "legacy direct projection must not flatten target-dependent outer placement"
+        "repeated placement on a field that is not a literal fixed array must reject"
     );
 
     for name in [

@@ -286,10 +286,10 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                 // The next hop needs one enclosing element. The bound carrier
                 // spells which kind of interior this field stores, and it
                 // resolves how the hop's element index selects that element:
-                // a repeated interior retains one whole-extent `At` placement,
-                // so the index composes the element's stride offset inside
-                // it, while every other interior selects among the retained
-                // element placements.
+                // a repeated interior retains the array's `At` placements —
+                // one whole-extent or one per element — so the index composes
+                // the element's stride offset inside them, while every other
+                // interior selects among the retained element placements.
                 let Some(&node_id) = current_carriers.get(&key) else {
                     return Err(MaterializationDiagnostic(format!(
                         "symbolic field `{path_display}` has no supplied inner layout for `{prefix}`"
@@ -298,9 +298,12 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                 let node = &carrier_nodes[node_id];
                 // A repeated interior — either a repeated sum or a repeated
                 // record — composes the hop's element index through the
-                // carrier's element stride inside the field's whole-extent
-                // `At` placement, then the next hop resolves inside the
-                // addressed element. `kind` only labels diagnostics.
+                // carrier's element stride from the field's array base, then
+                // the next hop resolves inside the addressed element. The
+                // base comes from whichever repeated placement vocabulary
+                // the plan retained: one whole-extent `At`, or one `At` per
+                // element replaying the carrier's count and stride.
+                // `kind` only labels diagnostics.
                 let repetition = match &node.interior {
                     PreparedInterior::Record { repetition, .. } => {
                         repetition.map(|repeated| ("record", repeated))
@@ -311,17 +314,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                 };
                 let enclosing_offset = match repetition {
                     Some((kind, (element_count, element_stride))) => {
-                        let [entry] = entries.as_slice() else {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to retain exactly one whole-extent `At` placement, found {}",
-                                entries.len()
-                            )));
-                        };
-                        let LayoutPlacementReport::At { offset } = entry.placement else {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to use a whole `At` placement"
-                            )));
-                        };
                         let index = element_index.ok_or_else(|| {
                             MaterializationDiagnostic(format!(
                                 "symbolic field `{path_display}` requires an element index into the repeated {kind} field `{prefix}`"
@@ -332,13 +324,59 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 "symbolic field `{path_display}` element index {index} is outside its {element_count} element placements"
                             )));
                         }
+                        // Both repeated placement vocabularies carry the same
+                        // boundary: one whole-extent `At` spans the array, or
+                        // one `At` per element addresses each element
+                        // directly. Per-element entries are evidence only
+                        // when sorted offsets replay the carrier's exact
+                        // count and constant stride — drift means a stale
+                        // report or carrier, not a different placement.
+                        let base = match entries.as_slice() {
+                            [entry] => {
+                                let LayoutPlacementReport::At { offset } = entry.placement
+                                else {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to use a whole `At` placement"
+                                    )));
+                                };
+                                offset
+                            }
+                            _ => {
+                                if u64::try_from(entries.len()).ok() != Some(element_count) {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` repeated {kind} field `{prefix}` retains {} element placements, but its carrier claims {element_count} elements",
+                                        entries.len()
+                                    )));
+                                }
+                                let mut element_offsets = Vec::with_capacity(entries.len());
+                                for entry in entries {
+                                    let LayoutPlacementReport::At { offset } = entry.placement
+                                    else {
+                                        return Err(MaterializationDiagnostic(format!(
+                                            "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to retain only `At` element placements"
+                                        )));
+                                    };
+                                    element_offsets.push(offset);
+                                }
+                                element_offsets.sort_unstable();
+                                if element_offsets
+                                    .windows(2)
+                                    .any(|pair| pair[1].checked_sub(pair[0]) != Some(element_stride))
+                                {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` repeated {kind} field `{prefix}` element placements drift from the carrier's {element_stride}-byte stride"
+                                    )));
+                                }
+                                element_offsets[0]
+                            }
+                        };
                         // The carrier's claimed array extent is evidence about
                         // the whole field, not just the selected element: a
                         // carrier describing a shrunken array must reject
                         // here rather than serve a stale element offset.
                         let array_end = (element_count - 1)
                             .checked_mul(element_stride)
-                            .and_then(|span| offset.checked_add(span))
+                            .and_then(|span| base.checked_add(span))
                             .and_then(|last_start| last_start.checked_add(node.byte_len as u64));
                         match array_end {
                             Some(end) if end <= current_byte_len as u64 => {}
@@ -348,19 +386,18 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 )));
                             }
                         }
-                        offset
-                            .checked_add(
-                                index.checked_mul(element_stride).ok_or_else(|| {
-                                    MaterializationDiagnostic(format!(
-                                        "symbolic field `{path_display}` composes an out-of-range interior offset"
-                                    ))
-                                })?,
-                            )
-                            .ok_or_else(|| {
+                        base.checked_add(
+                            index.checked_mul(element_stride).ok_or_else(|| {
                                 MaterializationDiagnostic(format!(
                                     "symbolic field `{path_display}` composes an out-of-range interior offset"
                                 ))
-                            })?
+                            })?,
+                        )
+                        .ok_or_else(|| {
+                            MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` composes an out-of-range interior offset"
+                            ))
+                        })?
                     }
                     _ => {
                         // An unindexed segment on a repeated record covers
@@ -635,10 +672,11 @@ enum PreparedInterior<'a> {
         /// is deterministic rather than key order.
         nested_order: Vec<usize>,
         /// `Some((element_count, element_stride))` when the field repeats the
-        /// record: the plan then retains the field's whole array extent as
-        /// one `At` placement, and the hop's element index composes
-        /// `index * element_stride` inside that extent before the next hop
-        /// resolves inside the addressed element's interior.
+        /// record: the plan then retains the field's array extent either as
+        /// one whole `At` placement or as one `At` per element, and the hop's
+        /// element index composes `index * element_stride` from the array's
+        /// base before the next hop resolves inside the addressed element's
+        /// interior.
         repetition: Option<(u64, u64)>,
     },
     /// A conventional sum's fixed tag/case overlay. The path's case and
@@ -649,10 +687,10 @@ enum PreparedInterior<'a> {
         /// One sum element's validated overlay.
         layout: &'a ConventionalSumLayoutReport,
         /// `Some((element_count, element_stride))` when the field repeats the
-        /// sum: the plan then retains the field's whole array extent as one
-        /// `At` placement, and the hop's element index composes
-        /// `index * element_stride` inside that extent instead of selecting
-        /// among per-element placements.
+        /// sum: the plan then retains the field's array extent either as one
+        /// whole `At` placement or as one `At` per element, and the hop's
+        /// element index composes `index * element_stride` from the array's
+        /// base instead of selecting among per-element placements directly.
         repetition: Option<(u64, u64)>,
     },
 }
