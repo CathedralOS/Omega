@@ -737,6 +737,13 @@ fn program_representations_have_named_roots_and_concept_owners() {
             "OpaqueRepresentationSelection",
             &[][..],
         ),
+        (
+            "omega",
+            "boundary-applications",
+            "boundary_applications",
+            "TerminalBoundaryApplicationCoverage",
+            &["coverage", "demands", "realization"][..],
+        ),
     ] {
         let directory = repository()
             .join(format!("omega-rust/{half}/representations"))
