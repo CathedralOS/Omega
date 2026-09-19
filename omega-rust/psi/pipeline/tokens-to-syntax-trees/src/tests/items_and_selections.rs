@@ -4,6 +4,154 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 
 #[test]
+fn local_bindings_parse_their_type_and_initializer_once() {
+    let tokens = Lexer::new("machine sample() { let value: Buffer<count(4)> = make(9); }")
+        .tokenize()
+        .unwrap();
+    let parsed = parse_syntax_trees(&tokens).unwrap();
+    assert_eq!(parsed.type_references.const_expression_nodes().len(), 1);
+    for name in ["count", "make"] {
+        assert_eq!(
+            parsed
+                .expressions
+                .iter_expressions()
+                .filter(|(_, expression)| {
+                    matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == name)
+                })
+                .count(),
+            1,
+            "one authored call to {name} must produce one expression",
+        );
+    }
+}
+
+#[test]
+fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
+    for operation in [
+        "fetch_add(operand(), NoOrdering)",
+        "fetch_sub(operand(), NoOrdering)",
+        "fetch_xor(operand(), NoOrdering)",
+        "fetch_or(operand(), NoOrdering)",
+        "fetch_and(operand(), NoOrdering)",
+        "swap(operand(), NoOrdering)",
+        "compare_exchange(0, operand(), NoOrdering, NoOrdering)",
+    ] {
+        for (binding, mutable, relevance) in [
+            ("prior", false, language_core::BindingRelevance::Relevant),
+            ("mut prior", true, language_core::BindingRelevance::Relevant),
+            (
+                "prior [erased]",
+                false,
+                language_core::BindingRelevance::Erased,
+            ),
+        ] {
+            let source =
+                format!("machine update(cell: u64) {{ let {binding}: u64 = cell.{operation}; }}");
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            let parsed = parse_syntax_trees(&tokens).unwrap();
+            let statements = first_machine_statements(&parsed);
+            let [local, write] = statements else {
+                panic!("binding and atomic write: {source}")
+            };
+            let StatementNode::LocalData(local) = parsed.statements.statement(*local) else {
+                panic!("result binding")
+            };
+            assert_eq!(local.is_mutable, mutable);
+            assert_eq!(local.relevance, relevance);
+            assert!(
+                matches!(parsed.expressions.expression(local.initial_value), ExpressionNode::Integer(value) if *value == numerics::literals::IntegerLiteral::zero())
+            );
+            let StatementNode::Assignment(write) = parsed.statements.statement(*write) else {
+                panic!("atomic write")
+            };
+            assert!(matches!(
+                parsed.expressions.expression(write.value),
+                ExpressionNode::Atomic(_)
+            ));
+            assert_eq!(parsed.expressions.iter_expressions().filter(|(_, expression)| {
+                matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == "operand")
+            }).count(), 1, "{source}");
+        }
+    }
+}
+
+#[test]
+fn unmatched_atomic_shapes_publish_only_the_ordinary_binding() {
+    for expression in [
+        "make().fetch_add(1, NoOrdering)",
+        "make().swap(1, NoOrdering)",
+        "make().compare_exchange(0, 1, NoOrdering, NoOrdering)",
+        "fetch_add(1, NoOrdering)",
+        "cell.unrelated(1, NoOrdering)",
+    ] {
+        let source = format!("machine sample() {{ let value: u64 = {expression}; }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let parsed = parse_syntax_trees(&tokens).unwrap();
+        assert_eq!(first_machine_statements(&parsed).len(), 1, "{source}");
+        assert!(
+            !parsed
+                .expressions
+                .iter_expressions()
+                .any(|(_, expression)| matches!(expression, ExpressionNode::Atomic(_))),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn malformed_binding_reports_its_initializer_error() {
+    let tokens = Lexer::new("machine sample() { let value: u64 = ; }")
+        .tokenize()
+        .unwrap();
+    let error = parse_syntax_trees(&tokens).unwrap_err();
+    assert!(error.message.contains("expression"), "{}", error.message);
+}
+
+#[test]
+fn trait_defaults_share_atomic_binding_dispatch() {
+    let tokens = Lexer::new(
+        "trait Updates { machine update(cell: u64) { let prior: u64 = cell.swap(1, NoOrdering); } }",
+    ).tokenize().unwrap();
+    let parsed = parse_syntax_trees(&tokens).unwrap();
+    let definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("trait");
+    let signature = parsed
+        .items
+        .state_signature(parsed.items.state_signatures(definition.machines)[0]);
+    let statements = parsed.items.statements(signature.default_body);
+    assert_eq!(statements.len(), 2);
+    assert!(matches!(
+        parsed.statements.statement(statements[0]),
+        StatementNode::LocalData(_)
+    ));
+    assert!(matches!(
+        parsed.statements.statement(statements[1]),
+        StatementNode::Assignment(_)
+    ));
+}
+
+fn first_machine_statements(
+    parsed: &syntax_trees::SyntaxTrees,
+) -> &[syntax_trees::statement::StatementHandle] {
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    parsed.items.statements(state.statements)
+}
+
+#[test]
 fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordinates() {
     for (target, named) in [
         ("next", true),
