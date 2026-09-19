@@ -1,6 +1,96 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::lower_typed_trees;
 
+fn generic_boundary_call_source(subject: &str) -> String {
+    format!(
+        "data Cell {{ value: u64; }}
+         boundary trait Device<T> {{ machine consume(carrier: &mut T); }}
+         data Main {{ device: Device<Cell>; cell: Cell; untouched: u64; }}
+         machine Main::inspect(&mut self)
+         reaches Device
+         requires {subject} == 7;
+         ensures {subject} == 7;
+         {{ self.device.consume(&mut self.cell); }}"
+    )
+}
+
+#[test]
+fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
+    let source = generic_boundary_call_source("self.untouched");
+    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+        panic!("an instantiated boundary signature must preserve disjoint facts: {diagnostics:#?}")
+    });
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::inspect")
+        .unwrap();
+    let frame = validation::CallFrameResolver::new(&checked.typed)
+        .unwrap()
+        .inferred_state_write_frame(machine, &checked.typed.machine_states(machine)[0]);
+    let mut paths = frame
+        .into_complete_paths()
+        .expect("complete boundary frame");
+    paths.sort();
+    assert_eq!(paths, ["self.cell", "self.device"]);
+}
+
+#[test]
+fn generic_boundary_receiver_invalidates_written_caller_facts() {
+    let source = generic_boundary_call_source("self.cell.value");
+    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("an exclusive boundary argument may overwrite the referenced field");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn generic_boundary_owner_and_method_arguments_preserve_disjoint_facts() {
+    let source = "data Cell { value: u64; }
+        boundary trait Device<T> { machine consume<U>(carrier: &mut T, other: &mut U); }
+        data Main { device: Device<Cell>; cell: Cell; audit: u64; untouched: u64; }
+        machine Main::inspect(&mut self)
+        reaches Device
+        requires self.untouched == 7;
+        ensures self.untouched == 7;
+        { self.device.consume(&mut self.cell, &mut self.audit); }";
+    let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+        panic!("owner and method type arguments must preserve disjoint facts: {diagnostics:#?}")
+    });
+}
+
+#[test]
+fn generic_boundary_value_argument_does_not_invalidate_its_source() {
+    let source = generic_boundary_call_source("self.untouched")
+        .replace("carrier: &mut T", "carrier: &mut T, metadata: u64")
+        .replace(
+            "consume(&mut self.cell)",
+            "consume(&mut self.cell, self.untouched)",
+        );
+    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+        panic!(
+            "copying a scalar argument does not authorize a write to its source: {diagnostics:#?}"
+        )
+    });
+}
+
 /// A resolved non-boundary requirement call keeps the runtime receiver's
 /// proven origin plus every exclusive argument's origin: the retained
 /// `target_symbol` — or, on a nested receiver path the typer does not

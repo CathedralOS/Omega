@@ -104,25 +104,79 @@ pub(super) fn push_generic_application_bindings<'program>(
     Some(definition)
 }
 
-/// Bind a boundary signature's `Type` parameters to the caller-side actual
-/// types at this call site. Every parameter must end bound: an actual whose
-/// declared type cannot be resolved contributes no binding, and a
-/// conflicting second binding keeps the route opaque. A signature without
-/// type parameters yields an empty environment.
-pub(super) fn signature_call_type_bindings(
+/// Bind the declaring trait only from its exact receiver application. Call
+/// arguments cannot supply a missing owner tuple or change an owner binding.
+pub(super) fn trait_receiver_type_bindings(
+    program: &TypedTrees,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeBindings> {
+    let parameters = program.trait_type_parameters(definition);
+    if parameters.is_empty() {
+        return Some(Vec::new());
+    }
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(*arguments);
+                if *base_symbol != definition.symbol
+                    || parameters.len() != arguments.len()
+                    || parameters.iter().any(|parameter| {
+                        !parameter.symbol.is_valid()
+                            || !matches!(parameter.kind, TypeParameterKind::Type)
+                    })
+                    || arguments.iter().any(|argument| {
+                        !program
+                            .type_reference_table
+                            .contains_type_reference(*argument)
+                    })
+                {
+                    return None;
+                }
+                return Some(
+                    parameters
+                        .iter()
+                        .map(|parameter| parameter.symbol)
+                        .zip(arguments.iter().copied())
+                        .collect(),
+                );
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+pub(super) fn signature_call_type_bindings_seeded(
     program: &TypedTrees,
     current_machine: &Machine,
     signature: &StateSignature,
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
+    bindings: TypeBindings,
 ) -> Option<TypeBindings> {
-    signature_call_type_bindings_with_self(
+    signature_call_type_bindings_in(
         program,
         current_machine,
         signature,
         site,
         arguments,
         false,
+        bindings,
     )
 }
 
@@ -139,9 +193,29 @@ pub(super) fn signature_call_type_bindings_with_self(
     arguments: &[ExpressionHandle],
     include_self: bool,
 ) -> Option<TypeBindings> {
+    signature_call_type_bindings_in(
+        program,
+        current_machine,
+        signature,
+        site,
+        arguments,
+        include_self,
+        Vec::new(),
+    )
+}
+
+fn signature_call_type_bindings_in(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    signature: &StateSignature,
+    site: CallerWriteSite<'_>,
+    arguments: &[ExpressionHandle],
+    include_self: bool,
+    mut bindings: TypeBindings,
+) -> Option<TypeBindings> {
     let type_parameters = program.state_signature_type_parameters(signature);
-    if type_parameters.is_empty() {
-        return Some(Vec::new());
+    if type_parameters.is_empty() && bindings.is_empty() {
+        return Some(bindings);
     }
     if type_parameters.iter().any(|parameter| {
         !parameter.symbol.is_valid() || !matches!(parameter.kind, TypeParameterKind::Type)
@@ -157,7 +231,6 @@ pub(super) fn signature_call_type_bindings_with_self(
     if parameters.len() != arguments.len() {
         return None;
     }
-    let mut bindings = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
         // An argument with no resolvable declared type contributes no
         // binding; the coverage check below still rejects a parameter left
@@ -214,6 +287,12 @@ pub(super) fn bind_formal_type(
         actual = *base_type;
     }
     match program.type_reference_table.type_reference(formal) {
+        TypeReferenceNode::Named { symbol, .. }
+            if bindings.iter().any(|(bound, _)| bound == symbol) =>
+        {
+            let bound = substituted_head(program, formal, bindings);
+            crate::value_custody::type_references::type_references_match(program, bound, actual)
+        }
         TypeReferenceNode::Named { symbol, .. }
             if parameters
                 .iter()

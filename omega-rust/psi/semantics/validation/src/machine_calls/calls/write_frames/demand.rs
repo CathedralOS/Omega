@@ -323,6 +323,7 @@ impl<'program> CallFrameResolver<'program> {
                             if has_divergent_actual { return None; }
                             conservative_call_written_paths(
                                 self.program,
+                                current_machine,
                                 call,
                                 &machine_symbols,
                                 &self.symbols,
@@ -697,7 +698,13 @@ pub(super) fn collect_expression_call_written_paths(
                 )
                 .is_none()
                 && !receiver_members.as_deref().is_some_and(|receiver| {
-                    receiver_requires_boundary_frame(machine_symbols, symbols, receiver)
+                    receiver_requires_boundary_frame(
+                        program,
+                        current_machine,
+                        machine_symbols,
+                        symbols,
+                        receiver,
+                    )
                 })
             {
                 return Some(());
@@ -813,6 +820,7 @@ pub(super) fn collect_expression_call_written_paths(
                 }
                 syntactic_call_written_paths(
                     program,
+                    current_machine,
                     &receiver_members,
                     arguments,
                     machine_symbols,
@@ -888,12 +896,19 @@ fn value_builtin_has_empty_write_frame(
 
 pub(super) fn syntactic_call_written_paths(
     program: &TypedTrees,
+    current_machine: &Machine,
     receiver_members: &[String],
     arguments: &[ExpressionHandle],
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
-    if receiver_requires_boundary_frame(machine_symbols, symbols, receiver_members) {
+    if receiver_requires_boundary_frame(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        receiver_members,
+    ) {
         return None;
     }
     let mut written = vec![if receiver_members.is_empty() {
@@ -930,6 +945,7 @@ pub(super) fn syntactic_call_written_paths(
 /// opaque: their reachable references are not described by producer writes.
 pub(crate) fn conservative_call_written_paths(
     program: &TypedTrees,
+    current_machine: &Machine,
     call: &TableCall,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -942,6 +958,7 @@ pub(crate) fn conservative_call_written_paths(
         .collect::<Vec<_>>();
     syntactic_call_written_paths(
         program,
+        current_machine,
         &receiver_members,
         program.statement_table.expression_handles(call.arguments),
         machine_symbols,

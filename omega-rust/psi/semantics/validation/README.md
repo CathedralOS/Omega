@@ -239,13 +239,18 @@ obligations. Compiler-owned slice views preserve backing-array origins, whereas
 an identically named resolved method keeps its actual body effects. Unknown
 builtin-like names never supply complete empty frames.
 
-Boundary calls require the unique nongeneric trait signature on the exact
-canonical receiver, exact arity, and supported formal/referee storage. Their
-frame includes receiver writes and exclusive arguments, plus operand effects.
+Boundary frames require one exact trait signature on the canonical receiver,
+exact arity, and supported formal/referent storage. A concrete generic receiver
+supplies the trait's symbol-keyed type bindings; method type inference extends
+that environment. The frame includes receiver writes and exclusive arguments,
+plus operand effects. Passing a reference-free value does not authorize writes
+to the storage it was copied from.
 Forwarded references need exact caller declarations or proven helper origins;
 `mut` binding syntax cannot amplify reference access. Signature-only boundary
-results provide no returned-place proof. Failed trait resolution stays opaque
-through all fallback consumers.
+results provide no returned-place proof. Generic signatures remain unavailable
+to fact-seeding consumers that cannot retain their substitution. Failed boundary
+selection stays opaque through the fallback consumers, including for generic
+receivers.
 
 Aggregate transport retains declared Field/Case/FixedIndex reference leaves,
 frozen origins, and selected/possible case evidence. A coarse array demand unions

@@ -819,6 +819,7 @@ fn walk_state_write_prefix_inner(
                         }
                         syntactic_call_written_paths(
                             program,
+                            machine,
                             &nested_receiver_members,
                             arguments,
                             &machine_symbols,
