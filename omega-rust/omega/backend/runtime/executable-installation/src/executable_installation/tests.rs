@@ -6,14 +6,15 @@ use super::{
     InstallAuthority, InstallationAudience, InstallationFactDigest, InstallationReceipt,
     InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt, MaterializationReceipt,
-    PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget, RetirementAuthority,
+    PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget, ReplacementAuthority,
+    ReplacementFactDigest, ReplacementOutcome, ReplacementReceipt, RetirementAuthority,
     RetirementFactDigest, RetirementReceipt, UninstallOutcome, ValidatedPlacement, WxEnforcement,
     admit_executable, install_validated, materialize_admitted_artifact, materialize_and_freeze,
-    normalized_proof_payload_digest, quarantine_installed, retire_installed, uninstall_installed,
-    validate_final_placement,
+    normalized_proof_payload_digest, quarantine_installed, replace_installed, retire_installed,
+    uninstall_installed, validate_final_placement,
 };
 use extents::{Extent, ExtentLineageId, ExtentRootGrant, MappingEraId};
-use layout_plans::{ArtifactInstallationScopeId, PlacementPhase};
+use layout_plans::{ArtifactInstallationScopeId, EntryStubId, PlacementPhase};
 
 use super::test_support::*;
 use extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
@@ -697,6 +698,516 @@ fn uninstall_join_rejects_a_quarantine_receipt_naming_another_realization() {
     let receipt =
         RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
     retire_installed(installed, authority, receipt).expect("returned custody still retires");
+}
+
+/// A distinct already-installed successor for the replacement tests: routing
+/// moves to it before the superseded era drains, so each test binds a real
+/// second realization rather than reusing the same spec.
+fn replacement_successor_spec() -> RealizationSpec {
+    let mut spec = authentic_spec();
+    spec.artifact = 2;
+    spec.placement = 108;
+    spec.extent_base = 0x9000;
+    spec.installed = 282;
+    spec
+}
+
+#[test]
+fn replacement_join_patches_declared_sites_then_retires() {
+    let spec = authentic_spec();
+    let successor_spec = replacement_successor_spec();
+    let successor = realize(&successor_spec);
+    let fragment = admit(&artifact(9));
+    let site = entry_id(spec.entry);
+    let outcome = replace_installed(
+        realize(&spec),
+        &successor,
+        ReplacementAuthority::from_admitted_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.clone())],
+            std::iter::empty(),
+        ),
+        ReplacementReceipt::from_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.artifact().content())],
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
+        None,
+    )
+    .expect("an established patch reaches the drain");
+    let ReplacementOutcome::Retired { retired, .. } = outcome else {
+        panic!("a complete drain retires rather than quarantining")
+    };
+    assert_eq!(
+        retired.previous_artifact().artifact().identity(),
+        id(spec.artifact, ArtifactId::from_normalized_identity)
+    );
+    let _placement = retired.into_placement();
+}
+
+#[test]
+fn replacement_join_quarantines_an_incomplete_drain_after_an_established_patch() {
+    let spec = authentic_spec();
+    let successor_spec = replacement_successor_spec();
+    let successor = realize(&successor_spec);
+    let installed = realize(&spec);
+    let installed_identity = installed.identity();
+    let installed_context = installed.receipt_context();
+    let fragment = admit(&artifact(9));
+    let site = entry_id(spec.entry);
+    let quarantine = id(401, MappingQuarantineId::from_normalized_identity);
+    let outcome = replace_installed(
+        installed,
+        &successor,
+        ReplacementAuthority::from_admitted_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.clone())],
+            std::iter::empty(),
+        ),
+        ReplacementReceipt::from_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.artifact().content())],
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
+        Some(MappingQuarantineReceipt::from_provider(
+            &realize(&spec),
+            quarantine,
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 2,
+            },
+        )),
+    )
+    .expect("an incomplete drain parks in quarantine");
+    let ReplacementOutcome::Quarantined { quarantined, .. } = outcome else {
+        panic!("an incomplete drain must not return the placement")
+    };
+    assert_eq!(quarantined.installed_code(), installed_identity);
+    assert_eq!(quarantined.attributed_capacity_loss(), 4096);
+    let fault = quarantined
+        .stale_entry_fault(&installed_context)
+        .expect("a stale entry names the quarantined realization");
+    assert_eq!(fault.quarantine(), quarantine);
+    assert!(!fault.discharged_obligations());
+}
+
+#[test]
+fn replacement_join_rejects_each_patch_substitution() {
+    let spec = authentic_spec();
+    let successor_spec = replacement_successor_spec();
+    let successor = realize(&successor_spec);
+    let site = entry_id(spec.entry);
+    let rejected: Vec<(
+        &str,
+        fn(
+            &RealizationSpec,
+            &RealizationSpec,
+            EntryStubId,
+        ) -> (ReplacementAuthority, ReplacementReceipt),
+        &str,
+    )> = vec![
+        (
+            "authority scoped to another realization",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                let mut foreign = authentic_spec();
+                foreign.placement = 109;
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(&foreign),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.artifact().content())],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "not scoped to this installed code",
+        ),
+        (
+            "authority names another successor",
+            |spec, _successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                let mut other = authentic_spec();
+                other.placement = 109;
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(&other),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(&replacement_successor_spec()),
+                        [(site, fragment.artifact().content())],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "does not name this successor",
+        ),
+        (
+            "patch site outside the declared entry set",
+            |spec, successor_spec, _site| {
+                let fragment = admit(&artifact(9));
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(entry_id(7777), fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(entry_id(7777), fragment.artifact().content())],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "not a declared entry",
+        ),
+        (
+            "receipt binds a foreign pair",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                let mut foreign = authentic_spec();
+                foreign.placement = 109;
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(&foreign),
+                        &realize(successor_spec),
+                        [(site, fragment.artifact().content())],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "does not bind this exact superseded and successor pair",
+        ),
+        (
+            "patch map misses a demanded site",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "does not patch every demanded declared site",
+        ),
+        (
+            "site patched with a different fragment",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                let other_fragment = admit(&artifact(8));
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, other_fragment.artifact().content())],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "does not patch every demanded declared site",
+        ),
+        (
+            "instruction-fetch visibility incomplete",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.artifact().content())],
+                        false,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "instruction-fetch visibility",
+        ),
+        (
+            "write authority still held",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        std::iter::empty(),
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.artifact().content())],
+                        true,
+                        false,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "residual write authority",
+        ),
+        (
+            "required completion fact dropped",
+            |spec, successor_spec, site| {
+                let fragment = admit(&artifact(9));
+                (
+                    ReplacementAuthority::from_admitted_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.clone())],
+                        [ReplacementFactDigest::from_canonical_bytes(
+                            b"provider.patch-site.cache-order.v1",
+                        )],
+                    ),
+                    ReplacementReceipt::from_provider(
+                        &realize(spec),
+                        &realize(successor_spec),
+                        [(site, fragment.artifact().content())],
+                        true,
+                        true,
+                        std::iter::empty(),
+                    ),
+                )
+            },
+            "completion facts",
+        ),
+    ];
+    for (name, build_evidence, fragment) in &rejected {
+        let (authority, receipt) = build_evidence(&spec, &successor_spec, site);
+        let error = replace_installed(
+            realize(&spec),
+            &successor,
+            authority,
+            receipt,
+            RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+            RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
+            None,
+        )
+        .expect_err("the patch leg must reject the substituted record");
+        let diagnostic = error
+            .patch_diagnostic()
+            .expect("a patch-leg refusal names the patch leg");
+        assert!(
+            diagnostic.0.contains(fragment),
+            "{name}: unexpected patch rejection: {}",
+            diagnostic.0
+        );
+        assert!(error.retirement_diagnostic().is_none());
+        let (_installed, _authority, _receipt, _retirement_authority, _retirement, _quarantine) =
+            (*error).into_parts();
+    }
+
+    let fragment = admit(&artifact(9));
+    let error = replace_installed(
+        realize(&spec),
+        &realize(&spec),
+        ReplacementAuthority::from_admitted_provider(
+            &realize(&spec),
+            &realize(&spec),
+            [(site, fragment.clone())],
+            std::iter::empty(),
+        ),
+        ReplacementReceipt::from_provider(
+            &realize(&spec),
+            &realize(&spec),
+            [(site, fragment.artifact().content())],
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
+        None,
+    )
+    .expect_err("a realization cannot replace itself");
+    assert!(
+        error
+            .patch_diagnostic()
+            .expect("a patch-leg refusal names the patch leg")
+            .0
+            .contains("cannot replace itself")
+    );
+    let (_installed, _authority, _receipt, _retirement_authority, _retirement, _quarantine) =
+        (*error).into_parts();
+}
+
+#[test]
+fn replacement_join_returns_every_input_when_the_drain_cannot_complete() {
+    let spec = authentic_spec();
+    let successor_spec = replacement_successor_spec();
+    let successor = realize(&successor_spec);
+    let fragment = admit(&artifact(9));
+    let site = entry_id(spec.entry);
+    let error = replace_installed(
+        realize(&spec),
+        &successor,
+        ReplacementAuthority::from_admitted_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.clone())],
+            std::iter::empty(),
+        ),
+        ReplacementReceipt::from_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.artifact().content())],
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
+        None,
+    )
+    .expect_err("a failed drain without quarantine evidence keeps every input");
+    assert!(error.patch_diagnostic().is_none());
+    assert!(
+        error
+            .retirement_diagnostic()
+            .expect("the drain refusal names the drain leg")
+            .0
+            .contains("quiescence")
+    );
+    assert!(error.quarantine_diagnostic().is_none());
+    let (installed, _authority, _patch, retirement_authority, _retirement, quarantine) =
+        (*error).into_parts();
+    assert!(quarantine.is_none());
+
+    // The returned custody is intact: the same drain authority with a
+    // complete drain retires the returned installed code.
+    let retirement =
+        RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
+    retire_installed(installed, retirement_authority, retirement)
+        .expect("returned custody still retires");
+}
+
+#[test]
+fn replacement_join_reports_both_legs_of_a_failed_drain() {
+    let spec = authentic_spec();
+    let successor_spec = replacement_successor_spec();
+    let successor = realize(&successor_spec);
+    let fragment = admit(&artifact(9));
+    let site = entry_id(spec.entry);
+    let mut foreign = authentic_spec();
+    foreign.placement = 109;
+    let error = replace_installed(
+        realize(&spec),
+        &successor,
+        ReplacementAuthority::from_admitted_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.clone())],
+            std::iter::empty(),
+        ),
+        ReplacementReceipt::from_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.artifact().content())],
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
+        Some(MappingQuarantineReceipt::from_provider(
+            &realize(&foreign),
+            id(401, MappingQuarantineId::from_normalized_identity),
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        )),
+    )
+    .expect_err("a foreign quarantine receipt cannot park this realization");
+    assert!(
+        error
+            .retirement_diagnostic()
+            .expect("the drain refusal names the drain leg")
+            .0
+            .contains("quiescence")
+    );
+    assert!(
+        error
+            .quarantine_diagnostic()
+            .expect("the quarantine leg ran and refused")
+            .0
+            .contains("does not match")
+    );
+    let (installed, _authority, _patch, retirement_authority, _retirement, quarantine) =
+        (*error).into_parts();
+    assert!(quarantine.is_some());
+
+    let retirement =
+        RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
+    retire_installed(installed, retirement_authority, retirement)
+        .expect("returned custody still retires");
 }
 
 #[test]
