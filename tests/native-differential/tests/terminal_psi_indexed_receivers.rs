@@ -48,6 +48,12 @@ mod owned_subloans;
 #[path = "terminal_psi_indexed_receivers/indexed_stores.rs"]
 mod indexed_stores;
 
+#[path = "terminal_psi_indexed_receivers/reference_carriers.rs"]
+mod reference_carriers;
+
+#[path = "terminal_psi_indexed_receivers/frontier_pins.rs"]
+mod frontier_pins;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }

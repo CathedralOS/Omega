@@ -14,6 +14,19 @@ fn mutable_parent_alias_captures_projected_write_child_through_publication() {
     assert_publication(source, "Record", "", "frame.root[1].value");
 }
 
+/// A `&mut` alias lends its element straight into a `&write` receiver call —
+/// no separately bound child — and the store lands on the original element.
+#[test]
+fn mutable_alias_element_receiver_call_writes_original_storage() {
+    let source = "data Record [copy] { before: u8; value: u16; after: u8; }
+        machine Record::replace(&write self, value: u16) { self.value = value; }
+        machine forward(root: &mut [Record; 2], value: u16) {
+            let parent: &mut [Record; 2] = &mut root;
+            parent[1].replace(value);
+        }";
+    assert_publication(source, "Record", "", "frame.root[1].value");
+}
+
 #[test]
 fn nested_mutable_aliases_attenuate_after_static_field_and_index_projection() {
     let source = "data Record [copy] { before: u8; value: u16; after: u8; }

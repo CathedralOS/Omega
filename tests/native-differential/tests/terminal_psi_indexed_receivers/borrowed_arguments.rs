@@ -63,7 +63,12 @@ machine forward(record: &mut Record, slot: &mut u16) {
     record.push(&write slot);
 }";
 
-fn published_for(source: &str, entry: &str, target: NativeTarget) -> (Vec<u8>, usize) {
+/// A shared `&` argument's callee body reads through to the caller's
+/// referent; the entry returns the read value unchanged.
+const SHARED_SCALAR_CALLEE_BODY: &str = "machine read(root: &u64) -> u64 { root }
+machine forward(root: &mut u64) -> u64 { read(root) }";
+
+pub(super) fn published_for(source: &str, entry: &str, target: NativeTarget) -> (Vec<u8>, usize) {
     let placed = native_text_for(source, target, entry);
     let entry = placed.text_section().semantic_entry;
     let container = std::sync::Arc::new(
@@ -91,7 +96,7 @@ fn published_for(source: &str, entry: &str, target: NativeTarget) -> (Vec<u8>, u
     (image.output().final_text_bytes.clone(), entry_offset)
 }
 
-fn hosted_targets() -> [NativeTarget; 4] {
+pub(super) fn hosted_targets() -> [NativeTarget; 4] {
     [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -110,6 +115,7 @@ fn borrowed_arguments_preserve_optimizer_contracts() {
         (WRITE_ONLY_REFORWARD, "forward"),
         (MUTABLE_FORWARD, "forward"),
         (ATTACHED_WRITE_ONLY_ARGUMENT, "forward"),
+        (SHARED_SCALAR_CALLEE_BODY, "forward"),
     ] {
         let optimized = optimize(&artifact_for(source, entry));
         assert_eq!(optimized.plan(), optimized.verified_input().plan());
@@ -400,6 +406,51 @@ fn attached_callee_write_only_argument_reaches_caller_storage() {
         {
             let _ = (bytes, entry_offset);
             eprintln!("SKIP: attached-callee execution requires a supported host");
+        }
+    }
+}
+
+#[test]
+fn shared_borrow_callee_body_reads_the_caller_referent() {
+    for target in hosted_targets() {
+        let (bytes, entry_offset) = published_for(SHARED_SCALAR_CALLEE_BODY, "forward", target);
+        if target != NativeTarget::host() {
+            continue;
+        }
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        native_function::assert_c_text(
+            &bytes,
+            entry_offset,
+            r#"
+            #include <stdint.h>
+            #include <string.h>
+            extern uint64_t omega_entry(uint64_t *root);
+            int main(void) {
+                struct { uint64_t before; uint64_t root; uint64_t after; } frame;
+                memset(&frame, 0xa5, sizeof frame);
+                frame.root = 41;
+                __typeof__(frame) expected = frame;
+                uint64_t returned = omega_entry(&frame.root);
+                return returned != 41 || memcmp(&expected, &frame, sizeof frame) != 0;
+            }
+        "#,
+        );
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (bytes, entry_offset);
+            eprintln!("SKIP: shared-borrow callee execution requires a supported host");
         }
     }
 }
