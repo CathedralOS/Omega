@@ -442,14 +442,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   Entry/provider/schema queries, opaque descriptions, delegated entry binding,
   and exact-symbol final admission exist. Remaining:
 
-  - Resolve qualified product paths through the query author's authorized
-    product dependencies and exact expected slot/requirement/application,
-    not the caller's host imports or a same-package name scan. Current
-    `checked-interpreter/src/interpreter/evaluator/product_{entries,providers,schemas}.rs`
-    implements the narrower same-package route. Preserve the frozen authored
-    frontier, purpose/target identity, and visibility across description use
-    and final admission; source names and evaluator table indices are not
-    durable selection authority.
+  - Landed at `8a01155ab3`: a qualified `alias::rest` path resolves `alias`
+    through the query occurrence package's retained product-scope roster
+    (the checkpoint stamps `PackageCompilationInputs::dependencies()` onto
+    `SourceMap`; `product_{entries,providers,schemas}` select a `pub`
+    declaration in the exact target package), while a bare leaf keeps the
+    same-package scan and a build-scope or unrecognized first segment
+    authorizes nothing. Still open inside this bullet: exact expected
+    slot/requirement/application checking beyond the entry slot match, and
+    visibility across description use and final admission; source names and
+    evaluator table indices are not durable selection authority.
   - Admit computed description operands and Build receivers through ordinary
     checked call-result authority, effect traversal, and loan accounting.
     `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
