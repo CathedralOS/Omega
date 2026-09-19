@@ -3449,15 +3449,15 @@ Owners include
   already derives exact frozen-input projections for captured constructors,
   owned and nested checked helper results, constructed results and constructor
   operands that select one operand, write-clean mutable helper bindings,
-  shared-reference leaves through their slot stores, and nested call-result
+  shared-reference leaves through their slot stores, helper-returned
+  reference leaves resolved through caller slot stores including callee-local
+  binding transfers and nested helper calls, and nested call-result
   arguments; partition replay follows reference and generic-application leaves
   with exact declared-field provenance. Do not rebuild those as new slices.
   Remaining work:
 
   - Complete owned value loads through references, additional
-    reference-boundary loads, indexed or replaced carriers, and
-    reference-bearing helper results with unresolved control-flow or binding
-    transfers.
+    reference-boundary loads, and indexed or replaced carriers.
   - Mutable demanded paths, helper bodies that may write the demanded
     projection, write-tainted nested calls, generic or dispatched callees,
     ambiguous or dynamic projections, opaque or overlapping write frames,
