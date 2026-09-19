@@ -1941,10 +1941,16 @@ Owners include
   session (`overlap/indexes.rs`, `overlap/segments.rs`), `overlap/premises.rs`
   supplies ordering premises from the forming scope's own `requires` rows, and
   forming-loan and statement-mutation admissions retain replayable
-  `Structural` or `Premised` certificates. That is not general proof-derived
-  compatibility: a bound is one integer or one immutable symbol plus a
-  constant, exactly one premise answers a query, and certificates are
-  checked-stage records that no lowering or Terminal reader consumes.
+  `Structural` or `Premised` certificates. Bounds admit an integer, one
+  immutable symbol plus a constant, or the canonical sum of two distinct
+  immutable exact-domain symbols plus a constant
+  (`validation::immutable_integer_bound_sum`, also unfolded through immutable
+  locals bound to bound-shaped initializers so generated index hoists reach
+  the sum); `pass/borrows/borrow_premised_sum_index_mut` witnesses the
+  admission. That is still not general proof-derived compatibility: exactly
+  one premise answers a query, multi-term arithmetic and negative or
+  repeated coefficients stay unknown, and certificates are checked-stage
+  records that no lowering or Terminal reader consumes.
 
   Remaining work:
 
