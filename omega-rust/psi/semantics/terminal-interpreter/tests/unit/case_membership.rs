@@ -328,7 +328,7 @@ fn projected_case_encoding_requires_the_extended_operation_format() {
         StructuralMultiplicity::Unrestricted,
     );
     let mut semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[8..10], &100_u16.to_le_bytes());
+    assert_eq!(&semantic[8..10], &101_u16.to_le_bytes());
     semantic[8..10].copy_from_slice(&96_u16.to_le_bytes());
     assert_eq!(
         decode_module(&semantic),
