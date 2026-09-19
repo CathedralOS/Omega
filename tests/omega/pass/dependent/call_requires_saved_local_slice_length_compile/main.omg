@@ -1,0 +1,27 @@
+// COMPILE CANARY. A slice bound to a state-local `let` is not a formal, but
+// its produced length is still exact caller evidence at the call boundary:
+// the callee's `requires items.len <= k` discharges from the saved local
+// observation (3) rather than from a literal actual alone, and `outer`'s own
+// forward into `inner` keeps riding the formal coordinate.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.outer(items, 3) }
+}
+
+machine Main::outer(&mut self, items: &[i32], k: u64) -> u64
+requires items.len <= k
+{
+    transition { _ -> self.inner(items, k) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len <= capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

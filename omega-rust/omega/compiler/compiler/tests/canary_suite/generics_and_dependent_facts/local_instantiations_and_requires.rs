@@ -1,7 +1,7 @@
 use super::fixture_roster;
 use crate::{
-    Command, compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, fs,
-    interpret, pass_canary,
+    Command, check_canary, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host, fail_canary, fs, interpret, pass_canary,
 };
 use compiler::CheckedCompileRequest;
 
@@ -595,4 +595,42 @@ fn runtime_core_roster_ops_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn saved_local_slice_length_requires_canaries() {
+    // A state-local `let` slice binding is not a formal, but its produced
+    // length is exact caller evidence at the call boundary: the callee's
+    // `requires items.len <= k` discharges from the saved observation (3)
+    // rather than from literal actuals alone.
+    let canary = pass_canary(fixture_roster::SAVED_LOCAL_SLICE_LENGTH_COMPILE);
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    // The saved observation is exact, not permissive: the same produced length
+    // must still reject when the bound argument is below it.
+    let rejected = fail_canary(fixture_roster::SAVED_LOCAL_SLICE_LENGTH_UNMET_REJECTED);
+    let expected = fs::read_to_string(rejected.join("expected.txt"))
+        .expect("saved-local-length fail canary should carry expected.txt");
+    let diagnostics =
+        check_canary(&rejected).expect_err("an unmet saved local slice length should be rejected");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "saved-local-length fail canary should contain {:?}:\n{combined}",
+        expected.trim()
+    );
 }
