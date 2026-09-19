@@ -9,6 +9,9 @@
 //! shared constant-header table, never by leaf spelling: same-leaf module
 //! declarations cannot share a default template, and an ambiguous authored
 //! trait name defers to ordinary resolution instead of guessing an owner.
+//! Package-aware callers retain the source map and loader-certified import
+//! bindings: rebuilding a source-free header table could merge same-path
+//! declarations from different packages during namespace/value validation.
 //! Synthesized references carry the selected declaration's logical path (or
 //! the authored occurrence itself) so complete resolution rejoins the same
 //! declaration; the compiler-derived selection partition still requires
@@ -18,8 +21,10 @@
 
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use source::SourceMap;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use symbols::SymbolHandle;
+use std::sync::Arc;
+use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
@@ -83,11 +88,13 @@ struct RequirementInstance {
     substitution: HashMap<String, TypeReferenceHandle>,
 }
 
-pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn synthesize_trait_defaults(
+    syntax: &mut SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<SourceScopedTopLevelBinding>,
+) -> Result<(), Vec<Diagnostic>> {
     let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
-        syntax,
-        None,
-        Vec::new(),
+        syntax, sources, bindings,
     )?;
     crate::preparation::module_normalization::validate_with_selection(syntax, &selection)?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)

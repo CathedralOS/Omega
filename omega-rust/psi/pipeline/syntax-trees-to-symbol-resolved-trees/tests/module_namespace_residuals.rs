@@ -852,15 +852,6 @@ fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
                 "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<K> = 3;",
             )][..],
         ),
-        // An unindexed application of a generic family names no concrete
-        // instance; selection declines it.
-        (
-            "unindexed generic family application",
-            &[(
-                "mine.omg",
-                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window = 3;",
-            )][..],
-        ),
         // An aggregate const value is not a scalar `self` payload: nominal
         // carriers still owe checked case/field evidence downstream.
         (
@@ -878,4 +869,14 @@ fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
             "{tag}: unexpected diagnostic: {error}"
         );
     }
+    // Exact family selection diagnoses its missing index even though no fact
+    // can be evaluated: unused binders remain part of the complete application.
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window = 3;",
+    )]).expect_err("incomplete family application must reject");
+    assert!(
+        error.contains("requires 1 closed index argument(s), but 0 were supplied"),
+        "{error}"
+    );
 }

@@ -1,4 +1,9 @@
-//! Constant evaluation: facts.
+//! Declaration-site domain discharge shares the closed fact evaluator used by
+//! generic data. Initializer probes determine values, not membership: ordinary
+//! constant validation still relies on this gate before publishing identity.
+//! Exact declaration selection, complete index binding and establishment
+//! obligations therefore precede fact replay. A generic carrier does not supply
+//! a selected algebra for `self`; only carrier-independent facts can close here.
 use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
     HashSet, Item, ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind,
@@ -13,6 +18,7 @@ use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::{ConstFactValue, ConstScalarValue};
 
 use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
+use super::arguments::ConstIntegerType;
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
@@ -33,12 +39,25 @@ pub(crate) fn evaluate_const_fact_expression(
     }
     let warning_start = warnings.len();
     let result = (|| match syntax.expressions.expression(expression) {
-        ExpressionNode::Integer(value) => integer_literal_value(value)
-            .map(ConstFactValue::Integer)
-            .map(Some)
-            .ok_or_else(|| {
+        ExpressionNode::Integer(literal) => {
+            let value = integer_literal_value(literal).ok_or_else(|| {
                 "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
-            }),
+            })?;
+            let Some(landing) = literal.landing() else {
+                return Ok(Some(ConstFactValue::Integer(value)));
+            };
+            if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact {
+                return Ok(None);
+            }
+            let Some(integer_type) = ConstIntegerType::from_name(landing.landed_type.name()) else {
+                return Ok(None);
+            };
+            integer_type.validate(value)?;
+            Ok(Some(ConstFactValue::DeclaredInteger {
+                value,
+                integer_type,
+            }))
+        }
         ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
         ExpressionNode::Name(path) => {
             let members = syntax.expressions.identifier_path_members(*path);
@@ -58,10 +77,34 @@ pub(crate) fn evaluate_const_fact_expression(
                     .map(|member| member.source_span())
                     .unwrap_or_default(),
             )?;
-            Ok(const_values
-                .get(&name)
-                .copied()
-                .map(ConstFactValue::Integer))
+            let Some(value) = const_values.get(&name).copied() else {
+                return Ok(None);
+            };
+            // The lexical ledger caches payloads, not integer meanings. Rejoin
+            // its unique declaration before a fact can use the payload in an
+            // operation or as a nested membership subject.
+            let mut definitions = syntax.root_items().filter_map(|item| match item {
+                Item::Const(definition) if super::qualified_const_name(definition) == name => {
+                    Some(definition)
+                }
+                _ => None,
+            });
+            let Some(definition) = definitions.next() else {
+                return Ok(None);
+            };
+            if definitions.next().is_some() {
+                return Ok(None);
+            }
+            let Some(integer_type) =
+                super::arguments::const_integer_type(syntax, definition.type_reference)
+            else {
+                return Ok(None);
+            };
+            integer_type.validate(value)?;
+            Ok(Some(ConstFactValue::DeclaredInteger {
+                value,
+                integer_type,
+            }))
         }
         ExpressionNode::SelfValue => Ok(self_value.map(ConstScalarValue::into_fact_value)),
         ExpressionNode::Unary(unary) => match unary.operator {
@@ -188,7 +231,11 @@ pub(crate) fn evaluate_named_const_domain(
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
     let domain = match selection {
-        Some(selection) => selection.domain(syntax, authored, reference),
+        Some(selection) => selection.domain(syntax, authored, reference).or_else(|| {
+            selection
+                .domain_family(syntax, authored, reference)
+                .map(|(_, definition)| definition)
+        }),
         None => {
             let expanded = if authored.contains("::") {
                 authored.to_owned()
@@ -206,6 +253,17 @@ pub(crate) fn evaluate_named_const_domain(
     let Some(domain) = domain else {
         return Ok(None);
     };
+    let Some(index_parameters) =
+        crate::preparation::generic_data::domain_index_parameters(syntax, domain)
+    else {
+        return Ok(None);
+    };
+    if !index_parameters.is_empty() {
+        return Err(format!(
+            "indexed domain `{authored}` requires {} closed index argument(s), but 0 were supplied",
+            index_parameters.len(),
+        ));
+    }
     // The visiting key is the selected declaration's complete logical path so
     // two authored spellings of the same owner still catch recursion.
     let domain_key = module_domain_key(syntax, domain);
@@ -261,17 +319,40 @@ fn evaluate_selected_domain_facts(
     if visiting.iter().any(|name| name == &domain_key) {
         return Ok(None);
     }
+    // Predicate truth is not issuance. Aliases also need their constituents'
+    // obligations, not the empty fact list on the authored alias declaration.
+    if !domain.authored_routes.is_empty() || domain.alias.is_some() {
+        return Ok(None);
+    }
     let TypeReferenceNode::Named(domain_target) =
         syntax.type_references.type_reference(domain.target_type)
     else {
         return Ok(None);
     };
-    if domain_target.as_str() != carrier {
+    let carrier_parameter = syntax
+        .items
+        .type_parameters(domain.type_parameters)
+        .first()
+        .filter(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Type)
+                && domain_target.as_str() == parameter.name.as_str()
+        });
+    let self_value = if let Some(parameter) = carrier_parameter {
+        // Property-bound discharge belongs to typed application checking.
+        // Omitting the abstract `self` binding keeps selected carrier operations
+        // there too, while closed index-only predicates reuse ordinary replay.
+        if parameter.bounds != syntax_trees::item::DataProperties::default() {
+            return Ok(None);
+        }
+        None
+    } else if domain_target.as_str() != carrier {
         return Err(format!(
             "domain `{domain_key}` has carrier `{}`, but the const value has carrier `{carrier}`",
             domain_target.as_str(),
         ));
-    }
+    } else {
+        Some(value)
+    };
     let warning_start = warnings.len();
     visiting.push(domain_key);
     let result = (|| {
@@ -282,7 +363,7 @@ fn evaluate_selected_domain_facts(
                     *expression,
                     const_values,
                     parameter_values,
-                    value,
+                    self_value,
                     carrier,
                     visiting,
                     selection,
@@ -294,7 +375,7 @@ fn evaluate_selected_domain_facts(
                         membership.value,
                         const_values,
                         parameter_values,
-                        Some(value),
+                        self_value,
                         warnings,
                     )?
                     else {
@@ -375,6 +456,16 @@ fn nested_membership_operand<'a>(
 ) -> Result<Option<(&'a str, ConstScalarValue)>, String> {
     match value {
         ConstFactValue::Boolean(value) => Ok(Some(("bool", ConstScalarValue::Boolean(value)))),
+        ConstFactValue::DeclaredInteger {
+            value,
+            integer_type,
+        } => Ok(Some((
+            integer_type.name(),
+            ConstScalarValue::DeclaredInteger {
+                value,
+                integer_type,
+            },
+        ))),
         value => Ok(value
             .into_integer(syntax, warnings)?
             .map(|value| (carrier, ConstScalarValue::Integer(value)))),
@@ -391,7 +482,7 @@ fn nested_membership_operand<'a>(
 /// must close to that exact carrier against the enclosing scope's bindings; the
 /// family's facts then replay through the same evaluator monomorphic domains
 /// use, with `self` bound to `value` and each binder mapped to its argument.
-/// A carrier-polymorphic target, a non-scalar or non-const index parameter,
+/// A non-scalar or non-const index parameter,
 /// an argument that stays open (enclosing binders, module-constant spellings,
 /// names still owned by resolved selection), and an unprovable fact all
 /// decline with `None` so the declaration keeps its fence instead of
@@ -447,30 +538,12 @@ fn evaluate_indexed_const_domain(
         return Ok(None);
     };
     let domain_key = module_domain_key(syntax, domain);
-    // A carrier-polymorphic family (`domain<T, ...> T::D`) cannot prove
-    // membership for a concrete value until its carrier instantiates; the
-    // application keeps its authored shape for that stage.
-    let TypeReferenceNode::Named(domain_target) =
-        syntax.type_references.type_reference(domain.target_type)
-    else {
-        return Ok(None);
-    };
-    let parameters = syntax.items.type_parameters(domain.type_parameters);
-    if parameters.first().is_some_and(|parameter| {
-        matches!(parameter.kind, TypeParameterKind::Type)
-            && domain_target.as_str() == parameter.name.as_str()
-    }) {
-        return Ok(None);
-    }
     let Some(index_parameters) =
         crate::preparation::generic_data::domain_index_parameters(syntax, domain)
     else {
         return Ok(None);
     };
     let arguments = syntax.type_references.type_reference_handles(argument_span);
-    if index_parameters.is_empty() {
-        return Ok(None);
-    }
     if arguments.len() != index_parameters.len() {
         return Err(format!(
             "indexed domain `{authored}` requires {} closed index argument(s), but {} were supplied",
@@ -503,7 +576,7 @@ fn evaluate_indexed_const_domain(
         };
         let required =
             crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
-        match bound {
+        let bound = match bound {
             ConstScalarValue::Integer(bound) => {
                 if required == "bool" {
                     return Err(format!(
@@ -512,6 +585,27 @@ fn evaluate_indexed_const_domain(
                     ));
                 }
                 crate::preparation::generic_data::validate_syntax_integer_range(&required, bound)?;
+                let Some(integer_type) = ConstIntegerType::from_name(&required) else {
+                    return Ok(None);
+                };
+                ConstScalarValue::DeclaredInteger {
+                    value: bound,
+                    integer_type,
+                }
+            }
+            ConstScalarValue::DeclaredInteger {
+                value,
+                integer_type,
+            } => {
+                if integer_type.name() != required {
+                    return Err(format!(
+                        "index argument for `{authored}::{}` has canonical type `{}`, expected `{required}`",
+                        parameter.name.as_str(),
+                        integer_type.name(),
+                    ));
+                }
+                integer_type.validate(value)?;
+                bound
             }
             ConstScalarValue::Boolean(_) if required != "bool" => {
                 return Err(format!(
@@ -519,8 +613,8 @@ fn evaluate_indexed_const_domain(
                     parameter.name.as_str(),
                 ));
             }
-            ConstScalarValue::Boolean(_) => {}
-        }
+            ConstScalarValue::Boolean(_) => bound,
+        };
         parameter_values.insert(parameter.name.as_str().to_owned(), bound);
     }
     evaluate_selected_domain_facts(
@@ -751,7 +845,18 @@ pub(crate) fn prove_declared_const_domain_constraints(
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             type_name,
             value,
-        }) => (type_name, ConstScalarValue::Integer(value)),
+        }) => {
+            let Some(integer_type) = ConstIntegerType::from_name(&type_name) else {
+                return Err(CONSTRAINED_CONST_FENCE.to_owned());
+            };
+            (
+                type_name,
+                ConstScalarValue::DeclaredInteger {
+                    value,
+                    integer_type,
+                },
+            )
+        }
         // The `bool` carrier is the only other scalar canonical encoding; its
         // domain target check and `self` binding are exactly the integer
         // route's.
@@ -833,7 +938,9 @@ pub(crate) fn prove_declared_const_domain_constraints(
 }
 
 /// Evaluate one fact expression inside a selected domain declaration with
-/// `self` bound to the checked value. `parameter_values` carries the
+/// `self` bound to the checked value only for a fixed carrier. A generic
+/// carrier leaves it unavailable rather than assuming an instance's algebra.
+/// `parameter_values` carries the
 /// application's closed index bindings so a family fact like `self < N`
 /// resolves its binder exactly; a monomorphic domain passes an empty map.
 pub(crate) fn evaluate_const_domain_expression(
@@ -841,7 +948,7 @@ pub(crate) fn evaluate_const_domain_expression(
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, ConstScalarValue>,
-    self_value: ConstScalarValue,
+    self_value: Option<ConstScalarValue>,
     carrier: &str,
     visiting: &mut Vec<String>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
@@ -858,7 +965,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 membership.value,
                 const_values,
                 parameter_values,
-                Some(self_value),
+                self_value,
                 warnings,
             )?
             else {
@@ -934,7 +1041,7 @@ pub(crate) fn evaluate_const_domain_expression(
             expression,
             const_values,
             parameter_values,
-            Some(self_value),
+            self_value,
             warnings,
         ),
     })();

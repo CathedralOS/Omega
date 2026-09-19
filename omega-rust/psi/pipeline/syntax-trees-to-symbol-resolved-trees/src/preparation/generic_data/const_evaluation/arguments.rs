@@ -576,8 +576,8 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     }
 }
 
-#[derive(Clone, Copy)]
-pub(in crate::preparation::generic_data) struct ConstIntegerType {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ConstIntegerType {
     name: &'static str,
     bits: u32,
     signed: bool,
@@ -592,54 +592,80 @@ pub(in crate::preparation::generic_data) fn const_integer_type(
     else {
         return None;
     };
-    Some(match name.as_str() {
-        "i8" => ConstIntegerType {
-            name: "i8",
-            bits: 8,
-            signed: true,
-        },
-        "i16" => ConstIntegerType {
-            name: "i16",
-            bits: 16,
-            signed: true,
-        },
-        "i32" => ConstIntegerType {
-            name: "i32",
-            bits: 32,
-            signed: true,
-        },
-        "i64" => ConstIntegerType {
-            name: "i64",
-            bits: 64,
-            signed: true,
-        },
-        "u8" => ConstIntegerType {
-            name: "u8",
-            bits: 8,
-            signed: false,
-        },
-        "u16" => ConstIntegerType {
-            name: "u16",
-            bits: 16,
-            signed: false,
-        },
-        "u32" => ConstIntegerType {
-            name: "u32",
-            bits: 32,
-            signed: false,
-        },
-        "u64" => ConstIntegerType {
-            name: "u64",
-            bits: 64,
-            signed: false,
-        },
-        "addr" => ConstIntegerType {
-            name: "addr",
-            bits: 64,
-            signed: false,
-        },
-        _ => return None,
-    })
+    ConstIntegerType::from_name(name.as_str())
+}
+
+impl ConstIntegerType {
+    pub(crate) fn name(self) -> &'static str {
+        self.name
+    }
+
+    pub(crate) fn validate(self, value: i128) -> Result<(), String> {
+        let modulus = 1i128 << self.bits;
+        let (minimum, maximum) = if self.signed {
+            (-(modulus >> 1), (modulus >> 1) - 1)
+        } else {
+            (0, modulus - 1)
+        };
+        if value < minimum || value > maximum {
+            return Err(format!(
+                "integer value `{value}` is outside the declared `{}` range",
+                self.name
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "i8" => ConstIntegerType {
+                name: "i8",
+                bits: 8,
+                signed: true,
+            },
+            "i16" => ConstIntegerType {
+                name: "i16",
+                bits: 16,
+                signed: true,
+            },
+            "i32" => ConstIntegerType {
+                name: "i32",
+                bits: 32,
+                signed: true,
+            },
+            "i64" => ConstIntegerType {
+                name: "i64",
+                bits: 64,
+                signed: true,
+            },
+            "u8" => ConstIntegerType {
+                name: "u8",
+                bits: 8,
+                signed: false,
+            },
+            "u16" => ConstIntegerType {
+                name: "u16",
+                bits: 16,
+                signed: false,
+            },
+            "u32" => ConstIntegerType {
+                name: "u32",
+                bits: 32,
+                signed: false,
+            },
+            "u64" => ConstIntegerType {
+                name: "u64",
+                bits: 64,
+                signed: false,
+            },
+            "addr" => ConstIntegerType {
+                name: "addr",
+                bits: 64,
+                signed: false,
+            },
+            _ => return None,
+        })
+    }
 }
 
 pub(in crate::preparation::generic_data) fn generic_const_integer_types(

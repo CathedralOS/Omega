@@ -838,8 +838,12 @@ fn trait_default_synthesis_is_idempotent_across_orchestration_and_lowering() {
         .tokenize()
         .expect("tokenize should succeed");
     let mut syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)
-        .expect("orchestration may synthesize before resolution");
+    crate::preparation::trait_defaults::synthesize_trait_defaults(
+        &mut syntax_trees,
+        None,
+        Vec::new(),
+    )
+    .expect("orchestration may synthesize before resolution");
     let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("resolution's mandatory synthesis pass must not duplicate the row");
     let conformance = program.conformances.iter().next().expect("one conformance");

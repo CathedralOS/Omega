@@ -24,6 +24,7 @@ pub use result_type::{
 };
 mod reference_values;
 pub(crate) use reference_values::place_forwards_mutable_reference;
+pub(crate) use result_type::domain_expression_result_type_reference;
 mod result_type;
 mod shape_validation;
 mod value_classification;
@@ -349,6 +350,20 @@ pub(crate) fn named_value_type_reference(
     let [_] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
+    // Static value binders live in the shared declaration arena, including
+    // domain telescopes with no executable machine/state. Their exact symbol
+    // supplies the declared carrier; a same-spelled binder supplies nothing.
+    if path.symbol.is_valid()
+        && path.head_symbol == path.symbol
+        && let Some((_, parameter)) = program
+            .data_type_parameters
+            .iter()
+            .find(|(_, parameter)| parameter.symbol == path.symbol)
+        && let typed_trees::data::TypeParameterKind::Const { type_reference }
+        | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
+    {
+        return Some(type_reference);
+    }
     let matches_symbol = |candidate: symbols::SymbolHandle| {
         candidate.is_valid()
             && ((path.symbol.is_valid() && candidate == path.symbol)
