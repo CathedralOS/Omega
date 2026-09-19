@@ -1,15 +1,17 @@
 use super::guard;
 use super::{
     Batch, Diagnostic, ExpressionArguments, ExpressionEdit, ExpressionHandle, ExpressionNode,
-    GraphGuard, SelectedDispatchSourceEdits, TypedTrees, rejected,
+    GraphGuard, SelectedDispatchSourceEdits, StatementEdit, TypedTrees, rejected,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::StaticMachineArgument;
+use typed_trees::statement::{StatementHandle, StatementNode};
 
 #[derive(Default)]
 pub(crate) struct SourceEditBuilder {
     ignored: bool,
     edits: Vec<ExpressionEdit>,
+    statement_edits: Vec<StatementEdit>,
     roots: Vec<ExpressionHandle>,
     symbols: Vec<SymbolHandle>,
     static_arguments: Vec<StaticMachineArgument>,
@@ -99,6 +101,54 @@ impl SourceEditBuilder {
         });
     }
 
+    /// Journal a statement-table call node (`Owner::name(...);`, including
+    /// `_ = call();`) before selected dispatch rewrites it in place. The
+    /// call's operand expressions and symbol bindings get the same guard
+    /// custody as an expression-site call.
+    pub(crate) fn statement_call(&mut self, program: &TypedTrees, handle: StatementHandle) {
+        if self.ignored || self.failure.is_some() {
+            return;
+        }
+        let original = program.statement_table.statement(handle);
+        let StatementNode::Call(call) = original else {
+            self.unsupported = true;
+            return;
+        };
+        if let Err(diagnostics) = guard::validate_static_argument_roots(&call.machine_arguments) {
+            self.failure = Some(diagnostics);
+            return;
+        }
+        self.static_arguments
+            .extend_from_slice(&call.machine_arguments);
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            self.symbols.extend([
+                dispatch.declaring_trait,
+                dispatch.requirement,
+                dispatch.realization_machine,
+                dispatch.realization_state,
+            ]);
+        }
+        self.symbols.extend([
+            call.target_symbol,
+            call.receiver_root_symbol,
+            call.receiver_symbol,
+            call.static_machine_parameter,
+        ]);
+        let arguments = program
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        self.roots.extend_from_slice(&arguments);
+        self.statement_edits.push(StatementEdit {
+            handle,
+            original: original.clone(),
+            original_call: Some(ExpressionArguments {
+                span: call.arguments,
+                arguments,
+            }),
+        });
+    }
+
     pub(crate) fn finish(
         self,
         program: &TypedTrees,
@@ -109,7 +159,7 @@ impl SourceEditBuilder {
         if self.unsupported {
             return Err(rejected("unsupported original dispatch edit shape"));
         }
-        if self.edits.is_empty() {
+        if self.edits.is_empty() && self.statement_edits.is_empty() {
             return Ok(SelectedDispatchSourceEdits::default());
         }
         let guard = GraphGuard::capture(
@@ -122,6 +172,7 @@ impl SourceEditBuilder {
         Ok(SelectedDispatchSourceEdits {
             batches: vec![Batch {
                 edits: self.edits,
+                statement_edits: self.statement_edits,
                 guard,
             }],
         })

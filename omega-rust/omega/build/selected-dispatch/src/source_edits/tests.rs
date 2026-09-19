@@ -422,6 +422,7 @@ fn journal_batch_roster_rejects_every_one_field_substitution() {
         0,
         Batch {
             edits: Vec::new(),
+            statement_edits: Vec::new(),
             guard: GraphGuard::capture(&disjoint.settled, &[], &[], &[], &[])
                 .expect("empty guard seals"),
         },
@@ -435,6 +436,7 @@ fn journal_batch_roster_rejects_every_one_field_substitution() {
     let mut journal = disjoint.journal.clone();
     journal.batches.push(Batch {
         edits: Vec::new(),
+        statement_edits: Vec::new(),
         guard: GraphGuard::capture(&disjoint.settled, &[], &[], &[], &[])
             .expect("empty guard seals"),
     });

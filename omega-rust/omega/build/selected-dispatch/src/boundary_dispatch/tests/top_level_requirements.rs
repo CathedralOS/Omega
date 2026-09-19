@@ -204,8 +204,12 @@ fn execution_settlement_redirects_the_journaled_call_to_the_realization() {
     assert!(authored.receiver.is_valid());
 }
 
+/// The statement call `Owner::name(...);` — including the `_ = call();`
+/// explicit discard — is the same settled route as the value-position call:
+/// the statement-table node redirects to the adapter entry, its retained flow
+/// occurrence follows, and the journal restores the authored requirement call.
 #[test]
-fn a_statement_position_direct_call_is_not_an_executable_route() {
+fn a_statement_position_direct_call_redirects_to_the_selected_adapter() {
     let source = REQUIREMENT_SOURCE.replace(
         "let selected: i32 = CheckedMath::offset_zero(35);\n        transition { _ -> (selected) }",
         "_ = CheckedMath::offset_zero(35);\n        transition { _ -> (35) }",
@@ -213,15 +217,76 @@ fn a_statement_position_direct_call_is_not_an_executable_route() {
     assert_ne!(source, REQUIREMENT_SOURCE);
     let (checked, plans) = requirement_fixture(&source);
     let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "CheckedMath::offset_zero");
+    let realization = entry_symbol(&checked, "CheckedMathProvider::offset_zero_impl");
+    let statement = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .flat_map(|state| {
+            checked
+                .typed
+                .statement_table
+                .iter_statements(state.statement_nodes)
+        })
+        .find_map(|(handle, statement)| match statement {
+            typed_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "offset_zero" =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .expect("statement-position requirement call");
+
     let mut settled = Arc::new(checked);
-    let diagnostics = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
-        .expect_err("a statement-position direct call rejects");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("statement-position direct call `offset_zero` to public boundary requirement `CheckedMath::offset_zero` is not an executable route")),
-        "{diagnostics:?}"
+    let edits = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+        .expect("a statement-position direct call settles");
+    let typed_trees::statement::StatementNode::Call(call) =
+        settled.typed.statement_table.statement(statement)
+    else {
+        panic!("the journaled statement call is still a call");
+    };
+    assert_eq!(call.target_symbol, realization);
+    assert_eq!(
+        call.target.as_str(),
+        "CheckedMathProvider::offset_zero_impl"
     );
+    assert!(
+        call.receiver.is_empty() && !call.receiver_symbol.is_valid(),
+        "the owner receiver is cleared"
+    );
+    assert!(
+        call.discards_result,
+        "the `_ =` explicit discard is retained"
+    );
+    // The retained flow occurrence follows the call.
+    assert!(
+        settled
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .any(|(_, occurrence)| {
+                !occurrence.authored_expression.is_valid()
+                    && occurrence.target_symbol == realization
+                    && !occurrence.has_receiver
+            })
+    );
+    // The journal restores the requirement-side statement call.
+    let source = edits
+        .source_trees(&settled.typed)
+        .expect("restore the journaled source");
+    let typed_trees::statement::StatementNode::Call(authored) =
+        source.statement_table.statement(statement)
+    else {
+        panic!("the restored statement is a call");
+    };
+    assert_eq!(authored.target_symbol, requirement);
+    assert_eq!(authored.target.as_str(), "offset_zero");
+    assert!(authored.discards_result);
 }
 
 #[test]

@@ -1,6 +1,24 @@
 use super::{Builder, Diagnostic, MAX_NODES, StaticMachineArgument, rejected};
 use typed_trees::expression::TableCallExpression;
 
+/// The statement-table `TableCall` static-argument twin: it carries only
+/// `machine_arguments` (no quotient or layout operation), so one bounded walk
+/// covers the whole retained set.
+pub(in super::super) fn validate_static_argument_roots(
+    arguments: &[StaticMachineArgument],
+) -> Result<(), Vec<Diagnostic>> {
+    let mut total = 0usize;
+    walk(arguments, |_| {
+        total = total
+            .checked_add(1)
+            .filter(|total| *total <= MAX_NODES)
+            .ok_or_else(|| {
+                rejected("call static arguments exceed the retained graph node budget")
+            })?;
+        Ok(())
+    })
+}
+
 pub(in super::super) fn validate_call_static_arguments(
     call: &TableCallExpression,
 ) -> Result<(), Vec<Diagnostic>> {

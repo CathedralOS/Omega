@@ -1,0 +1,21 @@
+// A statement-position direct call to a public top-level boundary
+// requirement executes only through a selected provider, exactly like the
+// value-position route. With no checked adapter satisfying the requirement
+// there is no plan to select, and settlement rejects the call before either
+// engine could reach the bodyless declaration.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+pub data CheckedMath {}
+
+pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32;
+
+data Main { console: Console; }
+
+machine Main::main(&mut self)
+reaches Console
+{
+    _ = CheckedMath::offset_zero(70);
+    self.console.exit_process(0i32);
+}
