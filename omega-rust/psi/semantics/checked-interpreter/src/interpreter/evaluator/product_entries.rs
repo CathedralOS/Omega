@@ -202,13 +202,9 @@ impl<'program> Evaluator<'program> {
                 .iter()
                 .filter(|machine| {
                     machine.is_public
-                        && (machine.name.as_str() == rest
-                            || self
-                                .program
-                                .symbols
-                                .display_path(machine.symbol, "::")
-                                .as_str()
-                                == rest)
+                        // The dependency alias qualifies a complete path;
+                        // a different module's relative name is not a match.
+                        && self.program.symbols.display_path(machine.symbol, "::") == rest
                         && self
                             .program
                             .symbols

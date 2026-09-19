@@ -11,6 +11,8 @@ mod fixtures;
 mod foreign_helper_product_queries;
 #[path = "support/linux_entry_acceptance.rs"]
 mod linux_entry_acceptance;
+#[path = "build_target_activation/product_query_paths.rs"]
+mod product_query_paths;
 #[path = "build_target_activation/qualified_root_bindings.rs"]
 mod qualified_root_bindings;
 #[path = "build_target_activation/x86_feature_admission.rs"]
