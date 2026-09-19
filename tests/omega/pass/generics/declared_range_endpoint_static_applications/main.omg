@@ -24,7 +24,7 @@ machine helper_argument(value: u64[0..=choose<256>(flag())]) -> u64 { upper_boun
 machine declared_argument(value: u64[0..=identity<RANGE>()]) -> u64 { upper_bound(value) }
 machine bounded_application(value: u64[0..=bounded<256>(0)]) -> u64 { upper_bound(value) }
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let explicit: u64 = explicit_application(0);
     let argument: u64 = application_argument(0);

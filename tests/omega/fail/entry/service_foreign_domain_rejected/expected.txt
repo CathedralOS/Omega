@@ -1,1 +1,1 @@
-may carry only the exact toolchain-owned `Bound` domain
+admits no authored qualification

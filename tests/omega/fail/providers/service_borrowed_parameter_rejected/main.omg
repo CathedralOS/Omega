@@ -3,6 +3,6 @@ use omega::language::core::service;
 pub boundary trait Ping { machine ping(); }
 
 data Harness { }
-machine Harness::run(service: &Service<Ping> in Bound) {
+machine Harness::run(service: &Service<Ping>) {
     service.ping();
 }

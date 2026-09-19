@@ -16,7 +16,7 @@ machine PingProvider::ping() satisfies Ping::ping { }
 machine PingProvider::ping_value(value: i32) satisfies Ping::ping_value { }
 
 data Main {
-    service: Service<Ping> in Bound;
+    service: Service<Ping>;
 }
 
 machine Main::main(&mut self)
@@ -30,7 +30,7 @@ reaches Ping
 // scalar namespace retains an ordinary immutable input without forwarding,
 // borrowing, nesting, or return transport of the affine carrier.
 data ParameterHarness { }
-machine ParameterHarness::run(service: Service<Ping> in Bound, value: i32)
+machine ParameterHarness::run(service: Service<Ping>, value: i32)
 reaches Ping
 {
     service.ping_value(value);
@@ -41,24 +41,24 @@ reaches Ping
 // helper. The helper terminates the route with direct calls; forwarding a
 // scalar, projecting or borrowing the carrier, or forwarding again remains
 // outside this cohort.
-machine forwarding_terminal(service: Service<Ping> in Bound)
+machine forwarding_terminal(service: Service<Ping>)
 reaches Ping
 {
     service.ping();
 }
 
-machine forwarding_once(service: Service<Ping> in Bound) {
+machine forwarding_once(service: Service<Ping>) {
     forwarding_terminal(service);
 }
 
 // These declarations remain valid Omega but deliberately have no checked
 // Terminal Unit plan in this rung.
-machine forwarding_twice(service: Service<Ping> in Bound) {
+machine forwarding_twice(service: Service<Ping>) {
     forwarding_once(service);
 }
 
 machine forwarding_scalar_terminal(
-    service: Service<Ping> in Bound,
+    service: Service<Ping>,
     value: i32
 )
 reaches Ping
@@ -67,7 +67,7 @@ reaches Ping
 }
 
 machine forwarding_scalar_once(
-    service: Service<Ping> in Bound,
+    service: Service<Ping>,
     value: i32
 ) {
     forwarding_scalar_terminal(service, value);

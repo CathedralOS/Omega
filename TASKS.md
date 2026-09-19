@@ -920,7 +920,19 @@ Owners include
     service-only domain and its acceptance paths, not general domains. Carry exact
     requirement, occurrence and selected-plan custody through checking, Terminal,
     erased Fused fields, native settlement and independent replay. No default-domain
-    feature, bare-trait alias or fabricated establishment row is needed.
+    feature, bare-trait alias or fabricated establishment row is needed. Resume
+    evidence (w9, `swarm-w9-entry-content-roots`): the cut is implemented and
+    verified on the wave branch — `Bound` is deleted from `core/service.omg`, the
+    service classifier requires the exact closed `Service<R>` identity and rejects
+    any authored `in <domain>` qualification during source checking, the checked
+    carrier's `bound_domain` leg and every downstream plan/custody/test consumer
+    are retired, and all `in Bound` spellings are migrated out of library sources,
+    product sources, fixtures, samples and canaries. Frontier before landing: the
+    two fused-parameter rejoin gates in
+    `checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs` are part of
+    this cut but the path is claimed by TR3-TR8, so publication waits for that
+    claim (or a coordinator merge). Bare-field rejection and Squalr migration in
+    the next bullet are untouched.
   - Migrate library, samples, canaries and Squalr from bare boundary-trait fields
     and `Service<R> in Bound` to the intrinsic carrier; reject bare fields during
     source checking rather than after native bridge planning. Preserve negative

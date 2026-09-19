@@ -1,66 +1,42 @@
 //! Exact recognition of the toolchain-owned routed service carrier.
 //!
 //! A same-named package declaration is ordinary opaque data. Compiler
-//! privilege requires the complete core source, declaration shape, closed
-//! boundary requirement, and `Bound` domain identity. Service validity is
-//! intrinsic to the carrier: `Service<R>` already denotes establishment under
-//! the toolchain `Bound` domain, so the authored `in Bound` spelling is a
-//! tolerated transitional qualification that must name exactly that domain —
-//! not an independent admission requirement.
+//! privilege requires the complete core source, declaration shape, and one
+//! closed boundary requirement. Service validity is intrinsic to the carrier:
+//! `Service<R>` is already the exact closed identity, so any authored
+//! qualification spelled on it is rejected. The retired `Bound` qualification
+//! era survives only in these entry-point names, which still have callers that
+//! have not migrated; the classifier itself consults no domain.
 
 use crate::TypedTrees;
-use crate::types::{
-    DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
 pub const SERVICE_CORE_SOURCE: &str = "service.omg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExactBoundServiceCarrier {
+pub struct ExactServiceCarrier {
     pub service_data: SymbolHandle,
-    pub bound_domain: SymbolHandle,
     pub requirement: SymbolHandle,
 }
 
 /// Classify one type shell. `Ok(None)` means it is not the exact core
 /// `Service` carrier; `Err` means it does name that carrier but violates the
-/// deliberately narrow first-rung contract. A bare `Service<R>` and the
-/// transitional `Service<R> in Bound` spelling resolve to the same carrier:
-/// the toolchain `Bound` domain is intrinsic to service validity, so at most
-/// one authored qualification may name it and no other domain may.
+/// deliberately narrow first-rung contract. The carrier is closed: an authored
+/// `Constrained` shell over `Service<R>` is itself a violation, whatever
+/// domain or membership the constraint names.
 pub fn classify_exact_bound_service_carrier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Result<Option<ExactBoundServiceCarrier>, String> {
+) -> Result<Option<ExactServiceCarrier>, String> {
     let mut current = type_reference;
-    let mut constraints = Vec::new();
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints: span,
-    } = program.type_reference_table.type_reference(current)
+    let mut qualified = false;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(current)
     {
-        constraints.extend_from_slice(program.type_reference_table.constraints(*span));
+        qualified = true;
         current = *base_type;
     }
-
-    let exact_bound_domain = exact_bound_domain_symbol(program);
-    let carries_exact_bound = exact_bound_domain.is_some_and(|bound| {
-        constraints.iter().any(|constraint| {
-            matches!(
-                constraint,
-                TypeConstraintNode::Domain(domain)
-                    if domain.subject == DomainConstraintSubject::Declared
-                        && domain.symbol == bound
-            )
-        })
-    });
-    let wrong_bound_carrier = || {
-        Err(
-            "the exact toolchain-owned `Bound` domain routes only a closed `Service<R>` carrier"
-                .to_owned(),
-        )
-    };
 
     let generic_origin = match program.type_reference_table.type_reference(current) {
         TypeReferenceNode::Generic { .. } => current,
@@ -71,21 +47,11 @@ pub fn classify_exact_bound_service_carrier(
                 .find(|definition| definition.symbol == *symbol)
                 .and_then(|definition| definition.generic_instance)
             else {
-                return if carries_exact_bound {
-                    wrong_bound_carrier()
-                } else {
-                    Ok(None)
-                };
+                return Ok(None);
             };
             origin
         }
-        _ => {
-            return if carries_exact_bound {
-                wrong_bound_carrier()
-            } else {
-                Ok(None)
-            };
-        }
+        _ => return Ok(None),
     };
     let TypeReferenceNode::Generic {
         base_symbol,
@@ -94,18 +60,16 @@ pub fn classify_exact_bound_service_carrier(
         ..
     } = program.type_reference_table.type_reference(generic_origin)
     else {
-        return if carries_exact_bound {
-            wrong_bound_carrier()
-        } else {
-            Ok(None)
-        };
+        return Ok(None);
     };
     if !is_exact_service_data_symbol(program, *base_symbol) {
-        return if carries_exact_bound {
-            wrong_bound_carrier()
-        } else {
-            Ok(None)
-        };
+        return Ok(None);
+    }
+    if qualified {
+        return Err(
+            "the core `Service` carrier is closed; it admits no authored qualification"
+                .to_owned(),
+        );
     }
     if !lifetime_arguments.is_empty() {
         return Err("the core `Service` carrier takes no lifetime arguments".to_owned());
@@ -158,36 +122,8 @@ pub fn classify_exact_bound_service_carrier(
         ));
     }
 
-    let Some(bound_domain) = exact_bound_domain else {
-        return Err(
-            "the exact core `Service::Bound` domain declaration is missing or malformed".to_owned(),
-        );
-    };
-    let mut bound_count = 0usize;
-    for constraint in constraints {
-        match constraint {
-            TypeConstraintNode::Domain(domain)
-                if domain.subject == DomainConstraintSubject::Declared
-                    && domain.symbol == bound_domain =>
-            {
-                bound_count += 1;
-            }
-            _ => {
-                return Err(format!(
-                    "`Service<{name}>` may carry only the exact toolchain-owned `Bound` domain"
-                ));
-            }
-        }
-    }
-    if bound_count > 1 {
-        return Err(format!(
-            "`Service<{name}>` repeats the exact toolchain-owned `Bound` domain qualification"
-        ));
-    }
-
-    Ok(Some(ExactBoundServiceCarrier {
+    Ok(Some(ExactServiceCarrier {
         service_data: *base_symbol,
-        bound_domain,
         requirement: *requirement,
     }))
 }
@@ -222,34 +158,6 @@ pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) 
         && definition.lifetime_parameters.is_empty()
         && matches!(parameters, [parameter] if matches!(parameter.kind, crate::data::TypeParameterKind::Type))
         && program.data_members(definition).is_empty()
-}
-
-fn exact_bound_domain_symbol(program: &TypedTrees) -> Option<SymbolHandle> {
-    let mut matches = program.domain_definitions().iter().filter_map(|domain| {
-        let parameters = program.domain_type_parameters(domain);
-        let exact_generic_carrier = matches!(
-            parameters,
-            [parameter]
-                if matches!(parameter.kind, crate::data::TypeParameterKind::Type)
-                    && matches!(
-                        program.type_reference_table.type_reference(domain.target_type),
-                        TypeReferenceNode::Named { symbol, .. }
-                            if *symbol == parameter.symbol
-                    )
-        );
-        (domain.name.as_str() == "Bound"
-            && domain.is_public
-            && exact_generic_carrier
-            && domain.index_arguments.is_empty()
-            && domain.alias.is_none()
-            && domain.classification.is_none()
-            && domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
-            && domain.establishment_routes.is_empty()
-            && exact_toolchain_source(program, domain.symbol, SERVICE_CORE_SOURCE))
-        .then_some(domain.symbol)
-    });
-    let exact = matches.next()?;
-    matches.next().is_none().then_some(exact)
 }
 
 fn exact_toolchain_source(program: &TypedTrees, symbol: SymbolHandle, relative: &str) -> bool {

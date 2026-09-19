@@ -131,7 +131,7 @@ machine relay_bound<const J: u64>(value: u64[0..=J]) -> u64 { forward_bound(valu
 machine forwarded_bound(value: u64[0..=256]) -> u64 { forward_bound(value) }
 machine relayed_bound(value: u64[0..=256]) -> u64 { relay_bound(value) }
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let bound: u64 = inferred(0);
     let forwarded: u64 = generic_forwarded_bound();

@@ -217,10 +217,9 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             qualifications.dedup();
             if parameter.type_identity != base_identity
                 || parameter.qualifications != qualifications
-                || qualifications.len() != 1
             {
                 return unsupported(
-                    "fused Service parameter substituted its base type or Bound qualification",
+                    "fused Service parameter substituted its base type or qualifications",
                 );
             }
         }
@@ -352,7 +351,7 @@ pub(crate) fn lower_unit_parameters(
                 && (parameter.is_self
                     || parameter.multiplicity != Multiplicity::Affine
                     || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                    || parameter.qualifications.len() != 1)
+                    || !parameter.qualifications.is_empty())
             {
                 return Err(LoweringError::Unsupported(
                     "fused Service parameter has an invalid checked structural shape",

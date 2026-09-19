@@ -11,7 +11,7 @@ data PingProvider { }
 machine PingProvider::ping() satisfies Ping::ping { }
 
 data Main {
-    service: Service<Ping> in Bound;
+    service: Service<Ping>;
 }
 
 machine Main::main(&mut self)
@@ -21,7 +21,7 @@ reaches Ping
 }
 
 data NonRoot {
-    service: Service<Ping> in Bound;
+    service: Service<Ping>;
 }
 
 machine NonRoot::run(&mut self)

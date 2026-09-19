@@ -25,7 +25,7 @@ data Euclid [copy] {
 }
 
 data Main {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
     state: Euclid;
     pause: [u8; 256];
 }

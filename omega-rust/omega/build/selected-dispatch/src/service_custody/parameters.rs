@@ -235,10 +235,9 @@ fn validate_receipt(
     source_qualifications.dedup();
     if parameter.type_identity != base_identity
         || parameter.qualifications != source_qualifications
-        || source_qualifications.len() != 1
     {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service parameter `{label}` substituted its structural base or exact Bound qualification",
+            "checked routed Service parameter `{label}` substituted its structural base or authored qualification",
         )));
         return;
     }

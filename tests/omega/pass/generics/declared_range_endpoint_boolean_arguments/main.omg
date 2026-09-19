@@ -23,7 +23,7 @@ machine whole_expression_flag(value: u64[0..=(match is_wide() { true -> pick(tru
 
 machine call_free_flag(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) -> u64 { upper_bound(value) }
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let literal: u64 = literal_flag(0);
     let helper: u64 = helper_flag(0);

@@ -4,10 +4,10 @@
 // composition and installation, never by package-authored construction. A
 // fused build may erase the carrier only after joining it to the exact selected
 // provider for `R`; independent composition retains a runtime slot carrier.
+//
+// Service validity is intrinsic to the closed `Service<R>` identity: the
+// carrier already denotes toolchain establishment, so no authored domain
+// qualification exists for it and any `Service<R> in <domain>` spelling is
+// rejected during source checking.
 
 pub boundary data Service<R>;
-
-// `Bound` is compiler-owned but carrier-polymorphic at the domain layer. The
-// frontend admits its exact toolchain declaration only on a closed
-// `Service<R>`; using it on any other carrier is rejected.
-pub domain<T> T::Bound;

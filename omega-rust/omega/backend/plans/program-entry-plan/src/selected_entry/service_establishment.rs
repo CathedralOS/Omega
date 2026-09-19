@@ -19,7 +19,6 @@ pub struct ProgramEntryFusedServiceEstablishment {
     field_identity: String,
     carrier_type_identity: String,
     carrier_base_identity: String,
-    bound_domain_identity: String,
     requirement_identity: String,
     service_schema_digest: ServiceSchemaDigest,
     selected_provider_plan_digest: ProviderPlanDigest,
@@ -50,7 +49,6 @@ impl ProgramEntryFusedServiceEstablishment {
         field_identity: String,
         carrier_type_identity: String,
         carrier_base_identity: String,
-        bound_domain_identity: String,
         requirement_identity: String,
         service_schema_digest: ServiceSchemaDigest,
         selected_provider_plan_digest: ProviderPlanDigest,
@@ -63,7 +61,6 @@ impl ProgramEntryFusedServiceEstablishment {
             || field_identity.is_empty()
             || carrier_type_identity.is_empty()
             || carrier_base_identity.is_empty()
-            || bound_domain_identity.is_empty()
             || requirement_identity.is_empty()
         {
             return Err("Fused root establishment contains an empty semantic identity");
@@ -76,7 +73,6 @@ impl ProgramEntryFusedServiceEstablishment {
             field_identity,
             carrier_type_identity,
             carrier_base_identity,
-            bound_domain_identity,
             requirement_identity,
             service_schema_digest,
             selected_provider_plan_digest,
@@ -109,10 +105,6 @@ impl ProgramEntryFusedServiceEstablishment {
 
     pub fn carrier_base_identity(&self) -> &str {
         &self.carrier_base_identity
-    }
-
-    pub fn bound_domain_identity(&self) -> &str {
-        &self.bound_domain_identity
     }
 
     pub fn requirement_identity(&self) -> &str {

@@ -15,7 +15,7 @@ machine result_bounded<const N: u64>() -> u64[0..=limit()] { 0 }
 machine parameter_bound(value: u64[0..=bounded<256>(0)]) -> u64 { upper_bound(value) }
 machine result_bound(value: u64[0..=result_bounded<256>()]) -> u64 { upper_bound(value) }
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let parameter: u64 = parameter_bound(0);
     let result: u64 = result_bound(0);

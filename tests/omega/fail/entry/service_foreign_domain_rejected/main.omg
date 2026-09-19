@@ -1,6 +1,6 @@
-// Intrinsic `Service<R>` validity admits zero or one authored `in Bound`
-// qualification; any other domain still rejects the carrier at source
-// checking rather than degrading to a structural field.
+// Intrinsic `Service<R>` validity is closed: any authored domain
+// qualification on the carrier rejects at source checking rather than
+// degrading to a structural field.
 use omega::language::core::service;
 
 pub boundary trait Ping {
