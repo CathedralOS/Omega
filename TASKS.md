@@ -2647,16 +2647,20 @@ Owners include
     "machine has no source-independent checked scalar control plan" for a
     machine whose body holds claim-bearing custody
     (`tests/value_dispatch/owned_results/linear_child_carriers.rs` pins it).
-  - Borrowed-result consumers. A `&Payload` selection forwards its joined place
-    to a call and executes. A `&u64` selection plans its carrier but has no
-    consumer: a call rejects with the same control-plan diagnostic, an unread
-    view rejects with "structural local carried a borrow event with no recorded
-    loan", and `primitive_reference_read` admits only state parameters, so a
-    borrowed primitive local has no read spelling. That spelling is an owner
-    decision `OWNER_QUESTIONS.md` does not yet carry; do not invent one here.
-    A direct `let view: &Payload = &a` outside a match builds no
-    structural-value root, so the machine has no control plan
-    (`established_reference_local_call_rejection_pins_the_checker_gap` in
+  - Borrowed-result consumers. A `&Payload` selection forwards its joined
+    place to a call and executes, and an established `&Payload` join lowers
+    even unread. A direct `let view: &T = &place` outside a match now
+    establishes the shared-borrow carrier directly and executes
+    (`established_reference_local_call_forwards_the_direct_borrow`,
+    b7d932c341). The primitive consumer lane is admitted: a `&u64` callee
+    body plans a source-independent `PrimitiveScalarRead`, a `&u64` formal
+    forwards the exact entry place end to end, and `read(view)` retains an
+    established `&u64` view as a whole `PrimitiveScalar` `SharedBorrow`
+    argument (2e4ee8f08b). The remaining boundary is representability, not
+    a missing read spelling: an established primitive join would be a
+    `PrimitiveScalar` block structural parameter, a shape Terminal does not
+    admit, so it still stops at `InvalidBlockStructuralParameter`
+    (`borrowed_selection_plans_a_primitive_referent_carrier` in
     `tests/value_dispatch/borrowed_results.rs`).
   - Remaining borrowed joins are separate questions, not a wider carrier:
     exclusive (`&mut`) arms have affine custody of their own, and case-bearing
@@ -3505,48 +3509,32 @@ Owners include
   element write retires only that element's facts.
 
   Customer probe: `omega --check --target linux_x86_64
-  samples/cli/games/dungeon_crawler_cli/main.omg`. At b2ea74973c (macOS ARM64)
-  it reported 55 diagnostics: 14 `RoomLookup::find_room_mut` return rows, 14
-  `find_room` call rows, 14 `append_exit` + 7 `apply_room` + 2
-  `roll_event`/`clear_event` call rows, and 4 index rows. Rerun it before
-  relying on these counts.
+  samples/cli/games/dungeon_crawler_cli/main.omg`. It reported 55
+  diagnostics at b2ea74973c; the call-side proofs now cover every finite
+  reference-result candidate (192fa77d3b), collection elements seed
+  whole-extent field domains that runtime-indexed subjects and slice views
+  narrow from (5292e6ec8c, which left only the four index rows), and the
+  sample's declared `u64 [0..=16]`/`[0..=15]` bounds let the single shared
+  statement transfer discharge those (4c09f582f1). The probe now reports
+  no diagnostics on macOS ARM64; rerun it before relying on that
+  observation.
 
-  Remaining work, in resume order:
+  Remaining work:
 
-  1. The call-side nominal-input and `reference_domains` proofs
-     (`checks/contracts/{nominal_inputs,reference_domains}.rs`,
-     `local_reference_storage_at_call`) resolve an actual through one exact
-     origin only. Proving a row on every candidate origin would close the 23
-     `append_exit`/`apply_room`/`roll_event`/`clear_event` call rows.
-  2. `RoomLookup::find_room{,_mut}` loop through a sub-state over a runtime
-     index, which the candidate trace refuses (28 rows). Close it on the
-     sample side (item 5) or with a candidate family for the element loop.
-  3. `&mut self` receivers hand back only the ZII-seeded `MachineFieldDomain`
-     rows: a callee's `self` entry assumption is ZII-gated, so its return
-     cannot guarantee non-ZII rows, and a caller's non-ZII receiver facts
-     survive a method call only through frame precision. Widening needs a
-     contract decision, not a flow change; none is recorded in
-     `OWNER_QUESTIONS.md` yet.
-  4. `checks/ranges` retired a slice view's length after a call through one
-     element (`clear_room(&mut rooms[0], ..)` then `rooms[1]`). The 55-row
-     probe lists no such rows although the sample still has the pattern;
-     confirm with a focused fixture and drop this item if it is closed.
-  5. Sample side: `RoomLookup` copies an element at a runtime index and passes
-     an uninitialized readable `&mut Room` out-parameter where write-only
-     `&write Room` is the intended spelling, but validation rejects `&write`
-     for constrained records. Unbounded `room_count` leaves the 4 index rows.
+  - `&mut self` receivers hand back only the ZII-seeded `MachineFieldDomain`
+    rows: a callee's `self` entry assumption is ZII-gated, so its return
+    cannot guarantee non-ZII rows, and a caller's non-ZII receiver facts
+    survive a method call only through frame precision. Widening needs a
+    contract decision, not a flow change; none is recorded in
+    `OWNER_QUESTIONS.md` yet, and the clean probe does not exercise it.
+  - `RoomLookup` still passes an uninitialized readable `&mut Room`
+    out-parameter where write-only `&write Room` is the intended spelling;
+    `&write` admission still rejects constrained records. That spelling is
+    **WRITE-ONLY-BORROW**'s surface, not a flow gap here.
 
   Acceptance: the dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls
   satisfy default field obligations, while corrupted elements and stale
   aliased fields reject at calls, transitions, and returns.
-
-  Flag: `checks/ranges/state_arguments/statements.rs` replays each statement
-  to collect transition-argument facts with its own copy of the seeding that
-  `checks/ranges/statements.rs` performs in the checking pass. 6c5329be03,
-  2267dd4da1 and 154de8c5a1 each repaired one seed the replay had missed
-  (ensured call results, name aliases, member stores and subslice windows).
-  One statement transfer shared by both passes removes that class of
-  divergence; adding a mirror per missed seed does not.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
@@ -3723,14 +3711,29 @@ Owners include
   `task-plans`, `provider-planning/src/task_plans/`, provider admission, and a
   real selected runtime.
 
-  Static carriers exist: `task_plans/stack_graphs.rs` derives a sealed WCSU
-  `StackPlan` over exact checked-body call edges and rejects a
-  possibly-suspending call that has no canonical crossing, and the `task-plans`
-  ledger issues a plan-bound `StackLease` and returns the moved arguments and
-  the lease whole on every start rejection. Per the
-  [task-plans note](omega-rust/omega/representations/task-plans/README.md),
-  routed source `Task<T>` establishment, argument marshalling, stack
-  provisioning, cancellation conformance and real runtime execution remain.
+  The static carriers exist: `provider-planning`'s `task_call_graph`
+  (`task_plans/stack_graphs.rs`) derives a sealed WCSU `StackPlan` over exact
+  checked-body call edges, rejects a possibly-suspending call with no
+  canonical crossing, and seals every call it cannot resolve — requirement
+  slots, machine parameters, dynamic descriptors and non-checked supply —
+  into the frame's `UnresolvedCallSite` roster, so the composed demand
+  publishes exact only when the roster is empty and `establish_stack_lease`
+  refuses a partial projection (458cac408f, 30d545108f). Admission-time
+  `CallTargetAssignment`s (`task_plans/call_target_bindings.rs`,
+  ac1efde2f7) bind a sealed site to a concrete checked-body subtree: the
+  bound subtree joins the retained composition evidence (db8b11d66a) and its
+  canonical suspension crossings join the plan roster (2e93adfdc8), so a
+  covered projection re-seals exact. The `task-plans` ledger transacts
+  `MovedTaskArguments` marshalled under the plan's `TaskArgumentLayout`
+  against a plan-bound nonmoving `StackLease`, conserving both on every
+  start rejection (35ae31b963, bb66844e56); `TaskRuntimeAdmission` gates
+  starts on bounded stack provisioning (316eaa89e5), parks and resumes
+  claims only at canonical crossings carrying each live place's
+  `LiveCarryDemand` (c1b16cb063, afda8fbe16), and settles `Cancelled` only
+  against a recorded then observed cancellation request (fe9e63735b). Per
+  the [task-plans note](omega-rust/omega/representations/task-plans/README.md),
+  routed source `Task<T>` establishment and a real selected runtime
+  executing the transitions the ledger models remain.
 
   Acceptance: stack/control custody is never compiler-owned or lost across a
   suspension edge, and missing crossing demand rejects. Exercise concurrent
@@ -3738,14 +3741,6 @@ Owners include
   cross-instance settlement rejection, and fresh storage eras on reuse. Static
   plans and lifecycle ledger tests alone do not establish executable activation
   or argument conservation.
-
-  Flag: `stack_graphs.rs` adds a child frame only when a call target resolves
-  to a checked-body machine state. Requirement slots, machine parameters,
-  dynamic descriptor calls and non-checked supply `continue` with no edge, no
-  `AdmittedSameStack` contribution (only tests construct one) and no
-  rejection, so a frame they place on this stack adds zero bytes to a bound
-  published as exact whole-call-graph WCSU. A worst-case bound needs an
-  admitted contribution or a rejection for every call it cannot resolve.
 
 - **ATOMIC-MEMORY-MODEL.** Complete the formal atomic/fence axioms and checked
   target refinement under the
