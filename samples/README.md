@@ -19,6 +19,26 @@ should still have a clear project shape:
 Generated compiler output belongs in local `build/` beside the sample
 entrypoint. Do not check it in and do not make sample source depend on it.
 
+`omega refresh-samples <directory>` discovers sample `main.omg` files and
+compiles them for the current host, using the same package builds, trust
+admission, and native publication as an ordinary compile. It does not run the
+executables or accept policy on your behalf. Complete any requested package
+review first with `omega update --project <sample-directory>`; unresolved trust
+admissions also remain errors. A failed sample is reported without preventing
+the other samples from building, and any failure makes the command exit nonzero.
+
+For example, from the repository root in either PowerShell or a macOS shell:
+
+```text
+mbx run -p omega -- update --project samples/cli/basics/cli_mvp
+mbx run -p omega -- refresh-samples samples/cli/basics/cli_mvp
+```
+
+Use `cargo` instead of `mbx` if the wrapper is unavailable. These commands use
+the host target; cross-target or firmware compilation uses the ordinary compile
+command with an explicit target. Refreshing the whole corpus does not imply
+that every sample is currently supported.
+
 Samples should read like code someone might write. If a sample exposes a small
 missing compiler behavior, pin that behavior in `tests/omega/` with the smallest
 feature-shaped program, then come back to the sample.
