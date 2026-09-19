@@ -3,7 +3,7 @@
 // ordinary multiplication remains nearest-even after each local envelope.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

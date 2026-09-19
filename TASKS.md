@@ -4676,11 +4676,18 @@ Owners include
   semantic bindings; the current narrow roles and standalone limits are listed
   [beside package compilation](omega-rust/omega/build/package-compilation/semantic_bindings.md).
 
-  Complete composed-Unit plans for trait-default, float, wire, arithmetic-helper,
-  guarded-call, and looping-cast canaries and the target-correct non-Linux
-  Console catalog entry. Structural writeback shares the blocker recorded in
-  `WRITE-ONLY-BORROW`. Feed consumer-scoped Console, Filesystem, and UEFI
-  bindings through normal package-aware compilation.
+  Complete composed-Unit plans for trait-default, float, wire,
+  arithmetic-helper, guarded-call, and looping-cast canaries and the
+  target-correct non-Linux Console catalog entry. The float pass group
+  migrated to ordinary `omega_language_std` edges (50 packaged roots, 49
+  std consumers under `tests/omega/pass/float`; the std-free
+  `named_float_to_integer_no_context_compile` and
+  `tests/omega/run/float/sqrt_probe` remain standalone), so its directed
+  and twin canaries now reach the package route and expose the open
+  composed-Unit and checked-operator legs there. Structural writeback
+  shares the blocker recorded in `WRITE-ONLY-BORROW`. Feed consumer-scoped
+  Console, Filesystem, and UEFI bindings through normal package-aware
+  compilation.
 
   Acceptance: removing a dependency rejects its imports/provider selections;
   name, alias, path, or same-spelled declarations cannot restore it, and stale

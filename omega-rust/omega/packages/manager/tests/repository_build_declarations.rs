@@ -531,8 +531,8 @@ fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_e
 fn float_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/float"),
-        38,
-        37,
+        50,
+        49,
     );
 }
 

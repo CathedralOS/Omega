@@ -1,0 +1,7 @@
+// Darwin float-argument canary: the hosted macOS target selects its exact entry.
+
+machine build(builder: &mut Build) {
+    builder.application("native-float-arg");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

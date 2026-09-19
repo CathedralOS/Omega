@@ -54,10 +54,18 @@ fn production_compile(
             RequestedCompileProduct::NativeArtifact
         }
     };
-    let package_inputs = reviewed_repository_fixture_package_inputs(
-        &options.root_path,
-        options.target_name.as_deref(),
-    )?;
+    // An unspecified target resolves to the native hosted target during
+    // artifact production, so the review derives bindings against that same
+    // target. Check products keep the targetless surface.
+    let review_target = match requested_product {
+        RequestedCompileProduct::NativeArtifact => options
+            .target_name
+            .clone()
+            .or_else(|| Some(native_hosted_target().to_string())),
+        _ => options.target_name.clone(),
+    };
+    let package_inputs =
+        reviewed_repository_fixture_package_inputs(&options.root_path, review_target.as_deref())?;
     let mut request = CompileRequest::new(options).with_requested_product(requested_product);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);

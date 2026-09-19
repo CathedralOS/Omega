@@ -11,7 +11,7 @@ use omega::language::core::float_operations;
 // are direct computations so their independent scratch slots must retain the
 // FLOAT class before marshalling.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 boundary trait Math {
     machine round_nearest(value: f64) -> i64;
