@@ -56,16 +56,18 @@ pub struct ProofFacts {
 impl ProofFacts {
     /// Rejoin one exact authored equality to the unique checked direct-result
     /// FloatMeaning projection it reflexively names. Consumers still own their
-    /// stage-specific result-shape and contract-lane checks.
+    /// stage-specific result-shape and contract-lane checks. Transported
+    /// `ensures` instances share the declaration's `source_expression`, so the
+    /// rejoin keys (owner, expression, use site) and only declaration rows —
+    /// those with no use-site coordinate — can discharge an authored exit.
     pub fn direct_result_float_meaning_reflexivity(
         &self,
         owner_machine: symbols::SymbolHandle,
         source_expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<&crate::CheckedFloatMeaningProjection> {
-        let mut equalities = self
-            .float_meaning_equalities
-            .iter()
-            .filter(|equality| equality.source_expression == source_expression);
+        let mut equalities = self.float_meaning_equalities.iter().filter(|equality| {
+            equality.source_expression == source_expression && equality.use_site.is_none()
+        });
         let equality = equalities.next()?;
         if equalities.next().is_some() || equality.left != equality.right {
             return None;

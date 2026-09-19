@@ -90,6 +90,44 @@ pub struct CheckedDirectStructuralFloatLeaf {
     pub fallback: CheckedFloatProjectionInput,
 }
 
+/// Exact use-site coordinate where one transported `ensures` clause
+/// instantiates: one scalar call or selected boundary operation inside the
+/// owning machine's authored statement. The coordinate joins the checked use
+/// to the emitted Terminal operation through the lowered occurrence tables;
+/// it names a use of a contract, never a declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedFloatUseSite {
+    pub owner_machine: symbols::SymbolHandle,
+    pub owner_state: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+}
+
+/// Exact checked provenance for the scalar result produced by one call use
+/// inside the owning machine. A transported `ensures` clause names the
+/// importing use's result, not one shared value per declaration, so `result`
+/// carries the use-site coordinate. Source handles remain checked-only;
+/// Terminal lowering rejoins the coordinate to the emitted call operation's
+/// declared scalar result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedDirectCallFloatResult {
+    pub use_site: CheckedFloatUseSite,
+    pub fallback: CheckedFloatProjectionInput,
+}
+
+/// Exact checked provenance for the scalar result produced by one non-call
+/// operation use inside the owning machine. `use_expression` retains the
+/// authored operator-use occurrence: today's one non-call float producer
+/// (selected IEEE fused multiply-add) occupies call ordinal zero of its
+/// statement, so the authored expression keeps two uses sharing a statement
+/// distinct before the lowered occurrence join runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedDirectOperationFloatResult {
+    pub use_site: CheckedFloatUseSite,
+    pub use_expression: typed_trees::expression::ExpressionHandle,
+    pub fallback: CheckedFloatProjectionInput,
+}
+
 /// The semantic source retained for one checked float projection.
 ///
 /// Exact literals carry their landed raw bits directly. The transitional
@@ -102,6 +140,8 @@ pub enum CheckedFloatProjectionSource {
     DirectMachineResult(CheckedDirectMachineFloatResult),
     DirectBlockParameter(CheckedDirectBlockFloatParameter),
     DirectStructuralLeaf(CheckedDirectStructuralFloatLeaf),
+    DirectCallResult(CheckedDirectCallFloatResult),
+    DirectOperationResult(CheckedDirectOperationFloatResult),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
@@ -114,6 +154,8 @@ impl CheckedFloatProjectionSource {
             Self::DirectMachineResult(result) => result.fallback.primitive,
             Self::DirectBlockParameter(parameter) => parameter.fallback.primitive,
             Self::DirectStructuralLeaf(leaf) => leaf.fallback.primitive,
+            Self::DirectCallResult(result) => result.fallback.primitive,
+            Self::DirectOperationResult(result) => result.fallback.primitive,
             Self::ExactBinary32Literal(_) => PrimitiveType::F32,
             Self::ExactBinary64Literal(_) => PrimitiveType::F64,
         }
@@ -150,6 +192,12 @@ pub struct CheckedFloatMeaningEqualityProposition {
     /// This coordinate is used only to join exit checking back to the
     /// validated occurrence and is erased before Terminal Psi.
     pub source_expression: typed_trees::expression::ExpressionHandle,
+    /// The exact use site where a transported `ensures` equality instantiated,
+    /// or `None` for the authored declaration row. Imported instances share
+    /// the declaration's `source_expression`, so the reflexivity rejoin keys
+    /// (owner, expression, use site) to keep declaration rows disjoint from
+    /// every instantiation and each instantiation distinct per use.
+    pub use_site: Option<CheckedFloatUseSite>,
 }
 
 impl CheckedFloatMeaningProjection {
@@ -189,6 +237,19 @@ impl CheckedFloatMeaningProjection {
             {
                 return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
             }
+            CheckedFloatProjectionSource::DirectCallResult(result)
+                if !result.use_site.owner_machine.is_valid()
+                    || !result.use_site.owner_state.is_valid() =>
+            {
+                return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+            }
+            CheckedFloatProjectionSource::DirectOperationResult(result)
+                if !result.use_site.owner_machine.is_valid()
+                    || !result.use_site.owner_state.is_valid()
+                    || !result.use_expression.is_valid() =>
+            {
+                return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+            }
             _ => {}
         }
         if self.contract != self.operation.contract_identity() {
@@ -209,11 +270,12 @@ pub enum CheckedFloatMeaningProjectionError {
 #[cfg(test)]
 mod tests {
     use super::{
-        CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
+        CheckedDirectCallFloatResult, CheckedDirectMachineFloatParameter,
+        CheckedDirectMachineFloatResult, CheckedDirectOperationFloatResult,
         CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError,
         CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
-        CheckedProofOnlyValueType, CheckedProofValueDeclaration, CheckedProofValueId,
-        FloatProjectionOperation, PrimitiveType,
+        CheckedFloatUseSite, CheckedProofOnlyValueType, CheckedProofValueDeclaration,
+        CheckedProofValueId, FloatProjectionOperation, PrimitiveType,
     };
 
     fn projection() -> CheckedFloatMeaningProjection {
@@ -336,6 +398,51 @@ mod tests {
         assert_eq!(
             plan.validate(),
             Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch)
+        );
+    }
+
+    #[test]
+    fn checked_use_site_results_require_a_whole_use_coordinate() {
+        let use_site = || CheckedFloatUseSite {
+            owner_machine: symbols::SymbolHandle::from_arena_index(3),
+            owner_state: symbols::SymbolHandle::from_arena_index(5),
+            statement_index: 0,
+            call_ordinal: 0,
+        };
+        let fallback = || CheckedFloatProjectionInput {
+            id: CheckedFloatProjectionInputId(7),
+            primitive: PrimitiveType::F32,
+        };
+        let mut plan = projection();
+        plan.source =
+            CheckedFloatProjectionSource::DirectCallResult(CheckedDirectCallFloatResult {
+                use_site: use_site(),
+                fallback: fallback(),
+            });
+        assert_eq!(plan.validate(), Ok(()));
+        if let CheckedFloatProjectionSource::DirectCallResult(result) = &mut plan.source {
+            result.use_site.owner_state = symbols::SymbolHandle::invalid();
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance)
+        );
+
+        let mut plan = projection();
+        plan.source = CheckedFloatProjectionSource::DirectOperationResult(
+            CheckedDirectOperationFloatResult {
+                use_site: use_site(),
+                use_expression: typed_trees::expression::ExpressionHandle::from_arena_index(2),
+                fallback: fallback(),
+            },
+        );
+        assert_eq!(plan.validate(), Ok(()));
+        if let CheckedFloatProjectionSource::DirectOperationResult(result) = &mut plan.source {
+            result.use_expression = typed_trees::expression::ExpressionHandle::invalid();
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance)
         );
     }
 }
