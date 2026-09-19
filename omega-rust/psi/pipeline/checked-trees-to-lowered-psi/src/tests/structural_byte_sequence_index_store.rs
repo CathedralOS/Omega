@@ -422,8 +422,18 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
                 unreachable!()
             };
             match mutation {
-                0 => store.index = store.value.clone(),
-                1 => store.value = store.index.clone(),
+                0 => {
+                    store.index = store
+                        .value
+                        .as_pure()
+                        .expect("authored store keeps a pure value")
+                        .clone()
+                }
+                1 => {
+                    store.value = checked_trees::CheckedByteSequenceStoreValue::Pure(
+                        store.index.clone(),
+                    )
+                }
                 2 => store.field_identity = "Record::other".into(),
                 3 => store
                     .carrier_path

@@ -123,14 +123,16 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
                 else {
                     panic!("write")
                 };
-                write.value = CheckedScalarExpression::IntegerLiteral {
-                    literal: numerics::literals::IntegerLiteral::from_value(0).with_landing(
-                        numerics::literals::IntegerLanding {
-                            landed_type: numerics::literals::LandedIntegerType::U8,
-                            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-                        },
-                    ),
-                };
+                write.value = checked_trees::CheckedByteSequenceStoreValue::Pure(
+                    CheckedScalarExpression::IntegerLiteral {
+                        literal: numerics::literals::IntegerLiteral::from_value(0).with_landing(
+                            numerics::literals::IntegerLanding {
+                                landed_type: numerics::literals::LandedIntegerType::U8,
+                                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                            },
+                        ),
+                    },
+                );
             }
             _ => unreachable!(),
         }

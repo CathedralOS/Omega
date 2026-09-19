@@ -160,11 +160,13 @@ impl MachineEmission<'_> {
             store.statement_index,
             CheckedScalarExpressionRole::AssignmentIndex,
         )?;
-        let value = bindings.expression_at(
+        let value = crate::emission::byte_store_scalar_value(
+            &bindings,
             checked,
             plan.state,
             store.statement_index,
-            CheckedScalarExpressionRole::AssignmentValue,
+            &store.value,
+            &self.scalar_result_values,
         )?;
         Ok(Some(
             crate::emission::structural_byte_sequence_index_store::emit(
@@ -201,11 +203,13 @@ impl MachineEmission<'_> {
             write.statement_index,
             CheckedScalarExpressionRole::AssignmentIndex,
         )?;
-        let value = bindings.expression_at(
+        let value = crate::emission::byte_store_scalar_value(
+            &bindings,
             checked,
             plan.state,
             write.statement_index,
-            CheckedScalarExpressionRole::AssignmentValue,
+            &write.value,
+            &self.scalar_result_values,
         )?;
         Ok(Some(crate::emission::byte_sequence_write::emit(
             write,

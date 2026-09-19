@@ -420,6 +420,30 @@ pub(super) fn build_traced(
                                     CheckedStructuralAccess::SharedBorrow
                                         | CheckedStructuralAccess::MutableBorrow))
                     }) => {}
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } if claim_transfers.is_empty()
+                    && structural_arguments.iter().all(|argument| {
+                        whole_shared_argument(argument)
+                            || ((argument.source_parameter_index().is_some()
+                                || argument
+                                    .source_structural_result_binding_ordinal()
+                                    .is_some())
+                                && matches!(argument.access,
+                                    CheckedStructuralAccess::SharedBorrow
+                                        | CheckedStructuralAccess::MutableBorrow))
+                            // The statement sequencer already rejoins a local
+                            // receiver to its completed producer and exact
+                            // loan. State ownership, not parameter spelling,
+                            // governs keeping that same home until the
+                            // selected exit.
+                            || (argument.source_structural_result_binding_ordinal().is_some()
+                                && matches!(argument.access,
+                                    CheckedStructuralAccess::SharedBorrow
+                                        | CheckedStructuralAccess::MutableBorrow))
+                    }) => {}
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     discard_result_on_return: false,
                     ..

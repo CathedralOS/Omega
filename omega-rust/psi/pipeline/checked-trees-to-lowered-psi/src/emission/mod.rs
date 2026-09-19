@@ -46,3 +46,48 @@ pub(crate) mod store_destination;
 
 pub(crate) mod boolean_control;
 pub(crate) mod selected_comparison;
+
+/// Resolve a byte-sequence store's scalar source against the dense scalar
+/// namespace. A bound pure authored expression lowers through its
+/// `AssignmentValue` row; the SSA result of the scalar call this same
+/// statement performs binds no local and carries no `AssignmentValue` row, so
+/// it is read back where the ordered call operation established it as the most
+/// recent scalar value.
+pub(crate) fn byte_store_scalar_value(
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    value: &checked_trees::CheckedByteSequenceStoreValue,
+    values: &[ValueDeclaration],
+) -> Result<crate::emission::operation_emission::expressions::LoweredDirectExpression, LoweringError>
+{
+    match value {
+        checked_trees::CheckedByteSequenceStoreValue::Pure(_) => bindings.expression_at(
+            checked,
+            state,
+            statement_index,
+            CheckedScalarExpressionRole::AssignmentValue,
+        ),
+        checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position } => {
+            let position = usize::try_from(*position).map_err(|_| {
+                LoweringError::Unsupported("byte store call-result position exceeds usize")
+            })?;
+            if position.checked_add(1) != Some(values.len()) {
+                return unsupported(
+                    "byte store call result is not this statement's established scalar result",
+                );
+            }
+            let scalar_type = terminal_scalar_type(PrimitiveType::U8)?;
+            if values[position].scalar_type != scalar_type {
+                return unsupported("byte store call result differs from its element type");
+            }
+            Ok(
+                crate::emission::operation_emission::expressions::LoweredDirectExpression::Local {
+                    position,
+                    scalar_type,
+                },
+            )
+        }
+    }
+}
