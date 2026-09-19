@@ -73,8 +73,8 @@ fn a_bounded_discharge_certificate_crosses_the_wire() {
     );
     assert_eq!(
         certificate_assumption_closure(&decoded.arena, &decoded.certificate),
-        BTreeSet::from([0]),
-        "the decoded judgment commits to exactly the cited atom",
+        BTreeSet::from([0, 1, 2, 3]),
+        "the judgment retains Int, IntLe and the two integer endpoints",
     );
 
     // A receiver that swaps the evidence for a free variable — the forged
@@ -216,13 +216,11 @@ fn a_bounded_equality_certificate_crosses_the_wire() {
     );
 }
 
-/// A licensed rule instance is a named decision on the wire: `x < y ⊢
-/// x <= y` denotes the axiom `Π(_ : ⟦x<y⟧). ⟦x<=y⟧` applied to the cited
-/// premise, and the decoded judgment re-decides with both proposition
-/// atoms and the axiom in its closure — the wire carries the decision as
-/// an ordinary declaration, never a producer flag.
+/// Integer weakening applies one shared law quantified over both endpoints.
+/// The wire retains that law and the shared integer vocabulary; it does not
+/// replace the application with an assumption of this particular conclusion.
 #[test]
-fn a_bounded_rule_instance_certificate_crosses_the_wire() {
+fn a_bounded_shared_order_law_crosses_the_wire() {
     let (x_id, x) = value(1);
     let (y_id, y) = value(2);
     let context = PropositionContext::from_value_types([
@@ -248,7 +246,7 @@ fn a_bounded_rule_instance_certificate_crosses_the_wire() {
         encode_mathematical_certificate(&denoted.arena, &denoted.certificate).expect("encode");
     let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
     verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut budget())
-        .expect("the rule-instance judgment re-verifies after decode");
+        .expect("the shared law application re-verifies after decode");
     assert_eq!(
         encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
             .expect("canonical re-encode"),
@@ -256,18 +254,26 @@ fn a_bounded_rule_instance_certificate_crosses_the_wire() {
     );
     assert_eq!(
         certificate_assumption_closure(&decoded.arena, &decoded.certificate),
-        BTreeSet::from([0, 1, 2]),
-        "the two proposition atoms and the named instance decision",
+        BTreeSet::from([0, 1, 2, 3, 4, 5]),
+        "Int, both endpoints, IntLt, IntLe and the universally quantified weakening law",
+    );
+    let mut law_type = decoded.certificate.signature[5].ty;
+    let mut binders = 0;
+    while let Term::Pi { codomain, .. } = decoded.arena.get(law_type) {
+        binders += 1;
+        law_type = codomain;
+    }
+    assert_eq!(
+        binders, 3,
+        "the law binds two integers and their strict-order premise"
     );
 }
 
 /// A decided closed relation is a named decision assumption on the wire:
 /// `1 < 2` uses shared binary literal definitions and a decision of
-/// `IntLt one two` in the empty context, and a
-/// certificate the denotation cannot cross never reaches the encoder at
-/// all.
+/// `IntLt one two` in the empty context.
 #[test]
-fn a_bounded_decision_and_a_refusal_at_the_wire_boundary() {
+fn a_bounded_decision_certificate_crosses_the_wire() {
     let literal = |value: u128| {
         ScalarTerm::integer(unsigned64(), IntegerValue::Unsigned(value)).expect("u64 literal")
     };
@@ -289,11 +295,13 @@ fn a_bounded_decision_and_a_refusal_at_the_wire_boundary() {
         BTreeSet::from([0, 1, 2, 3, 5, 7]),
         "Int, IntLt, zero, odd, double and the bounded decision; numeral definitions are not assumptions",
     );
+}
 
-    // The bounded citation matcher accepts a fixed `Equal` cited as its
-    // lifted `IntegerMathEqual`, but `Id` and the mathematical-integer
-    // atom are different types: the crossing refuses at the bridge and
-    // the wire never carries a mis-decoded certificate for it.
+/// Fixed and mathematical integer equality share one Id Int judgment.
+/// Citation conversion survives the wire without a conversion assumption;
+/// changing an endpoint still rejects before encoding.
+#[test]
+fn a_fixed_integer_equality_citation_crosses_the_mathematical_wire() {
     let (x_id, x) = value(1);
     let (y_id, y) = value(2);
     let context = PropositionContext::from_value_types([
@@ -301,14 +309,40 @@ fn a_bounded_decision_and_a_refusal_at_the_wire_boundary() {
         (y_id, unsigned64_type()),
     ])
     .expect("context");
-    let fixed = Proposition::Equal(x, y);
+    let fixed = Proposition::Equal(x.clone(), y);
     let lifted = proof_admission::lift_fixed_integer_relation(&fixed).expect("lifts");
     let proof = ProofNode {
         conclusion: lifted.clone(),
         rule: ProofRule::Assumption { index: 0 },
     };
+    let denoted =
+        denote_bounded_certificate(&context, &lifted, std::slice::from_ref(&fixed), &[], &proof)
+            .expect("both integer equality forms share their denotation");
+    let bytes =
+        encode_mathematical_certificate(&denoted.arena, &denoted.certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut budget())
+        .expect("the equality citation re-verifies after decode");
+    assert_eq!(
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
+            .expect("canonical re-encode"),
+        bytes,
+    );
+    assert_eq!(
+        certificate_assumption_closure(&decoded.arena, &decoded.certificate),
+        BTreeSet::from([0, 1, 2]),
+        "Int and the two endpoints, without a conversion law",
+    );
     assert!(matches!(
-        denote_bounded_certificate(&context, &lifted, &[fixed], &[], &proof),
-        Err(proof_admission::BoundedDenotationError::Unsupported(_)),
+        decoded.arena.get(decoded.certificate.expected),
+        Term::Id { .. }
     ));
+
+    let changed = Proposition::Equal(x.clone(), x);
+    let changed = proof_admission::lift_fixed_integer_relation(&changed).expect("lifts");
+    let proof = ProofNode {
+        conclusion: changed.clone(),
+        rule: ProofRule::Assumption { index: 0 },
+    };
+    assert!(denote_bounded_certificate(&context, &changed, &[fixed], &[], &proof).is_err());
 }

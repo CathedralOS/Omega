@@ -371,10 +371,10 @@ certificate, its mathematical wire roundtrip and its invalid control.
 `compiler/tests/kernel_subtract_order.rs` checks the complete source-produced
 ranked-loop edge against the independently reconstructed obligation, exact
 assumption closure through the mathematical wire, and rejection of a
-non-decreasing rank. The
-`terminal-codec` bounded-certificate tests also exercise retained declarations;
-their older open-term closure and unsupported-crossing expectations still
-need alignment with the shared integer vocabulary.
+non-decreasing rank. The `terminal-codec` bounded-certificate tests exercise
+retained declarations, exact shared-integer closure, universally quantified
+order laws and fixed-to-mathematical equality citations. Changed endpoints,
+forged evidence, mismatched conclusions and malformed wire data reject.
 
 What the kernel does *not* discharge: faithfulness of the encoding to a
 *source* declaration — positivity, nominal identity and statement fidelity
