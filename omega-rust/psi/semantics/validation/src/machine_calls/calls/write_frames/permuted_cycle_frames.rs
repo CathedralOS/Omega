@@ -242,6 +242,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     parameters,
                     &isolated_local_roots,
                     &local_alias_origins,
+                    &[],
                     symbols,
                     &stored,
                     false,
@@ -269,6 +270,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 parameters,
                                 &isolated_local_roots,
                                 aliases,
+                                &[],
                                 symbols,
                                 true,
                                 &stored,
@@ -296,6 +298,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                 parameters,
                 &isolated_local_roots,
                 &local_alias_origins,
+                &[],
             ) && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
             {
@@ -360,6 +363,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 parameters,
                                 &isolated_local_roots,
                                 aliases,
+                                &[],
                                 symbols,
                                 true,
                                 &stored,
@@ -409,6 +413,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 parameters,
                                 &isolated_local_roots,
                                 &local_alias_origins,
+                                &[],
                                 symbols,
                                 true,
                                 &stored,

@@ -210,15 +210,83 @@ impl<'program> CallFrameResolver<'program> {
                 current_machine,
                 &self.symbols,
                 CallerWriteSite::Call(call),
-                |inference| {
+                |inference, prefix| {
+                    let arguments = self
+                        .program
+                        .statement_table
+                        .expression_handles(call.arguments);
                     // A synthesized wire codec frames from its borrowed
                     // arguments; its type-name receiver is not a place the
-                    // ownership floor may poison.
+                    // ownership floor may poison. A divergent binding's name
+                    // cannot stand in for its referent set there, so a codec
+                    // argument touching one stays opaque.
                     if super::wire_codecs::is_wire_codec_call(self.program, call) {
+                        if !prefix.divergent.is_empty()
+                            && arguments.iter().any(|argument| {
+                                super::local_aliases::expression_mentions_place_roots(
+                                    self.program,
+                                    *argument,
+                                    &prefix
+                                        .divergent
+                                        .iter()
+                                        .map(|(name, _)| name.clone())
+                                        .collect::<Vec<_>>(),
+                                )
+                            })
+                        {
+                            return None;
+                        }
                         return super::wire_codecs::known_wire_codec_call_written_paths(
                             self.program,
                             call,
                         );
+                    }
+                    // A divergent binding lent through an admitted reborrow
+                    // argument contributes its proven referent set at this
+                    // boundary, exactly as inside the state write walk. An
+                    // admitted mention that cannot resolve its set must close
+                    // the call rather than fall back to the bare local name.
+                    let argument_origins = if prefix.divergent.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            arguments
+                                .iter()
+                                .map(|argument| {
+                                    super::alias_origins::stable_alias_initializer_origins(
+                                        self.program,
+                                        current_machine,
+                                        &machine_symbols,
+                                        inference,
+                                        *argument,
+                                        prefix.parameters,
+                                        &[],
+                                        prefix.aliases,
+                                        prefix.divergent,
+                                        &self.symbols,
+                                        true,
+                                        prefix.stored,
+                                    )
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                    };
+                    if let Some(origins) = argument_origins.as_deref() {
+                        let divergent_roots = prefix
+                            .divergent
+                            .iter()
+                            .map(|(name, _)| name.clone())
+                            .collect::<Vec<_>>();
+                        if arguments.iter().zip(origins).any(|(argument, origins)| {
+                            origins.is_none()
+                                && super::local_aliases::expression_mentions_place_roots(
+                                    self.program,
+                                    *argument,
+                                    &divergent_roots,
+                                )
+                        }) {
+                            return None;
+                        }
                     }
                     let known = self.with_complete_state_summaries(|complete_state_summaries| {
                         known_call_written_paths_with_summaries(
@@ -229,6 +297,7 @@ impl<'program> CallFrameResolver<'program> {
                             &self.symbols,
                             complete_state_summaries,
                             inference,
+                            argument_origins.as_deref(),
                         )
                     });
                     let receiver = self
@@ -321,7 +390,7 @@ impl<'program> CallFrameResolver<'program> {
             current_machine,
             &self.symbols,
             CallerWriteSite::Expression(expression),
-            |inference| {
+            |inference, _prefix| {
                 let mut written = Vec::new();
                 self.with_complete_state_summaries(|complete_state_summaries| {
                     collect_expression_call_written_paths(
@@ -395,7 +464,7 @@ impl<'program> CallFrameResolver<'program> {
             current_machine,
             &self.symbols,
             CallerWriteSite::Statement(statement),
-            |inference| {
+            |inference, _prefix| {
                 let mut written = Vec::new();
                 self.with_complete_state_summaries(|complete_state_summaries| {
                     for expression in expressions {

@@ -127,14 +127,6 @@ fn conditional_reference_results_stay_opaque_when_arms_diverge() {
     "#;
     for (name, body) in [
         (
-            "different_parameters",
-            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
-        ),
-        (
-            "late_divergence",
-            "let alias: &mut u64 = pick_late(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
-        ),
-        (
             "unproven_arm",
             "let alias: &mut u64 = pick_opaque(&mut self.value, self.tag); consume(&mut alias);",
         ),
@@ -143,12 +135,6 @@ fn conditional_reference_results_stay_opaque_when_arms_diverge() {
         (
             "loaded_reference_arm",
             "let view: View = View { body: &mut self.other }; let alias: &mut u64 = pick_loaded(&mut view, &mut self.value, self.tag); consume(&mut alias);",
-        ),
-        // A caller-side binding whose arms carry different referents cannot
-        // select one.
-        (
-            "caller_divergent",
-            "let alias: &mut u64 = match self.tag { 0 -> &mut self.value, _ -> &mut self.other }; consume(&mut alias);",
         ),
         // An unresolved arm keeps the binding opaque even when the other arm
         // is proven.
@@ -160,6 +146,43 @@ fn conditional_reference_results_stay_opaque_when_arms_diverge() {
         assert_eq!(
             caller_frames(&conditional_program_with_helpers(body, helpers)),
             [None, None],
+            "{name}"
+        );
+    }
+}
+
+// A divergent exclusive binding lent through a direct exclusive reborrow
+// call argument carries its whole proven referent set: the callee's
+// parameter write instantiates through every admitted route rather than
+// selecting one or failing closed.
+#[test]
+fn conditional_results_union_through_reborrow_arguments() {
+    let helpers = r#"
+        machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 { match tag { 0 -> a, _ -> b } }
+        machine pick_late(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {
+            match tag { 0 -> a, _ -> match tag { 1 -> a, _ -> b } }
+        }
+    "#;
+    for (name, body) in [
+        (
+            "different_parameters",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
+        ),
+        (
+            "late_divergence",
+            "let alias: &mut u64 = pick_late(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
+        ),
+        // A caller-side binding whose arms carry different proven referents
+        // keeps their exact finite union.
+        (
+            "caller_divergent",
+            "let alias: &mut u64 = match self.tag { 0 -> &mut self.value, _ -> &mut self.other }; consume(&mut alias);",
+        ),
+    ] {
+        let expected = Some(vec!["self.other".to_owned(), "self.value".to_owned()]);
+        assert_eq!(
+            caller_frames(&conditional_program_with_helpers(body, helpers)),
+            [expected.clone(), expected],
             "{name}"
         );
     }

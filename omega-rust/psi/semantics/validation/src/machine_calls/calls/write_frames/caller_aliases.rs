@@ -14,6 +14,7 @@ use super::{
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     StateWriteQuery, walk_state_write_prefix,
 };
+use typed_trees::signature::StateParameter;
 
 pub(super) fn caller_binding_type(
     program: &TypedTrees,
@@ -127,6 +128,7 @@ pub enum AssignmentWriteTarget {
 struct AssignmentEvidence {
     target: AssignmentWriteTarget,
     aliases: Vec<(String, FramePlaceOrigin)>,
+    divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     stored: Vec<StoredLocalOrigins>,
 }
 
@@ -151,6 +153,7 @@ pub(super) fn assignment_write_paths(
         AssignmentWriteTarget::Storage { paths } => Some(close_over_origins(
             paths,
             &evidence.aliases,
+            &evidence.divergent,
             &evidence.stored,
         )),
     }
@@ -172,6 +175,7 @@ fn assignment_evidence(
         return Some(AssignmentEvidence {
             target: AssignmentWriteTarget::Storage { paths: vec![path] },
             aliases: Vec::new(),
+            divergent: Vec::new(),
             stored: Vec::new(),
         });
     }
@@ -200,6 +204,7 @@ fn assignment_evidence(
     Some(AssignmentEvidence {
         target: prefix.assignment?,
         aliases: prefix.aliases,
+        divergent: prefix.divergent,
         stored: prefix.stored,
     })
 }
@@ -211,8 +216,9 @@ pub(super) fn local_write_origins_before_statement(
     statement: &StatementNode,
 ) -> Option<Vec<LocalWriteOrigin>> {
     let site = caller_prefix_site(program, machine, CallerWriteSite::Statement(statement))?;
-    let (aliases, stored) = caller_aliases_at_prefix(program, machine, symbols, site)?;
-    let mut origins = stored
+    let evidence = caller_aliases_at_prefix(program, machine, symbols, site)?;
+    let mut origins = evidence
+        .stored
         .into_iter()
         .flat_map(|local| local.references)
         .map(|leaf| LocalWriteOrigin {
@@ -228,14 +234,15 @@ pub(super) fn local_write_origins_before_statement(
             source_segments: leaf.origin.source.segments,
         })
         .collect::<Vec<_>>();
-    if aliases.is_empty() {
+    if evidence.aliases.is_empty() {
         return Some(origins);
     }
     let CallerPrefixSite::Tracked { state, index, .. } = site else {
         return None;
     };
     let preceding = &program.statement_table.statements(state.statement_nodes)[..index];
-    let aliases = aliases
+    let aliases = evidence
+        .aliases
         .into_iter()
         .map(|(name, origin)| {
             let local_symbol = preceding
@@ -283,12 +290,28 @@ fn close_caller_aliases(
     if written.is_empty() {
         return Some(written);
     }
-    let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
-    Some(close_over_origins(written, &aliases, &stored))
+    let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
+    Some(close_over_origins(
+        written,
+        &evidence.aliases,
+        &evidence.divergent,
+        &evidence.stored,
+    ))
 }
 
 #[cfg(test)]
 mod tests;
+
+/// Alias maps a boundary resolve consults when it spells call-argument
+/// origins: the enclosing state's parameters, the prefix's established
+/// single-origin bindings and divergent referent sets, and its stored
+/// carriers. Every slice is empty for an untracked site.
+pub(super) struct StatementCallPrefix<'prefix> {
+    pub parameters: &'prefix [StateParameter],
+    pub aliases: &'prefix [(String, FramePlaceOrigin)],
+    pub divergent: &'prefix [(String, Vec<FramePlaceOrigin>)],
+    pub stored: &'prefix [StoredLocalOrigins],
+}
 
 /// Freeze the caller prefix once before resolving a demand, then use exactly
 /// that evidence for both contextual case selection and storage closure.
@@ -297,25 +320,66 @@ pub(super) fn with_caller_origins(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    resolve: impl FnOnce(&mut FrameInference) -> Option<Vec<String>>,
+    resolve: impl FnOnce(&mut FrameInference, &StatementCallPrefix<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
-    let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
+    let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
     let mut inference = FrameInference::default();
-    for local in &stored {
+    for local in &evidence.stored {
         inference.record_local(local);
     }
-    let written = resolve(&mut inference)?;
-    Some(close_over_origins(written, &aliases, &stored))
+    let prefix = StatementCallPrefix {
+        parameters: evidence
+            .state
+            .map(|state| program.state_parameters(state))
+            .unwrap_or(&[]),
+        aliases: &evidence.aliases,
+        divergent: &evidence.divergent,
+        stored: &evidence.stored,
+    };
+    let written = resolve(&mut inference, &prefix)?;
+    Some(close_over_origins(
+        written,
+        &evidence.aliases,
+        &evidence.divergent,
+        &evidence.stored,
+    ))
 }
 
 fn close_over_origins(
     written: Vec<String>,
     aliases: &[(String, FramePlaceOrigin)],
+    divergent: &[(String, Vec<FramePlaceOrigin>)],
     stored: &[StoredLocalOrigins],
 ) -> Vec<String> {
     let canonical = written
         .iter()
         .flat_map(|path| expand_write_path(path, aliases, stored))
+        // A divergent binding's raw spelling names every referent it may
+        // carry: keep the local name for fact invalidation and add each
+        // candidate route, composing a projected suffix onto exact
+        // candidates while a coarse candidate already covers its whole
+        // storage root.
+        .chain(written.iter().flat_map(|path| {
+            divergent
+                .iter()
+                .filter(|(name, _)| place_suffix(name, path).is_some())
+                .flat_map(|(name, candidates)| {
+                    let suffix = place_suffix(name, path).unwrap_or_default().to_owned();
+                    candidates
+                        .iter()
+                        .map(|candidate| {
+                            if suffix.is_empty()
+                                || candidate.precision == FramePathPrecision::CollectionCoarse
+                            {
+                                candidate.path.clone()
+                            } else {
+                                append_place_suffix(&candidate.path, &suffix)
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        }))
         .collect::<Vec<_>>();
     let mut closed = written;
     for path in canonical {
@@ -362,12 +426,22 @@ fn close_over_origins(
     closed
 }
 
-fn caller_aliases_at_site(
-    program: &TypedTrees,
+/// The prefix evidence a boundary site established: the enclosing state plus
+/// the alias, divergent-referent, and stored-carrier maps the write walk
+/// produced before the boundary statement.
+struct CallerPrefixEvidence<'program> {
+    state: Option<&'program typed_trees::state::State>,
+    aliases: Vec<(String, FramePlaceOrigin)>,
+    divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
+    stored: Vec<StoredLocalOrigins>,
+}
+
+fn caller_aliases_at_site<'program>(
+    program: &'program TypedTrees,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredLocalOrigins>)> {
+) -> Option<CallerPrefixEvidence<'program>> {
     let site = caller_prefix_site(program, machine, site)?;
     caller_aliases_at_prefix(program, machine, symbols, site)
 }
@@ -425,17 +499,22 @@ fn caller_prefix_site<'program>(
     })
 }
 
-fn caller_aliases_at_prefix(
-    program: &TypedTrees,
+fn caller_aliases_at_prefix<'program>(
+    program: &'program TypedTrees,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
-    site: CallerPrefixSite<'_>,
-) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredLocalOrigins>)> {
+    site: CallerPrefixSite<'program>,
+) -> Option<CallerPrefixEvidence<'program>> {
     let CallerPrefixSite::Tracked {
         state, statement, ..
     } = site
     else {
-        return Some((Vec::new(), Vec::new()));
+        return Some(CallerPrefixEvidence {
+            state: None,
+            aliases: Vec::new(),
+            divergent: Vec::new(),
+            stored: Vec::new(),
+        });
     };
     let prefix = walk_state_write_prefix(
         program,
@@ -457,10 +536,14 @@ fn caller_aliases_at_prefix(
         return None;
     }
     // A divergent binding's referent set cannot be spelled through the
-    // single-origin alias map: a call argument, reborrow, or transport that
-    // touches it at this boundary must stay opaque rather than frame the bare
-    // local alone. Result-relation queries use `Before` directly and resolve
-    // the returned name through its own initializer route instead.
+    // single-origin alias map: a member-read actual, nested call mention, or
+    // transport that touches it at this boundary must stay opaque rather than
+    // frame the bare local alone. A statement call that lends the whole
+    // referent set through a direct exclusive reborrow argument (or passes
+    // the binding itself) is admitted; the resolve closure instantiates the
+    // callee's writes through that candidate set. Result-relation queries use
+    // `Before` directly and resolve the returned name through its own
+    // initializer route instead.
     let divergent_roots = prefix
         .divergent
         .iter()
@@ -472,10 +555,24 @@ fn caller_aliases_at_prefix(
             statement,
             &divergent_roots,
         )
+        && !matches!(
+            statement,
+            StatementNode::Call(call)
+                if super::local_aliases::call_mentions_divergent_roots_only_through_reborrow_arguments(
+                    program,
+                    call,
+                    &divergent_roots,
+                )
+        )
     {
         return None;
     }
-    Some((prefix.aliases, prefix.stored))
+    Some(CallerPrefixEvidence {
+        state: Some(state),
+        aliases: prefix.aliases,
+        divergent: prefix.divergent,
+        stored: prefix.stored,
+    })
 }
 
 /// Locate a unique retained occurrence without resolving declarations by name.

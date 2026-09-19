@@ -401,6 +401,7 @@ pub(crate) fn transparent_callee_result_origins(
                             parameters,
                             &isolated_local_roots,
                             &stable_aliases,
+                            &[],
                             symbols,
                             true,
                             &[],

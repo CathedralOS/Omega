@@ -530,17 +530,18 @@ fn boundary_results_bound_to_locals_transport_their_proven_origin() {
             "let r: &mut u64 = self.device.make(); self.device.output(r);",
             Some(vec!["self.device"]),
         ),
-        // A second admitted route leaves the bound result without a proven
-        // single origin.
+        // A second admitted route gives the bound result a divergent
+        // referent set; lending it through a call argument unions every
+        // proven route.
         (
             "receiver_and_argument",
             "let r: &mut u64 = self.device.reference(&mut self.value); self.device.output(r);",
-            None,
+            Some(vec!["self.device", "self.value"]),
         ),
         (
             "two_arguments",
             "let r: &mut u64 = Device::pick(&mut self.value, &mut self.other); self.device.output(r);",
-            None,
+            Some(vec!["self.device", "self.other", "self.value"]),
         ),
         // A result with no admitted caller route cannot prove a referent.
         (

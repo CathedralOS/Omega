@@ -94,6 +94,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
                 parameters,
                 isolated_local_roots,
                 aliases,
+                &[],
             ) {
                 ExpressionAdmission::Reject
             } else if !expression_is_effectful_for_transparent_result(program, expression) {
