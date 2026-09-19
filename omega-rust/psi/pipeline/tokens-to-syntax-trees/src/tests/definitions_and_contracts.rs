@@ -107,6 +107,37 @@ fn parses_domain_requires_and_requirement_routes_independently() {
 }
 
 #[test]
+fn parses_unqualified_machine_establishment_routes() {
+    let source = "domain u64::Issued established by issue, Factory::issue;";
+    let tokens = Lexer::new(source).tokenize().expect("tokens");
+    let parsed = parse_syntax_trees(&tokens).expect("free and attached issuer paths");
+    let domain = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("domain");
+    let routes = domain
+        .authored_routes
+        .iter()
+        .map(|route| {
+            route
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(routes, [vec!["issue"], vec!["Factory", "issue"]]);
+
+    for malformed in ["", "issue::", "issue,", "issue()", "issue<u64>"] {
+        let source = format!("domain u64::Issued established by {malformed};");
+        let tokens = Lexer::new(&source).tokenize().expect("tokens");
+        assert!(parse_syntax_trees(&tokens).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn parses_explicit_progress_profile_classification() {
     let source = r#"
         domain SchedulerHandle::WeakFair
