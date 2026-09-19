@@ -209,7 +209,7 @@ pub(super) fn retain_available(
                         facts,
                         scalar_callees,
                         candidates,
-                        plan,
+                        &scalar_targets::ScalarCallSite::of_plan(plan),
                         operation,
                     ) {
                         Some(scalar_targets::AvailableScalarTarget::Registered) => {}
@@ -278,55 +278,83 @@ pub(super) fn retain_available(
         if !closure.retained[caller_index] {
             continue;
         }
-        for operation in plan
-            .states
-            .iter()
-            .flat_map(|state| state.operation_dependencies())
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        {
-            // Composed bodies have a narrower operation vocabulary and no
-            // ordinary structural-return fallback. Keep that admission explicit.
-            match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    target_machine,
-                    target_state,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    target_machine,
-                    target_state,
-                    ..
-                } => closure.require_entry(caller_index, *target_machine, *target_state),
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    target_machine, ..
-                } => {
-                    if boundaries
-                        .binary_search(&symbol_key(*target_machine))
-                        .is_err()
-                    {
-                        closure.drop_candidate(
-                            caller_index,
-                            CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
-                                target: *target_machine,
-                            },
-                        );
+        for state in &plan.states {
+            let site = scalar_targets::ScalarCallSite::of_composed_state(plan.machine, state);
+            for operation in state
+                .operation_dependencies()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            {
+                // Composed bodies have a narrower operation vocabulary and no
+                // ordinary structural-return fallback. Keep that admission explicit.
+                match operation {
+                    CheckedUnitEffectOperationPlan::CallUnit {
+                        target_machine,
+                        target_state,
+                        ..
                     }
+                    | CheckedUnitEffectOperationPlan::StructuralCall {
+                        target_machine,
+                        target_state,
+                        ..
+                    } => closure.require_entry(caller_index, *target_machine, *target_state),
+                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        target_machine, ..
+                    } => {
+                        if boundaries
+                            .binary_search(&symbol_key(*target_machine))
+                            .is_err()
+                        {
+                            closure.drop_candidate(
+                                caller_index,
+                                CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
+                                    target: *target_machine,
+                                },
+                            );
+                        }
+                    }
+                    CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
+                        match scalar_targets::available_target(
+                            program,
+                            facts,
+                            scalar_callees,
+                            candidates,
+                            &site,
+                            operation,
+                        ) {
+                            Some(scalar_targets::AvailableScalarTarget::Registered) => {}
+                            Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(
+                                target_index,
+                            )) => {
+                                closure.dependents.push((target_index, caller_index));
+                            }
+                            None => closure.drop_candidate(
+                                caller_index,
+                                CheckedUnitPlanOmissionStage::UnavailableScalarTarget {
+                                    target: *target_machine,
+                                },
+                            ),
+                        }
+                    }
+                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                    // The paired boundary call carries the callee dependency;
+                    // its cleanup continuation only disposes the discarded result.
+                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
+                    _ => closure.drop_candidate(
+                        caller_index,
+                        CheckedUnitPlanOmissionStage::ComposedVocabulary,
+                    ),
                 }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                // The paired boundary call carries the callee dependency;
-                // its cleanup continuation only disposes the discarded result.
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
-                _ => closure.drop_candidate(
-                    caller_index,
-                    CheckedUnitPlanOmissionStage::ComposedVocabulary,
-                ),
+                if !closure.retained[caller_index] {
+                    break;
+                }
             }
             if !closure.retained[caller_index] {
                 break;
