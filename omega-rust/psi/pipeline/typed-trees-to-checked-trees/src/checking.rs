@@ -17,13 +17,14 @@ use checked_trees::CheckedTrees;
 pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(program, CheckingMode::SettledPackage, &[], &[])
+    check_program(program, CheckingMode::SettledPackage, &[], &[], &[])
 }
 
 fn check_program(
     program: typed_trees::TypedTrees,
     mode: CheckingMode,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
+    selected_boundary_families: &[crate::SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     // A deferred range endpoint is pre-check-continuation custody: the
@@ -61,9 +62,14 @@ fn check_program(
         .map_err(|diagnostic| vec![diagnostic])?;
     normalize_open_index_identities(&mut program)?;
     // A local `dyn` selection generates the complete finite family of its
-    // selected conformance rows: every roster tuple's provider body becomes
-    // checked evidence without requiring a static call site.
-    crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
+    // selected conformance rows, and a selected boundary adapter row demands
+    // the same complete roster of its chosen provider: every roster tuple's
+    // provider body becomes checked evidence without requiring a static call
+    // site.
+    crate::monomorphization::generate_dynamic_family_specializations(
+        &mut program,
+        selected_boundary_families,
+    )?;
     // Keep the authored generic provider templates immutable while ordinary
     // machine specialization closes caller binders. Selected providers may be
     // demanded only by applications copied into those newly concrete bodies,
@@ -91,8 +97,10 @@ fn check_program(
             }
             None => 0,
         };
-        materialized +=
-            crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
+        materialized += crate::monomorphization::generate_dynamic_family_specializations(
+            &mut program,
+            selected_boundary_families,
+        )?;
         if materialized == 0 {
             break;
         }
@@ -199,7 +207,7 @@ fn check_program(
 pub fn lower_preliminary_typed_trees(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(program, CheckingMode::PreliminaryPackage, &[], &[])
+    check_program(program, CheckingMode::PreliminaryPackage, &[], &[], &[])
 }
 
 /// One Omega-selected generic checked body that must be specialized for the
@@ -210,6 +218,19 @@ pub struct SelectedGenericOperatorProviderSpecialization {
     pub realization_machine: symbols::SymbolHandle,
 }
 
+/// One selected boundary adapter row whose requirement declares a complete
+/// finite family: the chosen provider template must own a checked
+/// specialization per declared roster tuple, the same commitment a `dyn`
+/// selection derives from its conformance row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedBoundaryFamilySpecialization {
+    /// The boundary requirement's exact signature symbol; its `where` clause
+    /// owns the roster through `TypedTrees::finite_signature_family`.
+    pub requirement_signature: symbols::SymbolHandle,
+    /// The selected provider's generic machine template.
+    pub realization_machine: symbols::SymbolHandle,
+}
+
 /// Lower with exact selected generic operator providers supplied by the
 /// orchestration owner. Psi derives applications from authored uses and uses
 /// ordinary authoritative specialization; the request carries no application
@@ -217,12 +238,14 @@ pub struct SelectedGenericOperatorProviderSpecialization {
 pub fn lower_typed_trees_with_selected_generic_operator_providers(
     program: typed_trees::TypedTrees,
     selected: &[SelectedGenericOperatorProviderSpecialization],
+    selected_boundary_families: &[SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &[::validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     check_program(
         program,
         CheckingMode::SettledPackage,
         selected,
+        selected_boundary_families,
         opaque_property_receipts,
     )
 }
@@ -234,12 +257,14 @@ pub fn lower_typed_trees_with_selected_generic_operator_providers(
 pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
     program: typed_trees::TypedTrees,
     selected: &[SelectedGenericOperatorProviderSpecialization],
+    selected_boundary_families: &[SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &[::validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     check_program(
         program,
         CheckingMode::SettledPackage,
         selected,
+        selected_boundary_families,
         opaque_property_receipts,
     )
 }
@@ -276,7 +301,7 @@ impl CheckingMode {
 pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
     program: typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(program, CheckingMode::CrashFactInspection, &[], &[])
+    check_program(program, CheckingMode::CrashFactInspection, &[], &[], &[])
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing

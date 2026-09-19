@@ -2980,12 +2980,22 @@ Owners include
   selects that row, and
   `typed-trees-to-checked-trees/src/monomorphization/dynamic_families.rs`
   generates every roster tuple's provider specialization from the selected
-  conformance. `family_tuple` is an exact join coordinate in Terminal rows,
+  conformance. The boundary adapter surface now draws from that same
+  authority: `selected-dispatch`'s
+  `selected_boundary_family_specializations` reads each selected provider
+  plan's checked adapter and queues the requirement's complete declared
+  roster into `generate_dynamic_family_specializations` before checking, so
+  a source program that selects a family provider settles every roster row
+  even when no static call site demanded the tuple (`omega --check` accepts a
+  `scan<16>` call under a `{16,32}` roster where it previously rejected
+  "partial provider coverage"; off-roster tuples still reject). Missing
+  roster bodies and runtime-bound or wrong-template records still reject the
+  whole family. `family_tuple` is an exact join coordinate in Terminal rows,
   the codec, the verifier, checked-to-lowered evidence and the Omega custody,
-  lowering, image-replay and optimization-unit identity rejoins. That does not
-  establish runtime selection or a native customer: every call names its tuple
-  statically, and the Omega joins have seen only test-constructed nonempty
-  tuples.
+  lowering, image-replay and optimization-unit identity rejoins. That does
+  not establish runtime selection or a native customer: every call names its
+  tuple statically, and the Omega joins have seen only test-constructed
+  nonempty tuples.
 
   Remaining work:
 
@@ -2996,12 +3006,6 @@ Owners include
     RUNTIME-VALUE-GENERICS, not generic JIT execution. Begin with one scalar
     binder, a common concrete result and dispatch around a region-sized
     operation.
-  - Boundary adapter families.
-    `selected-dispatch/src/boundary_dispatch/adapter_rows.rs` takes rows only
-    from provider specializations a static call site already demanded; one
-    uncovered roster tuple leaves the whole requirement ineligible. Generate
-    the selected provider's complete family from the same authority, as the
-    `dyn` surface does.
   - One source-produced family through Omega native tables and image replay,
     with `tests/omega` pass, fail and run canaries. None exist.
 

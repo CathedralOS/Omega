@@ -376,9 +376,13 @@ fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked =
-        crate::lower_package_typed_trees_with_selected_generic_operator_providers(typed, &[], &[])
-            .expect("package checking must retain the exact comptime call target");
+    let checked = crate::lower_package_typed_trees_with_selected_generic_operator_providers(
+        typed,
+        &[],
+        &[],
+        &[],
+    )
+    .expect("package checking must retain the exact comptime call target");
 
     assert!(
         checked.authored_declaration_selections().all_finalized(),

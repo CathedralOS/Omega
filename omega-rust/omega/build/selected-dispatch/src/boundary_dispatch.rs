@@ -15,15 +15,121 @@ mod signature_families;
 mod tests;
 
 use crate::boundary_dispatch::adapter_rows::{
-    AdapterRow, GenericBoundaryRequirement, ResolvedAdapterRow, resolve_selected_adapter_row,
+    AdapterRow, GenericBoundaryRequirement, ResolvedAdapterRow, SelectedAdapterTarget,
+    resolve_selected_adapter_row, resolve_selected_adapter_target,
 };
 use crate::boundary_dispatch::boundary_fields::{
-    BoundaryField, BoundaryFieldDeclaration, named_type_symbol, resolve_adapter_call,
+    BoundaryField, BoundaryFieldDeclaration, exact_conformance_requirement_identity,
+    named_type_symbol, resolve_adapter_call,
 };
+use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
+
+/// The finite-family specialization demands one selected boundary surface
+/// commits to before checking: every checked-adapter row whose requirement
+/// declares a complete finite roster names its exact signature and provider
+/// template here, so the family generator can materialize every roster
+/// tuple's checked body instead of the settle boundary discovering a tuple
+/// only when a static call site happened to demand it.
+///
+/// Demand collection applies the same resolution gates settlement does and
+/// deliberately returns no demand for rows that cannot settle — non-finite
+/// or open rosters, provider templates that cannot close the requirement's
+/// value binders, adapters without a checked body, and rows that resolve to
+/// no adapter at all. Those requirements keep their per-requirement
+/// ineligibility at settlement; a demand only ever asks checking to supply
+/// the roster the one roster authority already declared.
+pub fn selected_boundary_family_specializations(
+    typed: &TypedTrees,
+    selected_plans: &effects::SelectedProviderPlanFacts,
+) -> Vec<typed_trees_to_checked_trees::SelectedBoundaryFamilySpecialization> {
+    let mut demands = Vec::new();
+    for plan in selected_plans.plans() {
+        for row in &plan.rows {
+            // A row that cannot resolve fails identically at settlement,
+            // where the same resolution runs authoritatively.
+            let Ok(Some(SelectedAdapterTarget::TraitRequirement {
+                method,
+                requirement_owner,
+                signature,
+                ..
+            })) = resolve_selected_adapter_target(typed, plan, row)
+            else {
+                continue;
+            };
+            if typed.state_signature_type_parameters(signature).is_empty() {
+                continue;
+            }
+            let FamilyProbe::Finite { arity, .. } = finite_signature_family(typed, signature)
+            else {
+                continue;
+            };
+            if plan.provider_type.is_empty() {
+                continue;
+            }
+            let Ok(adapter) = provider_planning::exact_checked_adapter(typed, plan, row) else {
+                continue;
+            };
+            if adapter.attached_data.as_ref().map(|owner| owner.as_str())
+                != Some(plan.provider_type.as_str())
+                || !adapter.supply_mode.is_checked_body()
+            {
+                continue;
+            }
+            let provider_parameters = typed.machine_type_parameters(adapter);
+            let provider_value_parameters = provider_parameters
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Value { .. }
+                    )
+                })
+                .count();
+            if provider_parameters.len() != provider_value_parameters
+                || provider_value_parameters != arity
+            {
+                continue;
+            }
+            // The demand names the realized conformance edge itself: only an
+            // adapter satisfying this exact overload may cover its roster.
+            if !typed
+                .machine_trait_conformances(adapter)
+                .iter()
+                .any(|conformance| {
+                    conformance.external_binding.is_none()
+                        && conformance.symbol == requirement_owner.symbol
+                        && conformance
+                            .requirement
+                            .as_ref()
+                            .is_some_and(|requirement| requirement.as_str() == method.name)
+                        && exact_conformance_requirement_identity(
+                            typed,
+                            adapter,
+                            requirement_owner,
+                            method.name.as_str(),
+                        )
+                        .as_deref()
+                            == Some(method.requirement_identity.as_str())
+                })
+            {
+                continue;
+            }
+            let demand = typed_trees_to_checked_trees::SelectedBoundaryFamilySpecialization {
+                requirement_signature: signature.symbol,
+                realization_machine: adapter.symbol,
+            };
+            if !demands.contains(&demand) {
+                demands.push(demand);
+            }
+        }
+    }
+    demands
+}
 
 /// Bind selected execution without changing typed source or source-derived plans.
 /// All fallible work completes before publishing the association set.

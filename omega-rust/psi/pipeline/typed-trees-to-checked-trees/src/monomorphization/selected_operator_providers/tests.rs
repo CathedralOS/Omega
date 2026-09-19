@@ -58,9 +58,13 @@ fn distinct_const_tuples_share_a_copy_and_converged_demand_copies_nothing() {
             .symbol,
     }];
     WORK.set((0, 0));
-    let checked =
-        crate::lower_typed_trees_with_selected_generic_operator_providers(program, &selected, &[])
-            .expect("two const tuples");
+    let checked = crate::lower_typed_trees_with_selected_generic_operator_providers(
+        program,
+        &selected,
+        &[],
+        &[],
+    )
+    .expect("two const tuples");
     assert_eq!(WORK.get(), (1, 1));
     let receipts = checked
         .machine_specializations
@@ -129,6 +133,7 @@ fn nested_providers_prepare_once_and_copy_only_new_demand() {
         program.clone(),
         &selected,
         &[],
+        &[],
     )
     .expect("fixed point");
     assert_eq!(
@@ -158,9 +163,13 @@ fn nested_providers_prepare_once_and_copy_only_new_demand() {
             .expect("retained template");
         assert_eq!(checked.machine_type_parameters(template).len(), 1);
     }
-    let repeated =
-        crate::lower_typed_trees_with_selected_generic_operator_providers(program, &selected, &[])
-            .expect("independent checking");
+    let repeated = crate::lower_typed_trees_with_selected_generic_operator_providers(
+        program,
+        &selected,
+        &[],
+        &[],
+    )
+    .expect("independent checking");
     assert_eq!(
         receipts, &repeated.machine_specializations,
         "exact ordered receipts survive fresh preparation"
