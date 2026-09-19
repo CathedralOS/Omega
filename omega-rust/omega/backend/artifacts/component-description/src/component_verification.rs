@@ -1012,12 +1012,12 @@ fn check_service_bounds(
 ) -> Result<(), ComponentVerificationRejection> {
     let derived: BTreeSet<&InstallationServiceBound> = inventory.service_bounds.iter().collect();
     let declared: BTreeSet<&InstallationServiceBound> = description.service_bounds.iter().collect();
-    for row in derived.difference(&declared) {
+    if let Some(row) = derived.difference(&declared).next() {
         return Err(ComponentVerificationRejection::MissingServiceBound(
             row.requirement_identity.clone(),
         ));
     }
-    for row in declared.difference(&derived) {
+    if let Some(row) = declared.difference(&derived).next() {
         return Err(ComponentVerificationRejection::UnexpectedServiceBound(
             row.requirement_identity.clone(),
         ));
