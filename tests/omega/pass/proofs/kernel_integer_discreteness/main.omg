@@ -1,0 +1,20 @@
+// The retained call certificate must recover strict order across a binary
+// carry: x <= 7 implies x < 8. Its literal order is kernel-checked evidence
+// from shared arithmetic laws, not an assumption of this particular result.
+machine below(value: u64, bound: u64)
+requires
+    value < bound
+{
+}
+
+machine below_eight(value: u64)
+requires
+    value <= 7
+{
+    below(value, 8);
+}
+
+data Main { }
+machine Main::main(&mut self) {
+    below_eight(7);
+}

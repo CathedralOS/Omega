@@ -262,7 +262,8 @@ fn a_bounded_rule_instance_certificate_crosses_the_wire() {
 }
 
 /// A decided closed relation is a named decision assumption on the wire:
-/// `1 < 2` re-decides as `d : P ⊢ d : P` in the empty context, and a
+/// `1 < 2` uses shared binary literal definitions and a decision of
+/// `IntLt one two` in the empty context, and a
 /// certificate the denotation cannot cross never reaches the encoder at
 /// all.
 #[test]
@@ -285,8 +286,8 @@ fn a_bounded_decision_and_a_refusal_at_the_wire_boundary() {
         .expect("the decision judgment re-verifies");
     assert_eq!(
         certificate_assumption_closure(&decoded.arena, &decoded.certificate),
-        BTreeSet::from([0, 1]),
-        "the atom assumption and the named bounded decision",
+        BTreeSet::from([0, 1, 2, 3, 5, 7]),
+        "Int, IntLt, zero, odd, double and the bounded decision; numeral definitions are not assumptions",
     );
 
     // The bounded citation matcher accepts a fixed `Equal` cited as its

@@ -34,8 +34,10 @@
 //! - `Equal` and the `LessThan`/`LessOrEqual` relations over liftable
 //!   integer operands — fixed and `IntegerMath*` alike — instead denote
 //!   into one shared mathematical-integer vocabulary: `Int : Type 0`
-//!   with each `IntegerMathTerm` an `Int` constant interned by exact
-//!   evaluated value (open terms intern by the term itself), `IntLt`
+//!   with each `IntegerMathTerm` interned by exact evaluated value
+//!   (open terms intern by the term itself). Closed magnitudes in the
+//!   fixed scalar literal vocabulary have shared signed binary definitions;
+//!   larger closed values and open terms retain opaque `Int` constants. `IntLt`
 //!   and `IntLe` the two relation constants `Π(_ : Int). Π(_ : Int).
 //!   Type 0`, and `IntegerMathEqual`/lifted `Equal` the `Id Int`
 //!   identity. A cited `Equal` and its `IntegerMathEqual` form share
@@ -81,8 +83,12 @@
 //! constant with an exact `Π` statement authored through `scheme_dsl`,
 //! applied to the denoted endpoints and premise evidence, with a `sym`
 //! `J` wrapping whichever premise the canonical `IntegerMathEqual`
-//! order flipped. The remaining families — order discreteness,
-//! subtract-order, the witness-bearing bound rules and the
+//! order flipped. Integer order discreteness derives its adjacent-literal
+//! order through shared binary definitions and five fixed numeral laws,
+//! then applies mixed transitivity to the cited inclusive bound. Its
+//! numeral laws remain explicit arithmetic assumptions, not a derivation
+//! of integer arithmetic or a claim of assumption consistency. The remaining
+//! families — subtract-order, the witness-bearing bound rules and the
 //! denotation-conversion instances outside the `Int` vocabulary —
 //! denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
@@ -126,6 +132,8 @@ use crate::proof::{
 /// never a judgment. The canonical wire's own depth bound applies
 /// separately to the denoted term.
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
+
+mod binary_numerals;
 
 /// One bounded certificate elaborated into the common mathematical core.
 ///
@@ -650,7 +658,9 @@ struct Denotation {
     integer_less_or_equal: Option<u32>,
     /// The fixed integer-law roster: law → assumption position.
     integer_laws: BTreeMap<IntegerLaw, u32>,
-    /// Canonical mathematical term → `Int`-typed assumption position.
+    /// Shared fixed-width numeral definitions and their fixed arithmetic laws.
+    binary_numerals: binary_numerals::BinaryNumerals,
+    /// Canonical mathematical term → `Int`-typed declaration position.
     /// Closed terms intern by exact evaluated value — so a decided
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
     /// `Id Int c c` — and open terms intern by the term itself.
@@ -693,6 +703,7 @@ impl Denotation {
             integer_less_than: None,
             integer_less_or_equal: None,
             integer_laws: BTreeMap::new(),
+            binary_numerals: binary_numerals::BinaryNumerals::default(),
             math_terms: BTreeMap::new(),
             decisions: HashMap::new(),
             rule_axioms: BTreeMap::new(),
@@ -905,11 +916,13 @@ impl Denotation {
         Ok(term)
     }
 
-    /// The `Int`-typed assumption constant a mathematical term denotes —
+    /// The `Int`-typed declaration a mathematical term denotes —
     /// interned by its exact closed value when the shared evaluator has
     /// one, so `add(1, 1)` and `2` name one constant and a decided
     /// `IntegerMathEqual` on them is `refl`-provable; open terms intern
-    /// by the term itself.
+    /// by the term itself. Fixed scalar magnitudes are binary definitions;
+    /// larger closed values retain opaque assumptions so this focused
+    /// discreteness encoding adds no numeric acceptance limit.
     fn math_term(&mut self, term: &IntegerMathTerm) -> Result<TermHandle, BoundedDenotationError> {
         let key = match ClosedIntegerEvaluator::default().evaluate_closed(term) {
             Ok(Some(value)) => MathTermKey::Closed(value),
@@ -924,6 +937,13 @@ impl Denotation {
             }
         };
         if let Some(&position) = self.math_terms.get(&key) {
+            return Ok(self.constant(position));
+        }
+        if let MathTermKey::Closed(value) = &key
+            && let Some((negative, magnitude)) = binary_numerals::fixed_magnitude(value)
+        {
+            let position = self.binary_integer(negative, magnitude)?;
+            self.math_terms.insert(key, position);
             return Ok(self.constant(position));
         }
         let ty = self.integer_constant()?;
@@ -2138,10 +2158,11 @@ impl<'a> Elaboration<'a> {
                 let evidence = self.node(relation)?;
                 order_discreteness::check(&relation.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
-                self.rule_instance(
-                    AcceptedProofRule::IntegerOrderDiscreteness,
-                    vec![relation.conclusion.clone()],
-                    vec![evidence],
+                self.rules
+                    .insert(AcceptedProofRule::IntegerOrderDiscreteness);
+                self.denotation.discreteness_evidence(
+                    &relation.conclusion,
+                    evidence,
                     &proof.conclusion,
                 )
             }
@@ -3315,12 +3336,14 @@ mod tests {
         .expect("the decided order verifies");
         // `IntLt` is a relation, not an `Id`, so the decided `1 < 2`
         // names a decision assumption of type `IntLt m₁ m₂` — the
-        // signature is `{Int, IntLt, m₁, m₂, decision}`.
-        assert_eq!(denoted.certificate.signature.len(), 5);
+        // signature is `{Int, IntLt, zero, odd, one:=odd zero,
+        // double, two:=double one, decision}`. Literal definitions do
+        // not appear as assumptions; their vocabulary does.
+        assert_eq!(denoted.certificate.signature.len(), 8);
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-            BTreeSet::from([0, 1, 2, 3, 4]),
-            "carrier, relation, both literal endpoints and the named decision",
+            BTreeSet::from([0, 1, 2, 3, 5, 7]),
+            "carrier, relation, numeral vocabulary and the named decision",
         );
 
         // `Truth` is definitional: no signature, no decision assumption.
