@@ -3395,21 +3395,17 @@ Owners include
   stop. The `cli_mvp` and `console-exit-app` READMEs no longer describe the
   removed gate.
 
-  Windows x86_64 observation at `e07e5c7a25` (2026-09-17, Windows host): the
-  `cli_mvp` outer command, `--check`, `audit packages`, and the filtered
-  `samples_compile` probe all stop inside the fresh review's checked
-  compilation — `selected ProgramEntry establishment rejoins 0 Terminal
-  attachment identities; expected one` — under both `windows_x86_64` and
-  `macos_arm64` targets, producing no review findings; details in the
-  [cli_mvp README](samples/cli/basics/cli_mvp/README.md). The probe fixture has
-  test-owned entry bindings for `macos_arm64`/`linux_x86_64` only, and std's
-  `windows_x86_64` target def authors no entry contract.
+  The [cli_mvp README](samples/cli/basics/cli_mvp/README.md) records ordinary
+  package review and native macOS ARM64 execution without receiving-policy
+  input at `c459b1d25c`; SAMPLE-CORPUS owns its remaining Windows and Linux
+  host runs. Preserve that customer and Squalr's recorded native geometry
+  control while completing the remaining production/admission matrix.
 
   Remaining work:
 
-  - Rerun `cli_mvp`, console-exit-app, the Squalr native route and the
-    Cathedral native smoke after ordinary package acceptance with no
-    receiving-policy input, and report each one's next unrelated blocker
+  - Complete console-exit-app, the Cathedral native smoke and the remaining
+    host legs of `cli_mvp` and Squalr after ordinary package acceptance with
+    no receiving-policy input. Report each one's next unrelated blocker
     without claiming its end-to-end completion.
     Preserve the ordinary-production harness route without projecting
     accepted package rows into a receiving policy; explicit admission tests
@@ -3443,7 +3439,7 @@ Owners include
 
   The console CLI witness requires a nonempty reported native output or the
   exact witnessed physical legalization rejection, preserving the accepted
-  project in both cases. At `4dc602f294` on macOS ARM64, ordinary package
+  project in both cases. At `ffd6cc9009` on macOS ARM64, ordinary package
   review retains all three Console decisions, then compilation without a
   receiving policy rejects with `Selection(Legalization(SourceCustodyMismatch))`.
   Resume through `target-operations-to-selected-instructions/src/legalization`;
