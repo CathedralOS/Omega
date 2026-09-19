@@ -259,7 +259,7 @@ fn resolve(
     }
 }
 
-fn is_plain_value_domain(
+pub(crate) fn is_plain_value_domain(
     program: &TypedTrees,
     domain: &typed_trees::types::DomainConstraint,
 ) -> bool {

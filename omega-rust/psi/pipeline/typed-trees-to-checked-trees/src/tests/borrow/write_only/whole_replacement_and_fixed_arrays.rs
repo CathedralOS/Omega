@@ -22,6 +22,28 @@ fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
 }
 
 #[test]
+fn plain_domain_qualified_record_leaves_are_wholly_replaceable() {
+    // A plain declared domain is a membership predicate on the whole incoming
+    // value: whole-leaf replacement displaces the complete carrier, and the
+    // ordinary write-side domain check discharges `in Valid` against the
+    // stored value exactly as it does for a `&mut` target.
+    lower_typed_trees(typed(
+        r#"
+            data Leaf [copy] { value: u16; }
+            domain Leaf::Valid
+            requires
+                self.value <= 10;
+            data Holder { leaf: Leaf in Valid; }
+
+            machine replace(holder: &write Holder, replacement: Leaf in Valid) {
+                holder.leaf = replacement;
+            }
+        "#,
+    ))
+    .expect("a domain-proven whole-leaf store into a plain domain leaf should lower");
+}
+
+#[test]
 fn closed_material_copy_sums_are_wholly_replaceable() {
     lower_typed_trees(typed(
         r#"
@@ -107,18 +129,18 @@ fn ineligible_record_leaves_remain_outside_whole_replacement() {
             "invariant-dependent",
         ),
         (
-            "qualified",
+            "unproven domain value",
             r#"
                 data Leaf [copy] { value: u16; }
                 domain Leaf::Valid
                 requires
                     self.value <= 10;
                 data Holder { leaf: Leaf in Valid; }
-                machine replace(holder: &write Holder, replacement: Leaf in Valid) {
+                machine replace(holder: &write Holder, replacement: Leaf) {
                     holder.leaf = replacement;
                 }
             "#,
-            "named and domain qualification",
+            "requires every write to be established in that domain",
         ),
         (
             "erased",

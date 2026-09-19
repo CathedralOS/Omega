@@ -414,13 +414,58 @@ fn is_unrestricted_write_only_field_leaf(
 /// on the carrier's operations, not a value-range predicate — every carrier
 /// value is already a member, and `range-constraints-require-exact-domain`
 /// keeps a hidden range from riding beneath the policy, so the store owes no
-/// containment proof at all. Cross-class, narrowing, and domain-atom
+/// containment proof at all. A third qualified leaf is the plain
+/// domain-qualified carrier below. Cross-class, narrowing, and domain-atom
 /// weakening checks on the value are unchanged. Nothing else about the path
 /// or the value relaxes.
 fn write_only_assignment_leaf(program: &TypedTrees, field_type: TypeReferenceHandle) -> bool {
     is_unrestricted_write_only_field_leaf(program, field_type)
         || is_closed_ranged_integer_scalar(program, field_type)
         || crate::is_arithmetic_policy_only_integer(program, field_type)
+        || is_plain_domain_qualified_leaf(program, field_type)
+}
+
+/// One qualified leaf a common-field store may displace: an already-admissible
+/// leaf carrying only plain declared domain constraints (`[u8; 16] in Utf8`).
+/// `in <domain>` is a membership predicate on the whole incoming value, not a
+/// different place shape — the store displaces the carrier's complete
+/// footprint, so the place stays content-independent. The ordinary write-side
+/// domain enforcement re-derives every declared domain from the target's
+/// declaration and discharges it against the stored value — a place declared
+/// `in D` requires every write to be established in that domain, the same
+/// obligation a `&mut` store already supplies — so admission adds no proof
+/// burden here. The base recurses through `write_only_assignment_leaf`, so a
+/// domain wrapper composes over the ranged and policy leaves exactly as the
+/// type nests.
+///
+/// Named constraints, compiler-owned domain subjects (carry, value, layout),
+/// classified or routed domains, element and range stores into a
+/// domain-qualified carrier (a partial write cannot re-establish whole-value
+/// membership), and `&write` subloans of a domain-qualified leaf (the
+/// attenuated referee cannot carry the atom) stay outside the envelope.
+fn is_plain_domain_qualified_leaf(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    let constraints = program.type_reference_table.constraints(*constraints);
+    !constraints.is_empty()
+        && constraints.iter().all(|constraint| {
+            matches!(
+                constraint,
+                TypeConstraintNode::Domain(domain)
+                    if crate::value_custody::storage_contents::is_plain_value_domain(
+                        program, domain,
+                    )
+            )
+        })
+        && write_only_assignment_leaf(program, *base_type)
 }
 
 fn write_only_record_field_assignment(
@@ -436,8 +481,9 @@ fn write_only_record_field_assignment(
 /// referee, so a ranged leaf would shed its bound at the borrow boundary. A
 /// policy-qualified leaf would likewise shed its policy atom at a plain
 /// referee, which call-argument checking already rejects as implicit domain
-/// weakening. Keep the lent leaf to the unrestricted kinds until ranged or
-/// policy write-only parameter referees exist.
+/// weakening, and a domain-qualified leaf would shed its membership atom the
+/// same way. Keep the lent leaf to the unrestricted kinds until ranged,
+/// policy, or domain write-only parameter referees exist.
 fn write_only_record_field_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -859,7 +905,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, or an integer primitive carrying only an arithmetic-policy constraint, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named and domain qualification, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, element and range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

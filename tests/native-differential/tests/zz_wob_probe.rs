@@ -267,6 +267,15 @@ fn probe_candidate_shapes() {
             machine forward(root: &mut u64) -> u64 { read(root) }",
         ),
         (
+            "domain_qualified_record_field_store",
+            "forward",
+            "domain [u8; 8]::Utf8 requires valid_utf8(self);
+            data Limited { label: [u8; 8] in Utf8; }
+            machine forward(limited: &write Limited, next: [u8; 8] in Utf8) {
+                limited.label = next;
+            }",
+        ),
+        (
             "write_self_on_borrowed_parent_with_live_subloan",
             "forward",
             "data Record [copy] { value: u16; }
