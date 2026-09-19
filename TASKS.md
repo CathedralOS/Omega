@@ -2853,10 +2853,10 @@ Owners include
   `pass/ownership/move_keyword_field_assignment` checks, and
   `checked-interpreter/tests/borrowed_restoration.rs` executes a round trip and
   a consuming transform with caller-visible contents. That canary is on the
-  checked-only roster: nothing transports the restoration debt below checked
-  trees, and [Terminal ownership](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration)
-  has no producer or verifier for it. The product parser still avoids the
-  pattern by borrowing the lexer's stream.
+  checked-only roster: source lowering does not yet produce the restoration
+  operations specified by
+  [Terminal ownership](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
+  The product parser still avoids the pattern by borrowing the lexer's stream.
 
   Remaining work:
 
@@ -2881,8 +2881,15 @@ Owners include
     remains open.
   - Checker: a move inside a match arm or on a transition edge still takes the
     plain rejection, so branch-local extraction/repair and the reconvergence
-    agreement rule are unimplemented. A suspending or blocking call across an
-    open window rejects outright. Contained-loan transport and
+    agreement rule are unimplemented. Open-window checking consumes the existing
+    per-call suspension/blocking summaries, including initializer, assignment,
+    aggregate and call-argument positions; replacement evaluation is checked
+    before the repair store. Quiet checked bodies remain usable even with an
+    authored may-ceiling. Regressions: `typed-trees-to-checked-trees --lib`
+    filtered by `borrowed_restoration`, and `checked-interpreter --test suite`
+    with the same filter (macOS ARM64). Separate nonblocking boundary/capability
+    fences remain missing. Within one statement, moves are still processed
+    before calls rather than in evaluation order. Contained-loan transport and
     recoverable-failure paths have no regression.
 
   Acceptance: a consuming transform followed by replacement executes with

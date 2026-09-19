@@ -141,6 +141,16 @@ fn validate_partial_moves(
                 &mut segments,
             );
             let statements = program.statement_table.statements(state.statement_nodes);
+            let state_calls = facts
+                .flow
+                .control
+                .states
+                .iter()
+                .find_map(|(_, flow)| {
+                    (flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol)
+                        .then(|| facts.flow.control.calls.span_or_empty(flow.calls))
+                })
+                .unwrap_or_default();
             // A state body is a linear fall-through: each `transition` arm is
             // a guarded exit edge, and a missed arm continues to the next
             // statement. Every taken edge and the implicit return must see a
@@ -256,6 +266,8 @@ fn validate_partial_moves(
                     statement_index,
                     statement,
                     &moved,
+                    &facts.flow.control,
+                    state_calls,
                     &mut diagnostics,
                 );
                 // A taken transition edge leaves the state; a window open on

@@ -198,18 +198,26 @@ impl BorrowedStorageWindows {
         statement_index: usize,
         statement: &StatementNode,
         moved: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
+        control: &checked_trees::FlowControlFacts,
+        state_calls: &[checked_trees::FlowCallFact],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.open.is_empty() {
             return;
         }
-        // A suspending or blocking call would park the invocation while the
-        // owner is incomplete; without carried-custody evidence the window
-        // cannot span it.
-        if let StatementNode::Call(call) = statement
-            && (call.operational_acknowledgement.acknowledges_suspend
-                || call.operational_acknowledgement.acknowledges_block)
-        {
+        // Use checked call envelopes, not the statement's syntax or authored
+        // acknowledgement: initializers, assignment values and nested operands
+        // can also park the invocation. Without carried restoration custody the
+        // window cannot span any such call. Check before applying a repair,
+        // since its value must finish evaluation before the store closes it.
+        if state_calls.iter().any(|call| {
+            call.statement_index == statement_index
+                && !control.is_retired(state.symbol, call)
+                && (call.suspension.direct_may_suspend
+                    || call.suspension.transitive_may_suspend
+                    || call.blocking.direct_may_block
+                    || call.blocking.transitive_may_block)
+        }) {
             for absent in &self.open {
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot suspend or block at statement {statement_index} while `{}` is \
