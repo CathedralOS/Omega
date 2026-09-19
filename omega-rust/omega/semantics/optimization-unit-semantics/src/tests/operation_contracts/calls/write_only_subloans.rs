@@ -1,7 +1,7 @@
 //! Exact unrestricted subloan contracts, independently of native realization.
 
 use crate::tests::{id, refresh_identity, refresh_node_derivatives, structural_call_unit};
-use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
+use crate::{validate_psi_optimization_unit, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
@@ -382,6 +382,78 @@ fn composed_projected_qualifications_require_the_exact_subloan_suffix() {
     sibling.functions[0].structural_parameters[0].projected_qualifications[0].path =
         vec![StructuralPathSegment::FixedIndex(0), field()];
     rejects_contract(sibling);
+}
+
+#[test]
+fn owned_root_lends_exclusive_projected_subloan() {
+    // The loan table's owned row: an unrestricted owned root lends the same
+    // exclusive projected subloans a mutable parent lends.
+    for path in [
+        vec![field()],
+        vec![StructuralPathSegment::FixedIndex(1)],
+        vec![field(), StructuralPathSegment::FixedIndex(1)],
+        vec![StructuralPathSegment::FixedIndex(1), field()],
+        vec![
+            field(),
+            StructuralPathSegment::FixedIndex(1),
+            field(),
+            StructuralPathSegment::FixedIndex(0),
+        ],
+    ] {
+        let mut unit = subloan(path.clone(), StructuralAccess::Owned);
+        validate_psi_optimization_unit(&unit)
+            .unwrap_or_else(|error| panic!("owned write-only subloan {path:?}: {error:?}"));
+        unit.functions[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+        arguments(&mut unit)[0].access = StructuralAccess::MutableBorrow;
+        refresh_node_derivatives(&mut unit, 0, 0, 0);
+        validate_psi_optimization_unit(&unit)
+            .unwrap_or_else(|error| panic!("owned mutable subloan {path:?}: {error:?}"));
+    }
+}
+
+#[test]
+fn owned_root_subloan_keeps_exclusive_and_presentation_limits() {
+    // A byte-view presentation remains a borrowed-parent form: an owned
+    // root's bounded inline byte field cannot satisfy a view parameter.
+    let mut presentation = subloan(vec![field()], StructuralAccess::Owned);
+    let view = id(9_002, StructuralTypeId::new);
+    presentation
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: view,
+            identity: "validation::owned-byte-view".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView,
+            ),
+        });
+    let StructuralTypeShape::Record { fields } =
+        &mut presentation.structural_types.make_mut()[1].shape
+    else {
+        panic!("the path wrapper is a record")
+    };
+    fields[0].field_type =
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity: 16,
+        });
+    presentation.functions[1].structural_parameters[0].structural_type = view;
+    presentation.functions[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    arguments(&mut presentation)[0].access = StructuralAccess::MutableBorrow;
+    rejects_contract(presentation);
+
+    // The owned row lends borrows, not the place itself: a projected owned
+    // argument and a non-unrestricted parent still reject.
+    let mut owned_argument = subloan(vec![field()], StructuralAccess::Owned);
+    owned_argument.functions[1].structural_parameters[0].access = StructuralAccess::Owned;
+    arguments(&mut owned_argument)[0].access = StructuralAccess::Owned;
+    rejects_contract(owned_argument);
+    let mut affine = subloan(vec![field()], StructuralAccess::Owned);
+    affine.functions[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    rejects_contract(affine);
+    let mut affine_callee = subloan(vec![field()], StructuralAccess::Owned);
+    affine_callee.functions[1].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    rejects_contract(affine_callee);
 }
 
 #[test]
