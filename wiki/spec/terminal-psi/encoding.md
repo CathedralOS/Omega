@@ -5,9 +5,10 @@
 This is the canonical encoding contract, not yet a complete byte-level decoder
 specification. The [documentation index](../../README.md) lists operation subjects.
 [Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
-define semantics; complete per-operation and proof-node physical tables still
-need specification under PSIIR on the [execution board](../../../TASKS.md).
-The implementation's codec is not a substitute for those tables.
+define semantics; the tables below give the physical layout of every operation,
+terminator, scalar-term, proposition, and proof-node form the codec accepts.
+Machine-table, catalog, and ledger rows still owe physical tables under PSIIR
+on the [execution board](../../../TASKS.md).
 
 ## Canonical form
 
@@ -53,7 +54,7 @@ signed zeros; it does not assert mathematical equality facts. Source selection
 and provider realization custody remain separate from these portable semantics.
 
 Case membership uses operation tag 66, followed by the whole source place
-identity and exact structural case identity. Its ordinary operation result is
+identity, an ordered structural path, and the exact structural case identity. Its ordinary operation result is
 an unqualified Boolean. Decoding and verification reconstruct readable access,
 nominal case ownership, dominance and current ownership; no payload projection
 or reusable mutable-storage equation is encoded by this observation.
@@ -95,13 +96,329 @@ application or schema join header. If the same selection has retained
 applications elsewhere in the module, all occurrences retain the same schema
 header. Absence of that header does not classify a selected contract as nongeneric.
 
-## Residual jump encoding
+## Field encodings
 
-Within the terminator tag space, a Jump with no residual affine discards uses
-tag 1; a nonempty residual list uses tag 10. Both have the same jump semantics.
-Tag 10 with an empty list is noncanonical. Each residual retains place, ordered
-structural path, and exact subtree type; ownership validation reconstructs the
-complement rather than trusting this list.
+Row fields are read in the order given. `u8`, `u16`, `u32`, `u64`, `u128`, and
+`i128` are fixed-width little-endian; `bool` is a `u8` restricted to 0 or 1.
+`id` is a nonzero `u64` stable identity; `count` and `index` are `u32`.
+`counted(x)` is a `count` followed by exactly that many `x` items in row
+order. `string` is a `count` plus UTF-8 content bounded by the content-identity
+byte limit. Any tag value absent from a closed-sum table rejects.
+
+| Field form | Encoding |
+| --- | --- |
+| optional identity | `u8`: 0 absent; 1 + `id` |
+| scalar type | `u8`: 1 Boolean; 2 + integer type; 3 + IEEE float format |
+| integer type | `u8` kind (1 signed, 2 unsigned, 3 address-unsigned) + `u16` bit width |
+| integer value | `u8`: 1 + `i128`; 2 + `u128` |
+| IEEE float value | `u8`: 1 + `u32` bits; 2 + `u64` bits |
+| IEEE float format | `u8`: 1 binary32; 2 binary64 |
+| IEEE float relation | `u8`: 0 Equal, 1 NotEqual, 2 Less, 3 LessOrEqual, 4 Greater, 5 GreaterOrEqual |
+| IEEE float comparison kind | `u8`: 1 Equal, 2 NotEqual; propositions only — a distinct space from the relation byte |
+| structural path | counted segments, each `u8`: 1 + `string` field name; 2 + `u64` fixed index; 3 referent |
+| canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id |
+| canonical structural field | root place id + counted canonical path segments |
+| scalar field carrier path | counted segments, each `u8` 1 + field id; record carriers only — other segment tags reject |
+| structural access | `u8`: 1 owned, 2 shared borrow, 3 mutable borrow, 4 write-only borrow |
+| structural multiplicity | `u8`: 1 unrestricted, 2 affine, 3 linear |
+| structural argument | place id + structural access + structural path |
+| value declaration | value id + scalar type + `u64` qualification-set identity |
+| projected qualification | structural path + domain id |
+| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted claims (claim id + structural path) |
+| structural parameter | place id + `u32` position + `u8` self flag + structural type id + multiplicity + access + counted domain ids + counted projected qualifications |
+| scalar term list | counted scalar terms |
+| obligation id list | counted obligation ids |
+| claim transfer | claim id + `u32` argument index |
+| returned claim transfer | callee claim id + caller claim id |
+| completion receipt | claim id + `u32` argument index |
+| crash routes | counted buckets, each `u8` cause (1 Trap, 2 Abort) + counted guards; each guard `u8`: 0 truth, 1 + proposition |
+| successor edge | edge id + target block id + counted value ids + scalar term list + counted structural arguments + counted trivial discards |
+| trivial discard | place id; appears only inside a counted roster |
+| residual discard | place id + structural path + structural type id |
+| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural type id + machine id + optional identity + obligation id list |
+| evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
+
+## Scalar terms
+
+A scalar term is a `u8` form tag followed by its fields. The semantic module
+and the proof bundle share this grammar byte for byte.
+
+<!-- scalar-term-tags -->
+| Tag | Scalar term | Fields after the tag |
+| --- | --- | --- |
+| 1 | Value | value id + scalar type |
+| 2 | Boolean | `bool` |
+| 3 | Integer | integer type + integer value |
+| 4 | WrappingIntegerAdd | integer type + scalar term + scalar term |
+| 5 | SaturatingIntegerAdd | integer type + scalar term + scalar term |
+| 6 | WrappingIntegerSubtract | integer type + scalar term + scalar term |
+| 7 | SaturatingIntegerSubtract | integer type + scalar term + scalar term |
+| 8 | WrappingIntegerMultiply | integer type + scalar term + scalar term |
+| 9 | SaturatingIntegerMultiply | integer type + scalar term + scalar term |
+| 10 | BooleanNot | scalar term |
+| 11 | BooleanEqual | scalar term + scalar term |
+| 12 | IntegerEqual | integer type + scalar term + scalar term |
+| 13 | IntegerLessThan | integer type + scalar term + scalar term |
+| 14 | IntegerLessOrEqual | integer type + scalar term + scalar term |
+| 15 | IntegerBitwiseAnd | integer type + scalar term + scalar term |
+| 16 | IntegerBitwiseOr | integer type + scalar term + scalar term |
+| 17 | IntegerBitwiseXor | integer type + scalar term + scalar term |
+| 18 | WrappingIntegerShiftLeft | value integer type + count integer type + scalar term + scalar term |
+| 19 | WrappingIntegerShiftRight | value integer type + count integer type + scalar term + scalar term |
+| 20 | IntegerBitwiseNot | integer type + scalar term |
+| 21 | IntegerWiden | source integer type + target integer type + scalar term |
+| 22 | IntegerExactCast | source integer type + target integer type + scalar term |
+| 23 | ExactIntegerShiftRight | value integer type + count integer type + scalar term + scalar term |
+| 24 | ExactIntegerShiftLeft | value integer type + count integer type + scalar term + scalar term |
+| 25 | ExactIntegerAdd | integer type + scalar term + scalar term |
+| 26 | ExactIntegerSubtract | integer type + scalar term + scalar term |
+| 27 | ExactIntegerMultiply | integer type + scalar term + scalar term |
+| 28 | ExactIntegerDivide | integer type + scalar term + scalar term |
+| 29 | ExactIntegerRemainder | integer type + scalar term + scalar term |
+| 30 | WrappingIntegerDivide | integer type + scalar term + scalar term |
+| 31 | WrappingIntegerRemainder | integer type + scalar term + scalar term |
+| 32 | SaturatingIntegerDivide | integer type + scalar term + scalar term |
+| 33 | SaturatingIntegerRemainder | integer type + scalar term + scalar term |
+| 34 | BooleanField | root place id + counted canonical path segments |
+| 35 | IntegerField | root place id + counted canonical path segments + integer type |
+
+## Integer math terms
+
+The proof-only unbounded integer syntax, shared byte for byte between the
+semantic module and the proof bundle.
+
+<!-- integer-math-term-tags -->
+| Tag | Integer math term | Fields after the tag |
+| --- | --- | --- |
+| 1 | IntegerLiteral | `u8` negative flag + `u128` magnitude |
+| 2 | MathValue | integer type + value id |
+| 3 | Add | integer math term + integer math term |
+| 4 | Subtract | integer math term + integer math term |
+| 5 | Multiply | integer math term + integer math term |
+| 6 | ShiftLeft | integer math term + integer math term |
+
+## Content terms and places
+
+The conservation algebra and content-place grammar used by proposition 9,
+shared byte for byte between the semantic module and the proof bundle.
+
+| Field form | Encoding |
+| --- | --- |
+| content algebra | `u8` kind (1 IntervalSet, 2 CountedQuantity) + parameter string |
+| content structural place | `u8` version (1 entry, 2 current) + root place id + counted segments; each `u8`: 1 + field-name string, 2 + `u64` fixed index, 3 + case-name string |
+
+<!-- content-term-tags -->
+| Tag | Content term | Fields after the tag |
+| --- | --- | --- |
+| 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
+| 2 | Separate | counted content terms |
+
+## Propositions
+
+A proposition is a `u8` form tag followed by its fields. The semantic module
+and the proof bundle share this grammar byte for byte.
+
+<!-- proposition-tags -->
+| Tag | Proposition | Fields after the tag |
+| --- | --- | --- |
+| 1 | Truth | — |
+| 2 | Falsehood | — |
+| 3 | Atom | proposition id |
+| 4 | Equal | scalar term + scalar term |
+| 5 | LessThan | scalar term + scalar term |
+| 6 | LessOrEqual | scalar term + scalar term |
+| 7 | Conjunction | counted propositions |
+| 8 | Implication | premise proposition + conclusion proposition |
+| 9 | ContentConservation | content algebra + content term + content term |
+| 10 | Disjunction | counted propositions |
+| 11 | IeeeFloatComparison | IEEE float comparison kind + IEEE float format + canonical structural field + canonical structural field |
+| 12 | ByteSequenceEqual | canonical structural field + canonical structural field |
+| 13 | StructuralCaseMembership | canonical structural field + case id |
+| 14 | IntegerMathEqual | integer math term + integer math term |
+| 15 | IntegerMathLessThan | integer math term + integer math term |
+| 16 | IntegerMathLessOrEqual | integer math term + integer math term |
+
+## Operation rows
+
+A block row is a block id, counted parameter value declarations, counted erased
+scalar formal declarations, counted structural parameters, counted operation
+rows, and one terminator row.
+
+An operation row is an operation id, a `u8` static-reach flag (1 adds a `u32`
+argument binding; 0 records none), a `u8` result tag (0 unit; 1 + value
+declaration; 2 + structural operation result), the `u8` operation tag, and
+that tag's fields.
+
+<!-- operation-tags -->
+| Tag | Operation | Fields after the tag |
+| --- | --- | --- |
+| 1 | IntegerConstant | integer value |
+| 2 | BooleanConstant | `bool` |
+| 3 | WrappingIntegerAdd | left value id + right value id |
+| 4 | SaturatingIntegerAdd | left value id + right value id |
+| 5 | WrappingIntegerSubtract | left value id + right value id |
+| 6 | SaturatingIntegerSubtract | left value id + right value id |
+| 7 | WrappingIntegerMultiply | left value id + right value id |
+| 8 | SaturatingIntegerMultiply | left value id + right value id |
+| 9 | BooleanNot | operand value id |
+| 10 | BooleanEqual | left value id + right value id |
+| 11 | IntegerEqual | left value id + right value id |
+| 12 | IntegerLessThan | left value id + right value id |
+| 13 | IntegerLessOrEqual | left value id + right value id |
+| 14 | IntegerBitwiseAnd | left value id + right value id |
+| 15 | IntegerBitwiseOr | left value id + right value id |
+| 16 | IntegerBitwiseXor | left value id + right value id |
+| 17 | WrappingIntegerShiftLeft | value id + count value id |
+| 18 | WrappingIntegerShiftRight | value id + count value id |
+| 19 | IntegerBitwiseNot | operand value id |
+| 20 | IntegerWiden | operand value id |
+| 21 | IntegerExactCast | operand value id + obligation id |
+| 22 | ExactIntegerShiftRight | value id + count value id + obligation id |
+| 23 | ExactIntegerShiftLeft | value id + count value id + obligation id |
+| 24 | ExactIntegerAdd | left value id + right value id + obligation id |
+| 25 | ExactIntegerSubtract | left value id + right value id + obligation id |
+| 26 | ExactIntegerMultiply | left value id + right value id + obligation id |
+| 27 | ExactIntegerDivide | left value id + right value id + obligation id |
+| 28 | ExactIntegerRemainder | left value id + right value id + obligation id |
+| 29 | WrappingIntegerDivide | left value id + right value id + obligation id |
+| 30 | WrappingIntegerRemainder | left value id + right value id + obligation id |
+| 31 | SaturatingIntegerDivide | left value id + right value id + obligation id |
+| 32 | SaturatingIntegerRemainder | left value id + right value id + obligation id |
+| 33 | Call | callee machine id + counted value ids + scalar term list + obligation id list + crash routes |
+| 34 | CallUnit | callee machine id + counted value ids + scalar term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 35 | BoundaryCall | boundary machine id + counted value ids + counted structural arguments + counted completion receipts |
+| 36 | PortWrite | service id + `u16` port + `u8` value |
+| 37 | EstablishTrivialAffineLocal | place id |
+| 38 | BooleanStructuralField | source place id + scalar field carrier path + field id |
+| 39 | CallStructuralScalar | callee machine id + counted value ids + scalar term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 40 | EstablishByteSequenceLiteral | destination place id + counted bytes |
+| 41 | CallStructural | callee machine id + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes + counted selected evidence bindings |
+| 42 | EstablishScalarCase | case id + counted fields (field id + value id + optional obligation id) |
+| 43 | WriteOnlyPrimitiveStore | destination place id + value id; root-only form |
+| 44 | IeeeFloatConstant | IEEE float value |
+| 45 | NearestIeeeFloatFusedMultiplyAdd | left value id + right value id + addend value id |
+| 46 | StructuralScalarFieldStore | destination place id + structural path + field id + value id; unchecked form |
+| 47 | IntegerStructuralField | source place id + scalar field carrier path + field id |
+| 48 | CallDynamicScalar | `u32` descriptor ordinal + obligation id list + crash routes |
+| 49 | CallDynamicParameterScalar | `u32` parameter ordinal + `u32` requirement slot + obligation id list + crash routes |
+| 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes |
+| 52 | CallDynamicUnit | `u32` descriptor ordinal + obligation id list + crash routes |
+| 53 | CallDynamicParameterUnit | `u32` parameter ordinal + `u32` requirement slot + obligation id list + crash routes |
+| 54 | StoreDynamicDescriptor | `u32` descriptor ordinal |
+| 55 | ByteSequenceLength | source place id |
+| 56 | ByteSequenceRead | source place id + index value id + length value id + obligation id |
+| 57 | ByteSequenceSubslice | source place id + start value id + end value id + length value id + obligation id |
+| 58 | StructuralByteSequenceFieldStore | destination place id + structural path + field id + source place id + length value id + obligation id |
+| 59 | StructuralByteSequenceFieldLength | source place id + structural path + field id |
+| 60 | StructuralByteSequenceFieldByteStore | destination place id + structural path + field id + index value id + value id + length value id + obligation id |
+| 61 | EstablishPrimitiveLocal | value id |
+| 62 | PrimitiveScalarRead | source place id; root-only form |
+| 63 | ByteSequenceWrite | destination place id + index value id + value id + length value id + obligation id |
+| 64 | EstablishScalarArray | counted value ids |
+| 65 | IeeeFloatCompare | IEEE float relation + left value id + right value id |
+| 66 | StructuralCaseMembership | source place id + structural path + case id |
+| 68 | EstablishRecord | counted fields (field id + `u8` operand tag: 1 + value id + optional obligation id; 2 + structural argument) |
+| 69 | EstablishReference | structural argument |
+| 70 | ReleaseReference | place id |
+| 73 | PrimitiveScalarRead | canonical structural field; projected form requires a nonempty path |
+| 74 | WriteOnlyPrimitiveStore | canonical structural field + value id; projected form requires a nonempty path |
+| 75 | StructuralScalarFieldStore | destination place id + structural path + field id + value id + obligation id; range-checked form |
+| 76 | WriteOnlyIndexedPrimitiveStore | canonical structural field + index value id + value id + obligation id |
+| 77 | MoveStructuralField | source place id + structural path + field id |
+| 78 | StoreStructuralField | destination place id + structural path + field id + structural argument |
+
+Tags 51 (retired literal field row) and 67 (retired scalar-only record
+operand) reject; their payloads are not reinterpreted as current forms. Tags
+71 and 72 are unassigned. Every other tag absent from the table rejects as an
+unknown operation tag. The tag-41 selected evidence binding is: result type
+id + result case id + `u32` guarded position + callee obligation id + callee
+term id + output field string + callee proposition id + instantiated
+proposition id + output evidence term id + result substitution (`u8`: 0
+absent; 1 + `u32` argument position + callee result place id + caller result
+place id) + validity record (result place id + counted proposition-dependency
+place ids + evidence interface + counted interface-dependency place ids) +
+`u32` expected use count + counted uses (target machine id + `u32` input
+position + target requirement proposition id + target evidence term id +
+source evidence term id + instantiated proposition id + target parameter
+place id + caller result place id).
+
+## Terminator rows
+
+A terminator row is a `u8` tag followed by its fields.
+
+<!-- terminator-tags -->
+| Tag | Terminator | Fields after the tag |
+| --- | --- | --- |
+| 1 | Jump | edge id + target block id + counted value ids + scalar term list + counted structural arguments + counted trivial discards |
+| 10 | Jump | the tag-1 fields + counted residual discards; residual list must be nonempty |
+| 2 | Return | edge id + value id + counted affine cleanup actions |
+| 3 | Conditional | condition value id + successor edge + successor edge |
+| 4 | Crash | edge id + `u8` cause (1 Trap, 2 Abort) + counted propositions + counted claim ids |
+| 5 | ReturnUnit | edge id + counted trivial discards |
+| 6 | ReturnStructural | edge id + source place id + counted claim ids + counted trivial discards |
+| 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
+| 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
+| 9 | StructuralCase | source place id + counted case successors (edge id + target block id + case id + counted field ids + counted trivial discards) |
+
+A Jump with no residual affine discards uses tag 1; a nonempty residual list
+uses tag 10. Both have the same jump semantics. Tag 10 with an empty list is
+noncanonical. Each residual retains place, ordered structural path, and exact
+subtree type; ownership validation reconstructs the complement rather than
+trusting this list.
+
+## Proof bundle
+
+A proof bundle is `PSIPRF\0\0` + `u16` format marker 33 + counted obligation
+evidence rows + counted recursive component certificates + counted control
+cycle certificates + counted evidence producers. Sealed for transport it is
+`PSIPSC\0\0` + `u16` section marker 1 + `u16` vocabulary marker + a 32-byte
+program fingerprint + the bundle bytes.
+
+An obligation evidence row is an obligation id + a `u8` route tag: 1
+KernelDerived + `u8` primitive judgment; 2 CertificateDerived + evidence
+identity + `u16` proof-system marker + proof node; 3 Admitted + admission
+site id + `u8` admission kind (1 ForeignBoundaryGuarantee, 2 ProviderFact, 3
+CheckedAssemblyClaim) + authority identity + evidence identity + profile
+decision id. A component certificate is a certificate identity + ranking
+relation id + well-foundedness evidence route + counted edges (obligation id
++ evidence route). An evidence producer is a producer id + term id +
+conformance string + trait string + counted rows (declaring-trait string +
+counted argument strings + requirement string + machine string + state
+string + `u8` source: 1 Inline, 2 Reference, 3 TraitDefault).
+
+A proof node is its conclusion proposition, a `u8` rule tag, the node's
+children — each recursively a proof node, written before the parent suffix —
+then the rule suffix fields. Rule 4 writes a counted child list; rules 16 and
+23 write one child (the disjunction or premise) then a counted continuation
+list; all other rules carry a fixed child count given below. The proof tree
+rejects nesting deeper than 256.
+
+<!-- proof-rule-tags -->
+| Tag | Proof rule | Children | Suffix fields |
+| --- | --- | --- | --- |
+| 1 | Primitive | 0 | `u8` primitive judgment (1 Truth, 2 ReflexiveEquality, 3 ClosedIntegerRelation, 4 IntegerCarrierBound) |
+| 2 | SemanticAxiom | 0 | `u32` axiom index |
+| 3 | Assumption | 0 | `u32` assumption index |
+| 4 | ConjunctionIntroduction | counted | — |
+| 5 | ConjunctionElimination | 1 | `u32` conjunct index |
+| 6 | ImplicationIntroduction | 1 | — |
+| 7 | ImplicationElimination | 2 (implication, premise) | — |
+| 8 | EqualityTransitivity | 2 (left-middle, middle-right) | — |
+| 9 | DisjunctionIntroduction | 1 | `u32` disjunct index |
+| 10 | IntegerLessOrEqualTransitivity | 2 | — |
+| 11 | IntegerOrderSubstitution | 2 | `u32` substituted endpoint index |
+| 12 | IntegerAffineBound | 1 | root scalar term + target scalar term + counted definition axiom indices + counted optional literal axioms (`u8`: 0 absent; 1 + `u32` index) |
+| 13 | IntegerCastBound | 1 | root scalar term + target scalar term + counted definition axiom indices |
+| 14 | IntegerCorrelatedForbiddenRoots | 0 | dividend branch + divisor branch + `u32` definition axiom count + `u32` lower-bound axiom index + `u32` upper-bound axiom index + conclusion proposition; each branch is a root scalar term + target scalar term + counted steps (`u32` definition axiom index + optional literal axiom) |
+| 15 | IntegerExactAddDefinitionBound | 2 (left bound, right bound) | `u32` definition axiom index |
+| 16 | DisjunctionElimination | 1 + counted | — |
+| 17 | EqualitySymmetry | 1 | — |
+| 18 | IntegerOrderWeakening | 1 | — |
+| 19 | IntegerOrderDiscreteness | 1 | — |
+| 20 | IntegerSubtractOrder | 2 (difference, positive) | — |
+| 21 | IntegerStrictOrderTransitivity | 2 | — |
+| 22 | PredicateDenotation | 1 | — |
+| 23 | ValueEqualityTransport | 1 + counted | — |
 
 ## Section identities
 
