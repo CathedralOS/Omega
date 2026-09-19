@@ -191,25 +191,25 @@ rewriting manifest facts, predicted costs, and policy records cannot replace
 this independent reconstruction. Human reports project these rows, not the
 reverse.
 
-An explicitly selected external policy may rank or choose already-declared
-validated candidates through a versioned schema. Requests bind source,
+Selection policies rank or choose already-declared validated candidates,
+separately from candidate construction and independent validation. Explicitly
+supplied decisions use a versioned schema; their contexts bind source,
 selections, target, rule catalog, cost model, and the canonical candidate rows.
-The closed response chooses a listed candidate or skips with a reason; it does
+Each decision chooses a listed candidate or skips with a reason; it does
 not author a rewrite or semantic contract. Recording independently reconstructs
 the rows; replay requires exact context and row equality. Missing, malformed,
-stale, or mismatched responses reject or use an explicitly selected deterministic
-fallback. Cost estimates rank candidates; they cannot establish eligibility or
-semantic correctness.
+stale, or mismatched supplied decisions reject or use an explicitly selected
+deterministic fallback. Cost estimates rank candidates; they cannot establish
+eligibility or semantic correctness.
 
-Models never become a baseline compiler dependency or runtime oracle. External
-execution requires explicit build authorization and a real sandbox admission;
-process groups, resource limits, and deadlines alone do not establish filesystem,
-executable, credential, or network isolation. Offline training and evaluation
-grant no compiler activation, optimizer replay, or artifact-publication
-authority. [Offline policy tooling](../../../omega-rust/omega/tooling/optimization-policy-offline/README.md)
-owns its current data formats and commands; broader
-[learned search](../../drafts/learned_optimization_policy.md) remains exploratory
-background, not a proposed integration or an implementation requirement.
+The current requirement is structural readiness for a possible future policy,
+not an ML implementation. Keep deterministic selection usable without a model.
+Do not build a trainer, training corpus pipeline, model evaluator, or inference
+integration in the Rust reference compiler. A future learned policy belongs to
+separately justified work on the Omega-written product compiler and would choose
+through these same candidate and validation boundaries, not a second compiler
+path. [Learned search](../../drafts/learned_optimization_policy.md) remains
+exploratory background, not a current implementation requirement.
 
 ## Release rollback and promotion
 

@@ -28,7 +28,6 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/artifacts/native-artifact/src/callable_entry",
     "omega-rust/omega/backend/artifacts/native-artifact/src/callable_entry.rs",
     "tests/native-differential/tests/pipeline_ownership",
-    "omega-rust/omega/tooling/optimization-policy-offline",
     "omega-rust/omega/representations/legalized-operations",
     "omega-rust/omega/representations/optimization-core",
     "omega-rust/omega/representations/optimization-unit",

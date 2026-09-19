@@ -1,9 +1,11 @@
 # Exploring learned optimization policy
 
-Purpose: explore whether learned ranking or bounded search would improve compiler
-output enough to justify its costs. No concrete integration is proposed, and
-these notes authorize no implementation. Keep them while the comparison is
-useful; delete them when superseded by a concrete design or no longer relevant.
+Purpose: retain possible far-future uses of the compiler's discrete optimization
+choices. The current work is only to keep candidate construction, deterministic
+selection, and independent validation separate. No model or training framework
+is planned for the Rust reference compiler. These notes authorize no
+implementation; any future investigation belongs to the Omega-written product
+compiler and needs its own concrete justification.
 
 Affected subject: [optimization selection and validation](../spec/build/optimizations.md).
 
@@ -14,7 +16,7 @@ question is whether learned ranking or bounded search can improve measured
 output quality enough to justify training, evaluation, and build costs without
 changing semantic admission or making the baseline depend on a model.
 
-## Possible investigation
+## Possible future investigation
 
 One approach would use offline or explicitly selected build-time search over the
 existing validated candidate interface. Evaluate decisions against a versioned workload
@@ -33,10 +35,10 @@ resource bounds, and the separate component-publication contract.
 
 ## Alternatives and research questions
 
-Keep deterministic heuristics and the current offline reference model if useful
-quality gains are not measured. Bounded model-free search can test the workload
-and measurement protocol before adding learned models; this avoids assuming
-that a uniform oracle must replace every pass-local decision.
+Keep deterministic heuristics unless useful quality gains are measured. A future
+bounded model-free search could test the workload and measurement protocol before
+adding learned models; this avoids assuming that a uniform oracle must replace
+every pass-local decision.
 
 The remaining questions are which concrete workloads and cost objectives justify
 the work, the cost of candidate checking at search scale, the useful boundary
