@@ -175,6 +175,7 @@ fn compiler_builtin_execution(
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(_)
         | CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. }
+        | CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
         | CompilerIntrinsicExecutionIdentity::NamedFloatNegation(_)
         | CompilerIntrinsicExecutionIdentity::NamedFloatConversion { .. } => None,
     }

@@ -6,7 +6,9 @@
 //! route realizes. Both replay the canonical semantic and proof sections
 //! under the request admission profile before anything downstream sees them.
 
-use crate::{application_coverage, float_comparisons, float_fma, native_proposal};
+use crate::{
+    application_coverage, float_comparisons, float_fma, integer_comparisons, native_proposal,
+};
 use assembled_syntax_to_checked_compilation::{CheckedCompilation, OptimizationRollback};
 use diagnostics::Diagnostic;
 
@@ -53,22 +55,24 @@ pub fn validate_lowered_ieee_float_comparison_custody(
     .map(|_| ())
 }
 
-/// Psi joins a selected integer comparison to its emitted operation (the
-/// integer counterpart of the IEEE comparison roster) so its crash contract
-/// has a Terminal carrier, but no Omega consumer rejoins that occurrence to a
-/// selected provider yet. Realizing the operation natively would silently
-/// replace the selected provider with the builtin comparison, so a nonempty
-/// roster is refused here, before the tuple extractors that predate it drop
-/// the rows.
-fn reject_integer_comparison_occurrence_custody(
-    occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
+/// Rejoin a checked-source inspection product to its exact selected integer
+/// comparison meanings — the integer counterpart of
+/// [`validate_lowered_ieee_float_comparison_custody`]. The recorded emission
+/// triple must be the admitted emission of the authored spelling, so a
+/// swapped or negated comparison cannot substitute a different selected
+/// semantic. This check grants no native execution.
+pub fn validate_lowered_integer_comparison_custody(
+    checked: &CheckedCompilation,
+    lowered: &lowered_psi::LoweredPsi,
 ) -> Result<(), Vec<Diagnostic>> {
-    if occurrences.is_empty() {
-        return Ok(());
-    }
-    Err(vec![Diagnostic::error(
-        "native realization does not yet consume retained selected integer comparison occurrence custody",
-    )])
+    integer_comparisons::associate(
+        checked,
+        &lowered.semantic_module,
+        checked.selected_provider_plans(),
+        checked.selected_provider_provenance(),
+        &lowered.selected_integer_comparison_occurrences,
+    )
+    .map(|_| ())
 }
 
 /// Produce one verified retained Terminal product from the complete checked
@@ -122,9 +126,6 @@ fn produce_retained_terminal_artifact(
             error.error(),
         ))]
     })?;
-    reject_integer_comparison_occurrence_custody(
-        produced.selected_integer_comparison_occurrences(),
-    )?;
     let (
         artifact,
         checked_program_entry,
@@ -133,6 +134,7 @@ fn produce_retained_terminal_artifact(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
+        selected_integer_comparison_occurrences,
     ) = produced.into_parts_with_source_calls();
     verification::verify_terminal_artifact(&artifact, profile)?;
     let native_realization_proposal =
@@ -146,6 +148,7 @@ fn produce_retained_terminal_artifact(
             &source_call_occurrences,
             &selected_ieee_float_fma_occurrences,
             &selected_ieee_float_comparison_occurrences,
+            &selected_integer_comparison_occurrences,
             selections,
         )?;
     compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
@@ -232,19 +235,17 @@ pub fn produce_program_entry_terminal_artifact(
             "native-artifact Terminal production failed: {error}"
         ))]
     })?;
-    reject_integer_comparison_occurrence_custody(
-        produced.selected_integer_comparison_occurrences(),
-    )?;
     let (
         artifact,
         checked_program_entry,
         checked_boundary_operator_scope,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
+        selected_integer_comparison_occurrences,
     ) = produced.into_parts();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         vec![Diagnostic::error(format!(
-            "native IEEE comparison custody could not decode Terminal semantics: {error}"
+            "native comparison custody could not decode Terminal semantics: {error}"
         ))]
     })?;
     // The direct entrance must perform the same source/provider join as retained
@@ -257,6 +258,13 @@ pub fn produce_program_entry_terminal_artifact(
         checked.selected_provider_plans(),
         checked.selected_provider_provenance(),
         &selected_ieee_float_comparison_occurrences,
+    )?;
+    integer_comparisons::associate(
+        checked,
+        &module,
+        checked.selected_provider_plans(),
+        checked.selected_provider_provenance(),
+        &selected_integer_comparison_occurrences,
     )?;
     // The direct route carries the same nearest-FMA custody the retained
     // product's proposal carries: each Terminal occurrence rejoins exactly one

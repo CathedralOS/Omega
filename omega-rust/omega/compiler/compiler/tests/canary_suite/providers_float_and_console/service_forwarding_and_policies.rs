@@ -990,6 +990,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()

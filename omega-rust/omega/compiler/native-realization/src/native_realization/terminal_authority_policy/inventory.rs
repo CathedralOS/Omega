@@ -4,11 +4,12 @@ use std::sync::OnceLock;
 
 use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerPrimitiveIntegerComparisonOperation,
 };
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
 
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 497;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 545;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
     ArithmeticDomain::Exact,
@@ -38,6 +39,19 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
                 operation,
                 format,
             });
+        }
+    }
+    for operation in CompilerPrimitiveIntegerComparisonOperation::ALL {
+        for integer_type in CompilerNumericType::ALL {
+            if integer_type.is_float() {
+                continue;
+            }
+            mechanisms.push(
+                CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                    operation,
+                    integer_type,
+                },
+            );
         }
     }
     mechanisms.extend(

@@ -75,6 +75,7 @@ pub enum SelectedCompilerIntrinsicExecutionIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SelectedCompilerIntrinsicRealization {
     PrimitiveFloatBinary(CompilerIntrinsicExecutionIdentity),
+    PrimitiveIntegerComparison(CompilerIntrinsicExecutionIdentity),
     NamedFloat(NamedFloatRealization),
     OtherCompilerPath,
 }

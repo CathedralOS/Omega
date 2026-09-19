@@ -536,6 +536,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()
@@ -604,6 +605,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()

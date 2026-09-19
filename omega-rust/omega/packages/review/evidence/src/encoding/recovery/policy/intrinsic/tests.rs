@@ -1,6 +1,6 @@
 use super::{
-    ArithmeticDomain, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation, Error,
-    FloatFormat,
+    ArithmeticDomain, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerPrimitiveIntegerComparisonOperation, Error, FloatFormat,
 };
 use crate::encoding::recovery::policy::intrinsic::execution;
 use crate::encoding::recovery::policy::reader::Reader;
@@ -67,6 +67,30 @@ fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
         Numeric::F32,
         Numeric::F64,
     ];
+    for integer_type in [
+        Numeric::I8,
+        Numeric::I16,
+        Numeric::I32,
+        Numeric::I64,
+        Numeric::U8,
+        Numeric::U16,
+        Numeric::U32,
+        Numeric::U64,
+    ] {
+        for operation in [
+            CompilerPrimitiveIntegerComparisonOperation::Equal,
+            CompilerPrimitiveIntegerComparisonOperation::NotEqual,
+            CompilerPrimitiveIntegerComparisonOperation::Less,
+            CompilerPrimitiveIntegerComparisonOperation::LessOrEqual,
+            CompilerPrimitiveIntegerComparisonOperation::Greater,
+            CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual,
+        ] {
+            values.push(Execution::PrimitiveIntegerComparison {
+                operation,
+                integer_type,
+            });
+        }
+    }
     for source in numeric {
         for target in numeric {
             for domain in [
@@ -98,7 +122,7 @@ fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
 #[test]
 fn intrinsic_tags_and_builtin_ordinals_are_closed() {
     for bytes in [
-        &[7][..],
+        &[8][..],
         &[255],
         &[0, 255, 255],
         &[1, 2],
@@ -107,6 +131,12 @@ fn intrinsic_tags_and_builtin_ordinals_are_closed() {
         &[2, 0, 0, 4],
         &[3, 10, 0],
         &[3, 0, 2],
+        // Integer comparison operation tags close at six.
+        &[7, 6, 0],
+        // The integer comparison operand carrier cannot be a float.
+        &[7, 0, 8],
+        &[7, 0, 9],
+        &[7, 0, 10],
     ] {
         assert_eq!(recovered(bytes), Err(Error::InvalidTag), "{bytes:?}");
     }

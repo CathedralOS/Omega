@@ -598,6 +598,7 @@ fn a_retained_exclusion_is_replayed_against_the_artifact_by_consumers() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()
@@ -636,6 +637,7 @@ fn a_retained_exclusion_is_replayed_against_the_artifact_by_consumers() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()

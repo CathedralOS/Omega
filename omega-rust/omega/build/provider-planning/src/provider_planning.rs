@@ -34,6 +34,7 @@ mod tests;
 
 pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerPrimitiveIntegerComparisonOperation,
 };
 pub use external_binding_rows::{
     extract_external_binding_rows, extract_native_external_binding_rows,
@@ -44,6 +45,8 @@ pub use installed_writer::*;
 pub use intrinsic_execution::{
     primitive_float_binary_intrinsic_execution_identity,
     primitive_float_binary_intrinsic_execution_identity_for,
+    primitive_integer_comparison_intrinsic_execution_identity,
+    primitive_integer_comparison_intrinsic_execution_identity_for,
 };
 pub use operator_provider_evidence::{
     compiler_intrinsic_diagnostic_label, compiler_intrinsic_diagnostic_label_for,

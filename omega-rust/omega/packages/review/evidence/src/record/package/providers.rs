@@ -14,6 +14,14 @@ pub enum PackageReviewCompilerIntrinsicExecution {
         operation: provider_planning::CompilerPrimitiveFloatBinaryOperation,
         format: numerics::literals::FloatFormat,
     },
+    /// One authored integer comparison spelling (`==`/`!=`/`<`/`<=`/`>`/`>=`)
+    /// on an exact fixed-width operand type. The authored token is the
+    /// operation identity; any swapped or negated Terminal emission is already
+    /// folded back into `operation` here.
+    PrimitiveIntegerComparison {
+        operation: provider_planning::CompilerPrimitiveIntegerComparisonOperation,
+        integer_type: provider_planning::CompilerNumericType,
+    },
     NamedFloatNegation(numerics::literals::FloatFormat),
     NamedFloatConversion {
         source: provider_planning::CompilerNumericType,
@@ -53,6 +61,9 @@ impl CheckedPackageProviderRowIdentity {
                 Some(function)
             }
             Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
+            | Some(PackageReviewCompilerIntrinsicExecution::PrimitiveIntegerComparison {
+                ..
+            })
             | Some(PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32)
             | Some(PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32)
             | Some(PackageReviewCompilerIntrinsicExecution::HostedReadByte)

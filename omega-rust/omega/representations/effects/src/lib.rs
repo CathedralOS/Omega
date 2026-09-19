@@ -96,7 +96,8 @@ pub use authority::service_terminal_authority_permission::ServiceTerminalAuthori
 pub use authority::terminal_authority::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
     CheckedSyscallArgumentContractIdentity, CompilerIntrinsicExecutionIdentity,
-    CompilerNumericType, CompilerPrimitiveFloatBinaryOperation, NormalizedForeignArgumentContract,
+    CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerPrimitiveIntegerComparisonOperation, NormalizedForeignArgumentContract,
     NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
     SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
     TerminalAuthorityClosureReviewBuildError, TerminalAuthorityClosureReviewReceipt,

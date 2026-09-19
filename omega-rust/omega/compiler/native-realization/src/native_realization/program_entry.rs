@@ -24,6 +24,7 @@ pub fn realize_program_entry_native_artifact(
         checked_scope,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
+        selected_integer_comparison_occurrences,
     ) = produced.into_parts();
     let validate_entry = || -> Result<_, Vec<Diagnostic>> {
         if let Some(scope) = request.checked_scope {
@@ -34,6 +35,11 @@ pub fn realize_program_entry_native_artifact(
         if !selected_ieee_float_comparison_occurrences.is_empty() {
             return Err(vec![Diagnostic::error(
                 "ProgramEntry native realization does not consume IEEE comparison occurrence custody",
+            )]);
+        }
+        if !selected_integer_comparison_occurrences.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "ProgramEntry native realization does not consume integer comparison occurrence custody",
             )]);
         }
         if !selected_ieee_float_fma_occurrences.is_empty() {

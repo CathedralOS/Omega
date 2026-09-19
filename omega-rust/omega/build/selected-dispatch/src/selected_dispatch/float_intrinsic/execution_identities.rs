@@ -31,7 +31,8 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
     else {
         return Ok(None);
     };
-    if let SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity) =
+    if let SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity)
+    | SelectedCompilerIntrinsicRealization::PrimitiveIntegerComparison(identity) =
         selected_realization
     {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
@@ -189,6 +190,16 @@ pub(crate) fn selected_compiler_intrinsic_realization(
     {
         return Ok(Some(
             SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity),
+        ));
+    }
+    if let Some(identity) =
+        provider_planning::primitive_integer_comparison_intrinsic_execution_identity_for(
+            typed,
+            &requirement,
+        )
+    {
+        return Ok(Some(
+            SelectedCompilerIntrinsicRealization::PrimitiveIntegerComparison(identity),
         ));
     }
     Ok(Some(

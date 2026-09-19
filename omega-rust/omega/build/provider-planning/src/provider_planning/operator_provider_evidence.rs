@@ -1,7 +1,10 @@
 //! Selected operator provider evidence and intrinsic realization checks.
 
 pub(crate) use crate::exact_checked_adapter;
-use crate::provider_planning::intrinsic_execution::primitive_float_binary_intrinsic_execution_identity_for;
+use crate::provider_planning::intrinsic_execution::{
+    primitive_float_binary_intrinsic_execution_identity_for,
+    primitive_integer_comparison_intrinsic_execution_identity_for,
+};
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use typed_trees::TypedTrees;
@@ -517,6 +520,20 @@ pub fn compiler_intrinsic_diagnostic_label_for(
         primitive_float_binary_intrinsic_execution_identity_for(typed, requirement)
     {
         return Some(format!("Float::{}.{}", operation.name(), format.name()));
+    }
+    if let Some(CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+        operation,
+        integer_type,
+    }) = primitive_integer_comparison_intrinsic_execution_identity_for(typed, requirement)
+    {
+        // No canonical requirement namespace exists for integer comparisons;
+        // the authored token is the operation identity, so the diagnostic
+        // label names the closed comparison shape directly.
+        return Some(format!(
+            "integer-comparison.{}.{}",
+            operation.name(),
+            integer_type.name()
+        ));
     }
     let namespace = requirement.namespace.as_str();
     let requirement_name = requirement.name.as_str();

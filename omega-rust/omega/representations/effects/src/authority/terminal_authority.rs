@@ -27,6 +27,19 @@ pub enum CompilerIntrinsicExecutionIdentity {
         operation: CompilerPrimitiveFloatBinaryOperation,
         format: numerics::literals::FloatFormat,
     },
+    /// The authored comparison a selected boundary operator denotes on one
+    /// exact fixed-width integer primitive. The Terminal artifact carries the
+    /// emitted `IntegerEqual`/`IntegerLessThan`/`IntegerLessOrEqual`
+    /// operation; this identity commits to the authored `==`/`!=`/`<`/`<=`/
+    /// `>`/`>=` meaning instead, so a swapped or negated emission cannot
+    /// silently substitute a different selected semantics.
+    PrimitiveIntegerComparison {
+        operation: CompilerPrimitiveIntegerComparisonOperation,
+        /// One of the eight fixed-width integer `CompilerNumericType`
+        /// variants. Float and address-carrier operands have no primitive
+        /// integer comparison identity and fail closed at derivation.
+        integer_type: CompilerNumericType,
+    },
     NamedFloatNegation(numerics::literals::FloatFormat),
     NamedFloatConversion {
         source: CompilerNumericType,
@@ -54,6 +67,14 @@ pub fn compiler_intrinsic_execution_identity_bytes(
             bytes[0] = 2;
             bytes[1] = primitive_float_operation_tag(operation);
             bytes[2] = float_format_tag(format);
+        }
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        } => {
+            bytes[0] = 7;
+            bytes[1] = primitive_integer_comparison_operation_tag(operation);
+            bytes[2] = numeric_type_tag(integer_type);
         }
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             bytes[0] = 3;
@@ -378,6 +399,19 @@ const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOp
     }
 }
 
+const fn primitive_integer_comparison_operation_tag(
+    operation: CompilerPrimitiveIntegerComparisonOperation,
+) -> u8 {
+    match operation {
+        CompilerPrimitiveIntegerComparisonOperation::Equal => 0,
+        CompilerPrimitiveIntegerComparisonOperation::NotEqual => 1,
+        CompilerPrimitiveIntegerComparisonOperation::Less => 2,
+        CompilerPrimitiveIntegerComparisonOperation::LessOrEqual => 3,
+        CompilerPrimitiveIntegerComparisonOperation::Greater => 4,
+        CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual => 5,
+    }
+}
+
 const fn numeric_type_tag(numeric_type: CompilerNumericType) -> u8 {
     match numeric_type {
         CompilerNumericType::I8 => 0,
@@ -509,6 +543,43 @@ impl CompilerPrimitiveFloatBinaryOperation {
             Self::Subtract => "subtract",
             Self::Multiply => "multiply",
             Self::Divide => "divide",
+            Self::Equal => "equal",
+            Self::NotEqual => "not_equal",
+            Self::Less => "less",
+            Self::LessOrEqual => "less_or_equal",
+            Self::Greater => "greater",
+            Self::GreaterOrEqual => "greater_or_equal",
+        }
+    }
+}
+
+/// The authored integer comparison spellings, before any emission mapping.
+/// `>`/`>=`/`!=` keep their authored identity here even though Terminal
+/// emission normalizes them onto the swapped/negated three-operation roster;
+/// the recorded emitted shape is what the proposal replays, while this value
+/// is what the selected provider plan commits to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompilerPrimitiveIntegerComparisonOperation {
+    Equal,
+    NotEqual,
+    Less,
+    LessOrEqual,
+    Greater,
+    GreaterOrEqual,
+}
+
+impl CompilerPrimitiveIntegerComparisonOperation {
+    pub const ALL: [Self; 6] = [
+        Self::Equal,
+        Self::NotEqual,
+        Self::Less,
+        Self::LessOrEqual,
+        Self::Greater,
+        Self::GreaterOrEqual,
+    ];
+
+    pub const fn name(self) -> &'static str {
+        match self {
             Self::Equal => "equal",
             Self::NotEqual => "not_equal",
             Self::Less => "less",
@@ -1062,10 +1133,11 @@ mod tests {
     use super::{
         BTreeSet, CheckedPhysicalTerminalMechanismIdentity, CheckedSyscallArgumentContractIdentity,
         CompilerIntrinsicExecutionIdentity, CompilerNumericType,
-        CompilerPrimitiveFloatBinaryOperation, NormalizedForeignArgumentContract,
-        NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
-        SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,
-        compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
+        CompilerPrimitiveFloatBinaryOperation, CompilerPrimitiveIntegerComparisonOperation,
+        NormalizedForeignArgumentContract, NormalizedForeignTerminalMechanismIdentity,
+        PortableFilesystemAuthorityFacet, SyscallTerminalMechanismIdentity, TerminalAuthorityClass,
+        TerminalAuthorityDisposition, compiler_intrinsic_execution_identity_bytes,
+        terminal_mechanism_identity_bytes,
     };
     #[test]
     fn canonical_disposition_recovery_retains_storage_and_rejects_normalization() {
@@ -1157,6 +1229,25 @@ mod tests {
                     operation,
                     format,
                 });
+            }
+        }
+        for operation in CompilerPrimitiveIntegerComparisonOperation::ALL {
+            for integer_type in [
+                CompilerNumericType::I8,
+                CompilerNumericType::I16,
+                CompilerNumericType::I32,
+                CompilerNumericType::I64,
+                CompilerNumericType::U8,
+                CompilerNumericType::U16,
+                CompilerNumericType::U32,
+                CompilerNumericType::U64,
+            ] {
+                identities.push(
+                    CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                        operation,
+                        integer_type,
+                    },
+                );
             }
         }
         for format in [

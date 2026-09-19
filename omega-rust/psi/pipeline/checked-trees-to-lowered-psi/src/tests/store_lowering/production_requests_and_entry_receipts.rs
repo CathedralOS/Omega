@@ -81,7 +81,7 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
         .produce_with_callback_custody(custody)
         .expect("returned custody can retry identity production");
-    let (_, _, custody, _, _) = produced.into_parts();
+    let (_, _, custody, _, _, _) = produced.into_parts();
     assert_eq!(custody.0.as_ptr(), allocation);
     assert_eq!(*custody.0, [11, 29]);
 }
@@ -100,7 +100,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
         .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
-    let (_, _, returned, _, _) = produced.into_parts();
+    let (_, _, returned, _, _, _) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];
