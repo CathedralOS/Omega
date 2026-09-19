@@ -1,15 +1,20 @@
 use super::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, LegalizationError, MachineId,
-    NativeTarget, ObligationId, OperationId, RecoveryClassificationPolicy, RegisterOperandAccess,
-    RegisterUnitId, ScalarType, SelectedInstructionError, SelectedInstructionKind,
-    SelectedTerminator, SpillChoicePolicy, ValueBinding, ValueDefinitionSite, ValueId, budget,
-    selected_instruction_plan_identity, stage_optimized_allocation_legality,
-    stage_optimized_live_ranges, stage_optimized_liveness, stage_optimized_register_homes,
-    staged_conditional, staged_exact_add_conditional, validate_legalized_operations,
-    validate_raw_selection,
+    NativeTarget, ObligationId, OperationId, Optimization, OptimizationSelections,
+    RecoveryClassificationPolicy, RegisterOperandAccess, RegisterUnitId, ScalarType,
+    SelectedInstructionError, SelectedInstructionKind, SelectedTerminator, SpillChoicePolicy,
+    ValueBinding, ValueDefinitionSite, ValueId, budget, selected_instruction_plan_identity,
+    selected_lowering_budget, stage_next_optimized_literal_fold,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_register_homes, staged_conditional, staged_exact_add_conditional,
+    staged_single_block_exact_add_fold_legality,
+    staged_widened_u8_exact_add_conditional_with_selections, validate_legalized_operations,
+    validate_optimized_literal_fold_custody, validate_raw_selection,
+    validate_selected_lowering_optimization_custody,
 };
 use crate::{
-    LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, OptimizedSelectionCustodyError,
+    LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, OptimizedLiteralFoldCustodyFieldForTest,
+    OptimizedSelectionCustodyError, SelectedLoweringOptimizationCustodyFieldForTest,
     run_selected_lowering_optimizations, stage_first_optimized_literal_fold,
     validate_optimized_selection_custody,
 };
@@ -462,4 +467,159 @@ fn physical_stage_receipts_retain_the_pre_physical_manifest_identity() {
     assert_eq!(legality.custody().manifest(), manifest);
     let homes = stage_optimized_register_homes(legality).unwrap();
     assert_eq!(homes.custody().manifest(), manifest);
+}
+
+#[test]
+fn literal_fold_custody_rejects_every_one_field_substitution() {
+    use OptimizedLiteralFoldCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedLiteralFoldCustodyFieldForTest); 9] = [
+        ("source", Source),
+        ("iterations", Iterations),
+        ("transformations", Transformations),
+        ("final_selected", FinalSelected),
+        ("final_liveness", FinalLiveness),
+        ("final_ranges", FinalRanges),
+        ("final_legality", FinalLegality),
+        ("final_virtual_register_count", FinalVirtualRegisterCount),
+        ("final_entry_transition_count", FinalEntryTransitionCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let folds = stage_first_optimized_literal_fold(
+                staged_single_block_exact_add_fold_legality(target),
+                SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+            // The second step folds the other arm's stranded literal, after
+            // which every range seats in the single allowlisted view.
+            stage_next_optimized_literal_fold(
+                folds,
+                SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+                selected_lowering_budget(),
+            )
+            .unwrap()
+        };
+        // An authentic foreign fold sequence on the opposite architecture is
+        // the donor for the nested source receipt and iteration evidence.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody(),
+            donor.custody(),
+            "{target:?}: the foreign target must produce a distinct custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody().clone();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                &honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            assert_eq!(
+                validate_optimized_literal_fold_custody(&substituted),
+                Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: 0 }),
+                "{target:?}: independent replay must reject substituted literal-fold custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn selected_lowering_optimization_custody_rejects_every_one_field_substitution() {
+    use OptimizedLiteralFoldCustodyError::{SelectionProjectionMismatch, StepMismatch};
+    use SelectedLoweringOptimizationCustodyFieldForTest::*;
+    let fields: [(
+        &str,
+        SelectedLoweringOptimizationCustodyFieldForTest,
+        OptimizedLiteralFoldCustodyError,
+    ); 16] = [
+        ("identity", Identity, StepMismatch { step: 0 }),
+        ("source", Source, StepMismatch { step: 0 }),
+        // The retained projection facts are checked against the staged source
+        // before the whole-receipt comparison runs, so they surface through
+        // the projection arm instead of `StepMismatch`.
+        ("selections", Selections, SelectionProjectionMismatch),
+        (
+            "selected_lowering_selections",
+            SelectedLoweringSelections,
+            StepMismatch { step: 0 },
+        ),
+        ("budget", Budget, SelectionProjectionMismatch),
+        ("usage", Usage, StepMismatch { step: 0 }),
+        ("iteration_bound", IterationBound, StepMismatch { step: 0 }),
+        ("action_count", ActionCount, StepMismatch { step: 0 }),
+        (
+            "initial_virtual_register_count",
+            InitialVirtualRegisterCount,
+            StepMismatch { step: 0 },
+        ),
+        ("iterations", Iterations, StepMismatch { step: 0 }),
+        ("attempt", Attempt, StepMismatch { step: 0 }),
+        ("final_selected", FinalSelected, StepMismatch { step: 0 }),
+        ("final_liveness", FinalLiveness, StepMismatch { step: 0 }),
+        ("final_ranges", FinalRanges, StepMismatch { step: 0 }),
+        ("final_legality", FinalLegality, StepMismatch { step: 0 }),
+        (
+            "final_virtual_register_count",
+            FinalVirtualRegisterCount,
+            StepMismatch { step: 0 },
+        ),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let legality = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(
+                        staged_widened_u8_exact_add_conditional_with_selections(
+                            target,
+                            OptimizationSelections::new([
+                                Optimization::CopyPropagation,
+                                Optimization::SelectedIncomingU12ExactAddImmediate,
+                            ])
+                            .unwrap(),
+                        ),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            run_selected_lowering_optimizations(legality).unwrap()
+        };
+        // An authentic foreign run on the opposite architecture is the donor
+        // for the nested source, iteration, and attempt receipts.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody(),
+            donor.custody(),
+            "{target:?}: the foreign target must produce a distinct custody receipt",
+        );
+        for &(name, field, ref expected) in &fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody().clone();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                &honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            assert_eq!(
+                validate_selected_lowering_optimization_custody(&substituted),
+                Err(expected.clone()),
+                "{target:?}: independent replay must reject substituted selected-lowering custody field {name}",
+            );
+        }
+    }
 }

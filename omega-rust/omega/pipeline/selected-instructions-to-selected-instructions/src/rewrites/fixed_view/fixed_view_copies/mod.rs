@@ -6,9 +6,13 @@
 mod compute;
 mod custody;
 mod model;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validation;
 
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 pub use validation::validate_optimized_fixed_view_copy_custody;
 
 use crate::FixedViewCopyPolicy;

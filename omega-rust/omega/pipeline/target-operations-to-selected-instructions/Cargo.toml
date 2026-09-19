@@ -8,6 +8,9 @@ version.workspace = true
 name = "target_operations_to_selected_instructions"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 calling-conventions = { path = "../../representations/calling-conventions" }
 optimization-core = { path = "../../representations/optimization-core" }

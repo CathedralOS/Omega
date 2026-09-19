@@ -8,17 +8,17 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PostAllocationMachineReceipt {
-    identity: PostAllocationMachineIdentity,
-    selected: SelectedInstructionPlanIdentity,
-    effects: PreAllocationMachineEffectIdentity,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    function_count: usize,
-    block_count: usize,
-    instruction_count: usize,
-    operand_count: usize,
-    unit_action_count: usize,
+    pub(super) identity: PostAllocationMachineIdentity,
+    pub(super) selected: SelectedInstructionPlanIdentity,
+    pub(super) effects: PreAllocationMachineEffectIdentity,
+    pub(super) homes: RegisterHomeIdentity,
+    pub(super) post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+    pub(super) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(super) function_count: usize,
+    pub(super) block_count: usize,
+    pub(super) instruction_count: usize,
+    pub(super) operand_count: usize,
+    pub(super) unit_action_count: usize,
 }
 
 impl PostAllocationMachineReceipt {
@@ -60,7 +60,7 @@ impl PostAllocationMachineReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPostAllocationMachinePlan {
     plan: Arc<PostAllocationMachinePlan>,
-    receipt: PostAllocationMachineReceipt,
+    pub(super) receipt: PostAllocationMachineReceipt,
 }
 
 impl ValidatedPostAllocationMachinePlan {

@@ -1,9 +1,11 @@
 use crate::tests::{
-    AllocationLegalityError, AllocatorAvailabilityPolicy, NativeTarget, RegisterReservationProfile,
+    AllocationLegalityError, AllocatorAvailabilityPolicy, NativeTarget,
+    OptimizedAllocationLegalityCustodyFieldForTest, RegisterReservationProfile,
     allocation_legality_identity, materialize_allocator_availability,
     stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
     staged_conditional, staged_forwarded_conditional, target_register_environment_identity,
-    validate_allocation_legality, validate_register_reservation_profile,
+    validate_allocation_legality, validate_optimized_allocation_legality_custody,
+    validate_register_reservation_profile,
 };
 #[test]
 fn allocation_legality_is_phase_exact_with_explicit_abi_transfers() {
@@ -196,4 +198,76 @@ fn allocation_legality_is_phase_exact_with_explicit_abi_transfers() {
     )
     .unwrap();
     assert_eq!(constant.custody().entry_transition_count(), 0);
+}
+
+#[test]
+fn optimized_allocation_legality_custody_rejects_every_one_field_substitution() {
+    use OptimizedAllocationLegalityCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedAllocationLegalityCustodyFieldForTest); 19] = [
+        ("psi", Psi),
+        ("target", Target),
+        ("entry", Entry),
+        ("optimization", Optimization),
+        ("projection", Projection),
+        ("manifest", Manifest),
+        ("optimization_unit", OptimizationUnit),
+        ("fuel_schedule", FuelSchedule),
+        ("register_environment", RegisterEnvironment),
+        ("allocator_availability", AllocatorAvailability),
+        ("selected", Selected),
+        ("liveness", Liveness),
+        ("ranges", Ranges),
+        ("legality", Legality),
+        ("function_count", FunctionCount),
+        ("virtual_register_count", VirtualRegisterCount),
+        ("point_count", PointCount),
+        ("candidate_count", CandidateCount),
+        ("entry_transition_count", EntryTransitionCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        // An authentic foreign legality stage on the opposite architecture is
+        // the donor for nested-receipt fields.
+        let donor = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_conditional(match target.architecture {
+                    target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+                    _ => NativeTarget::linux_x64(),
+                }))
+                .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        for (name, field) in fields {
+            let mut substituted = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_allocation_legality_custody(
+                substituted.live_range_stage(),
+                substituted.allocator_availability(),
+                substituted.legality(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted legality-custody field {name}",
+            );
+        }
+    }
 }

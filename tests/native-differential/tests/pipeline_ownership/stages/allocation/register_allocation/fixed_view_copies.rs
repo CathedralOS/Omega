@@ -1,6 +1,9 @@
 use crate::tests::{
-    AllocationEvidence, AllocationReplayError, FixedViewCopyPolicy, NativeTarget, Optimization,
-    OptimizationSelections, OptimizationWorkBudget, PostAllocationSelectedTransformation,
+    AllocationEvidence, AllocationReplayError, AllocationSource, FixedViewCopyPolicy, NativeTarget,
+    Optimization, OptimizationSelections, OptimizationWorkBudget,
+    OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest,
+    OptimizedFixedViewCopyCustodyFieldForTest, OptimizedPostCopyRegisterHomeCustodyFieldForTest,
+    OptimizedSelectedReanalysisCustodyFieldForTest, PostAllocationSelectedTransformation,
     SelectedInstructionKind, SelectedTerminator, StagedOptimizedAllocationLegality,
     StagedOptimizedFixedPrecoloredSegmentHomes, analyze_machine_effects, selected_lowering_budget,
     stage_leaf_local_fixed_view_register_allocation, stage_optimized_allocation_legality,
@@ -9,6 +12,10 @@ use crate::tests::{
     stage_optimized_post_allocation_machine_plan,
     stage_optimized_register_homes_after_fixed_view_copies, stage_optimized_selected_reanalysis,
     staged_forwarded_conditional, validate_fixed_view_copies, validate_machine_effects,
+    validate_optimized_fixed_precolored_segment_home_custody,
+    validate_optimized_fixed_view_copy_custody,
+    validate_optimized_register_home_after_fixed_view_copy_custody,
+    validate_optimized_selected_reanalysis_custody,
 };
 fn with_segment_homes(
     source: StagedOptimizedAllocationLegality,
@@ -222,5 +229,295 @@ fn leaf_local_default_path_sequence_rejects_a_declared_recovery_selection() {
             RetainedAllocation::try_from(homes),
             Err(AllocationReplayError::SelectionMismatch)
         ));
+    }
+}
+
+#[test]
+fn optimized_selected_reanalysis_custody_rejects_every_one_field_substitution() {
+    use OptimizedSelectedReanalysisCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedSelectedReanalysisCustodyFieldForTest); 8] = [
+        ("source", Source),
+        ("transformed_liveness", TransformedLiveness),
+        ("transformed_ranges", TransformedRanges),
+        ("transformed_legality", TransformedLegality),
+        ("allocator_availability", AllocatorAvailability),
+        ("function_count", FunctionCount),
+        ("virtual_register_count", VirtualRegisterCount),
+        ("entry_transition_count", EntryTransitionCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let source = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            stage_optimized_selected_reanalysis(
+                stage_optimized_fixed_view_copies(
+                    with_segment_homes(source),
+                    FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+                    selected_lowering_budget(),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        };
+        // An authentic foreign reanalysis on the opposite architecture is the
+        // donor for the nested fixed-view-copy source custody receipt.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody().source(),
+            donor.custody().source(),
+            "{target:?}: the foreign target must produce a distinct source custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_selected_reanalysis_custody(
+                substituted.transformation_stage(),
+                substituted.liveness(),
+                substituted.ranges(),
+                substituted.legality(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted reanalysis-custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn post_copy_register_home_custody_rejects_every_one_field_substitution() {
+    use OptimizedPostCopyRegisterHomeCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedPostCopyRegisterHomeCustodyFieldForTest); 5] = [
+        ("source", Source),
+        ("homes", Homes),
+        ("post_allocation_manifest", PostAllocationManifest),
+        ("function_count", FunctionCount),
+        ("assignment_count", AssignmentCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let source = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            stage_optimized_register_homes_after_fixed_view_copies(
+                stage_optimized_selected_reanalysis(
+                    stage_optimized_fixed_view_copies(
+                        with_segment_homes(source),
+                        FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+                        selected_lowering_budget(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        };
+        // An authentic foreign homes stage on the opposite architecture is
+        // the donor for the nested reanalysis source custody receipt.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody().source(),
+            donor.custody().source(),
+            "{target:?}: the foreign target must produce a distinct source custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_register_home_after_fixed_view_copy_custody(
+                substituted.reanalysis_stage(),
+                substituted.homes(),
+                substituted.post_allocation_manifest(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted post-copy custody field {name}",
+            );
+            assert_eq!(
+                substituted.replay_allocation().err(),
+                Some(AllocationReplayError::ReceiptMismatch),
+                "{target:?}: allocation replay must reject substituted post-copy custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_precolored_segment_home_custody_rejects_every_one_field_substitution() {
+    use OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest); 4] = [
+        ("upstream", Upstream),
+        ("fixed", Fixed),
+        ("requirements", Requirements),
+        ("homes", Homes),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let source = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            with_segment_homes(source)
+        };
+        // An authentic foreign segment-homes stage on the opposite
+        // architecture is the donor for the nested receipts.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody(),
+            donor.custody(),
+            "{target:?}: the foreign target must produce a distinct custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_fixed_precolored_segment_home_custody(
+                substituted.source_legality_stage(),
+                substituted.fixed_intervals(),
+                substituted.split_requirements(),
+                substituted.segment_homes(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted segment-home custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_view_copy_custody_rejects_every_one_field_substitution() {
+    use OptimizedFixedViewCopyCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedFixedViewCopyCustodyFieldForTest); 23] = [
+        ("psi", Psi),
+        ("target", Target),
+        ("entry", Entry),
+        ("optimization", Optimization),
+        ("projection", Projection),
+        ("manifest", Manifest),
+        ("optimization_unit", OptimizationUnit),
+        ("fuel_schedule", FuelSchedule),
+        ("register_environment", RegisterEnvironment),
+        ("allocator_availability", AllocatorAvailability),
+        ("source_selected", SourceSelected),
+        ("source_liveness", SourceLiveness),
+        ("source_ranges", SourceRanges),
+        ("source_legality", SourceLegality),
+        ("fixed_intervals", FixedIntervals),
+        ("split_requirements", SplitRequirements),
+        ("segment_homes", SegmentHomes),
+        ("transformation", Transformation),
+        ("transformed_selected", TransformedSelected),
+        ("policy", Policy),
+        ("usage", Usage),
+        ("function_count", FunctionCount),
+        ("copy_count", CopyCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let source = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            stage_optimized_fixed_view_copies(
+                with_segment_homes(source),
+                FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+                selected_lowering_budget(),
+            )
+            .unwrap()
+        };
+        // An authentic foreign copy stage on the opposite architecture is the
+        // donor; flat fields mutate in place and ignore it.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody(),
+            donor.custody(),
+            "{target:?}: the foreign target must produce a distinct custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_fixed_view_copy_custody(
+                substituted.source_segment_home_stage(),
+                substituted.copies(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted fixed-view-copy custody field {name}",
+            );
+        }
     }
 }

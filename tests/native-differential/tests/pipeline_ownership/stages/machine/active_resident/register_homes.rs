@@ -1,15 +1,20 @@
 //! Deterministic baseline and active-resident-rematerialized register homes.
 
 use crate::tests::{
-    IntegerValue, NativeTarget, OptimizationWorkBudget, PostAllocationSelectedTransformation,
-    PressureRematerializationPolicy, RecoveryClassification, RecoveryClassificationPolicy,
-    RecoveryVictimRole, SelectedInstructionKind, SpillChoicePolicy, ValueId, VirtualInterference,
-    choose_spill_victims, classify_pressure_recovery, selected_lowering_budget,
-    stage_optimized_active_resident_rematerialization, stage_optimized_allocation_legality,
-    stage_optimized_live_ranges, stage_optimized_liveness,
+    AllocationReplayError, AllocationSource, IntegerValue, NativeTarget, OptimizationWorkBudget,
+    OptimizedActiveResidentRematerializationCustodyFieldForTest,
+    OptimizedActiveResidentRematerializationError,
+    OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
+    PostAllocationSelectedTransformation, PressureRematerializationPolicy, RecoveryClassification,
+    RecoveryClassificationPolicy, RecoveryVictimRole, SelectedInstructionKind, SpillChoicePolicy,
+    ValueId, VirtualInterference, choose_spill_victims, classify_pressure_recovery,
+    selected_lowering_budget, stage_optimized_active_resident_rematerialization,
+    stage_optimized_active_resident_rematerialization_pressure,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
     staged_active_resident_two_view_legality, staged_exact_add_conditional,
     validate_optimized_active_resident_rematerialization,
+    validate_optimized_active_resident_rematerialization_pressure,
 };
 
 #[test]
@@ -345,5 +350,152 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
             staged.post_allocation_manifest().record().selected,
             staged.rematerialization().receipt().transformed_selected()
         );
+    }
+}
+
+#[test]
+fn active_resident_rematerialization_custody_rejects_every_one_field_substitution() {
+    use OptimizedActiveResidentRematerializationCustodyFieldForTest::*;
+    // `choice_policy` and `classification_policy` are named closed in the
+    // field enum: `SpillChoicePolicy` and `RecoveryClassificationPolicy` each
+    // declare exactly one variant, so no foreign in-vocabulary value exists
+    // to substitute.
+    let fields: [(
+        &str,
+        OptimizedActiveResidentRematerializationCustodyFieldForTest,
+    ); 20] = [
+        ("source", Source),
+        ("choices", Choices),
+        ("choice_usage", ChoiceUsage),
+        ("classifications", Classifications),
+        ("classification_usage", ClassificationUsage),
+        ("rematerialization", Rematerialization),
+        ("rematerialization_policy", RematerializationPolicy),
+        ("rematerialization_usage", RematerializationUsage),
+        ("budget", Budget),
+        ("transformed_selected", TransformedSelected),
+        ("liveness", Liveness),
+        ("ranges", Ranges),
+        ("legality", Legality),
+        ("homes", Homes),
+        ("manifest", Manifest),
+        ("function_count", FunctionCount),
+        ("virtual_register_count", VirtualRegisterCount),
+        ("applied_count", AppliedCount),
+        ("rewritten_use_count", RewrittenUseCount),
+        ("assignment_count", AssignmentCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            stage_optimized_active_resident_rematerialization(
+                staged_active_resident_two_view_legality(target),
+                SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                selected_lowering_budget(),
+            )
+            .unwrap()
+        };
+        // An authentic foreign sweep on the opposite architecture is the donor
+        // for the nested legality source custody receipt.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody().source(),
+            donor.custody().source(),
+            "{target:?}: the foreign target must produce a distinct source custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization(&substituted),
+                Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch),
+                "{target:?}: independent replay must reject substituted rematerialization-custody field {name}",
+            );
+            // The stage validator observes the custody mismatch first, so the
+            // replay surfaces it through the stage wrapper rather than the
+            // unreachable plain `ReceiptMismatch` arm.
+            assert_eq!(
+                substituted.replay_allocation().err(),
+                Some(AllocationReplayError::ActiveResidentRematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )),
+                "{target:?}: allocation replay must reject substituted rematerialization-custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn active_resident_rematerialization_pressure_custody_rejects_every_one_field_substitution() {
+    use OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::*;
+    // `choice_policy` and `classification_policy` are named closed in the
+    // field enum exactly as in the terminal rematerialization matrix.
+    let fields: [(
+        &str,
+        OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
+    ); 17] = [
+        ("source", Source),
+        ("choices", Choices),
+        ("choice_usage", ChoiceUsage),
+        ("classifications", Classifications),
+        ("classification_usage", ClassificationUsage),
+        ("rematerialization", Rematerialization),
+        ("rematerialization_policy", RematerializationPolicy),
+        ("rematerialization_usage", RematerializationUsage),
+        ("budget", Budget),
+        ("transformed_selected", TransformedSelected),
+        ("liveness", Liveness),
+        ("ranges", Ranges),
+        ("legality", Legality),
+        ("function_count", FunctionCount),
+        ("virtual_register_count", VirtualRegisterCount),
+        ("applied_count", AppliedCount),
+        ("rewritten_use_count", RewrittenUseCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            stage_optimized_active_resident_rematerialization_pressure(
+                staged_active_resident_two_view_legality(target),
+                SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                selected_lowering_budget(),
+            )
+            .unwrap()
+        };
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody().source(),
+            donor.custody().source(),
+            "{target:?}: the foreign target must produce a distinct source custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization_pressure(&substituted),
+                Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch),
+                "{target:?}: independent replay must reject substituted pressure-custody field {name}",
+            );
+        }
     }
 }

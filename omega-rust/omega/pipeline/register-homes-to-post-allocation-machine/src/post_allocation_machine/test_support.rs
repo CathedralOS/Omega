@@ -1,4 +1,5 @@
 use super::model::StagedOptimizedPostAllocationMachinePlan;
+use crate::PostAllocationMachinePlanReceiptFieldForTest;
 
 /// One substitutable field of [`StagedOptimizedPostAllocationMachineCustodyReceipt`](super::StagedOptimizedPostAllocationMachineCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that
@@ -48,5 +49,15 @@ impl StagedOptimizedPostAllocationMachinePlan {
                 self.custody.unit_action_count += 1;
             }
         }
+    }
+
+    /// Mutate exactly one retained field of the sealed machine plan's
+    /// [`PostAllocationMachineReceipt`](crate::PostAllocationMachineReceipt);
+    /// the mutation grants no new authority.
+    pub fn corrupt_machine_receipt_for_test(
+        &mut self,
+        field: PostAllocationMachinePlanReceiptFieldForTest,
+    ) {
+        self.machine.corrupt_receipt_for_test(field);
     }
 }

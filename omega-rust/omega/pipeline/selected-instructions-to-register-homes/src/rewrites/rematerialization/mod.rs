@@ -7,9 +7,13 @@
 mod compute;
 mod custody;
 mod model;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validation;
 
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 pub use validation::{
     validate_optimized_active_resident_rematerialization,
     validate_optimized_active_resident_rematerialization_pressure,

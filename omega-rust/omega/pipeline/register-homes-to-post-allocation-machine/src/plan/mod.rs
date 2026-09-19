@@ -2,10 +2,14 @@
 
 mod compute;
 mod model;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validate;
 
 pub use ::physical_instructions::*;
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 pub use validate::validate_post_allocation_machine_plan;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and

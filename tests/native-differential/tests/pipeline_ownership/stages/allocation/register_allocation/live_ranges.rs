@@ -1,9 +1,9 @@
 use crate::tests::{
     ArchitecturalUnitActionKind, EdgeId, LiveRangeError, LiveRangeFragment, LiveRangePoint,
-    NativeTarget, OptimizedLiveRangeCustodyError, VirtualFixedConstraintSite, VirtualInterference,
-    VirtualRegisterId, analyze_live_ranges, live_range_identity, named_units,
-    stage_optimized_live_ranges, stage_optimized_liveness, staged_conditional,
-    staged_forwarded_conditional, validate_live_ranges, validate_liveness,
+    NativeTarget, OptimizedLiveRangeCustodyError, OptimizedLiveRangeCustodyFieldForTest,
+    VirtualFixedConstraintSite, VirtualInterference, VirtualRegisterId, analyze_live_ranges,
+    live_range_identity, named_units, stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_conditional, staged_forwarded_conditional, validate_live_ranges, validate_liveness,
     validate_optimized_live_range_custody,
 };
 #[test]
@@ -317,4 +317,77 @@ fn independent_live_range_validation_rejects_corruption_and_detachment() {
             LiveRangeError::RootMismatch
         ))
     ));
+}
+
+#[test]
+fn optimized_live_range_custody_rejects_every_one_field_substitution() {
+    use OptimizedLiveRangeCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedLiveRangeCustodyFieldForTest); 24] = [
+        ("psi", Psi),
+        ("target", Target),
+        ("entry", Entry),
+        ("optimization", Optimization),
+        ("projection", Projection),
+        ("manifest", Manifest),
+        ("optimization_unit", OptimizationUnit),
+        ("fuel_schedule", FuelSchedule),
+        ("register_environment", RegisterEnvironment),
+        ("selected", Selected),
+        ("liveness", Liveness),
+        ("ranges", Ranges),
+        ("function_count", FunctionCount),
+        ("block_count", BlockCount),
+        ("virtual_register_count", VirtualRegisterCount),
+        ("virtual_occurrence_count", VirtualOccurrenceCount),
+        ("fixed_constraint_count", FixedConstraintCount),
+        ("virtual_fragment_count", VirtualFragmentCount),
+        ("architectural_unit_count", ArchitecturalUnitCount),
+        ("architectural_action_count", ArchitecturalActionCount),
+        ("architectural_fragment_count", ArchitecturalFragmentCount),
+        ("virtual_edge_connector_count", VirtualEdgeConnectorCount),
+        (
+            "architectural_edge_connector_count",
+            ArchitecturalEdgeConnectorCount,
+        ),
+        ("interference_count", InterferenceCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        // An authentic foreign live-range stage on the opposite architecture
+        // is the donor for nested-receipt fields.
+        let donor = stage_optimized_live_ranges(
+            stage_optimized_liveness(staged_conditional(match target.architecture {
+                target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+                _ => NativeTarget::linux_x64(),
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        for (name, field) in fields {
+            let mut substituted = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_live_range_custody(
+                substituted.liveness_stage(),
+                substituted.ranges(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted live-range-custody field {name}",
+            );
+        }
+    }
 }
