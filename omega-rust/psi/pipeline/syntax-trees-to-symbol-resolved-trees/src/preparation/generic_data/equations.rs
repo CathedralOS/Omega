@@ -21,6 +21,12 @@
 //! carrying the same canonical normalization the authored spelling would
 //! carry, so every later equation, repeat occurrence and closed identity
 //! compares one shape.
+//!
+//! Fixed-array operands retain ordinary type-reference trees. Their element
+//! and extent positions recursively recover type and const binders, or build
+//! an omitted array once those binders are known. `type_structure` owns this
+//! constructor traversal; closed leaves still use `closed_argument_identity`.
+//! Runtime contents and compatible storage sizes never supply an argument.
 
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::GenericData;
@@ -41,6 +47,8 @@ use syntax_trees::types::{
     IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+mod type_structure;
+
 /// One data-level `where` fact that states a type equation, by its offset in
 /// the template's fact span. Instances never carry it: applying the template
 /// decides it against the complete argument tuple.
@@ -48,6 +56,73 @@ use syntax_trees::types::{
 pub(super) struct TypeEquation {
     pub(super) fact_offset: usize,
     shape: EquationShape,
+}
+
+/// Type-reference operands have no runtime expression representation. Syntax
+/// retains their equations for every specialization; lowering excludes only
+/// these obligations, recognized by the same classifier that synthesis solves.
+/// Existing name/range expression facts keep their current lowering, including
+/// provisional resolution used to evaluate range endpoints before synthesis.
+/// Closed instances must already have discharged equations and take no exemption.
+pub(crate) fn template_type_equation_offsets(
+    syntax: &SyntaxTrees,
+    definition: &syntax_trees::item::DataDefinition,
+) -> Result<Vec<usize>, Diagnostic> {
+    if definition.type_parameters.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut offsets = Vec::new();
+    for equation in classify_type_equations(
+        syntax,
+        syntax.items.type_parameters(definition.type_parameters),
+        syntax.items.proof_facts(definition.where_facts),
+    ) {
+        match equation.shape {
+            EquationShape::Structural {
+                structure: Structure::TypeReference(_),
+                ..
+            } => offsets.push(equation.fact_offset),
+            EquationShape::Structural { .. } => {}
+            EquationShape::KindMismatch { span, description } => {
+                return Err(Diagnostic::error(format!(
+                    "generic data `{}` where equation mixes type and value kinds: {description}",
+                    definition.name.as_str(),
+                ))
+                .with_source_span(span));
+            }
+        }
+    }
+    Ok(offsets)
+}
+
+/// Synthesis may defer containers it cannot specialize (for example, an
+/// independently generic attached method). Such a surviving application has
+/// not discharged the type-reference equation and cannot use the runtime-fact
+/// exemption. Closed instances lower as Named references; only their retained
+/// application metadata may still describe the original generic tuple.
+pub(crate) fn validate_materialized_type_equations(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    selection: Option<&constant_selection::ConstantSelection>,
+) -> Result<(), Diagnostic> {
+    let TypeReferenceNode::Generic { base_name, .. } =
+        syntax.type_references.type_reference(reference)
+    else {
+        return Ok(());
+    };
+    let Some(declaration) = super::selected_data_item(syntax, selection, base_name) else {
+        return Ok(());
+    };
+    let syntax_trees::item::Item::Data(definition) = syntax.root_item(declaration) else {
+        return Ok(());
+    };
+    if !template_type_equation_offsets(syntax, definition)?.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "generic data `{}` retains unsolved type equations; its application requires closed instance specialization",
+            definition.name.as_str(),
+        )).with_source_span(base_name.source_span()));
+    }
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -69,6 +144,9 @@ enum EquationShape {
 
 #[derive(Clone)]
 enum Structure {
+    /// Type-role syntax retains recursive constructors instead of rendering them
+    /// as names or treating their operands as runtime array elements.
+    TypeReference(TypeReferenceHandle),
     /// `carrier[minimum..maximum]` or `carrier[minimum..=maximum]`.
     RangeShell {
         carrier: Identifier,
@@ -99,6 +177,14 @@ impl Structure {
     fn binder_mentions(&self, syntax: &SyntaxTrees, parameters: &[String]) -> Vec<usize> {
         let mut mentions = Vec::new();
         match self {
+            Structure::TypeReference(reference) => {
+                type_structure::collect_binder_mentions(
+                    syntax,
+                    *reference,
+                    parameters,
+                    &mut mentions,
+                );
+            }
             Structure::RangeShell {
                 carrier_binder,
                 minimum,
@@ -128,6 +214,7 @@ impl Structure {
 }
 
 enum Side {
+    TypeStructure(TypeReferenceHandle),
     TypeBinder(usize),
     ValueBinder(usize),
     ClosedName(Identifier),
@@ -197,6 +284,15 @@ pub(super) fn classify_type_equations(
                         ),
                     }
                 }
+                (Side::TypeStructure(_), other) | (other, Side::TypeStructure(_)) => {
+                    EquationShape::KindMismatch {
+                        span,
+                        description: format!(
+                            "{} cannot equal a type structure",
+                            describe_side(parameters, &other)
+                        ),
+                    }
+                }
                 _ => return None,
             };
             Some(TypeEquation { fact_offset, shape })
@@ -210,6 +306,7 @@ fn classify_side(
     expression: ExpressionHandle,
 ) -> Side {
     match syntax.expressions.expression(expression) {
+        ExpressionNode::TypeExpression(reference) => Side::TypeStructure(*reference),
         ExpressionNode::Name(path) => {
             let [member] = syntax.expressions.identifier_path_members(*path) else {
                 return Side::Other("a qualified name");
@@ -240,6 +337,7 @@ fn classify_side(
 
 fn describe_side(parameters: &[TypeParameter], side: &Side) -> String {
     match side {
+        Side::TypeStructure(_) => "a type structure".to_owned(),
         Side::TypeBinder(index) => format!("type binder `{}`", parameters[*index].name.as_str()),
         Side::ValueBinder(index) => {
             format!("value binder `{}`", parameters[*index].name.as_str())
@@ -260,6 +358,7 @@ fn equation_shape(
     let binder_name = parameters[binder].name.as_str();
     let mismatch = |description: String| EquationShape::KindMismatch { span, description };
     let structure = match other {
+        Side::TypeStructure(reference) => Structure::TypeReference(reference),
         Side::TypeBinder(index) => Structure::Name {
             name: parameters[index].name.clone(),
             binder: Some(index),
@@ -715,6 +814,13 @@ impl<'a, 's> Solver<'a, 's> {
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         let (name, other) = match structure {
+            Structure::TypeReference(reference) => {
+                let Some(reference) = self.construct_type_structure(*reference, span)? else {
+                    return Ok(Outcome::Deferred);
+                };
+                self.bindings[binder] = Some(Binding::Type(reference));
+                return Ok(Outcome::Settled);
+            }
             Structure::Name {
                 name,
                 binder: other,
@@ -1004,6 +1110,10 @@ impl<'a, 's> Solver<'a, 's> {
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match structure {
+            Structure::TypeReference(reference) => {
+                self.match_type_structure(*reference, handle, span)?;
+                Ok(Outcome::Settled)
+            }
             Structure::Name {
                 name,
                 binder: other,

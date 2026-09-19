@@ -177,10 +177,15 @@ fn lower_data_definition_with_argument_origins(
     // A GATED type (zero violates the domain) refuses until rung 2b lands
     // construction-mandatory fields; a fact the folder cannot evaluate at
     // zero refuses as unsupported (v1 fence). Never a silent drop.
-    let where_facts = crate::lowering::domain::lower_proof_facts(
+    let type_equations = crate::preparation::generic_data::template_type_equation_offsets(
+        syntax_trees,
+        data_definition,
+    )?;
+    let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
         lowerer,
         syntax_trees,
         data_definition.where_facts,
+        &type_equations,
     )?;
     let mut zero_gated = false;
     for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
@@ -234,7 +239,13 @@ fn lower_data_definition_with_argument_origins(
             type_parameters,
             generic_instance: data_definition
                 .generic_instance
-                .map(|origin| lower_type_reference_handle(lowerer, syntax_trees, origin))
+                .map(|origin| {
+                    crate::lowering::type_reference::lower_generic_application_origin(
+                        lowerer,
+                        syntax_trees,
+                        origin,
+                    )
+                })
                 .transpose()?,
             properties: DataProperties {
                 carry: data_definition.properties.carry,
@@ -822,7 +833,8 @@ fn case_fact_expression_mentions(
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
         }
-        ExpressionNode::ZeroValue(type_reference) => {
+        ExpressionNode::ZeroValue(type_reference)
+        | ExpressionNode::TypeExpression(type_reference) => {
             case_fact_type_mentions(syntax_trees, *type_reference, gate)
         }
         ExpressionNode::Integer(_)

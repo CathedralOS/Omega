@@ -3317,10 +3317,16 @@ Owners include
   `u64[0..limit() + 1]` arguments on data fields and machine parameters
   select the same `u64[0..=256]` instance and recover its `Capacity`;
   conflicting explicit binders and calls that keep no canonical range still
-  reject. That is not the general contract: `equations.rs` matches only a
-  range shell or a single name (`Structure::{RangeShell, Name}`), equations
-  exist on data templates only, and `T == i32` is decided only as a case
-  `where` fact on a closed data instance.
+  reject. Data equations also decompose nested fixed arrays and construct an
+  omitted backing type from bound element/extent arguments
+  (`equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`;
+  open generic elements and unresolved module lengths still reject. The
+  `compiler --test array_type_equations` integration target exercises inferred
+  and explicit identity through checking and recovered counts through source-free
+  Terminal execution, including reverse construction (macOS ARM64). Templates
+  retain array equations in syntax; unspecialized applications cannot discard
+  those obligations. Equations still exist on data templates only, and `T == i32`
+  is decided only as a case `where` fact on a closed data instance.
 
   Remaining work:
 
@@ -3329,9 +3335,9 @@ Owners include
     rejection of type/value mixtures, the unspecialized body checked under
     every admitted alternative, and a static branch's equality fact dropped
     at its join. No machine-level customer or control exists.
-  - Structural matching by exact constructor and parameter position for fixed
-    arrays and declared generic applications, and the same equations on
-    machine applications combined with existing argument/result inference.
+  - Structural matching by exact constructor and parameter position for open
+    declared generic applications (including array elements), and the same
+    equations on machine applications combined with existing argument/result inference.
     An open endpoint binds as one whole expression (`0..=N` may bind
     `Limit + 1`); solving `N * 2 == 256` stays outside.
   - Endpoint folding for the forms `range_endpoints.rs` still leaves authored:

@@ -185,9 +185,24 @@ pub(crate) fn lower_proof_facts(
     syntax_trees: &SyntaxTrees,
     facts: arena::HandleSpan<syntax::item::ProofFact>,
 ) -> Result<arena::HandleSpan<ProofFact>, Diagnostic> {
+    lower_proof_facts_excluding(lowerer, syntax_trees, facts, &[])
+}
+
+/// Lower runtime facts while leaving template instantiation obligations with
+/// their synthesis owner. Offsets refer to the original span, preserving source
+/// custody for every retained fact rather than copying/reindexing its syntax.
+pub(crate) fn lower_proof_facts_excluding(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    facts: arena::HandleSpan<syntax::item::ProofFact>,
+    instantiation_obligation_offsets: &[usize],
+) -> Result<arena::HandleSpan<ProofFact>, Diagnostic> {
     let mut lowered = arena::HandleSpan::empty();
 
     for (offset, fact) in syntax_trees.items.proof_facts(facts).iter().enumerate() {
+        if instantiation_obligation_offsets.contains(&offset) {
+            continue;
+        }
         let source_fact = arena::Handle::from_parts(
             facts
                 .start()

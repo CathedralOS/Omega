@@ -593,6 +593,9 @@ impl SyntaxTrees {
             ExpressionNode::ZeroValue(type_reference) => {
                 ExpressionNode::ZeroValue(self.copy_type_reference_handle(other, *type_reference))
             }
+            ExpressionNode::TypeExpression(type_reference) => ExpressionNode::TypeExpression(
+                self.copy_type_reference_handle(other, *type_reference),
+            ),
         };
 
         let source_span = other.expressions.source_span(handle);

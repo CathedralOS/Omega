@@ -121,6 +121,170 @@ fn normalized(source: &str) -> SyntaxTrees {
     normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances")
 }
 
+#[test]
+fn fixed_array_equation_recovers_element_and_count_without_changing_identity() {
+    let syntax = normalized(
+        r#"
+        data Buffer<Backing, Element, const Count: u64>
+        where Backing == [Element; Count]
+        {
+            storage: Backing;
+            same_shape: [Element; Count];
+        }
+        data Main {
+            inferred: Buffer<[u8; 4]>;
+            explicit: Buffer<[u8; 4], u8, 4>;
+        }
+        "#,
+    );
+    let found = instances(&syntax);
+    assert_eq!(found.len(), 1);
+    for field in main_field_types(&syntax) {
+        assert!(matches!(syntax.type_references.type_reference(field),
+            TypeReferenceNode::Named(name) if name.as_str() == found[0].name.as_str()));
+    }
+}
+
+#[test]
+fn fixed_array_equations_recurse_and_construct_the_authored_identity() {
+    for (parameters, equation, inferred, explicit) in [
+        (
+            "Backing, Element, const Rows: u64, const Columns: u64",
+            "([ [Element; Columns]; Rows]) == Backing",
+            "[[u8; 3]; 2]",
+            "[[u8; 3]; 2], u8, 2, 3",
+        ),
+        (
+            "Element, const Count: u64, Backing",
+            "Backing == [Element; Count]",
+            "u8, 4",
+            "u8, 4, [u8; 4]",
+        ),
+        (
+            "Element, const Rows: u64, const Columns: u64, Backing",
+            "Backing == [[Element; Columns]; Rows]",
+            "u8, 2, 3",
+            "u8, 2, 3, [[u8; 3]; 2]",
+        ),
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [[Element; Count]; Count]",
+            "[[u8; 4]; 4]",
+            "[[u8; 4]; 4], u8, 4",
+        ),
+    ] {
+        let syntax = normalized(&format!(
+            r#"
+            data Buffer<{parameters}> where {equation} {{ storage: Backing; }}
+            data Main {{ inferred: Buffer<{inferred}>; explicit: Buffer<{explicit}>; }}
+        "#
+        ));
+        let found = instances(&syntax);
+        assert_eq!(found.len(), 1, "{equation}: {:?}", instance_names(&syntax));
+        for field in main_field_types(&syntax) {
+            assert!(matches!(syntax.type_references.type_reference(field),
+                TypeReferenceNode::Named(name) if name.as_str() == found[0].name.as_str()));
+        }
+        assert!(syntax.items.proof_facts(found[0].where_facts).is_empty());
+    }
+}
+
+#[test]
+fn fixed_array_equations_reject_conflicts_cycles_and_wrong_roles() {
+    for (parameters, equations, arguments, expected) in [
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [Element; Count]",
+            "[u8; 4], u16, 4",
+            "conflicting element types",
+        ),
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [Element; Count]",
+            "[u8; 4], u8, 5",
+            "explicit argument is 5",
+        ),
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [[Element; Count]; Count]",
+            "[[u8; 4]; 5]",
+            "bind `Count` to both 4 and 5",
+        ),
+        (
+            "Backing, Other, Element, const Count: u64",
+            "Backing == [Element; Count], Other == [Element; Count]",
+            "[u8; 4], [u16; 4]",
+            "conflicting element types",
+        ),
+        (
+            "Backing, const Count: u64",
+            "Backing == [Backing; Count]",
+            "[u8; 4]",
+            "define `Backing` through itself",
+        ),
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [Count; 4]",
+            "[u8; 4]",
+            "mixes type and value kinds",
+        ),
+        (
+            "Backing, Element",
+            "Backing == [u8; Element]",
+            "[u8; 4]",
+            "mixes type and value kinds",
+        ),
+        (
+            "Backing, const Count: u64",
+            "Count == [u8; 4]",
+            "[u8; 4]",
+            "mixes type and value kinds",
+        ),
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [Element; 4]",
+            "[u8; 4]",
+            "cannot determine `Count`",
+        ),
+        (
+            "Backing, Element, const Count: u64",
+            "Backing == [Element; Count]",
+            "u8",
+            "same fixed-array constructor",
+        ),
+        (
+            "Backing, const Count: u8",
+            "Backing == [u8; Count]",
+            "[u8; 256]",
+            "outside its declared `u8`",
+        ),
+    ] {
+        let error = rejection(&format!(
+            r#"
+            data Buffer<{parameters}> where {equations} {{ storage: Backing; }}
+            data Main {{ value: Buffer<{arguments}>; }}
+        "#
+        ));
+        assert!(
+            error.contains(expected),
+            "{equations} with {arguments}: {error}"
+        );
+    }
+}
+
+#[test]
+fn fixed_array_equations_keep_nominal_element_identity() {
+    let error = rejection(
+        r#"
+        data Left { value: u8; }
+        data Right { value: u8; }
+        data Buffer<Backing> where Backing == [Left; 4] { storage: Backing; }
+        data Main { value: Buffer<[Right; 4]>; }
+    "#,
+    );
+    assert!(error.contains("conflicting element types"), "{error}");
+}
+
 fn rejection(source: &str) -> String {
     let mut syntax = parse(source);
     retain_literal_ranges(&mut syntax);
@@ -130,6 +294,95 @@ fn rejection(source: &str) -> String {
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn fixed_array_equation_never_resolves_an_open_element_as_a_global() {
+    let error = rejection(
+        r#"
+        data Element { value: u8; }
+        data Box<T> { value: T; }
+        data Buffer<Backing, Element>
+        where Backing == [Box<Element>; 4]
+        { storage: Backing; }
+        data Main { value: Buffer<[Box<Element>; 4], u8>; }
+        "#,
+    );
+    assert!(error.contains("open or unsupported"), "{error}");
+
+    let error = rejection(
+        r#"
+        data Family<T> { value: T; }
+        data Buffer<Backing, Family>
+        where Backing == [Family<u8>; 4]
+        { storage: Backing; }
+        data Main { value: Buffer<[Family<u8>; 4], u8>; }
+    "#,
+    );
+    assert!(error.contains("open or unsupported"), "{error}");
+
+    let error = rejection(
+        r#"
+        data Element { value: u8; }
+        data Box<T> { value: T; }
+        data Buffer<Element, Backing>
+        where Backing == [Box<Element>; 4]
+        { storage: Backing; }
+        data Main { value: Buffer<u8>; }
+    "#,
+    );
+    assert!(error.contains("open or unsupported"), "{error}");
+}
+
+#[test]
+fn fixed_array_equations_accept_closed_generic_elements_and_root_lengths() {
+    let syntax = normalized(
+        r#"
+        const Count: u64 = 4;
+        data Box<T> { value: T; }
+        data Buffer<Backing> where Backing == [Box<u8>; Count] { storage: Backing; }
+        data Main { value: Buffer<[Box<u8>; 4]>; }
+    "#,
+    );
+    assert_eq!(instances(&syntax).len(), 2, "{:?}", instance_names(&syntax));
+}
+
+#[test]
+fn fixed_array_equation_never_reads_a_root_constant_for_a_module_length() {
+    let mut sources = source::SourceMap::default();
+    let mut syntax = SyntaxTrees::default();
+    for (path, text) in [
+        ("root.omg", "const Count: u64 = 4;"),
+        (
+            "local.omg",
+            r#"
+            module local;
+            const Count: u64 = 8;
+            data Buffer<Backing> where Backing == [u8; Count] { storage: Backing; }
+            data Main { value: Buffer<[u8; 4]>; }
+        "#,
+        ),
+    ] {
+        let id = sources
+            .add(std::path::PathBuf::from(path), text.to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, id, &tokens)
+            .expect("parse");
+    }
+    let errors = normalize_generic_data(GenericDataRequest {
+        syntax,
+        sources: Some(std::sync::Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
+    .expect_err("a root constant cannot satisfy the module equation");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("module constant `Count`")),
+        "{errors:?}"
+    );
 }
 
 fn instances(syntax: &SyntaxTrees) -> Vec<&syntax_trees::item::DataDefinition> {

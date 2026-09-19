@@ -1,5 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals_or_membership;
+use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, parse_path_handle_span};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
@@ -118,8 +119,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
 
         let fact_input = input;
         let mut authored_fact_handles = Vec::new();
-        let (value, rest) =
-            parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
+        let (value, rest) = parse_proof_fact_expression_handle(syntax_trees, input)?;
         input = rest;
 
         if input.at_contextual("in") {

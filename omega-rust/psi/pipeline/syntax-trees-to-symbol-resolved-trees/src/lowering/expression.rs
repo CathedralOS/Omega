@@ -113,6 +113,9 @@ fn lower_nonbinary_expression_node_into_table(
     expression: &syntax::expression::ExpressionNode,
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
+        syntax::expression::ExpressionNode::TypeExpression(_) => Err(Diagnostic::error(
+            "a type expression must be resolved by a static type equation; it is not a runtime value",
+        )),
         syntax::expression::ExpressionNode::Match(dispatch) => {
             let subject = lower_expression_into_table(lowerer, syntax_trees, dispatch.subject)?;
             let mut arms = Vec::new();
