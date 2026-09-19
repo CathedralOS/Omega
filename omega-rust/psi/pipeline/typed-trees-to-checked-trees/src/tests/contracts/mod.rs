@@ -35,6 +35,7 @@ mod qualification_evidence;
 mod result_case_membership;
 mod resultless_laws;
 mod scalar_exits;
+mod scalar_result_bounds;
 mod scalar_storage_results;
 mod state_entry_contracts;
 mod state_field_values;

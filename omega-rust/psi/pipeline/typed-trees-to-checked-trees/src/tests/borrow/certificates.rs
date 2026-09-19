@@ -4,6 +4,7 @@ use super::super::{
 use crate::lower_typed_trees;
 
 mod call_judgments;
+mod call_premises;
 mod computed_boundaries;
 mod domain_premises;
 mod guarded_premises;

@@ -24,17 +24,23 @@ pub(crate) fn check_flow_call_borrows(
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut retained_diagnostics =
-        validate_checked_borrow_compatibility_certificates(program, facts, incoming_guards);
+    let mut retained_diagnostics = validate_checked_borrow_compatibility_certificates(
+        program,
+        facts,
+        incoming_guards,
+        call_frames,
+    );
     retained_diagnostics.extend(validate_checked_borrow_mutation_certificates(
         program,
         facts,
         incoming_guards,
+        call_frames,
     ));
     retained_diagnostics.extend(calls::validate_compatibility(
         program,
         facts,
         incoming_guards,
+        call_frames,
         &mut diagnostics,
     ));
     if retained_diagnostics.is_empty() {
@@ -84,11 +90,8 @@ pub(crate) fn check_flow_call_borrows(
             continue;
         }
 
-        // Ordering premises come from this state's preconditions and incoming
-        // guards with independently reconstructed immutable transport.
-        // Premise subjects are immutable bound values, so the set
-        // is stable for every judgment inside the state -- loan formations,
-        // mutations, call accesses, and receivers alike.
+        // Entry premises are stable inside the state. Statement-local call
+        // guarantees are appended by the consumer at the exact use point.
         let stated_premises = crate::semantic_calls::find_state_in_machine(
             program,
             state_flow.machine_symbol,
@@ -116,6 +119,7 @@ pub(crate) fn check_flow_call_borrows(
             &retained_mutation_certificates,
             &mut retained_mutation_certificates_consumed,
             mutation_summaries,
+            call_frames,
         );
     }
 
@@ -143,6 +147,7 @@ pub(crate) fn check_flow_call_borrows(
             facts,
             certificate,
             incoming_guards,
+            call_frames,
         ) {
             diagnostics.push(diagnostic);
         }
@@ -167,9 +172,13 @@ pub(crate) fn check_flow_call_borrows(
             diagnostics.push(duplicate_mutation_certificate_diagnostic(certificate));
             continue;
         }
-        if let Err(diagnostic) =
-            replay_checked_borrow_mutation_certificate(program, facts, certificate, incoming_guards)
-        {
+        if let Err(diagnostic) = replay_checked_borrow_mutation_certificate(
+            program,
+            facts,
+            certificate,
+            incoming_guards,
+            call_frames,
+        ) {
             diagnostics.push(diagnostic);
         }
     }
@@ -216,6 +225,7 @@ fn validate_checked_borrow_compatibility_certificates(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<Diagnostic> {
     let certificates = facts
         .borrow
@@ -237,6 +247,7 @@ fn validate_checked_borrow_compatibility_certificates(
             facts,
             certificate,
             incoming_guards,
+            call_frames,
         ) {
             diagnostics.push(diagnostic);
         }
@@ -267,6 +278,7 @@ fn replay_checked_borrow_compatibility_certificate(
     facts: &CheckFacts,
     certificate: &checked_trees::CheckedBorrowCompatibilityCertificate,
     incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Diagnostic> {
     if !facts
         .borrow
@@ -304,7 +316,7 @@ fn replay_checked_borrow_compatibility_certificate(
     // The premise set is re-derived from the formation scope's entry
     // establishment points, not trusted from the certificate. An unresolvable formation
     // scope offers no premises, so a recorded premised token cannot replay.
-    let stated_premises = crate::semantic_calls::find_state_in_machine(
+    let mut stated_premises = crate::semantic_calls::find_state_in_machine(
         program,
         certificate.formation.machine_symbol,
         certificate.formation.state_symbol,
@@ -317,6 +329,19 @@ fn replay_checked_borrow_compatibility_certificate(
         overlap::stated_ordering_premises(program, facts, machine, state, incoming_guards)
     })
     .unwrap_or_default();
+    if let Some((_, state_flow)) = facts.flow.control.states.iter().find(|(_, state)| {
+        state.machine_symbol == certificate.formation.machine_symbol
+            && state.state_symbol == certificate.formation.state_symbol
+    }) {
+        overlap::append_call_premises(
+            program,
+            facts,
+            state_flow,
+            certificate.formation.statement_index,
+            call_frames,
+            &mut stated_premises,
+        );
+    }
     let replayed = match overlap::borrow_loan_compatibility_from_selector_snapshot(
         program,
         facts,
@@ -377,6 +402,7 @@ fn validate_checked_borrow_mutation_certificates(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<Diagnostic> {
     let certificates = facts
         .borrow
@@ -393,9 +419,13 @@ fn validate_checked_borrow_mutation_certificates(
             diagnostics.push(duplicate_mutation_certificate_diagnostic(certificate));
             continue;
         }
-        if let Err(diagnostic) =
-            replay_checked_borrow_mutation_certificate(program, facts, certificate, incoming_guards)
-        {
+        if let Err(diagnostic) = replay_checked_borrow_mutation_certificate(
+            program,
+            facts,
+            certificate,
+            incoming_guards,
+            call_frames,
+        ) {
             diagnostics.push(diagnostic);
         }
     }
@@ -423,6 +453,7 @@ fn replay_checked_borrow_mutation_certificate(
     facts: &CheckFacts,
     certificate: &checked_trees::CheckedBorrowMutationCertificate,
     incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Diagnostic> {
     if !facts
         .borrow
@@ -534,12 +565,25 @@ fn replay_checked_borrow_mutation_certificate(
     // The premise set is re-derived from the formation scope's entry
     // establishment points, not trusted from the certificate. An unresolvable formation
     // scope offers no premises, so a recorded premised token cannot replay.
-    let stated_premises =
+    let mut stated_premises =
         crate::lookup::machine_by_symbol(program, certificate.formation.machine_symbol)
             .map(|machine| {
                 overlap::stated_ordering_premises(program, facts, machine, state, incoming_guards)
             })
             .unwrap_or_default();
+    if let Some((_, state_flow)) = facts.flow.control.states.iter().find(|(_, state)| {
+        state.machine_symbol == certificate.formation.machine_symbol
+            && state.state_symbol == certificate.formation.state_symbol
+    }) {
+        overlap::append_call_premises(
+            program,
+            facts,
+            state_flow,
+            certificate.formation.statement_index,
+            call_frames,
+            &mut stated_premises,
+        );
+    }
     let replayed = match overlap::captured_place_loan_compatibility_from_selector_snapshot(
         program,
         &certificate.mutated_place,

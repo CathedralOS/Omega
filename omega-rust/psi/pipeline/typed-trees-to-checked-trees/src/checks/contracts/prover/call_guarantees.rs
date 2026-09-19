@@ -13,9 +13,7 @@
 use crate::flow::CanonicalPlace;
 use crate::semantic_calls::CallSite;
 use checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
-use facts::{
-    ContractFactKind, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint,
-};
+use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -23,6 +21,8 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 mod arithmetic;
+mod availability;
+pub(in crate::checks) use availability::{AvailableGuarantee, available};
 
 struct Invocation<'program> {
     site: CallSite<'program>,
@@ -51,94 +51,44 @@ pub(super) fn proves(
     let Some(frames) = frames else {
         return false;
     };
-    let Some(caller_machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller.machine_symbol)
-    else {
-        return false;
-    };
     if !stable_arguments(program, &required)
         || !builtin_predicate(program, operators, &required, expression)
     {
         return false;
     }
     let mut arithmetic_hypotheses = Vec::new();
-    let exact = contexts.iter().any(|context| {
-        semantic
-            .context_view(semantic.contexts.get(*context))
-            .facts()
-            .any(|fact| {
-                let FactPayload::ContractBooleanExpression {
-                    kind: ContractFactKind::Ensures,
-                    expression: guarantee,
-                    ..
-                } = fact.payload
-                else {
-                    return false;
-                };
-                let ProgramPoint::CallEnsures {
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                    call_ordinal,
-                } = fact.point
-                else {
-                    return false;
-                };
-                if fact.origin != FactOrigin::CallEnsures
-                    || machine_symbol != caller.machine_symbol
-                    || state_symbol != caller.state_symbol
-                    || statement_index >= call.statement_index
-                {
-                    return false;
-                }
-                let Some(supplied) = invocation(program, caller, statement_index, call_ordinal)
-                else {
-                    return false;
-                };
-                let CallSite::Expression {
-                    expression: produced,
-                    ..
-                } = supplied.site
-                else {
-                    return false;
-                };
-                // Capture preservation is not purity or repeatability: other
-                // storage may change, and the result stays this exact call.
-                if !stable_arguments(program, &supplied)
-                    || !capture_preserved(
-                        program,
-                        &facts.borrow,
-                        caller_machine,
-                        &supplied,
-                        produced,
-                        guarantee,
-                        frames,
-                    )
-                    || !builtin_predicate(program, operators, &supplied, guarantee)
-                {
-                    return false;
-                }
-                if let Some(proposition) =
-                    arithmetic::at_call(program, facts, contexts, &supplied, guarantee)
-                {
-                    arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
-                        proposition,
-                        holds: true,
-                    });
-                }
-                predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    &required,
-                    expression,
-                    &supplied,
-                    guarantee,
-                    &mut Vec::new(),
-                )
-            })
+    let exact = available(
+        program,
+        facts,
+        caller,
+        call.statement_index,
+        contexts,
+        frames,
+    )
+    .into_iter()
+    .any(|guarantee| {
+        if let Some(proposition) = arithmetic::at_call(
+            program,
+            facts,
+            contexts,
+            &guarantee.invocation,
+            guarantee.expression,
+        ) {
+            arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
+                proposition,
+                holds: true,
+            });
+        }
+        predicates_match(
+            program,
+            semantic,
+            contexts,
+            &required,
+            expression,
+            &guarantee.invocation,
+            guarantee.expression,
+            &mut Vec::new(),
+        )
     });
     exact
         || arithmetic::proves(

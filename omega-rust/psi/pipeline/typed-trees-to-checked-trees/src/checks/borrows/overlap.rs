@@ -7,6 +7,7 @@ mod unresolved_identities;
 
 pub(super) use self::indexes::CompatibilityReplayDrift;
 use self::indexes::SelectorSessionClosure;
+pub(super) use self::premises::append_call_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
 use self::segments::{
     place_segments_compatibility_from_snapshot, place_segments_compatibility_with_snapshot,

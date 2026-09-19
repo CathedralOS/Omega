@@ -1,4 +1,4 @@
-//! Integer relations established at the forming scope's entry.
+//! Integer relations available at the exact compatibility judgment.
 //!
 //! A premised compatibility derivation consumes the same establishment point
 //! as the range checker: authored preconditions and surviving incoming
@@ -14,6 +14,10 @@
 //! Required domain membership uses the same decomposition with a definition
 //! scope: its reserved self binds the immutable membership subject. The
 //! definition-owned meaning reader rejects foreign self and selected operators.
+//! Call guarantees join the contract checker's shared availability reader at
+//! each statement entry. They never enter the stable state-entry premise set.
+//! The exact callee contract and immutable captured result survive separately;
+//! both must rejoin before a reserved result can license separation.
 
 use checked_trees::{
     BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
@@ -24,6 +28,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 use super::indexes::{NormalizedBound, normalized_bound, selector_value};
+use crate::checks::contracts::prover::call_guarantees::{self, AvailableGuarantee};
 use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 use crate::checks::ranges::requirements::state_requires_facts;
 
@@ -39,6 +44,10 @@ enum PremiseScope<'program> {
         definition: &'program typed_trees::domain::DomainDefinition,
         subject: NormalizedBound,
     },
+    Call {
+        guarantee: &'program AvailableGuarantee<'program>,
+        result: symbols::SymbolHandle,
+    },
 }
 
 impl PremiseScope<'_> {
@@ -48,6 +57,7 @@ impl PremiseScope<'_> {
         expression: ExpressionHandle,
     ) -> bool {
         match self {
+            Self::Call { guarantee, .. } => guarantee.has_builtin_meaning(program, expression),
             Self::State { machine, state } => validation::has_builtin_decomposed_guard_meaning(
                 program,
                 machine,
@@ -68,6 +78,16 @@ impl PremiseScope<'_> {
         expression: ExpressionHandle,
     ) -> Option<NormalizedBound> {
         match self {
+            Self::Call { guarantee, result } => {
+                if guarantee.is_result(program, expression) {
+                    result.is_valid().then_some(NormalizedBound::Symbol {
+                        symbol: result,
+                        offset: 0,
+                    })
+                } else {
+                    normalized_bound(program, guarantee.actual(program, expression)?)
+                }
+            }
             Self::State { .. } => normalized_bound(program, expression),
             Self::Domain {
                 definition,
@@ -197,6 +217,67 @@ pub fn stated_ordering_premises(
         );
     }
     premises
+}
+
+/// Extend entry premises at the exact statement entry. Later calls and
+/// invalidated captures cannot license earlier loan formation or mutation.
+pub(in crate::checks::borrows) fn append_call_premises(
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
+    state_flow: &checked_trees::FlowStateFact,
+    statement: usize,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    premises: &mut Vec<StatedOrderingPremise>,
+) {
+    let Some(frames) = call_frames else {
+        return;
+    };
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
+        return;
+    };
+    let Some(statement_flow) = facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(state_flow.statements)
+        .iter()
+        .find(|row| row.statement_index == statement)
+    else {
+        return;
+    };
+    let contexts: Vec<_> = facts
+        .flow
+        .semantic_constraint_contexts(statement_flow.entry_constraints)
+        .collect();
+    for guarantee in
+        call_guarantees::available(program, facts, state_flow, statement, &contexts, frames)
+    {
+        let result = guarantee
+            .immutable_result_binding(program, &facts.semantic, &contexts, state)
+            .unwrap_or_default();
+        let (statement_index, call_ordinal) = guarantee.coordinates();
+        decompose_premise_expression(
+            program,
+            PremiseScope::Call {
+                guarantee: &guarantee,
+                result,
+            },
+            guarantee.expression,
+            false,
+            BorrowCompatibilityPremiseSource::CallEnsures {
+                fact: guarantee.fact,
+                statement_index,
+                call_ordinal,
+                result,
+            },
+            &None,
+            premises,
+        );
+    }
 }
 
 /// Decompose one `requires` expression into atomic ordering premises.

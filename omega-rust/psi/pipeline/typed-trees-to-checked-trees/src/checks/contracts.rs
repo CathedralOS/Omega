@@ -17,7 +17,7 @@ mod writes;
 // reuse the domain-derived boolean proving labels.
 pub(crate) mod labels;
 mod places;
-mod prover;
+pub(in crate::checks) mod prover;
 mod reference_domains;
 mod return_values;
 
