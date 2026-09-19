@@ -4336,7 +4336,17 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   What exists is a lexer and a partial parser: about 3,600 lines across
   `source/psi/{lex,parse,source,syntax,tokens}/`, the parser gate at
   `source/psi/gates/parser/`, and a 70-line `source/omega/main.omg` that drives
-  lexing and parsing over console input. `omega --check
+  lexing and parsing over console input. The parser now admits `T in Domain`
+  qualified type references on data fields and case payloads —
+  `TypeReferenceKind::Qualified` carrying the domain span, OMGPAR7 domain
+  columns in the gate observation, three acceptances and six rejections pinned;
+  resolution of the domain name remains ahead. `omega --check` on the parser
+  gate clears the new states and stops at selected-dispatch service custody
+  (`selected ProgramEntry establishment rejoins 0 Terminal attachment
+  identities; expected one`), reproduced identically on the pre-slice base, so
+  the gate's checked compilation is red before the documented `source_full`
+  Unit omission and `test-parser.sh` cannot mint the artifact it runs.
+  `omega --check
   source/omega/main.omg` reaches the end of the Psi checked stage and std
   calling-policy admission before stopping on the first item below.
 
