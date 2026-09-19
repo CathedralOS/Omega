@@ -410,6 +410,12 @@ fn describe_exclusion(
                 None => format!("service {service}"),
             }
         }
+        // A physical-class selection is a demand on the mechanism closure:
+        // this walk never yields a prohibited site for it, but the arm keeps
+        // the description total if one is ever named.
+        build_evaluation::BehaviorExclusion::PhysicalAuthorityClass(class) => {
+            format!("physical authority class {class:?}")
+        }
     }
 }
 

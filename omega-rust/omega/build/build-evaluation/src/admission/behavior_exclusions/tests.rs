@@ -5,10 +5,10 @@ use super::{
     authored_behavior_exclusion_set, authored_behavior_exclusion_set_in,
     establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
 };
-use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
+use effects::{SelectedProviderPlanFacts, TerminalAuthorityClass};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
 };
@@ -1113,4 +1113,87 @@ fn canonical_machine_overload_sharing_a_service_name_counts_conservatively() {
         BehaviorExclusions::from_selections([BehaviorExclusion::Service(service_id(1))]);
     let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
     assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+}
+
+fn physical_exclusions(classes: &[TerminalAuthorityClass]) -> BehaviorExclusions {
+    BehaviorExclusions::from_selections(
+        classes
+            .iter()
+            .map(|&class| BehaviorExclusion::PhysicalAuthorityClass(class)),
+    )
+}
+
+/// Physical-class selections union canonically alongside the semantic rows:
+/// the retained set orders and deduplicates all three axes, and only an
+/// entirely empty union is trivial.
+#[test]
+fn physical_authority_classes_are_a_canonical_union_axis() {
+    let left = BehaviorExclusions::from_selections([
+        BehaviorExclusion::PhysicalAuthorityClass(TerminalAuthorityClass::PortIo),
+        BehaviorExclusion::CrashCause(CrashCause::Trap),
+        BehaviorExclusion::PhysicalAuthorityClass(TerminalAuthorityClass::ProcessOutput),
+        BehaviorExclusion::PhysicalAuthorityClass(TerminalAuthorityClass::PortIo),
+    ]);
+    assert_eq!(
+        left.physical_authority_classes(),
+        &[
+            TerminalAuthorityClass::ProcessOutput,
+            TerminalAuthorityClass::PortIo,
+        ]
+    );
+    assert!(left.excludes_physical_authority_class(TerminalAuthorityClass::PortIo));
+    assert!(!left.excludes_physical_authority_class(TerminalAuthorityClass::ProcessInput));
+    assert_eq!(left.crash_causes(), &[CrashCause::Trap]);
+    assert!(!left.is_empty());
+
+    // Union never removes an earlier physical restriction.
+    let mut union = left.clone();
+    union.union(&physical_exclusions(&[
+        TerminalAuthorityClass::MachineControl,
+    ]));
+    assert_eq!(
+        union.physical_authority_classes(),
+        &[
+            TerminalAuthorityClass::ProcessOutput,
+            TerminalAuthorityClass::MachineControl,
+            TerminalAuthorityClass::PortIo,
+        ]
+    );
+}
+
+/// A physical-only exclusion set is not vacuous at the semantic stage: it
+/// still demands the bounded entry/call closure, so an unresolvable call is
+/// an evidence gap rather than a silent pass. Over a bounded module the same
+/// set is satisfied — mechanism adjudication waits for native realization.
+#[test]
+fn physical_exclusion_demands_bounded_closure_but_yields_no_site() {
+    let bounded = no_op_assertion_module();
+    let exclusions = physical_exclusions(&[TerminalAuthorityClass::ProcessOutput]);
+    let report = establish_behavior_exclusions(&bounded, &entries(), &exclusions, &empty_plans());
+    assert_eq!(report, BehaviorExclusionReport::default());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
+
+    let entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(1, call_unit(machine_id(7)))],
+            ..return_unit_block(1)
+        }],
+    );
+    let module = terminal_module(vec![entry], Vec::new());
+    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
+    assert_eq!(
+        report.gaps,
+        vec![EvidenceGap {
+            entry: machine_id(1),
+            machine: machine_id(1),
+            block: Some(block_id(1)),
+            operation: Some(operation_id(1)),
+            kind: EvidenceGapKind::UnknownCallee(machine_id(7)),
+        }]
+    );
+    assert_eq!(
+        report.verdict(),
+        BehaviorExclusionVerdict::InsufficientEvidence
+    );
 }
