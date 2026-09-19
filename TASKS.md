@@ -1697,9 +1697,13 @@ Owners include
   - Erased non-primitive parameters: `erased_scalar_parameter_plans` still
     refuses typed formals such as `Nat` (the
     `erased_proof_only_typed_parameter_exit` canary stays checked-only).
-  - The internal-calls lane still refuses requires-bearing and
-    erased-formal callees (`internal_calls` catalogs); only the
-    shared-composed route carries the lane.
+  - Done: the internal-calls lane carries requires-bearing and
+    erased-formal callees — composed-control internal targets publish
+    `erased_scalar_formals` and `requires`, emission resolves erased
+    actuals and allocates one obligation per published row, and the
+    published roster stays in canonical order (authored clauses merge
+    ahead of the derived parameter-range tail; merged propositions are
+    sorted and deduplicated at every publication site).
   - Dynamic-dispatch call kinds have no erased-argument lane.
   - Erased `self`, `const` and `mut` bindings refuse a checked calling plan
     (`execution/unit/types/mod.rs::strips_erased_parameter`). Keep the refusal
@@ -1711,9 +1715,12 @@ Owners include
   actual, an actual outside the admitted closure, a missing or substituted
   erased-argument row, and pre-change codec bytes reject in source-free
   verification; the `fail/relevance/` runtime-read and receiver controls keep
-  rejecting. New acceptance: an erased non-primitive formal reaches the
-  contract term lane, an internal-call callee with `requires` admits, and a
-  dynamic call carries or explicitly refuses its erased lane.
+  rejecting. An internal-call callee with `requires` admits and discharges:
+  `composed_unit_internal_calls` covers the carried lane, obligation arity,
+  violating and missing erased actuals, and a two-erased witness pinning the
+  second formal's ordinal. New acceptance: an erased non-primitive formal
+  reaches the contract term lane, and a dynamic call carries or explicitly
+  refuses its erased lane.
 
   Erased-field cleanup belongs to
   **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
