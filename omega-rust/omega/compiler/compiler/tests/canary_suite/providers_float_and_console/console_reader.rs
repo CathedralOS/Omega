@@ -6,6 +6,83 @@ use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
 #[test]
+fn fixed_array_line_reader_executes_only_until_its_first_completion() {
+    if !cfg!(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )) {
+        eprintln!("SKIP: hosted bounded input requires a matching Linux or macOS ARM64 host");
+        return;
+    }
+    use std::fs;
+    use std::io::Seek;
+    use std::process::{Command, Stdio};
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_LINE_FIXED_ARRAY_EXIT);
+    let scratch = std::env::temp_dir().join(format!("omega-fixed-line-{}", std::process::id()));
+    let compilation = crate::compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("fixed-array line reader publishes a native executable");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("publication receipt");
+    for (input, consumed) in [
+        (b"".as_slice(), 0),
+        (b"ab", 2),
+        (b"ab\nrest", 3),
+        (b"0123456789abcdef\n", 16),
+        (b"0123456789abcde\nX", 16),
+        (b"\0\xff\r\nrest", 4),
+    ] {
+        let input_path = scratch.join("input.bin");
+        fs::write(&input_path, input).expect("write exact input bytes");
+        let mut supplied = fs::File::open(&input_path).expect("open input");
+        let output = Command::new(executable)
+            .stdin(Stdio::from(
+                supplied.try_clone().expect("shared input cursor"),
+            ))
+            .output()
+            .expect("bounded reader execution");
+        assert_eq!(
+            output.status.code(),
+            Some(70),
+            "input {input:?}: {output:?}"
+        );
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+        assert_eq!(supplied.stream_position().expect("input cursor"), consumed);
+    }
+    let unreadable = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/null")
+        .expect("write-only input descriptor");
+    let failed = Command::new(executable)
+        .stdin(Stdio::from(unreadable))
+        .output()
+        .expect("failed-read execution");
+    assert!(
+        failed.status.code().is_none(),
+        "failed read must trap: {failed:?}"
+    );
+    assert!(failed.stdout.is_empty());
+    fs::remove_dir_all(scratch).expect("remove completed bounded-input output");
+}
+
+#[test]
+fn fixed_array_line_reader_replays_across_supported_native_targets() {
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_LINE_FIXED_ARRAY_EXIT);
+    for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
+        let artifact =
+            crate::compile_rooted_backend_canary_without_output_for_target(&canary, target)
+                .unwrap_or_else(|error| panic!("{target} fixed-array input compiles: {error:?}"))
+                .into_retained_native_artifact()
+                .expect("complete native artifact");
+        artifact.validate().expect("independent native replay");
+    }
+}
+
+#[test]
 fn selected_console_line_reader_callers_normalize_only_the_reported_prefix() {
     let echo = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &pass_canary("text/runtime_stdin_line_buffering_exit").join("main.omg"),
