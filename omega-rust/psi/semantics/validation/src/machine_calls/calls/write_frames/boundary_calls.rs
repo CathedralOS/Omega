@@ -3,6 +3,13 @@
 //! Boundary calls have no locally inspectable body. This owner resolves the
 //! selected trait signature and derives the exact receiver/exclusive-argument
 //! frame, failing closed when a mutable argument has no supported storage origin.
+//!
+//! Generic receivers retain their exact owner tuple before method inference:
+//! losing it to the signature-free ceiling made copied scalar metadata appear
+//! writable. Owner and method bindings share the existing storage/origin
+//! queries, keyed by distinct symbols. This substitution is private to frame
+//! inference; fact-seeding consumers without a bound environment still refuse
+//! generic signatures rather than reading uninstantiated contracts.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::isolation::{aggregate_storage_types_match_in, type_is_caller_isolated_local_in};
@@ -35,10 +42,45 @@ mod tests;
 /// invalid prefix or ambiguous member on a cached trait receiver must not
 /// regain a complete frame through the signature-free fallback.
 pub(super) fn receiver_requires_boundary_frame(
+    program: &TypedTrees,
+    current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     receiver: &[String],
 ) -> bool {
+    let is_boundary = |reference| {
+        boundary_receiver_type_symbol(program, reference).is_some_and(|symbol| {
+            program
+                .traits()
+                .iter()
+                .any(|definition| definition.symbol == symbol && definition.is_boundary)
+        })
+    };
+    // Recognition grants no signature authority. Any matching declaration
+    // must fence the signature-free fallback, even when another state's
+    // same-spelled parameter would be an ordinary value.
+    let has_boundary_receiver = match receiver {
+        [root, member] if root == "self" => {
+            crate::value_custody::places::machine_attached_data(program, current_machine)
+                .is_some_and(|data| {
+                    program.data_members(data).iter().any(|field| match field {
+                        DataMember::Field(field) => {
+                            field.name.as_str() == member && is_boundary(field.type_reference)
+                        }
+                        _ => false,
+                    })
+                })
+        }
+        [name] => program.machine_states(current_machine).iter().any(|state| {
+            program.state_parameters(state).iter().any(|parameter| {
+                parameter.name.as_str() == name && is_boundary(parameter.type_reference)
+            })
+        }),
+        _ => false,
+    };
+    if has_boundary_receiver {
+        return true;
+    }
     receiver.last().is_some_and(|name| {
         machine_symbols
             .callable_field_type(name)
@@ -122,6 +164,32 @@ fn boundary_trait_signature_and_receiver<'program>(
         site,
         false,
     )
+    .map(|selected| (selected.signature, selected.has_runtime_receiver))
+}
+
+struct BoundaryWriteSignature<'program> {
+    signature: &'program typed_trees::signature::StateSignature,
+    has_runtime_receiver: bool,
+    bindings: TypeBindings,
+}
+
+/// Resolve a receiver head without discarding its application arguments:
+/// callers retain the original reference for exact owner substitution.
+fn boundary_receiver_type_symbol(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        reference = live_unconstrained_type(program, reference)?;
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Generic { base_symbol, .. } => return Some(*base_symbol),
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => return Some(*symbol),
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// The write-frame route additionally admits a signature whose `Type`
@@ -137,7 +205,7 @@ fn boundary_write_signature_and_receiver<'program>(
     receiver_members: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
-) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
+) -> Option<BoundaryWriteSignature<'program>> {
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,
@@ -154,15 +222,15 @@ fn boundary_write_signature_and_receiver<'program>(
 fn boundary_trait_signature_and_receiver_inner<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'program>,
+    _machine_symbols: &MachineSymbols<'_>,
+    _symbols: &TopLevelSymbols<'program>,
     receiver_members: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
     allow_type_parameters: bool,
-) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
+) -> Option<BoundaryWriteSignature<'program>> {
     let (receiver_symbol, target_symbol) = call_site_symbols(program, site)?;
-    let (trait_definition, has_runtime_receiver) = match receiver_members {
+    let (trait_definition, has_runtime_receiver, receiver_reference) = match receiver_members {
         [receiver] => {
             if !receiver_symbol.is_valid() {
                 return None;
@@ -171,13 +239,15 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             if let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
                 parameter.symbol == receiver_symbol && parameter.name.as_str() == receiver
             }) {
-                let receiver_type = receiver_type_symbol(program, parameter.type_reference);
+                let receiver_type =
+                    boundary_receiver_type_symbol(program, parameter.type_reference)?;
                 (
                     program
                         .traits()
                         .iter()
                         .find(|definition| definition.symbol == receiver_type)?,
                     true,
+                    parameter.type_reference,
                 )
             } else {
                 // A qualified static call names the trait declaration itself;
@@ -192,18 +262,42 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 {
                     return None;
                 }
-                (definition, false)
+                (definition, false, TypeReferenceHandle::invalid())
             }
         }
         [root, receiver] if root == "self" => {
-            let receiver_type = machine_symbols.callable_field_type(receiver)?;
-            (symbols.trait_definition(receiver_type)?, true)
+            let data =
+                crate::value_custody::places::machine_attached_data(program, current_machine)?;
+            let mut fields = program
+                .data_members(data)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) if field.name.as_str() == receiver => Some(field),
+                    _ => None,
+                });
+            let field = fields.next()?;
+            if fields.next().is_some() {
+                return None;
+            }
+            let receiver_type = boundary_receiver_type_symbol(program, field.type_reference)?;
+            let definition = program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == receiver_type)?;
+            (definition, true, field.type_reference)
         }
         _ => return None,
     };
-    if !trait_definition.is_boundary || !trait_definition.type_parameters.is_empty() {
+    if !trait_definition.is_boundary
+        || (!allow_type_parameters && !trait_definition.type_parameters.is_empty())
+    {
         return None;
     }
+    let bindings = super::type_instantiation::trait_receiver_type_bindings(
+        program,
+        trait_definition,
+        receiver_reference,
+    )?;
     let mut signatures = program
         .trait_machine_signatures(trait_definition)
         .iter()
@@ -230,7 +324,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 .state_signature_parameters(signature)
                 .iter()
                 .any(|parameter| parameter.is_self)))
-    .then_some((signature, has_runtime_receiver))
+    .then_some(BoundaryWriteSignature {
+        signature,
+        has_runtime_receiver,
+        bindings,
+    })
 }
 
 /// The call's retained receiver and target identities at this write site. A
@@ -642,7 +740,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    let (signature, has_runtime_receiver) = boundary_write_signature_and_receiver(
+    let selected = boundary_write_signature_and_receiver(
         program,
         current_machine,
         machine_symbols,
@@ -651,6 +749,11 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         target,
         site,
     )?;
+    let BoundaryWriteSignature {
+        signature,
+        has_runtime_receiver,
+        bindings,
+    } = selected;
     let mut written = if has_runtime_receiver {
         vec![receiver.join(".")]
     } else {
@@ -664,12 +767,13 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     if parameters.len() != arguments.len() {
         return None;
     }
-    let bindings = super::type_instantiation::signature_call_type_bindings(
+    let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,
         current_machine,
         signature,
         site,
         arguments,
+        bindings,
     )?;
 
     for (parameter, argument) in parameters.into_iter().zip(arguments) {
@@ -779,7 +883,7 @@ fn boundary_result_origins(
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
     let receiver = receiver_member_chain(program, call.receiver).unwrap_or_default();
-    let (signature, has_runtime_receiver) = boundary_write_signature_and_receiver(
+    let selected = boundary_write_signature_and_receiver(
         program,
         current_machine,
         machine_symbols,
@@ -788,13 +892,19 @@ fn boundary_result_origins(
         call.target.as_str(),
         CallerWriteSite::Expression(expression),
     )?;
+    let BoundaryWriteSignature {
+        signature,
+        has_runtime_receiver,
+        bindings,
+    } = selected;
     let arguments = program.expression_table.expression_handles(call.arguments);
-    let mut bindings = super::type_instantiation::signature_call_type_bindings(
+    let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,
         current_machine,
         signature,
         CallerWriteSite::Expression(expression),
         arguments,
+        bindings,
     )?;
     let result_type = live_unconstrained_type(program, signature.return_type)?;
     let TypeReferenceNode::Reference {

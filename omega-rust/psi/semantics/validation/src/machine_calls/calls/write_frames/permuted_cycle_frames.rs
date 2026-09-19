@@ -463,6 +463,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     .or_else(|| {
                         syntactic_call_written_paths(
                             program,
+                            machine,
                             &receiver_members,
                             arguments,
                             machine_symbols,

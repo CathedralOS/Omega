@@ -455,12 +455,6 @@ fn generic_boundary_carriers_still_fail_closed() {
             "dynamic_carrier",
             "trait Shape {} data Cell { value: u64; } data Main { device: Device; shape: dyn Shape; } boundary trait Device { machine project<T>(carrier: &mut T); } machine Main::inspect(&mut self) { self.device.project(&mut self.shape); }",
         ),
-        // Trait-level `Device<Cell>` instantiation is out of scope: the
-        // receiver does not select an inspectable signature.
-        (
-            "generic_boundary_trait",
-            "data Cell { value: u64; } data Main { device: Device<Cell>; cell: Cell; } boundary trait Device<T> { machine project(carrier: &mut T) -> &mut T; } machine Main::inspect(&mut self) { let r: &mut Cell = self.device.project(&mut self.cell); r.value = 1; }",
-        ),
     ] {
         let program = typed(source);
         assert!(
@@ -773,4 +767,76 @@ fn requirement_calls_without_proven_storage_stay_opaque() {
         ));
         assert!(!frame(&program).is_complete(), "{name}");
     }
+}
+
+#[test]
+fn generic_boundary_owner_bindings_preserve_signature_argument_access() {
+    for method in [
+        "machine consume(carrier: &mut T, metadata: u64);",
+        "machine consume<Value>(carrier: &mut T, metadata: Value);",
+    ] {
+        let source = format!(
+            "data Cell {{ value: u64; }} boundary trait Device<T> {{ {method} }} data Main {{ device: Device<Cell>; cell: Cell; untouched: u64; }} machine Main::inspect(&mut self) {{ self.device.consume(&mut self.cell, self.untouched); }}"
+        );
+        let program = typed(&source);
+        let mut paths = frame(&program)
+            .into_complete_paths()
+            .expect("exact owner application");
+        paths.sort();
+        assert_eq!(paths, ["self.cell", "self.device"]);
+    }
+}
+
+#[test]
+fn generic_boundary_owner_failures_cannot_use_signature_free_frames() {
+    for (name, source) in [
+        (
+            "wrong_actual",
+            "data Cell { value: u64; } data Other { value: u64; } boundary trait Device<T> { machine consume(carrier: &mut T); } data Main { device: Device<Cell>; other: Other; } machine Main::inspect(&mut self) { self.device.consume(&mut self.other); }",
+        ),
+        (
+            "interior_reference",
+            "data Cell { value: u64; } data Pocket { held: &mut Cell; } boundary trait Device<T> { machine consume(carrier: T); } data Main { device: Device<Pocket>; pocket: Pocket; } machine Main::inspect(&mut self) { self.device.consume(self.pocket); }",
+        ),
+        (
+            "unbound_static_owner",
+            "data Cell { value: u64; } boundary trait Device<T> { machine consume(carrier: &mut T); } data Main { cell: Cell; } machine Main::inspect(&mut self) { Device::consume(&mut self.cell); }",
+        ),
+        (
+            "unbound_method",
+            "data Cell { value: u64; } boundary trait Device<T> { machine consume<Value>(carrier: &mut T); } data Main { device: Device<Cell>; cell: Cell; } machine Main::inspect(&mut self) { self.device.consume(&mut self.cell); }",
+        ),
+    ] {
+        assert!(
+            !frame(&typed(source)).is_complete(),
+            "{name} must remain opaque"
+        );
+    }
+}
+
+#[test]
+fn generic_boundary_owner_result_uses_existing_candidate_origins() {
+    let program = typed(
+        "data Cell { value: u64; } data Main { device: Device<Cell>; cell: Cell; } boundary trait Device<T> { machine project(carrier: &mut T) -> &mut T; } machine Main::inspect(&mut self) { let r: &mut Cell = self.device.project(&mut self.cell); r.value = 1; }",
+    );
+    let paths = frame(&program)
+        .into_complete_paths()
+        .expect("closed owner result candidates");
+    assert!(paths.iter().any(|path| path == "self.device"));
+    assert!(paths.iter().any(|path| path == "self.cell"));
+    assert!(
+        !paths.iter().any(|path| path == "self.device.value"),
+        "opaque receiver origin cannot acquire field precision"
+    );
+}
+
+#[test]
+fn generic_boundary_method_shadow_remains_opaque_when_its_binder_is_unbound() {
+    let program = typed(
+        "data Cell { value: u64; } data Other { value: u32; } boundary trait Device<T> { machine consume<T>(carrier: &mut T); } data Main { device: Device<Cell>; other: Other; } machine Main::inspect(&mut self) { self.device.consume(&mut self.other); }",
+    );
+    // The typed formal currently selects the owner's T while the distinct,
+    // same-spelled method binder remains unbound. Never guess a substitution
+    // from spelling to manufacture a complete frame.
+    assert!(!frame(&program).is_complete());
 }
