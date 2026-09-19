@@ -866,6 +866,7 @@ fn selected_generic_operator_provider_closes_application_in_specialized_helper()
             realization_machine,
         }],
         &[],
+        &[],
     )
     .expect("final substitution closes the selected application");
 
@@ -1034,6 +1035,6 @@ fn checked_program_with_selected_generic_providers(
             }
         })
         .collect::<Vec<_>>();
-    crate::lower_typed_trees_with_selected_generic_operator_providers(typed, &selected, &[])
+    crate::lower_typed_trees_with_selected_generic_operator_providers(typed, &selected, &[], &[])
         .expect("selected generic providers reach final-substitution closure")
 }

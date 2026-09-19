@@ -154,6 +154,14 @@ pub(crate) fn typed_trees_to_checked_trees(
                 &typed,
                 &settlement.selected_provider_plan_facts,
             )?;
+        // A selected boundary family row commits its provider to the complete
+        // roster now, before checking: the generated tuple bodies are what
+        // settle-time row resolution looks up.
+        let selected_boundary_families =
+            selected_dispatch::selected_boundary_family_specializations(
+                &typed,
+                &settlement.selected_provider_plan_facts,
+            );
         let rederived_opaque_representation_selections =
             representation_planning::rederive_opaque_representation_selections(
                 &typed,
@@ -170,12 +178,14 @@ pub(crate) fn typed_trees_to_checked_trees(
             typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(
                 typed,
                 &selected_generic_operator_providers,
+                &selected_boundary_families,
                 &opaque_property_receipts,
             )?
         } else {
             typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
                 typed,
                 &selected_generic_operator_providers,
+                &selected_boundary_families,
                 &opaque_property_receipts,
             )?
         };

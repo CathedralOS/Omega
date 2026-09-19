@@ -2,11 +2,13 @@
 //!
 //! A local `dyn` selection whose closed conformance realizes a finite generic
 //! requirement must own one checked specialization of the row's realization
-//! template per declared roster tuple. Boundary adapter rows discover those
-//! specializations only when a static call site demanded them; a dynamic
-//! selection instead generates the complete family here, before ordinary
-//! specialization and checked-fact construction, so the conformance's tuple
-//! rows are real checked evidence rather than an external promise.
+//! template per declared roster tuple. Boundary adapter rows settle against
+//! the same commitment: a selected provider's complete family is generated
+//! here — before ordinary specialization and checked-fact construction — from
+//! the one roster authority, rather than the settle boundary discovering a
+//! tuple only when a static call site happened to demand it. Either way the
+//! conformance's tuple rows are real checked evidence rather than an external
+//! promise.
 //!
 //! The conformance row stays requirement-level (`realization_machine` names
 //! the provider template): `MachineSpecialization.const_argument_identities`
@@ -31,30 +33,152 @@ use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Generate every missing tuple specialization demanded by the program's
-/// dynamic conformance selections. Returns the number of specialization
-/// instances materialized this pass; callers re-run the ordinary
-/// specialization round when it is nonzero because a generated body may
-/// itself select generic callees or further dynamic families.
+/// dynamic conformance selections and by each selected boundary adapter row
+/// whose requirement declares a finite family. Returns the number of
+/// specialization instances materialized this pass; callers re-run the
+/// ordinary specialization round when it is nonzero because a generated body
+/// may itself select generic callees or further dynamic families.
 ///
 /// Selection collection is a pure typed query: an invalid program returns its
 /// diagnostics from `validate_typed_program` authoritatively, so a failed
 /// collection here simply defers generation rather than double-reporting.
 pub(crate) fn generate_dynamic_family_specializations(
     program: &mut TypedTrees,
+    boundary_families: &[crate::SelectedBoundaryFamilySpecialization],
 ) -> Result<usize, Vec<Diagnostic>> {
-    let Ok(selections) = validation::collect_dynamic_conformance_selections(program) else {
-        return Ok(0);
-    };
-    if selections.is_empty() {
-        return Ok(0);
-    }
-    let storages = validation::collect_dynamic_descriptor_storages(program, &selections);
-
     // Collect the complete demand set before mutating the graph: (realization
     // template symbol, roster tuples). One selected conformance covers the
-    // roster alone — the same row reused by several selections generates once.
+    // roster alone — the same row reused by several selections generates once,
+    // and a boundary demand and a `dyn` selection naming one template share
+    // its union.
     let mut diagnostics = Vec::new();
     let mut demands: Vec<(SymbolHandle, Vec<FamilyTuple>)> = Vec::new();
+
+    // A selected boundary adapter row commits its provider to the complete
+    // roster before any call resolves. Demand collection upstream already
+    // keeps only finite rosters on conforming, coverable providers, so the
+    // `NotFinite` arm below is pure defense; an unresolvable signature or
+    // template here is orchestration drift and rejects.
+    for family in boundary_families {
+        let Some(requirement) = program
+            .traits()
+            .iter()
+            .flat_map(|definition| program.trait_machine_signatures(definition).iter())
+            .find(|signature| signature.symbol == family.requirement_signature)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "selected boundary family demand names no requirement signature",
+            ));
+            continue;
+        };
+        let FamilyProbe::Finite { arity, tuples } = program.finite_signature_family(requirement)
+        else {
+            continue;
+        };
+        let Some(realization) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == family.realization_machine)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "selected boundary family demand names no realization machine template",
+            ));
+            continue;
+        };
+        let realization_binders = program.machine_type_parameters(realization);
+        let value_binders = realization_binders
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Value { .. }
+                )
+            })
+            .count();
+        if realization_binders.len() != value_binders || value_binders != arity {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected boundary provider `{}` cannot cover the declared finite family of `{}`: a family provider must be generic over exactly the requirement's {arity} const/value binders",
+                realization.name, requirement.name
+            )));
+            continue;
+        }
+        queue_family_demand(&mut demands, realization.symbol, tuples);
+    }
+
+    // A failed dynamic-selection collection defers that generation to
+    // `validate_typed_program`'s authoritative diagnostics, as documented
+    // above; boundary demands collected already still apply.
+    if let Ok(selections) = validation::collect_dynamic_conformance_selections(program)
+        && !selections.is_empty()
+    {
+        collect_selection_demands(program, &selections, &mut demands, &mut diagnostics);
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    if demands.is_empty() {
+        return Ok(0);
+    }
+
+    let operational = validation::infer_operational_may(program);
+    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let mut generated = 0;
+    for (template_symbol, tuples) in demands {
+        let Some(machine_index) = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == template_symbol)
+        else {
+            return Err(vec![Diagnostic::error(
+                "dynamic family realization lost its machine template",
+            )]);
+        };
+        for tuple in &tuples {
+            if tuple_specialization_exists(program, template_symbol, tuple) {
+                continue;
+            }
+            generate_tuple_specialization(program, machine_index, tuple, &service_reaches)?;
+            generated += 1;
+        }
+    }
+    Ok(generated)
+}
+
+/// Queue `template`'s roster `tuples` for generation, merging into an
+/// existing demand for the same template without duplicating a tuple.
+fn queue_family_demand(
+    demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
+    template: SymbolHandle,
+    tuples: Vec<FamilyTuple>,
+) {
+    match demands
+        .iter_mut()
+        .find(|(existing, _)| *existing == template)
+    {
+        Some((_, existing)) => {
+            for tuple in tuples {
+                if !existing
+                    .iter()
+                    .any(|candidate| candidate.identities.as_ref() == tuple.identities.as_ref())
+                {
+                    existing.push(tuple);
+                }
+            }
+        }
+        None => demands.push((template, tuples)),
+    }
+}
+
+/// Collect (realization template, roster tuples) demands from the program's
+/// dynamic conformance selections and descriptor storages.
+fn collect_selection_demands(
+    program: &TypedTrees,
+    selections: &[validation::DynamicConformanceSelection],
+    demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let storages = validation::collect_dynamic_descriptor_storages(program, selections);
     let mut seen_conformances: Vec<SymbolHandle> = Vec::new();
     let all_selections = selections
         .iter()
@@ -126,52 +250,9 @@ pub(crate) fn generate_dynamic_family_specializations(
                 )));
                 continue;
             }
-            match demands
-                .iter_mut()
-                .find(|(template, _)| *template == realization.symbol)
-            {
-                Some((_, existing)) => {
-                    for tuple in tuples {
-                        if !existing.iter().any(|candidate| {
-                            candidate.identities.as_ref() == tuple.identities.as_ref()
-                        }) {
-                            existing.push(tuple.clone());
-                        }
-                    }
-                }
-                None => demands.push((realization.symbol, tuples)),
-            }
+            queue_family_demand(demands, realization.symbol, tuples);
         }
     }
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    if demands.is_empty() {
-        return Ok(0);
-    }
-
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
-    let mut generated = 0;
-    for (template_symbol, tuples) in demands {
-        let Some(machine_index) = program
-            .machines()
-            .iter()
-            .position(|machine| machine.symbol == template_symbol)
-        else {
-            return Err(vec![Diagnostic::error(
-                "dynamic family realization lost its machine template",
-            )]);
-        };
-        for tuple in &tuples {
-            if tuple_specialization_exists(program, template_symbol, tuple) {
-                continue;
-            }
-            generate_tuple_specialization(program, machine_index, tuple, &service_reaches)?;
-            generated += 1;
-        }
-    }
-    Ok(generated)
 }
 
 /// Whether a bare value-tuple specialization of `template` already exists for

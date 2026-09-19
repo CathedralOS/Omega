@@ -53,7 +53,7 @@ use checked_trees::{CheckFacts, CheckedSemanticDependencies};
 use typed_trees::TypedTrees;
 
 pub use checking::{
-    SelectedGenericOperatorProviderSpecialization,
+    SelectedBoundaryFamilySpecialization, SelectedGenericOperatorProviderSpecialization,
     lower_package_typed_trees_with_selected_generic_operator_providers,
     lower_preliminary_typed_trees, lower_typed_trees,
     lower_typed_trees_with_selected_generic_operator_providers, normalize_open_index_identities,

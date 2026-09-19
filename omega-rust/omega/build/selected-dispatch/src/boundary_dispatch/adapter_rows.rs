@@ -75,19 +75,39 @@ impl ResolvedAdapterRow {
     }
 }
 
-pub(crate) fn resolve_selected_adapter_row(
-    typed: &TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
-) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
-    use effects::provider_plan::ProviderBinding;
+/// What one selected checked-adapter row's schema resolves to before tuple
+/// coverage is consulted: either a top-level `boundary requirement`'s single
+/// slot, or the exact signature on the requirement-owning boundary trait.
+/// `None` means the row never reaches adapter dispatch — a non-adapter
+/// binding, or a schema bound to an exact boundary operator.
+pub(crate) enum SelectedAdapterTarget<'a> {
+    TopLevelRequirement {
+        method: &'a effects::provider_plan::ServiceMethod,
+        requirement: &'a typed_trees::machine::Machine,
+    },
+    TraitRequirement {
+        method: &'a effects::provider_plan::ServiceMethod,
+        receiver_trait: &'a typed_trees::trait_definition::TraitDefinition,
+        requirement_owner: &'a typed_trees::trait_definition::TraitDefinition,
+        signature: &'a typed_trees::signature::StateSignature,
+    },
+}
 
-    let ProviderBinding::CheckedAdapter {
-        machine_identity, ..
-    } = &row.binding
-    else {
-        return Ok(Vec::new());
-    };
+/// The shared schema-resolution prefix of adapter-row settlement and
+/// boundary family-demand collection. Running it twice on the same program
+/// cannot diverge: demand derivation names exactly the signature settlement
+/// would look up, and a row that fails here fails identically in both paths.
+pub(crate) fn resolve_selected_adapter_target<'a>(
+    typed: &'a TypedTrees,
+    plan: &'a effects::provider_plan::ProviderPlan,
+    row: &'a effects::provider_plan::ProviderPlanRow,
+) -> Result<Option<SelectedAdapterTarget<'a>>, Diagnostic> {
+    if !matches!(
+        row.binding,
+        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+    ) {
+        return Ok(None);
+    }
     if typed.operators().iter().any(|operator| {
         provider_planning::service_schema::schema_binds_exact_boundary_operator(
             typed,
@@ -95,7 +115,7 @@ pub(crate) fn resolve_selected_adapter_row(
             operator,
         )
     }) {
-        return Ok(Vec::new());
+        return Ok(None);
     }
     if row.requirement_identity.is_empty() {
         return Err(Diagnostic::error(format!(
@@ -134,14 +154,10 @@ pub(crate) fn resolve_selected_adapter_row(
         .collect::<Vec<_>>();
     match top_level_requirements.as_slice() {
         [requirement] => {
-            return resolve_top_level_requirement_adapter_row(
-                typed,
-                plan,
-                row,
+            return Ok(Some(SelectedAdapterTarget::TopLevelRequirement {
                 method,
                 requirement,
-                machine_identity,
-            );
+            }));
         }
         [] => {}
         many => {
@@ -189,6 +205,50 @@ pub(crate) fn resolve_selected_adapter_row(
             method.requirement_identity,
         )));
     }
+    Ok(Some(SelectedAdapterTarget::TraitRequirement {
+        method,
+        receiver_trait,
+        requirement_owner,
+        signature,
+    }))
+}
+
+pub(crate) fn resolve_selected_adapter_row(
+    typed: &TypedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
+    use effects::provider_plan::ProviderBinding;
+
+    let ProviderBinding::CheckedAdapter {
+        machine_identity, ..
+    } = &row.binding
+    else {
+        return Ok(Vec::new());
+    };
+    let (method, receiver_trait, requirement_owner, signature) =
+        match resolve_selected_adapter_target(typed, plan, row)? {
+            Some(SelectedAdapterTarget::TopLevelRequirement {
+                method,
+                requirement,
+            }) => {
+                return resolve_top_level_requirement_adapter_row(
+                    typed,
+                    plan,
+                    row,
+                    method,
+                    requirement,
+                    machine_identity,
+                );
+            }
+            Some(SelectedAdapterTarget::TraitRequirement {
+                method,
+                receiver_trait,
+                requirement_owner,
+                signature,
+            }) => (method, receiver_trait, requirement_owner, signature),
+            None => return Ok(Vec::new()),
+        };
 
     // Requirement-local binders make this a family of rows keyed by canonical
     // value tuple, not one exact overload. The signature's `where` clause

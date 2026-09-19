@@ -80,6 +80,7 @@ fn check_selected_provider_result_local(additional_endpoint: bool, direct_provid
             realization_machine,
         }],
         &[],
+        &[],
     )
     .expect("a selected provider clone must refresh its already-closed callee result");
 

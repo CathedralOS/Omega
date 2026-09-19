@@ -43,8 +43,13 @@ fn ordinary_lowering_rejects_copyable_opaque_without_receipt() {
 fn exact_opaque_copy_receipt_is_consumed_once() {
     let program = typed(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
-    crate::lower_typed_trees_with_selected_generic_operator_providers(program, &[], &[receipt])
-        .expect("the exact orchestration receipt should close opaque copy validation");
+    crate::lower_typed_trees_with_selected_generic_operator_providers(
+        program,
+        &[],
+        &[],
+        &[receipt],
+    )
+    .expect("the exact orchestration receipt should close opaque copy validation");
 }
 
 #[test]
@@ -54,6 +59,7 @@ fn duplicate_and_wrong_declaration_receipts_reject() {
     let diagnostics = crate::lower_typed_trees_with_selected_generic_operator_providers(
         duplicate,
         &[],
+        &[],
         &[receipt, receipt],
     )
     .expect_err("duplicate opaque property receipts must reject");
@@ -61,9 +67,13 @@ fn duplicate_and_wrong_declaration_receipts_reject() {
 
     let wrong = typed(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&wrong, "Main"));
-    let diagnostics =
-        crate::lower_typed_trees_with_selected_generic_operator_providers(wrong, &[], &[receipt])
-            .expect_err("a transparent declaration cannot receive an opaque property receipt");
+    let diagnostics = crate::lower_typed_trees_with_selected_generic_operator_providers(
+        wrong,
+        &[],
+        &[],
+        &[receipt],
+    )
+    .expect_err("a transparent declaration cannot receive an opaque property receipt");
     assert!(rendered(diagnostics).contains("targets non-opaque declaration"));
 }
 
@@ -77,8 +87,12 @@ machine Main::main(&mut self) {}
 "#,
     );
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
-    let diagnostics =
-        crate::lower_typed_trees_with_selected_generic_operator_providers(program, &[], &[receipt])
-            .expect_err("a copy receipt must match the declaration's exact property claim");
+    let diagnostics = crate::lower_typed_trees_with_selected_generic_operator_providers(
+        program,
+        &[],
+        &[],
+        &[receipt],
+    )
+    .expect_err("a copy receipt must match the declaration's exact property claim");
     assert!(rendered(diagnostics).contains("does not claim `[copy]`"));
 }
