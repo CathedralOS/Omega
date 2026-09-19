@@ -117,7 +117,6 @@ members = [
     "omega-rust/omega/packages/sources/execution",
     "omega-rust/omega/packages/manager",
     "omega-rust/omega/packages/topology",
-    "omega-rust/omega/packages/review/advisory",
     "tests/native-differential",
     "tests/architecture",
 ]

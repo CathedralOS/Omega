@@ -1070,13 +1070,6 @@ fn package_semantics_exclude_executable_provenance_and_model_protocols() {
             "model protocol must remain outside package core: {retired}"
         );
     }
-    let optional_tool = root.join("omega-rust/omega/packages/review/advisory/src");
-    for owned in ["protocol.rs", "invocation.rs"] {
-        assert!(
-            optional_tool.join(owned).is_file(),
-            "optional package advisory tooling must own {owned}"
-        );
-    }
 }
 
 #[test]

@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 const PACKAGE_ROOT_ENTRIES: &[&str] = &["README.md", "manager", "review", "sources", "topology"];
 const PACKAGE_CRATES: &[&str] = &[
     "manager",
-    "review/advisory",
     "review/evidence",
     "sources/acquisition",
     "sources/execution",
