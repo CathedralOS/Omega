@@ -14,6 +14,7 @@ mod contracts;
 mod evidence_forwarding;
 mod float_meaning;
 mod mathematical_declarations;
+mod mathematical_signature;
 mod obligations;
 mod outcome_arms;
 mod proof_output_calls;
@@ -31,6 +32,7 @@ pub(crate) use evidence_forwarding::{
 };
 pub(crate) use float_meaning::bind_float_meaning_projection_facts;
 pub(crate) use mathematical_declarations::build_checked_mathematical_declarations;
+pub(crate) use mathematical_signature::check_mathematical_signature;
 pub(crate) use outcome_arms::{bind_outcome_specific_arm_facts, exact_outcome_case_test};
 pub(crate) use proof_output_calls::bind_proof_output_call_facts;
 pub(crate) use proposition_vocabulary::lower_checked_proposition_application;

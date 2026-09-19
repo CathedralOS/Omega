@@ -1698,10 +1698,20 @@ Owners include
   `typed-trees-to-checked-trees/src/proof/mathematical_declarations.rs`:
   binder carriers classify `core::Level`/`core::Type` by authored name,
   arrows and applications render their nested-Pi identities, and
-  `boundary let` records its named-assumption absence. `checking.rs` still
-  refuses programs carrying them — kernel-term elaboration into
-  `mathematical_core::signature::Declaration`, body-against-result checking,
-  and downstream consumption are pending legs. No `core::Level`, `Type`,
+  `boundary let` records its named-assumption absence, and each record now
+  also elaborates to a `mathematical_core::signature::Declaration` list the
+  kernel itself re-decides
+  (`typed-trees-to-checked-trees/src/proof/mathematical_signature.rs`):
+  `core::Level` binders become universe parameters, bare and unapplied
+  `core::Type`/`core::Strict` occurrences generalize fresh ones in authored
+  order, other resolved carriers intern as `Type 0` assumptions in the
+  shared signature prefix, telescopes and arrows fold to `Pi`/`Lambda`
+  spines over de Bruijn scope, `core::Squash` forms the proposition, and a
+  transparent definition body must inhabit its declared result or the
+  program fails with that declaration's own kernel diagnostic.
+  `checking.rs` still refuses programs carrying them — `Constant` level
+  instantiation, machine-valued body denotation, applied carriers, and
+  downstream consumption are pending legs. No `core::Level`, `Type`,
   `Strict` or `Squash` declaration exists, and the dedicated `proposition`
   declaration with its named-witness call lanes
   (`typed-trees-to-checked-trees/src/proof/proof_output_calls.rs`) still
@@ -1714,11 +1724,13 @@ Owners include
     prefix application, parameter binders and named assumptions — has landed
     structurally; checked elaboration into `CheckedMathematicalDeclaration`
     has landed (binder classification, nested-Pi and application identities,
-    named assumptions). Remaining here: elaborate the checked records to
-    `PROOF-KERNEL-CORE` terms, check definition bodies against their declared
-    results, replace authored-name carrier classification with symbol
-    identity once the fixed `core::*` declarations exist, and admit the
-    surface downstream of checking. Preserve ordinary local bindings, complete
+    named assumptions). Kernel-term elaboration has landed for the admitted
+    grammar. Remaining here: instantiate level arguments on `Constant`
+    references to polymorphic declarations, denote machine-valued body
+    expressions (the bounded-denotation leg), replace authored-name carrier
+    classification with symbol identity once the fixed `core::*`
+    declarations exist, consume the checked signature downstream, and admit
+    the surface past the `checking.rs` refusal. Preserve ordinary local bindings, complete
     machine calls and executable callback selection. Add no quantifier
     keywords, and do not substitute declaration enumeration or an
     optional-returning decider for mathematical quantification.
