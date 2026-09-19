@@ -579,6 +579,8 @@ machine Parser::parse_data(
     ) {
         self.payload_type_name_start = start;
         self.payload_type_name_end = end;
+        self.type_qualified = false;
+        self.type_qualifier_payload = true;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -600,12 +602,28 @@ machine Parser::parse_data(
                 token.end,
                 true
             )
-            Token::Punctuation { punctuation: PunctuationKind::RightParen } -> retain_payload_type_reference(
+            Token::Punctuation { punctuation: PunctuationKind::RightParen } -> payload_field_close(input)
+            Token::Identifier -> type_qualifier(
+                input,
+                token.start,
+                token.end
+            )
+            _ -> expected_payload_separator_or_end(token.start, token.end)
+        }
+    }
+
+    state payload_field_close(&mut self, input: &TokenStream) {
+        transition self.type_qualified {
+            true -> retain_payload_type_reference(
+                input,
+                self.type_domain_end,
+                false
+            )
+            _ -> retain_payload_type_reference(
                 input,
                 self.payload_type_name_end,
                 false
             )
-            _ -> expected_payload_separator_or_end(token.start, token.end)
         }
     }
 
@@ -615,10 +633,64 @@ machine Parser::parse_data(
         field_end: u64 in Trapping,
         has_more: bool
     ) {
+        transition self.type_qualified {
+            true -> retain_qualified_payload_type_reference_capacity(input, field_end, has_more)
+            _ -> retain_named_payload_type_reference_capacity(input, field_end, has_more)
+        }
+    }
+
+    state retain_named_payload_type_reference_capacity(
+        &mut self,
+        input: &TokenStream,
+        field_end: u64 in Trapping,
+        has_more: bool
+    ) {
         transition self.output.type_reference_count < 1024 {
             true -> retain_payload_type_reference_bounded(input, field_end, has_more)
             _ -> type_reference_full(input)
         }
+    }
+
+    state retain_qualified_payload_type_reference_capacity(
+        &mut self,
+        input: &TokenStream,
+        field_end: u64 in Trapping,
+        has_more: bool
+    ) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_qualified_payload_type_reference_bounded(input, field_end, has_more)
+            _ -> type_reference_full(input)
+        }
+    }
+
+    state retain_qualified_payload_type_reference_bounded(
+        &mut self,
+        input: &TokenStream,
+        field_end: u64 in Trapping,
+        has_more: bool
+    ) {
+        let type_index: u64 in Trapping = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Qualified,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.payload_type_name_start, end: self.payload_type_name_end }
+                }
+            },
+            domain: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_domain_start, end: self.type_domain_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.payload_type_name_start, end: self.type_domain_end }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> retain_payload_field(input, field_end, type_index, has_more) }
     }
 
     state retain_payload_type_reference_bounded(
@@ -637,6 +709,12 @@ machine Parser::parse_data(
                         start: self.payload_type_name_start,
                         end: self.payload_type_name_end
                     }
+                }
+            },
+            domain: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: 0, end: 0 }
                 }
             },
             source_span: SourceSpan {
@@ -919,6 +997,8 @@ machine Parser::parse_data(
     ) {
         self.type_name_start = start;
         self.type_name_end = end;
+        self.type_qualified = false;
+        self.type_qualifier_payload = false;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -939,6 +1019,11 @@ machine Parser::parse_data(
                 input,
                 token.end
             )
+            Token::Identifier -> type_qualifier(
+                input,
+                token.start,
+                token.end
+            )
             _ -> expected_field_end(
                 token.start,
                 token.end
@@ -946,11 +1031,195 @@ machine Parser::parse_data(
         }
     }
 
+    // `in` is a contextual word: the qualifier marker arrives as an ordinary
+    // identifier, and only its decoded bytes distinguish it from a stray name
+    // where a separator belongs. `type_qualifier_payload` selects which field
+    // path returns here, since both share the one qualifier grammar.
+    state type_qualifier(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.type_qualified {
+            true -> type_qualifier_reject(input, start, end)
+            _ -> type_qualifier_word(input, start, end)
+        }
+    }
+
+    state type_qualifier_word(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        let token: Token = input.tokens[self.current_index];
+        transition token.decoded_length == 2 {
+            true -> type_qualifier_bounds(
+                input,
+                token.decoded_start as u64,
+                start,
+                end
+            )
+            _ -> type_qualifier_reject(input, start, end)
+        }
+    }
+
+    state type_qualifier_bounds(
+        &mut self,
+        input: &TokenStream,
+        decoded_start: u64,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition decoded_start < 65535 {
+            true -> type_qualifier_bytes(input, decoded_start, start, end)
+            _ -> type_qualifier_reject(input, start, end)
+        }
+    }
+
+    state type_qualifier_bytes(
+        &mut self,
+        input: &TokenStream,
+        index: u64 [0..=65534],
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition input.decoded[index] == 105 && input.decoded[index + 1] == 110 {
+            true -> type_domain_start(input)
+            _ -> type_qualifier_reject(input, start, end)
+        }
+    }
+
+    state type_qualifier_reject(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.type_qualifier_payload {
+            true -> expected_payload_separator_or_end(start, end)
+            _ -> expected_field_end(start, end)
+        }
+    }
+
+    state type_domain_start(&mut self, input: &TokenStream) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> type_domain(input)
+            _ -> expected_type_domain_at_end()
+        }
+    }
+
+    state type_domain(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> type_domain_loaded(input) }
+    }
+
+    state type_domain_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_type_domain(input, token.start, token.end)
+            Token::Keyword { keyword } -> type_domain_keyword(
+                input,
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_type_domain(token.start, token.end)
+        }
+    }
+
+    state type_domain_keyword(
+        &mut self,
+        input: &TokenStream,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_type_domain(start, end)
+            KeywordKind::SelfValue -> expected_type_domain(start, end)
+            _ -> retain_type_domain(input, start, end)
+        }
+    }
+
+    state retain_type_domain(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.type_domain_start = start;
+        self.type_domain_end = end;
+        self.type_qualified = true;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> type_qualified_end(input)
+            _ -> type_qualified_end_at_end(input)
+        }
+    }
+
+    state type_qualified_end(&mut self, input: &TokenStream) {
+        transition self.type_qualifier_payload {
+            true -> payload_field_end(input)
+            _ -> field_end(input)
+        }
+    }
+
+    state type_qualified_end_at_end(&mut self, input: &TokenStream) {
+        transition self.type_qualifier_payload {
+            true -> expected_payload_separator_or_end_at_end()
+            _ -> expected_field_end_at_end()
+        }
+    }
+
     state retain_type_reference(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
+        transition self.type_qualified {
+            true -> retain_qualified_type_reference_capacity(input, field_end)
+            _ -> retain_named_type_reference_capacity(input, field_end)
+        }
+    }
+
+    state retain_named_type_reference_capacity(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
         transition self.output.type_reference_count < 1024 {
             true -> retain_type_reference_bounded(input, field_end)
             _ -> type_reference_full(input)
         }
+    }
+
+    state retain_qualified_type_reference_capacity(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_qualified_type_reference_bounded(input, field_end)
+            _ -> type_reference_full(input)
+        }
+    }
+
+    state retain_qualified_type_reference_bounded(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
+        let type_index: u64 in Trapping = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Qualified,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_name_start, end: self.type_name_end }
+                }
+            },
+            domain: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_domain_start, end: self.type_domain_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.type_name_start, end: self.type_domain_end }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> retain_field(input, field_end, type_index) }
     }
 
     state retain_type_reference_bounded(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
@@ -961,6 +1230,12 @@ machine Parser::parse_data(
                 source_span: SourceSpan {
                     source: self.source,
                     span: Span { start: self.type_name_start, end: self.type_name_end }
+                }
+            },
+            domain: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: 0, end: 0 }
                 }
             },
             source_span: SourceSpan {
@@ -1269,6 +1544,14 @@ machine Parser::parse_data(
 
     state expected_field_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
         self.output.reject(ParseDiagnosticCode::ExpectedDataFieldEnd, self.source, start, end);
+    }
+
+    state expected_type_domain_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedTypeQualifierDomain, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_type_domain(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedTypeQualifierDomain, self.source, start, end);
     }
 
     state retained_capacity_lost(&mut self) {
