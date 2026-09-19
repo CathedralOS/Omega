@@ -275,12 +275,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   first `read_line(&mut self.line[0..0])` call (macOS ARM64 native probe at
   `d5e62f683d`: `statement sequence: call: call operation`, state 0, statement 4).
   `execution/unit/calls/structural_arguments.rs` only admits byte subslices for
-  checked Unit-returning callees; value-returning boundary calls need that
-  ordinary view/borrow transport and independent lowering checks under
-  **STATE-LOCAL-VALUE-FRONTIER**. Preserve zero-capacity non-consumption and
+  checked Unit-returning callees, and `calls/byte_subslice.rs` additionally
+  requires a shared slice parameter root without field projections. Mutable
+  field subslices need ordinary view/borrow transport and independent lowering
+  checks under **STATE-LOCAL-VALUE-FRONTIER**. Preserve zero-capacity non-consumption and
   untouched-tail/count checks; the fixed-array discard-result native test
   `fixed_array_line_reader_executes_only_until_its_first_completion` does not
   close that remaining result/subslice composition.
+
+  The two-read echo `text/runtime_stdin_line_buffering_exit` first needs
+  `block` on both `echo_line` calls (native test at `df8954126a`, macOS ARM64).
+  Its intrinsic-service migration also needs borrowed `Service<Console>`
+  parameters through `write_prefix` and its state edges. The declaration
+  validator, Unit signatures/forwarding, lowered state admission and selected
+  `service_custody/parameters.rs` still fence that route; several also require
+  the retired authored `Bound` qualification. Extend ordinary borrow/state
+  transport with exact binding receipts, not the single-hop owned-Service
+  recognizer, and preserve the helper and two-read algorithm.
 
   Route verified failures to existing owners:
 
@@ -506,16 +517,23 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   Entry/provider/schema queries, opaque descriptions, delegated entry binding,
   and exact-symbol final admission exist. Remaining:
 
-  - Landed at `8a01155ab3`: a qualified `alias::rest` path resolves `alias`
-    through the query occurrence package's retained product-scope roster
-    (the checkpoint stamps `PackageCompilationInputs::dependencies()` onto
-    `SourceMap`; `product_{entries,providers,schemas}` select a `pub`
-    declaration in the exact target package), while a bare leaf keeps the
-    same-package scan and a build-scope or unrecognized first segment
-    authorizes nothing. Still open inside this bullet: exact expected
-    slot/requirement/application checking beyond the entry slot match, and
-    visibility across description use and final admission; source names and
-    evaluator table indices are not durable selection authority.
+  - Finish exact expected slot/requirement/application checking beyond the
+    entry slot match, and visibility across description use and final admission.
+    Qualified queries select public declarations in the authorized package's
+    product checked instance, never its build copy; bare queries retain the
+    same-package product frontier. Source names and evaluator table indices
+    are not durable selection authority.
+    Boundary-provider replay remains a separate dual-context dependency:
+    changing `trait Pick` to `boundary trait Pick` in
+    `build_target_activation/foreign_helper_product_queries.rs`'s
+    `dual_context_product_query` reproduces duplicate canonical boundary-trait
+    and nominal-provider provenance errors after successful query evaluation
+    (`df8954126a` with the query-scope correction, macOS ARM64).
+    `provider-planning/src/provider_planning/provenance_replay/` must retain
+    checked-instance identity rather than matching the two schemas by name.
+    Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
+    eventual acceptance is successful compilation with the boundary trait,
+    not weakening duplicate-schema rejection.
   - Admit computed description operands and Build receivers through ordinary
     checked call-result authority, effect traversal, and loan accounting.
     `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`

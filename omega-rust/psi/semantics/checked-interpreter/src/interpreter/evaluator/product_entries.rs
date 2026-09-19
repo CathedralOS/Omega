@@ -183,8 +183,8 @@ impl<'program> Evaluator<'program> {
         // query occurrence's own authorized scope. A qualified `alias::rest`
         // spelling resolves `alias` through the occurrence package's
         // retained product dependencies and selects a `pub` declaration in
-        // that exact target package -- a helper borrowing Build keeps its
-        // operational capability but cannot enumerate the caller's product
+        // that exact target package's product checked instance. A helper keeps
+        // its operational capability but cannot enumerate the caller's product
         // namespace, and a build-scope alias authorizes nothing. A bare leaf
         // keeps the same-package declaration scan; a first segment that is
         // no product alias leaves only the occurrence's own package path
@@ -209,7 +209,10 @@ impl<'program> Evaluator<'program> {
                                 .display_path(machine.symbol, "::")
                                 .as_str()
                                 == rest)
-                        && self.program.symbols.symbol_package_identity(machine.symbol)
+                        && self
+                            .program
+                            .symbols
+                            .symbol_product_package_identity(machine.symbol)
                             == Some(target)
                 })
                 .collect::<Vec<_>>(),
