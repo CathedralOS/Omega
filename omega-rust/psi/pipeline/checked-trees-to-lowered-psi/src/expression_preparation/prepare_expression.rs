@@ -332,21 +332,25 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             else {
                 return unsupported("wrapping conversion requires fixed integer carriers");
             };
+            if source_type == target_type {
+                return Ok(operand);
+            }
+            // A widening carrier already contains every source value, so the
+            // modular image is the widened operand itself; this holds for
+            // signed sources and signed targets without a signed modular
+            // operator.
+            if source_type.can_widen_to(target_type) {
+                return Ok(LoweredDirectExpression::IntegerWiden {
+                    scalar_type: target,
+                    operand: Box::new(operand),
+                });
+            }
             if source_type.sign() != IntegerSign::Unsigned
                 || target_type.sign() != IntegerSign::Unsigned
             {
                 return unsupported(
                     "signed wrapping conversion requires runtime policy realization",
                 );
-            }
-            if source_type == target_type {
-                return Ok(operand);
-            }
-            if source_type.can_widen_to(target_type) {
-                return Ok(LoweredDirectExpression::IntegerWiden {
-                    scalar_type: target,
-                    operand: Box::new(operand),
-                });
             }
             if target_type.bits() >= source_type.bits() {
                 return unsupported("wrapping conversion requires an unsigned narrowing carrier");
