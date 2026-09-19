@@ -223,6 +223,23 @@ a positive value. This checks source; it does not emit or run a native program.
 No debug dumps are generated. Add `--timings` for command-stage durations and
 total elapsed time on stderr; no timing file is written.
 
+To restrict the root build's readable inputs, pass an explicit inventory
+(same syntax in PowerShell and a POSIX shell):
+
+```text
+omega --build-input build.omg --build-input main.omg --build-input templates --optional-build-input local.cfg main.omg
+```
+
+Paths are exact UTF-8 `/`-separated names relative to the root source directory,
+not host paths. A directory includes its subtree. Include every consumed root
+source file; missing required entries, duplicate or nested declarations reject.
+Optional missing entries stay absent. Package preparation captures the editable
+project without changing its permissions; dependencies retain their own inputs.
+The options apply to compilation and `--check`, not `run`, package update, or
+audit. Without them, existing package-inventory behavior is unchanged. They grant
+no extra host access and do not publish companion outputs. A changed build policy
+still needs ordinary package acceptance.
+
 For a full application, start with the [CLI example](samples/cli/basics/cli_mvp/README.md).
 Its instructions distinguish the intended result from the current compiler
 limitations.

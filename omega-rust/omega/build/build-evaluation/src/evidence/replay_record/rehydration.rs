@@ -1006,6 +1006,7 @@ fn rehydrate_native_query_operation_shape(
 
 pub(crate) struct DecodedReplay<'a> {
     pub(crate) canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    pub(crate) captured_source_inventory: Option<crate::BuildCapturedSourceInventory>,
     pub(crate) replay_activation: BuildReplayActivation,
     included_sources: Vec<ShapeIncludedSource<'a>>,
     shapes: Vec<AttemptShape<'a>>,
@@ -1042,6 +1043,30 @@ pub(crate) fn decode_shapes(
     }
     let canonical_source_metadata_identity =
         decode_canonical_source_metadata_identity(&mut decoder)?;
+    let captured_source_inventory = match decoder.byte()? {
+        0 => None,
+        1 => {
+            let source_metadata_identity =
+                BuildCanonicalSourceMetadataIdentity::new(decoder.u32()?, decoder.array_32()?);
+            let entry_count = decoder.u64()?;
+            let file_bytes = decoder.u64()?;
+            if canonical_source_metadata_identity.is_none() || entry_count == 0 {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "captured source inventory requires source provenance and a root entry",
+                ));
+            }
+            Some(crate::BuildCapturedSourceInventory {
+                source_metadata_identity,
+                entry_count,
+                file_bytes,
+            })
+        }
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "invalid captured source inventory tag",
+            ));
+        }
+    };
     let replay_activation = decode_replay_activation(&mut decoder)?;
     let included_source_count = decoder.count()?;
     if included_source_count > checked_interpreter::MAX_INCLUDED_BUILD_SOURCES {
@@ -1081,6 +1106,7 @@ pub(crate) fn decode_shapes(
     validate_included_source_shapes(&shapes, &included_sources)?;
     Ok(DecodedReplay {
         canonical_source_metadata_identity,
+        captured_source_inventory,
         replay_activation,
         included_sources,
         shapes,

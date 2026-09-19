@@ -50,6 +50,7 @@ pub struct BuildMachineFilesystemScope {
     sponsor: Option<BuildMachineFilesystemSponsor>,
     replay: Option<checked_interpreter::FilesystemReplay>,
     replay_activation: Option<BuildReplayActivation>,
+    replayed_source_inventory: Option<BuildCapturedSourceInventory>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
     build_execution_profile: Option<target::TargetProfile>,
@@ -101,6 +102,7 @@ impl BuildMachineFilesystemScope {
             sponsor,
             replay: None,
             replay_activation: None,
+            replayed_source_inventory: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -126,6 +128,7 @@ impl BuildMachineFilesystemScope {
             sponsor,
             replay: None,
             replay_activation: None,
+            replayed_source_inventory: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -203,6 +206,38 @@ impl BuildMachineFilesystemScope {
             }
         } else {
             self.canonical_source_metadata = Some(input.canonical_source_metadata().clone());
+        }
+        self.bind_captured_source_input(input, snapshot_dir)
+    }
+
+    /// Keep full package provenance while narrowing the build's read grant.
+    /// The complete capture must match resolver custody, and the selected
+    /// entries must match its exact bytes, not just its file lengths.
+    fn with_scoped_package_source_input(
+        self,
+        input: CapturedBuildSourceInput,
+        complete: &CapturedBuildSourceInput,
+        snapshot_dir: PathBuf,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if self.canonical_source_metadata.as_ref() != Some(complete.canonical_source_metadata())
+            || !input.is_subset_of(complete)
+        {
+            return Err(vec![Diagnostic::error(
+                "scoped build source input does not match the validated complete package capture",
+            )]);
+        }
+        self.bind_captured_source_input(input, snapshot_dir)
+    }
+
+    fn bind_captured_source_input(
+        mut self,
+        input: CapturedBuildSourceInput,
+        snapshot_dir: PathBuf,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if self.replay.is_some() {
+            return Err(vec![Diagnostic::error(
+                "filesystem replay evidence already fixes this build occurrence; a captured source snapshot applies only to a primary execution",
+            )]);
         }
         if snapshot_dir == self.build_dir
             || snapshot_dir.starts_with(&self.build_dir)
@@ -330,7 +365,14 @@ impl BuildMachineFilesystemScope {
             .map(|input| BuildCapturedSourceInventory {
                 entry_count: input.entry_count(),
                 file_bytes: input.file_bytes(),
+                source_metadata_identity: BuildCanonicalSourceMetadataIdentity::new(
+                    input.canonical_source_metadata().policy_version(),
+                    *input
+                        .canonical_source_metadata()
+                        .source_content_commitment(),
+                ),
             })
+            .or(self.replayed_source_inventory)
     }
 
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
@@ -338,15 +380,20 @@ impl BuildMachineFilesystemScope {
             return BuildMachineFilesystemAccess::ReplayFilesystem(replay.clone());
         }
         // A captured input switches the Source grant to this occurrence's
-        // fresh private materialization; the same canonical metadata index
-        // still narrows every operation to captured membership and kind.
+        // fresh private materialization. Its selected index narrows access;
+        // the full package index remains separate provenance for replay.
         let read_root = self
             .snapshot_dir
             .clone()
             .unwrap_or_else(|| self.source_root.clone());
         let mut source_root =
             BuildMachineFilesystemGrantRoot::new(BUILD_SOURCE_ROOT_IDENTITY, read_root);
-        if let Some(metadata) = &self.canonical_source_metadata {
+        if let Some(metadata) = self
+            .captured_source_input
+            .as_ref()
+            .map(CapturedBuildSourceInput::canonical_source_metadata)
+            .or(self.canonical_source_metadata.as_ref())
+        {
             source_root = source_root.with_canonical_metadata(metadata.clone());
         }
         let grants = BuildMachineFilesystemGrants {
@@ -824,6 +871,48 @@ mod tests {
         assert!(diagnostics[0].to_string().contains("source root"));
 
         fs::remove_dir_all(&fixture).expect("remove fixture");
+    }
+
+    #[test]
+    fn scoped_package_capture_keeps_provenance_but_grants_only_selected_members() {
+        let complete = captured_input();
+        let selected_metadata = CanonicalFilesystemMetadataIndex::version_1(
+            [0x17; 32],
+            [CanonicalFilesystemMetadataRow::new(
+                Vec::new(),
+                CanonicalFilesystemMetadataRowKind::Directory,
+            )],
+        )
+        .unwrap();
+        let selected =
+            CapturedBuildSourceInput::from_capture_rows(selected_metadata.clone(), []).unwrap();
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            PathBuf::from("source"),
+            PathBuf::from("output"),
+            None,
+            Some(complete.canonical_source_metadata().clone()),
+        )
+        .with_scoped_package_source_input(selected, &complete, PathBuf::from("snapshot"))
+        .unwrap();
+        assert_eq!(
+            scope.canonical_source_metadata.as_ref(),
+            Some(complete.canonical_source_metadata())
+        );
+        assert_eq!(
+            scope
+                .captured_source_inventory()
+                .unwrap()
+                .source_metadata_identity()
+                .source_content_commitment(),
+            [0x17; 32]
+        );
+        let BuildMachineFilesystemAccess::RealScoped(grants) = scope.filesystem_access() else {
+            panic!("captured scope must retain scoped reads")
+        };
+        assert_eq!(
+            grants.read_roots[0].canonical_metadata(),
+            Some(&selected_metadata)
+        );
     }
 
     #[test]

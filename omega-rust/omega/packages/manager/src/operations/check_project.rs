@@ -19,6 +19,7 @@ pub struct PreparedLocalProjectCheckRequest {
     target_profile: TargetProfile,
 
     accepted_trust_admissions: Vec<TrustAdmission>,
+    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
 }
 
 impl PreparedLocalProjectCheckRequest {
@@ -33,11 +34,19 @@ impl PreparedLocalProjectCheckRequest {
             target_profile,
 
             accepted_trust_admissions: Vec::new(),
+            build_snapshot: None,
         }
     }
 
     pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
         self.accepted_trust_admissions = admissions;
+        self
+    }
+
+    /// Select the root build's input inventory and output obligations. Dependency
+    /// builds retain their independently captured package inventories.
+    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+        self.build_snapshot = Some(snapshot);
         self
     }
 }
@@ -90,6 +99,7 @@ pub fn check_prepared_local_project_for_inspection(
         &source_closure.for_exact_target(target_profile),
         build_dir,
         &entry_path,
+        None,
     )
 }
 
@@ -105,12 +115,14 @@ pub fn check_prepared_local_project(
         target_profile,
 
         accepted_trust_admissions,
+        build_snapshot,
     } = request;
     let (entry_path, source_closure, _) = prepared.into_review_parts();
     let checked = compile_resolved_package_candidate_for_check(
         &source_closure.for_exact_target(target_profile),
         &build_dir,
         &entry_path,
+        build_snapshot.as_ref(),
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;
     let options = CompileOptions {

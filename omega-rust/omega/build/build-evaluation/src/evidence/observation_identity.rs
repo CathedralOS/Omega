@@ -78,6 +78,17 @@ impl BuildObservationSummary {
                 digest.update([1]);
                 digest.update(inventory.entry_count().to_le_bytes());
                 digest.update(inventory.file_bytes().to_le_bytes());
+                digest.update(
+                    inventory
+                        .source_metadata_identity()
+                        .policy_version()
+                        .to_le_bytes(),
+                );
+                digest.update(
+                    inventory
+                        .source_metadata_identity()
+                        .source_content_commitment(),
+                );
             }
         }
         let replay_verdict = self.filesystem_replay_verdict();
@@ -483,9 +494,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0x68, 0x6e, 0x24, 0xc5, 0xef, 0xbb, 0xbe, 0x7e, 0x6d, 0x44, 0x18, 0x67, 0x09, 0xd3,
-                0x6b, 0x2b, 0x9c, 0xc7, 0x68, 0xa5, 0xb1, 0xec, 0x61, 0xba, 0x07, 0xf0, 0xa1, 0x3a,
-                0xe0, 0x60, 0x71, 0x02,
+                0xe1, 0xaf, 0x90, 0xe5, 0x8b, 0x3b, 0x83, 0x4d, 0x1e, 0xd7, 0x58, 0x7f, 0x39, 0x51,
+                0x3c, 0x9b, 0x6e, 0x82, 0x8f, 0x5f, 0x79, 0xe9, 0x49, 0x56, 0x75, 0x2b, 0x04, 0x6d,
+                0x35, 0x51, 0x81, 0x6d,
             ],
             "the current package build-observation byte contract remains stable"
         );
@@ -525,8 +536,17 @@ mod tests {
         changed.captured_source_inventory = Some(BuildCapturedSourceInventory {
             entry_count: 3,
             file_bytes: 7,
+            source_metadata_identity: crate::BuildCanonicalSourceMetadataIdentity::new(1, [1; 32]),
         });
         assert_ne!(baseline, changed.identity());
+        let first_selection = changed.identity();
+        changed
+            .captured_source_inventory
+            .as_mut()
+            .unwrap()
+            .source_metadata_identity =
+            crate::BuildCanonicalSourceMetadataIdentity::new(1, [2; 32]);
+        assert_ne!(first_selection, changed.identity());
 
         let mut changed = empty_summary();
         changed.replay_activation = BuildReplayActivation {

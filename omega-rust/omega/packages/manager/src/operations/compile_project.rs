@@ -36,6 +36,7 @@ pub struct PreparedLocalProjectNativeRequest {
 
     accepted_trust_admissions: Vec<TrustAdmission>,
     optimization_rollback: OptimizationRollback,
+    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
 }
@@ -53,6 +54,7 @@ impl PreparedLocalProjectNativeRequest {
 
             accepted_trust_admissions: Vec::new(),
             optimization_rollback: OptimizationRollback::default(),
+            build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
         }
@@ -65,6 +67,13 @@ impl PreparedLocalProjectNativeRequest {
 
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
         self.optimization_rollback = rollback;
+        self
+    }
+
+    /// Select the root build's input inventory and output obligations. Dependency
+    /// builds retain their independently captured package inventories.
+    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+        self.build_snapshot = Some(snapshot);
         self
     }
 
@@ -148,6 +157,7 @@ pub fn compile_prepared_local_project_for_native<Observation>(
 
         accepted_trust_admissions,
         optimization_rollback,
+        build_snapshot,
         terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
     } = request;
@@ -157,6 +167,7 @@ pub fn compile_prepared_local_project_for_native<Observation>(
         &target_closure,
         &build_dir,
         SemanticBindingReview::Discover,
+        build_snapshot.as_ref(),
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
     let evidence = accept_ordinary_closure_evidence(

@@ -16,6 +16,7 @@ fn compilation_defaults_online_and_preserves_offline_in_either_order() {
             assert_eq!(parsed.offline, offline_position.is_some());
             assert_eq!(parsed.check_only, check);
             assert!(!parsed.timings);
+            assert!(parsed.build_inputs.is_none());
             assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
         }
     }
@@ -73,13 +74,121 @@ fn compilation_rejects_duplicate_offline_and_missing_root() {
 
 #[test]
 fn compilation_never_consumes_offline_as_an_option_value() {
-    for option in ["--build-dir", "--target", "--disable-optimization"] {
+    for option in [
+        "--build-dir",
+        "--target",
+        "--disable-optimization",
+        "--build-input",
+        "--optional-build-input",
+    ] {
         let result = parse_arguments(
             [option, "--offline", "main.omg"]
                 .into_iter()
                 .map(OsString::from),
         );
         assert!(matches!(result, Err(error) if error.contains("requires")));
+    }
+}
+
+#[test]
+fn compilation_collects_explicit_required_and_optional_build_inputs() {
+    use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+    let parsed = parse_arguments(
+        [
+            "--build-input",
+            "main.omg",
+            "project/main.omg",
+            "--optional-build-input",
+            "absent.txt",
+            "--build-input",
+            "templates",
+            "--build-input",
+            "build.omg",
+        ]
+        .into_iter()
+        .map(OsString::from),
+    )
+    .unwrap();
+    let entries = parsed
+        .build_inputs
+        .as_ref()
+        .unwrap()
+        .entries()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        entries,
+        vec![
+            (b"absent.txt".as_slice(), Optional),
+            (b"build.omg".as_slice(), Required),
+            (b"main.omg".as_slice(), Required),
+            (b"templates".as_slice(), Required),
+        ]
+    );
+    assert_eq!(parsed.root_path, PathBuf::from("project/main.omg"));
+}
+
+#[test]
+fn compilation_rejects_invalid_and_overlapping_build_input_paths() {
+    for path in [
+        "",
+        ".",
+        "..",
+        "../secret",
+        "/absolute",
+        "C:/drive",
+        "a\\b",
+        "a//b",
+        "a/./b",
+        "a\0b",
+    ] {
+        let result = parse_arguments(
+            ["main.omg", "--build-input", path]
+                .into_iter()
+                .map(OsString::from),
+        );
+        assert!(
+            matches!(result, Err(error) if error.contains("canonical relative path")),
+            "{path:?}"
+        );
+    }
+    for (first, second, expected) in [
+        ("a", "a", "declared twice"),
+        ("a", "a/b", "nests inside"),
+        ("a/b", "a", "nests inside"),
+    ] {
+        let result = parse_arguments(
+            [
+                "main.omg",
+                "--build-input",
+                first,
+                "--optional-build-input",
+                second,
+            ]
+            .into_iter()
+            .map(OsString::from),
+        );
+        assert!(matches!(result, Err(error) if error.contains(expected)));
+    }
+    for option in ["--build-input", "--optional-build-input"] {
+        let result = parse_arguments(["main.omg", option].into_iter().map(OsString::from));
+        assert!(matches!(result, Err(error) if error.contains("requires")));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn compilation_rejects_non_utf8_build_inputs() {
+    use std::os::unix::ffi::OsStringExt;
+    for option in ["--build-input", "--optional-build-input"] {
+        let result = parse_arguments(
+            [
+                OsString::from("main.omg"),
+                OsString::from(option),
+                OsString::from_vec(vec![0xff]),
+            ]
+            .into_iter(),
+        );
+        assert!(matches!(result, Err(error) if error.contains("UTF-8")));
     }
 }
 

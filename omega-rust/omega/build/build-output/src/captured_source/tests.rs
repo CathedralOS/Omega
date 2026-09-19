@@ -111,6 +111,37 @@ fn input_with_template() -> CapturedBuildSourceInput {
 }
 
 #[test]
+fn capture_subset_compares_exact_bytes_not_only_paths_and_lengths() {
+    let complete = input_with_template();
+    let subset = |bytes: &[u8]| {
+        CapturedBuildSourceInput::from_capture_rows(
+            index(&[
+                (b"", CanonicalFilesystemMetadataRowKind::Directory),
+                (b"templates", CanonicalFilesystemMetadataRowKind::Directory),
+                (
+                    b"templates/banner.tmpl",
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 11,
+                    },
+                ),
+            ]),
+            [
+                (b"templates".to_vec(), CapturedSourceEntry::Directory),
+                (
+                    b"templates/banner.tmpl".to_vec(),
+                    CapturedSourceEntry::file(bytes.to_vec(), false),
+                ),
+            ],
+        )
+        .unwrap()
+    };
+    assert!(subset(b"HELLO WORLD").is_subset_of(&complete));
+    assert!(!subset(b"OTHER BYTES").is_subset_of(&complete));
+    assert!(!complete.is_subset_of(&subset(b"HELLO WORLD")));
+}
+
+#[test]
 fn captured_inventory_lists_entries_in_deterministic_canonical_order() {
     let input = input_with_template();
     assert_eq!(input.entry_count(), 6, "inventory includes the root row");

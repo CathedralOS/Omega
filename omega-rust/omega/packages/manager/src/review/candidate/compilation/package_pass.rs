@@ -118,6 +118,7 @@ pub(super) fn compile_dependency_closure(
     evaluation_sponsor: &BuildEvaluationSponsor,
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
     retained_root_entry: Option<&Path>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
@@ -253,17 +254,24 @@ pub(super) fn compile_dependency_closure(
         // root: build evaluation captures the inventory from the same
         // canonical metadata index the binding validated above, materializes
         // a fresh private Source root for this occurrence, and records the
-        // inventory extent in the review's build observation. The invocation
-        // roster stays empty on this route. The outputs a package build must
-        // complete are declared by the build itself through
+        // inventory extent in the review's build observation. Only the root
+        // may receive a caller-selected inventory and fixed output roster;
+        // dependency builds retain their own complete inventories. Otherwise
+        // the outputs a package build must complete are declared through
         // `builder.output.require`, registered during evaluation, and settled
         // against sealed staged custody before the result publishes; package
         // review has no fixed-output requirement of its own, and a roster
         // inferred here from the declaration would be a second roster source
         // that scoped execution forbids (a conditional branch omitting
         // `require` must not be reinterpreted as having checked the artifact).
-        let build_snapshot =
-            build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
+        let build_snapshot = if &key == closure.graph().root() {
+            root_build_snapshot.cloned()
+        } else {
+            None
+        }
+        .unwrap_or_else(|| {
+            build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
+        });
         let request = CheckedCompileRequest {
             build_execution_profile: execution_profile,
             build_dir: Some(

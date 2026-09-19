@@ -606,11 +606,15 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     occurrences. `BuildSnapshotRequest` already carries scoped capture and
     occurrence-keyed input maps; ordinary `CompileRequest::with_build_snapshot`
     and per-target configurations now carry that request through production.
-    `build_snapshot_outputs::ordinary_compilation_reads_only_the_requested_standalone_inventory`
-    witnesses a declared template read and denied undeclared sibling through
-    native publication and macOS ARM64 exit 0. The target-local control keeps
-    missing source/output failures separate from a successful sibling.
-    Named dependency-input delivery and CLI caller-inventory authoring remain;
+    CLI `--build-input` / `--optional-build-input` supply a root inventory
+    through both package review passes; dependencies retain their own inputs.
+    `omega/tests/build_input_inventory.rs` witnesses narrowed template reads,
+    denied undeclared siblings, missing-input rejection, unchanged acceptance,
+    and native publication with macOS ARM64 exit 0. Full package provenance
+    and selected-inventory identity stay distinct through review-only replay.
+    Named dependency-input delivery and inventory-aware package policy review
+    remain (a selection that changes risk-bearing policy still requires
+    acceptance; ordinary update/audit do not yet take an inventory request);
     do not capture the whole working directory, widen another occurrence's
     inputs, or substitute the live-host filesystem. Snapshot intent supplies
     no output sponsorship or committed companion-output set.

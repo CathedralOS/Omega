@@ -240,6 +240,16 @@ impl CapturedBuildSourceInput {
         self.file_bytes
     }
 
+    /// Whether every retained entry is byte-for-byte identical to the same
+    /// entry of another captured inventory. Counts, lengths, and matching
+    /// metadata kinds alone cannot establish that a narrowed view came from
+    /// the package's authenticated source capture.
+    pub fn is_subset_of(&self, complete: &Self) -> bool {
+        self.entries
+            .iter()
+            .all(|(path, entry)| complete.entries.get(path) == Some(entry))
+    }
+
     /// List every captured non-root entry in canonical unsigned-byte order.
     /// The listing is deterministic and independent of host directory order.
     pub fn entries(&self) -> impl ExactSizeIterator<Item = CapturedSourceEntryRef<'_>> {

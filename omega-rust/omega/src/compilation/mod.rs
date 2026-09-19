@@ -29,6 +29,8 @@ pub struct CompileProjectRequest {
     /// Reject standalone source after package preparation and transaction recovery.
     pub require_package_project: bool,
     pub optimization_rollback: OptimizationRollback,
+    /// Caller-selected root inputs and required outputs, relative to the source root.
+    pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
 }
 
 impl CompileProjectRequest {
@@ -42,6 +44,7 @@ impl CompileProjectRequest {
             accept_admissions: false,
             require_package_project: false,
             optimization_rollback: OptimizationRollback::default(),
+            build_snapshot: None,
         }
     }
 }
@@ -104,6 +107,7 @@ pub fn compile_project(
         accept_admissions,
         require_package_project,
         optimization_rollback,
+        build_snapshot,
     } = request;
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -173,6 +177,10 @@ pub fn compile_project(
                     )
                     .with_accepted_trust_admissions(admissions)
                     .with_optimization_rollback(optimization_rollback);
+                    let request = match build_snapshot {
+                        Some(snapshot) => request.with_build_snapshot(snapshot),
+                        None => request,
+                    };
                     packages::compile_prepared_local_project_for_native(request, |_| ())
                         .map(|(report, ())| report)
                         .map_err(CompileProjectError::PackageNative)?
@@ -196,6 +204,10 @@ pub fn compile_project(
                         prepared, &build_dir, target,
                     )
                     .with_accepted_trust_admissions(admissions);
+                    let request = match build_snapshot {
+                        Some(snapshot) => request.with_build_snapshot(snapshot),
+                        None => request,
+                    };
                     packages::check_prepared_local_project(request)
                         .map_err(CompileProjectError::PackageCheck)?
                 }
@@ -204,14 +216,17 @@ pub fn compile_project(
                         ProjectProduct::Check => RequestedCompileProduct::Check,
                         ProjectProduct::NativeArtifact => RequestedCompileProduct::NativeArtifact,
                     };
-                    compile(
-                        CompileRequest::new(options)
-                            .with_requested_product(product)
-                            .with_optimization_rollback(optimization_rollback)
-                            .with_accepted_trust_admissions(admissions),
-                    )
-                    .and_then(compiler::CompileOutcomes::into_single_report)
-                    .map_err(CompileProjectError::Diagnostics)?
+                    let request = CompileRequest::new(options)
+                        .with_requested_product(product)
+                        .with_optimization_rollback(optimization_rollback)
+                        .with_accepted_trust_admissions(admissions);
+                    let request = match build_snapshot {
+                        Some(snapshot) => request.with_build_snapshot(snapshot),
+                        None => request,
+                    };
+                    compile(request)
+                        .and_then(compiler::CompileOutcomes::into_single_report)
+                        .map_err(CompileProjectError::Diagnostics)?
                 }
             })
         },

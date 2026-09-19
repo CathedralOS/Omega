@@ -1,5 +1,6 @@
 use super::option_value;
 use compiler::OptimizationRollback;
+use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -8,6 +9,7 @@ mod tests;
 pub(crate) struct CompileArguments {
     pub(crate) accept_admissions: bool,
     pub(crate) build_dir: Option<PathBuf>,
+    pub(crate) build_inputs: Option<BuildSourceCaptureRequest>,
     pub(crate) check_only: bool,
     pub(crate) offline: bool,
     pub(crate) timings: bool,
@@ -17,7 +19,7 @@ pub(crate) struct CompileArguments {
 }
 
 pub(crate) fn usage() -> &'static str {
-    "usage: omega [--check] [--offline] [--accept-admissions] [--timings] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline."
+    "usage: omega [--check] [--offline] [--accept-admissions] [--timings] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly."
 }
 
 pub(crate) fn parse_arguments(
@@ -25,6 +27,7 @@ pub(crate) fn parse_arguments(
 ) -> Result<CompileArguments, String> {
     let mut accept_admissions = false;
     let mut build_dir = None;
+    let mut build_inputs = Vec::new();
     let mut check_only = false;
     let mut disabled_optimizations = Vec::new();
     let mut offline = false;
@@ -76,6 +79,21 @@ pub(crate) fn parse_arguments(
             continue;
         }
 
+        if argument == "--build-input" || argument == "--optional-build-input" {
+            let option = argument.to_string_lossy();
+            let path = option_value(&mut arguments)
+                .ok_or_else(|| format!("{option} requires a canonical relative path"))?
+                .into_string()
+                .map_err(|_| format!("{option} requires a UTF-8 canonical relative path"))?;
+            let obligation = if argument == "--build-input" {
+                BuildSourceCaptureObligation::Required
+            } else {
+                BuildSourceCaptureObligation::Optional
+            };
+            build_inputs.push((path.into_bytes(), obligation));
+            continue;
+        }
+
         if argument == "--disable-optimization" {
             let Some(name) = option_value(&mut arguments) else {
                 return Err("--disable-optimization requires one exact optimization name".into());
@@ -110,9 +128,15 @@ pub(crate) fn parse_arguments(
     let optimization_rollback =
         OptimizationRollback::from_exact_names(disabled_optimizations.iter().map(String::as_str))
             .map_err(|error| error.to_string())?;
+    let build_inputs = if build_inputs.is_empty() {
+        None
+    } else {
+        Some(BuildSourceCaptureRequest::new(build_inputs)?)
+    };
     Ok(CompileArguments {
         accept_admissions,
         build_dir,
+        build_inputs,
         check_only,
         offline,
         timings,
