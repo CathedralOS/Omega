@@ -3885,12 +3885,17 @@ Owners include
   rewrites the typed call to the adapter entry before lowering, so the
   Terminal module holds an ordinary in-module call and no requirement identity.
 
+  Statement position is now the same route: `_ = Owner::name(...);` settles to
+  the selected checked adapter exactly like the value-position call. The
+  rewrite journals the statement-table call, retargets its retained flow
+  occurrence by caller state, statement index, and call ordinal, keeps
+  `discards_result` intact, and restores the authored requirement statement on
+  source replay
+  (`pass/providers/checked_boundary_requirement_statement_call_exit`, with the
+  unselected fence `fail/providers/boundary_requirement_statement_call_unselected`).
+
   Remaining work:
 
-  - Statement-position calls. `plan_selected_requirement_rewrites` redirects
-    `ExpressionNode::Call` and rejects every matching `StatementNode::Call`
-    ("bind its result in a local instead"), although `FlowCallFact` gives both
-    positions one state, statement-index and call-ordinal coordinate.
   - Receiver-bearing and parameterized requirements.
     `is_directly_callable_top_level_requirement` admits no `self`, type or
     lifetime parameter, and the rewrite rejects `forward_receiver` and family
