@@ -4253,6 +4253,28 @@ Owners include
   Serial instruction tests and bounded exploration do not discharge these
   proof obligations or authorize a weaker acquire without its protocol proof.
 
+  Every `AtomicEvent` operation now retains a `reads_from` edge — the
+  pre-sequence `InitialResidency` or the observed write's operation identity —
+  encoded into operation identity like the retained ordering. Unit validation
+  replays the serial coherence axiom per block through
+  `serial_atomic_coherence_violation`: the claimed write must resolve to the
+  modification-order-latest write to the place sequenced before the observer,
+  and the load/store/RMW/swap/compare-exchange refusal cases are pinned by
+  serial-instruction tests. The admitted-ordering matrix, fence legality,
+  instruction-observed priors, and single-attempt custody were already
+  independently rechecked.
+
+  Remaining work:
+
+  - Reads-from edges resolve only within one serial sequence today; cross-block
+    observation needs `synchronizes_with`/`happens_before` reasoning, and the
+    `global_sequential_order` and fence-synchronization axioms remain
+    unchecked.
+  - Terminal Psi still emits no normalized atomic events; the producer and
+    the real concurrent-activation controls wait on TR3-TR8's execution route.
+  - Checked target realization does not exist yet; a weaker acquire remains
+    unauthorized without its protocol proof.
+
 - **BLOCKEXEC.** Implement a package-level blocking executor with bounded
   queues, moved custody, linear completion claims, suspension, and provider
   selection. Hung-worker recovery requiring termination must use process
