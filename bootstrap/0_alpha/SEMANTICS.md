@@ -26,8 +26,13 @@ A configuration is `σ = (pc, M, R, sp)` plus the two I/O byte streams:
 | `in` | input stream: a sequence of bytes (process stdin); `read` consumes its head |
 | `out`| output stream: bytes appended by `write` (process stdout) |
 
-`MEMSIZE` is an implementation parameter; the selected AlphaBootstrapV4 seeds
-use 1.75 GiB (`0x70000000`). `sp` remains initialized to `0x10000000` and the stack
+`MEMSIZE` is an implementation parameter; the selected AlphaBootstrapV5 seeds
+use 128 GiB (`0x2000000000`), obtained from the host allocator at startup
+(`VirtualAlloc` on Windows, the `mmap` syscall on macOS arm64 — the extent
+cannot live inside a PE32+ image, and no Mach-O zerofill would be smaller
+than the file it implies). The allocation arrives zeroed, so `M` is still a
+flat initially-zero array; a refused allocation traps before any tape byte is
+copied. `sp` remains initialized to `0x10000000` and the stack
 grows **down**. The added memory is above that unchanged stack origin; raising
 the memory extent does not move the stack or change any opcode transition.
 
@@ -159,7 +164,7 @@ trap merely because `sp` rises above its initial value while its next access
 remains in range.
 
 `MEMSIZE` and the tape hole are fixed execution-profile parameters rather than a
-recoverable allocation service. AlphaBootstrapV4 selects 1.75 GiB of semantic
+recoverable allocation service. AlphaBootstrapV5 selects 128 GiB of semantic
 memory and an exact 16 MiB stamped hole, including the four-byte length, for a
 16,777,212-byte raw-tape maximum. A bounds trap is an Alpha failure and must not
 be relabeled as a successful Gamma or compiler-owned resource refusal.

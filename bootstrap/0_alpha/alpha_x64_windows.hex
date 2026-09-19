@@ -9,11 +9,14 @@
 ; To "build" a program you copy this exe and memcpy the program's bytes into the hole
 ; (4-byte LE length, then the bytes), up to the hole's size.
 ; getbyte/putbyte are self-aligning native subroutines wrapping ReadFile/WriteFile.
-;   rsi=pc ptr  rdi=mem base (0x140004000)  rbx=&vregs (0x140003000)  r12=sp
+;   rsi=pc ptr  rdi=mem base (VirtualAlloc result)  rbx=&vregs (0x140003000)
+;   r12=sp  r13=MEMSIZE  r14=MEMSIZE-8 (callee-saved: survive kernel32 calls)
 ;   vregs occupy RVAs 3000..37ff; private scratch follows in the same page:
-;   stdin_h 3800, stdout_h 3808, io_byte 3810, count 3818 (memory starts at 4000).
-;   AlphaBootstrapV4: 1.75 GiB memory, unchanged stack origin 0x10000000.
-;   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000, .tape 0x70004000.
+;   stdin_h 3800, stdout_h 3808, io_byte 3810, count 3818 (no memory in image).
+;   AlphaBootstrapV5: 128 GiB memory obtained at startup (VirtualAlloc), because
+;   no PE32+ image section can express the extent; unchanged stack origin
+;   0x10000000.  Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000,
+;   .tape 0x4000.
 ; ===========================================================================
 
 ; --- DOS header ---
@@ -35,7 +38,7 @@ F0 00
 00 00
 00 10 00 00              ; SizeOfCode
 00 02 00 00              ; SizeOfInitializedData (.rdata)
-00 10 00 70              ; SizeOfUninitializedData (.data)
+00 10 00 00              ; SizeOfUninitializedData (.data — registers page only)
 00 10 00 00              ; AddressOfEntryPoint
 00 10 00 00              ; BaseOfCode
 00 00 00 40 01 00 00 00  ; ImageBase
@@ -45,7 +48,7 @@ F0 00
 00 00 00 00
 06 00 00 00
 00 00 00 00
-00 40 00 71              ; SizeOfImage = 0x71004000 (covers the .tape hole)
+00 40 00 01              ; SizeOfImage = 0x1004000 (image ends past .tape hole)
 00 02 00 00              ; SizeOfHeaders
 00 00 00 00
 03 00
@@ -59,7 +62,7 @@ F0 00
 00 00 00 00 00 00 00 00          ; dir[0]
 .rva idt 28 00 00 00             ; dir[1] import
 z80
-.rva iat 20 00 00 00             ; dir[12] IAT
+.rva iat 28 00 00 00             ; dir[12] IAT (four kernel32 thunks + null)
 z24
 
 ; --- section headers ---
@@ -80,7 +83,7 @@ z24
 00 00 00 00
 40 00 00 40
 2E 64 61 74 61 00 00 00
-00 10 00 70                      ; VirtualSize: registers page plus 1.75 GiB memory
+00 10 00 00                      ; VirtualSize: registers page only; memory is allocated
 00 30 00 00
 00 00 00 00
 00 00 00 00
@@ -89,7 +92,7 @@ z24
 80 00 00 C0
 2E 74 61 70 65 00 00 00          ; .tape — the embedded-program hole
 00 00 00 01                      ; VirtualSize  0x1000000 (16 MiB including length)
-00 40 00 70                      ; VirtualAddress 0x70004000
+00 40 00 00                      ; VirtualAddress 0x4000
 00 00 00 01                      ; SizeOfRawData 0x1000000
 00 14 00 00                      ; PointerToRawData 0x1400
 00 00 00 00 00 00 00 00
@@ -100,8 +103,17 @@ z24
 ; ===================== .text (RVA 0x1000) =====================
 48 83 EC 28                     ; sub rsp, 0x28
 48 BB 00 30 00 40 01 00 00 00   ; mov rbx, &vregs
-48 BF 00 40 00 40 01 00 00 00   ; mov rdi, mem base
 49 BC 00 00 00 10 00 00 00 00   ; mov r12, sp (256 MiB)
+; --- obtain M: VirtualAlloc(NULL, MEMSIZE, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
+;     supplies the full flat zeroed extent; a refusal is a startup trap ---
+31 C9                           ; xor ecx, ecx               (lpAddress = NULL)
+48 BA 00 00 00 00 20 00 00 00   ; movabs rdx, MEMSIZE        (0x2000000000)
+41 B8 00 30 00 00               ; mov r8d, 0x3000            (MEM_COMMIT|MEM_RESERVE)
+41 B9 04 00 00 00               ; mov r9d, 4                 (PAGE_READWRITE)
+FF 15 .rel32 iat_va             ; call VirtualAlloc
+48 85 C0                        ; test rax, rax
+0F 84 .rel32 trap               ; jz: extent unobtainable -> trap before any tape byte
+48 89 C7                        ; mov rdi, rax               (mem base)
 ; stdin_h / stdout_h
 B9 F6 FF FF FF
 FF 15 .rel32 iat_gsh
@@ -112,7 +124,7 @@ FF 15 .rel32 iat_gsh
 48 B9 08 38 00 40 01 00 00 00
 48 89 01
 ; --- loader: copy the embedded tape (the .tape hole) into VM memory ---
-48 B8 00 40 00 B0 01 00 00 00   ; rax = &.tape  (ImageBase + 0x70004000)
+48 B8 00 40 00 40 01 00 00 00   ; rax = &.tape  (ImageBase + 0x4000)
 44 8B 30                        ; mov r14d, [rax]   (tape length, 4-byte LE)
 41 81 FE FC FF FF 00            ; cmp r14d, 0x00fffffc (hole limit < MEMSIZE)
 0F 87 .rel32 trap               ; ja: reject before copying any tape bytes
@@ -131,12 +143,14 @@ load_loop:
 EB .rel8 load_loop
 load_done:
 48 89 FE                        ; rsi = rdi (pc = 0)
+49 BD 00 00 00 00 20 00 00 00   ; movabs r13, MEMSIZE        (0x2000000000)
+49 BE F8 FF FF FF 1F 00 00 00   ; movabs r14, MEMSIZE-8      (0x1FFFFFFF8)
 
 ; --- fetch + dispatch ---
 next:
 48 89 F2                        ; mov rdx, rsi
 48 29 FA                        ; sub rdx, rdi: recover the unsigned pc offset
-48 81 FA 00 00 00 70            ; cmp rdx, MEMSIZE (also rejects wrapped targets)
+4C 39 EA                        ; cmp rdx, r13 (MEMSIZE; also rejects wrapped targets)
 0F 83 .rel32 trap               ; jae: opcode must be in memory
 0F B6 06
 83 F8 14                        ; cmp eax, 0x14
@@ -144,7 +158,7 @@ next:
 4C 8D 05 .rel32 widths          ; lea r8, [rip+widths]
 41 0F B6 0C 00                  ; movzx ecx, byte [r8+rax]
 48 01 CA                        ; add rdx, rcx: offset + full width cannot wrap
-48 81 FA 00 00 00 70            ; cmp rdx, MEMSIZE
+4C 39 EA                        ; cmp rdx, r13 (MEMSIZE)
 0F 87 .rel32 trap               ; ja: check every operand before any effect
 48 FF C6
 83 F8 00  0F 84 .rel32 h_halt
@@ -250,7 +264,7 @@ h_loadb:
 0F B6 16
 48 FF C6
 48 8B 04 D3
-48 3D 00 00 00 70               ; cmp rax, MEMSIZE
+4C 39 E8                        ; cmp rax, r13 (MEMSIZE)
 0F 83 .rel32 trap               ; jae: unsigned byte address
 0F B6 14 07
 48 89 14 CB
@@ -262,7 +276,7 @@ h_storeb:
 48 FF C6
 48 8B 04 CB
 48 8B 14 D3
-48 3D 00 00 00 70               ; cmp rax, MEMSIZE
+4C 39 E8                        ; cmp rax, r13 (MEMSIZE)
 0F 83 .rel32 trap
 88 14 07
 E9 .rel32 next
@@ -272,7 +286,7 @@ h_load:
 0F B6 16
 48 FF C6
 48 8B 04 D3
-48 3D F8 FF FF 6F               ; cmp rax, MEMSIZE-8
+4C 39 F0                        ; cmp rax, r14 (MEMSIZE-8)
 0F 87 .rel32 trap               ; ja: full word, without address addition
 48 8B 14 07
 48 89 14 CB
@@ -284,7 +298,7 @@ h_store:
 48 FF C6
 48 8B 04 CB
 48 8B 14 D3
-48 3D F8 FF FF 6F               ; cmp rax, MEMSIZE-8
+4C 39 F0                        ; cmp rax, r14 (MEMSIZE-8)
 0F 87 .rel32 trap
 48 89 14 07
 E9 .rel32 next
@@ -336,7 +350,7 @@ E8 .rel32 putbyte
 E9 .rel32 next
 h_call:
 49 8D 54 24 F8                  ; lea rdx, [r12-8]: prospective stack offset
-48 81 FA F8 FF FF 6F            ; cmp rdx, MEMSIZE-8 (underflow is unsigned large)
+4C 39 F2                        ; cmp rdx, r14 (MEMSIZE-8; underflow is unsigned large)
 0F 87 .rel32 trap               ; ja: no sp change or write on failed range
 48 8B 06
 48 89 F2
@@ -350,7 +364,7 @@ h_call:
 48 01 C6
 E9 .rel32 next
 h_ret:
-49 81 FC F8 FF FF 6F            ; cmp r12, MEMSIZE-8
+4D 39 F4                        ; cmp r12, r14 (MEMSIZE-8)
 0F 87 .rel32 trap               ; ja: no preceding-call or stack-origin restriction
 49 89 FA
 4D 01 E2
@@ -420,11 +434,13 @@ ilt:
 .rva n_gsh 00 00 00 00
 .rva n_rf  00 00 00 00
 .rva n_wf  00 00 00 00
+.rva n_va  00 00 00 00
 z8
 iat:
 iat_gsh: .rva n_gsh 00 00 00 00
 iat_rf:  .rva n_rf  00 00 00 00
 iat_wf:  .rva n_wf  00 00 00 00
+iat_va:  .rva n_va  00 00 00 00
 z8
 n_gsh:
 00 00 47 65 74 53 74 64 48 61 6E 64 6C 65 00 00
@@ -432,11 +448,13 @@ n_rf:
 00 00 52 65 61 64 46 69 6C 65 00 00
 n_wf:
 00 00 57 72 69 74 65 46 69 6C 65 00
+n_va:
+00 00 56 69 72 74 75 61 6C 41 6C 6C 6F 63 00 00
 dllname:
 6B 65 72 6E 65 6C 33 32 2E 64 6C 6C 00 00
 .pad 0x1400
 
-; ===================== .tape (RVA 0x70004000, file 0x1400) =====================
+; ===================== .tape (RVA 0x4000, file 0x1400) =====================
 ; The hole: 0x1000000 (16 MiB) including the four-byte length. A built program is this exe with [4-byte LE
 ; length][tape bytes] memcpy'd in here at file offset 0x1400.
 .pad 0x1001400

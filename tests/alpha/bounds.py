@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-MEMORY = 0x70000000
+MEMORY = 0x2000000000
 ORIGIN = 0x10000000
 MAX_TAPE = 0xfffffc
 MASK = (1 << 64) - 1

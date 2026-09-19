@@ -13,7 +13,7 @@
 //
 // VM model (observable semantics identical to the x64 seed):
 //   vregs[]  64-bit register file, byte-indexed            (bss, x19)
-//   mem[]    flat 1.75 GiB semantic byte memory; tape at [0] (bss, x20)
+//   mem[]    flat 128 GiB semantic byte memory; tape at [0] (mmap, x20)
 //   pc       absolute pointer into mem                      (x21)
 //   sp       call-stack byte offset, grows down from 256 MB (x22)
 // A program tape [4-byte LE length][bytecode] is stamped into the __tape hole;
@@ -43,9 +43,23 @@ _main:
     stp x23, x24, [sp, #-16]!
     adrp x19, vregs@PAGE
     add  x19, x19, vregs@PAGEOFF
-    adrp x20, mem@PAGE
-    add  x20, x20, mem@PAGEOFF
-    movz x23, #0x7000, lsl #16     // fixed semantic extent, preserved by host calls
+    // x20 = mmap(0, MEMSIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0).
+    // No image section can express the 128 GiB extent (the V4 image already sat
+    // at PE32+'s 2 GiB bound on Windows), so AlphaBootstrapV5 obtains M at
+    // startup instead.  Anonymous pages arrive zeroed: the flat zeroed array
+    // is unchanged.  A refusal (carry set, errno in x0) is a startup trap
+    // before any tape byte is copied.
+    movz x0, #0
+    movz x1, #0x2000, lsl #32
+    movz x2, #3                  // PROT_READ|PROT_WRITE
+    movz x3, #0x1002             // MAP_PRIVATE|MAP_ANON
+    movn x4, #0                  // fd -1
+    movz x5, #0                  // offset 0
+    movz x16, #0xc5              // BSD syscall mmap
+    svc  #0x80
+    b.cs Lbounds
+    mov  x20, x0
+    movz x23, #0x2000, lsl #32   // fixed semantic extent, preserved by host calls
     adrp x9, _tape@PAGE
     add  x9, x9, _tape@PAGEOFF
     ldr  w10, [x9]
@@ -352,7 +366,6 @@ h_halt:
     ldp  x29, x30, [sp], #16
     ret
 .zerofill __DATA,__bss,vregs,0x800,3
-.zerofill __DATA,__bss,mem,0x70010000,4
 .zerofill __DATA,__bss,io_byte,8,3
 .section __DATA,__tape
 .global _tape
