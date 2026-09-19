@@ -54,6 +54,9 @@ pub struct TaskDependencyRecord {
     /// consumed at start. Rejection returns the bundle to the caller; a
     /// started task records here where it went.
     pub argument_custody: TaskArgumentCustodyId,
+    /// Bytes the marshalled argument image occupies under the plan's exact
+    /// argument layout — the provider-domain custody the activation holds.
+    pub argument_bytes: u64,
     pub storage: TaskStorageBinding,
 }
 
@@ -98,6 +101,13 @@ struct LiveTaskDependency {
     /// Provider-held stack-lease authority while the claim lives. `None` for
     /// an inline completion, which retains no persistent activation storage.
     storage_authority: Option<StackLease>,
+    /// The marshalled argument bundle the activation consumed at start:
+    /// provider-domain custody retained while the claim lives — the bytes a
+    /// real runtime writes into the activation's argument area — and dropped
+    /// with the activation at settlement. `record.argument_custody` stays the
+    /// compact coordinate; the image itself is provider-side state and never
+    /// participates in claim matching.
+    arguments: MovedTaskArguments,
     /// Provider-side record of the `request_cancel` transition. It stays out
     /// of `TaskDependencyRecord` — and therefore out of claim matching —
     /// because `request_cancel(&self)` retains the source `Task<T>` claim
@@ -268,6 +278,16 @@ impl TaskLifecycleLedger {
         self.live.values().map(|dependency| &dependency.record)
     }
 
+    /// The marshalled argument bundle a live claim's activation holds, or
+    /// `None` when the claim is settled or unknown. These are the
+    /// provider-domain bytes a real runtime writes into the activation's
+    /// argument area; the claim itself never carries them.
+    pub fn activation_arguments(&self, claim: TaskLifecycleClaimId) -> Option<&MovedTaskArguments> {
+        self.live
+            .get(&claim)
+            .map(|dependency| &dependency.arguments)
+    }
+
     /// The transactional start: the moved argument bundle and the supplied
     /// storage custody move into the provider call together. Success issues
     /// the linear lifecycle claim and retains the stack lease for the
@@ -313,12 +333,14 @@ impl TaskLifecycleLedger {
             operation: invocation.candidate().operation,
             activation,
             argument_custody: arguments.custody(),
+            argument_bytes: arguments.image().len() as u64,
             storage: storage_binding,
         };
         let dependency = LiveTaskDependency {
             record,
             invocation: Box::new(invocation.clone()),
             storage_authority,
+            arguments,
             cancellation_requested: false,
             execution: TaskExecutionState::Running,
             cancellation_observed_at: None,
@@ -347,7 +369,7 @@ impl TaskLifecycleLedger {
                 "task invocation receipt belongs to a different runtime instance".into(),
             ));
         }
-        if arguments.layout()
+        if *arguments.layout()
             != invocation
                 .executor_selection()
                 .plan()
@@ -405,7 +427,7 @@ impl TaskLifecycleLedger {
         let claim = TaskLifecycleClaimId(task_claim_report_fingerprint(
             invocation,
             activation,
-            arguments.custody(),
+            arguments,
             storage_binding,
         ));
         if self.live.contains_key(&claim) {

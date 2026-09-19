@@ -2,6 +2,7 @@
 //! a WCSU projection, a runtime and its invocation receipt.
 
 mod activation_plans;
+mod argument_marshalling;
 mod cancellation;
 mod execution;
 mod executor_selection;
@@ -16,26 +17,37 @@ use crate::{
     ExecutorPreservationEvidenceId, MachineContractId, MachineEntryId, MovedTaskArguments,
     SelectedTaskRuntimeProviderFact, StackLease, StackLeaseBacking, StackPlan,
     StackRepresentationId, SuspensionCrossingId, TaskActivationPlanFact, TaskActivationPlanSet,
-    TaskArgumentCustodyId, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
-    TaskSpecializationCommitment, TaskStackFrameId, TaskStackFrameSummary,
-    TaskStackFrameValidationId, TaskStartOperation, TaskStorageLeaseId, TaskStorageOwnerId,
-    TaskStorageProvenance, UnresolvedCallKind, UnresolvedCallSite, ValidatedActivationPlan,
-    ValidatedTaskRuntimeInvocationReceipt, ValueLayoutId, WcsuStackPlanProjection,
-    compose_task_stack_demand, establish_stack_lease, project_wcsu_stack_plan,
-    validate_task_runtime_invocation_receipt, validate_task_stack_frame_summary,
-    validate_wcsu_activation_plan,
+    TaskArgumentCustodyId, TaskArgumentLayout, TaskPlanDiagnostic, TaskRuntimeId,
+    TaskRuntimeInstanceId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptCandidate,
+    TaskRuntimeInvocationReceiptId, TaskSpecializationCommitment, TaskStackFrameId,
+    TaskStackFrameSummary, TaskStackFrameValidationId, TaskStartOperation, TaskStorageLeaseId,
+    TaskStorageOwnerId, TaskStorageProvenance, UnresolvedCallKind, UnresolvedCallSite,
+    ValidatedActivationPlan, ValidatedTaskRuntimeInvocationReceipt, ValueLayoutId,
+    WcsuStackPlanProjection, compose_task_stack_demand, establish_stack_lease,
+    project_wcsu_stack_plan, validate_task_runtime_invocation_receipt,
+    validate_task_stack_frame_summary, validate_wcsu_activation_plan,
 };
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
     constructor(identity).expect("normalized identity")
 }
 
+/// The canonical two-field marshalling layout every `candidate()` plan
+/// carries: an eight-byte field followed by a four-byte field, so the packed
+/// image is 8 + 4 aligned to 16 bytes at alignment 8.
+fn argument_layout() -> TaskArgumentLayout {
+    TaskArgumentLayout::new(
+        id(3, ValueLayoutId::from_normalized_identity),
+        &[(8, 8), (4, 4)],
+    )
+    .expect("canonical test argument layout")
+}
+
 fn candidate() -> ActivationPlanCandidate {
     ActivationPlanCandidate {
         machine_contract: id(1, MachineContractId::from_normalized_identity),
         entry: id(2, MachineEntryId::from_normalized_identity),
-        argument_layout: id(3, ValueLayoutId::from_normalized_identity),
+        argument_layout: argument_layout(),
         terminal_outcome_layout: id(4, ValueLayoutId::from_normalized_identity),
         calling_plan: id(5, CallingPlanId::from_normalized_identity),
         stack_plan: StackPlan {
@@ -149,11 +161,27 @@ fn stack_lease(plan: &ValidatedActivationPlan, owner: u64, lease: u64) -> StackL
     .expect("backing satisfies the plan")
 }
 
-fn moved_arguments(plan: &ValidatedActivationPlan, custody: u64) -> MovedTaskArguments {
-    MovedTaskArguments::new(
-        plan.candidate().argument_layout,
+/// Marshal one deterministic bundle under `layout`: each field filled with
+/// its own byte pattern (`0xA0 + index`) so byte-exact conservation is
+/// observable on the rejected and accepted paths.
+fn marshal_arguments(layout: &TaskArgumentLayout, custody: u64) -> MovedTaskArguments {
+    let arguments: Vec<Vec<u8>> = layout
+        .fields
+        .iter()
+        .enumerate()
+        .map(|(index, field)| vec![0xA0u8 + index as u8; field.bytes as usize])
+        .collect();
+    let views: Vec<&[u8]> = arguments.iter().map(Vec::as_slice).collect();
+    MovedTaskArguments::marshal(
+        layout,
+        &views,
         id(custody, TaskArgumentCustodyId::from_normalized_identity),
     )
+    .expect("test arguments marshal under the layout")
+}
+
+fn moved_arguments(plan: &ValidatedActivationPlan, custody: u64) -> MovedTaskArguments {
+    marshal_arguments(&plan.candidate().argument_layout, custody)
 }
 
 fn activation_fact(plan: &ValidatedActivationPlan) -> TaskActivationPlanFact {

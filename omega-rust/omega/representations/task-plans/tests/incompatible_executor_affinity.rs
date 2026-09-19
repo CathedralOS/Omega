@@ -2,8 +2,9 @@ use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
     CanonicalSuspensionCrossing, ExecutorPreservationAxis, ExecutorPreservationEvidence,
     ExecutorPreservationEvidenceId, ExecutorSelectionCandidate, MachineContractId, MachineEntryId,
-    StackPlan, StackRepresentationId, SuspensionCrossingId, TaskPlanDiagnostic, TaskRuntimeId,
-    TaskRuntimeInstanceId, ValueLayoutId, validate_activation_plan, validate_executor_selection,
+    StackPlan, StackRepresentationId, SuspensionCrossingId, TaskArgumentLayout, TaskPlanDiagnostic,
+    TaskRuntimeId, TaskRuntimeInstanceId, ValueLayoutId, validate_activation_plan,
+    validate_executor_selection,
 };
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
@@ -15,7 +16,11 @@ fn selected_executor_with_incompatible_affinity_evidence_rejects() {
     let plan = validate_activation_plan(ActivationPlanCandidate {
         machine_contract: id(1, MachineContractId::from_normalized_identity),
         entry: id(2, MachineEntryId::from_normalized_identity),
-        argument_layout: id(3, ValueLayoutId::from_normalized_identity),
+        argument_layout: TaskArgumentLayout::new(
+            id(3, ValueLayoutId::from_normalized_identity),
+            &[],
+        )
+        .expect("empty canonical argument layout"),
         terminal_outcome_layout: id(4, ValueLayoutId::from_normalized_identity),
         calling_plan: id(5, CallingPlanId::from_normalized_identity),
         stack_plan: StackPlan {

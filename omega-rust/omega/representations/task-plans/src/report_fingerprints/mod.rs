@@ -4,7 +4,7 @@
 use crate::stack_composition::WcsuStackPlanProjection;
 use crate::{
     ActivationInstanceId, ActivationPlanCandidate, ExecutorPreservationAxis,
-    ExecutorSelectionCandidate, TaskActivationPlanFact, TaskArgumentCustodyId,
+    ExecutorSelectionCandidate, MovedTaskArguments, TaskActivationPlanFact,
     TaskRuntimeInvocationReceiptCandidate, TaskStartOperation, TaskStorageBinding,
     ValidatedActivationPlan, ValidatedExecutorSelection, ValidatedTaskRuntimeInvocationReceipt,
 };
@@ -16,7 +16,7 @@ pub(crate) fn activation_plan_report_fingerprint(
     let mut fingerprint = Fingerprint::new();
     fingerprint.word(plan.machine_contract.normalized_identity());
     fingerprint.word(plan.entry.normalized_identity());
-    fingerprint.word(plan.argument_layout.normalized_identity());
+    fingerprint.word(plan.argument_layout.identity.normalized_identity());
     fingerprint.word(plan.terminal_outcome_layout.normalized_identity());
     fingerprint.word(plan.calling_plan.normalized_identity());
     fingerprint.word(plan.stack_plan.bytes);
@@ -63,7 +63,7 @@ pub(crate) fn executor_selection_report_fingerprint(
 pub(crate) fn task_claim_report_fingerprint(
     invocation: &ValidatedTaskRuntimeInvocationReceipt,
     activation: ActivationInstanceId,
-    arguments: TaskArgumentCustodyId,
+    arguments: &MovedTaskArguments,
     storage: TaskStorageBinding,
 ) -> u64 {
     let mut fingerprint = Fingerprint::new();
@@ -71,7 +71,13 @@ pub(crate) fn task_claim_report_fingerprint(
     fingerprint.word(invocation.candidate().invocation.normalized_identity());
     fingerprint.word(invocation.candidate().receipt.normalized_identity());
     fingerprint.word(activation.normalized_identity());
-    fingerprint.word(arguments.normalized_identity());
+    fingerprint.word(arguments.custody().normalized_identity());
+    // The claim commits to the exact marshalled bytes that crossed the
+    // boundary, not only the custody coordinate they were presented under.
+    fingerprint.word(arguments.image().len() as u64);
+    for byte in arguments.image() {
+        fingerprint.byte(*byte);
+    }
     match storage {
         TaskStorageBinding::Persistent(provenance) => {
             fingerprint.byte(1);

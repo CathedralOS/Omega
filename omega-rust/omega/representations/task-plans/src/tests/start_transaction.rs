@@ -1,12 +1,12 @@
 use super::{
-    candidate, canonical_crossing, id, invocation_receipt, moved_arguments, partial_wcsu_plan,
-    runtime, stack_lease, wcsu_plan,
+    candidate, canonical_crossing, id, invocation_receipt, marshal_arguments, moved_arguments,
+    partial_wcsu_plan, runtime, stack_lease, wcsu_plan,
 };
 use crate::{
-    ActivationInstanceId, MovedTaskArguments, StackLeaseBacking, StackPlan, StackRepresentationId,
-    TaskArgumentCustodyId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskSettlementOutcome,
-    TaskStartStorage, TaskStorageLeaseId, TaskStorageOwnerId, TaskStorageProvenance, ValueLayoutId,
-    establish_stack_lease, validate_activation_plan,
+    ActivationInstanceId, StackLeaseBacking, StackPlan, StackRepresentationId,
+    TaskArgumentCustodyId, TaskArgumentLayout, TaskLifecycleLedger, TaskRuntimeInstanceId,
+    TaskSettlementOutcome, TaskStartStorage, TaskStorageLeaseId, TaskStorageOwnerId,
+    TaskStorageProvenance, ValueLayoutId, establish_stack_lease, validate_activation_plan,
 };
 
 fn provenance(owner: u64, lease: u64) -> TaskStorageProvenance {
@@ -146,15 +146,20 @@ fn start_rejection_returns_every_moved_argument_and_the_lease() {
     let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
     let receipt = invocation_receipt(&plan, instance, 212, 213);
 
-    // Argument-layout drift: the rejection conserves the whole bundle and
-    // the supplied lease.
-    let wrong_layout = id(214, ValueLayoutId::from_normalized_identity);
+    // Argument-layout drift: a bundle marshalled under a foreign layout
+    // rejects, and the rejection conserves the whole bundle — marshalled
+    // image included — and the supplied lease.
+    let foreign_layout = TaskArgumentLayout::new(
+        id(214, ValueLayoutId::from_normalized_identity),
+        &[(4, 4), (8, 8)],
+    )
+    .expect("foreign canonical layout");
     let custody = id(215, TaskArgumentCustodyId::from_normalized_identity);
     let rejection = ledger
         .accept_invocation(
             &receipt,
             activation,
-            MovedTaskArguments::new(wrong_layout, custody),
+            marshal_arguments(&foreign_layout, 215),
             TaskStartStorage::Persistent(stack_lease(&plan, 216, 217)),
         )
         .expect_err("argument layout drift rejects");
@@ -162,7 +167,21 @@ fn start_rejection_returns_every_moved_argument_and_the_lease() {
     assert_eq!(rejection.activation(), activation);
     let (arguments, storage) = rejection.into_custody();
     assert_eq!(arguments.custody(), custody);
-    assert_eq!(arguments.layout(), wrong_layout);
+    assert_eq!(*arguments.layout(), foreign_layout);
+    // The four-byte field packs at offset 0 and the eight-byte field at
+    // offset 8: the image is the arguments plus zeroed interior padding.
+    let expected_image: Vec<u8> = [0xA0u8; 4]
+        .into_iter()
+        .chain([0u8; 4])
+        .chain([0xA1u8; 8])
+        .collect();
+    assert_eq!(
+        arguments.image(),
+        expected_image.as_slice(),
+        "the rejected bundle returns its marshalled image byte-exact"
+    );
+    assert_eq!(arguments.argument(0), Some(&[0xA0u8; 4][..]));
+    assert_eq!(arguments.argument(1), Some(&[0xA1u8; 8][..]));
     let TaskStartStorage::Persistent(lease) = storage else {
         panic!("persistent storage custody returns its lease");
     };

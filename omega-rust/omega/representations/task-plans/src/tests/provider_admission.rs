@@ -3,11 +3,11 @@
 //! every rejection.
 
 use super::{
-    activation_fact_for, activation_set, canonical_crossing, id, moved_arguments,
-    receipt_candidate, runtime, stack_lease, wcsu_plan,
+    activation_fact_for, activation_set, canonical_crossing, id, marshal_arguments,
+    moved_arguments, receipt_candidate, runtime, stack_lease, wcsu_plan,
 };
 use crate::{
-    ActivationInstanceId, ActivationPlanId, MovedTaskArguments, StackPlan, TaskActivationPlanSet,
+    ActivationInstanceId, ActivationPlanId, StackPlan, TaskActivationPlanSet,
     TaskArgumentCustodyId, TaskRuntimeAdmission, TaskRuntimeId, TaskRuntimeInstanceId,
     TaskSettlementOutcome, TaskStartOperation, TaskStartStorage, TaskStorageBinding,
     TaskStorageOwnerId, TaskStorageProvenance,
@@ -113,7 +113,7 @@ fn exhausted_provisioning_rejects_and_settlement_releases_backing_under_a_fresh_
             &activations,
             receipt_candidate(&plan, instance(310), 317, 318, TaskStartOperation::Start),
             activation(319),
-            MovedTaskArguments::new(plan.candidate().argument_layout, second_custody),
+            marshal_arguments(&plan.candidate().argument_layout, 316),
         )
         .expect_err("a single-slot pool cannot admit a second pending activation");
     assert!(
@@ -121,7 +121,17 @@ fn exhausted_provisioning_rejects_and_settlement_releases_backing_under_a_fresh_
         "unexpected diagnostic: {}",
         rejection.diagnostic().0
     );
-    assert_eq!(rejection.into_arguments().custody(), second_custody);
+    let arguments = rejection.into_arguments();
+    assert_eq!(arguments.custody(), second_custody);
+    // The marshalled image — eight bytes at offset 0, four at offset 8,
+    // trailing padding to the layout's 16-byte extent — returns byte-exact.
+    let expected_image: Vec<u8> = [0xA0u8; 8]
+        .into_iter()
+        .chain([0xA1u8; 4])
+        .chain([0u8; 4])
+        .collect();
+    assert_eq!(arguments.image(), expected_image.as_slice());
+    assert_eq!(arguments.argument(1), Some(&[0xA1u8; 4][..]));
 
     // Settlement returns the backing, and its next admission mints a fresh
     // lease era rather than replaying the released one.
@@ -163,7 +173,7 @@ fn unsatisfying_backing_rejects_without_spending_capacity() {
             &activations,
             receipt_candidate(&plan, instance(330), 331, 332, TaskStartOperation::Start),
             activation(334),
-            MovedTaskArguments::new(plan.candidate().argument_layout, rejected_custody),
+            marshal_arguments(&plan.candidate().argument_layout, 333),
         )
         .expect_err("undersized backing cannot satisfy the plan");
     assert!(
@@ -357,7 +367,7 @@ fn caller_storage_rejection_returns_the_supplied_lease() {
             &activations,
             receipt_candidate(&plan, instance(390), 398, 399, TaskStartOperation::Start),
             activation(393),
-            MovedTaskArguments::new(plan.candidate().argument_layout, rejected_custody),
+            marshal_arguments(&plan.candidate().argument_layout, 397),
             TaskStartStorage::Persistent(stack_lease(&plan, 400, 401)),
         )
         .expect_err("a replayed activation identity rejects");
