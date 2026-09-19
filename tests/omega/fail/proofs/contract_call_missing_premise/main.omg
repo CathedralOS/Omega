@@ -1,0 +1,15 @@
+data Nat {
+    case Zero;
+    case Succ(previous: Nat);
+}
+
+machine restricted(value: Nat) -> Nat
+requires value == Nat::Zero;
+terminates;
+{
+    transition { _ -> value }
+}
+
+machine contract_only(value: Nat)
+ensures restricted(value) == restricted(value);
+{}

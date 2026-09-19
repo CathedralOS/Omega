@@ -18,3 +18,9 @@ terminates;
         transition { _ -> (zero_only(known)) }
     }
 }
+
+// Formation is checked even when no body call consumes the application.
+machine contract_only(value: Nat)
+requires value == Nat::Zero;
+ensures zero_only(value) == zero_only(value);
+{}

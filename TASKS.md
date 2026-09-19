@@ -3127,22 +3127,32 @@ Owners include
   Remaining work:
 
   - [Call preconditions](wiki/spec/language/machines.md#call-preconditions).
-    Close mathematical term formation outside ordinary statement flow:
-    `validation/src/proof_contracts/contract_entailment/structural_terms.rs`
-    constructs applications and `structural_judgment.rs` unfolds bodies without
-    establishing the selected call's premises. The ordinary flow checker no
-    longer exempts proof-to-proof calls; reuse its positive, exact-site
-    `call_requirements.rs` judgment rather than treating an unrefuted fact as
-    proved. That route preserves constructor-refined induction, positional
-    state forwarding and earlier citations; earlier IH use independently
-    requires constructor-field descent. `proofs/mathematical_call_premises`
-    exercises the core import, including cancellation and `sub_le`;
-    `mathematical_call_missing_premise` rejects a discarded unknown call.
-    Next probe: a contract-only `restricted(value) == restricted(value)`
-    without the callee's premise must reject, with the premise-bearing twin
-    accepted even when the caller has no body call. This probe is unrun.
-    Nested value-call operands still hit the existing nested-call fence before
-    premise checking; do not count that refusal as proof of call-premise
+    Finish mathematical term formation beyond concrete machine/state contracts.
+    `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
+    checks their selected concrete calls before fact intake, rejects circular
+    requirement dependencies, and uses positive constructor or exact arithmetic
+    evidence. `proofs/contract_call_missing_premise` rejects a contract-only
+    reflexive call; `mathematical_call_premises` accepts its premise-bearing twin
+    and imports core cancellation and `sub_le`. Ordinary statement calls retain
+    the exact-site `call_requirements.rs` judgment and separate induction descent.
+    Remaining owners: abstract signatures, domain/default-domain predicates,
+    explicit static callable/evidence substitution, and nominal/propositional
+    premises. Structural application/projection premises and incomplete
+    constructor field rosters currently fail closed:
+    `structural_judgment.rs::callee_term_with_machines` can turn a binary body
+    into unsubstituted opaque text, and receiver-call opacity cannot substitute
+    arguments. Constructor terms must also materialize omitted ZII fields before
+    comparison (`omitted_constructor_fields_do_not_prove_equality_to_nonzero_fields`
+    witnesses the former false equality). Repair exact selected identity and
+    complete substitution across its consumers before enabling this formation
+    route; never use unrefuted as proved. The source controls
+    `application_unfolding_cannot_erase_different_arguments`
+    and `opaque_receiver_call_cannot_hide_a_changed_requirement_argument` require
+    rejection of wrong arguments; add accepted exact-argument twins when the
+    shared normalizer can justify them. These are implementation dependencies,
+    not unanswered language design.
+    Nested body value-call operands still hit the existing nested-call fence
+    before premise checking; do not count that refusal as proof of call-premise
     coverage. Then migrate
     `core/nat.omg`'s `Nat::{subtract,less_or_equal}` from `operator` plus
     `satisfies` pairs to declaration-owned bodies; `Nat::saturating_sub` stays

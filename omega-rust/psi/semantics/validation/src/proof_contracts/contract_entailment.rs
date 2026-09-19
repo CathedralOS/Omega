@@ -64,6 +64,8 @@
 //! `citations.rs` collects, suggests and instantiates citations,
 //! `proof_edges.rs` judges strict decrease along proof edges,
 //! `refuted_requires.rs` rejects refuted value-call requirements,
+//! `specification_calls.rs` requires positive precondition evidence before
+//! concrete machine/state contract terms form,
 //! `structural_case_arms.rs` recognizes guarded structural case arms and
 //! `self_induction.rs` intakes self-induction hypotheses.
 
@@ -87,6 +89,7 @@ mod ranking_range;
 mod refuted_requires;
 mod scoped_arithmetic;
 mod self_induction;
+mod specification_calls;
 mod stand_downs;
 mod strict_arithmetic;
 mod structural_case_arms;
@@ -137,6 +140,7 @@ pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, scoped_arithmetic_implication,
 };
+pub(crate) use specification_calls::validate_specification_call_requirements;
 pub use strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
