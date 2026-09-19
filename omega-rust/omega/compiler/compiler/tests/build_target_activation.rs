@@ -150,3 +150,25 @@ fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> Package
     )
     .expect("explicit package graph")
 }
+
+/// The same owner/helper package pair, but `support` is declared under
+/// product scope (`depend`, the `PackageDependencyBinding::new` default). The
+/// owner's product sources import helper modules ordinarily, and a qualified
+/// `builder.product.*` query path may select the dependency's public
+/// declarations under the query occurrence's own product authority.
+fn foreign_product_inputs(project: &TempProject, helper: &TempProject) -> PackageCompilationInputs {
+    PackageCompilationInputs::new(
+        package_identity(1),
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
+            PackageSourceBinding::new(package_identity(2), "root-binding-helper", helper.0.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            package_identity(1),
+            "support",
+            package_identity(2),
+        )],
+    )
+    .expect("explicit package graph")
+}

@@ -2,7 +2,9 @@
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product data declaration under the query occurrence's
-//! lexical package scope and hands back an opaque `ProductTypeSchema` marker.
+//! lexical package scope -- its own package, or a `pub` declaration inside a
+//! package the occurrence's package holds an authorized product dependency on
+//! -- and hands back an opaque `ProductTypeSchema` marker.
 //! The semantic payload stays in the evaluator's private
 //! `product_schema_descriptions` table, so evaluated code can carry the
 //! marker but cannot read, convert, or fabricate the selection. No product
@@ -250,40 +252,86 @@ impl<'program> Evaluator<'program> {
                 "product schema selection requires a non-empty path".to_owned(),
             ));
         }
-        // Strings are locators, not authority: `path` is matched against the
-        // authored data names visible inside the query occurrence's own
-        // package. A helper borrowing Build keeps its operational capability
-        // but cannot enumerate the caller's product namespace -- a foreign
-        // spelling simply finds no candidate.
-        let candidates = self
-            .program
-            .data_definitions()
-            .iter()
-            .filter(|definition| {
-                definition.name.as_str() == name
-                    && self
+        // Strings are locators, not authority: `path` resolves under the
+        // query occurrence's own authorized scope. A qualified `alias::rest`
+        // spelling resolves `alias` through the occurrence package's
+        // retained product dependencies and selects a `pub` declaration in
+        // that exact target package -- a helper borrowing Build keeps its
+        // operational capability but cannot enumerate the caller's product
+        // namespace, and a build-scope alias authorizes nothing. A bare leaf
+        // keeps the same-package declaration scan; a first segment that is
+        // no product alias leaves only the occurrence's own package path
+        // reading of the full spelling.
+        let qualified = name.split_once("::");
+        let authorized = qualified.and_then(|(alias, _)| {
+            self.program
+                .symbols
+                .product_dependency_target(occurrence, alias)
+        });
+        let candidates = match (qualified, authorized) {
+            (Some((_, rest)), Some(target)) => self
+                .program
+                .data_definitions()
+                .iter()
+                .filter(|definition| {
+                    definition.is_public
+                        && (definition.name.as_str() == rest
+                            || self
+                                .program
+                                .symbols
+                                .display_path(definition.symbol, "::")
+                                .as_str()
+                                == rest)
+                        && self
+                            .program
+                            .symbols
+                            .symbol_package_identity(definition.symbol)
+                            == Some(target)
+                })
+                .collect::<Vec<_>>(),
+            _ => self
+                .program
+                .data_definitions()
+                .iter()
+                .filter(|definition| {
+                    (match qualified {
+                        Some(_) => {
+                            self.program
+                                .symbols
+                                .display_path(definition.symbol, "::")
+                                .as_str()
+                                == name
+                        }
+                        None => definition.name.as_str() == name,
+                    }) && self
                         .program
                         .symbols
                         .symbol_source_span(definition.symbol)
                         .is_some_and(|span| {
                             self.program.symbols.same_source_package(span, occurrence)
                         })
-            })
-            .collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>(),
+        };
         let [definition] = candidates.as_slice() else {
-            let message = if self
-                .program
-                .data_definitions()
-                .iter()
-                .any(|definition| definition.name.as_str() == name)
-            {
-                if candidates.is_empty() {
-                    format!(
-                        "product schema `{name}` is not a product declaration visible from this build occurrence's package"
-                    )
-                } else {
-                    format!("product schema `{name}` is ambiguous within its package")
-                }
+            if !candidates.is_empty() {
+                return Err(Halt::Trap(format!(
+                    "product schema `{name}` is ambiguous within its package"
+                )));
+            }
+            let probe = qualified.map_or(name, |(_, rest)| rest);
+            let message = if self.program.data_definitions().iter().any(|definition| {
+                definition.name.as_str() == probe
+                    || self
+                        .program
+                        .symbols
+                        .display_path(definition.symbol, "::")
+                        .as_str()
+                        == probe
+            }) {
+                format!(
+                    "product schema `{name}` is not a product declaration visible from this build occurrence's package"
+                )
             } else {
                 format!(
                     "product schema `{name}` names no data declaration in this build occurrence's package"

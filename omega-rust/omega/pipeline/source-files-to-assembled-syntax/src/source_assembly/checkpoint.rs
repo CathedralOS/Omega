@@ -296,6 +296,14 @@ fn initialize_source_storage(
             for (identity, source_root) in package_inputs.packages() {
                 storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
             }
+            // The authorized product dependency roster rides with the
+            // retained source map so later evaluator queries resolve
+            // `alias::path` under each query occurrence's own product scope.
+            // `dependencies()` yields product-purpose edges only; build edges
+            // never authorize product selection.
+            storage
+                .sources
+                .retain_product_dependency_scope(package_inputs.dependencies());
             Ok(storage)
         }
         None => {
