@@ -30,6 +30,10 @@ pub data Parser {
     field_name_end: u64 in Trapping;
     type_name_start: u64 in Trapping;
     type_name_end: u64 in Trapping;
+    type_qualified: bool;
+    type_qualifier_payload: bool;
+    type_domain_start: u64 in Trapping;
+    type_domain_end: u64 in Trapping;
     case_start: u64 in Trapping;
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;

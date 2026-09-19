@@ -25,7 +25,9 @@ class Observation:
     fields: tuple[tuple[int, int, int, int, int, int, int], ...]
     payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...]
     cases: tuple[tuple[int, int, int, int, int, int, int, int], ...]
-    type_references: tuple[tuple[int, int, int, int, int, int, int], ...]
+    type_references: tuple[
+        tuple[int, int, int, int, int, int, int, int, int, int, int], ...
+    ]
 
 
 class Reader:
@@ -50,8 +52,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR6\0"
-    assert reader.u64() == 6
+    assert reader.bytes(8) == b"OMGPAR7\0"
+    assert reader.u64() == 7
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -136,6 +138,10 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -176,7 +182,9 @@ def accepted(
     data_members: tuple[tuple[int, int, int, int, int], ...] = (),
     fields: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
     cases: tuple[tuple[int, int, int, int, int, int, int, int], ...] = (),
-    type_references: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
+    type_references: tuple[
+        tuple[int, int, int, int, int, int, int, int, int, int, int], ...
+    ] = (),
     payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
 ) -> None:
     status, payload = run(program, source)
@@ -337,7 +345,7 @@ def main() -> None:
         ((1, 0, 1, 22, 31), (2, 0, 1, 32, 43)),
         ((1, 22, 27, 0, 1, 22, 31),),
         ((1, 37, 42, 1, 32, 43, 0, 0),),
-        ((1, 1, 29, 30, 1, 29, 30),),
+        ((1, 1, 29, 30, 1, 29, 30, 0, 0, 0, 0),),
     )
     accepted(
         program,
@@ -371,10 +379,10 @@ def main() -> None:
         ),
         (),
         (
-            (1, 1, 39, 42, 1, 39, 42),
-            (1, 1, 76, 83, 1, 76, 83),
-            (1, 1, 92, 97, 1, 92, 97),
-            (1, 1, 107, 113, 1, 107, 113),
+            (1, 1, 39, 42, 1, 39, 42, 0, 0, 0, 0),
+            (1, 1, 76, 83, 1, 76, 83, 0, 0, 0, 0),
+            (1, 1, 92, 97, 1, 92, 97, 0, 0, 0, 0),
+            (1, 1, 107, 113, 1, 107, 113, 0, 0, 0, 0),
         ),
     )
     accepted(
@@ -401,8 +409,8 @@ def main() -> None:
             (1, 69, 73, 1, 64, 74, 0, 0),
         ),
         (
-            (1, 1, 42, 48, 1, 42, 48),
-            (1, 1, 57, 62, 1, 57, 62),
+            (1, 1, 42, 48, 1, 42, 48, 0, 0, 0, 0),
+            (1, 1, 57, 62, 1, 57, 62, 0, 0, 0, 0),
         ),
     )
     accepted(
@@ -428,7 +436,7 @@ def main() -> None:
         ((2, 0, 1, 11, 31),),
         (),
         ((1, 16, 20, 1, 11, 31, 0, 1),),
-        ((1, 1, 28, 29, 1, 28, 29),),
+        ((1, 1, 28, 29, 1, 28, 29, 0, 0, 0, 0),),
         payload_fields=((1, 21, 26, 0, 1, 21, 29),),
     )
     accepted(
@@ -443,8 +451,8 @@ def main() -> None:
         (),
         ((1, 17, 21, 1, 12, 41, 0, 2),),
         (
-            (1, 1, 28, 29, 1, 28, 29),
-            (1, 1, 38, 39, 1, 38, 39),
+            (1, 1, 28, 29, 1, 28, 29, 0, 0, 0, 0),
+            (1, 1, 38, 39, 1, 38, 39, 0, 0, 0, 0),
         ),
         payload_fields=(
             (1, 22, 26, 0, 1, 22, 30),
@@ -462,7 +470,7 @@ def main() -> None:
         ((2, 0, 1, 16, 37),),
         (),
         ((1, 21, 25, 1, 16, 37, 0, 1),),
-        ((1, 1, 33, 34, 1, 33, 34),),
+        ((1, 1, 33, 34, 1, 33, 34, 0, 0, 0, 0),),
         payload_fields=((1, 26, 31, 0, 1, 26, 35),),
     )
     accepted(
@@ -488,11 +496,51 @@ def main() -> None:
             (1, 40, 44, 1, 35, 55, 0, 1),
         ),
         (
-            (1, 1, 21, 22, 1, 21, 22),
-            (1, 1, 52, 53, 1, 52, 53),
-            (1, 1, 62, 63, 1, 62, 63),
+            (1, 1, 21, 22, 1, 21, 22, 0, 0, 0, 0),
+            (1, 1, 52, 53, 1, 52, 53, 0, 0, 0, 0),
+            (1, 1, 62, 63, 1, 62, 63, 0, 0, 0, 0),
         ),
         payload_fields=((1, 45, 50, 1, 1, 45, 53),),
+    )
+    accepted(
+        program,
+        "qualified-field-type",
+        b"data X { field: T in Domain; }",
+        ((2, 0, 1, 0, 30),),
+        (),
+        (),
+        ((1, 5, 6, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, 30),),
+        ((1, 0, 1, 9, 28),),
+        ((1, 9, 14, 0, 1, 9, 28),),
+        (),
+        ((2, 1, 16, 17, 1, 16, 27, 1, 1, 21, 27),),
+    )
+    accepted(
+        program,
+        "qualified-payload-field-type",
+        b"data X { case A(v: T in D); }",
+        ((2, 0, 1, 0, 29),),
+        (),
+        (),
+        ((1, 5, 6, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 29),),
+        ((2, 0, 1, 9, 27),),
+        (),
+        ((1, 14, 15, 1, 9, 27, 0, 1),),
+        ((2, 1, 19, 20, 1, 19, 25, 1, 1, 24, 25),),
+        payload_fields=((1, 16, 17, 0, 1, 16, 25),),
+    )
+    accepted(
+        program,
+        "qualified-contextual-keyword-domain",
+        b"data X { field: T in linear; }",
+        ((2, 0, 1, 0, 30),),
+        (),
+        (),
+        ((1, 5, 6, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, 30),),
+        ((1, 0, 1, 9, 28),),
+        ((1, 9, 14, 0, 1, 9, 28),),
+        (),
+        ((2, 1, 16, 17, 1, 16, 27, 1, 1, 21, 27),),
     )
 
     rejected(program, "missing-first-member", b"use;", 3, (3, 4))
@@ -547,7 +595,12 @@ def main() -> None:
         ),
         ("legacy-bare-case-is-rejected", b"data X { A; }", 12, (10, 11)),
         ("array-types-not-yet-supported", b"data X { field: [u8; 4]; }", 13, (16, 17)),
-        ("qualified-types-not-yet-supported", b"data X { field: T in Domain; }", 14, (18, 20)),
+        ("missing-qualified-domain", b"data X { field: T in ; }", 31, (21, 22)),
+        ("missing-qualified-domain-end", b"data X { field: T in", 31, (20, 20)),
+        ("self-not-a-domain", b"data X { field: T in Self; }", 31, (21, 25)),
+        ("second-type-qualifier", b"data X { field: T in A in B; }", 14, (23, 25)),
+        ("qualified-domain-union", b"data X { field: T in A | B; }", 14, (23, 24)),
+        ("missing-payload-qualified-domain", b"data X { case A(v: T in ); }", 31, (24, 25)),
     )
     for name, source, diagnostic, span in data_rejections:
         rejected(program, name, source, diagnostic, span)

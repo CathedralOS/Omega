@@ -87,11 +87,12 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR6\0`, version
-// 6, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR7\0`, version
+// 7, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
-// field, data-case, and type-reference tables. This is hosted development
-// tooling, not an Omega ABI.
+// field, data-case, and type-reference tables. Type-reference rows append a
+// qualified flag and the domain coordinates (zeros for bare named types). This
+// is hosted development tooling, not an Omega ABI.
 machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     self.write_byte(79);
     self.write_byte(77);
@@ -99,9 +100,9 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     self.write_byte(80);
     self.write_byte(65);
     self.write_byte(82);
-    self.write_byte(54);
+    self.write_byte(55);
     self.write_byte(0);
-    self.write_u64(6);
+    self.write_u64(7);
     transition self.parser.output.accepted {
         true -> parse_accepted_header()
         _ -> parse_rejected_header()
@@ -146,6 +147,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
             ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded -> parse_diagnostic(28)
             ParseDiagnosticCode::DuplicateDataMultiplicity -> parse_diagnostic(29)
             ParseDiagnosticCode::ConflictingDataMultiplicity -> parse_diagnostic(30)
+            ParseDiagnosticCode::ExpectedTypeQualifierDomain -> parse_diagnostic(31)
         }
     }
 
@@ -502,6 +504,33 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
             self.parser.output.type_references[index];
         transition type_reference.kind {
             TypeReferenceKind::Named -> parse_named_type_reference(type_reference, index)
+            TypeReferenceKind::Qualified -> parse_qualified_type_reference(
+                type_reference,
+                index
+            )
+        }
+    }
+
+    state parse_qualified_type_reference(
+        &mut self,
+        type_reference: TypeReference,
+        index: u64 [0..=1023]
+    ) {
+        self.write_byte(2);
+        self.write_u64(type_reference.name.source_span.source.value as u64);
+        self.write_u64(type_reference.name.source_span.span.start);
+        self.write_u64(type_reference.name.source_span.span.end);
+        self.write_u64(type_reference.source_span.source.value as u64);
+        self.write_u64(type_reference.source_span.span.start);
+        self.write_u64(type_reference.source_span.span.end);
+        self.write_byte(1);
+        self.write_u64(type_reference.domain.source_span.source.value as u64);
+        self.write_u64(type_reference.domain.source_span.span.start);
+        self.write_u64(type_reference.domain.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.type_reference_count {
+            true -> parse_type_reference_bound(next)
+            _ -> parse_done()
         }
     }
 
@@ -517,6 +546,10 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         self.write_u64(type_reference.source_span.source.value as u64);
         self.write_u64(type_reference.source_span.span.start);
         self.write_u64(type_reference.source_span.span.end);
+        self.write_byte(0);
+        self.write_u64(0);
+        self.write_u64(0);
+        self.write_u64(0);
         let next: u64 = index + 1;
         transition next < self.parser.output.type_reference_count {
             true -> parse_type_reference_bound(next)
