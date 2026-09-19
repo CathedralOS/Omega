@@ -473,8 +473,9 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .map(|(_, proposition)| proposition)
         .collect::<Vec<_>>();
     // Clause order follows (expected, root, field) source keys; the codec
-    // requires canonical proposition order, so normalize before publishing.
-    full_caller_requires.sort();
+    // requires canonical proposition byte order, so normalize with the
+    // codec-owned key before publishing.
+    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut full_caller_requires)?;
     if lowered.semantic_module.machines[entry_index]
         .contract
         .requires
@@ -1361,10 +1362,11 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     entry.blocks = blocks;
     entry.parameters = scalar_parameters;
     entry.contract.requires.extend(scalar_requirements);
-    // The codec publishes requires rows strictly increasing; extend-then-sort
-    // keeps authored clauses and scalar entry requirements canonical together.
-    entry.contract.requires.sort();
-    entry.contract.requires.dedup();
+    // The codec publishes requires rows strictly increasing in canonical byte
+    // order; extend-then-normalize keeps authored clauses and scalar entry
+    // requirements canonical together. `Proposition`'s derived `Ord` is not
+    // the canonical key, so route through the codec-owned ordering.
+    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut entry.contract.requires)?;
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
         qualifications: Default::default(),
         id: value_id(next_value),

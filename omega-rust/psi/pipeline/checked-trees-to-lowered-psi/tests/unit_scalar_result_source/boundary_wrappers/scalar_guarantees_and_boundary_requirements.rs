@@ -231,9 +231,10 @@ fn ordered_boundary_requirements_keep_clause_slots_and_call_proofs() {
             .iter()
             .find(|machine| machine.parameters.len() == 2)
             .unwrap();
-        // Source duplicates normalize before publication. Every distinct
+        // Source duplicates normalize before publication. The merged authored
+        // clause publishes beside the three runtime requirement rows; every
         // published requirement still owns a separate call proof slot.
-        assert_eq!(wrapper.contract.requires.len(), 3);
+        assert_eq!(wrapper.contract.requires.len(), 4);
         let obligations = module
             .machines
             .iter()
@@ -248,7 +249,7 @@ fn ordered_boundary_requirements_keep_clause_slots_and_call_proofs() {
                 _ => None,
             })
             .unwrap();
-        assert_eq!(obligations.len(), 3);
+        assert_eq!(obligations.len(), 4);
         for obligation in obligations {
             let mut proof = decode_proof_bundle(&artifact.1).unwrap();
             let count = proof.evidence.len();
