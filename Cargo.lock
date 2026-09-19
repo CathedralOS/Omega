@@ -1447,14 +1447,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "optimization-policy-offline"
-version = "0.1.0"
-dependencies = [
- "optimization-core",
- "sha2",
-]
-
-[[package]]
 name = "optimization-unit"
 version = "0.1.0"
 dependencies = [

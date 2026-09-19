@@ -141,10 +141,13 @@ Unranked safety verification supplies no ranking certificate or fixed-work bound
 Raw cyclic units remain insufficient input; receiving legalization replays the
 same source-bound topology before ordinary native selection.
 
-[Offline policy tools](omega/tooling/optimization-policy-offline/README.md)
-consume recorded decisions without creating a second catalog or compiler
-execution path. Cost estimates and reports describe choices; their identities
-cannot replace semantic, translation, or publication evidence.
+Keep candidate construction, policy choice, and independent validation separate.
+The Rust reference compiler uses deterministic policies; discrete candidates
+and explicit decision records leave room for a future learned policy in the
+Omega-written product compiler. This is a structure requirement, not a Rust
+training, corpus, evaluation, or model-integration project. Cost estimates rank
+choices; neither they nor a future model can replace semantic, translation, or
+publication evidence.
 
 ## Validation when extending a stage
 

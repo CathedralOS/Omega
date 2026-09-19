@@ -573,20 +573,6 @@ fn terminal_native_realization_excludes_speculative_runtime_owners() {
 }
 
 #[test]
-fn offline_policy_corpus_excludes_compiler_activation_and_process_owners() {
-    assert_normal_closure_excludes(
-        "optimization-policy-offline",
-        &[
-            "bounded-process",
-            "build-evaluation",
-            "compiler",
-            "native-realization",
-            "abstract-operations-to-abstract-operations",
-        ],
-    );
-}
-
-#[test]
 fn format_specific_fnv_fingerprints_are_explicitly_non_authoritative() {
     let source_directory = workspace_root().join("omega-rust/omega/backend/images/image-elf/src");
     let mut fnv_owners = 0usize;

@@ -220,9 +220,8 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   fixed-precolored segment homes, fixed-view copies, the literal-fold
   sequence, the selected-lowering run, baseline/post-copy/post-literal-fold/
   post-selected-lowering register homes, active-resident rematerialization
-  and its pressure receipt — plus the machine plan receipt and
-  `OfflinePolicyRegressionManifest`. Each leg mutates one field through a
-  declared `*FieldForTest` inventory, recomputes the containing identity
+  and its pressure receipt — plus the machine plan receipt. Each leg mutates
+  one field through a declared `*FieldForTest` inventory, recomputes the containing identity
   honestly where the record carries one, and requires the family's named
   independent checker to reject; each hook names its checker and lists the
   fields closed by single-variant vocabularies instead of leaving them
