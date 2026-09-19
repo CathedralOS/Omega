@@ -27,8 +27,17 @@ pub(crate) fn closed_record_integer_projection(
     expression: ExpressionHandle,
 ) -> Option<typed_trees::closed_numeric::ClosedIntegerValue> {
     let (selected, reference) = closed_scalar_projection(program, expression)?;
+    // Qualification does not change the literal payload's carrier. Retain the
+    // complete field type below so bounds do not discard its obligations.
+    let mut carrier = reference;
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Constrained { base_type, .. } => carrier = *base_type,
+            _ => break,
+        }
+    }
     let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
+        program.type_reference_table.type_reference(carrier)
     else {
         return None;
     };
@@ -85,6 +94,14 @@ fn closed_scalar_projection(
         selected_type = field.type_reference;
     }
     program.primitive_type_reference(selected_type)?;
+    // Scalar projection consumers currently carry Exact arithmetic. A policy
+    // qualification must not enter that route until producer and source replay
+    // can retain its selected arithmetic domain together with the payload.
+    if program.arithmetic_domain_for_type_reference(selected_type)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
     Some((selected, selected_type))
 }
 

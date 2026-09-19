@@ -3291,10 +3291,12 @@ Owners include
     source acquisition supplies exact ownership; do not substitute host paths
     or source-order numbers for package identity. Managed package/scope keys
     already pass through indexed families, cast selection and Terminal.
-    Generic carrier-qualified `T::Domain`
-    also remains unresolved in `Holder<T>` and its closed instance with or
-    without the qualified-selector repair; bare generic-family coverage does
-    not establish this spelling.
+    Runtime field reads from a qualified `Holder<T>` local still need a
+    source-independent checked scalar control plan in **TR3-TR8** and
+    **STATE-LOCAL-VALUE-FRONTIER**. The
+    `module_machine_indices::indexed_domains::generic_carrier_qualified_fields_keep_their_owner_after_specialization`
+    regression retains that checked-source customer alongside the source-free
+    constant-record route; do not treat constant projection as runtime storage.
   - Carry exact lexical/package selection for remaining generic type-scoped
     constant attachment heads, indexed domain constraints, operator homes and
     declared-domain case facts through typed and checked trees and Terminal

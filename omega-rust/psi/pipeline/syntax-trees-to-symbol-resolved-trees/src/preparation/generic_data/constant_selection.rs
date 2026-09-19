@@ -132,6 +132,138 @@ impl<'base> ConstantSelection<'base> {
         Ok(Self { symbols, retained })
     }
 
+    /// Select an exposed family after the caller has bound the authored
+    /// carrier prefix to the enclosing data declaration's exact type binder.
+    /// Fixed-carrier families cannot classify that arbitrary open carrier.
+    /// The returned address keeps declaration ownership when the carrier is
+    /// substituted; the caller must retain the original occurrence's span.
+    pub(super) fn generic_carrier_domain_address(
+        &self,
+        syntax: &SyntaxTrees,
+        leaf: &str,
+        reference: source::SourceSpan,
+    ) -> Option<String> {
+        if reference.span.start == reference.span.end || leaf.contains("::") {
+            return None;
+        }
+        let mut candidates = Vec::new();
+        for symbol in self
+            .symbols
+            .child_handles(self.symbols.root())
+            .into_iter()
+            .flatten()
+        {
+            if self.symbols.get(symbol).kind != SymbolKind::Domain
+                || self.symbols.name(symbol) != leaf
+                || !self
+                    .symbols
+                    .source_reference_can_see_symbol(reference, symbol)
+            {
+                continue;
+            }
+            let module = self.symbols.symbol_module(symbol);
+            let exposed = !module.is_valid()
+                || self.symbols.source_module(reference.source_id) == module
+                || self
+                    .symbols
+                    .source_module_import_paths(reference.source_id)
+                    .any(|path| {
+                        matches!(
+                            self.symbols.source_module_import_target(reference.source_id, path),
+                            Some(target) if target == symbol || target == module
+                        )
+                    });
+            if !exposed {
+                continue;
+            }
+            let source_span = self.symbols.symbol_source_span(symbol);
+            let syntax_generic_carrier = syntax.root_items().any(|item| {
+                let Item::Domain(domain) = item else {
+                    return false;
+                };
+                if Some(domain.name.source_span()) != source_span || domain.name.as_str() != leaf {
+                    return false;
+                }
+                let Some(parameter) = syntax.items.type_parameters(domain.type_parameters).first()
+                else {
+                    return false;
+                };
+                matches!(parameter.kind, syntax_trees::item::TypeParameterKind::Type)
+                    && matches!(
+                        syntax.type_references.type_reference(domain.target_type),
+                        syntax_trees::types::TypeReferenceNode::Named(name)
+                            if name.as_str() == parameter.name.as_str()
+                    )
+            });
+            let retained_generic_carrier = self.retained.is_some_and(|retained| {
+                retained.domain_definitions.iter().any(|domain| {
+                    if domain.symbol != symbol {
+                        return false;
+                    }
+                    let Some(parameter) = retained
+                        .data_type_parameters(domain.type_parameters)
+                        .first()
+                    else {
+                        return false;
+                    };
+                    matches!(
+                        parameter.kind,
+                        symbol_resolved_trees::data::TypeParameterKind::Type
+                    ) && matches!(
+                        &domain.target_type,
+                        symbol_resolved_trees::types::TypeReference::Named { symbol, .. }
+                            if parameter.symbol.is_valid() && *symbol == parameter.symbol
+                    )
+                })
+            });
+            if syntax_generic_carrier || retained_generic_carrier {
+                candidates.push(symbol);
+            }
+        }
+        // A carrier-qualified selection is not a bare local domain name.
+        // Distinct exposed families compete even when one is module-local.
+        let first = *candidates.first()?;
+        let address = self.symbols.display_path(first, "::");
+        if candidates.iter().any(|candidate| {
+            self.symbols.display_path(*candidate, "::") != address
+                || !self.symbols.same_symbol_source_package(first, *candidate)
+        }) {
+            return None;
+        }
+        let selects_family = |address: &str| {
+            self.symbols.find_top_level_by_name_and_kinds_from_source(
+                address,
+                &[SymbolKind::Domain],
+                reference,
+            ) == Some(first)
+        };
+        if selects_family(&address) {
+            return Some(address);
+        }
+        // Logical paths omit package identity. An unimported local module can
+        // share the selected foreign family's path, so replay must retain the
+        // requester's certified dependency prefix when that path collides.
+        // Import targets establish ownership before constructing an address;
+        // ordinary lookup must then select the same exact declaration again.
+        let module = self.symbols.symbol_module(first);
+        for path in self.symbols.source_module_import_paths(reference.source_id) {
+            let target = self
+                .symbols
+                .source_module_import_target(reference.source_id, path);
+            let address = if target == Some(first) {
+                path.to_owned()
+            } else if module.is_valid() && target == Some(module) {
+                format!("{path}::{leaf}")
+            } else {
+                continue;
+            };
+            if selects_family(&address) {
+                return Some(address);
+            }
+        }
+        None
+    }
+
     pub(super) fn retained_identity(
         &self,
         name: &Identifier,
