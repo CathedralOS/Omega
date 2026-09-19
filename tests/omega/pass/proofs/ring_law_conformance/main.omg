@@ -3,7 +3,7 @@
 // ensures, with the law's op slots resolved through the carrier's own
 // conformances -- the op machine is named `plus`, NOT `add`, so the slot
 // rewrite is really exercised.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Peano {
     case Zero;

@@ -1,7 +1,7 @@
 // PDI3: an exact state-local equality may discharge an otherwise distinct
 // open indexed-domain result. The equality stays evidence; it does not merge
 // the two normalized domain identities.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain<T, const I: u64> T::Indexed<I>;
 domain<T, const I: u64, const J: u64> T::PairIndexed<I, J>;

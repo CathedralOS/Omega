@@ -13,9 +13,9 @@
 // SetFileTime refused; 74 stat failed; 75 the round-tripped mtime is
 // wrong (a FILETIME calibration slip).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

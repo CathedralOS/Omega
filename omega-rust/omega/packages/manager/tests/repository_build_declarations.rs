@@ -411,7 +411,7 @@ fn assert_mixed_canary_category_standard_library_edges(
 fn time_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/time"),
-        15,
+        17,
     );
 }
 
@@ -419,7 +419,7 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
 fn filesystem_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/filesystem"),
-        79,
+        85,
     );
 }
 
@@ -434,11 +434,11 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("data", 20),
         ("dependent", 34),
         ("errors", 1),
-        ("generics", 30),
+        ("generics", 37),
         ("layouts", 19),
-        ("proofs", 6),
+        ("proofs", 14),
         ("recast", 23),
-        ("structs", 12),
+        ("structs", 13),
     ] {
         assert_canaries_declare_ordinary_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -594,8 +594,8 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("core", 14, 7),
         ("dungeon", 19, 15),
         ("domains", 28, 26),
-        ("host", 22, 21),
-        ("providers", 30, 15),
+        ("host", 23, 22),
+        ("providers", 35, 19),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),

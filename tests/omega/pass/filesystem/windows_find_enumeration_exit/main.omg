@@ -18,9 +18,9 @@
 // "b.txt"/dir bit set on a file; 77 enumeration did not end; 78 find_close
 // failed.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
