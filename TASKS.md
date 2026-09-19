@@ -4378,23 +4378,31 @@ Owners include
     checked obligation cites the binding yet — the checked-trees -> lowered
     -> Terminal production of a semantic application is still missing.
   - The non-call operation result and call result
-    [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity).
-    Terminal carries `DirectOperationResult`/`DirectCallResult` with codec
-    tags 6/8 and independent verifier rejoins, and no checked or lowered
-    producer exists. The cause is that `float_meaning_projections`
-    canonicalizes one row per (source key, operation, contract) with no
-    use-site coordinate, so a transported contract does not instantiate at
-    its use. That contradicts settled
-    [contract import](wiki/spec/proofs/contracts.md): "caller import requires
-    the matching result case and argument/result substitution." Measured at
-    `a2c6676c37`: for a caller whose body is `helper(value)` with both
-    machines carrying the reflexive `ensures`, the checked table holds two
-    projections and two equalities, both `DirectMachineResult`, and the
-    caller's `result` classifies as its own machine result rather than as the
-    call result that produces it. Give the checked source key its use-site
-    coordinate so the two classes gain the producer substitution already
-    implies; do not synthesize a source that cannot be tied to an exact
-    operation or call.
+    [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
+    now carry the use-site coordinate settled
+    [contract import](wiki/spec/proofs/contracts.md) requires ("caller import
+    requires the matching result case and argument/result substitution") and
+    gain checked and lowered producers (landed 2026-09-19).
+    `CheckedFloatProjectionSourceKey` distinguishes `DirectCallResult`/
+    `DirectOperationResult` by a `CheckedFloatUseSite` (owner machine/state,
+    statement index, call ordinal); `instantiate_transported_ensures` in
+    `typed-trees-to-checked-trees/src/proof/float_meaning.rs` re-binds each
+    imported `ensures` equality at every `ContractCallFact`/
+    `ContractOperatorUseFact` site — `result` names the producer the exact
+    call or FMA operation emits there, each callee parameter names the
+    authored argument expression — and `direct_result_float_meaning_
+    reflexivity` rejoins authored rows on (owner, expression, use site).
+    `checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs`
+    joins each site to its `LoweredSourceCallOccurrence`/
+    `LoweredSelectedIeeeFloatFmaOccurrence` coordinate and emits
+    `DirectCallFloatResult`/`DirectOperationFloatResult` only for the
+    producer-kind partition the verifier rejoins. Verified on Linux x86-64
+    with `cargo nextest run -p checked-trees-to-lowered-psi --lib -E
+    'test(/float_meaning_projection/)'` (11/11) and `cargo nextest run -p
+    typed-trees-to-checked-trees --lib -E 'test(/float/)'` (96/96): a caller
+    `helper(value)` whose machines carry the reflexive `ensures` now holds a
+    `DirectCallResult` row at its call site distinct from its own
+    `DirectMachineResult`, and two call sites project distinct rows.
 
   Acceptance: every `FloatSemantics` obligation a `Float::*` slot contract
   cites is discharged through a checked kernel binding, not catalog identity
