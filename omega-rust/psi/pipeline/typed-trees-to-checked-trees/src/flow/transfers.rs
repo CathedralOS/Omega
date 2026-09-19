@@ -172,6 +172,28 @@ pub(super) fn propagate_statement_transfers(
         .map(|context_ref| context_ref.context)
         .collect();
 
+    if let Some(source) = source_place {
+        let source = semantic.places.get(source);
+        let source = CanonicalPlace {
+            root: source.root,
+            segments: semantic
+                .place_segments
+                .span_or_empty(source.segments)
+                .to_vec(),
+        };
+        if !crate::flow::place_cases_are_selected(
+            program,
+            semantic,
+            &context_handles,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            &source,
+        ) {
+            return;
+        }
+    }
+
     for context_handle in context_handles {
         let context = semantic.contexts.get(context_handle);
         let facts_to_transfer: Vec<_> = semantic
@@ -181,7 +203,8 @@ pub(super) fn propagate_statement_transfers(
             .filter_map(|reference| {
                 let fact = *semantic.facts.get(reference.fact);
                 match fact.payload {
-                    FactPayload::AssignedValue { .. }
+                    FactPayload::AssignedCase { .. }
+                    | FactPayload::AssignedValue { .. }
                     | FactPayload::AssignedScalarValue { .. }
                     | FactPayload::BytePredicate { .. } => {
                         if !stable_value_target {
@@ -530,6 +553,27 @@ pub(super) fn propagate_statement_transfers(
             },
             &mut refs,
         );
+    }
+
+    if stable_value_target
+        && let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(source_expression)
+        && let Some(variant) = literal.case_symbol.filter(|variant| variant.is_valid())
+        && program.symbols.get(variant).kind == symbols::SymbolKind::Variant
+        && program.symbols.get(variant).parent == literal.type_symbol
+    {
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::AssignedCase { variant },
+        });
+        semantic.append_ref(&mut refs, fact);
     }
 
     if stable_value_target

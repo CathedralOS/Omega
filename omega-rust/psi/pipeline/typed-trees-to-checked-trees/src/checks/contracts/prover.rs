@@ -131,6 +131,9 @@ pub(super) fn semantic_contexts_prove_contract_fact(
     entry_contexts: &[facts::FactContextHandle],
     fact: &facts::Fact,
 ) -> bool {
+    if !contract_membership_place_is_accessible(program, semantic, entry_contexts, fact) {
+        return false;
+    }
     match fact.payload {
         FactPayload::DomainMembership {
             domain_symbol,
@@ -261,7 +264,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         }
         // These are evidence or deferred obligations, not propositions this
         // dispatcher can establish. An unfamiliar payload is never success.
-        FactPayload::AssignedValue { .. }
+        FactPayload::AssignedCase { .. }
+        | FactPayload::AssignedValue { .. }
         | FactPayload::AssignedIntegerBounds { .. }
         | FactPayload::AssignedScalarValue { .. }
         | FactPayload::StorageDependency { .. }
@@ -272,6 +276,51 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         | FactPayload::ProofObligation { .. }
         | FactPayload::Contract { .. } => false,
     }
+}
+
+/// Explicit call membership requirements consume their projected subject.
+/// Nominal field contracts are checked separately and retain conditional paths
+/// below a whole-sum actual instead of extracting all its alternatives.
+pub(super) fn contract_membership_place_is_accessible(
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    contexts: &[facts::FactContextHandle],
+    fact: &facts::Fact,
+) -> bool {
+    if !matches!(
+        fact.payload,
+        FactPayload::DomainMembership { .. } | FactPayload::ContractDomainMembership { .. }
+    ) {
+        return true;
+    }
+    let facts::ProgramPoint::CallRequires {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        ..
+    } = fact.point
+    else {
+        return true;
+    };
+    let FactPlace::Place(place) = fact.place else {
+        return false;
+    };
+    let Some(subject) = crate::flow::canonical_place_from_semantic_place(
+        program,
+        semantic,
+        semantic.places.get(place),
+    ) else {
+        return false;
+    };
+    crate::flow::place_cases_are_selected(
+        program,
+        semantic,
+        contexts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &subject,
+    )
 }
 
 /// Whether a live fact at `candidate` covers the required `subject`

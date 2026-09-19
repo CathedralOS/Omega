@@ -1,4 +1,3 @@
-use crate::facts::field_domain::declared_result_field_domain_paths;
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_call_boundary_edges;
@@ -321,27 +320,11 @@ fn append_call_result_field_domain_facts(
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
 ) {
-    let Some(return_type) = call_target_return_type(program, borrow_call.target_symbol) else {
-        return;
-    };
-    let mut paths = declared_result_field_domain_paths(program, return_type)
-        .into_iter()
-        .filter(|(_, symbol)| {
-            !crate::facts::field_domain::domain_requires_provenance(program, *symbol)
-        })
-        .map(|(path, symbol)| (path, symbol, language_semantics::SemanticDomainId::NULL))
-        .collect::<Vec<_>>();
     // These are provisional checked-signature facts, not new issuance. The
     // content checker independently rejoins routed result claims to this
     // invocation after linear claim reconstruction; ordinary callee exits
     // must establish every qualification before CheckedTrees can be accepted.
-    paths.extend(
-        call_result_qualification_identities(program, borrow_call.target_symbol)
-            .into_iter()
-            .filter(|(_, symbol, _)| {
-                crate::facts::field_domain::domain_requires_provenance(program, *symbol)
-            }),
-    );
+    let paths = call_result_qualification_identities(program, borrow_call.target_symbol);
     if paths.is_empty() {
         return;
     }

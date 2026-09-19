@@ -175,6 +175,12 @@ pub enum ProofObligationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
+    /// The nominal tag installed at this place by a completed construction.
+    /// Payload expressions are not retained or reevaluated. Ordinary storage
+    /// invalidation retires the observation when the sum is replaced.
+    AssignedCase {
+        variant: SymbolHandle,
+    },
     /// Inclusive bounds on the value captured at this program point, not a
     /// deferred expression or a claim that any particular value was produced.
     AssignedIntegerBounds {
@@ -377,7 +383,8 @@ impl QualificationPayloadIdentity {
                 Some(Self::CarryPermission { permission })
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::AssignedValue { .. }
+            FactPayload::AssignedCase { .. }
+            | FactPayload::AssignedValue { .. }
             | FactPayload::AssignedIntegerBounds { .. }
             | FactPayload::AssignedScalarValue { .. }
             | FactPayload::StorageDependency { .. }

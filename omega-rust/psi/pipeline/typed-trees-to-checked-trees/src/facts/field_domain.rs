@@ -429,13 +429,20 @@ pub(crate) fn declared_owned_field_domain_identities(
             }
             ancestors.push(data.symbol);
             for member in program.data_members(data) {
-                let typed_trees::data::DataMember::Field(field) = member else {
-                    continue;
+                let fields = match member {
+                    typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+                    typed_trees::data::DataMember::Variant(variant) => {
+                        program.data_payload_fields(variant)
+                    }
                 };
-                let length = prefix.len();
-                crate::flow::push_field_place_segments(program, prefix, field.symbol);
-                visit(program, field.type_reference, prefix, ancestors, output);
-                prefix.truncate(length);
+                for field in fields {
+                    let length = prefix.len();
+                    // A payload promise is conditional on its exact case path;
+                    // it never becomes a sibling alternative's field promise.
+                    crate::flow::push_field_place_segments(program, prefix, field.symbol);
+                    visit(program, field.type_reference, prefix, ancestors, output);
+                    prefix.truncate(length);
+                }
             }
             ancestors.pop();
         } else if let TypeReferenceNode::FixedArray {

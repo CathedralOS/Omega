@@ -8,7 +8,7 @@ use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::{
     TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
+    expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
 };
@@ -63,6 +63,16 @@ impl<'a> CaseObservation<'a> {
         {
             return None;
         }
+        Self::for_exit(program, facts, exit, contexts, call_frames)
+    }
+
+    pub(super) fn for_exit(
+        program: &'a TypedTrees,
+        facts: &'a CheckFacts,
+        exit: &'a FlowExitFact,
+        contexts: &'a [FactContextHandle],
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> Option<Self> {
         let machine = program
             .machines()
             .iter()
@@ -115,6 +125,19 @@ pub(super) struct CaseObservation<'a> {
 }
 
 impl CaseObservation<'_> {
+    /// An absent payload owes no field membership. Unknown tags still owe the
+    /// conditional field contract; neither a missing fact nor a failed
+    /// projection establishes that its case is absent.
+    pub(super) fn result_path_is_inactive(&self, path: &[PlaceSegment]) -> bool {
+        let returned = exit_return_expression(self.program, self.exit);
+        path.iter().enumerate().any(|(position, segment)| {
+            let PlaceSegment::Case { variant } = segment else {
+                return false;
+            };
+            self.returned_case(returned, &path[..position], *variant, false, true, 0)
+        })
+    }
+
     pub(super) fn observe(&self, expression: ExpressionHandle) -> Option<bool> {
         let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
         else {
@@ -186,10 +209,33 @@ impl CaseObservation<'_> {
             if let ExpressionNode::StructLiteral(literal) =
                 self.program.expression_table.expression(expression)
             {
+                if let PlaceSegment::Case { variant } = segment {
+                    let declared = self.program.data_definitions().iter().any(|data| {
+                        data.symbol == literal.type_symbol
+                            && self.program.data_members(data).iter().any(|member| {
+                                matches!(member, typed_trees::data::DataMember::Variant(candidate)
+                                    if candidate.symbol == *variant)
+                            })
+                    });
+                    return declared
+                        && literal.case_symbol == Some(*variant)
+                        && self.returned_case(
+                            expression,
+                            rest,
+                            case,
+                            required,
+                            can_read_live,
+                            depth + 1,
+                        );
+                }
                 let PlaceSegment::Field { symbol } = segment else {
                     return false;
                 };
-                if self.program.symbols.get(*symbol).parent != literal.type_symbol {
+                let field_owner = literal.case_symbol.unwrap_or(literal.type_symbol);
+                if !symbol.is_valid()
+                    || self.program.symbols.get(*symbol).kind != symbols::SymbolKind::Field
+                    || self.program.symbols.get(*symbol).parent != field_owner
+                {
                     return false;
                 }
                 let mut fields = self
@@ -211,6 +257,29 @@ impl CaseObservation<'_> {
                 // such storage premise.
                 return self.returned_case(
                     field.value,
+                    rest,
+                    case,
+                    required,
+                    can_read_live && self.return_has_no_writes,
+                    depth + 1,
+                );
+            }
+            if let ExpressionNode::ArrayLiteral(elements) =
+                self.program.expression_table.expression(expression)
+            {
+                let PlaceSegment::FixedIndex { index } = segment else {
+                    return false;
+                };
+                let Some(element) = self
+                    .program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .get(*index)
+                else {
+                    return false;
+                };
+                return self.returned_case(
+                    *element,
                     rest,
                     case,
                     required,
@@ -262,29 +331,34 @@ impl CaseObservation<'_> {
         projection: &[PlaceSegment],
         case: SymbolHandle,
         required: bool,
-        depth: usize,
+        _depth: usize,
     ) -> bool {
         let Some(mut subject) = self.stable_place(expression) else {
             return false;
         };
+        if !crate::flow::place_cases_are_selected(
+            self.program,
+            &self.facts.semantic,
+            self.contexts,
+            self.machine.symbol,
+            self.state.symbol,
+            self.exit.statement_index,
+            &subject,
+        ) {
+            return false;
+        }
         subject.segments.extend_from_slice(projection);
-        self.contexts.iter().any(|context| {
-            self.facts
-                .semantic
-                .context_view(self.facts.semantic.contexts.get(*context))
-                .facts()
-                .any(|fact| {
-                    let (expression, value) = match fact.payload {
-                        FactPayload::BooleanValue { expression, value } => (expression, value),
-                        FactPayload::BooleanExpression(expression)
-                        | FactPayload::ContractBooleanExpression { expression, .. } => {
-                            (expression, true)
-                        }
-                        _ => return false,
-                    };
-                    self.live_predicate(expression, value, &subject, case, required, depth + 1)
-                })
-        })
+        crate::flow::place_case_has_value(
+            self.program,
+            &self.facts.semantic,
+            self.contexts,
+            self.machine.symbol,
+            self.state.symbol,
+            self.exit.statement_index,
+            &subject,
+            case,
+            required,
+        )
     }
 
     fn stable_place(&self, expression: ExpressionHandle) -> Option<CanonicalPlace> {
@@ -301,61 +375,6 @@ impl CaseObservation<'_> {
                     || matches!(segment, PlaceSegment::FixedIndex { .. })
             }))
         .then_some(place)
-    }
-
-    fn live_predicate(
-        &self,
-        expression: ExpressionHandle,
-        value: bool,
-        subject: &CanonicalPlace,
-        case: SymbolHandle,
-        required: bool,
-        depth: usize,
-    ) -> bool {
-        if depth >= 128
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
-        {
-            return false;
-        }
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                self.live_predicate(unary.operand, !value, subject, case, required, depth + 1)
-            }
-            ExpressionNode::Binary(binary)
-                if (binary.operator == BinaryOperator::And && value)
-                    || (binary.operator == BinaryOperator::Or && !value) =>
-            {
-                self.live_predicate(binary.left, value, subject, case, required, depth + 1)
-                    || self.live_predicate(binary.right, value, subject, case, required, depth + 1)
-            }
-            ExpressionNode::Binary(binary)
-                if validation::has_exact_case_membership_meaning(
-                    self.program,
-                    self.machine,
-                    Some(self.state),
-                    expression,
-                    binary,
-                ) =>
-            {
-                let ExpressionNode::Name(observed) =
-                    self.program.expression_table.expression(binary.right)
-                else {
-                    return false;
-                };
-                self.stable_place(binary.left).as_ref() == Some(subject)
-                    && self.program.symbols.get(observed.symbol).parent
-                        == self.program.symbols.get(case).parent
-                    && if value {
-                        (observed.symbol == case) == required
-                    } else {
-                        observed.symbol == case && !required
-                    }
-            }
-            _ => false,
-        }
     }
 }
 

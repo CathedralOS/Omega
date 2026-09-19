@@ -162,6 +162,16 @@ pub(super) fn check(
             Owner::Parameter(parameter.symbol)
         };
         for (segments, domain_symbol, semantic_domain) in requirements.requirements(owner) {
+            if argument.is_some_and(|argument| {
+                crate::flow::literal_value_path_is_inactive(
+                    program,
+                    argument,
+                    parameter.type_reference,
+                    segments,
+                )
+            }) {
+                continue;
+            }
             let proves = |subject: &crate::flow::CanonicalPlace| {
                 if crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol) {
                     super::exits::exact_scalar_membership(
@@ -202,12 +212,34 @@ pub(super) fn check(
                                 projection.expression,
                             )
                             .is_some_and(|mut subject| {
+                                if !crate::flow::place_cases_are_selected(
+                                    program,
+                                    &facts.semantic,
+                                    contexts,
+                                    state.machine_symbol,
+                                    state.state_symbol,
+                                    call.statement_index,
+                                    &subject,
+                                ) {
+                                    return false;
+                                }
                                 subject.extend_segments(&projection.remaining);
                                 proves(&subject)
                             })
                         })
                 })
                 || actual.as_ref().is_some_and(|actual| {
+                    if !crate::flow::place_cases_are_selected(
+                        program,
+                        &facts.semantic,
+                        contexts,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        call.statement_index,
+                        actual,
+                    ) {
+                        return false;
+                    }
                     let mut subject = actual.clone();
                     subject.extend_segments(segments);
                     proves(&subject)

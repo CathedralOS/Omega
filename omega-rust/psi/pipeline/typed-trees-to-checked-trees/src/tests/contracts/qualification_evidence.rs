@@ -4,6 +4,164 @@ use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
 #[test]
+fn case_payloads_transport_owned_qualifications_through_return_and_dispatch() {
+    let source = r#"
+data Token [linear] { identity: u64; }
+domain Token::Issued established by Issuer::issue;
+domain Token::Vacant;
+boundary trait Issuer { machine issue() -> Token in Issued; }
+data Outcome {
+    case Accepted(value: Token in Issued & Vacant);
+    case Rejected(original: Token in Issued & Vacant);
+}
+machine choose(token: Token in Issued & Vacant, accept: bool) -> Outcome {
+    transition accept {
+        true -> Outcome::Accepted { value: token }
+        _ -> Outcome::Rejected { original: token }
+    }
+}
+machine consume(token: Token in Issued & Vacant) -> Token { token as Token }
+machine exercise(token: Token in Issued & Vacant, accept: bool) -> Token {
+    let outcome: Outcome = choose(token, accept);
+    transition outcome {
+        Outcome::Accepted { value } -> consume(value)
+        Outcome::Rejected { original } -> consume(original)
+    }
+}
+"#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("each selected result payload retains the exact owned qualifications");
+    let forwarded = source
+        .replace(
+            "machine consume(",
+            "machine forward(outcome: Outcome) -> Outcome { outcome }\nmachine consume(",
+        )
+        .replace(
+            "let outcome: Outcome = choose(token, accept);",
+            "let chosen: Outcome = choose(token, accept); let outcome: Outcome = forward(chosen);",
+        );
+    lower_typed_trees(parse_typed_trees(&forwarded))
+        .expect("a whole-sum wrapper retains conditional payload contracts");
+    let copied = source.replace(
+        "transition outcome {",
+        "let moved: Outcome = outcome; transition moved {",
+    );
+    lower_typed_trees(parse_typed_trees(&copied))
+        .expect("an owned sum move preserves exact case paths");
+}
+
+#[test]
+fn inactive_case_payload_cannot_supply_a_qualification() {
+    let source = r#"
+data Token [linear] { identity: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer { machine issue() -> Token in Issued; }
+data Outcome {
+    case Qualified(value: Token in Issued);
+    case Raw(raw: Token);
+}
+machine wrap(token: Token) -> Outcome { Outcome::Raw { raw: token } }
+machine consume(token: Token in Issued) -> Token { token as Token }
+machine exercise(token: Token) -> Token {
+    let outcome: Outcome = wrap(token);
+    consume(outcome.value)
+}
+"#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the absent qualified alternative cannot authorize raw custody");
+    let affine = source.replace("Token [linear]", "Token");
+    let diagnostics = lower_typed_trees(parse_typed_trees(&affine))
+        .map(|_| ())
+        .expect_err("case qualification selection is required even without linear debt");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn replacing_a_sum_retires_its_payload_qualification() {
+    let source = r#"
+data Token { identity: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer { machine issue() -> Token in Issued; }
+data Outcome { case Qualified(value: Token in Issued); case Raw(raw: Token); }
+machine consume(token: Token in Issued) -> Token { token as Token }
+machine exercise(token: Token in Issued, raw: Token) -> Token {
+    let mut outcome: Outcome = Outcome::Qualified { value: token };
+    outcome = Outcome::Raw { raw: raw };
+    consume(outcome.value)
+}
+"#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .map(|_| ())
+        .expect_err("replacing the sum cannot retain its old selected case");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+    let valid = source.replace("outcome = Outcome::Raw { raw: raw };", "");
+    lower_typed_trees(parse_typed_trees(&valid))
+        .expect("an unchanged constructed tag authorizes its own payload");
+}
+
+#[test]
+fn case_construction_cannot_mint_a_payload_qualification() {
+    let source = r#"
+data Token [linear] { identity: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer { machine issue() -> Token in Issued; }
+data Outcome { case Qualified(value: Token in Issued); case Empty; }
+machine wrap(token: Token) -> Outcome { Outcome::Qualified { value: token } }
+"#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a case field declaration is not issuer evidence");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")
+                || diagnostic.message.contains("cannot prove")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn a_qualified_scalar_return_requires_its_source_case() {
+    let source = r#"
+domain u64::Secret established by Issuer::issue;
+boundary trait Issuer { machine issue() -> u64 in Secret; }
+data Outcome { case Qualified(value: u64 in Secret); case Raw(raw: u64); }
+machine bad(outcome: Outcome) -> u64 in Secret { outcome.value }
+"#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .map(|_| ())
+        .expect_err("a scalar qualification cannot escape from an unselected payload");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("selected case")),
+        "{diagnostics:#?}"
+    );
+    let explicit = source.replace(
+        "-> u64 in Secret { outcome.value }",
+        "-> u64 ensures result in Secret { outcome.value as u64 }",
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&explicit))
+        .map(|_| ())
+        .expect_err("an explicit result promise cannot bypass source-case selection");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn checked_boundary_adapter_defers_issuance_to_the_boundary_call() {
     let source = r#"
 data Token { value: u64; }

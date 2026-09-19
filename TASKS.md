@@ -2598,8 +2598,9 @@ Owners include
   full return. Use it to discover the real `Vec<T>` contract; do not add
   allocator semantics to the compiler.
 
-  `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a guarded
-  fallible request, a one-buffer `BumpVec` reservation, content-free growth
+  `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a
+  fallible request returning and consuming both `Attempt` cases, a one-buffer
+  `BumpVec` reservation, content-free growth
   (`grow` rebuffers via `merge` + `split`) and one resident
   place/read/retire; six `fail/memory/bump_allocator_*` controls pin the
   rejections. Its header records the contract edges found so far. This is source
@@ -2623,27 +2624,23 @@ Owners include
     buffer with a live resident cannot fold back for a resize — pinned by
     `fail/memory/bump_allocator_grow_with_live_resident`. Element transfer
     across the fold waits on the same placed-access route as elements.
-  - Custody-carrying sums. Destructured case payloads still lack qualified
-    claim transport: a sum-typed fallible request, optional retired slot and
-    retired-buffer list construct but cannot yet be consumed. Owned record
-    fields now retain exact domain instances through calls and moves;
-    `allocate` uses `parts.taken`/`parts.rest` directly. The focused canary
-    command below passes on macOS ARM64 along with the six rejection controls.
-    Typed-local annotations no longer establish routed membership: initializer,
-    construction, incoming nominal-field and mutable/owned return obligations
-    consume live evidence. `checks/content/call_results.rs` joins provisional
-    call-result facts to the exact invocation, owned claim transfers, result
-    identities and authored conservation; non-content boundary introductions
-    still require an exact issuer route. `flow/transfers/owned_qualifications.rs`
-    transports existing qualifications separately from predicate copying and
-    refuses reference-shell traversal; borrowed facts retain their origin rules.
-    Extend this same checked custody route to case outcomes, retaining exact
-    case/claim correspondence and mutation invalidation. Anonymous linear call
-    results without known result-claim evidence, recursive expansion, unresolved
-    array extents and outcome-specific partition frontiers remain explicit
-    implementation limits. Do not replace those joins with annotations or
-    matching algebra/field names. `NOMINAL-FIELD-FLOW` owns the field-evidence
-    work; Terminal and native allocation remain separate dependencies.
+  - Retained buffers. Extend the existing case/claim correspondence to an
+    optional retired slot and a recursively retained buffer list, with a real
+    ranking proof and exact reset recomposition. The source-checked frontier is
+    now `try_allocate -> Attempt`: both the issued allocation and unchanged
+    rejected strategy can be consumed by `exercise_fallible`. The focused
+    canary command below and all six rejection controls pass on macOS ARM64.
+    `flow/transfers/owned_qualifications.rs` carries exact existing domain
+    instances under case/field paths without crossing reference shells;
+    `flow/place/case_access.rs` requires live tag evidence before extracting
+    a payload, independently of multiplicity. Incoming and returned sum field
+    contracts remain conditional, not authority for inactive payloads.
+    `checks/content/call_results.rs` still joins result facts to the exact
+    invocation, claims and conservation theorem. Anonymous linear results
+    without known claim evidence, recursive expansion, unresolved array extents
+    and outcome-specific partition frontiers remain implementation limits.
+    Do not substitute annotations or matching algebra/field names for those
+    joins. Terminal and native allocation remain separate dependencies.
   - Counted residual. `split`'s law never pins `result.taken.length`.
     Separate scalar and content-conservation guarantees are supported and
     independently checked (`scalar_and_content_guarantees_are_checked_independently`);
