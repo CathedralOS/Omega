@@ -612,9 +612,11 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     denied undeclared siblings, missing-input rejection, unchanged acceptance,
     and native publication with macOS ARM64 exit 0. Full package provenance
     and selected-inventory identity stay distinct through review-only replay.
-    Named dependency-input delivery and inventory-aware package policy review
-    remain (a selection that changes risk-bearing policy still requires
-    acceptance; ordinary update/audit do not yet take an inventory request);
+    `omega audit packages` accepts the same root inventory across requested
+    targets without changing lock acceptance or publishing outputs. Named
+    dependency-input delivery and inventory-aware install/update remain: a
+    selection that changes risk-bearing policy still requires acceptance, but
+    ordinary install/update do not yet take an inventory request;
     do not capture the whole working directory, widen another occurrence's
     inputs, or substitute the live-host filesystem. Snapshot intent supplies
     no output sponsorship or committed companion-output set.

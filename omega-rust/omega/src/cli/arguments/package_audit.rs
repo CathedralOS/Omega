@@ -1,9 +1,10 @@
+use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use package_manager::operations::PackageInspectionOptions;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
 
-pub(super) const USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
+pub(super) const USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
 
 pub(super) fn parse(
     mut arguments: impl Iterator<Item = OsString>,
@@ -13,11 +14,24 @@ pub(super) fn parse(
     let mut help = false;
     let mut details = false;
     let mut offline = false;
+    let mut build_inputs = Vec::new();
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
             Some("--help") if !help => help = true,
             Some("--details") if !details => details = true,
             Some("--offline") if !offline => offline = true,
+            Some(flag @ ("--build-input" | "--optional-build-input")) => {
+                let path = super::option_value(&mut arguments)
+                    .ok_or_else(|| format!("{flag} requires a canonical relative path"))?
+                    .into_string()
+                    .map_err(|_| format!("{flag} requires a UTF-8 canonical relative path"))?;
+                let obligation = if flag == "--build-input" {
+                    BuildSourceCaptureObligation::Required
+                } else {
+                    BuildSourceCaptureObligation::Optional
+                };
+                build_inputs.push((path.into_bytes(), obligation));
+            }
             Some("--project") if project_root.is_none() => {
                 project_root = Some(PathBuf::from(value(&mut arguments, "--project")?));
             }
@@ -39,11 +53,17 @@ pub(super) fn parse(
             }
         }
     }
+    let build_inputs = if build_inputs.is_empty() {
+        None
+    } else {
+        Some(BuildSourceCaptureRequest::new(build_inputs)?)
+    };
     Ok((!help).then(|| PackageInspectionOptions {
         project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
         targets,
         details,
         offline,
+        build_inputs,
     }))
 }
 
@@ -69,6 +89,7 @@ mod tests {
         assert!(options.targets.is_empty());
         assert!(!options.details);
         assert!(!options.offline);
+        assert!(options.build_inputs.is_none());
         assert!(parse(arguments(&["--details"])).unwrap().unwrap().details);
         let options = parse(arguments(&[
             "--project",
@@ -103,8 +124,71 @@ mod tests {
             vec!["--target", "--offline"],
             vec!["--project", ".", "--project", "."],
             vec!["--target", "linux_x86_64", "--target", "linux_x86_64"],
+            vec!["--build-input"],
+            vec!["--optional-build-input", "--offline"],
+            vec!["--build-input", ""],
+            vec!["--build-input", "../secret"],
+            vec!["--build-input", "/absolute"],
+            vec!["--build-input", "C:/drive"],
+            vec![
+                "--build-input",
+                "templates",
+                "--build-input",
+                "templates/file",
+            ],
+            vec![
+                "--build-input",
+                "main.omg",
+                "--optional-build-input",
+                "main.omg",
+            ],
         ] {
             assert!(parse(arguments(&values)).is_err(), "{values:?}");
         }
+    }
+
+    #[test]
+    fn inspection_retains_required_and_optional_input_obligations() {
+        use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+        let options = parse(arguments(&[
+            "--build-input",
+            "main.omg",
+            "--optional-build-input",
+            "settings.cfg",
+            "--build-input",
+            "templates",
+            "--build-input",
+            "-template",
+            "--details",
+            "--offline",
+        ]))
+        .unwrap()
+        .unwrap();
+        let inputs = options.build_inputs.unwrap();
+        assert_eq!(
+            inputs.entries().collect::<Vec<_>>(),
+            vec![
+                (b"-template".as_slice(), Required),
+                (b"main.omg".as_slice(), Required),
+                (b"settings.cfg".as_slice(), Optional),
+                (b"templates".as_slice(), Required),
+            ]
+        );
+        assert!(options.details && options.offline);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn inspection_rejects_non_utf8_logical_input_paths() {
+        use std::os::unix::ffi::OsStringExt;
+        let error = parse(
+            [
+                OsString::from("--build-input"),
+                OsString::from_vec(vec![0xff]),
+            ]
+            .into_iter(),
+        )
+        .unwrap_err();
+        assert!(error.contains("UTF-8"), "{error}");
     }
 }

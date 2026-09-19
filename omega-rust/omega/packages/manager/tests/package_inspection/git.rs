@@ -87,6 +87,7 @@ fn inspect_with_offline(
             targets: Vec::new(),
             details: false,
             offline,
+            build_inputs: None,
         },
         Some(
             &SourceResolverStorage::for_hardened_base(

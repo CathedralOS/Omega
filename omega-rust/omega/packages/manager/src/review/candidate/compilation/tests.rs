@@ -169,6 +169,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &exact,
         &fixture.0.join("candidate"),
         SemanticBindingReview::Discover,
+        None,
         &mut preparation,
     )
     .expect("a repeated candidate reuses the same preparation");
@@ -296,6 +297,7 @@ fn shared_preparation_serves_cross_target_reviews_and_still_rejects_drift() {
                     .0
                     .join(format!("reused-{}", exact.target_profile().target_name())),
                 SemanticBindingReview::Discover,
+                None,
                 &mut preparation,
             )
             .expect("cross-target review reuses prepared sources"),
@@ -340,6 +342,7 @@ fn shared_preparation_serves_cross_target_reviews_and_still_rejects_drift() {
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &fixture.0.join("drifted"),
         SemanticBindingReview::Discover,
+        None,
         &mut preparation,
     );
     assert!(matches!(
@@ -513,6 +516,42 @@ fn assert_root_console_permissions(
     use package_evidence::record::PackageReviewCanonicalRowKind;
 
     let fixture = ConsoleApplicationFixture::new(console_source);
+    // A source read in either discovery or final checking must observe the
+    // caller's inventory. Full package custody still includes this sibling.
+    let build_path = fixture.0.join("application/build.omg");
+    let build = fs::read_to_string(&build_path).unwrap().replace(
+        "\n}\n",
+        r#"
+    let path: BuildPath = builder.source.resolve("not-an-input.txt");
+    let descriptor: i32 = builder.source.open(path, 0);
+    transition descriptor < 0 {
+        true -> admitted()
+        _ -> rejected(builder)
+    }
+    state admitted() {}
+    state rejected(builder: &mut Build) {
+        let output: RequiredOutput = builder.output.require("inventory-verdict");
+        builder.output.fail(output, "review pass widened the root input inventory");
+    }
+}
+"#,
+    );
+    fs::write(build_path, build).unwrap();
+    fs::write(fixture.0.join("application/not-an-input.txt"), "excluded").unwrap();
+    let snapshot = build_evaluation::BuildSnapshotRequest::scoped(
+        Vec::new(),
+        package_compilation::BuildSourceCaptureRequest::new([
+            (
+                b"build.omg".to_vec(),
+                package_compilation::BuildSourceCaptureObligation::Required,
+            ),
+            (
+                b"main.omg".to_vec(),
+                package_compilation::BuildSourceCaptureObligation::Required,
+            ),
+        ])
+        .unwrap(),
+    );
     let closure = fixture.closure();
     let root = closure.graph().root().clone();
     let exact = closure.for_exact_target(target::TargetProfile::LinuxX64);
@@ -522,7 +561,7 @@ fn assert_root_console_permissions(
         &fixture.0.join("discovery"),
         &[],
         None,
-        None,
+        Some(&snapshot),
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -587,6 +626,7 @@ fn assert_root_console_permissions(
         &exact,
         &fixture.0.join("final"),
         SemanticBindingReview::Discover,
+        Some(&snapshot),
         &mut preparation,
     )
     .expect("final pass consumes the proposed permissions");
@@ -784,6 +824,7 @@ fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf()
         &exact,
         &fixture.0.join("final"),
         SemanticBindingReview::Discover,
+        None,
         &mut preparation,
     )
     .expect("final pass consumes the proposed permissions");

@@ -162,6 +162,25 @@ fn cli_inventory_narrows_root_reads_without_narrowing_dependencies_and_runs_nati
         "{broader:?}"
     );
 
+    let broader_audit = project.omega(&["audit", "packages", "--offline"]);
+    assert_eq!(broader_audit.status.code(), Some(1), "{broader_audit:?}");
+    assert!(
+        String::from_utf8_lossy(&broader_audit.stdout)
+            .contains("wrong bytes or undeclared source access"),
+        "{broader_audit:?}"
+    );
+    let mut audit = vec!["audit", "packages", "--offline", "--details"];
+    audit.extend_from_slice(INVENTORY);
+    let inspected = project.omega(&audit);
+    assert_success(&inspected);
+    assert!(String::from_utf8_lossy(&inspected.stdout).contains("fresh-analysis complete"));
+    assert_eq!(
+        fs::read(project.0.join("root/omega.lock")).unwrap(),
+        accepted
+    );
+    assert!(!project.0.join("root/build/omega-program").exists());
+    assert!(!project.0.join("root/build/omega-program.exe").exists());
+
     for product in [Some("--check"), None] {
         let mut arguments = INVENTORY.to_vec();
         arguments.extend(["--offline", "--target", host.target_name(), "main.omg"]);
@@ -185,6 +204,74 @@ fn cli_inventory_narrows_root_reads_without_narrowing_dependencies_and_runs_nati
         b"not a build input"
     );
     assert!(!project.0.join("root/inventory-verdict").exists());
+}
+
+#[test]
+fn audit_inventory_checks_unaccepted_targets_without_publishing_or_hiding_missing_inputs() {
+    let project = Project::new();
+    fs::write(
+        project.0.join("root/undeclared.txt"),
+        "outside input selection",
+    )
+    .unwrap();
+    let mut audit = vec![
+        "audit",
+        "packages",
+        "--offline",
+        "--target",
+        "macos_arm64",
+        "--target",
+        "windows_x86_64",
+    ];
+    audit.extend_from_slice(INVENTORY);
+    let inspected = project.omega(&audit);
+    assert_success(&inspected);
+    let report = String::from_utf8_lossy(&inspected.stdout);
+    assert_eq!(
+        report.matches("fresh-analysis complete").count(),
+        2,
+        "{report}"
+    );
+    assert!(report.contains("inventory-child"), "{report}");
+    audit.extend(["--build-input", "required-missing.txt"]);
+    let missing = project.omega(&audit);
+    assert_eq!(missing.status.code(), Some(1), "{missing:?}");
+    let report = String::from_utf8_lossy(&missing.stdout);
+    assert_eq!(
+        report.matches("fresh-analysis unavailable").count(),
+        2,
+        "{report}"
+    );
+    assert!(
+        report.contains("required source capture entry `required-missing.txt` is absent"),
+        "{report}"
+    );
+    // Selecting benign inputs cannot accept risk-bearing policy. A newly
+    // declared dependency assumption must remain a review-required result.
+    audit.truncate(audit.len() - 2);
+    fs::write(
+        project.0.join("dependency/main.omg"),
+        "boundary machine trusted_zero() -> u64 ensures result == 0;\n",
+    )
+    .unwrap();
+    let unaccepted = project.omega(&audit);
+    assert_eq!(unaccepted.status.code(), Some(3), "{unaccepted:?}");
+    let report = String::from_utf8_lossy(&unaccepted.stdout);
+    assert_eq!(
+        report.matches("fresh-analysis complete").count(),
+        2,
+        "{report}"
+    );
+    assert!(report.contains("trusted_zero"), "{report}");
+    assert!(!project.0.join("root/omega.lock").exists());
+    assert!(
+        !project
+            .0
+            .join("root/build/package-manager/proposal")
+            .exists()
+    );
+    assert!(!project.0.join("root/build/omega-program").exists());
+    assert!(!project.0.join("root/build/omega-program.exe").exists());
 }
 
 #[test]

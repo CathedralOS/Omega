@@ -20,6 +20,10 @@ pub struct PackageInspectionOptions {
     pub details: bool,
     /// Restrict Git acquisition to cached exact pins, without selector refresh.
     pub offline: bool,
+    /// Caller-selected immutable root inputs, relative to the project source
+    /// root. Dependencies retain their own inventories. Absence preserves the
+    /// ordinary package inventory; selection grants no restricted host access.
+    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
 }
 
 #[derive(Debug)]
@@ -56,11 +60,17 @@ pub fn inspect_packages(
     let transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
             .map_err(failure)?;
+    // Inspection needs the same source selection as checking, not an output
+    // request or a publication grant. The shared review pipeline owns capture.
+    let build_snapshot = options
+        .build_inputs
+        .map(|inputs| build_evaluation::BuildSnapshotRequest::scoped(Vec::new(), inputs));
     execution::inspect(
         &transaction,
         options.targets,
         options.details,
         options.offline,
+        build_snapshot.as_ref(),
         |root| match storage {
             Some(storage) => Ok(InspectionStorage::Supplied(storage)),
             None => SourceResolverStorage::for_current_user(PrimaryGitChoices {

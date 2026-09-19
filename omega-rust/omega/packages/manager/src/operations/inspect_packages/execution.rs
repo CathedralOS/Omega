@@ -26,6 +26,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
     requested_targets: Vec<TargetProfile>,
     details: bool,
     offline: bool,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     open_storage: impl FnOnce(&Path) -> Result<Storage, PackageInspectionError>,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     // read_pair refuses pending commit intent. Inspection never completes a
@@ -58,6 +59,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
                 baseline,
                 storage.borrow(),
                 offline,
+                root_build_snapshot,
                 &mut preparation,
             ),
             Err(error) => Err(failure(error)),
@@ -143,6 +145,7 @@ fn check(
     accepted: Option<&PackageLockTarget>,
     storage: &SourceResolverStorage,
     offline: bool,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<
     (
@@ -192,6 +195,7 @@ fn check(
             .join("build/package-manager")
             .join(format!("audit-{}", target.target_name())),
         SemanticBindingReview::Discover,
+        root_build_snapshot,
         preparation,
     )
     .map_err(failure)?;
