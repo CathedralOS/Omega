@@ -358,12 +358,9 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         if argument.path.is_empty() {
             continue;
         }
-        let Some((result, root)) = temporaries
+        let (result, root) = temporaries
             .iter()
-            .find(|(result, _)| result.binding_ordinal == binding_ordinal)
-        else {
-            return None;
-        };
+            .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
         if covered.contains(&binding_ordinal)
             || coordinate.statement_index != result.statement_index
             || !matches!(root, facts::PlaceRoot::Expression(_))

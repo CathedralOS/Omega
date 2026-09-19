@@ -202,9 +202,7 @@ pub(super) fn entry_operand_projected(
             ExpressionNode::Member(member) => {
                 // An unresolvable member is not a separable place, so the
                 // operand keeps no entry identity.
-                let Some((symbol, hop)) = member_hop_path(program, member) else {
-                    return None;
-                };
+                let (symbol, hop) = member_hop_path(program, member)?;
                 member_names.insert(0, member_entry_name(program, member, symbol));
                 for segment in hop.into_iter().rev() {
                     projection.insert(0, segment);

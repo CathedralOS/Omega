@@ -430,10 +430,10 @@ pub(crate) fn runtime_bound_occurrence_in(
                         .type_reference_handles(*arguments),
                 );
             }
-            TypeReferenceNode::ConstExpression(expression) => {
-                if name_mentions_symbol(program, *expression, parameter_symbol) {
-                    return true;
-                }
+            TypeReferenceNode::ConstExpression(expression)
+                if name_mentions_symbol(program, *expression, parameter_symbol) =>
+            {
+                return true;
             }
             _ => {}
         }

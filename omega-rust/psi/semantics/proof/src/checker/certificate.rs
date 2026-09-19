@@ -614,10 +614,9 @@ fn guarded_refold_certificate(
         BinaryOperator::Add => {
             if let Some(literal) = integer_literal_handle(proof_plan, binary.right) {
                 (binary.left, literal, false)
-            } else if let Some(literal) = integer_literal_handle(proof_plan, binary.left) {
-                (binary.right, literal, false)
             } else {
-                return None;
+                let literal = integer_literal_handle(proof_plan, binary.left)?;
+                (binary.right, literal, false)
             }
         }
         BinaryOperator::Subtract => {

@@ -643,11 +643,9 @@ fn builtin_float_operator_use_fact(
 ) -> Option<CheckedNamedOperatorUseFact> {
     let (selected_operator_symbol, format) =
         builtin_float_operator_selection(program, expression, origin, call)?;
-    if typed_trees::operator::declaration_by_symbol(program, selected_operator_symbol).is_none() {
-        // The shorthand resolved to a top-level `boundary requirement`; that
-        // species retains its own named requirement use.
-        return None;
-    }
+    // The shorthand resolved to a top-level `boundary requirement`; that
+    // species retains its own named requirement use.
+    typed_trees::operator::declaration_by_symbol(program, selected_operator_symbol)?;
 
     Some(CheckedNamedOperatorUseFact {
         expression,
