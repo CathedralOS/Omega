@@ -603,3 +603,42 @@ fn erased_trait_requirement_qualifiers_refuse_the_qualifier() {
         "erased parameter `proof` cannot be `mut`",
     );
 }
+
+#[test]
+fn erased_nonscalar_parameter_on_runtime_machine_refuses_the_lane() {
+    // A record formal cannot occupy an erased scalar lane: the calling plan
+    // would omit it without a name, so shape admission names the refusal
+    // until contract terms carry structural erased actuals.
+    rejected(
+        r#"
+        data Proof { tag: i32; }
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(Proof { tag: 1 }, 4);
+        }
+
+        machine Main::record(&mut self, w [erased]: Proof, y: i32) {
+            self.value = y;
+        }
+        "#,
+        "erased parameter `w` is not scalar",
+    );
+}
+
+#[test]
+fn erased_scalar_parameter_stays_admitted() {
+    typed(
+        r#"
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(3, 4);
+        }
+
+        machine Main::record(&mut self, w [erased]: i32, y: i32) {
+            self.value = y;
+        }
+        "#,
+    );
+}
