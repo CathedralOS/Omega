@@ -3153,6 +3153,12 @@ Owners include
   row emitters, and package review still publishes the broad `Filesystem`
   class.
 
+  The explicit admission replay is now pinned at the operations join:
+  `accepted_lock` shows an accepted project emits an artifact carrying no
+  receiver-admission claim with no supplied policy — the replay rejects it —
+  and binds the supplied policy's exact identity when given one, admitting
+  only under that identity and rejecting under any other.
+
   Remaining work:
 
   - Rerun `cli_mvp`, console-exit-app, the Squalr native route and the
