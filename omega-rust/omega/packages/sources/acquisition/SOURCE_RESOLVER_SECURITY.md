@@ -249,6 +249,14 @@ and snapshot before returning. Ordinary concurrent drift rejects. The snapshot
 does not claim protection from a process that already possesses the same user
 authority after resolution completes.
 
+Each regular-file copy checks its observed byte count and compares the retained
+handle's identity, length, permissions and modification time before and after
+reading; Unix also compares change time. The final name is checked without
+following links through the retained parent directory, not an ambient path.
+Those host observations detect drift but never enter canonical source identity.
+They do not establish whole-tree atomicity or detect every edit that restores
+the compared observations; the later live-tree comparison remains necessary.
+
 Mutable local capture omits Git metadata, the root build-output directory, and
 root `omega.lock` and `omega.admissions`, including ASCII case variants. Project
 policy must not hash itself through the root source selection. Nested policy-named files remain source, and
