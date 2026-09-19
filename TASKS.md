@@ -2297,13 +2297,20 @@ Owners include
   Remaining work:
 
   - Extend establishment beyond authored preconditions and incoming guards to
-    callee `ensures`, domain membership and theorem-call conclusions, valid
+    callee `ensures`, broader domain membership and theorem-call conclusions, valid
     for the captured value and place versions at formation. Guard-derived
     window writes and calls use the range checker's shared
     `incoming_guards.rs` and `requirements.rs` readers; immutable owned
     scalar parameters survive renaming and forwarding only with preservation
     at every hop. Mutable, computed and foreign subjects remain unproven until
     the shared reader supplies version evidence. Do not add a second collector.
+    Required concrete integer membership now supplies direct `self`/literal
+    comparisons through the same Boolean decomposer. Tokens rejoin the exact
+    membership, definition and predicate; aliases use typed expansion.
+    Indexed theories, nested membership transport, domain arithmetic and
+    other establishment points still need their exact substitution/meaning
+    evidence. Preserve `pass/borrows/borrow_domain_window_write_and_call`
+    and `certificates/domain_premises.rs` when extending them.
   - Range-premise read sets (`checks/ranges/facts/dependencies/reads.rs`) stay
     incomplete for requirement-dispatched calls, machine-valued and nested
     static applications, quotient and private-layout operations,

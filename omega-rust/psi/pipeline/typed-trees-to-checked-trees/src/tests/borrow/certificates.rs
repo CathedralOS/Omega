@@ -5,6 +5,7 @@ use crate::lower_typed_trees;
 
 mod call_judgments;
 mod computed_boundaries;
+mod domain_premises;
 mod guarded_premises;
 mod stated_premises;
 mod value_snapshots;

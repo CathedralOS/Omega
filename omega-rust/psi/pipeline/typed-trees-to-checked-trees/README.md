@@ -572,6 +572,17 @@ Premised certificates retain the exact contract or guard/polarity tokens; replay
 reconstructs availability, evaluation scope, and parameter transport and rejects
 altered selectors or premises. The source witness is
 `tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg`.
+Required membership in a concrete, non-indexed integer domain also supplies
+comparisons between that definition's exact `self` and integer literals.
+The same Boolean decomposer starts at each declared predicate root, retaining
+the membership row, domain symbol, and predicate handle in its token. Domain
+`self` binds the immutable membership subject, not the caller's receiver.
+Aliases use typed lowering's atomic membership expansion. This does not
+establish routed membership or lend any resource authority. Indexed theories,
+nested membership transport, and interpreted domain arithmetic still need
+their substitution/meaning evidence. The source witness
+`tests/omega/pass/borrows/borrow_domain_window_write_and_call/main.omg`
+exercises separated loans, writes, and call arguments.
 Call comparisons retain a separate ledger naming the exact state-owned call,
 argument-access ordinal, receiver, transferred place, or live loan. Replay
 recollects the call/access roster from typed source, checks the call-entry loan

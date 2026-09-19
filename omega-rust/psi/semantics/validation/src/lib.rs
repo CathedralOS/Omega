@@ -56,10 +56,11 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    exact_case_reference_owner, has_builtin_binary_expression_meaning,
+    exact_case_reference_owner, exact_domain_self_type, has_builtin_binary_expression_meaning,
     has_builtin_bound_expression_meaning, has_builtin_decomposed_guard_meaning,
-    has_exact_case_membership_meaning, has_exact_data_case_membership_meaning,
-    has_exact_domain_case_membership_meaning, has_exact_parameter_case_membership_meaning,
+    has_builtin_domain_decomposed_guard_meaning, has_exact_case_membership_meaning,
+    has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
+    has_exact_integer_domain_subject, has_exact_parameter_case_membership_meaning,
 };
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
 pub use value_custody::intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;

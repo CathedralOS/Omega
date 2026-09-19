@@ -16,10 +16,15 @@ use typed_trees::{
 };
 
 mod definition_membership;
+mod domain_bounds;
+pub use domain_bounds::{
+    has_builtin_domain_decomposed_guard_meaning, has_exact_integer_domain_subject,
+};
 #[cfg(test)]
 mod tests;
 pub use definition_membership::{
-    has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
+    exact_domain_self_type, has_exact_data_case_membership_meaning,
+    has_exact_domain_case_membership_meaning,
 };
 
 /// Preserve selected operator meaning before interpreting an expression as a

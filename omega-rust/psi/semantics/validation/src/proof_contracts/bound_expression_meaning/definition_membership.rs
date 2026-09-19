@@ -18,14 +18,7 @@ pub fn has_exact_domain_case_membership_meaning(
     expression: ExpressionHandle,
     comparison: &TableBinaryExpression,
 ) -> bool {
-    let mut definitions = program
-        .domain_definitions()
-        .iter()
-        .filter(|row| row.symbol == domain.symbol);
-    if !domain.symbol.is_valid()
-        || program.symbols.get(domain.symbol).kind != SymbolKind::Domain
-        || definitions.next() != Some(domain)
-        || definitions.next().is_some()
+    if !has_exact_domain_definition(program, domain)
         || !owns_expression(program, domain.facts, expression, comparison)
     {
         return false;
@@ -78,7 +71,7 @@ fn owns_expression(
     facts_contain_expression(program, facts, expression)
 }
 
-fn facts_contain_expression(
+pub(super) fn facts_contain_expression(
     program: &TypedTrees,
     facts: HandleSpan<ProofFact>,
     expression: ExpressionHandle,
@@ -129,6 +122,35 @@ fn domain_self_has_exact_owner(
 enum DefinitionSubject<'program> {
     Domain(&'program DomainDefinition),
     Data(&'program DataDefinition),
+}
+
+/// The reserved domain subject has meaning only in its unique retained owner.
+/// This is a carrier lookup, not evidence that any runtime value is a member.
+pub fn exact_domain_self_type(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !has_exact_domain_definition(program, domain)
+        || !matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        )
+    {
+        return None;
+    }
+    subject_type(program, DefinitionSubject::Domain(domain), expression, 0)
+}
+
+pub(super) fn has_exact_domain_definition(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+    let mut definitions = program
+        .domain_definitions()
+        .iter()
+        .filter(|candidate| candidate.symbol == domain.symbol);
+    domain.symbol.is_valid()
+        && program.symbols.get(domain.symbol).kind == SymbolKind::Domain
+        && definitions.next() == Some(domain)
+        && definitions.next().is_none()
 }
 
 fn subject_type(
