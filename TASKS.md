@@ -99,9 +99,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Remaining: execute `window_app`, `window_demo`, and `windowed_calculator`
   on macOS ARM64 through their authored builds and reported bundle paths.
   Start with the [window_app command and review flow](samples/gui/window_app/README.md).
-  The last recorded ARM64 probe (`4707fde28b`) cleared staging but stopped at
-  `InvalidUnitMachinePlan` for `Main::main`; rerun before assigning the
-  current operation join to **GENERAL-CYCLIC-EXECUTION**. The
+  The 2026-09-19 ARM64 CLI probe on `50df506115` with query-local assignment
+  prefix preparation (`RUST_MIN_STACK=67108864`, debug compiler, the documented
+  command) spent 266 seconds compiling dependencies, then exited 1 because
+  ordinary package acceptance was missing. This did not reach application
+  Terminal production or reproduce the historical `InvalidUnitMachinePlan`.
+  Complete the reported package review without automatic admissions; migrate
+  the sample's bare service fields to the settled `Service<R>` entry contract,
+  then rerun before assigning a current operation join to
+  **GENERAL-CYCLIC-EXECUTION**. Dependency-checking cost remains open: profiles
+  also reached indexed-access alias analysis and termination facts, so faster
+  assignment guard queries do not establish a fast app build. The
   `native_filesystem_canaries::gui_and_sample_apps::sample_window*` tests
   supply test-owned package acceptance, not ordinary CLI review. Their
   interactive-app checks only observe early failure or brief process survival;

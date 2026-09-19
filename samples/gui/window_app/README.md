@@ -34,12 +34,17 @@ This publishes `omega.lock` beside `main.omg`. The lock records
 checkout-specific local source identities, so a relocated checkout reviews
 again rather than reusing another machine's acceptance.
 
-With the lock accepted, the macOS command proceeds past review and currently
-stops in Terminal production: `Main::main` is an attached Unit closure whose
-cyclic state machine is missing a checked transitive machine plan
-(`InvalidUnitMachinePlan`), the same compiler gap tracked under
-GENERAL-CYCLIC-EXECUTION. The publication machinery downstream of that stop is
-implemented: the authored `builder.identifier` supplies the CodeDirectory
+The latest fresh-checkout probe stops at ordinary package review after compiling
+the dependencies. It does not establish a current application-lowering failure.
+The sample's bare service fields also need migration to the settled
+[`Service<R>` entry contract](../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
+After review and that migration, rerun the unchanged render loop before treating
+the historical `InvalidUnitMachinePlan` diagnosis as current. See
+[MACOS-APPLICATION-PUBLICATION](../../../TASKS.md#immediate-product-closure)
+for resume evidence.
+
+The downstream publication machinery is implemented: the authored
+`builder.identifier` supplies the CodeDirectory
 signing identity and `CFBundleIdentifier`, and publication installs one whole
 validated `window-app.app` (`Contents/Info.plist` and
 `Contents/MacOS/window-app`) reported through the checked package-root and
