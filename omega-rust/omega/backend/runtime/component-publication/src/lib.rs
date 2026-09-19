@@ -8,22 +8,22 @@
 //! treated as runnable and retains those results until retirement succeeds.
 //!
 //! Start at `bind_installed_runnable_component` in this file: it joins the
-//! independent gates' results for one era. `deployment_journal` records each
-//! era through preparation, activation and finalization,
-//! `deployment_journal_storage` persists those records,
-//! `callback_registration` registers a runnable component's external-root and
-//! compiler-private callbacks, and `stack_provision` leases the
-//! provider-admitted external stacks an installed component runs on.
+//! independent gates' results for one era. `callback_registration` registers a
+//! runnable component's external-root and compiler-private callbacks, and
+//! `stack_provision` leases the provider-admitted external stacks an installed
+//! component runs on.
+//! Deployment persistence and restart recovery belong to the consuming runtime
+//! or OS, not this installation/lifetime checking layer.
 
 use std::collections::BTreeMap;
 
 use effects::{
     ActiveComponentEraEntry, CoexistingExecutableTcbReport, ComponentEraCandidate,
-    ComponentEraEntryLedger, ComponentEraEntryReceipt, ComponentEraEntryState,
-    ComponentEraLeaveReceipt, ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
-    ComponentEraRetirementReceipt, EraEntryError, EraLeaveError, EraQuiescenceError,
-    ProgramLocalRootEpochLease, ProgramLocalRootEpochLeaseAcquisitionError,
-    ProgramLocalRootEpochLeaseId, ProgramLocalRootEpochLeaseReleaseError,
+    ComponentEraEntryLedger, ComponentEraEntryReceipt, ComponentEraLeaveReceipt,
+    ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt, ComponentEraRetirementReceipt,
+    EraEntryError, EraLeaveError, EraQuiescenceError, ProgramLocalRootEpochLease,
+    ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
+    ProgramLocalRootEpochLeaseReleaseError,
 };
 use executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
 use external_roots::{
@@ -32,13 +32,9 @@ use external_roots::{
 use image_emission::InstalledArtifact;
 
 mod callback_registration;
-mod deployment_journal;
-mod deployment_journal_storage;
 mod stack_provision;
 
 pub use callback_registration::*;
-pub use deployment_journal::*;
-pub use deployment_journal_storage::*;
 pub use stack_provision::*;
 
 /// Installed terminal artifact plus the concrete accepted progress closure
@@ -352,18 +348,6 @@ impl RunnableComponentEraLedger {
 
     pub const fn current_era(&self) -> Option<u64> {
         self.lifecycle.current_era()
-    }
-
-    pub fn binding_contract_identity(&self) -> &str {
-        self.lifecycle.binding_contract_identity()
-    }
-
-    pub fn entry_contract_identity(&self) -> &str {
-        self.lifecycle.entry_contract_identity()
-    }
-
-    pub fn live_eras(&self) -> impl Iterator<Item = (u64, ComponentEraEntryState, usize)> + '_ {
-        self.lifecycle.live_eras()
     }
 
     pub fn live_executable_tcb_report(&self) -> CoexistingExecutableTcbReport {

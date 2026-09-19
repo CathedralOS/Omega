@@ -10,6 +10,10 @@ publication and receipt replay; [lib.rs](src/lib.rs) only wires the public API. 
 and claimed `InstalledRootLedger`. Provider/progress closure and finalization
 consume typed sessions; failure preserves the current session and remaining inputs.
 
+This is installation admission, not an OS update controller. Deployment journals,
+transaction persistence, and restart recovery belong to the consuming runtime or
+OS and are not prerequisites of this flow.
+
 The output path stages/replays bytes and executable mode before returning a
 publication receipt. Reports retain the resulting owned deployment rather than
 reconstructing custody from a path. Keep the complete selected-plan set, including

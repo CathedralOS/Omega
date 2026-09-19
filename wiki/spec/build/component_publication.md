@@ -355,29 +355,25 @@ but discharges no lock, claim, or protocol debt; repeated quarantines report
 attributed reserved-address capacity loss. [Executable retirement](executable_installation.md#visibility-and-retirement)
 distinguishes reclaimed W+NX placement from continued quarantined reservation.
 
-## Durable deployment recovery
+## Deployment ownership
 
-The owner-authorized composition record and live deployment journal are distinct.
-Memory publication and durable storage are not one atomic transaction. Record
-durable intent, activate the era, then record finalization; restart reconciliation
-defines `Prepared`, `Activated`, and `Finalized` behavior. Retain the preauthorized
-envelope, checked evidence, and disclosed admissions used for each candidate.
-The runtime/OS chooses rollback versus roll-forward, not downloaded code.
+Deployment transactions, durable journals, storage synchronization, and restart
+recovery belong to an ordinary runtime/library package or the OS. Omega does not
+define their record format, phase protocol, or rollback/roll-forward procedure,
+and neither compilation nor component installation requires a deployment journal.
 
-Decoded journal bytes are replay/report evidence, not reconstructed authority.
-Recovery rejoins exact durable predecessor, live ledger, installed occurrence,
-and runnable custody. Compact report IDs cannot replace strong occurrence
-identity or retained installed-code context. Rejection preserves journal receipt,
-explicit recovery choice, live ledger, and every unconsumed authority; a retry
-cannot repeat an already spent publication operation.
+Those implementations remain subject to ordinary authority and lifetime rules.
+Reading a stored record cannot manufacture an installed-code capability or
+restore a spent one. An installation or reclamation must satisfy its checked
+contract for the actual occurrence, regardless of any recovery record.
 
 Omega owns normalized identities, contract/resource validation, relocatable
 artifacts, and generic entry/quiescence obligations. Cathedral or another runtime
 owns selection policy, provision, mapping cohorts, scheduler/device quiescence,
 era/drain limits, migration, rollback/retention, and concrete entry algorithms.
 The [runtime implementation note](../../../omega-rust/omega/backend/runtime/component-publication/README.md)
-records current journal/ledger support; neither it nor these contracts claims
-ordinary source `Independent` execution is implemented.
+records current installation/lifetime support; neither it nor these contracts
+claims ordinary source `Independent` execution is implemented.
 
 ## Products and authority
 
