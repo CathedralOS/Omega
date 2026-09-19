@@ -58,6 +58,7 @@ pub(crate) fn retain(
                     origins.push(origin);
                 }
             }
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);
                 pending.push(binary.left);

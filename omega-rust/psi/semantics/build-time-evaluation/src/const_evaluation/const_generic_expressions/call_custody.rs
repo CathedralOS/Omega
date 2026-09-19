@@ -1,8 +1,7 @@
 //! Rejoin a scalar initializer with its complete selected ordinary call closure.
 
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionIntrinsic as Intrinsic, AuthoredDeclarationSelectionKind as Kind,
-    AuthoredDeclarationSelectionTarget as Target,
+    AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
 };
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
@@ -521,17 +520,13 @@ impl<'program> Collector<'program> {
                 {
                     continue;
                 }
-                let builtin =
-                    matches!(
-                        selection.target(),
-                        Target::Intrinsic(Intrinsic::BuiltinOperator)
-                    ) || matches!(table.expression(expression), ExpressionNode::Binary(_))
-                        && validation::has_builtin_binary_expression_meaning(
-                            program,
-                            context.machine,
-                            Some(context.state),
-                            expression,
-                        );
+                let builtin = super::has_builtin_operator_selection(
+                    program,
+                    context.machine,
+                    context.state,
+                    expression,
+                    selection.target(),
+                );
                 if !builtin {
                     return Err(
                         "evaluated initializer operator has no checked builtin meaning".into(),
