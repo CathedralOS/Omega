@@ -66,6 +66,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   schema rejected; checkout relocation still requires fresh local-source review.
   Windows execution remains untested; the supplied-byte scanner is not ported.
 
+  Scanner prerequisites (2026-09-19, Omega `bf49663932`): the pinned Rust
+  `439090da02eb674eb2511664ae217ede86890e4a` is absent from the inspected local
+  Squalr/Olorin checkouts, and fetching that exact revision from the recorded
+  upstream returns `upload-pack: not our ref`. Recover the pinned reference or
+  review an explicit reference update; do not silently port a moving checkout.
+  Private app publication also returned HTTP 403 for the configured Git identity;
+  read access alone is insufficient for publishing a new parent pin. Runtime
+  growable storage remains an implementation dependency: `core/vec.omg` declares
+  no construction or storage mechanics. **BUMP-ALLOCATOR-CANARY** and
+  **PLAN-LAID-VIEWS** own element establishment and content-preserving growth;
+  a fixed-capacity scanner does not satisfy this customer.
+
   Keep one integration owner and work from the actual application command:
 
   1. Preserve the working geometry command as the compiler integration control,
@@ -99,17 +111,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Remaining: execute `window_app`, `window_demo`, and `windowed_calculator`
   on macOS ARM64 through their authored builds and reported bundle paths.
   Start with the [window_app command and review flow](samples/gui/window_app/README.md).
-  The 2026-09-19 ARM64 CLI probe on `50df506115` with query-local assignment
-  prefix preparation (`RUST_MIN_STACK=67108864`, debug compiler, the documented
-  command) spent 266 seconds compiling dependencies, then exited 1 because
-  ordinary package acceptance was missing. This did not reach application
-  Terminal production or reproduce the historical `InvalidUnitMachinePlan`.
-  Complete the reported package review without automatic admissions; migrate
-  the sample's bare service fields to the settled `Service<R>` entry contract,
-  then rerun before assigning a current operation join to
-  **GENERAL-CYCLIC-EXECUTION**. Dependency-checking cost remains open: profiles
-  also reached indexed-access alias analysis and termination facts, so faster
-  assignment guard queries do not establish a fast app build. The
+  The sample uses intrinsic `Service<R>` fields and public requirement traits,
+  preserving its render loop, arrays, providers and reach declaration. On
+  2026-09-19, base `bf49663932` with that migration, macOS ARM64 and
+  `RUST_MIN_STACK=67108864`, the single
+  `gui_and_sample_apps::sample_window_app_renders_natively` test rejects at
+  `selected ProgramEntry establishment rejoins 0 Terminal attachment identities;
+  expected one`. The unchanged base instead reports `InvalidUnitMachinePlan`
+  at the value-returning `window_create` call (state 0, statement 21).
+  Resume through checked call planning and attachment production in
+  `typed-trees-to-checked-trees/src/execution/unit/{calls,composed_control}`;
+  preserve independent entry establishment rather than inventing an identity.
+  Ordinary CLI package review remains separate: the prior fresh-checkout run
+  took 266 seconds before reporting missing acceptance. Complete that review
+  without automatic admissions. The
   `native_filesystem_canaries::gui_and_sample_apps::sample_window*` tests
   supply test-owned package acceptance, not ordinary CLI review. Their
   interactive-app checks only observe early failure or brief process survival;
