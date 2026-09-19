@@ -1057,6 +1057,173 @@ fn indexed_predicates_substitute_through_summary_buckets() {
     );
 }
 
+/// A `collection[start..end]` guard leaf keeps both range bounds structured:
+/// either may carry a formal, so extraction produces `Range` rather than
+/// hiding the bounds inside a flattened `Opaque` display. The inclusivity
+/// flag is part of the identity — `..` and `..=` cannot share bytes.
+#[test]
+fn range_index_guard_leaves_extract_both_bounds() {
+    use typed_trees::expression::BinaryOperator;
+    let predicate_for = |source: &str| {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "value")
+            .unwrap();
+        let fact = program
+            .machine_contracts(machine)
+            .iter()
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .next()
+            .expect("one contract fact");
+        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            panic!("the crash route is an expression fact")
+        };
+        let mut route = Vec::new();
+        crate::facts::canonical_encoding::encode_contract_fact_canonical(
+            &program,
+            fact,
+            &["text".into(), "start".into(), "end".into()],
+            &[],
+            false,
+            &mut route,
+        );
+        (
+            crash_predicate_from_expression(
+                &program,
+                *expression,
+                &["text".into(), "start".into(), "end".into()],
+                None,
+            ),
+            route,
+        )
+    };
+    let (predicate, route) = predicate_for(
+        "machine value(text: String, start: u64, end: u64) -> bool
+         crashes Trap text[start..end] == \"x\" { true }",
+    );
+    let range = |start, end| CrashPredicateExpression::Range {
+        start: Box::new(start),
+        end: Box::new(end),
+        end_inclusive: false,
+    };
+    let expected = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Indexed {
+            collection: Box::new(CrashPredicateExpression::Parameter(0)),
+            index: Box::new(range(
+                CrashPredicateExpression::Parameter(1),
+                CrashPredicateExpression::Parameter(2),
+            )),
+        }),
+        right: Box::new(CrashPredicateExpression::Opaque("\"x\"".into())),
+    };
+    assert_eq!(predicate, expected);
+    // `0x0d` is the range tag: the typed and checked encoders agree on it.
+    assert_eq!(
+        checked_trees::CrashPredicateIdentity::from_expression(predicate.clone()).canonical_bytes(),
+        route.as_slice(),
+        "typed and checked canonical encoders agree on the range tag",
+    );
+    assert!(route.contains(&0x0d));
+    assert_eq!(summary_boolean_value(&predicate), None);
+    // `..=` is a different interval: inclusivity is part of the identity.
+    let (inclusive, inclusive_route) = predicate_for(
+        "machine value(text: String, start: u64, end: u64) -> bool
+         crashes Trap text[start..=end] == \"x\" { true }",
+    );
+    assert_ne!(predicate, inclusive);
+    assert_ne!(route, inclusive_route);
+}
+
+/// The private-summary path substitutes inside a range index's bounds:
+/// `start`/`end` bind the caller's `low`/`high` entry parameters, so the
+/// surviving route keeps `items[low..high]` in caller coordinates.
+#[test]
+fn a_range_actual_guard_substitutes_both_bounds() {
+    let buckets = call_site_buckets(
+        "machine inner(items: &[u8], start: u64, end: u64) -> bool
+         requires end <= items.len
+         crashes Trap !(items[start..end] == items) { true }
+         machine outer(items: &[u8], low: u64, high: u64) -> bool
+         requires high <= items.len
+         crashes Trap { inner(items, low, high) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the range-indexed guard keeps its guarded route: {buckets:?}")
+    };
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(CrashPredicateExpression::Binary {
+                operator: BinaryOperator::Equal as u8,
+                left: Box::new(CrashPredicateExpression::Indexed {
+                    collection: Box::new(CrashPredicateExpression::Parameter(0)),
+                    index: Box::new(CrashPredicateExpression::Range {
+                        start: Box::new(CrashPredicateExpression::Parameter(1)),
+                        end: Box::new(CrashPredicateExpression::Parameter(2)),
+                        end_inclusive: false,
+                    }),
+                }),
+                right: Box::new(CrashPredicateExpression::Parameter(0)),
+            }),
+        }),
+    );
+}
+
+/// `substitute` reaches inside a `Range` operand from either bound: each
+/// formal bound binds its actual, and the inclusivity flag transports
+/// verbatim.
+#[test]
+fn range_predicates_substitute_through_summary_buckets() {
+    use typed_trees::expression::BinaryOperator;
+    let range = |start, end| CrashPredicateExpression::Range {
+        start: Box::new(start),
+        end: Box::new(end),
+        end_inclusive: false,
+    };
+    let route = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(range(
+            CrashPredicateExpression::Parameter(0),
+            CrashPredicateExpression::Parameter(1),
+        ))],
+    };
+    let substituted = route.substitute(&identity_substitution(vec![
+        Some(CrashPredicateExpression::Integer("0".into())),
+        Some(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Add as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(2)),
+            right: Box::new(CrashPredicateExpression::Integer("1".into())),
+        }),
+    ]));
+    assert_eq!(
+        substituted.alternative_guards,
+        vec![predicate(range(
+            CrashPredicateExpression::Integer("0".into()),
+            CrashPredicateExpression::Binary {
+                operator: BinaryOperator::Add as u8,
+                left: Box::new(CrashPredicateExpression::Parameter(2)),
+                right: Box::new(CrashPredicateExpression::Integer("1".into())),
+            },
+        ))],
+    );
+}
+
 /// A float-field guard's checked scalar annotation crosses the call: each
 /// `IeeeFloatComparison` leaf re-roots to the caller parameter the actual
 /// reads, so `inner(a, b)` under `left.narrow == right.narrow` retains

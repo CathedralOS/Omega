@@ -54,6 +54,15 @@ pub enum CrashPredicateExpression {
         collection: Box<Self>,
         index: Box<Self>,
     },
+    /// A `start..end` (or `start..=end`) range operand. Both bounds keep
+    /// their own expressions so a bound carrying a formal still substitutes;
+    /// `end_inclusive` is part of the identity since the bounds alone cannot
+    /// distinguish `..` from `..=`.
+    Range {
+        start: Box<Self>,
+        end: Box<Self>,
+        end_inclusive: bool,
+    },
     Call {
         target: String,
         receiver: Box<Self>,
@@ -91,6 +100,15 @@ impl CrashPredicateExpression {
             Self::Indexed { collection, index } => Self::Indexed {
                 collection: Box::new(collection.substitute(arguments)),
                 index: Box::new(index.substitute(arguments)),
+            },
+            Self::Range {
+                start,
+                end,
+                end_inclusive,
+            } => Self::Range {
+                start: Box::new(start.substitute(arguments)),
+                end: Box::new(end.substitute(arguments)),
+                end_inclusive: *end_inclusive,
             },
             Self::Call {
                 target,
@@ -184,6 +202,16 @@ impl CrashPredicateExpression {
                 out.push(0x0b);
                 collection.write_canonical(out);
                 index.write_canonical(out);
+            }
+            Self::Range {
+                start,
+                end,
+                end_inclusive,
+            } => {
+                out.push(0x0d);
+                out.push(u8::from(*end_inclusive));
+                start.write_canonical(out);
+                end.write_canonical(out);
             }
             Self::Call {
                 target,

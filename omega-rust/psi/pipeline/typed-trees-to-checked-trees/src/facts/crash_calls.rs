@@ -112,9 +112,7 @@ pub(super) fn crash_predicate_from_expression(
         },
         // A `collection[index]` read keeps both children structured: either
         // may carry a formal, and substitution must reach each rather than
-        // hide it inside a flattened `Opaque` display. A range `start..end`
-        // index has no structured variant yet — it stays `Opaque`, which
-        // keeps refusing substitution.
+        // hide it inside a flattened `Opaque` display.
         ExpressionNode::Indexed(indexed) => CrashPredicateExpression::Indexed {
             collection: Box::new(crash_predicate_from_expression(
                 program,
@@ -128,6 +126,24 @@ pub(super) fn crash_predicate_from_expression(
                 parameter_names,
                 content_conservation,
             )),
+        },
+        // A `start..end` operand keeps both bounds structured for the same
+        // reason: either bound may carry a formal, and substitution must
+        // reach it. The inclusivity flag is part of the identity.
+        ExpressionNode::Range(range) => CrashPredicateExpression::Range {
+            start: Box::new(crash_predicate_from_expression(
+                program,
+                range.start,
+                parameter_names,
+                content_conservation,
+            )),
+            end: Box::new(crash_predicate_from_expression(
+                program,
+                range.end,
+                parameter_names,
+                content_conservation,
+            )),
+            end_inclusive: range.end_inclusive,
         },
         ExpressionNode::Call(call) => CrashPredicateExpression::Call {
             target: call.target.as_str().to_owned(),

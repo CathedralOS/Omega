@@ -300,6 +300,15 @@ fn encode_expression_canonical(
             encode_expression_canonical(program, indexed.collection, parameter_names, out);
             encode_expression_canonical(program, indexed.index, parameter_names, out);
         }
+        // A `start..end` operand keeps both bounds explicit — the same tag
+        // `CrashPredicateExpression::Range` writes, with the inclusivity flag
+        // leading so `..` and `..=` never share an identity.
+        ExpressionNode::Range(range) => {
+            out.push(0x0d);
+            out.push(u8::from(range.end_inclusive));
+            encode_expression_canonical(program, range.start, parameter_names, out);
+            encode_expression_canonical(program, range.end, parameter_names, out);
+        }
         ExpressionNode::Call(call) => {
             out.push(7);
             out.extend(call.target.as_str().as_bytes());
