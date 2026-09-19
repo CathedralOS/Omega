@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -7,11 +8,51 @@ use semantic_vocabulary::PackageKeyIdentity;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
+    /// Authorized product-scope dependency edges by requesting package:
+    /// requester identity, then `alias -> target` identity. Only
+    /// `DependencyPurpose::Product` edges may enter this roster; build-scope
+    /// edges are compilation-local nameability and never become product
+    /// selection authority
+    /// (wiki/spec/build/scoped_execution.md, "Selecting product declarations
+    /// without executing them").
+    product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
 }
 
 impl SourceMap {
     pub fn from_files(files: Vec<SourceFile>) -> Self {
-        Self { files }
+        Self {
+            files,
+            product_dependencies: BTreeMap::new(),
+        }
+    }
+
+    /// Record product-scope dependency edges keyed by requesting package.
+    /// Aliases are already exact and per-package unique upstream.
+    pub fn retain_product_dependency_scope<'a>(
+        &mut self,
+        edges: impl IntoIterator<Item = (PackageKeyIdentity, &'a str, PackageKeyIdentity)>,
+    ) {
+        for (requester, alias, target) in edges {
+            self.product_dependencies
+                .entry(requester)
+                .or_default()
+                .insert(alias.to_owned(), target);
+        }
+    }
+
+    /// The product-scope dependency `alias` authorizes for `requester`, or
+    /// `None` when the requester holds no such product edge. A build-scope
+    /// alias, an unknown spelling, and a consumer's borrowed namespace all
+    /// resolve the same way here: absent.
+    pub fn product_dependency_target(
+        &self,
+        requester: PackageKeyIdentity,
+        alias: &str,
+    ) -> Option<PackageKeyIdentity> {
+        self.product_dependencies
+            .get(&requester)?
+            .get(alias)
+            .copied()
     }
 
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {

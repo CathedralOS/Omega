@@ -322,6 +322,22 @@ impl SymbolTable {
         self.sources.as_deref()?.file_at(source_span)
     }
 
+    /// Product-scope dependency `alias` authorized for the package that owns
+    /// `occurrence`. `None` means the occurrence carries no package identity,
+    /// no retained sources, or no such product edge -- callers treat every
+    /// one of those as "not an authorized product alias", never as license
+    /// to widen the search.
+    pub fn product_dependency_target(
+        &self,
+        occurrence: SourceSpan,
+        alias: &str,
+    ) -> Option<PackageKeyIdentity> {
+        let requester = self.source_file(occurrence)?.package_identity?;
+        self.sources
+            .as_deref()?
+            .product_dependency_target(requester, alias)
+    }
+
     /// Compare declaration provenance at the package boundary. Source-free
     /// lowering is used by focused representation tests; those trees model
     /// one package and retain the historical all-local behavior.

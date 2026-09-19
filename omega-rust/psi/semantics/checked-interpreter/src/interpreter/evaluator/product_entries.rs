@@ -2,7 +2,9 @@
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product machine under the query occurrence's lexical
-//! package scope and hands back an opaque `ProductEntryRef` marker. The
+//! package scope -- its own package, or a `pub` declaration inside a package
+//! the occurrence's package holds an authorized product dependency on -- and
+//! hands back an opaque `ProductEntryRef` marker. The
 //! semantic payload stays in the evaluator's private
 //! `product_entry_descriptions` table, so evaluated code can carry the marker
 //! but cannot read, convert, or fabricate the selection. No product receiver,
@@ -177,40 +179,86 @@ impl<'program> Evaluator<'program> {
                 "product entry selection requires a non-empty path and slot".to_owned(),
             ));
         }
-        // Strings are locators, not authority: `path` is matched against the
-        // authored machine names visible inside the query occurrence's own
-        // package. A helper borrowing Build keeps its operational capability
-        // but cannot enumerate the caller's product namespace -- a foreign
-        // spelling simply finds no candidate.
-        let candidates = self
-            .program
-            .machines()
-            .iter()
-            .filter(|machine| {
-                machine.name.as_str() == name
-                    && self
+        // Strings are locators, not authority: `path` resolves under the
+        // query occurrence's own authorized scope. A qualified `alias::rest`
+        // spelling resolves `alias` through the occurrence package's
+        // retained product dependencies and selects a `pub` declaration in
+        // that exact target package -- a helper borrowing Build keeps its
+        // operational capability but cannot enumerate the caller's product
+        // namespace, and a build-scope alias authorizes nothing. A bare leaf
+        // keeps the same-package declaration scan; a first segment that is
+        // no product alias leaves only the occurrence's own package path
+        // reading of the full spelling.
+        let qualified = name.split_once("::");
+        let authorized = qualified.and_then(|(alias, _)| {
+            self.program
+                .symbols
+                .product_dependency_target(occurrence, alias)
+        });
+        let candidates = match (qualified, authorized) {
+            (Some((_, rest)), Some(target)) => self
+                .program
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    machine.is_public
+                        && (machine.name.as_str() == rest
+                            || self
+                                .program
+                                .symbols
+                                .display_path(machine.symbol, "::")
+                                .as_str()
+                                == rest)
+                        && self.program.symbols.symbol_package_identity(machine.symbol)
+                            == Some(target)
+                })
+                .collect::<Vec<_>>(),
+            _ => self
+                .program
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    (match qualified {
+                        Some(_) => {
+                            self.program
+                                .symbols
+                                .display_path(machine.symbol, "::")
+                                .as_str()
+                                == name
+                        }
+                        None => machine.name.as_str() == name,
+                    }) && self
                         .program
                         .symbols
                         .symbol_source_span(machine.symbol)
                         .is_some_and(|span| {
                             self.program.symbols.same_source_package(span, occurrence)
                         })
-            })
-            .collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>(),
+        };
         let [machine] = candidates.as_slice() else {
-            let message = if self
-                .program
-                .machines()
-                .iter()
-                .any(|machine| machine.name.as_str() == name)
-            {
-                if candidates.is_empty() {
-                    format!(
-                        "product entry `{name}` is not a product declaration visible from this build occurrence's package"
-                    )
-                } else {
-                    format!("product entry `{name}` is ambiguous within its package")
-                }
+            if !candidates.is_empty() {
+                return Err(Halt::Trap(format!(
+                    "product entry `{name}` is ambiguous within its package"
+                )));
+            }
+            // The probe spelling is the declaration part of the path: for a
+            // qualified query it is the segment after the resolved or
+            // unrecognized alias.
+            let probe = qualified.map_or(name, |(_, rest)| rest);
+            let message = if self.program.machines().iter().any(|machine| {
+                machine.name.as_str() == probe
+                    || self
+                        .program
+                        .symbols
+                        .display_path(machine.symbol, "::")
+                        .as_str()
+                        == probe
+            }) {
+                format!(
+                    "product entry `{name}` is not a product declaration visible from this build occurrence's package"
+                )
             } else {
                 format!(
                     "product entry `{name}` names no machine in this build occurrence's package"

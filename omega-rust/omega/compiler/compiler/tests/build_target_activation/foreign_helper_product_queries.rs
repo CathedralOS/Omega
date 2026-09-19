@@ -1,4 +1,4 @@
-use super::{TempProject, application_build, foreign_helper_inputs};
+use super::{TempProject, application_build, foreign_helper_inputs, foreign_product_inputs};
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
     compile_to_checked,
@@ -303,7 +303,7 @@ fn owner_selected_product_schema_inspects_through_foreign_helper() {
     ).expect("helper source");
     let project = TempProject::with_main(
         "data LaunchConfig { value: u8; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); setup::configure(builder, &schema); builder.product.schema(\"LaunchConfig\"); schema.path(); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); setup::configure(builder, &schema); _ = builder.product.schema(\"LaunchConfig\"); _ = schema.path(); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -487,7 +487,7 @@ fn owner_selected_product_provider_inspects_through_foreign_helper() {
     ).expect("helper source");
     let project = TempProject::with_main(
         "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); setup::configure(builder, &provider); builder.product.provider(\"AudioProvider\"); provider.path(); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); setup::configure(builder, &provider); _ = builder.product.provider(\"AudioProvider\"); _ = provider.path(); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -722,4 +722,163 @@ fn delegated_root_binding_rejects_a_computed_description_result() {
         ) || diagnostics.contains("computed description results are not implemented"),
         "unexpected diagnostics: {diagnostics}"
     );
+}
+
+#[test]
+fn qualified_product_entry_query_selects_a_public_declaration_in_an_authorized_dependency() {
+    // The owner's `support` edge is product scope, so its own build machine
+    // resolves `support::setup::launch` through the occurrence package's
+    // authorized product dependencies and binds the exact foreign machine --
+    // product selection uses the authored dependency roster, never a caller's
+    // borrowed namespace.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(
+        helper.0.join("setup.omg"),
+        "module setup; pub machine launch() { let marker: u8 = 0; }",
+    )
+    .expect("helper source");
+    let project = TempProject::with_main(
+        "use support::setup;\nmachine root_probe() { setup::launch(); }",
+        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_product_inputs(&project, &helper));
+    let checked = compile_to_checked(request).expect(
+        "a qualified query selects a public declaration in an authorized product dependency",
+    );
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+}
+
+#[test]
+fn qualified_product_entry_query_rejects_a_build_scope_alias() {
+    // `support` is a build-scope edge here: the same qualified spelling that
+    // resolves under a product dependency authorizes nothing, because the two
+    // dependency scopes never stand in for one another.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { let marker: u8 = 0; }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "const ANSWER: u32 = 42;\n",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("a build-scope dependency alias authorizes no product selection")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        diagnostics
+            .contains("not a product declaration visible from this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn qualified_product_entry_query_rejects_a_private_dependency_declaration() {
+    // The dependency's `launch` is not public: a qualified path may only
+    // select public declarations, so the query cannot enumerate private
+    // product names across the package boundary.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(
+        helper.0.join("setup.omg"),
+        "module setup; machine launch() { let marker: u8 = 0; }",
+    )
+    .expect("helper source");
+    let project = TempProject::with_main(
+        "use support::setup;\nmachine root_probe() { }",
+        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_product_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("a private dependency declaration is not selectable")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        diagnostics
+            .contains("not a product declaration visible from this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn qualified_product_schema_query_selects_a_public_declaration_in_an_authorized_dependency() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(
+        helper.0.join("setup.omg"),
+        "module setup; pub data LaunchConfig { value: u8; }",
+    )
+    .expect("helper source");
+    let project = TempProject::with_main(
+        "use support::setup;",
+        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let schema: ProductTypeSchema = builder.product.schema(\"support::setup::LaunchConfig\"); builder.log.write_line(schema.path()); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_product_inputs(&project, &helper));
+    let checked = compile_to_checked(request).expect(
+        "a qualified schema query selects a public declaration in an authorized product dependency",
+    );
+    let observation = checked
+        .build_observation_summary()
+        .expect("schema inspection retains a build observation");
+    assert_eq!(observation.build_log(), b"setup::LaunchConfig\n");
+}
+
+#[test]
+fn qualified_product_provider_query_selects_a_public_declaration_in_an_authorized_dependency() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub boundary trait Pick {\n    machine choose() -> i32;\n}\npub data AudioProvider { }\npub machine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "use support::setup;",
+        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\"); builder.log.write_line(provider.path()); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_product_inputs(&project, &helper));
+    let checked = compile_to_checked(request).expect(
+        "a qualified provider query selects a public declaration in an authorized product dependency",
+    );
+    let observation = checked
+        .build_observation_summary()
+        .expect("provider inspection retains a build observation");
+    assert_eq!(observation.build_log(), b"setup::AudioProvider\n");
+}
+
+#[test]
+fn product_entry_query_resolves_an_own_package_module_path() {
+    // A `module::name` spelling inside the query occurrence's own package is
+    // the same logical declaration path the dependency form uses: the helper
+    // selects its own (private) `setup::launch` by its in-package path.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { let entry: ProductEntryRef = builder.product.entry(\"setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "const ANSWER: u32 = 42;\n",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let checked = compile_to_checked(request)
+        .expect("a module-qualified path selects the occurrence package's own declaration");
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
 }

@@ -2,7 +2,9 @@
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product provider declaration under the query
-//! occurrence's lexical package scope and hands back an opaque
+//! occurrence's lexical package scope -- its own package, or a `pub`
+//! declaration inside a package the occurrence's package holds an authorized
+//! product dependency on -- and hands back an opaque
 //! `ProductProviderRef` marker. A provider declaration is the nominal data
 //! type owning at least one `satisfies` machine, so plain data, machines,
 //! and other declarations cannot mint this description kind. The semantic
@@ -255,47 +257,98 @@ impl<'program> Evaluator<'program> {
                 "product provider selection requires a non-empty path".to_owned(),
             ));
         }
-        // Strings are locators, not authority: `path` is matched against the
-        // authored provider declarations visible inside the query
-        // occurrence's own package. A provider declaration is the nominal
-        // data type owning at least one `satisfies` machine, so plain data
-        // and non-data names never qualify. A helper borrowing Build keeps
-        // its operational capability but cannot enumerate the caller's
-        // product namespace -- a foreign spelling simply finds no candidate.
+        // Strings are locators, not authority: `path` resolves under the
+        // query occurrence's own authorized scope. A provider declaration is
+        // the nominal data type owning at least one `satisfies` machine, so
+        // plain data and non-data names never qualify. A qualified
+        // `alias::rest` spelling resolves `alias` through the occurrence
+        // package's retained product dependencies and selects a `pub`
+        // declaration in that exact target package; a helper borrowing Build
+        // keeps its operational capability but cannot enumerate the caller's
+        // product namespace, and a build-scope alias authorizes nothing. A
+        // bare leaf keeps the same-package scan; a first segment that is no
+        // product alias leaves only the occurrence's own package path
+        // reading of the full spelling.
         let is_provider = |symbol: SymbolHandle| {
             self.program.machines().iter().any(|machine| {
                 machine.attached_data_symbol == symbol && !machine.satisfies.is_empty()
             })
         };
-        let candidates = self
-            .program
-            .data_definitions()
-            .iter()
-            .filter(|definition| {
-                definition.name.as_str() == name
-                    && is_provider(definition.symbol)
-                    && self
-                        .program
-                        .symbols
-                        .symbol_source_span(definition.symbol)
-                        .is_some_and(|span| {
-                            self.program.symbols.same_source_package(span, occurrence)
-                        })
-            })
-            .collect::<Vec<_>>();
+        let qualified = name.split_once("::");
+        let authorized = qualified.and_then(|(alias, _)| {
+            self.program
+                .symbols
+                .product_dependency_target(occurrence, alias)
+        });
+        let candidates = match (qualified, authorized) {
+            (Some((_, rest)), Some(target)) => self
+                .program
+                .data_definitions()
+                .iter()
+                .filter(|definition| {
+                    definition.is_public
+                        && is_provider(definition.symbol)
+                        && (definition.name.as_str() == rest
+                            || self
+                                .program
+                                .symbols
+                                .display_path(definition.symbol, "::")
+                                .as_str()
+                                == rest)
+                        && self
+                            .program
+                            .symbols
+                            .symbol_package_identity(definition.symbol)
+                            == Some(target)
+                })
+                .collect::<Vec<_>>(),
+            _ => self
+                .program
+                .data_definitions()
+                .iter()
+                .filter(|definition| {
+                    (match qualified {
+                        Some(_) => {
+                            self.program
+                                .symbols
+                                .display_path(definition.symbol, "::")
+                                .as_str()
+                                == name
+                        }
+                        None => definition.name.as_str() == name,
+                    }) && is_provider(definition.symbol)
+                        && self
+                            .program
+                            .symbols
+                            .symbol_source_span(definition.symbol)
+                            .is_some_and(|span| {
+                                self.program.symbols.same_source_package(span, occurrence)
+                            })
+                })
+                .collect::<Vec<_>>(),
+        };
         let [definition] = candidates.as_slice() else {
+            if !candidates.is_empty() {
+                return Err(Halt::Trap(format!(
+                    "product provider `{name}` is ambiguous within its package"
+                )));
+            }
+            let probe = qualified.map_or(name, |(_, rest)| rest);
             let names_a_provider_elsewhere =
                 self.program.data_definitions().iter().any(|definition| {
-                    definition.name.as_str() == name && is_provider(definition.symbol)
+                    is_provider(definition.symbol)
+                        && (definition.name.as_str() == probe
+                            || self
+                                .program
+                                .symbols
+                                .display_path(definition.symbol, "::")
+                                .as_str()
+                                == probe)
                 });
             let message = if names_a_provider_elsewhere {
-                if candidates.is_empty() {
-                    format!(
-                        "product provider `{name}` is not a provider declaration visible from this build occurrence's package"
-                    )
-                } else {
-                    format!("product provider `{name}` is ambiguous within its package")
-                }
+                format!(
+                    "product provider `{name}` is not a provider declaration visible from this build occurrence's package"
+                )
             } else {
                 format!(
                     "product provider `{name}` names no provider declaration in this build occurrence's package"
