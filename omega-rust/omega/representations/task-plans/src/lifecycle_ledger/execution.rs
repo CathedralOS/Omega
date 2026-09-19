@@ -18,8 +18,8 @@
 
 use super::{LiveTaskDependency, TaskLifecycleLedger};
 use crate::{
-    LiveCarryDemand, SuspensionCrossingId, TaskLifecycleClaim, TaskLifecycleClaimId,
-    TaskPlanDiagnostic, TaskStorageBinding,
+    LiveCarryDemand, SuspensionCrossingId, TaskClaimRoute, TaskLifecycleClaim,
+    TaskLifecycleClaimId, TaskPlanDiagnostic, TaskStorageBinding,
 };
 
 /// Provider-side execution state of one live activation.
@@ -75,32 +75,23 @@ impl TaskLifecycleLedger {
             .ok_or_else(|| {
                 TaskPlanDiagnostic("task park requires the exact live task lifecycle claim".into())
             })?;
-        if dependency.record.storage == TaskStorageBinding::InlineCompletion {
-            return Err(TaskPlanDiagnostic(
-                "an inline-completed activation finished before its claim existed; \
-                 no live activation can park"
-                    .into(),
-            ));
-        }
-        if matches!(dependency.execution, TaskExecutionState::Parked(_)) {
-            return Err(TaskPlanDiagnostic(
-                "task activation is already parked; resume must continue the same \
-                 invocation before it can park again"
-                    .into(),
-            ));
-        }
-        if !canonical_crossings(dependency)
-            .iter()
-            .any(|candidate| candidate.identity == crossing)
-        {
-            return Err(TaskPlanDiagnostic(
-                "task park names a suspension crossing outside the activation plan's \
-                 canonical roster"
-                    .into(),
-            ));
-        }
-        dependency.execution = TaskExecutionState::Parked(crossing);
-        Ok(())
+        park_dependency(dependency, crossing)
+    }
+
+    /// Park the activation of a claim presented by its source `Task<T>`
+    /// route. The pair resolves to the same live dependency the claim
+    /// object would name; the safe-point checks below are identical.
+    pub fn park_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+        crossing: SuspensionCrossingId,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        let claim = self.claim_id_for_route(route)?;
+        let dependency = self
+            .live
+            .get_mut(&claim)
+            .expect("resolved claim route names a live claim");
+        park_dependency(dependency, crossing)
     }
 
     /// Resume a parked activation. The same invocation continues — the
@@ -119,16 +110,24 @@ impl TaskLifecycleLedger {
                     "task resume requires the exact live task lifecycle claim".into(),
                 )
             })?;
-        match dependency.execution {
-            TaskExecutionState::Parked(crossing) => {
-                dependency.execution = TaskExecutionState::Running;
-                Ok(crossing)
-            }
-            TaskExecutionState::Running => Err(TaskPlanDiagnostic(
-                "task resume requires an activation parked at a canonical suspension crossing"
-                    .into(),
-            )),
-        }
+        resume_dependency(dependency)
+    }
+
+    /// Resume a parked activation named by its source `Task<T>` route —
+    /// the pair a runtime reads when the parked continuation produces its
+    /// caller-facing `Task<T>` again for resumption. The same invocation
+    /// continues; resolution fails closed on a fabricated, foreign, or
+    /// settled pair.
+    pub fn resume_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+    ) -> Result<SuspensionCrossingId, TaskPlanDiagnostic> {
+        let claim = self.claim_id_for_route(route)?;
+        let dependency = self
+            .live
+            .get_mut(&claim)
+            .expect("resolved claim route names a live claim");
+        resume_dependency(dependency)
     }
 
     /// Record that the activation observed a recorded cancellation request
@@ -157,41 +156,25 @@ impl TaskLifecycleLedger {
                         .into(),
                 )
             })?;
-        if dependency.record.storage == TaskStorageBinding::InlineCompletion {
-            return Err(TaskPlanDiagnostic(
-                "an inline-completed activation finished before its claim existed; \
-                 no live activation can observe cancellation"
-                    .into(),
-            ));
-        }
-        if !dependency.cancellation_requested {
-            return Err(TaskPlanDiagnostic(
-                "task cancellation observation requires a recorded cancellation \
-                 request on the claim"
-                    .into(),
-            ));
-        }
-        if !canonical_crossings(dependency)
-            .iter()
-            .any(|candidate| candidate.identity == crossing)
-        {
-            return Err(TaskPlanDiagnostic(
-                "task cancellation observation names a safe point outside the \
-                 activation plan's canonical suspension crossings"
-                    .into(),
-            ));
-        }
-        if let TaskExecutionState::Parked(parked) = dependency.execution
-            && parked != crossing
-        {
-            return Err(TaskPlanDiagnostic(
-                "a parked task activation can observe cancellation only at its \
-                 park crossing"
-                    .into(),
-            ));
-        }
-        dependency.cancellation_observed_at = Some(crossing);
-        Ok(())
+        observe_cancellation_dependency(dependency, crossing)
+    }
+
+    /// The safe-point cancellation observation for a claim presented by
+    /// its source `Task<T>` route — the transition a parked runtime
+    /// activation records against the value its partner holds. The
+    /// recorded-request precondition, canonical-crossing roster, and
+    /// parked-at-its-crossing restriction are the claim-object rules.
+    pub fn observe_cancellation_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+        crossing: SuspensionCrossingId,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        let claim = self.claim_id_for_route(route)?;
+        let dependency = self
+            .live
+            .get_mut(&claim)
+            .expect("resolved claim route names a live claim");
+        observe_cancellation_dependency(dependency, crossing)
     }
 
     /// The canonical crossing the claim's activation is parked at, or
@@ -234,4 +217,100 @@ impl TaskLifecycleLedger {
             .get(&claim)
             .and_then(|dependency| dependency.cancellation_observed_at)
     }
+}
+
+/// The park transition shared by the claim-object and routed paths: the
+/// crossing must belong to the plan's canonical roster, an inline
+/// completion has no live activation, and a parked activation must resume
+/// before it can park again.
+fn park_dependency(
+    dependency: &mut LiveTaskDependency,
+    crossing: SuspensionCrossingId,
+) -> Result<(), TaskPlanDiagnostic> {
+    if dependency.record.storage == TaskStorageBinding::InlineCompletion {
+        return Err(TaskPlanDiagnostic(
+            "an inline-completed activation finished before its claim existed; \
+             no live activation can park"
+                .into(),
+        ));
+    }
+    if matches!(dependency.execution, TaskExecutionState::Parked(_)) {
+        return Err(TaskPlanDiagnostic(
+            "task activation is already parked; resume must continue the same \
+             invocation before it can park again"
+                .into(),
+        ));
+    }
+    if !canonical_crossings(dependency)
+        .iter()
+        .any(|candidate| candidate.identity == crossing)
+    {
+        return Err(TaskPlanDiagnostic(
+            "task park names a suspension crossing outside the activation plan's \
+             canonical roster"
+                .into(),
+        ));
+    }
+    dependency.execution = TaskExecutionState::Parked(crossing);
+    Ok(())
+}
+
+/// The resume transition shared by the claim-object and routed paths: the
+/// parked crossing is returned and the same invocation continues.
+fn resume_dependency(
+    dependency: &mut LiveTaskDependency,
+) -> Result<SuspensionCrossingId, TaskPlanDiagnostic> {
+    match dependency.execution {
+        TaskExecutionState::Parked(crossing) => {
+            dependency.execution = TaskExecutionState::Running;
+            Ok(crossing)
+        }
+        TaskExecutionState::Running => Err(TaskPlanDiagnostic(
+            "task resume requires an activation parked at a canonical suspension crossing".into(),
+        )),
+    }
+}
+
+/// The cancellation-observation transition shared by the claim-object and
+/// routed paths: a recorded request, a canonical safe point, and a parked
+/// activation observing only at its park crossing.
+fn observe_cancellation_dependency(
+    dependency: &mut LiveTaskDependency,
+    crossing: SuspensionCrossingId,
+) -> Result<(), TaskPlanDiagnostic> {
+    if dependency.record.storage == TaskStorageBinding::InlineCompletion {
+        return Err(TaskPlanDiagnostic(
+            "an inline-completed activation finished before its claim existed; \
+             no live activation can observe cancellation"
+                .into(),
+        ));
+    }
+    if !dependency.cancellation_requested {
+        return Err(TaskPlanDiagnostic(
+            "task cancellation observation requires a recorded cancellation \
+             request on the claim"
+                .into(),
+        ));
+    }
+    if !canonical_crossings(dependency)
+        .iter()
+        .any(|candidate| candidate.identity == crossing)
+    {
+        return Err(TaskPlanDiagnostic(
+            "task cancellation observation names a safe point outside the \
+             activation plan's canonical suspension crossings"
+                .into(),
+        ));
+    }
+    if let TaskExecutionState::Parked(parked) = dependency.execution
+        && parked != crossing
+    {
+        return Err(TaskPlanDiagnostic(
+            "a parked task activation can observe cancellation only at its \
+             park crossing"
+                .into(),
+        ));
+    }
+    dependency.cancellation_observed_at = Some(crossing);
+    Ok(())
 }
