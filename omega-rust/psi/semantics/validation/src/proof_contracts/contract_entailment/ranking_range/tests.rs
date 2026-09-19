@@ -727,3 +727,133 @@ mod remainder_endpoints {
         assert!(edge(&moved, RankingRangePremises::EntryInvariant).is_none());
     }
 }
+
+mod moved_record_copy {
+    //! A required entry packed inside a record carrier diverges its copies the
+    //! same way bare scalar copies diverge: the carrier rebuilds through a
+    //! literal whose unique leaf is a strict step, so the literal names the
+    //! moved copy and the bare-forward sibling demotes to a stale snapshot.
+    use super::super::{
+        RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
+        discover_state_entry_mappings, prove_ranking_range_transition,
+        ranking_range_required_symbols,
+    };
+    use super::typed;
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::Machine;
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    const PACKED: &str = r#"
+        data Pair { left: u32 [0..=5]; }
+        machine walk(remaining: u32 [0..=5])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> s(Pair { left: remaining }, remaining) }
+            state s(pair: Pair, copy: u32 [0..=5]) {
+                transition pair.left > 0 {
+                    true -> s(Pair { left: pair.left - 1 }, copy)
+                    false -> pair.left
+                }
+            }
+        }
+    "#;
+
+    fn machine(program: &TypedTrees) -> &Machine {
+        &program.machines()[0]
+    }
+
+    fn mappings(
+        program: &TypedTrees,
+        premises: RankingRangePremises,
+    ) -> Option<Vec<Vec<SymbolHandle>>> {
+        let machine = machine(program);
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let range = custody.rank_range.expect("range");
+        let measure = RankingRangeMeasure::Single(custody.subjects[0]);
+        let required = ranking_range_required_symbols(program, machine, range, measure, premises)
+            .expect("required symbols");
+        let remaining = program.state_parameters(&program.machine_states(machine)[0])[0].symbol;
+        discover_state_entry_mappings(program, machine, remaining, &required)
+    }
+
+    /// The `s -> s` guarded edge's proof under the discovered correspondence.
+    fn cycle_edge(
+        program: &TypedTrees,
+        entry_parameters: &[SymbolHandle],
+    ) -> Option<RankingRangeEdgeProof> {
+        let machine = machine(program);
+        let state = &program.machine_states(machine)[1];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let range = custody.rank_range.expect("range");
+        let StatementNode::Transition(transition) =
+            &program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("one transition");
+        };
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            panic!("guarded transition");
+        };
+        let TransitionTargetNode::Named { arguments, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            panic!("named self edge");
+        };
+        prove_ranking_range_transition(
+            program,
+            machine,
+            range,
+            RankingRangeMeasure::Single(custody.subjects[0]),
+            RankingRangePremises::RankInvariant,
+            RankingRangeState {
+                state,
+                entry_parameters,
+            },
+            RankingRangeState {
+                state,
+                entry_parameters,
+            },
+            &[(guard, true)],
+            &[],
+            program.statement_table.expression_handles(*arguments),
+        )
+    }
+
+    #[test]
+    fn a_rebuilt_literal_names_the_moved_copy_of_a_required_entry() {
+        let program = typed(PACKED);
+        let remaining =
+            program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let mappings = mappings(&program, premises).expect("telescope");
+            // `pair` keeps `remaining`'s role at `Pair`'s unique leaf; the
+            // bare-forward `copy` demoted to a premise-free stale snapshot.
+            assert_eq!(mappings[1], vec![remaining, SymbolHandle::default()]);
+        }
+        let mappings = mappings(&program, RankingRangePremises::RankInvariant).unwrap();
+        let proof = cycle_edge(&program, &mappings[1]).expect("cycle edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+    }
+
+    #[test]
+    fn a_rebuilt_literal_without_a_step_keeps_both_claims_contested() {
+        // `Pair { left: pair.left }` forwards the ranked leaf unchanged: the
+        // copies never diverge, so neither demotes and the cycle edge keeps
+        // membership but proves no descent.
+        let program = typed(&PACKED.replace("pair.left - 1", "pair.left"));
+        let mappings = mappings(&program, RankingRangePremises::RankInvariant).expect("telescope");
+        let remaining =
+            program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
+        assert_eq!(mappings[1], vec![remaining, remaining]);
+        // Contested copies give the edge no moved carrier to read: the rank
+        // does not decrease through a forwarded literal.
+        assert!(cycle_edge(&program, &mappings[1]).is_none());
+    }
+}

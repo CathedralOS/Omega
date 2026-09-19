@@ -1,0 +1,17 @@
+// FAIL CANARY. The moved copy of `remaining` lives inside the rebuilt
+// `pair`; `copy` demoted to a stale snapshot with no role, so feeding it to
+// `finish` leaves the rank unreadable there.
+data Pair { left: u32 [0..=5]; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> s(Pair { left: remaining }, remaining) }
+    state s(pair: Pair, copy: u32 [0..=5]) {
+        transition pair.left > 0 {
+            true -> s(Pair { left: pair.left - 1 }, copy)
+            false -> finish(copy)
+        }
+    }
+    state finish(result: u32 [0..=5]) { result }
+}
