@@ -53,6 +53,81 @@ pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut 
     }
 
     validate_unresolved_erased_generic_uses(program, diagnostics);
+    validate_erased_binding_qualifiers(program, diagnostics);
+}
+
+/// `mut`, `const`, and the receiver `self` describe runtime storage or
+/// custody. An erased binding owns neither, so attaching the qualifier to an
+/// erased occurrence has no meaning: refuse it here rather than letting the
+/// calling plan silently refuse with no name for the cause.
+fn validate_erased_binding_qualifiers(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                let Some(qualifier) = erased_qualifier(
+                    parameter.relevance,
+                    parameter.is_const,
+                    parameter.is_mutable,
+                    parameter.is_self,
+                ) else {
+                    continue;
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}::{}` erased parameter `{}` cannot be `{qualifier}`; an erased binding owns no runtime storage or custody",
+                    machine.name, state.name, parameter.name,
+                )));
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                if local.relevance.is_erased() && local.is_mutable {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}::{}` erased local `{}` cannot be `mut`; an erased binding owns no runtime storage or custody",
+                        machine.name, state.name, local.name,
+                    )));
+                }
+            }
+        }
+    }
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            for parameter in program.state_signature_parameters(signature) {
+                let Some(qualifier) = erased_qualifier(
+                    parameter.relevance,
+                    parameter.is_const,
+                    parameter.is_mutable,
+                    parameter.is_self,
+                ) else {
+                    continue;
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "requirement `{}` erased parameter `{}` cannot be `{qualifier}`; an erased binding owns no runtime storage or custody",
+                    signature.name, parameter.name,
+                )));
+            }
+        }
+    }
+}
+
+fn erased_qualifier(
+    relevance: BindingRelevance,
+    is_const: bool,
+    is_mutable: bool,
+    is_self: bool,
+) -> Option<&'static str> {
+    if !relevance.is_erased() {
+        return None;
+    }
+    if is_self {
+        Some("self")
+    } else if is_const {
+        Some("const")
+    } else if is_mutable {
+        Some("mut")
+    } else {
+        None
+    }
 }
 
 /// The attached-machine relevance slice is deliberately narrower than ordinary

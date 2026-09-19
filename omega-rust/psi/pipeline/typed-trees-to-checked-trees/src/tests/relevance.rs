@@ -527,3 +527,79 @@ fn erased_linear_case_payload_retains_its_multiplicity_obligation() {
         "linear value `certified",
     );
 }
+
+#[test]
+fn erased_mutable_parameter_refuses_the_qualifier() {
+    // `mut` promises runtime storage to write through; an erased binding owns
+    // none, so the combination is refused by name rather than accepted and
+    // then silently dropped from the calling plan.
+    rejected(
+        r#"
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(3, 4);
+        }
+
+        machine Main::record(&mut self, mut x [erased]: i32, y: i32) {
+            self.value = y;
+        }
+        "#,
+        "erased parameter `x` cannot be `mut`",
+    );
+}
+
+#[test]
+fn erased_const_parameter_refuses_the_qualifier() {
+    rejected(
+        r#"
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(3, 4);
+        }
+
+        machine Main::record(&mut self, const x [erased]: i32, y: i32) {
+            self.value = y;
+        }
+        "#,
+        "erased parameter `x` cannot be `const`",
+    );
+}
+
+#[test]
+fn erased_mutable_local_refuses_the_qualifier() {
+    rejected(
+        r#"
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            let mut x [erased]: i32 = 3;
+            self.value = 4;
+        }
+        "#,
+        "erased local `x` cannot be `mut`",
+    );
+}
+
+#[test]
+fn erased_trait_requirement_qualifiers_refuse_the_qualifier() {
+    rejected(
+        r#"
+        trait Measure {
+            machine measure(&self, mut proof [erased]: i32) -> bool;
+        }
+
+        data Item { value: bool; }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self, mut proof [erased]: i32) -> bool {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main { item: Item; }
+        "#,
+        "erased parameter `proof` cannot be `mut`",
+    );
+}
