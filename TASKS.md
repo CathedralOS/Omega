@@ -127,9 +127,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   The historical `source/library/std/macos_gui.omg` wrapper is not an already
   selected conformer to these sample-owned requirements; matching method names
   cannot establish nominal satisfaction. Preserve actual signatures, storage,
-  rendering and effects. After provider settlement, follow any remaining
-  checked call, array and cyclic execution failures through their existing
-  owners, then finish ordinary package review without automatic admissions. The
+  rendering and effects. Before treating signature selection as executable
+  supply, retain one occurrence-owned concrete provider receiver across its
+  calls and establish its nested services. Current Fused entry receipts
+  establish erased service authority, not that receiver storage;
+  `ProviderAttachment` is a specialization witness and cannot serve as an
+  ordinary structural argument.
+  `typed-trees-to-checked-trees/src/execution/unit/providers.rs` and independent
+  lowering/replay currently limit an attachment to one provider field, while
+  this entry has four. Lowered `attached_unit/providers.rs` also rejects
+  scalar-result provider candidates. These are implementation dependencies
+  under **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and **STATE-LOCAL-VALUE-FRONTIER**,
+  not language-design blockers or permission to inject global provider state.
+  After those dependencies and provider settlement, follow remaining checked
+  call, array and cyclic execution failures through their existing owners,
+  then finish ordinary package review without automatic admissions. The
   `native_filesystem_canaries::gui_and_sample_apps::sample_window*` tests
   supply test-owned package acceptance, not ordinary CLI review. Their
   interactive-app checks only observe early failure or brief process survival;
@@ -2279,32 +2291,23 @@ Owners include
   `items[low + 0u64..high]` cannot prove its start bound in
   `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
 
-  DESIGN-BLOCKED (2026-09-18, measured) for the disequality and call-certificate
-  bullets only; endpoint formation and rank-role discovery remain ordinary
-  engineering. (1) Disequality: `decompose_premise_expression`
-  (`checks/borrows/overlap/premises.rs`) decomposes `And`, `Less`,
-  `LessOrEqual`, `Greater`, `GreaterOrEqual` and `Equal` and has no `NotEqual`
-  arm, so a stated `i != j` is dropped before the consult at
-  `overlap/indexes.rs`. `BorrowCompatibilityPremiseRelation` is the closed
-  triple LessOrEqual/StrictlyBefore/Equal inside a PERSISTED certificate that
-  Terminal replay consumes positionally, and `premise_orientation_proves` is a
-  total 3x3 match over constant-offset shifts; disequality orders nothing, so it
-  has no cell, and the only other derivation, `Structural`, retains no premises.
-  Not the blocker: `has_builtin_decomposed_guard_meaning` already accepts
-  `NotEqual` in its boolean-equality branch. Evidence landed as
-  `fail/borrows/borrow_stated_index_disequality_mut`, which moves to `pass/`
-  unchanged once the decision lands. (3) Call certificates: `calls/conflicts.rs`
-  already threads `stated_premises` through its consult sites and discards the
-  `CapturedPlaceCompatibility`, and the capture half exists
-  (`*_with_selector_snapshot` / `*_from_selector_snapshot`). What is missing is
-  a persisted row. `CheckedBorrowCompatibilityCertificate` requires a valid,
-  distinct `forming_loan`/`active_loan` pair, and an argument/argument conflict
-  has neither, so retention needs a new row type, a new arena, its own
-  `*_matches_resources` drift validation, and a change to
-  `AcceptanceSummary::accepted`'s certificate count in
-  `checked-trees/src/checked_trees/admissibility/statement.rs`, which alters
-  admissibility accounting for every statement. A real customer exists and
-  retains nothing today:
+  These are implementation gaps under the settled loan contract, not owner
+  design decisions. `checks/borrows/overlap/premises.rs` drops `NotEqual`, and
+  the current compatibility derivations cannot retain disequality evidence for
+  distinct singleton elements. Add checked disjointness evidence for the
+  guide's in-range `i != j` case; replay must preserve captured subjects and
+  reject missing, stale or tampered premises. Move
+  `fail/borrows/borrow_stated_index_disequality_mut` to pass unchanged when
+  supported. Existing compatibility certificates are checked-stage records;
+  their relation enum is not a persisted Terminal wire format.
+
+  `checks/borrows/calls/conflicts.rs` already admits premise-dependent call
+  accesses but discards their compatibility evidence. Retain the exact
+  call/access subjects, captured places and premises, add independent drift
+  and replay validation, and include the records in statement admissibility
+  accounting. The current forming-loan/active-loan pair cannot identify an
+  argument/argument judgment; represent that judgment explicitly without
+  manufacturing loans. Start from
   `premised_disjoint_writes.rs::stated_ordering_premise_admits_exclusive_argument_before_borrowed_window`.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Realize target-owned private callback
@@ -4187,28 +4190,18 @@ Owners include
   rejects. The two open source classes gain a producer the verifier rejoins,
   raised at a use site the checked source key distinguishes.
 
-  DESIGN-BLOCKED (2026-09-18, measured) for the kernel-discharge bullet as well,
-  not only the already-named source-identity bullet. `float_operations.omg`
-  carries 212 `FloatSemantics::` mentions, 146 of them inside `ensures` clauses,
-  and ZERO have a projection on both sides of the `==`: every one is shaped
-  `Float::meaning32(result) == FloatSemantics::add(BINARY32, ...)`.
-  `walk_expression`
-  (`validation/src/proof_contracts/float_projection_invocations.rs`) forms a
-  `ValidatedFloatMeaningEqualityProposition` only when BOTH operands are
-  projection invocations, and its `Call` arm rejects only a drifted projection,
-  so all 146 contracts are silently accepted and carry no obligation --
-  `arithmetic/runtime_float_operations_exit` is green for exactly that reason.
-  Wiring is impossible without new proof vocabulary: `CheckedProofOnlyValueType`
-  has the single variant `FloatMeaning`, `bind_float_meaning_projection_facts`
-  resolves equality operands only from projection invocations and errors
-  otherwise, Terminal's `proof/values.rs` carries only projection-sourced
-  values, and `FloatSemantic` appears zero times in `terminal-verifier/src` and
-  `terminal-codec/src`. A semantic-application proof-value class must be
-  threaded checked-trees -> Terminal -> codec -> verifier. The attachment point
-  is already named in
-  `validation/src/proof_contracts/float_projection_bindings.rs`:
-  `semantic_operations::exact_toolchain_float_semantic_contract` is "the hook a
-  provider binding will consume once discharge attaches to a row".
+  This is an implementation gap under the existing FloatMeaning and contract
+  import rules, not a language-design blocker.
+  `validation/src/proof_contracts/float_projection_invocations.rs` records
+  equality only between projection invocations, so projection-to-
+  `FloatSemantics::*` application contracts lack the required obligation.
+  Carry exact semantic applications and their operand/result relationships
+  through checked facts, Terminal, codec and independent verification. Reuse
+  `float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract`
+  and the signature-selected `numerics::FloatSemanticOperation::kernel_discharge`;
+  catalog identity alone is insufficient. An application can produce the
+  existing mathematical value type; a missing internal value-source form does
+  not by itself require a new source-language type.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
