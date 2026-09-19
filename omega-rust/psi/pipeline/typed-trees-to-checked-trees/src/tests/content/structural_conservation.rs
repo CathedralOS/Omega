@@ -243,3 +243,202 @@ fn routed_structural_result_rejects_mutually_exclusive_input_claims() {
         .replace("Granted::content(old(&whole))", "separate(Granted::content(old(&whole.left)), Granted::content(old(&whole.right)))");
     assert_structural_rejection(&source);
 }
+
+#[test]
+fn routed_local_initializer_cannot_mint_custody() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        data Wrapped { region: Region in Granted; }
+        machine forge(raw: Region) -> Wrapped {
+            let claimed: Region in Granted = raw;
+            Wrapped { region: claimed }
+        }
+    "#
+    );
+    let diagnostics = rejection_diagnostics(&source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("initializer")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn routed_partition_fields_forward_without_restatement() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        machine forward(partition: &Partition, whole: Region in Granted) -> Parts
+        reaches Partition {
+            let parts: Parts = partition.split(whole);
+            Parts { taken: parts.taken, rest: parts.rest }
+        }
+    "#
+    );
+    checked(&source);
+}
+
+#[test]
+fn routed_partition_merge_preserves_call_ensures() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        boundary trait Merge {
+            machine merge(parts: Parts) -> Region
+            ensures result in Granted,
+                separate(Granted::content(old(&parts.taken)), Granted::content(old(&parts.rest)))
+                == Granted::content(&result);
+        }
+        data Wrapped { region: Region in Granted; }
+        machine merge_wrapper(merger: &Merge, parts: Parts) -> Wrapped
+        reaches Merge {
+            let whole: Region in Granted = merger.merge(parts);
+            Wrapped { region: whole }
+        }
+    "#
+    );
+    checked(&source);
+}
+
+#[test]
+fn routed_partition_fields_survive_separate_owned_moves() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        machine forward(partition: &Partition, whole: Region in Granted) -> Parts
+        reaches Partition {
+            let parts: Parts = partition.split(whole);
+            let taken: Region in Granted = parts.taken;
+            let rest: Region in Granted = parts.rest;
+            Parts { taken: taken, rest: rest }
+        }
+    "#
+    );
+    checked(&source);
+}
+
+#[test]
+fn routed_owned_result_annotation_cannot_mint_custody() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        machine forge(raw: Region) -> Region in Granted { raw }
+    "#
+    );
+    let diagnostics = rejection_diagnostics(&source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requirement for return")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn routed_owned_field_requires_live_unmodified_membership() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        machine forward(partition: &Partition, whole: Region in Granted) -> Parts
+        reaches Partition {
+            let mut parts: Parts = partition.split(whole);
+            parts.taken.length = 0;
+            Parts { taken: parts.taken, rest: parts.rest }
+        }
+    "#
+    );
+    let diagnostics = rejection_diagnostics(&source);
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("not proven in domain")
+                || diagnostic.message.contains("requirement for return")
+        ),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn routed_local_preserves_requires_membership() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        data Wrapped { region: Region in Granted; }
+        machine forward(whole: Region) -> Wrapped
+        requires whole in Granted {
+            let claimed: Region in Granted = whole;
+            Wrapped { region: claimed }
+        }
+    "#
+    );
+    checked(&source);
+}
+
+#[test]
+fn routed_mutable_field_must_be_restored_before_return() {
+    let source = r#"
+        domain u32::Secret established by Provider::issue;
+        boundary trait Provider { machine issue() -> u32 ensures result in Secret; }
+        data Row { secret: u32 in Secret; }
+        machine overwrite(row: &mut Row, raw: u32) { row.secret = raw; }
+    "#;
+    let diagnostics = rejection_diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requirement for return")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn routed_mutable_field_can_restore_existing_qualification() {
+    let source = r#"
+        domain u32::Secret established by Provider::issue;
+        boundary trait Provider { machine issue() -> u32 ensures result in Secret; }
+        data Row { secret: u32 in Secret; }
+        machine overwrite(row: &mut Row, raw: u32, replacement: u32 in Secret) {
+            row.secret = raw;
+            row.secret = replacement;
+        }
+    "#;
+    checked(source);
+}
+
+#[test]
+fn routed_mutable_root_must_be_restored_before_return() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        "machine corrupt(region: &mut Region in Granted) { region.length = 0; }"
+    );
+    checked(&source.replace("region.length = 0;", ""));
+    let diagnostics = rejection_diagnostics(&source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requirement for return")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn authorized_content_result_can_be_returned_without_a_local() {
+    let source = format!(
+        "{}\n{}",
+        partition_program("Region in Granted", SPLIT_LAW),
+        r#"
+        machine receive(provider: &RootProvider, raw: Region) -> Region in Granted
+        reaches RootProvider { provider.grant(raw) }
+    "#
+    );
+    checked(&source);
+}

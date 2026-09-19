@@ -41,6 +41,7 @@ use call_phases::{
     build_call_entry_contexts, build_call_exit_contexts, build_call_requires_contexts,
 };
 use calls::build_call_flow_fact;
+pub(crate) use calls::call_result_qualification_identities;
 pub(crate) use calls::call_target_return_type;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
 pub(crate) use common::append_constraint_ref;

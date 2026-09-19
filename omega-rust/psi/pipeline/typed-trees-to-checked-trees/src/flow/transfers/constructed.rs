@@ -173,5 +173,22 @@ pub(super) fn append_constructed_field_values(
         projected::append_copied_field_predicates(
             program, semantic, contexts, active, source, place, point, references,
         );
+        if let Some(destination_type) = crate::flow::project_type_reference_from_segments(
+            program,
+            reference,
+            &projection.destination,
+        ) {
+            super::owned_qualifications::append_owned_qualification_transfer(
+                program,
+                semantic,
+                contexts,
+                active,
+                source,
+                place,
+                destination_type,
+                point,
+                references,
+            );
+        }
     }
 }

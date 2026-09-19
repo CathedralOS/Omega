@@ -7,6 +7,7 @@ use crate::labels::{machine_name, semantic_fact_requirement_label};
 mod cases;
 mod cyclic_headers;
 mod result_domains;
+pub(super) use result_domains::exact_scalar_membership;
 mod scalars;
 
 pub(super) use cyclic_headers::CyclicHeaderInvariants;

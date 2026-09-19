@@ -4,8 +4,8 @@
 //! annotation is never an input fact. An `ensures`
 //! domain fact authored over the reserved `result` name is discharged against
 //! the exact returned expression's live place; a nominal return type
-//! additionally makes every declared field predicate an obligation at each
-//! value-returning exit, and a reference return owes the same predicates on
+//! additionally makes every declared field qualification an obligation at each
+//! value-returning exit, and a readable reference return owes them on
 //! the returned place. The return is also a default-domain consumption point
 //! for every readable `&mut` referent the machine received, `self`
 //! included: the declared field facts assumed on entry must hold again when
@@ -341,7 +341,7 @@ fn exact_call_result_membership(
     call_result_has_domain(program, call.target_symbol, required)
 }
 
-fn exact_scalar_membership(
+pub(in crate::checks::contracts) fn exact_scalar_membership(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
@@ -1140,13 +1140,37 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let paths = crate::facts::field_domain::declared_result_field_domain_paths(
+    let mut paths = crate::facts::field_domain::declared_result_field_domain_paths(
         program,
         result_domain_type(program, entry.return_type),
     )
     .into_iter()
     .filter(|(_, domain_symbol)| value_provable_domain(program, *domain_symbol))
+    .map(|(path, domain)| (path, domain, language_semantics::SemanticDomainId::NULL))
     .collect::<Vec<_>>();
+    paths.extend(
+        crate::facts::field_domain::declared_owned_field_domain_identities(
+            program,
+            result_domain_type(program, entry.return_type),
+        )
+        .into_iter()
+        .filter(|(_, domain, _)| {
+            crate::facts::field_domain::domain_requires_provenance(program, *domain)
+        }),
+    );
+    if program
+        .primitive_type_reference(entry.return_type)
+        .is_none()
+    {
+        paths.extend(
+            crate::facts::field_domain::domain_constraint_identities(program, entry.return_type)
+                .into_iter()
+                .filter(|(domain, _)| {
+                    crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                })
+                .map(|(domain, identity)| (Vec::new(), domain, identity)),
+        );
+    }
     if paths.is_empty() {
         return;
     }
@@ -1168,7 +1192,27 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         exit.statement_index,
         returned,
     );
-    for (path, domain_symbol) in paths {
+    for (path, domain_symbol, semantic_domain) in paths {
+        let proves = |subject: &CanonicalPlace| {
+            if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
+                exact_scalar_membership(
+                    program,
+                    facts,
+                    &entry_contexts,
+                    subject,
+                    domain_symbol,
+                    semantic_domain,
+                )
+            } else {
+                super::super::prover::prove_domain_at_place(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    subject,
+                    domain_symbol,
+                )
+            }
+        };
         // The same two shapes as call actuals (checks/contracts/nominal_inputs):
         // a returned constructor projects each requirement onto the exact field
         // or element expression it was built from; anything else proves at the
@@ -1191,25 +1235,13 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     )
                     .is_some_and(|mut subject| {
                         subject.extend_segments(&projection.remaining);
-                        super::super::prover::prove_domain_at_place(
-                            program,
-                            &facts.semantic,
-                            &entry_contexts,
-                            &subject,
-                            domain_symbol,
-                        )
+                        proves(&subject)
                     })
                 })
         }) || base.as_ref().is_some_and(|base| {
             let mut subject = base.clone();
             subject.extend_segments(&path);
-            super::super::prover::prove_domain_at_place(
-                program,
-                &facts.semantic,
-                &entry_contexts,
-                &subject,
-                domain_symbol,
-            )
+            proves(&subject)
         });
         if !satisfied {
             let (root, mut segments) = base
@@ -1252,16 +1284,13 @@ pub(crate) fn result_domain_type(
 /// An establishment-gated domain (`established by ..`) mints membership only
 /// through its listed routes, so its rows are custody evidence transported
 /// by the carry machinery rather than an invariant window a return can
-/// close by proof; they are neither owed at a return nor handed back.
+/// close from predicates alone. Routed return obligations instead consume
+/// exact live membership; predicate-only call reseeding must exclude them.
 pub(crate) fn value_provable_domain(
     program: &typed_trees::TypedTrees,
     domain_symbol: symbols::SymbolHandle,
 ) -> bool {
-    program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-        .is_none_or(|domain| domain.establishment_routes.is_empty())
+    !crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
 }
 
 /// Whether a declared parameter type is a readable `&mut` reference, whose
@@ -1329,8 +1358,7 @@ pub(crate) fn mutable_referent_field_requirements(
                             machine_symbol: origin_machine,
                             state_symbol: origin_state,
                         } if origin_machine == machine_symbol && origin_state == state_symbol
-                    ) && matches!(fact.payload, FactPayload::DomainMembership { domain_symbol, .. }
-                        if value_provable_domain(program, domain_symbol))
+                    ) && matches!(fact.payload, FactPayload::DomainMembership { .. })
                         && matches!(fact.place, FactPlace::Place(place)
                             if matches!(semantic.places.get(place).root, PlaceRoot::Symbol(root)
                                 if referents.contains(&root)))
@@ -1377,9 +1405,6 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
         exit.machine_symbol,
         exit.state_symbol,
     );
-    if requirements.is_empty() {
-        return;
-    }
     let entry_contexts: Vec<_> = facts
         .flow
         .contexts
@@ -1388,21 +1413,86 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
         .iter()
         .map(|context_ref| context_ref.context)
         .collect();
-    for requirement in &requirements {
-        if super::super::prover::semantic_contexts_prove_contract_fact(
-            program,
-            &facts.semantic,
-            &entry_contexts,
-            requirement,
-        ) {
-            continue;
+    // Mutable roots use implicit signature preconditions rather than seeded
+    // StateParameterDomain facts. Their declaration still creates a return
+    // obligation, even when a write retired every copy of the entry evidence.
+    if let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        exit.machine_symbol,
+        exit.state_symbol,
+    ) {
+        for parameter in program.state_parameters(state).iter().filter(|parameter| {
+            !parameter.is_self && is_readable_mutable_reference(program, parameter.type_reference)
+        }) {
+            for (domain_symbol, semantic_domain) in
+                crate::facts::field_domain::domain_constraint_identities(
+                    program,
+                    parameter.type_reference,
+                )
+                .into_iter()
+                .filter(|(domain, _)| {
+                    crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                })
+            {
+                let subject = CanonicalPlace {
+                    root: PlaceRoot::Symbol(parameter.symbol),
+                    segments: Vec::new(),
+                };
+                if !exact_scalar_membership(
+                    program,
+                    facts,
+                    &entry_contexts,
+                    &subject,
+                    domain_symbol,
+                    semantic_domain,
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
+                        crate::labels::machine_name(program, exit.machine_symbol), exit.statement_index,
+                        parameter.name, crate::labels::symbol_name(program, domain_symbol),
+                    )));
+                }
+            }
         }
-        let (FactPlace::Place(place), FactPayload::DomainMembership { domain_symbol, .. }) =
-            (requirement.place, requirement.payload)
+    }
+    for requirement in &requirements {
+        let (
+            FactPlace::Place(place),
+            FactPayload::DomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            },
+        ) = (requirement.place, requirement.payload)
         else {
             continue;
         };
         let place = facts.semantic.places.get(place);
+        let satisfied =
+            if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
+                canonical_place_from_semantic_place(program, &facts.semantic, place).is_some_and(
+                    |subject| {
+                        exact_scalar_membership(
+                            program,
+                            facts,
+                            &entry_contexts,
+                            &subject,
+                            domain_symbol,
+                            semantic_domain,
+                        )
+                    },
+                )
+            } else {
+                super::super::prover::semantic_contexts_prove_contract_fact(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    requirement,
+                )
+            };
+        if satisfied {
+            continue;
+        }
         diagnostics.push(Diagnostic::error(format!(
             "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
             crate::labels::machine_name(program, exit.machine_symbol),

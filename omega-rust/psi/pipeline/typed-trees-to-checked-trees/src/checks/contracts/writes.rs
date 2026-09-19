@@ -51,6 +51,36 @@ pub(super) fn check_domain_field_writes(
         .iter()
         .enumerate()
     {
+        // A local annotation is an obligation on its initializer, not an
+        // establishment route. Check before the local's own statement facts
+        // can be consulted, retaining exact indexed qualification identity.
+        if let StatementNode::LocalData(local) = statement
+            && local.initial_value.is_valid()
+        {
+            for (domain_symbol, semantic_domain) in
+                crate::facts::field_domain::domain_constraint_identities(
+                    program,
+                    local.type_reference,
+                )
+            {
+                if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+                    && !value_proves_qualification(
+                        program,
+                        facts,
+                        state_flow,
+                        statement_index,
+                        local.initial_value,
+                        domain_symbol,
+                        semantic_domain,
+                    )
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "cannot prove initializer of `{}` in {} is in domain `{}`; an annotation cannot establish routed qualification",
+                        local.name, machine_name(program, state_flow.machine_symbol), symbol_name(program, domain_symbol),
+                    )));
+                }
+            }
+        }
         // (1) Assignment into a domain-refined field, parameter, or local.
         if let StatementNode::Assignment(assignment) = statement {
             for domain_symbol in crate::facts::field_domain::assignment_target_domain_symbols(
@@ -500,20 +530,21 @@ fn scan_construction_field_domains(
             let type_name = literal.type_name.clone();
             let case_name = literal.case_name.clone();
             for field in program.expression_table.struct_fields(literal.fields) {
-                for domain_symbol in construction_field_domain_symbols(
+                for (domain_symbol, semantic_domain) in construction_field_domain_identities(
                     program,
                     type_name.as_str(),
                     case_name.as_ref().map(|name| name.as_str()),
                     field.name.as_str(),
                 ) {
                     // (a) The constructed value must be established in the domain.
-                    if !value_proves_domain(
+                    if !value_proves_qualification(
                         program,
                         facts,
                         state_flow,
                         statement_index,
                         field.value,
                         domain_symbol,
+                        semantic_domain,
                     ) {
                         diagnostics.push(Diagnostic::error(format!(
                             "construction of `{}` field `{}` is not proven in domain `{}`; \
@@ -724,12 +755,12 @@ fn scan_construction_field_domains(
 /// declared type carries one or more predicate-bearing domain constraints.
 /// Mirrors validation `struct_literals::construction_field_type` + domain
 /// extraction.
-fn construction_field_domain_symbols(
+fn construction_field_domain_identities(
     program: &typed_trees::TypedTrees,
     type_name: &str,
     case_name: Option<&str>,
     field_name: &str,
-) -> Vec<SymbolHandle> {
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(data_definition) = program
         .data_definitions()
         .iter()
@@ -745,7 +776,67 @@ fn construction_field_domain_symbols(
     else {
         return Vec::new();
     };
-    crate::facts::field_domain::predicate_domain_constraint_symbols(program, field_type)
+    crate::facts::field_domain::domain_constraint_identities(program, field_type)
+        .into_iter()
+        .filter(|(symbol, _)| {
+            crate::facts::field_domain::domain_requires_provenance(program, *symbol)
+                || program
+                    .domain_definitions()
+                    .iter()
+                    .any(|domain| domain.symbol == *symbol && domain.predicate_body.is_present())
+        })
+        .collect()
+}
+
+/// Routed theories require the exact live instance at the initializer's actual
+/// place. Read the last completed operand-call context when calls occur in the
+/// statement, otherwise its entry context; never read the destination binding's
+/// post-statement facts or equate places by their display names.
+fn value_proves_qualification(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+) -> bool {
+    if !crate::facts::field_domain::domain_requires_provenance(program, domain) {
+        return value_proves_domain(program, facts, state, statement_index, value, domain);
+    }
+    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    ) else {
+        return false;
+    };
+    let contexts = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .rfind(|call| call.statement_index == statement_index)
+        .map(|call| call.exit_semantic_contexts)
+        .unwrap_or_else(|| {
+            facts
+                .flow
+                .state_statement(state, statement_index)
+                .map_or(state.entry_semantic_contexts, |statement| {
+                    statement.entry_semantic_contexts
+                })
+        });
+    let contexts = facts
+        .flow
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(contexts)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>();
+    super::exits::exact_scalar_membership(program, facts, &contexts, &subject, domain, identity)
 }
 
 /// The declared type of a constructed field (a case PAYLOAD field for the named

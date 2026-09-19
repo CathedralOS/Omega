@@ -18,14 +18,25 @@ enum Owner {
 }
 
 pub(super) struct DeclaredFieldRequirements {
-    rows: Vec<(Owner, Vec<(Vec<PlaceSegment>, SymbolHandle)>)>,
+    rows: Vec<(Owner, Vec<FieldRequirement>)>,
 }
+
+type FieldRequirement = (
+    Vec<PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+);
 
 impl DeclaredFieldRequirements {
     pub(super) fn new(semantic: &FactPlan) -> Self {
-        let mut rows: Vec<(Owner, Vec<(Vec<PlaceSegment>, SymbolHandle)>)> = Vec::new();
+        let mut rows: Vec<(Owner, Vec<FieldRequirement>)> = Vec::new();
         for (_, fact) in semantic.facts.iter() {
-            let FactPayload::DomainMembership { domain_symbol, .. } = fact.payload else {
+            let FactPayload::DomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            } = fact.payload
+            else {
                 continue;
             };
             let FactPlace::Place(place) = fact.place else {
@@ -63,6 +74,7 @@ impl DeclaredFieldRequirements {
                     .span_or_empty(place.segments)
                     .to_vec(),
                 domain_symbol,
+                semantic_domain,
             );
             if let Some((_, requirements)) =
                 rows.iter_mut().find(|(candidate, _)| *candidate == owner)
@@ -77,7 +89,7 @@ impl DeclaredFieldRequirements {
         Self { rows }
     }
 
-    fn requirements(&self, owner: Owner) -> &[(Vec<PlaceSegment>, SymbolHandle)] {
+    fn requirements(&self, owner: Owner) -> &[FieldRequirement] {
         self.rows
             .iter()
             .find(|(candidate, _)| *candidate == owner)
@@ -149,7 +161,27 @@ pub(super) fn check(
         } else {
             Owner::Parameter(parameter.symbol)
         };
-        for (segments, domain_symbol) in requirements.requirements(owner) {
+        for (segments, domain_symbol, semantic_domain) in requirements.requirements(owner) {
+            let proves = |subject: &crate::flow::CanonicalPlace| {
+                if crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol) {
+                    super::exits::exact_scalar_membership(
+                        program,
+                        facts,
+                        contexts,
+                        subject,
+                        *domain_symbol,
+                        *semantic_domain,
+                    )
+                } else {
+                    super::prover::prove_domain_at_place(
+                        program,
+                        &facts.semantic,
+                        contexts,
+                        subject,
+                        *domain_symbol,
+                    )
+                }
+            };
             let satisfied = argument
                 .and_then(|argument| {
                     crate::flow::literal_value_projections(
@@ -171,36 +203,26 @@ pub(super) fn check(
                             )
                             .is_some_and(|mut subject| {
                                 subject.extend_segments(&projection.remaining);
-                                super::prover::prove_domain_at_place(
-                                    program,
-                                    &facts.semantic,
-                                    contexts,
-                                    &subject,
-                                    *domain_symbol,
-                                )
+                                proves(&subject)
                             })
                         })
                 })
                 || actual.as_ref().is_some_and(|actual| {
                     let mut subject = actual.clone();
                     subject.extend_segments(segments);
-                    super::prover::prove_domain_at_place(
-                        program,
-                        &facts.semantic,
-                        contexts,
-                        &subject,
-                        *domain_symbol,
-                    ) || candidate_referents_prove_domain(
-                        program,
-                        facts,
-                        state,
-                        call,
-                        actual,
-                        segments,
-                        *domain_symbol,
-                        contexts,
-                        call_frames,
-                    )
+                    proves(&subject)
+                        || candidate_referents_prove_domain(
+                            program,
+                            facts,
+                            state,
+                            call,
+                            actual,
+                            segments,
+                            *domain_symbol,
+                            *semantic_domain,
+                            contexts,
+                            call_frames,
+                        )
                 });
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(
@@ -230,6 +252,7 @@ fn candidate_referents_prove_domain(
     actual: &crate::flow::CanonicalPlace,
     segments: &[PlaceSegment],
     domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
     contexts: &[FactContextHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
@@ -260,12 +283,23 @@ fn candidate_referents_prove_domain(
     candidates.iter().all(|candidate| {
         let mut subject = candidate.clone();
         subject.extend_segments(segments);
-        super::prover::prove_domain_at_place(
-            program,
-            &facts.semantic,
-            contexts,
-            &subject,
-            domain_symbol,
-        )
+        if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
+            super::exits::exact_scalar_membership(
+                program,
+                facts,
+                contexts,
+                &subject,
+                domain_symbol,
+                semantic_domain,
+            )
+        } else {
+            super::prover::prove_domain_at_place(
+                program,
+                &facts.semantic,
+                contexts,
+                &subject,
+                domain_symbol,
+            )
+        }
     })
 }

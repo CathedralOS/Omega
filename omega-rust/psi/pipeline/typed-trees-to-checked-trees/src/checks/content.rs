@@ -6,12 +6,15 @@
 //! otherwise requires owned custody. Compatibility keys on the retained
 //! compiler-owned algebra identity, never carrier or operation names.
 //!
-//! This file owns the three gates. `partition_wrappers.rs` composes
+//! `call_results.rs` checks provisional result qualifications after ownership
+//! reconstruction, including non-content provenance when no content plan exists.
+//! `partition_wrappers.rs` composes
 //! returned partition invocations into wrappers, `content_paths.rs` maps
 //! content segments, contracts and projections onto fact paths, and
 //! `retained_custody.rs` decides lifetime-bound borrow custody of retained
 //! content.
 
+mod call_results;
 mod content_paths;
 mod partition_wrappers;
 mod retained_custody;
@@ -308,16 +311,21 @@ pub(crate) fn check_retained_content_custody(
     program: &TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    call_results::check_call_result_qualifications(program, facts, &mut diagnostics);
     if facts.qualifications.content.plans.is_empty() {
         facts
             .qualifications
             .content
             .retained_borrow_custodies
             .clear();
-        return Ok(());
+        return if diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(diagnostics)
+        };
     }
 
-    let mut diagnostics = Vec::new();
     let mut retained_borrow_custodies = Vec::new();
 
     for trait_definition in program.traits() {

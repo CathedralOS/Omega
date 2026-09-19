@@ -381,6 +381,123 @@ pub(crate) fn declared_result_field_domain_paths(
     Vec::new()
 }
 
+/// Exact qualifications below owned result storage. Predicate-only readers
+/// keep their existing traversal; authority transport must also preserve the
+/// interned application and must not reinterpret borrowed referents as owned
+/// result claims.
+pub(crate) fn declared_owned_field_domain_identities(
+    program: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Vec<(
+    Vec<facts::PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+)> {
+    fn visit(
+        program: &typed_trees::TypedTrees,
+        reference: TypeReferenceHandle,
+        prefix: &mut Vec<facts::PlaceSegment>,
+        ancestors: &mut Vec<SymbolHandle>,
+        output: &mut Vec<(
+            Vec<facts::PlaceSegment>,
+            SymbolHandle,
+            language_semantics::SemanticDomainId,
+        )>,
+    ) {
+        let mut carrier = reference;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        if matches!(
+            program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            return;
+        }
+        if !prefix.is_empty() {
+            output.extend(
+                domain_constraint_identities(program, reference)
+                    .into_iter()
+                    .map(|(symbol, identity)| (prefix.clone(), symbol, identity)),
+            );
+        }
+        if let Some(data) = owned_nominal_data_definition(program, carrier) {
+            if ancestors.contains(&data.symbol) {
+                return;
+            }
+            ancestors.push(data.symbol);
+            for member in program.data_members(data) {
+                let typed_trees::data::DataMember::Field(field) = member else {
+                    continue;
+                };
+                let length = prefix.len();
+                crate::flow::push_field_place_segments(program, prefix, field.symbol);
+                visit(program, field.type_reference, prefix, ancestors, output);
+                prefix.truncate(length);
+            }
+            ancestors.pop();
+        } else if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } = program.type_reference_table.type_reference(carrier)
+        {
+            for index in 0..*length {
+                prefix.push(facts::PlaceSegment::FixedIndex { index });
+                visit(program, *element_type, prefix, ancestors, output);
+                prefix.pop();
+            }
+        }
+    }
+    let mut output = Vec::new();
+    visit(
+        program,
+        reference,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut output,
+    );
+    output
+}
+
+/// Transparent aliases retain their constituents' provenance requirement;
+/// testing only the alias's own route list would permit predicate-only minting.
+pub(crate) fn domain_requires_provenance(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> bool {
+    fn visit(
+        program: &typed_trees::TypedTrees,
+        symbol: SymbolHandle,
+        ancestors: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if ancestors.contains(&symbol) {
+            return true;
+        }
+        let Some(domain) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == symbol)
+        else {
+            return true;
+        };
+        if !domain.establishment_routes.is_empty() {
+            return true;
+        }
+        ancestors.push(symbol);
+        let routed = domain.alias.as_ref().is_some_and(|alias| {
+            alias
+                .constituents
+                .iter()
+                .any(|part| visit(program, part.domain_symbol, ancestors))
+        });
+        ancestors.pop();
+        routed
+    }
+    visit(program, symbol, &mut Vec::new())
+}
+
 /// Every `(place path, domain)` pair a nominal value of `data` promises by
 /// declaration: each readable field's predicate-domain constraints, nested
 /// nominal fields, and each element of a fixed-array nominal field at its

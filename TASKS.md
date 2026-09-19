@@ -2602,9 +2602,7 @@ Owners include
   fallible request, a one-buffer `BumpVec` reservation, content-free growth
   (`grow` rebuffers via `merge` + `split`) and one resident
   place/read/retire; six `fail/memory/bump_allocator_*` controls pin the
-  rejections. Its header records the contract edges found so far (the note that
-  an indexed domain application does not parse in proof-fact position is stale
-  since `pass/contracts/proof_fact_indexed_domain_application`). This is source
+  rejections. Its header records the contract edges found so far. This is source
   checking only: the fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster,
   `Main::main` is empty, and `ExtentPartition`/`ResidentStorage` are
   fixture-local boundary traits with no conformer or selected provider.
@@ -2625,31 +2623,27 @@ Owners include
     buffer with a live resident cannot fold back for a resize — pinned by
     `fail/memory/bump_allocator_grow_with_live_resident`. Element transfer
     across the fold waits on the same placed-access route as elements.
-  - Custody-carrying sums. A destructured case payload and a call-result
-    record's fields do not surface their declared `in Granted` domains. A
-    sum-typed fallible request, an optional retired slot and a retired-buffer
-    list construct but cannot be consumed. At `7058b55545`, removing only the
-    `taken`/`rest` typed locals from `allocate` and using `parts.taken` and
-    `parts.rest` directly in `Issued` rejects both `Granted` field obligations
-    under the focused canary command below. The typed-local workaround is
-    not evidence of an authority-preserving transfer: `flow/transfers.rs`
-    seeds initialized locals' declared domains without proving introduction.
-    Repair that gap together with owned field transport; do not copy it into
-    `flow/transfers/projected.rs` or broaden its predicate-only rule.
-    Declaration checks in `checks/content/retained_custody` reject borrowed-only
-    structural sources and require bodyless routed partition results to account
-    for their exact output paths under the same qualification and projection.
-    Neither check grants call-result authority. Ordinary routed-field exit
-    validation is still missing; the call publisher's declared predicate facts
-    cannot substitute for it. Recursive expansion, unresolved array extents and
-    outcome-specific partition frontiers retain explicit implementation fences.
-    The next acceptance needs that exit validation, the exact invocation,
-    consumed claim paths, domain instances and checked conservation/result correspondence before
-    direct fields or restated locals can acquire routed qualifications.
-    Preserve missing-theorem, borrowed-source, duplicate-sibling, wrong-call,
-    consumed/written-source and indexed-domain rejection controls.
-    `NOMINAL-FIELD-FLOW` owns this declared-field evidence repair; Terminal
-    and native allocation remain separate unfinished dependencies.
+  - Custody-carrying sums. Destructured case payloads still lack qualified
+    claim transport: a sum-typed fallible request, optional retired slot and
+    retired-buffer list construct but cannot yet be consumed. Owned record
+    fields now retain exact domain instances through calls and moves;
+    `allocate` uses `parts.taken`/`parts.rest` directly. The focused canary
+    command below passes on macOS ARM64 along with the six rejection controls.
+    Typed-local annotations no longer establish routed membership: initializer,
+    construction, incoming nominal-field and mutable/owned return obligations
+    consume live evidence. `checks/content/call_results.rs` joins provisional
+    call-result facts to the exact invocation, owned claim transfers, result
+    identities and authored conservation; non-content boundary introductions
+    still require an exact issuer route. `flow/transfers/owned_qualifications.rs`
+    transports existing qualifications separately from predicate copying and
+    refuses reference-shell traversal; borrowed facts retain their origin rules.
+    Extend this same checked custody route to case outcomes, retaining exact
+    case/claim correspondence and mutation invalidation. Anonymous linear call
+    results without known result-claim evidence, recursive expansion, unresolved
+    array extents and outcome-specific partition frontiers remain explicit
+    implementation limits. Do not replace those joins with annotations or
+    matching algebra/field names. `NOMINAL-FIELD-FLOW` owns the field-evidence
+    work; Terminal and native allocation remain separate dependencies.
   - Counted residual. `split`'s law never pins `result.taken.length`.
     Separate scalar and content-conservation guarantees are supported and
     independently checked (`scalar_and_content_guarantees_are_checked_independently`);

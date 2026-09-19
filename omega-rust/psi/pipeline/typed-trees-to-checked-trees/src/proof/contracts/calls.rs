@@ -186,6 +186,23 @@ pub(crate) fn build_contract_exit_facts(
                         .iter()
                         .any(|(_, domain)| {
                             crate::checks::contracts::value_provable_domain(program, *domain)
+                        }) || crate::flow::call_result_qualification_identities(
+                            program,
+                            entry.symbol,
+                        )
+                        .iter()
+                        .any(|(_, domain, _)| {
+                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                        }) || crate::facts::field_domain::declared_owned_field_domain_identities(
+                            program,
+                            crate::checks::contracts::result_domain_type(
+                                program,
+                                entry.return_type,
+                            ),
+                        )
+                        .iter()
+                        .any(|(_, domain, _)| {
+                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
                         })
                     });
             let referent_field_obligations =
@@ -222,6 +239,23 @@ pub(crate) fn build_contract_exit_facts(
                         .iter()
                         .any(|(_, domain)| {
                             crate::checks::contracts::value_provable_domain(program, *domain)
+                        }) || crate::facts::field_domain::declared_owned_field_domain_identities(
+                            program,
+                            crate::checks::contracts::result_domain_type(
+                                program,
+                                parameter.type_reference,
+                            ),
+                        )
+                        .iter()
+                        .any(|(_, domain, _)| {
+                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                        }) || crate::facts::field_domain::domain_constraint_identities(
+                            program,
+                            parameter.type_reference,
+                        )
+                        .iter()
+                        .any(|(domain, _)| {
+                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
                         })
                     }
                 });

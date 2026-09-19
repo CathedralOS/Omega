@@ -59,20 +59,12 @@
 //   An ordinary machine faces no such limit: `reset` consumes `lower` and
 //   `upper` as two separate qualified parameters, and `close` recomposes
 //   one buffer with the tail the same way.
-// - A record returned by a call does not surface its fields' declared
-//   `in Granted` facts on the result's field places, so `issued.allocation`
-//   cannot fill an `in Granted` parameter directly. Each qualified field is
-//   restated through an exactly typed `let`
-//   (`let field: Extent in Granted & Vacant = issued.allocation`), which
-//   re-reads the declared field domain; the same holds for `Split` fields
-//   returned by the boundary. The restated fields of one record then share
-//   their custody: once a restated sibling value is consumed onward — by a
-//   call or by a plain `let` transfer — the record's other restated facts
-//   are gone. `exercise` therefore binds `first_allocation` only after
-//   `first_tail` has been consumed, and consumes `second_allocation`
-//   together with `second_tail` in the `reset` call. A container chaining
-//   allocation must order custody this way or keep the family in one
-//   record consumed atomically.
+// - Owned record fields carry their exact qualifications through checked
+//   calls, construction and moves. `allocate` consumes the split fields
+//   directly; the remaining named locals organize the exercise rather than
+//   assert authority. A typed initializer must prove its source qualification.
+//   The split/merge invocation is joined to its actual consumed claims and
+//   returned claim identities under the authored conservation theorem.
 // - An ordinary machine cannot restate the boundary's `separate` law as
 //   its own `ensures`, so `allocate` and `reset` keep the exact
 //   conservation inside their bodies instead of publishing it.
@@ -152,14 +144,13 @@
 //   (`tests/omega/fail/memory/bump_allocator_place_into_occupied`).
 //
 // Discovered edges that fix the spelling:
-// - `ensures result in Granted & Resident<SlotPlacement, Slot>` does not
-//   parse in proof-fact position (the indexed domain's `<` is read as a
-//   comparison), so `place` returns the `Occupied` record whose field
-//   carries the domain in type position, as `Split` and `Retired` do.
+// - Indexed membership is supported in both types and proof facts. `place`
+//   keeps the `Occupied` record so the resident's ownership is explicit at
+//   the package boundary, alongside the `Split` and `Retired` records.
 // - Restating `placed.storage` into a typed local
 //   `Extent in Granted & Resident<SlotPlacement, Slot>` carries the
-//   instance identity the typer interned on the declared constraint, so the
-//   restated local proves the indexed membership at a call `requires`
+//   existing instance identity from the source field, so the
+//   local proves the indexed membership at a call `requires`
 //   exactly as a `Vacant` restatement does (`exercise_resident_restated`:
 //   `view(&resident)`, `retire_view(resident)`). The record-carried shape
 //   (`exercise_resident`: `read(&Occupied)`, `retire(Occupied)`) remains
@@ -224,14 +215,12 @@ reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
     let parts: Split = partition.split(tail, length);
-    let taken: Extent in Granted & Vacant = parts.taken;
-    let rest: Extent in Granted & Vacant = parts.rest;
     Issued {
         strategy: Bump {
-            tail: rest,
+            tail: parts.rest,
             remaining: strategy.remaining - length,
         },
-        allocation: taken,
+        allocation: parts.taken,
     }
 }
 
