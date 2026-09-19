@@ -1296,7 +1296,7 @@ const COVERAGE: &[RuleCoverage] = &[
         ),
         negative: covered(
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
-            "ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence",
+            "ieee_raw_bit_spills_retain_type_and_transport_fp_register_residence",
         ),
         boundary: covered(
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
