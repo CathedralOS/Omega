@@ -286,3 +286,36 @@ fn selected_operand_calls_preserve_single_state_endpoint_evidence() {
         rejects_range(&source.replace(FORWARDED_ENDPOINT, endpoint));
     }
 }
+
+/// A shared-borrow receiver contributes the referent's declared field bounds:
+/// the endpoint `bag.remaining` forms, pins, and stays conserved while the
+/// borrow itself is forwarded unchanged across the backedge.
+const BORROWED_ENDPOINT: &str = r#"
+    data Wrap { remaining: u64 [4..=500]; label: bool; }
+    machine walk(remaining: u64 [0..=4], bag: &Wrap)
+    terminates by remaining -> Nat::Descending in 0..=bag.remaining;
+    -> u64 {
+        transition remaining > 0 {
+            true -> walk(remaining - 1, bag)
+            false -> remaining
+        }
+    }
+"#;
+
+#[test]
+fn borrowed_receiver_fields_supply_endpoint_bounds() {
+    accepts(BORROWED_ENDPOINT);
+    // A subject whose declared bound can exceed the endpoint's floor is
+    // refused: pinning is not membership.
+    rejects_range(&BORROWED_ENDPOINT.replace("remaining: u64 [0..=4]", "remaining: u64 [0..=5]"));
+    // A different referent forwarded on the backedge does not preserve the
+    // endpoint's input, however equal its declared bounds.
+    rejects_range(
+        &BORROWED_ENDPOINT
+            .replace("bag: &Wrap)", "bag: &Wrap, other: &Wrap)")
+            .replace(
+                "walk(remaining - 1, bag)",
+                "walk(remaining - 1, other, bag)",
+            ),
+    );
+}
