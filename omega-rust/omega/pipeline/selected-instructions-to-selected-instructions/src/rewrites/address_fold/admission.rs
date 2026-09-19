@@ -53,12 +53,17 @@ fn consumer_shape(kind: SelectedInstructionKind) -> Option<(u32, RegisterOperand
     Some((scale, second))
 }
 
-/// The combined displacement must encode under the bound every target
-/// shares for the consumer's form: the AArch64 scaled unsigned immediate
-/// (`displacement` a multiple of `scale`, `displacement / scale <= 4095`),
-/// which the wider x86-64 disp32 admits in full.
-fn admitted_offset(combined: u32, scale: u32) -> bool {
-    combined.is_multiple_of(scale) && combined / scale <= 4095
+/// The combined displacement must encode under the bound the plan's
+/// architecture admits for the consumer's form: the AArch64 scaled unsigned
+/// immediate (`displacement` a multiple of `scale`, `displacement / scale <=
+/// 4095`), or x86-64's unscaled disp32, whose positive half admits every
+/// nonnegative byte offset through `i32::MAX` (`byte_offset` carries no
+/// negative values).
+fn admitted_offset(combined: u32, scale: u32, architecture: target::Architecture) -> bool {
+    match architecture {
+        target::Architecture::Aarch64 => combined.is_multiple_of(scale) && combined / scale <= 4095,
+        target::Architecture::X86_64 => combined <= i32::MAX as u32,
+    }
 }
 
 /// The instruction defining `register` at `position`: the last instruction
@@ -255,7 +260,7 @@ pub(super) fn admit<'source>(
     let combined = byte_offset
         .checked_add(producer_offset)
         .ok_or(AddressFoldError::UnsupportedOffset)?;
-    if !admitted_offset(combined, scale) {
+    if !admitted_offset(combined, scale, plan.target.architecture) {
         return Err(AddressFoldError::UnsupportedOffset);
     }
     let kind = match consumer.kind {
