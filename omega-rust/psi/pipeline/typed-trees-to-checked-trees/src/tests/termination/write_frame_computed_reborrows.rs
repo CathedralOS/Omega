@@ -94,13 +94,14 @@ fn computed_reborrows_publish_proven_referents_and_fail_closed() {
             "",
             None,
         ),
-        // Two distinct proven referents leave the borrowed binding ambiguous.
+        // Two distinct proven referents keep their exact finite union when
+        // the divergent binding is lent through a direct reborrow argument.
         (
-            "ambiguous_reborrow",
+            "divergent_reborrow_argument",
             "let alias: &mut u64 = match self.tag { 0 -> &mut self.value, _ -> &mut self.other }; consume(&mut alias);",
             "",
             "",
-            None,
+            Some(vec!["self.other", "self.value"]),
         ),
         // A helper that reborrows its own parameter keeps its relation opaque.
         (

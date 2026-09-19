@@ -225,6 +225,7 @@ pub(super) fn value_origin(
             program.state_parameters(state),
             &isolated,
             aliases,
+            &[],
             symbols,
             true,
             stored,

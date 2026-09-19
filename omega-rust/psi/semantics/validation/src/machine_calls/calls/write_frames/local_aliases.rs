@@ -15,7 +15,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{StatementNode, TableCall};
 
 pub(super) fn rebase_local_alias_path(
     relative: &str,
@@ -34,17 +34,21 @@ pub(super) fn rebase_local_alias_path(
 }
 
 /// Resolve one direct typed place through already-established parameter,
-/// caller-isolated-local, or stable-alias origins. Exact aliases compose the
-/// authored suffix; a collection-coarse origin remains coarse and cannot be
-/// narrowed by a later member projection.
-pub(super) fn stable_alias_place_origin(
+/// caller-isolated-local, single-origin stable-alias, or divergent
+/// exclusive-alias origins. Exact aliases compose the authored suffix; a
+/// collection-coarse origin remains coarse and cannot be narrowed by a later
+/// member projection. A divergent binding contributes its whole proven
+/// referent set rather than collapsing to one route or to the bare local
+/// name; a candidate that cannot be spelled fails the entire place closed.
+pub(super) fn stable_alias_place_origins(
     program: &TypedTrees,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     allow_isolated_local: bool,
-) -> Option<FramePlaceOrigin> {
+) -> Option<Vec<FramePlaceOrigin>> {
     let expression = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
@@ -57,30 +61,37 @@ pub(super) fn stable_alias_place_origin(
             .any(|parameter| parameter.name.as_str() == root)
         || (allow_isolated_local && isolated_local_roots.iter().any(|local| local == root))
     {
-        return Some(origin);
+        return Some(vec![origin]);
     }
-    let parent = aliases
+    let parents = aliases
         .iter()
-        .find_map(|(alias, parent)| (alias == root).then_some(parent))?;
-    if !allow_isolated_local
-        && isolated_local_roots
-            .iter()
-            .any(|local| local == split_place_root(&parent.path).0)
-    {
-        return None;
-    }
-    Some(match parent.precision {
-        FramePathPrecision::Exact => FramePlaceOrigin {
-            path: append_place_suffix(&parent.path, suffix),
-            precision: origin.precision,
-            source: parent.source.append_source(&origin.source),
-        },
-        FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
-            path: parent.path.clone(),
-            precision: FramePathPrecision::CollectionCoarse,
-            source: parent.source.append_source(&origin.source),
-        },
-    })
+        .find_map(|(alias, parent)| (alias == root).then_some(std::slice::from_ref(parent)))
+        .or_else(|| {
+            divergent_aliases
+                .iter()
+                .find_map(|(alias, parents)| (alias == root).then_some(parents.as_slice()))
+        })?;
+    parents
+        .iter()
+        .map(|parent| {
+            (!(!allow_isolated_local
+                && isolated_local_roots
+                    .iter()
+                    .any(|local| local == split_place_root(&parent.path).0)))
+            .then(|| match parent.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: append_place_suffix(&parent.path, suffix),
+                    precision: origin.precision,
+                    source: parent.source.append_source(&origin.source),
+                },
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
+                    path: parent.path.clone(),
+                    precision: FramePathPrecision::CollectionCoarse,
+                    source: parent.source.append_source(&origin.source),
+                },
+            })
+        })
+        .collect()
 }
 
 /// An exclusive `&mut`/`&write` borrow of a bare binding is neutral whenever
@@ -96,14 +107,16 @@ pub(super) fn expression_reborrows_unresolved_reference_binding(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
 ) -> bool {
     expression_reborrows_reference_binding(program, expression, &|target| {
-        stable_alias_place_origin(
+        stable_alias_place_origins(
             program,
             target,
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             true,
         )
         .is_none()
@@ -229,6 +242,96 @@ pub(super) fn statement_mentions_place_roots(
     super::statement_value_expression_roots(program, statement)
         .into_iter()
         .any(|expression| expression_mentions_place_roots(program, expression, roots))
+}
+
+/// Whether a statement call's mentions of divergent exclusive-alias roots
+/// stay confined to argument positions that lend the whole referent set: a
+/// direct exclusive reborrow `&mut <place>` rooted at the binding, or the
+/// bare binding passed as the actual. A divergent receiver, a member-read
+/// actual, or any nested mention would instead name only the binding slot
+/// and part of the set, so those statements remain opaque.
+pub(super) fn call_mentions_divergent_roots_only_through_reborrow_arguments(
+    program: &TypedTrees,
+    call: &TableCall,
+    divergent_roots: &[String],
+) -> bool {
+    if program
+        .statement_table
+        .name_path_members(call.receiver)
+        .first()
+        .is_some_and(|root| divergent_roots.iter().any(|name| name == root.as_str()))
+    {
+        return false;
+    }
+    program
+        .statement_table
+        .expression_handles(call.arguments)
+        .iter()
+        .all(|argument| {
+            !expression_mentions_place_roots(program, *argument, divergent_roots)
+                || argument_is_divergent_reborrow_or_binding(program, *argument, divergent_roots)
+        })
+}
+
+fn argument_is_divergent_reborrow_or_binding(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    divergent_roots: &[String],
+) -> bool {
+    match program.expression_table.expression(argument) {
+        ExpressionNode::Borrow(inner) if inner.access.is_exclusive() => {
+            divergent_rooted_place_spine(program, inner.target, divergent_roots)
+        }
+        // The bare binding passes its whole referent set; a member-path name
+        // (`alias.field`) reads an interior reference value instead, which
+        // stays opaque.
+        ExpressionNode::Name(name) => {
+            program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                == 1
+                && frame_place_path(program, argument).is_some_and(|place| {
+                    divergent_roots
+                        .iter()
+                        .any(|root| *root == split_place_root(&place.path).0)
+                })
+        }
+        _ => false,
+    }
+}
+
+/// The place spine of an admitted divergent reborrow: member and index
+/// projections compose onto every candidate, the spine terminates at the
+/// binding's own name, and no index selectee mentions a divergent root.
+fn divergent_rooted_place_spine(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    divergent_roots: &[String],
+) -> bool {
+    let Some(place) = frame_place_path(program, expression) else {
+        return false;
+    };
+    if !divergent_roots
+        .iter()
+        .any(|root| *root == split_place_root(&place.path).0)
+    {
+        return false;
+    }
+    let mut spine = expression;
+    loop {
+        match program.expression_table.expression(spine) {
+            ExpressionNode::Name(_) => return true,
+            ExpressionNode::Member(member) => spine = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if expression_mentions_place_roots(program, indexed.index, divergent_roots) {
+                    return false;
+                }
+                spine = indexed.collection;
+            }
+            _ => return false,
+        }
+    }
 }
 
 pub(super) fn expression_mentions_place_roots(

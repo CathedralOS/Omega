@@ -5,7 +5,7 @@ use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::call_trees::stable_alias_index_expression_preserves_origin;
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::local_aliases::{
-    rebase_local_alias_path, stable_alias_place_origin,
+    rebase_local_alias_path, stable_alias_place_origins,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path, push_unique_origin,
@@ -45,6 +45,7 @@ pub(crate) fn stable_local_reference_alias_origin(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     symbols: &TopLevelSymbols<'_>,
     stored: &[StoredLocalOrigins],
     include_shared: bool,
@@ -83,6 +84,7 @@ pub(crate) fn stable_local_reference_alias_origin(
         parameters,
         isolated_local_roots,
         aliases,
+        divergent_aliases,
         symbols,
         true,
         stored,
@@ -105,6 +107,7 @@ pub(crate) fn stable_local_reference_alias_origins(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     symbols: &TopLevelSymbols<'_>,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
@@ -131,6 +134,7 @@ pub(crate) fn stable_local_reference_alias_origins(
         parameters,
         isolated_local_roots,
         aliases,
+        divergent_aliases,
         symbols,
         true,
         stored,
@@ -151,6 +155,7 @@ pub(crate) fn stable_alias_initializer_origin(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     symbols: &TopLevelSymbols<'_>,
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
@@ -164,6 +169,7 @@ pub(crate) fn stable_alias_initializer_origin(
         parameters,
         isolated_local_roots,
         aliases,
+        divergent_aliases,
         symbols,
         allow_isolated_local,
         stored,
@@ -185,6 +191,7 @@ pub(crate) fn stable_alias_initializer_origins(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     symbols: &TopLevelSymbols<'_>,
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
@@ -199,6 +206,7 @@ pub(crate) fn stable_alias_initializer_origins(
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             symbols,
             allow_isolated_local,
             stored,
@@ -214,6 +222,7 @@ pub(crate) fn stable_alias_initializer_origins(
                     parameters,
                     isolated_local_roots,
                     aliases,
+                    divergent_aliases,
                     symbols,
                     allow_isolated_local,
                     stored,
@@ -234,6 +243,7 @@ pub(crate) fn stable_alias_initializer_origins(
                         parameters,
                         isolated_local_roots,
                         aliases,
+                        divergent_aliases,
                         symbols,
                         allow_isolated_local,
                         stored,
@@ -302,6 +312,7 @@ pub(crate) fn stable_alias_initializer_origins(
                 parameters,
                 isolated_local_roots,
                 aliases,
+                divergent_aliases,
                 symbols,
                 allow_isolated_local,
                 stored,
@@ -326,6 +337,7 @@ pub(crate) fn stable_alias_initializer_origins(
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             symbols,
             allow_isolated_local,
             stored,
@@ -360,6 +372,7 @@ pub(crate) fn stable_alias_initializer_origins(
                     parameters,
                     isolated_local_roots,
                     aliases,
+                    divergent_aliases,
                     symbols,
                     allow_isolated_local,
                     stored,
@@ -382,6 +395,7 @@ pub(crate) fn stable_alias_initializer_origins(
                 parameters,
                 isolated_local_roots,
                 aliases,
+                divergent_aliases,
                 symbols,
                 allow_isolated_local,
                 stored,
@@ -393,6 +407,7 @@ pub(crate) fn stable_alias_initializer_origins(
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             symbols,
             allow_isolated_local,
         )
@@ -417,6 +432,7 @@ fn stable_alias_expression_origins(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     symbols: &TopLevelSymbols<'_>,
     allow_isolated_local: bool,
 ) -> Option<Vec<FramePlaceOrigin>> {
@@ -427,6 +443,7 @@ fn stable_alias_expression_origins(
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             symbols,
             allow_isolated_local,
         )?,
@@ -438,6 +455,7 @@ fn stable_alias_expression_origins(
                     parameters,
                     isolated_local_roots,
                     aliases,
+                    divergent_aliases,
                     symbols,
                     allow_isolated_local,
                 );
@@ -454,6 +472,7 @@ fn stable_alias_expression_origins(
                         parameters,
                         isolated_local_roots,
                         aliases,
+                        divergent_aliases,
                         symbols,
                         allow_isolated_local,
                     )
@@ -470,6 +489,7 @@ fn stable_alias_expression_origins(
                 parameters,
                 isolated_local_roots,
                 aliases,
+                divergent_aliases,
                 symbols,
                 allow_isolated_local,
             )?
@@ -484,6 +504,7 @@ fn stable_alias_expression_origins(
                 parameters,
                 isolated_local_roots,
                 aliases,
+                divergent_aliases,
                 symbols,
                 allow_isolated_local,
             )?
@@ -504,6 +525,7 @@ fn stable_alias_expression_origins(
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             symbols,
             allow_isolated_local,
         )?
@@ -531,6 +553,7 @@ fn stable_alias_expression_origins(
                     parameters,
                     isolated_local_roots,
                     aliases,
+                    divergent_aliases,
                     symbols,
                     allow_isolated_local,
                 )? {
@@ -539,14 +562,15 @@ fn stable_alias_expression_origins(
             }
             selected
         }
-        _ => vec![stable_alias_place_origin(
+        _ => stable_alias_place_origins(
             program,
             expression,
             parameters,
             isolated_local_roots,
             aliases,
+            divergent_aliases,
             allow_isolated_local,
-        )?],
+        )?,
     };
     (!origins.is_empty()).then_some(origins)
 }
@@ -580,6 +604,7 @@ pub(crate) fn stable_assignment_target_path(
             parameters,
             isolated_local_roots,
             aliases,
+            &[],
             symbols,
             true,
             &[],

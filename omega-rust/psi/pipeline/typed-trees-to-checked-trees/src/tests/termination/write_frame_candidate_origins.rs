@@ -170,10 +170,51 @@ fn divergent_local_binding_writes_through_every_candidate() {
     }
 }
 
+// A divergent binding lent to a callee through a direct exclusive reborrow
+// (`&mut alias`, with member or index projections composing onto every
+// candidate) or passed as the actual itself keeps its whole proven referent
+// set at the call boundary: the callee's parameter writes instantiate
+// through every route the binding admits.
+#[test]
+fn divergent_binding_call_argument_unions_candidates() {
+    for (name, body, expected) in [
+        (
+            "reborrow_of_divergent_binding",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
+            ["self.other", "self.value"].as_slice(),
+        ),
+        // A member projection inside the reborrow composes its suffix onto
+        // every proven carrier.
+        (
+            "member_reborrow_of_divergent_binding",
+            "let alias: &mut Cell = pick_cell(&mut self.c1, &mut self.c2, self.tag); consume(&mut alias.n);",
+            ["self.c1.n", "self.c2.n"].as_slice(),
+        ),
+        // The bare binding as the actual lends the same referent set.
+        (
+            "binding_passed_as_actual",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(alias);",
+            ["self.other", "self.value"].as_slice(),
+        ),
+    ] {
+        let program = probe_program(body);
+        let expected = expected
+            .iter()
+            .map(|path| (*path).to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            caller_frames(&program),
+            [Some(expected.clone()), Some(expected)],
+            "{name}",
+        );
+    }
+}
+
 // Routes that cannot name every arm's provenance still fail closed: a
 // recursive helper, an arm landing on helper-private storage, a divergent
 // binding rebound to an unproven source, and a divergent binding transported
-// or reborrowed all keep an opaque frame rather than selecting one route.
+// or read through a non-reborrow shape all keep an opaque frame rather than
+// selecting one route.
 #[test]
 fn unproven_candidate_routes_stay_opaque() {
     for (name, helpers, body) in [
@@ -202,12 +243,33 @@ fn unproven_candidate_routes_stay_opaque() {
             "",
             "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); let again: &mut u64 = alias; consume(&mut self.audit);",
         ),
-        // Reborrowing the divergent binding into a call argument is not yet a
-        // proven route: the argument position keeps no candidate set.
+        // A divergent binding mention inside a nested call argument keeps
+        // no candidate set at the outer boundary and stays opaque.
         (
-            "divergent_binding_call_argument",
+            "divergent_binding_nested_call_argument",
             "",
-            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(forward_pick(&mut alias, &mut self.audit, self.tag));",
+        ),
+        // A divergent binding inside a conditional actual mentions the root
+        // outside the direct reborrow spine and stays opaque.
+        (
+            "divergent_binding_match_argument",
+            "",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(match self.tag { 0 -> &mut alias, _ -> &mut self.audit });",
+        ),
+        // A divergent binding mention inside a value-position call argument
+        // keeps the enclosing binding statement opaque.
+        (
+            "divergent_binding_value_call_argument",
+            "",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); let sink: u64 = write_through(&mut alias); consume(&mut self.audit);",
+        ),
+        // A member-read actual transports an interior reference value whose
+        // own referent the frame cannot name.
+        (
+            "divergent_binding_member_actual",
+            "",
+            "let alias: &mut View = pick_carrier(&mut self.v1, &mut self.v2, self.tag); consume(alias.body);",
         ),
         // A value write into a reference-typed interior slot passes through
         // the slot's own referent, which the path frame cannot name.

@@ -30,7 +30,8 @@ fn replayed_assignment_paths(
         return None;
     };
     let site = CallerWriteSite::Statement(statement);
-    let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
+    let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
+    let (aliases, stored) = (evidence.aliases, evidence.stored);
     let target = if aliases.is_empty()
         && stored.is_empty()
         && let Some(path) = super::super::coarse_place_path(program, assignment.target)

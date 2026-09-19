@@ -108,6 +108,7 @@ fn known_call_written_paths_with_summaries(
     symbols: &TopLevelSymbols<'_>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let receiver_members = program
         .statement_table
@@ -126,7 +127,7 @@ fn known_call_written_paths_with_summaries(
         machine_symbols,
         symbols,
         inference,
-        None,
+        argument_origins,
         complete_state_summaries,
     )
 }
