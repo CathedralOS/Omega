@@ -17,7 +17,7 @@ use typed_trees::types::TypeReferenceNode;
 #[cfg(test)]
 mod tests;
 
-pub(super) fn structural_byte_length(
+pub(super) fn structural_sequence_length(
     program: &TypedTrees,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -33,6 +33,33 @@ pub(super) fn structural_byte_length(
     }
     let (parameter_position, path, selected_type) =
         structural_parameter_place(program, parameters, member.receiver)?;
+    // A pure parameter-rooted array projection has a type-owned extent. Do
+    // not strip a constrained carrier: its live length can differ from its
+    // backing capacity. Dynamic byte views retain their runtime read below.
+    let mut extent_type = selected_type;
+    while let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(extent_type)
+    {
+        extent_type = *referee;
+    }
+    if let TypeReferenceNode::FixedArray {
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+        ..
+    } = program.type_reference_table.type_reference(extent_type)
+    {
+        let length = u64::try_from(*length).ok()?;
+        let literal = numerics::literals::IntegerLiteral::from_parts(
+            false,
+            numerics::literals::IntegerRadix::Decimal,
+            &length.to_string(),
+        )
+        .ok()?
+        .with_landing(numerics::literals::IntegerLanding {
+            landed_type: numerics::literals::LandedIntegerType::U64,
+            domain: ArithmeticDomain::Exact,
+        });
+        return Some(CheckedScalarExpression::IntegerLiteral { literal });
+    }
     let TypeReferenceNode::Reference {
         referee,
         access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,

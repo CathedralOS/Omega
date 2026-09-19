@@ -173,6 +173,9 @@ pub(super) fn build(
         let encoded = local.name.as_str().strip_prefix("__arm_destructure#V=")?;
         let (variant, encoded) = encoded.split_once('#')?;
         let (fields, _) = encoded.split_once("#~subject=")?;
+        let selected_variant = variants
+            .iter()
+            .find(|candidate| candidate.name.as_str() == variant)?;
         let place = crate::flow::contextual_canonical_place_from_expression(
             program,
             state.symbol,
@@ -186,14 +189,19 @@ pub(super) fn build(
             return None;
         }
         for field in fields.split('#') {
-            if field.is_empty() || destructures.contains(&(variant, field)) {
+            if field.is_empty()
+                || destructures.contains(&(variant, field))
+                || !program
+                    .data_payload_fields(selected_variant)
+                    .iter()
+                    .any(|candidate| candidate.name.as_str() == field)
+            {
                 return None;
             }
             destructures.push((variant, field));
         }
     }
     let mut cases = Vec::new();
-    let mut used_destructures = Vec::new();
     for (index, statement) in statements[transition_start..].iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {
             return None;
@@ -307,7 +315,6 @@ pub(super) fn build(
                 {
                     return None;
                 }
-                used_destructures.push((variant.name.as_str(), field.name.as_str()));
                 payloads.push(CheckedClosedSumPayloadTransferPlan {
                     field_identity: field
                         .identity
@@ -344,12 +351,10 @@ pub(super) fn build(
     if cases.len() != variants.len() {
         return None;
     }
-    if destructures
-        .iter()
-        .any(|destructure| !used_destructures.contains(destructure))
-    {
-        return None;
-    }
+    // Destructuring makes a payload available; it does not require forwarding
+    // every binding. The admitted payloads are primitive scalars, so unused
+    // fields carry no separate ownership obligation. Validate their declared
+    // identities above and retain the whole subject's disposal below.
     // Consuming case dispatch requires the actual source exit disposition.
     // Parameter-origin carriers and fresh results have different provenance.
     let mut found = false;

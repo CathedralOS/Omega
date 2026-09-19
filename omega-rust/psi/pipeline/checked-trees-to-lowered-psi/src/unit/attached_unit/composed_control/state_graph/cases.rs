@@ -290,15 +290,11 @@ pub(super) fn validate_markers(
     else {
         return unsupported("Unit case marker lost its terminator");
     };
-    if spelled_fields.iter().any(|(variant, field)| {
-        !cases.iter().any(|case| {
-            &case.case_identity == variant
-                && case
-                    .payloads
-                    .iter()
-                    .any(|payload| &payload.field_identity == field)
-        })
-    }) || cases.iter().any(|case| {
+    // A marker establishes available fields, not mandatory transfers. Plain
+    // primitive payloads may remain unused; result_source checks that restriction
+    // independently, and validate retains the whole subject's affine disposal.
+    // Every actual transfer still needs its exact authored destructure below.
+    if cases.iter().any(|case| {
         case.payloads.iter().any(|payload| {
             !spelled_fields.iter().any(|(variant, field)| {
                 variant == &case.case_identity && field == &payload.field_identity

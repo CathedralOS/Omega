@@ -579,6 +579,49 @@ fn retains_owned_structural_result_for_attached_bodyless_boundary() {
 }
 
 #[test]
+fn closed_sum_dispatch_allows_unused_scalar_payload_bindings() {
+    let checked = checked(
+        r#"
+        data Reading {
+            case Empty;
+            case Value(value: u64, ignored: u64);
+            case Full(count: u64);
+        }
+        machine consume(observed: Reading) {
+            transition observed {
+                Reading::Value { value, ignored } -> retain(value)
+                Reading::Full { count } -> done()
+                Reading::Empty -> done()
+            }
+            state retain(value: u64) {}
+            state done() {}
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "consume"))
+        .expect("unused scalar payloads do not prevent consuming the owned sum");
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } =
+        &plan.states[0].terminator
+    else {
+        panic!("entry consumes its owned case subject")
+    };
+    assert_eq!(cases.len(), 3);
+    for case in cases {
+        if case.case_identity == "Value" {
+            assert!(matches!(case.payloads.as_slice(), [payload]
+                if payload.field_identity == "value"
+                    && payload.primitive_type == PrimitiveType::U64));
+        } else {
+            assert!(case.payloads.is_empty());
+        }
+    }
+}
+
+#[test]
 fn retains_closed_sum_inspection_after_structural_boundary_result() {
     let checked = checked(
         r#"

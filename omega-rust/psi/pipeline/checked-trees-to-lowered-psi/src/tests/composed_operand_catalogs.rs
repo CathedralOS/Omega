@@ -512,6 +512,106 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
 }
 
 #[test]
+fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
+    let checked = checked_source(
+        r#"
+        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+            machine exit_process(value: i32) reaches Console;
+        }
+        data Main { console: Console; }
+        machine Main::main(&mut self) reaches Console {
+            let observed: ByteRead = self.console.read_byte();
+            transition observed {
+                ByteRead::Byte { value } -> done()
+                ByteRead::Eof -> done()
+            }
+            state done(&mut self) { self.console.exit_process(32); }
+        }
+        "#,
+    );
+    roundtrip(&checked);
+    let (event_handle, _) = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            event.kind == language_semantics::PermissionEventKind::AffineDrop
+                && event.source == language_semantics::PermissionEventSource::StateExit
+        })
+        .expect("source-owned case subject disposal");
+    let mut changed = checked.clone();
+    changed
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(event_handle)
+        .obligation_live = true;
+    assert!(
+        lower_machine(&changed, "Main::main").is_err(),
+        "unused payloads cannot erase a live disposal obligation"
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("entry machine");
+    let statements = checked.machine_states(machine)[0].statement_nodes;
+    let mut changed = checked.clone();
+    let marker = changed
+        .typed
+        .statement_table
+        .statements_mut(statements)
+        .iter_mut()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__arm_destructure#V=") =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .expect("authored case marker");
+    marker.name = marker
+        .name
+        .as_str()
+        .replace("#value#", "#fabricated#")
+        .as_str()
+        .into();
+    assert!(
+        lower_machine(&changed, "Main::main").is_err(),
+        "even an unused binding must name its declared payload"
+    );
+
+    let mut changed = checked_source(CLOSED_SUM_UNIT_SOURCE);
+    let cases = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.states)
+        .find_map(|state| match &mut state.terminator {
+            checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+                cases, ..
+            } => Some(cases),
+            _ => None,
+        })
+        .expect("consumed payload dispatch");
+    for case in cases {
+        case.payloads.clear();
+    }
+    assert!(
+        lower_machine(&changed, "Main::main").is_err(),
+        "a source-used payload cannot be omitted from its actual transfer"
+    );
+}
+
+#[test]
 fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
     for qualified in [false, true] {
         for trailing in [false, true] {
