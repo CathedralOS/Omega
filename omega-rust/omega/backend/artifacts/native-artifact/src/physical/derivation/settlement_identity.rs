@@ -48,7 +48,7 @@ pub(crate) fn hosted_builtin_settlement_identity(
     digest.update([1]); // HostedV1 compiler-builtin catalog.
     digest.update(identity_tags);
     if let Some(scalar_argument) = scalar_argument {
-        hash_builtin_scalar_argument(&mut digest, scalar_argument);
+        hash_builtin_scalar_argument(&mut digest, scalar_argument)?;
     }
     if let CompilerBuiltinResult::Structural(result) = result {
         hash_builtin_structural_result(&mut digest, result)?;
@@ -59,21 +59,28 @@ pub(crate) fn hosted_builtin_settlement_identity(
 fn hash_builtin_scalar_argument(
     digest: &mut Sha256,
     scalar_argument: &CompilerBuiltinScalarArgument,
-) {
+) -> Result<(), &'static str> {
     match scalar_argument {
         CompilerBuiltinScalarArgument::Immediate(scalar_argument) => {
             digest.update(scalar_argument.source_value.get().to_le_bytes());
             digest.update([1]); // exact signed i32 scalar schema
             let semantic_vocabulary::IntegerValue::Signed(value) = scalar_argument.immediate else {
-                unreachable!("D41 settlement shape was checked")
+                return Err("hosted builtin settlement argument requires a signed i32 immediate");
             };
-            digest.update(i32::try_from(value).expect("checked i32").to_le_bytes());
+            digest.update(
+                i32::try_from(value)
+                    .map_err(
+                        |_| "hosted builtin settlement argument requires a signed i32 immediate",
+                    )?
+                    .to_le_bytes(),
+            );
         }
         CompilerBuiltinScalarArgument::RuntimeScalar(scalar_argument) => {
             digest.update(scalar_argument.parameter_index.to_le_bytes());
             hash_runtime_scalar_source(digest, &scalar_argument.source);
         }
     }
+    Ok(())
 }
 
 fn hash_runtime_scalar_source(
