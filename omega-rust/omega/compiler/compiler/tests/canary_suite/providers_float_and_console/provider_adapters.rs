@@ -994,6 +994,29 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
     .expect("the selected root receipt should independently rederive");
     assert_eq!(derived, selected.fused_service_establishments());
 
+    // An unselected Service field prevents shape collection, so diagnosing
+    // the missing attachment first hides the provider the project must supply.
+    let mut unselected = baseline.clone().into_program();
+    unselected.typed.fused_service_erasures.clear();
+    unselected.facts.flow.terminal_unit_effects.machines.clear();
+    unselected
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .clear();
+    let missing_provider = selected_dispatch::derive_fused_program_entry_establishments(
+        &unselected,
+        selected.source_signature(),
+        &[],
+    )
+    .expect_err("an unselected entry service must reject before the missing attachment");
+    assert_eq!(missing_provider.len(), 1);
+    assert_eq!(
+        missing_provider[0].message,
+        "selected ProgramEntry Service field `Main::service` requires a selected Fused provider for boundary `Ping`",
+    );
+
     let mut substituted = baseline.clone().into_program();
     match fused_service_field_mut(&mut substituted) {
         checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked { erasure, .. } => {

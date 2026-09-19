@@ -97,6 +97,25 @@ pub fn derive_fused_program_entry_establishments(
         return Ok(Vec::new());
     }
 
+    // Shape collection cannot retain a Service field without its exact Fused
+    // selection. Check that prerequisite before looking for the resulting
+    // attachment, otherwise a missing provider appears to be a lowering bug.
+    // This diagnoses absence only; the field, digest and selected provenance
+    // still rejoin independently below before any establishment is issued.
+    for (field, carrier) in &service_fields {
+        if checked.fused_service_erasure(carrier.requirement).is_none() {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected ProgramEntry Service field `{}::{}` requires a selected Fused provider for boundary `{}`",
+                owner.name,
+                field.name,
+                checked.symbols.display_path(carrier.requirement, "::"),
+            )));
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
     let mut attachment_identities = checked
         .facts
         .flow

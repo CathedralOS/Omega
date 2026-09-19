@@ -112,19 +112,24 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   on macOS ARM64 through their authored builds and reported bundle paths.
   Start with the [window_app command and review flow](samples/gui/window_app/README.md).
   The sample uses intrinsic `Service<R>` fields and public requirement traits,
-  preserving its render loop, arrays, providers and reach declaration. On
-  2026-09-19, base `bf49663932` with that migration, macOS ARM64 and
-  `RUST_MIN_STACK=67108864`, the single
-  `gui_and_sample_apps::sample_window_app_renders_natively` test rejects at
-  `selected ProgramEntry establishment rejoins 0 Terminal attachment identities;
-  expected one`. The unchanged base instead reports `InvalidUnitMachinePlan`
-  at the value-returning `window_create` call (state 0, statement 21).
-  Resume through checked call planning and attachment production in
-  `typed-trees-to-checked-trees/src/execution/unit/{calls,composed_control}`;
-  preserve independent entry establishment rather than inventing an identity.
-  Ordinary CLI package review remains separate: the prior fresh-checkout run
-  took 266 seconds before reporting missing acceptance. Complete that review
-  without automatic admissions. The
+  preserving its render loop, arrays and reach declaration. The current first
+  dependency is provider wiring, not bundle assembly or an invented attachment.
+  At `ea9d3dbfea`, the macOS ARM64 release CLI command
+  `omega --target macos_arm64 --build-dir build/window-app-intent samples/gui/window_app/main.omg`
+  with `RUST_MIN_STACK=67108864` failed during fresh package checking. The
+  checked omission is the entry state's attached data shape: `Console` has
+  Fused selection authority, but `Main::clock`, `Main::input`, and `Main::gui`
+  have none. Entry diagnostics now name each missing boundary selection before
+  looking for its unavailable Terminal attachment.
+
+  Resume with exact declared conformances and selected providers for `Clock`,
+  `Input`, and `Gui` under the [provider-selection contract](wiki/spec/build/provider_selection.md).
+  The historical `source/library/std/macos_gui.omg` wrapper is not an already
+  selected conformer to these sample-owned requirements; matching method names
+  cannot establish nominal satisfaction. Preserve actual signatures, storage,
+  rendering and effects. After provider settlement, follow any remaining
+  checked call, array and cyclic execution failures through their existing
+  owners, then finish ordinary package review without automatic admissions. The
   `native_filesystem_canaries::gui_and_sample_apps::sample_window*` tests
   supply test-owned package acceptance, not ordinary CLI review. Their
   interactive-app checks only observe early failure or brief process survival;
