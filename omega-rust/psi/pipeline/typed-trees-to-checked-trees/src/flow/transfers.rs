@@ -17,6 +17,7 @@ use symbols::SymbolHandle;
 
 mod byte_sequences;
 mod constructed;
+mod owned_qualifications;
 mod projected;
 mod scalar_values;
 
@@ -217,7 +218,10 @@ pub(super) fn propagate_statement_transfers(
                         );
                         (source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
-                        }) || fact_label == source_label)
+                        }) || (!crate::facts::field_domain::domain_requires_provenance(
+                            program,
+                            domain_symbol,
+                        ) && fact_label == source_label))
                             .then_some((
                                 FactPayload::DomainMembership {
                                     value: ExpressionHandle::invalid(),
@@ -333,6 +337,35 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if let Some(source_place) = source_place {
+        let destination_type = match statement {
+            StatementNode::LocalData(local) => Some(local.type_reference),
+            StatementNode::Assignment(assignment) => {
+                crate::flow::expression_type_reference_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    assignment.target,
+                )
+            }
+            _ => None,
+        };
+        if let Some(destination_type) = destination_type {
+            owned_qualifications::append_owned_qualification_transfer(
+                program,
+                semantic,
+                ctx,
+                *active_contexts,
+                source_place,
+                target_place,
+                destination_type,
+                ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                },
+                &mut refs,
+            );
+        }
         projected::append_copied_field_predicates(
             program,
             semantic,
@@ -595,6 +628,15 @@ pub(super) fn propagate_statement_transfers(
         }
         _ => Vec::new(),
     };
+    // Routed membership follows its checked source; an annotation cannot
+    // establish provenance. Initializer and write checks consume the source
+    // facts before this statement, never these newly seeded predicate facts.
+    let declared_target_domains: Vec<_> = declared_target_domains
+        .into_iter()
+        .filter(|(symbol, _)| {
+            !crate::facts::field_domain::domain_requires_provenance(program, *symbol)
+        })
+        .collect();
     for (domain_symbol, semantic_domain) in &declared_target_domains {
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(target_place),

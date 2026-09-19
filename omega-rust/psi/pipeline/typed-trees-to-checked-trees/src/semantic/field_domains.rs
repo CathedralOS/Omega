@@ -425,10 +425,12 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     continue;
                 }
                 let mut has_resource_claim = false;
-                for domain_symbol in crate::facts::field_domain::domain_constraint_symbols(
-                    program,
-                    parameter.type_reference,
-                ) {
+                for (domain_symbol, semantic_domain) in
+                    crate::facts::field_domain::domain_constraint_identities(
+                        program,
+                        parameter.type_reference,
+                    )
+                {
                     has_resource_claim |= state_parameter_domain_is_resource_claim(
                         program,
                         parameter.type_reference,
@@ -442,6 +444,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         obligation_origin,
                         &[],
                         domain_symbol,
+                        semantic_domain,
                         &mut refs,
                     );
                 }
@@ -636,7 +639,9 @@ fn append_state_parameter_data_field_domain_facts(
         }
         let mut field_path = prefix.to_vec();
         crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
-        for domain_symbol in field_domain_symbols(program, field.type_reference) {
+        for (domain_symbol, semantic_domain) in
+            crate::facts::field_domain::domain_constraint_identities(program, field.type_reference)
+        {
             append_state_parameter_domain_fact(
                 facts,
                 machine_symbol,
@@ -645,6 +650,7 @@ fn append_state_parameter_data_field_domain_facts(
                 origin,
                 &field_path,
                 domain_symbol,
+                semantic_domain,
                 refs,
             );
         }
@@ -747,6 +753,7 @@ fn append_state_parameter_domain_fact(
     origin: FactOrigin,
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
@@ -768,7 +775,7 @@ fn append_state_parameter_domain_fact(
             value: typed_trees::expression::ExpressionHandle::invalid(),
             domain: arena::HandleSpan::empty(),
             domain_symbol,
-            semantic_domain: language_semantics::SemanticDomainId::NULL,
+            semantic_domain,
         },
     });
     facts.append_ref(refs, fact);

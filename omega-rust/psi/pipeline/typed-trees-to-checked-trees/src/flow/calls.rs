@@ -324,7 +324,24 @@ fn append_call_result_field_domain_facts(
     let Some(return_type) = call_target_return_type(program, borrow_call.target_symbol) else {
         return;
     };
-    let paths = declared_result_field_domain_paths(program, return_type);
+    let mut paths = declared_result_field_domain_paths(program, return_type)
+        .into_iter()
+        .filter(|(_, symbol)| {
+            !crate::facts::field_domain::domain_requires_provenance(program, *symbol)
+        })
+        .map(|(path, symbol)| (path, symbol, language_semantics::SemanticDomainId::NULL))
+        .collect::<Vec<_>>();
+    // These are provisional checked-signature facts, not new issuance. The
+    // content checker independently rejoins routed result claims to this
+    // invocation after linear claim reconstruction; ordinary callee exits
+    // must establish every qualification before CheckedTrees can be accepted.
+    paths.extend(
+        call_result_qualification_identities(program, borrow_call.target_symbol)
+            .into_iter()
+            .filter(|(_, symbol, _)| {
+                crate::facts::field_domain::domain_requires_provenance(program, *symbol)
+            }),
+    );
     if paths.is_empty() {
         return;
     }
@@ -347,10 +364,10 @@ fn append_call_result_field_domain_facts(
     };
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
-        state.symbol,
+        borrow_call.target_symbol,
     );
     let mut refs = HandleSpan::empty();
-    for (path, domain_symbol) in paths {
+    for (path, domain_symbol, semantic_domain) in paths {
         let place = crate::semantic_places::append_place_with_segments(
             semantic,
             facts::PlaceRoot::Expression(expression),
@@ -365,7 +382,7 @@ fn append_call_result_field_domain_facts(
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol,
-                semantic_domain: language_semantics::SemanticDomainId::NULL,
+                semantic_domain,
             },
         });
         semantic.append_ref(&mut refs, fact);
@@ -400,4 +417,99 @@ pub(crate) fn call_target_return_type(
             .find(|signature| signature.symbol == target_state_symbol)
             .map(|signature| signature.return_type)
     })
+}
+
+/// One result obligation vocabulary for the provisional publisher and its
+/// independent custody consumer. A conservation primitive may state `result
+/// in D` in ensures rather than on the carrier type; that is still an exact
+/// result promise, not issuer authorization or an argument qualification.
+pub(crate) fn call_result_qualification_identities(
+    program: &typed_trees::TypedTrees,
+    target: SymbolHandle,
+) -> Vec<(
+    Vec<facts::PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+)> {
+    let Some(return_type) = call_target_return_type(program, target) else {
+        return Vec::new();
+    };
+    let mut carrier = return_type;
+    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(carrier)
+    {
+        carrier = *base_type;
+    }
+    if matches!(
+        program.type_reference_table.type_reference(carrier),
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+    ) {
+        return Vec::new();
+    }
+    let mut domains =
+        crate::facts::field_domain::declared_owned_field_domain_identities(program, return_type);
+    domains.extend(
+        crate::facts::field_domain::domain_constraint_identities(program, return_type)
+            .into_iter()
+            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
+    );
+    let mut contracts = Vec::new();
+    for machine in program.machines() {
+        for (position, state) in program.machine_states(machine).iter().enumerate() {
+            if state.symbol != target {
+                continue;
+            }
+            contracts.extend(program.state_contracts(state));
+            if position == 0 {
+                contracts.extend(program.machine_contracts(machine));
+            }
+        }
+    }
+    for owner in program.traits() {
+        for signature in program.trait_machine_signatures(owner) {
+            if signature.symbol == target {
+                contracts.extend(program.state_signature_contracts(signature));
+            }
+        }
+    }
+    for contract in contracts
+        .into_iter()
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
+    {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            let typed_trees::expression::ExpressionNode::Name(result) =
+                program.expression_table.expression(membership.value)
+            else {
+                continue;
+            };
+            // This occurrence is already selected from this exact callable's
+            // ensures, including bodyless trait requirements. It must be the
+            // reserved result form, never a same-spelled parameter.
+            if result.symbol.is_valid()
+                || result.head_symbol.is_valid()
+                || !matches!(program.expression_table.name_path_members(result.members), [name] if name.as_str() == "result")
+                || crate::semantic_calls::call_target_parameters(program, target).is_some_and(
+                    |parameters| {
+                        parameters
+                            .iter()
+                            .any(|parameter| parameter.name.as_str() == "result")
+                    },
+                )
+            {
+                continue;
+            }
+            let row = (
+                Vec::new(),
+                membership.domain_symbol,
+                membership.semantic_domain,
+            );
+            if !domains.contains(&row) {
+                domains.push(row);
+            }
+        }
+    }
+    domains
 }
