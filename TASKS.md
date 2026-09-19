@@ -832,13 +832,15 @@ Owners include
   selected hardware boundaries supply explicit premises. The compiler checks
   installed entry, placement, resources and evidence, not an APIC/firmware driver.
 
-  Repair `external-roots/src/platform_bringup/secondary_processor.rs` before
-  using its ledger in the authored route. `complete_secondary_processor_startup`
-  currently maps `started: false` back to withdrawable `Pending`; the refusal
-  regression also permits a fresh invocation. Replace that ambiguous Boolean
-  with distinct definite nondispatch, possible dispatch/unconfirmed arrival, and
-  exact confirmed arrival. Only definite nondispatch permits immediate withdrawal.
-  Timeout cannot release stack/state/code or erase an outstanding attempt.
+  `external-roots/src/platform_bringup/secondary_processor.rs` now carries the
+  three-way `SecondaryProcessorStartupVerdict`: `complete_secondary_processor_startup`
+  returns pending custody only on `DefiniteNondispatch`, keeps the account
+  invoked and held on `DispatchUnconfirmed` (neither withdrawable nor
+  reissuable; the returned carrier still answers a later definitive receipt),
+  and marks started on `ConfirmedArrival`. Only definite nondispatch permits
+  immediate withdrawal. Still open before the authored route: the
+  cancellation/settlement leg below, and timeout cannot release
+  stack/state/code or erase an outstanding attempt.
 
   Add cancellation/settlement without requiring `SecondaryProcessorStarted`:
   establish both no current use and no possible late arrival before release.
