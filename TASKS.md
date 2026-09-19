@@ -627,11 +627,18 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     output set after all requested product checks. Preserve per-target
     outcomes and expose no partially successful set after later failure.
   - Complete host-backed capture/staging assurance and Windows execution
-    coverage. Validate coherent capture and race-safe confinement (or the
-    exact adequate isolation premise), logical path distinctions, inert links,
-    and failure cleanup. One traversal plus matching lengths is not by itself
-    proof of an immutable snapshot. Preserve existing macOS controls and
-    record unavailable hosts rather than treating source inspection as a pass.
+    coverage. The next capture boundary is the mutable-root reader in
+    `packages/sources/acquisition/src/tree/filesystem.rs`: its no-follow
+    handle currently has no end-of-read change check. Canonical Source copy
+    and hash readers share per-file drift checks in
+    `package-compilation/src/source_snapshot/file_read.rs`; preserve their
+    deterministic same-length-edit and replacement regressions. Neither
+    those checks nor the resolver's later live-tree comparison establishes
+    whole-tree atomicity. Validate coherent capture and race-safe confinement
+    under the exact isolation premise, logical path distinctions, inert links,
+    and failure cleanup. Preserve the CLI narrowed-inventory/native customer
+    in `omega/tests/build_input_inventory.rs` and record unavailable Windows
+    runtime coverage rather than treating source inspection as a pass.
 
   Owners: `package-compilation/src/source_snapshot.rs`, the existing
   `build-output` and `build-evaluation` custody owners, assembled checking,

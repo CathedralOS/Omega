@@ -1,15 +1,17 @@
 //! Captures and revalidates the complete physical Source root seen by build evaluation.
 //! Rows and content commitments are always reconstructed from the filesystem.
 
+mod file_read;
+
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
 use checked_interpreter::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
     CanonicalFilesystemMetadataRowKind, FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
 };
+use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
@@ -137,9 +139,11 @@ pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, S
 /// source metadata index the build's filesystem grants will enforce.
 ///
 /// The retained entries and the index's source-content commitment come from
-/// one coherent traversal, so the inventory cannot be narrower, wider, or
-/// staler than the metadata a build is granted. Callers capture before
-/// execution; a later replay never rereads the host to rebuild this input.
+/// the same traversal, so the retained bytes and granted metadata cannot
+/// disagree. File reads reject detected identity or content drift; these
+/// checks do not make a mutable host tree atomic. Callers supply sealed
+/// resolver-owned backing and capture before execution; a later replay never
+/// rereads the host to rebuild this input.
 pub fn capture_package_source_input(
     source_root: &Path,
 ) -> Result<CapturedBuildSourceInput, String> {
@@ -214,7 +218,7 @@ pub fn capture_scoped_source_input(
     })
 }
 
-/// One coherent traversal of the canonical sealed source root. Every visited
+/// One traversal of the canonical sealed source root. Every visited
 /// path produces both its canonical metadata row and one capture-authority
 /// payload, so a caller cannot assemble an index and a retained inventory
 /// that disagree with each other.
@@ -657,79 +661,6 @@ fn capture_physical_source_row(
     ))
 }
 
-fn read_canonical_source_file(
-    path: &Path,
-    initial_metadata: &std::fs::Metadata,
-) -> Result<Vec<u8>, String> {
-    let mut file = std::fs::File::open(path).map_err(|error| {
-        format!(
-            "could not open canonical Source file {}: {error}",
-            path.display()
-        )
-    })?;
-    let mut bytes = Vec::new();
-    let file_length = usize::try_from(initial_metadata.len())
-        .map_err(|_| "canonical Source file length exceeds usize".to_owned())?;
-    bytes
-        .try_reserve_exact(file_length)
-        .map_err(|_| "canonical Source file allocation failed on this compiler host".to_owned())?;
-    let mut observed = 0u64;
-    let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let count = file.read(&mut buffer).map_err(|error| {
-            format!(
-                "could not read canonical Source file {}: {error}",
-                path.display()
-            )
-        })?;
-        if count == 0 {
-            break;
-        }
-        observed = observed
-            .checked_add(u64::try_from(count).expect("fixed buffer read fits u64"))
-            .filter(|observed| *observed <= initial_metadata.len())
-            .ok_or_else(|| {
-                format!(
-                    "canonical Source file {} grew while captured",
-                    path.display()
-                )
-            })?;
-        bytes.extend_from_slice(&buffer[..count]);
-    }
-    if observed != initial_metadata.len() {
-        return Err(format!(
-            "canonical Source file {} changed length while captured",
-            path.display()
-        ));
-    }
-    let final_metadata = std::fs::symlink_metadata(path).map_err(|error| {
-        format!(
-            "could not recheck canonical Source file {}: {error}",
-            path.display()
-        )
-    })?;
-    if !final_metadata.is_file() || final_metadata.len() != initial_metadata.len() {
-        return Err(format!(
-            "canonical Source file {} changed identity while captured",
-            path.display()
-        ));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if final_metadata.dev() != initial_metadata.dev()
-            || final_metadata.ino() != initial_metadata.ino()
-            || final_metadata.mode() != initial_metadata.mode()
-        {
-            return Err(format!(
-                "canonical Source file {} changed identity or mode while captured",
-                path.display()
-            ));
-        }
-    }
-    Ok(bytes)
-}
-
 fn charge_canonical_source_content(total: &mut u64, amount: u64) -> Result<(), String> {
     *total = total
         .checked_add(amount)
@@ -740,74 +671,6 @@ fn charge_canonical_source_content(total: &mut u64, amount: u64) -> Result<(), S
             )
         })?;
     Ok(())
-}
-
-fn hash_canonical_source_file(
-    path: &Path,
-    initial_metadata: &std::fs::Metadata,
-) -> Result<[u8; 32], String> {
-    let mut file = std::fs::File::open(path).map_err(|error| {
-        format!(
-            "could not open canonical Source file {}: {error}",
-            path.display()
-        )
-    })?;
-    let mut digest = Sha256::new();
-    let mut observed = 0u64;
-    let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let count = file.read(&mut buffer).map_err(|error| {
-            format!(
-                "could not read canonical Source file {}: {error}",
-                path.display()
-            )
-        })?;
-        if count == 0 {
-            break;
-        }
-        observed = observed
-            .checked_add(u64::try_from(count).expect("fixed buffer read fits u64"))
-            .filter(|observed| *observed <= initial_metadata.len())
-            .ok_or_else(|| {
-                format!(
-                    "canonical Source file {} grew while captured",
-                    path.display()
-                )
-            })?;
-        digest.update(&buffer[..count]);
-    }
-    if observed != initial_metadata.len() {
-        return Err(format!(
-            "canonical Source file {} changed length while captured",
-            path.display()
-        ));
-    }
-    let final_metadata = std::fs::symlink_metadata(path).map_err(|error| {
-        format!(
-            "could not recheck canonical Source file {}: {error}",
-            path.display()
-        )
-    })?;
-    if !final_metadata.is_file() || final_metadata.len() != initial_metadata.len() {
-        return Err(format!(
-            "canonical Source file {} changed identity while captured",
-            path.display()
-        ));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if final_metadata.dev() != initial_metadata.dev()
-            || final_metadata.ino() != initial_metadata.ino()
-            || final_metadata.mode() != initial_metadata.mode()
-        {
-            return Err(format!(
-                "canonical Source file {} changed identity or mode while captured",
-                path.display()
-            ));
-        }
-    }
-    Ok(digest.finalize().into())
 }
 
 fn canonical_build_source_content_commitment(
@@ -906,6 +769,10 @@ fn os_str_from_bytes(bytes: &[u8]) -> Result<std::ffi::OsString, String> {
         .map(std::ffi::OsString::from)
         .map_err(|_| "physical Source path is not portable UTF-8".to_owned())
 }
+
+#[cfg(test)]
+#[path = "source_snapshot/file_read_tests.rs"]
+mod file_read_tests;
 
 #[cfg(test)]
 mod capture_request_tests {
