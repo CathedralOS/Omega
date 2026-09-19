@@ -58,52 +58,20 @@ fn result_type(
                 .iter()
                 .map(|arm| result_type(program, machine, state, arm.value, active))
                 .collect::<Vec<_>>();
-            references
-                .iter()
-                .copied()
-                .flatten()
-                .next()
-                .and_then(|first| {
-                    // Exact shared identity retains common predicates. Otherwise
-                    // a numeric join weakens predicate facts, never policy. A range
-                    // on one arm cannot become a promise about an anonymous peer.
-                    // Do not compare rendered bounds: equal spellings need not
-                    // name the same dependent predicate subject.
-                    if references.iter().all(|reference| *reference == Some(first)) {
-                        return Some(first);
-                    }
-                    // Separately authored qualifications have separate type
-                    // handles. Their normalized declared-domain identities may
-                    // still agree (including transparent aliases and indices).
-                    // Raw range predicates remain on the exact-subject path
-                    // above: rendered dependent bounds are not interchangeable.
-                    if has_domain_result_shell(program, first) {
-                        let identity = program.normalized_type_identity(first);
-                        if references.iter().all(|reference| {
-                            reference.is_some_and(|reference| {
-                                has_domain_result_shell(program, reference)
-                                    && program.normalized_type_identity(reference) == identity
-                            })
-                        }) {
-                            return Some(first);
-                        }
-                    }
-                    let carrier = arithmetic_carrier(program, first)?;
-                    arms.iter()
-                        .zip(&references)
-                        .all(|(arm, reference)| {
-                            reference.map_or_else(
-                                || {
-                                    crate::value_custody::literals::has_anonymous_numeric_results(
-                                        program, arm.value,
-                                    )
-                                },
-                                |reference| arithmetic_carrier(program, reference) == Some(carrier),
+            join_result_type_references(
+                program,
+                &references,
+                &arms
+                    .iter()
+                    .zip(&references)
+                    .map(|(arm, reference)| {
+                        reference.is_none()
+                            && crate::value_custody::literals::has_anonymous_numeric_results(
+                                program, arm.value,
                             )
-                        })
-                        .then(|| arithmetic_result(program, first))
-                        .flatten()
-                })
+                    })
+                    .collect::<Vec<_>>(),
+            )
         }
         ExpressionNode::Call(call) => {
             crate::machine_calls::calls::resolved_call_result_type(program, call).or_else(|| {
@@ -171,7 +139,7 @@ fn result_type(
             let operand = result_type(program, machine, state, unary.operand, active);
             match unary.operator {
                 UnaryOperator::BitwiseNot => operand
-                    .and_then(|reference| arithmetic_result(program, reference))
+                    .and_then(|reference| arithmetic_result_type_reference(program, reference))
                     .filter(|reference| integer(program, *reference)),
                 UnaryOperator::LogicalNot => operand
                     .filter(|reference| primitive(program, *reference) == Some(PrimitiveType::Bool))
@@ -191,6 +159,61 @@ fn result_type(
             .type_reference_table
             .contains_type_reference(*reference)
     })
+}
+
+/// Join declaration-backed result types without exporting one arm's predicates
+/// to another. Missing references require independently checked anonymous shape.
+pub fn join_result_type_references(
+    program: &TypedTrees,
+    references: &[Option<TypeReferenceHandle>],
+    anonymous: &[bool],
+) -> Option<TypeReferenceHandle> {
+    if references.len() != anonymous.len() {
+        return None;
+    }
+    references
+        .iter()
+        .copied()
+        .flatten()
+        .next()
+        .and_then(|first| {
+            // Exact shared identity retains common predicates. Otherwise
+            // a numeric join weakens predicate facts, never policy. A range
+            // on one arm cannot become a promise about an anonymous peer.
+            // Do not compare rendered bounds: equal spellings need not
+            // name the same dependent predicate subject.
+            if references.iter().all(|reference| *reference == Some(first)) {
+                return Some(first);
+            }
+            // Separately authored qualifications have separate type
+            // handles. Their normalized declared-domain identities may
+            // still agree (including transparent aliases and indices).
+            // Raw range predicates remain on the exact-subject path
+            // above: rendered dependent bounds are not interchangeable.
+            if has_domain_result_shell(program, first) {
+                let identity = program.normalized_type_identity(first);
+                if references.iter().all(|reference| {
+                    reference.is_some_and(|reference| {
+                        has_domain_result_shell(program, reference)
+                            && program.normalized_type_identity(reference) == identity
+                    })
+                }) {
+                    return Some(first);
+                }
+            }
+            let carrier = arithmetic_carrier(program, first)?;
+            anonymous
+                .iter()
+                .zip(references)
+                .all(|(anonymous, reference)| {
+                    reference.map_or_else(
+                        || *anonymous,
+                        |reference| arithmetic_carrier(program, reference) == Some(carrier),
+                    )
+                })
+                .then(|| arithmetic_result_type_reference(program, first))
+                .flatten()
+        })
 }
 
 fn has_domain_result_shell(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
@@ -323,7 +346,7 @@ fn binary_result(
         }
         ShiftLeft | ShiftRight => {
             let left = operands[0]
-                .and_then(|reference| arithmetic_result(program, reference))
+                .and_then(|reference| arithmetic_result_type_reference(program, reference))
                 .filter(|reference| integer(program, *reference))?;
             let count = operands[1].map_or_else(
                 || {
@@ -337,7 +360,8 @@ fn binary_result(
             count.then_some(left)
         }
         Add | Subtract | Multiply | Divide => {
-            let carrier = arithmetic_result(program, operands.into_iter().flatten().next()?)?;
+            let carrier =
+                arithmetic_result_type_reference(program, operands.into_iter().flatten().next()?)?;
             let numeric = integer(program, carrier)
                 || matches!(
                     primitive(program, carrier),
@@ -346,7 +370,8 @@ fn binary_result(
             (numeric && compatible_operands(program, binary, operands, carrier)).then_some(carrier)
         }
         Modulo | BitwiseAnd | BitwiseOr | BitwiseXor => {
-            let carrier = arithmetic_result(program, operands.into_iter().flatten().next()?)?;
+            let carrier =
+                arithmetic_result_type_reference(program, operands.into_iter().flatten().next()?)?;
             (integer(program, carrier) && compatible_operands(program, binary, operands, carrier))
                 .then_some(carrier)
         }
@@ -455,7 +480,7 @@ fn qualified_builtin_carrier(
     None
 }
 
-fn arithmetic_result(
+pub fn arithmetic_result_type_reference(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {

@@ -3388,13 +3388,12 @@ Owners include
     equations on machine applications combined with existing argument/result inference.
     An open endpoint binds as one whole expression (`0..=N` may bind
     `Limit + 1`); solving `N * 2 == 256` stays outside.
-  - Endpoint folding for the forms `range_endpoints.rs` still leaves authored:
-    nominal/policy-qualified parameters, trait-operator owners
-    (owner-sensitive typed operations), applications that need inference or
-    carry type/machine/evidence binders, and comparisons or negation in
-    Boolean arguments. Use the shared admission plan and
-    `typed-trees/src/typed_trees/type_system/closed_numeric.rs`. Do not add an
-    arithmetic evaluator, infer layout from flow bounds, or use the i64
+  - Endpoint invocation admission for nominal/policy-qualified parameters,
+    trait-operator owners (owner-sensitive typed operations), and applications
+    that need inference or carry type/machine/evidence binders. Extend the
+    existing whole-expression scalar evaluator and shared admission plan;
+    retain exact computed-result types and original selection custody. Do not
+    add an arithmetic evaluator, infer layout from flow bounds, or use the i64
     compatibility interval in `validation` as type identity.
   - Runtime `Value` binders in data equations, which reject today as not
     statically recoverable. They depend on RUNTIME-VALUE-GENERICS; static
@@ -3405,19 +3404,6 @@ Owners include
     stays diagnostic-only.
   - `tests/omega` canaries for the constructed direction (`Bytes<256>`
     binding `Length`). Only the `omitted_data_binders.rs` unit tests cover it.
-
-  Flag: endpoint folding grows by one admitted expression form per slice.
-  `require_closed_boolean_argument`
-  (`build-time-evaluation/src/machine_execution/admission/selection_authority.rs`)
-  admits Boolean literals, `&&`/`||` and calls and rejects comparisons and
-  negation; integer arguments pass only the context-free
-  `closed_integer_value_in` query. The last four slices (domain-qualified
-  parameters, Boolean arguments, static applications, template-bound rounds)
-  each added one form with its own pass/fail canary pair, and each form in
-  the third bullet would be another. The general mechanism is one evaluation
-  of the whole endpoint expression as a constant position through the shared
-  evaluator, with one selection-custody walk over every expression form, so
-  endpoint coverage equals the evaluator's coverage.
 
   Acceptance: `generics/omitted_data_binder_range_equation` (TinyBytes binds
   omitted Capacity before layout; `u64[0..257]` and `u64[0..=256]` select one
@@ -3433,13 +3419,18 @@ Owners include
   not collapse nominal identity. Preserve const staging, initialization,
   stack supply and artifact replay.
 
-  The range fixture's remaining Terminal and native stops are ordinary storage
-  work, not generic matching: borrowed-local mutation calls
-  (`declared_range_inference_local_effects_retain_pending_terminal_boundaries`),
-  parameter-origin moves into locals and bounded leaf stores on local records
-  follow STATE-LOCAL-VALUE-FRONTIER; cyclic record establishment
-  (`owned_scalar_graphs/record_locals.rs`) follows GENERAL-CYCLIC-EXECUTION.
-  Do not add generic-specific storage plans.
+  The range fixture's scalar consumers and `Main::main` publish Terminal
+  artifacts. Hosted native publication still stops at `Terminal proposal must
+  retain every integer comparison occurrence exactly once`, reproduced with
+  the endpoint change absent at `5bce741c11` on macOS ARM64. The owner is
+  `compilation-report/src/terminal_product/integer_comparisons.rs` under
+  CRASH-CONTRACT. Recheck with `cargo nextest run -p compiler --test canary_suite
+  declared_range_inference_hosted_entry_runs_natively --no-fail-fast` after that
+  comparison-occurrence path is connected, with `RUST_MIN_STACK=67108864`.
+  Borrowed-local mutation calls
+  (`declared_range_inference_local_effects_retain_pending_terminal_boundaries`)
+  still follow STATE-LOCAL-VALUE-FRONTIER. Do not add generic-specific storage
+  plans to resolve that independent lowering boundary.
 
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)

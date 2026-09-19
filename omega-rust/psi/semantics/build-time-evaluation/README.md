@@ -18,26 +18,33 @@ fixed-array evaluation, ownership-taking const-generic pre-resolution evaluation
 and machine-backed concrete const-domain fact discharge. Omega schedules the
 service; it does not reinterpret its language semantics.
 
-[Range endpoints](src/range_endpoints.rs) evaluate exact resolved machine calls
-before type checking. Their [arguments](src/range_endpoints/arguments.rs) must be
-closed integer expressions received by exact builtin integer parameters, including
-closed range refinements. The shared numeric query establishes context-independent
-arithmetic; the scalar constant evaluator retains carrier checks and fractional warnings.
-Each argument keeps its own selection admission before the callee's common
-floor is checked. Record and case-payload types receive exact call identities
-from ordinary declaration-scope resolution before this service runs. Nested calls
-and surrounding integer arithmetic share this route: admitted call results keep
-their exact integer carriers, while the prepared execution graph and original
-selection occurrences remain unchanged. Failed folds restore every temporary
-call substitution. [Integer positions](src/range_endpoints/integer_type.rs) admit
-the original bound selections and check every declared range against the concrete
-argument/result, preserving full-width carriers and proof-integer exclusive bounds.
-Calls computing signature bounds run before the consuming invocation, regardless
-of declaration order; cyclic dependencies reject. These value checks do not replace
-ordinary body checking. Nominal/policy qualifications and generic applications remain
-outside this route; surrounding endpoint arithmetic retains ordinary checking.
+[Range endpoints](src/const_evaluation/range_endpoints.rs) evaluate whole closed
+integer bounds through the shared scalar constant evaluator. Comparisons,
+Boolean logic, scalar matches, calls and surrounding arithmetic compose under
+that evaluator's type and evaluation rules, including bounds with no calls.
+Unclosed bounds without required endpoint invocations remain authored for ordinary
+dependent-range checking. A separate walk admits every original selection,
+including skipped operands and arms; only demanded calls execute.
+[Invocation arguments](src/const_evaluation/range_endpoints/arguments.rs) retain
+their declared integer or Boolean carriers before crossing the common admission
+floor and checked interpreter. A callee's lexical owner cannot authorize an
+operator in the caller's bound.
 
-[Generic range arguments](src/range_arguments.rs) expose closed integer range
+[Integer positions](src/const_evaluation/range_endpoints/integer_type.rs) check
+closed range refinements and supported argument-free integer domains against
+each concrete argument and result. Anonymous exclusive bounds such as 2^64 keep
+proof-integer meaning; typed intermediate results still owe carrier bounds.
+Calls computing signature bounds precede the consuming invocation, regardless
+of declaration order, and cyclic dependencies reject. Explicit closed const
+applications use ordinary prepared specialization. Re-preparation makes folded
+template bounds available to those instances; failures restore all published
+endpoint folds. Selected provider execution retains the existing deferred
+continuation. These checks do not replace ordinary callee body checking.
+Nominal/policy-qualified parameters, unresolved authored operator meanings and
+applications requiring inference or type/machine/evidence binders still need
+their complete admission contexts.
+
+[Generic range arguments](src/const_evaluation/range_arguments.rs) expose closed integer range
 types to the same temporary typed-probe mechanism before generic-data synthesis.
 Original lexical carrier and constant selections must agree with the probe;
 the shared numeric query supplies structured interval observations, never a
@@ -46,9 +53,12 @@ exclusive endpoint such as 2^64 to land in u64. Original expressions/end-kind
 remain in syntax, including through copied and forwarded type arguments.
 Completed typing independently recomputes application equality after its full
 symbol/operator context exists; synthesis observations cannot waive that check.
-Open binders, machine-computed range arguments and owner-dependent operations
-still need their complete staging contexts. This route neither executes bodies
-nor proves that every generic record shape has a Terminal lowering.
+Closed machine-computed bounds use the endpoint evaluator above. After original
+custody agrees, the complete folded bound supplies canonical syntax; skipped
+calls retain admission obligations without becoming execution claims. Open
+binders and unresolved owner-dependent operations still need their complete
+staging contexts. Canonical range identity does not establish that every generic
+record shape has a Terminal lowering.
 
 Const-generic arguments whose whole expression is a closed scalar machine call
 (`Buffer<sized(4)>`) evaluate through a whole-expression application probe

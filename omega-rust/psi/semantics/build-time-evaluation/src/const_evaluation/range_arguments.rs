@@ -203,29 +203,41 @@ pub(crate) fn evaluate(
             provider_bodies: &[],
         },
     );
-    let executed_calls: std::collections::HashSet<typed_trees::expression::ExpressionHandle> =
-        typed
-            .expression_table
-            .iter_expressions()
-            .filter(|(handle, node)| {
-                matches!(node, typed_trees::expression::ExpressionNode::Call(_))
-                    && !matches!(
-                        evaluated.expression_table.expression(*handle),
-                        typed_trees::expression::ExpressionNode::Call(_)
-                    )
-            })
-            .map(|(handle, _)| handle)
-            .collect();
-    let executed_spans: Vec<source::SourceSpan> = executed_calls
-        .iter()
-        .map(|handle| typed.expression_table.source_span(*handle))
+    // A whole bound folds only after all authored calls pass static admission.
+    // Selective execution may skip some of them; this records admission, not
+    // execution. Origin custody continues to read every original occurrence.
+    let folded_roots: Vec<_> = typed
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, node)| {
+            !matches!(node, typed_trees::expression::ExpressionNode::Integer(_))
+                && matches!(
+                    evaluated.expression_table.expression(*handle),
+                    typed_trees::expression::ExpressionNode::Integer(_)
+                )
+        })
+        .map(|(handle, _)| handle)
         .collect();
-    // An executed endpoint call wrote its canonical value back as a decimal
-    // literal so resolution, the const-call probe, and typed origin replay all
-    // read the same `u64[0..=256]` spelling the retained range admits. Only
-    // calls beneath a bound that retained its normalization substitute; an
-    // endpoint that admission or custody refused keeps its authored call for
-    // the ordinary typed diagnostics.
+    let mut admitted_calls = std::collections::HashSet::new();
+    for root in &folded_roots {
+        let mut pending = vec![*root];
+        let mut visited = Vec::new();
+        while let Some(expression) = pending.pop() {
+            if visited.contains(&expression) {
+                continue;
+            }
+            visited.push(expression);
+            if matches!(
+                typed.expression_table.expression(expression),
+                typed_trees::expression::ExpressionNode::Call(_)
+            ) {
+                admitted_calls.insert(expression);
+            }
+            pending.extend(crate::machine_execution::admission::expression_children(
+                &typed, expression,
+            ));
+        }
+    }
     let mut folded_calls = Vec::new();
     for (probe_ordinal, (reference, carrier, bounds)) in probes.into_iter().enumerate() {
         // These names are private probe markers, not published type identity.
@@ -312,7 +324,7 @@ pub(crate) fn evaluate(
                         expression,
                         false,
                         &syntax,
-                        &executed_calls,
+                        &admitted_calls,
                     )
                 else {
                     eligible = false;
@@ -342,45 +354,20 @@ pub(crate) fn evaluate(
                     maximum: maximum_value,
                 },
             );
-            let mut endpoint_work = vec![authored_minimum, authored_maximum];
-            let mut endpoint_visited = Vec::new();
-            while let Some(endpoint) = endpoint_work.pop() {
-                if endpoint_visited.contains(&endpoint) {
-                    continue;
-                }
-                endpoint_visited.push(endpoint);
-                match syntax.expressions.expression(endpoint) {
-                    ExpressionNode::Binary(binary) => {
-                        endpoint_work.push(binary.left);
-                        endpoint_work.push(binary.right);
-                    }
-                    ExpressionNode::Call(call) => {
-                        let source_span = syntax.expressions.source_span(endpoint);
-                        if executed_spans.contains(&source_span) {
-                            folded_calls.push((endpoint, source_span));
-                        }
-                        endpoint_work.extend(
-                            syntax
-                                .expressions
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    _ => {}
+            for (authored, evaluated_root) in
+                [(authored_minimum, *minimum), (authored_maximum, *maximum)]
+            {
+                if folded_roots.contains(&evaluated_root) {
+                    folded_calls.push((authored, evaluated_root));
                 }
             }
         }
     }
-    for (authored, source_span) in folded_calls {
-        let value = evaluated
-            .expression_table
-            .iter_expressions()
-            .filter(|(handle, _)| evaluated.expression_table.source_span(*handle) == source_span)
-            .find_map(|(_, node)| match node {
-                typed_trees::expression::ExpressionNode::Integer(literal) => literal.value_bignum(),
-                _ => None,
-            });
+    for (authored, evaluated_root) in folded_calls {
+        let value = match evaluated.expression_table.expression(evaluated_root) {
+            typed_trees::expression::ExpressionNode::Integer(literal) => literal.value_bignum(),
+            _ => None,
+        };
         let Some(value) = value else {
             continue;
         };

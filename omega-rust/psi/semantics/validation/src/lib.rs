@@ -143,9 +143,11 @@ pub use proof_contracts::quotients::{
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
-pub use value_custody::expression_types::expression_result_type_reference;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
+pub use value_custody::expression_types::{
+    arithmetic_result_type_reference, expression_result_type_reference, join_result_type_references,
+};
 pub use value_custody::expression_types::{
     fresh_payloadless_case, is_fresh_payloadless_structural_value,
 };
