@@ -1,0 +1,18 @@
+// A runtime-capable value binder qualifies its own result range: the bound's
+// endpoint rebinds to the realized trailing parameter inside the shared
+// specialization, and the caller's result indexes on the captured subject
+// itself (`u64[0..=n]`), so a declared bound naming the argument discharges
+// the call. The runtime call and the closed literal keep distinct bodies;
+// a layout-determining use such as `[u8; Bound]` still rejects under
+// `fail/generics/value_generic_runtime_static_length`.
+
+machine ranged<Bound: u64>() -> u64[0..=Bound] {
+    Bound
+}
+
+machine Main::main(&mut self) {
+    let n: u64 = 7;
+    let captured: u64[0..=n] = ranged<n>();
+    let total: u64 = ranged<n>();
+    let closed: u64 = ranged<4>();
+}

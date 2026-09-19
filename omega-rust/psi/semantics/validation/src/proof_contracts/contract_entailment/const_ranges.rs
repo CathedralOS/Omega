@@ -51,14 +51,17 @@ pub(crate) fn const_range_bound_is_supported(
 
 fn term(
     program: &TypedTrees,
-    parameters: &[TypeParameter],
+    _parameters: &[TypeParameter],
     engine: &mut Engine<'_>,
     expression: ExpressionHandle,
 ) -> Option<Polynomial> {
     if let Some(value) = crate::closed_integer_range_bound(program, expression) {
         return Some(Polynomial::constant(value));
     }
-    binder(program, parameters, expression)?;
+    // The strict engine owns term normalization end to end: const/Value
+    // binders and scope-value atoms (state parameters and locals) alike come
+    // from `scope_engine`'s binding table. A name bound to nothing yields no
+    // atom, which keeps unsupported bound shapes rejected.
     engine.normalize(expression)
 }
 
@@ -109,7 +112,7 @@ pub(crate) fn symbolic_range_contains(
             && [*minimum, *maximum].into_iter().any(|endpoint| {
                 program.machines().iter().any(|owner| {
                     binder(program, program.machine_type_parameters(owner), endpoint).is_some()
-                })
+                }) || scoped_value_bound(program, state, endpoint)
             })
         {
             ranges.push((*minimum, *maximum, *end_inclusive));
@@ -122,7 +125,7 @@ pub(crate) fn symbolic_range_contains(
     if inherited == Some(false) {
         return Some(false);
     }
-    let Some(mut engine) = scope_engine(program, machine) else {
+    let Some(mut engine) = scope_engine(program, machine, state) else {
         return Some(false);
     };
     let Some([value_minimum, value_maximum]) =
@@ -148,12 +151,74 @@ pub(crate) fn symbolic_range_contains(
     Some(true)
 }
 
+/// The strict engine's symbol table covers the machine's integer const/Value
+/// binders plus the CHECKING state's integer scalar parameters and locals.
+/// Scope atoms carry only their declared type envelope as premise; the engine
+/// never equates two atoms, so a proof that an endpoint and a scoped value
+/// agree is version-invariant -- a reassigned local cannot launder a stale
+/// bound through the comparison.
 fn scope_engine<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
+    state: Option<&State>,
 ) -> Option<Engine<'program>> {
     let mut bindings = Vec::new();
     let mut premises = Vec::new();
+    let mut bind_scoped_integer = |symbol, type_reference| {
+        let Some(primitive) = program.primitive_type_reference(type_reference) else {
+            return;
+        };
+        if !primitive.accepts_integer_literal() {
+            return;
+        }
+        let identity = format!("value:{symbol:?}");
+        if let Some((minimum, maximum)) =
+            crate::proof_contracts::arithmetic_domains::enforced_integer_type_bounds(
+                program,
+                type_reference,
+            )
+        {
+            let atom = Polynomial::atom(identity.clone());
+            premises.push((
+                BinaryOperator::LessOrEqual,
+                Polynomial::constant(BigInt::from_i64(minimum)),
+                atom.clone(),
+            ));
+            premises.push((
+                BinaryOperator::LessOrEqual,
+                atom,
+                Polynomial::constant(BigInt::from_i64(maximum)),
+            ));
+        }
+        bindings.push(StrictArithmeticSymbolBinding {
+            symbol,
+            value: StrictArithmeticBindingValue::Atom {
+                identity,
+                unsigned: matches!(
+                    primitive,
+                    typed_trees::types::PrimitiveType::U8
+                        | typed_trees::types::PrimitiveType::U16
+                        | typed_trees::types::PrimitiveType::U32
+                        | typed_trees::types::PrimitiveType::U64
+                ),
+            },
+        });
+    };
+    if let Some(state) = state {
+        for parameter in program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+        {
+            bind_scoped_integer(parameter.symbol, parameter.type_reference);
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                continue;
+            };
+            bind_scoped_integer(local.symbol, local.type_reference);
+        }
+    }
     for parameter in program.machine_type_parameters(machine) {
         if let TypeParameterKind::Const { type_reference }
         | TypeParameterKind::Value { type_reference } = parameter.kind
@@ -234,19 +299,52 @@ fn unreferenced(program: &TypedTrees, mut reference: TypeReferenceHandle) -> Typ
     reference
 }
 
+fn scoped_value_bound(
+    program: &TypedTrees,
+    state: Option<&State>,
+    endpoint: ExpressionHandle,
+) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    let Some(scoped) =
+        typed_trees::dependent_ranges::scoped_name_bound(&program.expression_table, endpoint)
+    else {
+        return false;
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(scoped.name) else {
+        return false;
+    };
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == path.symbol)
+        || program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, typed_trees::statement::StatementNode::LocalData(local) if local.symbol == path.symbol)
+            })
+}
+
 fn has_const_range(
     program: &TypedTrees,
     parameters: &[TypeParameter],
+    entry: Option<&State>,
     reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference { referee, .. } => has_const_range(program, parameters, *referee),
+        TypeReferenceNode::Reference { referee, .. } => {
+            has_const_range(program, parameters, entry, *referee)
+        }
         TypeReferenceNode::Constrained { base_type, constraints } => {
             program.primitive_type_reference(*base_type).is_some_and(|primitive| primitive.accepts_integer_literal())
                 && (program.type_reference_table.constraints(*constraints).iter().any(|constraint| {
                     matches!(constraint, TypeConstraintNode::Range { minimum, maximum, .. }
-                        if [*minimum, *maximum].into_iter().any(|endpoint| binder(program, parameters, endpoint).is_some()))
-                }) || has_const_range(program, parameters, *base_type))
+                        if [*minimum, *maximum].into_iter().any(|endpoint| binder(program, parameters, endpoint).is_some()
+                            || scoped_value_bound(program, entry, endpoint)))
+                }) || has_const_range(program, parameters, entry, *base_type))
         }
         _ => false,
     }
@@ -259,12 +357,19 @@ fn value_bounds(
     engine: &mut Engine<'_>,
     value: ExpressionHandle,
 ) -> Option<[Polynomial; 2]> {
-    if let Some(value) = term(
-        program,
-        program.machine_type_parameters(machine),
-        engine,
-        value,
-    ) {
+    // A closed literal or a machine binder keeps its point value. Scope-value
+    // names take their declared symbolic range first: the declared claim is
+    // the stronger evidence, while a bare point atom carries no premise
+    // linking it to the endpoint it must fit inside.
+    if (crate::closed_integer_range_bound(program, value).is_some()
+        || binder(program, program.machine_type_parameters(machine), value).is_some())
+        && let Some(value) = term(
+            program,
+            program.machine_type_parameters(machine),
+            engine,
+            value,
+        )
+    {
         return Some([value.clone(), value]);
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
@@ -272,7 +377,7 @@ fn value_bounds(
             program,
             call.target_symbol,
         )?;
-        let bindings = call_bindings(
+        let mut bindings = call_bindings(
             program,
             machine,
             state,
@@ -282,6 +387,33 @@ fn value_bounds(
             &call.machine_arguments,
             program.expression_table.expression_handles(call.arguments),
         )?;
+        // A runtime-bound `Value` subject arrives as an ordinary trailing
+        // state parameter on the callee; its declared result range names that
+        // parameter. Binding the parameter to the argument's caller-side term
+        // keeps `-> u64[0..=Bound]` related to the captured subject after the
+        // caller's variable is reassigned. Arguments without a term leave the
+        // parameter unbound, so bounds that name it stay unprovable rather
+        // than guessing at a value.
+        for (argument, parameter) in program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .zip(
+                program
+                    .state_parameters(entry)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self),
+            )
+        {
+            if let Some(value) = term(
+                program,
+                program.machine_type_parameters(machine),
+                engine,
+                *argument,
+            ) {
+                bindings.push((parameter.symbol, value));
+            }
+        }
         let (_, endpoints, end_inclusive) =
             crate::declared_integer_range(program, entry.return_type)?;
         return Some([
@@ -311,6 +443,16 @@ fn value_bounds(
                 end_inclusive,
             ),
         ]);
+    }
+    // An unqualified scope value (a realized `Value` parameter like `Bound`,
+    // or any scope name with no symbolic range of its own) is its own point.
+    if let Some(value) = term(
+        program,
+        program.machine_type_parameters(machine),
+        engine,
+        value,
+    ) {
+        return Some([value.clone(), value]);
     }
     let (minimum, maximum) =
         crate::proof_contracts::arithmetic_domains::enforced_integer_type_bounds(
@@ -352,7 +494,7 @@ pub(crate) fn selected_const_call_result_bounds(
     {
         return None;
     }
-    let mut engine = scope_engine(program, machine)?;
+    let mut engine = scope_engine(program, machine, state)?;
     let [minimum, maximum] = value_bounds(program, machine, state, &mut engine, expression)?;
     let minimum = minimum.constant_value()?.to_i64()?;
     let maximum = maximum.constant_value()?.to_i64()?;
@@ -564,6 +706,17 @@ fn call_bindings(
             .iter()
             .filter(|parameter| !parameter.is_self),
     ) {
+        // The same caller-scope binding as `value_bounds`: a callee parameter
+        // that names its own bound resolves to the argument's term here.
+        if let Some(value) = term(
+            program,
+            program.machine_type_parameters(caller),
+            engine,
+            *argument,
+        ) && !fixed.contains(&parameter.symbol)
+        {
+            bindings.push((parameter.symbol, value));
+        }
         if let Some(actual_type) = value_type(program, caller, state, *argument) {
             use typed_trees::types::FixedArrayLength;
             if let (
@@ -714,6 +867,7 @@ pub(crate) fn validate_const_range_call(
         has_const_range(
             program,
             program.machine_type_parameters(callee),
+            Some(entry),
             parameter.type_reference,
         )
     });
@@ -721,7 +875,7 @@ pub(crate) fn validate_const_range_call(
         return;
     }
     let proven = (|| {
-        let mut engine = scope_engine(program, caller)?;
+        let mut engine = scope_engine(program, caller, state)?;
         let bindings = call_bindings(
             program,
             caller,
@@ -741,6 +895,7 @@ pub(crate) fn validate_const_range_call(
             if !has_const_range(
                 program,
                 program.machine_type_parameters(callee),
+                Some(entry),
                 parameter.type_reference,
             ) {
                 continue;

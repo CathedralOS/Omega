@@ -21,8 +21,8 @@ pub(crate) use machine_arguments::{
     static_const_literal_from_type_reference, substitute_forwarded_machine_arguments,
 };
 pub(crate) use type_parameter_substitution::{
-    cloned_expression_roots, reject_runtime_bound_static_occurrences,
-    substitute_cloned_type_parameters,
+    cloned_expression_roots, rebind_state_scoped_range_endpoints,
+    reject_runtime_bound_static_occurrences, substitute_cloned_type_parameters,
 };
 
 use super::{

@@ -156,6 +156,112 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
     Ok(())
 }
 
+/// Rebind a runtime-bound `Value` binder that survives in a clone's
+/// state-scoped range endpoints onto that state's realized trailing
+/// parameter. `Bound` in `-> u64[0..=Bound]` qualifies the realized subject
+/// exactly like an authored `[0..=param]` dependent bound, so the clone's
+/// result range stays related to the captured caller argument instead of
+/// rejecting under the static-position fence. Binder names in machine-owned
+/// types, domain arguments, fixed-array extents, or `const` expressions are
+/// left alone for `reject_runtime_bound_static_occurrences` to reject.
+pub(crate) fn rebind_state_scoped_range_endpoints(
+    program: &mut TypedTrees,
+    cloned: &typed_trees::machine::Machine,
+    state_realized_parameters: &[Vec<(SymbolHandle, SymbolHandle)>],
+) {
+    for (state, realized) in program
+        .machine_states(cloned)
+        .to_vec()
+        .into_iter()
+        .zip(state_realized_parameters.iter())
+    {
+        if realized.is_empty() {
+            continue;
+        }
+        let mut roots = Vec::new();
+        roots.extend(
+            program
+                .state_parameters(&state)
+                .iter()
+                .map(|parameter| parameter.type_reference),
+        );
+        roots.push(state.return_type);
+        for contract in program.state_contracts(&state) {
+            collect_contract_type_roots(program, contract, &mut roots);
+        }
+        for statement in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .to_vec()
+        {
+            if let StatementNode::LocalData(local) = &statement {
+                roots.push(local.type_reference);
+            }
+            let mut expressions = Vec::new();
+            collect_statement_expression_trees(program, &statement, &mut expressions);
+            for expression in expressions {
+                collect_expression_type_roots(program, expression, &mut roots);
+            }
+        }
+        for root in roots {
+            rebind_range_endpoint_names(program, root, realized);
+        }
+    }
+}
+
+/// Walk one type root like `runtime_bound_occurrence_in`, but remap every
+/// name leaf inside range endpoints from the binder onto its realized
+/// parameter instead of testing membership. The endpoints are clone-owned
+/// copies, so remapping them cannot write into the retained template.
+fn rebind_range_endpoint_names(
+    program: &mut TypedTrees,
+    root: TypeReferenceHandle,
+    realized: &[(SymbolHandle, SymbolHandle)],
+) {
+    let mut pending = vec![root];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(handle) = pending.pop() {
+        if !handle.is_valid() || !visited.insert(handle) {
+            continue;
+        }
+        match program.type_reference_table.type_reference(handle).clone() {
+            TypeReferenceNode::Reference { referee, .. } => pending.push(referee),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(base_type);
+                for constraint in program
+                    .type_reference_table
+                    .constraints(constraints)
+                    .to_vec()
+                {
+                    match constraint {
+                        TypeConstraintNode::Domain(domain) => {
+                            pending.extend(domain.arguments.iter().copied());
+                        }
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            program.expression_table.remap_symbols_in(minimum, realized);
+                            program.expression_table.remap_symbols_in(maximum, realized);
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                    }
+                }
+            }
+            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(element_type),
+            TypeReferenceNode::Slice { element_type } => pending.push(element_type),
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(arguments),
+            ),
+            _ => {}
+        }
+    }
+}
+
 /// Expression roots reachable from the cloned specialization: executable
 /// statements, owned-data initializers, and contract fact expressions. Runtime
 /// binder occurrences are only meaningful inside this region; template-owned

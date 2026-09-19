@@ -6,6 +6,7 @@ use super::{
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// A domain constraint `T in Name` is satisfied by a declared `domain <T>::Name`:
@@ -535,6 +536,22 @@ fn dependent_state_parameter_range_error(
         }
         return None;
     }
+    // Scope-value class (`[0..=param]`, `[0..=param - 1]`): the bound names
+    // an integer scalar parameter of the SAME state signature, or -- on a
+    // local declaration -- a parameter or an earlier local. The strict
+    // arithmetic engine binds the named symbol as a proof atom with its
+    // declared type envelope as the only premise, so the relation is
+    // discharged at formation without versioning the name. This is also the
+    // shape a specialized `Value` binder leaves behind: a runtime-bound
+    // generic argument's result range `-> u64[0..=Bound]` names the
+    // specialization's own realized parameter.
+    if let Some(scoped) = typed_trees::dependent_ranges::scoped_range_maximum(
+        &program.expression_table,
+        maximum,
+        end_inclusive,
+    ) {
+        return scoped_maximum_error(program, owner, scoped);
+    }
     let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
         &program.expression_table,
         maximum,
@@ -595,6 +612,111 @@ fn dependent_state_parameter_range_error(
         ));
     }
     None
+}
+
+/// Scoped-value admission for a recognized `name [+/- k]` maximum: `None`
+/// accepts when the bound's named symbol is an integer scalar parameter of
+/// the owning state signature, or -- on a `StateLocalData` declaration -- a
+/// parameter or a local declared earlier in that state. Everything else keeps
+/// refusing. Symbol identity (not spelling) decides membership, so a shadowed
+/// or out-of-scope name cannot slip through on a matching identifier.
+fn scoped_maximum_error(
+    program: &TypedTrees,
+    owner: &TypeReferenceOwner<'_>,
+    scoped: typed_trees::dependent_ranges::ScopedNameBound,
+) -> Option<String> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(scoped.name) else {
+        return Some(format!(
+            "{owner} declares a range maximum that is not a name"
+        ));
+    };
+    let (machine_name, state_name, local_name, generic_depth) = match owner {
+        TypeReferenceOwner::StateParameter {
+            owner: StateSignatureOwner::Machine(machine_name),
+            state: state_name,
+            generic_depth,
+            ..
+        }
+        | TypeReferenceOwner::StateReturn {
+            owner: StateSignatureOwner::Machine(machine_name),
+            state: state_name,
+            generic_depth,
+            ..
+        } => (*machine_name, *state_name, None, *generic_depth),
+        TypeReferenceOwner::StateLocalData {
+            machine: machine_name,
+            state: state_name,
+            local,
+            generic_depth,
+        } => (*machine_name, *state_name, Some(*local), *generic_depth),
+        _ => {
+            return Some(format!(
+                "{owner} declares a range whose bound names a value; a scope-named maximum \
+                 (`[0..=<param>]`) is supported on machine state parameters, returns, and locals"
+            ));
+        }
+    };
+    if generic_depth != 0 {
+        return Some(format!(
+            "{owner} declares a scope-named maximum inside a generic argument list; a value-bound \
+             qualification is only supported at the outer constraint"
+        ));
+    }
+    let Some(state) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .and_then(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.name.as_str() == state_name)
+        })
+    else {
+        return Some(format!(
+            "{owner} declares a scope-named maximum, but state `{state_name}` is not declared"
+        ));
+    };
+    let scalar_value = |type_reference: TypeReferenceHandle| {
+        crate::value_custody::places::unwrapped_type_reference(program, type_reference)
+            .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+            .is_some_and(|primitive| primitive.accepts_integer_literal())
+    };
+    let is_parameter = program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == path.symbol && scalar_value(parameter.type_reference));
+    if is_parameter {
+        return None;
+    }
+    if let Some(local_name) = local_name {
+        let mut prior_is_integer = false;
+        let mut found = false;
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::LocalData(local) = statement else {
+                continue;
+            };
+            if local.name.as_str() == local_name {
+                break;
+            }
+            if local.symbol == path.symbol {
+                found = true;
+                prior_is_integer = scalar_value(local.type_reference);
+            }
+        }
+        if found && prior_is_integer {
+            return None;
+        }
+    }
+    Some(format!(
+        "{owner} declares a scope-named maximum, but the bound names no integer scalar \
+         parameter{} in scope",
+        if local_name.is_some() {
+            " or earlier local"
+        } else {
+            ""
+        },
+    ))
 }
 
 fn type_reference_is_sliceable(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {

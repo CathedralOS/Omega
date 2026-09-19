@@ -318,6 +318,72 @@ machine Main::main(&mut self) reaches Trace {
     );
 }
 
+/// A result qualification names the caller's captured subject, not the
+/// template binder: `-> u64[0..=Bound]` specializes to a range on the
+/// realized trailing parameter, the caller's inferred result indexes on the
+/// argument itself (`u64[0..=n]`), and a declared local bound naming that
+/// argument discharges the call. A reassigned source binds its current value
+/// and the closed literal keeps its own specialization.
+#[test]
+fn runtime_bound_result_range_stays_with_the_captured_subject() {
+    let published = publish(
+        "result-range",
+        r#"
+use omega::language::core::external_binding;
+
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+
+data Main {
+    values: [u32; 8];
+}
+
+machine ranged<Bound: u64>() -> u64[0..=Bound] {
+    Bound
+}
+
+machine Main::main(&mut self) reaches Trace {
+    let n: u64 = 7;
+    let captured: u64[0..=n] = ranged<n>();
+    Trace::record(captured);
+    let mut source: u64 = 3;
+    source = 5;
+    let current: u64 = ranged<source>();
+    Trace::record(current);
+    let closed: u64 = ranged<4>();
+    Trace::record(closed);
+}
+"#,
+    );
+    let module = &published.module;
+    let entry_calls = calls(module, module.entry);
+    assert_eq!(
+        entry_calls.len(),
+        3,
+        "entry places the two runtime calls and the closed call"
+    );
+    assert_eq!(
+        entry_calls[0].0, entry_calls[1].0,
+        "distinct runtime subjects reuse the one dynamic body"
+    );
+    assert_ne!(
+        entry_calls[0].0, entry_calls[2].0,
+        "the closed literal keeps its own specialization"
+    );
+    assert_eq!(
+        module.machines.len(),
+        3,
+        "entry plus one dynamic body and one closed body"
+    );
+
+    replay(
+        &published,
+        &[7, 5, 4],
+        "each body returns its own captured subject; the bound rides the index",
+        &[],
+    );
+}
+
 #[test]
 fn runtime_bound_subject_keeps_its_transition_guard_proof() {
     let published = publish(

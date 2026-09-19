@@ -235,7 +235,13 @@ fn const_binder_still_rejects_a_runtime_subject() {
 }
 
 #[test]
-fn runtime_value_in_a_static_range_position_rejects() {
+fn runtime_bound_result_range_uses_the_realized_parameter() {
+    // `-> u64[0..=Bound]` qualifies the realized subject, not a static
+    // position: the clone keeps the range naming its realized trailing
+    // parameter, and the caller's inferred result indexes on the captured
+    // argument itself.
+    // The tail call auto-hoists into an inferred local: its declared type is
+    // exactly the substituted `u64[0..=n]`.
     let mut program = typed(
         "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
          machine main() -> u64 {
@@ -243,17 +249,77 @@ fn runtime_value_in_a_static_range_position_rejects() {
              ranged<n>()
          }",
     );
-    let error = monomorphize_generic_machine_value_calls_with_nominal_uses(
-        &mut program,
-        &mut Vec::new(),
-        true,
-    )
-    .expect_err("a runtime subject cannot close a static bound");
-    assert!(error.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot determine a static type or layout")
-    }));
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
+        .expect("a runtime-bound result range specializes");
+    let [receipt] = program.machine_specializations.as_slice() else {
+        panic!("one specialization for the runtime tuple");
+    };
+    let instance = instance(&program, receipt);
+    let entry = &program.machine_states(instance)[0];
+    let realized = program
+        .state_parameters(entry)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "Bound")
+        .expect("realized trailing parameter")
+        .symbol;
+    let scoped_maximum_symbol = |type_reference| {
+        let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+            program.type_reference_table.type_reference(type_reference)
+        else {
+            return None;
+        };
+        let bound = program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .find_map(|constraint| match constraint {
+                typed_trees::types::TypeConstraintNode::Range { maximum, .. } => {
+                    typed_trees::dependent_ranges::scoped_name_bound(
+                        &program.expression_table,
+                        *maximum,
+                    )
+                }
+                _ => None,
+            })?;
+        let ExpressionNode::Name(path) = program.expression_table.expression(bound.name) else {
+            return None;
+        };
+        Some(path.symbol)
+    };
+    assert_eq!(
+        scoped_maximum_symbol(entry.return_type),
+        Some(realized),
+        "the specialization's result range indexes the realized parameter"
+    );
+    // The caller's inferred hoist temporary carries the CAPTURED argument as
+    // its index: `u64[0..=n]`, not the callee's realized parameter.
+    let main_state = &program.machine_states(
+        program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .expect("caller"),
+    )[0];
+    let mut n_symbol = None;
+    let mut hoist_bound = None;
+    for statement in program
+        .statement_table
+        .statements(main_state.statement_nodes)
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if local.name.as_str() == "n" {
+            n_symbol = Some(local.symbol);
+        }
+        if local.type_is_inferred {
+            hoist_bound = scoped_maximum_symbol(local.type_reference);
+        }
+    }
+    assert_eq!(
+        hoist_bound, n_symbol,
+        "the inferred temporary's bound is the caller's argument"
+    );
 }
 
 #[test]
@@ -664,4 +730,43 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
         1,
         "`denied` receives the forwarded subject alone"
     );
+}
+
+#[test]
+fn runtime_bound_result_range_discharges_through_checking() {
+    // The whole spine: a declared local bound `u64[0..=n]` admits a runtime
+    // subject in its maximum, and the call's result proves `Bound <= n`
+    // through the captured-argument binding. The authored total keeps its
+    // declared carrier; the relation rides on the inferred temporary.
+    crate::lower_typed_trees(typed(
+        "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
+         machine main() -> u64 {
+             let n: u64 = 7;
+             let captured: u64[0..=n] = ranged<n>();
+             let total: u64 = ranged<n>();
+             captured
+         }",
+    ))
+    .expect("a runtime-bound result range checks end to end");
+}
+
+#[test]
+fn runtime_bound_result_range_still_rejects_an_unproven_subject() {
+    // The same relation is enforced in the caller's scope: a bound naming
+    // `n` does not admit a result captured against a different argument `m`.
+    let diagnostics = crate::lower_typed_trees(typed(
+        "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
+         machine main() -> u64 {
+             let n: u64 = 7;
+             let m: u64 = 3;
+             let wrong: u64[0..=n] = ranged<m>();
+             wrong
+         }",
+    ))
+    .expect_err("the bound names a different subject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("not provably within its declared symbolic const range")
+    }));
 }

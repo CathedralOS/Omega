@@ -1391,11 +1391,11 @@ fn runtime_value_generic_fail_canaries_reject() {
     // The rejection half of the runtime/value-binder contract: a proof-static
     // `const` binder never admits a runtime subject, a `requires` obligation
     // binds to the subject captured at the call rather than a stale earlier
-    // value, and a runtime subject cannot determine a static range bound.
+    // value, and a runtime subject cannot determine a static layout extent.
     for &path in [
         fixture_roster::CONST_GENERIC_RUNTIME_ARGUMENT,
         fixture_roster::VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN,
-        fixture_roster::VALUE_GENERIC_RUNTIME_STATIC_BOUND,
+        fixture_roster::VALUE_GENERIC_RUNTIME_STATIC_LENGTH,
     ]
     .iter()
     {

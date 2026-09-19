@@ -696,6 +696,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "generics/nominal_machine_parameter_satisfaction_compile",
     "generics/property_bound_type_parameter",
     "generics/value_generic_runtime_argument",
+    "generics/value_generic_runtime_result_bound",
     "generics/value_generic_static_specialization",
     "borrow/borrow_carrying_field_reassignment",
     "borrow/aggregate_cast_unrelated_source_compile",
