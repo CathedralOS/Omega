@@ -3,9 +3,10 @@
 // a bit absent from either operand), proving into `y: [0..=15]` with no
 // guard. c=259 -> 259 & 15 = 3 -> exit 3.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     c: i32 [0..=259];
     y: i32 [0..=15];
 }
