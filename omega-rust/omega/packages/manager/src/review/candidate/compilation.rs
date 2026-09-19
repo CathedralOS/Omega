@@ -108,6 +108,7 @@ pub fn compile_resolved_package_reviews(
         target_closure,
         build_root,
         bindings,
+        None,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )
 }
@@ -116,10 +117,14 @@ pub fn compile_resolved_package_reviews(
 /// in the caller's store. A command reviewing several targets of one resolved
 /// closure prepares each package once; changed sources and selections still
 /// reject through the ordinary custody and checkpoint checks.
+/// A supplied snapshot applies to the root in both review passes, exactly as
+/// in production. Inspection must not derive policy from a broader input view
+/// than the invocation it is reviewing; dependencies keep their own inventories.
 pub fn compile_resolved_package_reviews_reusing(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     bindings: SemanticBindingReview<'_>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     compile_candidate(
@@ -127,7 +132,7 @@ pub fn compile_resolved_package_reviews_reusing(
         build_root,
         bindings,
         None,
-        None,
+        root_build_snapshot,
         preparation,
     )
     .map(|compiled| compiled.reviews)

@@ -235,8 +235,10 @@ not host paths. A directory includes its subtree. Include every consumed root
 source file; missing required entries, duplicate or nested declarations reject.
 Optional missing entries stay absent. Package preparation captures the editable
 project without changing its permissions; dependencies retain their own inputs.
-The options apply to compilation and `--check`, not `run`, package update, or
-audit. Without them, existing package-inventory behavior is unchanged. They grant
+The options apply to compilation, `--check`, and `omega audit packages`, not
+`run` or package install/update. Pass the same inventory to audit to inspect the
+build you intend to compile; audit never changes acceptance. Without these
+options, existing package-inventory behavior is unchanged. They grant
 no extra host access and do not publish companion outputs. A changed build policy
 still needs ordinary package acceptance.
 

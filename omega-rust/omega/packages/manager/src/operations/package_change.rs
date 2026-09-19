@@ -152,6 +152,7 @@ pub fn review_package_change_reusing(
         &target_closure,
         build_root,
         SemanticBindingReview::Discover,
+        None,
         preparation,
     )
     .map_err(PackageChangeError::Compilation)?;

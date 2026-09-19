@@ -1,6 +1,6 @@
 # Package inspection
 
-`omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]`
+`omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...`
 shows the project graph, exact source pins, and compiler-derived API/authority
 findings beside accepted lock policy. It does not accept changes, certify an
 audit, or publish native artifacts.
@@ -21,6 +21,16 @@ fetch an absent exact accepted commit, never refresh its branch or tag. The
 project root remains editable as in ordinary compilation. Without a lock,
 inspection resolves the authored graph and checks it as unaccepted source;
 it does not create a lock.
+
+`--build-input <path>` and `--optional-build-input <path>` select the root's
+immutable input inventory, using the same canonical relative paths and capture
+checks as compilation. Directories include their subtrees; include every root
+source file consumed by checking. Repeat the flags for additional entries. The
+selection applies to each requested target and both binding-discovery and final
+review passes; dependencies keep their own package inputs. Missing required
+entries report unavailable analysis, not empty policy or a broader fallback.
+Use the same selection for audit and compilation. Inspection still cannot accept
+a policy change, supply restricted host grants, or publish staged outputs.
 
 `--offline` uses cached exact accepted Git pins and permits local source work.
 Missing cached content reports unavailable fresh analysis without network
