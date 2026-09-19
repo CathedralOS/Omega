@@ -1017,13 +1017,23 @@ Owners include
   products publish and check today. `build_native_proof_sidecar`
   (`omega-rust/omega/compiler/compilation-report/src/pcc.rs`) emits a native
   `.proof` beside the flat executable and inside `Contents/MacOS/`, carrying
-  the placed-image evidence section — the declared executable-text extent plus
-  the complete placed executable-region inventory over those bytes, with
-  region and gap digests, addresses, fingerprints and an inventory seal
-  (`pcc/native_evidence.rs`) — and `verify_native_proof_sidecar` replays that
-  section against the exact artifact bytes, rejecting a section that lies about
-  them and an envelope that relabels the semantic profile. That establishes
-  byte coverage and placement only, which is why the sidecar offers
+  the placed-image evidence section — the declared executable-text and
+  initialized-data extents plus the complete placed executable-region and
+  data-region inventories over those bytes, with region and gap digests,
+  addresses, fingerprints and both inventory seals
+  (`pcc/native_evidence.rs`) — and `verify_native_proof_sidecar` replays the
+  section against the exact artifact bytes, rejecting a section that lies
+  about them and an envelope that relabels the semantic profile. Section
+  version 2 additionally binds each claimed `ImportThunk` row to the declared
+  target's closed thunk form: only (x86_64, Coff) `jmp [rip+disp32]` and
+  (aarch64, MachO) `ADRP/LDR/BR X16` are thunk claims at all, the claimed
+  extent and footprint must equal the closed form's at decode, footprint
+  registers must belong to the declared architecture, and replay re-derives
+  the thunk opcodes from the committed bytes — on Mach-O additionally
+  requiring the decoded pointer load to pair exactly one committed
+  `ImportBindingSlot`, which is the first leg verifying what bytes do rather
+  than only where they sit. That still establishes custody and thunk
+  realization only, which is why the sidecar offers
   `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,
   and why every native pair still ends
   `Incomplete(UnsupportedEvidence { product: Native })`. The contract fixes
@@ -1036,7 +1046,8 @@ Owners include
 
   - Instruction rows decoded from the published text and checked against the
     closed semantics of the declared target.
-  - Entries, incoming edges and indirect targets over those same bytes.
+  - Entries and incoming edges over those same bytes, plus the PE thunk's
+    `.rdata` slot pairing (the IAT's custody is not in the data inventory).
   - Premise availability and lowering correspondence: either transform the
     Terminal obligations the Psi product carries into native rows, or prove the
     native obligations directly. Hashes of producer validation reports and an
