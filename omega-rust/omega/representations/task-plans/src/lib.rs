@@ -6,14 +6,15 @@
 //! admitted evidence; this crate deliberately does not publish a generalized
 //! runtime behavior record.
 //!
-//! Start at `activation_plans.rs`: the plan, its validators, its diagnostic
-//! and the facts a provider publishes about a plan.
+//! Start at `activation_plans.rs`: the plan, its exact marshalling argument
+//! layout, its validators, its diagnostic and the facts a provider publishes
+//! about a plan.
 //! `executor_selection` binds an executor to a plan's preservation axes,
 //! `runtime_invocation` receipts one activation, `stack_leases` issues the
 //! nonmoving stack authority, `lifecycle_ledger` runs the transactional
-//! start, tracks park/resume at canonical suspension crossings and the
-//! safe-point cancellation observation, and accounts for claims until
-//! outcome-bound settlement, `provider_admission`
+//! start over the marshalled argument image, tracks park/resume at canonical
+//! suspension crossings and the safe-point cancellation observation, and
+//! accounts for claims until outcome-bound settlement, `provider_admission`
 //! is the provider-side gate consuming those carriers for one admitted
 //! runtime instance, `stack_composition` projects WCSU stack plans,
 //! `identities` holds every coordinate, `report_fingerprints` the compact
@@ -38,7 +39,8 @@ pub use activation_plans::activation_plan_facts::{
 pub use activation_plans::diagnostic::TaskPlanDiagnostic;
 pub use activation_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing, StackPlan,
-    ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
+    TaskArgumentExtent, TaskArgumentLayout, ValidatedActivationPlan, validate_activation_plan,
+    validate_wcsu_activation_plan,
 };
 pub use executor_selection::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorSelectionCandidate,

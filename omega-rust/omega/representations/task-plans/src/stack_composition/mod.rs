@@ -1064,7 +1064,11 @@ mod tests {
         let candidate = crate::ActivationPlanCandidate {
             machine_contract: id(0x1610, crate::MachineContractId::from_normalized_identity),
             entry: id(0x1611, crate::MachineEntryId::from_normalized_identity),
-            argument_layout: id(0x1612, crate::ValueLayoutId::from_normalized_identity),
+            argument_layout: crate::TaskArgumentLayout::new(
+                id(0x1612, crate::ValueLayoutId::from_normalized_identity),
+                &[],
+            )
+            .expect("empty canonical argument layout"),
             terminal_outcome_layout: id(0x1613, crate::ValueLayoutId::from_normalized_identity),
             calling_plan: id(0x1614, crate::CallingPlanId::from_normalized_identity),
             stack_plan: substituted.stack_plan(),

@@ -28,6 +28,138 @@ pub struct StackPlan {
     pub representation: StackRepresentationId,
 }
 
+/// One moved argument's placement inside the packed marshalling image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TaskArgumentExtent {
+    /// Byte offset inside the marshalled image.
+    pub offset: u64,
+    /// Exact byte extent the argument occupies.
+    pub bytes: u64,
+    /// Alignment the argument is placed at.
+    pub alignment: u64,
+}
+
+/// The exact packed layout a task start's moved arguments marshal under.
+///
+/// `identity` remains the compact report coordinate derived from the checked
+/// parameter list. `fields`, `bytes` and `alignment` describe the marshalling
+/// image itself: each argument occupies its canonical aligned extent in
+/// source parameter order, and the image is the contiguous byte array a
+/// provider writes into the activation's argument area. Plan validation and
+/// marshalling both require the canonical packing
+/// [`pack_task_argument_fields`] derives, so a literal-built descriptor
+/// cannot carry overlapping fields or unconstrained padding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskArgumentLayout {
+    /// Compact report coordinate of the exact checked argument layout.
+    pub identity: ValueLayoutId,
+    /// Total bytes of the marshalled image, including interior and trailing
+    /// padding.
+    pub bytes: u64,
+    /// Alignment the marshalled image is placed at: the widest field
+    /// alignment, or one for an empty bundle.
+    pub alignment: u64,
+    /// Per-argument placement in source parameter order.
+    pub fields: Vec<TaskArgumentExtent>,
+}
+
+impl TaskArgumentLayout {
+    /// The canonical marshalling layout for `arguments` supplied as
+    /// `(bytes, alignment)` pairs in source parameter order.
+    pub fn new(
+        identity: ValueLayoutId,
+        arguments: &[(u64, u64)],
+    ) -> Result<Self, TaskPlanDiagnostic> {
+        let (fields, bytes, alignment) = pack_task_argument_fields(arguments.iter().copied())?;
+        Ok(Self {
+            identity,
+            bytes,
+            alignment,
+            fields,
+        })
+    }
+
+    /// Whether this descriptor is exactly the canonical packing of its own
+    /// field demands — what [`TaskArgumentLayout::new`] produces. Activation
+    /// validation and argument marshalling both require it so a hand-built
+    /// layout cannot carry non-canonical offsets or free padding.
+    pub fn is_canonical(&self) -> bool {
+        canonical_argument_layout(self).is_ok_and(|canonical| canonical == *self)
+    }
+}
+
+/// Largest field alignment the marshalling image supports. Every
+/// source-representable argument alignment fits; the bound keeps a hostile
+/// or corrupted field table from inflating padding into an unbounded image.
+const MAX_TASK_ARGUMENT_ALIGNMENT: u64 = 1 << 16;
+
+/// Pack `(bytes, alignment)` argument demands into their canonical field
+/// extents: each argument lands at the next offset aligned to its own
+/// alignment, and the image extent rounds the final cursor up to the widest
+/// field alignment (one for an empty bundle).
+fn pack_task_argument_fields(
+    arguments: impl Iterator<Item = (u64, u64)>,
+) -> Result<(Vec<TaskArgumentExtent>, u64, u64), TaskPlanDiagnostic> {
+    let mut fields = Vec::new();
+    let mut cursor = 0u64;
+    let mut image_alignment = 1u64;
+    for (index, (bytes, alignment)) in arguments.enumerate() {
+        if alignment == 0 || !alignment.is_power_of_two() {
+            return Err(TaskPlanDiagnostic(format!(
+                "task argument field {index} alignment {alignment} is not a nonzero power of two"
+            )));
+        }
+        if alignment > MAX_TASK_ARGUMENT_ALIGNMENT {
+            return Err(TaskPlanDiagnostic(format!(
+                "task argument field {index} alignment {alignment} exceeds the marshalling \
+                 bound {MAX_TASK_ARGUMENT_ALIGNMENT}"
+            )));
+        }
+        image_alignment = image_alignment.max(alignment);
+        let offset = cursor
+            .checked_add(alignment - 1)
+            .map(|padded| padded & !(alignment - 1))
+            .ok_or_else(|| {
+                TaskPlanDiagnostic(format!(
+                    "task argument field {index} offset overflows the marshalling image"
+                ))
+            })?;
+        fields.push(TaskArgumentExtent {
+            offset,
+            bytes,
+            alignment,
+        });
+        cursor = offset.checked_add(bytes).ok_or_else(|| {
+            TaskPlanDiagnostic(format!(
+                "task argument field {index} extent overflows the marshalling image"
+            ))
+        })?;
+    }
+    let bytes = cursor
+        .checked_add(image_alignment - 1)
+        .map(|padded| padded & !(image_alignment - 1))
+        .ok_or_else(|| TaskPlanDiagnostic("task argument image extent overflows".into()))?;
+    Ok((fields, bytes, image_alignment))
+}
+
+/// Re-derive the canonical descriptor a stored field table claims to be.
+fn canonical_argument_layout(
+    layout: &TaskArgumentLayout,
+) -> Result<TaskArgumentLayout, TaskPlanDiagnostic> {
+    let (fields, bytes, alignment) = pack_task_argument_fields(
+        layout
+            .fields
+            .iter()
+            .map(|field| (field.bytes, field.alignment)),
+    )?;
+    Ok(TaskArgumentLayout {
+        identity: layout.identity,
+        bytes,
+        alignment,
+        fields,
+    })
+}
+
 /// One canonical semantic crossing at which the activation can park.
 ///
 /// `identity` binds the detailed checked-tree crossing record retained in the
@@ -73,7 +205,10 @@ impl ActivationCarryObligations {
 pub struct ActivationPlanCandidate {
     pub machine_contract: MachineContractId,
     pub entry: MachineEntryId,
-    pub argument_layout: ValueLayoutId,
+    /// The exact packed layout moved start arguments marshal under. The
+    /// retained field table — not just its `identity` coordinate — is what
+    /// the provider boundary checks a presented bundle against.
+    pub argument_layout: TaskArgumentLayout,
     pub terminal_outcome_layout: ValueLayoutId,
     pub calling_plan: CallingPlanId,
     pub stack_plan: StackPlan,
@@ -182,6 +317,12 @@ fn validate_activation_plan_shape(
     {
         return Err(TaskPlanDiagnostic(
             "a possible suspension crossing carries a value that forbids suspension".into(),
+        ));
+    }
+    let canonical_layout = canonical_argument_layout(&candidate.argument_layout)?;
+    if canonical_layout != candidate.argument_layout {
+        return Err(TaskPlanDiagnostic(
+            "activation argument layout is not the canonical packed marshalling layout".into(),
         ));
     }
     let crossing_requirements = ActivationCarryObligations::required_by_crossings(

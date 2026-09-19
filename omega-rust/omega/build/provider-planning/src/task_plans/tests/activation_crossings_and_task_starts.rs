@@ -478,7 +478,16 @@ fn concrete_task_start_specialization_elaborates_a_validated_plan() {
     assert_eq!(plan.carry_obligations, ActivationCarryObligations::none());
     assert!(plan.cancellation_required);
     assert_ne!(plan.machine_contract.normalized_identity(), 0);
-    assert_ne!(plan.argument_layout.normalized_identity(), 0);
+    assert_ne!(plan.argument_layout.identity.normalized_identity(), 0);
+    // `Worker::run` takes one `Job { value: i32 }` argument: the marshalling
+    // layout packs it as one four-byte field at offset 0 in a four-byte
+    // image — the exact byte extent a moved start bundle marshals under.
+    assert_eq!(plan.argument_layout.fields.len(), 1);
+    assert_eq!(plan.argument_layout.fields[0].offset, 0);
+    assert_eq!(plan.argument_layout.fields[0].bytes, 4);
+    assert_eq!(plan.argument_layout.fields[0].alignment, 4);
+    assert_eq!(plan.argument_layout.bytes, 4);
+    assert_eq!(plan.argument_layout.alignment, 4);
     assert_ne!(plan.terminal_outcome_layout.normalized_identity(), 0);
     assert_ne!(
         activation.plan.normalized_identity().normalized_identity(),

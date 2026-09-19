@@ -109,7 +109,12 @@ pub fn elaborate_task_activation_plans(
             entry_report_fingerprint,
             MachineEntryId::from_normalized_identity,
         )?;
-        let argument_layout_report_fingerprint = signature_layout_report_fingerprint(
+        // The argument layout is more than a report coordinate: the
+        // marshalling image packs each non-self parameter's concrete
+        // size/alignment at its canonical offset, and the retained field
+        // table is what the provider boundary checks a presented bundle
+        // against.
+        let argument_value_layouts = signature_value_layouts(
             program,
             target,
             opaque_representation_selections,
@@ -119,16 +124,27 @@ pub fn elaborate_task_activation_plans(
                 .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.type_reference),
         )?;
-        let argument_layout = normalized_id(
-            argument_layout_report_fingerprint,
-            ValueLayoutId::from_normalized_identity,
-        )?;
-        let outcome_layout_report_fingerprint = signature_layout_report_fingerprint(
+        let argument_layout_report_fingerprint =
+            signature_layout_report_fingerprint(program, &argument_value_layouts);
+        let argument_layout = task_plans::TaskArgumentLayout::new(
+            normalized_id(
+                argument_layout_report_fingerprint,
+                ValueLayoutId::from_normalized_identity,
+            )?,
+            &argument_value_layouts
+                .iter()
+                .map(|(_, layout)| (layout.size as u64, layout.alignment as u64))
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        let outcome_value_layouts = signature_value_layouts(
             program,
             target,
             opaque_representation_selections,
             std::iter::once(entry.return_type),
         )?;
+        let outcome_layout_report_fingerprint =
+            signature_layout_report_fingerprint(program, &outcome_value_layouts);
         let terminal_outcome_layout = normalized_id(
             outcome_layout_report_fingerprint,
             ValueLayoutId::from_normalized_identity,
@@ -258,28 +274,51 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     hash.finish()
 }
 
-fn signature_layout_report_fingerprint(
+/// The concrete per-parameter layouts a start signature marshals under, in
+/// source parameter order.
+fn signature_value_layouts(
     program: &CheckedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     types: impl IntoIterator<Item = checked_trees::types::TypeReferenceHandle>,
-) -> Result<u64, Vec<Diagnostic>> {
+) -> Result<
+    Vec<(
+        checked_trees::types::TypeReferenceHandle,
+        layout::TypeLayout,
+    )>,
+    Vec<Diagnostic>,
+> {
+    types
+        .into_iter()
+        .map(|type_reference| {
+            layout::layout_type_reference(
+                program,
+                target,
+                opaque_representation_selections,
+                type_reference,
+            )
+            .map(|layout| (type_reference, layout))
+            .map_err(|error| vec![error])
+        })
+        .collect()
+}
+
+fn signature_layout_report_fingerprint(
+    program: &CheckedTrees,
+    layouts: &[(
+        checked_trees::types::TypeReferenceHandle,
+        layout::TypeLayout,
+    )],
+) -> u64 {
     let mut hash = StableHash::new();
     hash.byte(0x51);
-    for type_reference in types {
-        let layout = layout::layout_type_reference(
-            program,
-            target,
-            opaque_representation_selections,
-            type_reference,
-        )
-        .map_err(|error| vec![error])?;
-        hash.string(program.normalized_type_identity(type_reference).as_str());
+    for (type_reference, layout) in layouts {
+        hash.string(program.normalized_type_identity(*type_reference).as_str());
         hash.usize(layout.size);
         hash.usize(layout.alignment);
         hash.byte(0xff);
     }
-    Ok(hash.finish())
+    hash.finish()
 }
 
 fn entry_report_fingerprint(
