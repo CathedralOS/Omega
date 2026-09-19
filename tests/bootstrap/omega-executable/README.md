@@ -30,9 +30,11 @@ new successful run. The command's successful final result is the acceptance gate
 The evaluator reconstruction has a 300-second watchdog, compiler execution has
 14,400 seconds by default, and the emitted program has 30 seconds. Expiration
 kills the invoked process tree and is not an Omega result. Set
-`OMEGA_EXECUTABLE_OBSERVATION_SECONDS` to a positive number for another compiler
-observation allowance. `OMEGA_EXECUTABLE_BUILD_DIR` selects a different output
-directory. These are host controls, not language semantics.
+`OMEGA_EXECUTABLE_RECEIPT_SECONDS` to a positive number for another
+reconstruction allowance and `OMEGA_EXECUTABLE_OBSERVATION_SECONDS` for another
+compiler observation allowance; both receipts stay pinned to the selected gate
+identity regardless of the allowance. `OMEGA_EXECUTABLE_BUILD_DIR` selects a
+different output directory. These are host controls, not language semantics.
 
 ## Current compiler slice
 
@@ -63,20 +65,38 @@ Resource and internal failures remain distinct from successful compilation.
 
 ```sh
 sh tests/bootstrap/omega-executable/run.sh --controls
+sh tests/bootstrap/omega-executable/run.sh --controls-b
+sh tests/bootstrap/omega-executable/run.sh --controls-c
+sh tests/bootstrap/omega-executable/run.sh --controls-d
+sh tests/bootstrap/omega-executable/run.sh --controls-e
 ```
 
-The [ordinary Epsilon controls](controls.epsilon) reuse one compiler across
-thirty-five invocations: zero and maximum byte results, folded arithmetic,
-bitwise and shift operations with precedence and grouping, multiple
-declarations and selection of a non-first entry, duplicate names, missing
-entry, out-of-range and oversized decimal values, an out-of-range expression
-operand, overflow, underflow, division and modulo by zero, out-of-width and
-overflowing shifts, an invalid unselected body, unsupported comparison, path,
-unary and other expressions and return types, a named-state-only machine,
-digit separators, malformed syntax, and successful reuse after failures.
+The ordinary Epsilon controls reuse one compiler across thirty-five
+invocations split among [controls.epsilon](controls.epsilon),
+[controls_b.epsilon](controls_b.epsilon),
+[controls_c.epsilon](controls_c.epsilon),
+[controls_d.epsilon](controls_d.epsilon), and
+[controls_e.epsilon](controls_e.epsilon): zero and maximum byte results,
+folded arithmetic, bitwise and shift operations with precedence and grouping,
+multiple declarations and selection of a non-first entry, duplicate names,
+missing entry, out-of-range and oversized decimal values, an out-of-range
+expression operand, overflow, underflow, division and modulo by zero,
+out-of-width and overflowing shifts, an invalid unselected body, unsupported
+comparison, path, unary and other expressions and return types, a
+named-state-only machine, digit separators, malformed syntax, and successful
+reuse after failures.
 Every rejection requires an empty unsealed
 tape. A final exact literal byte comparison precedes execution of the actual
 emitted tape; the expected bytes are never used as the executable input.
+
+The split is an evaluator resource boundary, not a compiler one: each
+invocation is a fresh evaluation, and the Gamma evaluator's cumulative
+immutable pair arena — exactly 40,265,318 nodes, refused with status 252 —
+cannot retain one run through even an eighteen-invocation half of the
+matrix. Each part therefore carries seven or fewer controls and ends with
+the same `20 + 22` success compile, byte `67`, and tape publication, so
+every run checks the same observation and executes the same emitted
+program.
 
 ## Execution boundary
 
