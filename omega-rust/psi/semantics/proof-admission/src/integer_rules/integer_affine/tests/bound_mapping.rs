@@ -1273,3 +1273,115 @@ fn direct_shift_bound_replays_count_range_and_sign_oriented_endpoint() {
         Err(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth),
     );
 }
+
+#[test]
+fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let root = value(1, integer_type);
+    let target = value(2, integer_type);
+    let literal = |value| literal(integer_type, value);
+    let context = PropositionContext::from_value_types(
+        (1..=2).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::integer_bitwise_and(integer_type, root.clone(), literal(15)).unwrap(),
+    );
+    let witness = IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![0],
+        literal_axioms: vec![None],
+    };
+    let checked =
+        check_integer_affine_witness(&context, std::slice::from_ref(&definition), &witness)
+            .expect("bitwise-and mask witness");
+
+    // The mask image is total: `Truth` yields both endpoints of `[0, 15]`.
+    assert_eq!(
+        integer_affine_truth_bounds(&checked),
+        Ok(vec![
+            Proposition::LessOrEqual(literal(0), target.clone()),
+            Proposition::LessOrEqual(target.clone(), literal(15)),
+        ]),
+    );
+
+    // An upper root bound maps to the mask, not to its own literal:
+    // `c <= 259` becomes `target <= 15`.
+    assert_eq!(
+        map_integer_affine_bound(
+            &checked,
+            &Proposition::LessOrEqual(root.clone(), literal(259)),
+        ),
+        Ok(Proposition::LessOrEqual(target.clone(), literal(15))),
+    );
+    // A lower root bound collapses to zero; even `5 <= c` cannot keep the
+    // literal since masking drops operand bits.
+    assert_eq!(
+        map_integer_affine_bound(
+            &checked,
+            &Proposition::LessOrEqual(literal(5), root.clone()),
+        ),
+        Ok(Proposition::LessOrEqual(literal(0), target.clone())),
+    );
+    // A strict bound is not a translation through a mask and rejects.
+    assert_eq!(
+        map_integer_affine_bound(&checked, &Proposition::LessThan(root.clone(), literal(259)),),
+        Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation),
+    );
+    // A conclusion that does not match the image rejects.
+    assert_eq!(
+        check_integer_affine_bound_conversion(
+            &checked,
+            &Proposition::LessOrEqual(root.clone(), literal(259)),
+            &Proposition::LessOrEqual(target.clone(), literal(16)),
+        ),
+        Err(IntegerAffineBoundConversionError::ConclusionMismatch),
+    );
+    assert_eq!(
+        check_integer_affine_bound_conversion(
+            &checked,
+            &Proposition::LessOrEqual(literal(0), root.clone()),
+            &Proposition::LessOrEqual(literal(1), target.clone()),
+        ),
+        Err(IntegerAffineBoundConversionError::ConclusionMismatch),
+    );
+
+    // The same step inside a longer chain keeps mapping through later
+    // translations: `v = c & 15; w = v - 3` sends `c <= 259` to `w <= 12`.
+    let widened = value(3, integer_type);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let axioms = [
+        definition,
+        Proposition::Equal(
+            widened.clone(),
+            ScalarTerm::exact_integer_subtract(integer_type, target.clone(), literal(3)).unwrap(),
+        ),
+    ];
+    let chained = check_integer_affine_witness(
+        &context,
+        &axioms,
+        &IntegerAffineWitness {
+            root: root.clone(),
+            target: widened.clone(),
+            definition_axioms: vec![0, 1],
+            literal_axioms: vec![None, None],
+        },
+    )
+    .expect("mask then subtract chain");
+    assert_eq!(
+        map_integer_affine_bound(
+            &chained,
+            &Proposition::LessOrEqual(root.clone(), literal(259)),
+        ),
+        Ok(Proposition::LessOrEqual(widened.clone(), literal(12))),
+    );
+    assert_eq!(
+        map_integer_affine_bound(&chained, &Proposition::LessOrEqual(literal(0), root),),
+        Ok(Proposition::LessOrEqual(literal(-3), widened)),
+    );
+}

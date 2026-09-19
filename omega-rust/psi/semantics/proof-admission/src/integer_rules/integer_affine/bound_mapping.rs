@@ -137,6 +137,13 @@ pub fn map_integer_affine_bound(
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?,
             ),
             CheckedIntegerEndpointStep::ShiftRight(count) => Some(mapped >> count),
+            // A bitwise-and step discards the incoming endpoint: with a
+            // checked non-negative mask the result sets only mask bits, so
+            // its image is `[0, mask]` whatever bound the operand carried.
+            // Neither endpoint inherits the root's literal.
+            CheckedIntegerEndpointStep::BitwiseAndMask(mask) => {
+                Some(if current_is_lower { 0 } else { *mask })
+            }
             // `v = (x + c) mod 2^w` never exceeds `x + c`, so an upper bound on
             // `x` maps unconditionally. A lower bound survives only when the
             // same definition proves `x <= maximum - c`, so the sum cannot

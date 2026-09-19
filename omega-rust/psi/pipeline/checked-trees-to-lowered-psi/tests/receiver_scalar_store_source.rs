@@ -685,3 +685,51 @@ fn canonical_verifier_rejects_shared_access_substituted_for_mutable_receiver() {
         Err(terminal_verifier::ModuleError::InvalidStructuralScalarFieldStore { .. })
     ));
 }
+
+#[test]
+fn ranged_field_store_proves_a_nonnegative_bitwise_and_mask() {
+    // The proof-side range fold admits `x & mask` for a non-negative mask:
+    // `c & 15` lands in `[0, 15]` whatever range `c` carried, so the store
+    // into the declared `[0..=15]` field needs no source-level guard.
+    let source = r#"
+        data Cell { current: i32 [0..=259]; masked: i32 [0..=15]; }
+        machine Cell::mask(&mut self) {
+            self.current = 259;
+            self.masked = self.current & 15;
+        }
+    "#;
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
+        .expect("ranged bitwise-and store checks");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Cell::mask")
+        .produce_artifact()
+        .expect("the mask image proves into the declared range");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+}
+
+#[test]
+fn ranged_field_store_rejects_a_mask_image_wider_than_the_field() {
+    // `c & 255` lands in `[0, 255]`, which does not fit the declared
+    // `[0..=15]` field: the store obligation stays unproved and source
+    // checking rejects the assignment.
+    let source = r#"
+        data Cell { current: i32 [0..=259]; masked: i32 [0..=15]; }
+        machine Cell::mask(&mut self) {
+            self.current = 259;
+            self.masked = self.current & 255;
+        }
+    "#;
+    let diagnostics =
+        match typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source)) {
+            Ok(_) => panic!("a mask image wider than the field cannot prove the store"),
+            Err(diagnostics) => diagnostics,
+        };
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove assignment value `self.current & 255`")
+            && diagnostic.message.contains("expected 0..=15")
+    }));
+}
