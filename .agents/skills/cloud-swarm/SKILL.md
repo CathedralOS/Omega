@@ -12,6 +12,15 @@ item; the coordinator also works items serially as the last slot.
 
 Never sit still. The wave fails when the coordinator waits on one thing:
 
+- **Reconcile slots every turn.** At every turn boundary — after any tool batch,
+  after any user message, and before returning to your own item — run
+  `devin_session_search parent_session_id=<self>` and count children that are
+  `running` or `new`. If the count is below the wave target, a slot is free:
+  drain anything in `exit`/`suspended`/`archived` state (record its outcome,
+  then `terminate`) and spawn the next queue item. Settle notifications are
+  unreliable: sessions die silently as `suspended (user_request)`,
+  `suspended (inactivity)`, or vanish to `403` — only the search count tells
+  the truth. Notifications are a bonus, never the trigger.
 - **Notifications drive drains.** When a settle notification arrives, handle it
   immediately: `devin_session_interact get` → verify commits are ancestors of
   `origin/main` → append a record to the wave outcomes file → `terminate` →
@@ -24,14 +33,22 @@ Never sit still. The wave fails when the coordinator waits on one thing:
 - **Your item fills spare time.** Between drains, work the coordinator item:
   read code, apply edits, launch checks. Always have the next micro-step
   identified so no turn ends in "waiting".
-- **Poll opportunistically.** Every ~10 minutes without a notification, batch a
-  status `get` over all live sessions — sessions sometimes settle without a
-  visible notification or land `waiting_for_user` with structured output set.
 
 ## Slots
 
-- Respect the org concurrency cap (the API refuses creation past it; on the
-  free SWE-2 promotion it is ~7 total including the coordinator).
+- The concurrency cap is **org-wide and shared across every coordinator and
+  user**, not per-wave. On the free SWE-2 promotion it is ~7 SWE-2 sessions
+  total. Sessions outside your visibility (another coordinator's workers,
+  zombie sessions that answer `403`) hold real slots — your own search will
+  never show them.
+- **Suspended and archived sessions still hold slots.** `suspended` with any
+  `status_detail` keeps occupying the cap until `terminate` completes. Drain
+  and terminate every dead session the moment you see it; do not assume
+  `archived` means released.
+- A `429` while your visible running count is below the cap means another
+  coordinator holds the remainder: keep the failed spawn pending and retry it
+  on every drain — the slot opens whenever the other wave frees one. The wave's
+  effective width is `visible running + coordinator`; treat it as the target.
 - `terminate` is asynchronous — wait ~30-60s after terminating before spawning
   a replacement, or the create may 429.
 - Probe slots (`probe_only` in the manifest) are real work: they report
