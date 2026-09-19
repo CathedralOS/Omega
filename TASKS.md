@@ -3775,7 +3775,12 @@ Owners include
   dynamic joins; `composed_control/routing.rs` still has closed-sum and basic
   conditional routes beside the shared graph. Preserve compile-known receiver
   attachment authority and claim transport when consolidating those routes;
-  a failed source/custody rejoin must never fall back to a weaker recognizer.
+  the general graph currently rejects boundary completion receipts in both
+  `execution/unit/state_graph/mod.rs` and lowering's `state_graph/body.rs`.
+  Move exact receipt-to-argument and source-consumption checks out of the
+  three-state custody path before deleting it; `composed_unit_claims.rs` pins
+  shared linear custody across exclusive arms and corrupted receipt/fact rejection.
+  A failed source/custody rejoin must never fall back to a weaker recognizer.
   Acceptance: one caller combines those ordinary operations, with reordered
   state declarations and inserted computations, while forged edge bindings,
   missing provider authority and conflicting loans still reject. Do not add a
