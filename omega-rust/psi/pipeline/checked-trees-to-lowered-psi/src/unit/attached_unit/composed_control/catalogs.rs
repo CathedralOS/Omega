@@ -8,10 +8,10 @@ use super::super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
     LoweredPsi, Multiplicity, ScalarType, SemanticDomainId, ServiceReachSummary,
     StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralTypeId,
-    boundary_machine_id, dense_identity, lookup_type_id, lower_boundary_content_guarantees,
-    lower_boundary_crash_routes, lower_fixed_boundary_service_reach,
-    lower_published_service_ceiling, lower_root_service_reach, lower_unit_parameters,
-    terminal_scalar_type, unsupported,
+    ValueDeclaration, boundary_machine_id, dense_identity, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
+    lower_unit_parameters, terminal_scalar_type, unsupported,
 };
 use super::{CheckedTrees, LoweringError, admission, internal_calls, scalar_calls};
 use crate::unit::attached_unit::bodies::UnitBody;
@@ -20,6 +20,7 @@ use crate::unit::attached_unit::catalog::{
     collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
     lower_unit_structural_type_roots,
 };
+use semantic_vocabulary::Proposition;
 use std::borrow::Cow;
 
 /// Standalone roots own their publication tables; shared callees borrow the
@@ -111,6 +112,12 @@ pub(crate) struct LoweredComposedInternalTarget {
     pub(super) source: symbols::SymbolHandle,
     pub(super) id: MachineId,
     pub(super) scalar_parameters: Vec<ScalarType>,
+    /// The callee's published erased-formal roster; a call carries one
+    /// proof-only erased argument per row.
+    pub(super) erased_scalar_formals: Vec<ValueDeclaration>,
+    /// The callee's published `requires` clauses in contract order; the call
+    /// allocates one obligation per row.
+    pub(super) requires: Vec<Proposition>,
     pub(super) structural_parameters: Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
     pub(super) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }

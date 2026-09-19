@@ -6,7 +6,7 @@ use super::super::super::{
 use super::super::{
     BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, ScalarType, SemanticDomainId,
     StructuralDomainId, StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
-    unique_unit_boundary, unsupported,
+    unique_unit_boundary,
 };
 use super::{
     CheckedTrees, LoweringError, admission, catalogs, emission, scalar_calls, state_graph,
@@ -116,16 +116,13 @@ pub(in crate::unit::attached_unit) fn emit(
         .map(|(body, _)| {
             let target = body.entry()?;
             let signature = signatures::find(shared.signatures, target.machine)?;
-            if !signature.requires.is_empty() {
-                return unsupported(
-                    "composed Unit call needs structural arguments or caller-specific requirements",
-                );
-            }
             Ok(catalogs::LoweredComposedInternalTarget {
                 result: body.result()?,
                 source: target.machine,
                 structural_parameters: target.structural_parameters.to_vec(),
                 id: lookup_machine_id(shared.machine_ids, target.machine)?,
+                erased_scalar_formals: signature.erased_scalar_parameters.clone(),
+                requires: signature.requires.clone(),
                 scalar_parameters: signature
                     .scalar_parameters
                     .iter()

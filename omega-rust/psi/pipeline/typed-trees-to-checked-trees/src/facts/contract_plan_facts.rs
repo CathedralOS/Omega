@@ -483,6 +483,9 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             SignatureContractKind::Crashes { .. } => has_crash_clauses = true,
         }
     }
+    // Authored requires clauses lead the roster; parameter-range rows follow
+    // as a derived tail so consumers can publish the authored block alone.
+    let authored_requires_len = requires.len();
     // One constraint walk produces the requires tail and the floating roster
     // together so a `FloatRange` clause and its retained evidence can never
     // disagree about which authored range they describe.
@@ -494,5 +497,6 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
         has_crash_clauses,
         has_outcome_specific_clauses,
     )
+    .with_authored_requires_len(authored_requires_len)
     .with_float_entry_ranges(ranges.float_entry_ranges)
 }

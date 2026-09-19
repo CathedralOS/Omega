@@ -1274,7 +1274,25 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
     {
         return Some(structural);
     }
-    let parameter_types = parameters
+    // A machine parameter without a primitive carrier keeps the scalar path
+    // unreachable: those predicates lower through
+    // `lower_structural_boolean_expression` instead, and an address-typed
+    // equality must never gain a fixed-integer crash meaning.
+    parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    // `lower_boolean_expression` resolves `CheckedScalarExpression::Parameter`
+    // positions against `parameters`, which lowering consumers read as the
+    // dense retained-scalar roster; `[erased]` and structural bindings must
+    // stay out of it so their references fall through to the erased/structural
+    // branches that still see the authored roster.
+    let scalar_parameters = parameters
+        .iter()
+        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
+        .cloned()
+        .collect::<Vec<_>>();
+    let parameter_types = scalar_parameters
         .iter()
         .map(|parameter| program.primitive_type_reference(parameter.type_reference))
         .collect::<Option<Vec<_>>>()?;
@@ -1282,7 +1300,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         program,
         operators,
         expression,
-        parameters,
+        &scalar_parameters,
         parameters,
         &parameter_types,
         &[],

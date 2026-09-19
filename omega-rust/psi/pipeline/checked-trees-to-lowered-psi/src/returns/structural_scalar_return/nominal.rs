@@ -468,10 +468,13 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     {
         return unsupported("contextual nominal scalar full caller requirements are duplicated");
     }
-    let full_caller_requires = full_caller_clauses
+    let mut full_caller_requires = full_caller_clauses
         .into_iter()
         .map(|(_, proposition)| proposition)
         .collect::<Vec<_>>();
+    // Clause order follows (expected, root, field) source keys; the codec
+    // requires canonical proposition order, so normalize before publishing.
+    full_caller_requires.sort();
     if lowered.semantic_module.machines[entry_index]
         .contract
         .requires
@@ -1358,6 +1361,10 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     entry.blocks = blocks;
     entry.parameters = scalar_parameters;
     entry.contract.requires.extend(scalar_requirements);
+    // The codec publishes requires rows strictly increasing; extend-then-sort
+    // keeps authored clauses and scalar entry requirements canonical together.
+    entry.contract.requires.sort();
+    entry.contract.requires.dedup();
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
         qualifications: Default::default(),
         id: value_id(next_value),

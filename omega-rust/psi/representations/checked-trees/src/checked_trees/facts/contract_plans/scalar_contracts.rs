@@ -39,6 +39,9 @@ pub enum ClosedScalarContractValue {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClosedScalarValueContractPlan {
     requires: Vec<Option<ClosedScalarContractValue>>,
+    /// Length of the authored `requires` prefix inside `requires`; the
+    /// remainder is the derived parameter-range tail the plan appends.
+    authored_requires_len: usize,
     ensures: Vec<Option<ClosedScalarContractValue>>,
     has_crash_clauses: bool,
     has_outcome_specific_clauses: bool,
@@ -60,8 +63,12 @@ impl ClosedScalarValueContractPlan {
         has_crash_clauses: bool,
         has_outcome_specific_clauses: bool,
     ) -> Self {
+        // A caller that cannot name the authored/range split built this plan
+        // from authored rows only, so the whole requires roster is authored.
+        let authored_requires_len = requires.len();
         Self {
             requires,
+            authored_requires_len,
             ensures,
             has_crash_clauses,
             has_outcome_specific_clauses,
@@ -69,6 +76,11 @@ impl ClosedScalarValueContractPlan {
             // must ride back on through `with_float_entry_ranges`.
             float_entry_ranges: None,
         }
+    }
+
+    pub fn with_authored_requires_len(mut self, authored_requires_len: usize) -> Self {
+        self.authored_requires_len = authored_requires_len;
+        self
     }
 
     pub fn with_float_entry_ranges(
@@ -86,6 +98,12 @@ impl ClosedScalarValueContractPlan {
 
     pub fn requires(&self) -> &[Option<ClosedScalarContractValue>] {
         &self.requires
+    }
+
+    /// Requires rows lowered from authored `requires` contract clauses,
+    /// ahead of the derived parameter-range tail.
+    pub fn authored_requires(&self) -> &[Option<ClosedScalarContractValue>] {
+        &self.requires[..self.authored_requires_len]
     }
 
     pub fn ensures(&self) -> &[Option<ClosedScalarContractValue>] {

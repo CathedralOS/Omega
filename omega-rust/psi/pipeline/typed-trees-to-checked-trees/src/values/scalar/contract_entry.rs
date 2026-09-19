@@ -174,7 +174,10 @@ impl EntryOperands<'_> {
                 .iter()
                 .filter(|parameter| {
                     parameter.relevance.is_erased()
-                        && crate::values::scalar::occupies_scalar_position(self.program, parameter)
+                        && self
+                            .program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
                 })
                 .count(),
         )
