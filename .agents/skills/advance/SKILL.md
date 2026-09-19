@@ -90,6 +90,11 @@ Witness the failure before editing. Read the generated phase artifacts described
 in AGENTS.md before instrumenting compiler code. Distinguish the observed boundary
 from downstream gaps inferred from source. A checked-tree milestone can be useful
 while native production remains blocked, but report that boundary accurately.
+On a proof-rejection diagnostic (`cannot prove`, `disproved`, `no entailment
+tier`, `structurally false`), `python tools/proof_advisor.py --omega
+<binary> <root.omg>` annotates it with a Jev contradiction-vs-capability
+classification — advisory only: it orders investigation, never discharges
+anything, and admission fences stay out of its scope by design.
 
 Apply [compositional lowering](../../../AGENTS.md#compositional-lowering) before
 turning that failure into another narrowly admitted source family. If supported
