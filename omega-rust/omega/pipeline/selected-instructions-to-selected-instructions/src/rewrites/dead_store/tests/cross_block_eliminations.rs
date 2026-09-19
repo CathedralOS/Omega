@@ -1,9 +1,10 @@
 use super::{
-    BETWEEN, DEAD_SEQUENCE_INDEX, KILLER, MATERIALIZE_COUNT, MATERIALIZE_INDEX, PACKED_SCRATCH,
-    POINTER, SCRATCH, SEQUENCE_INDEX, SPAN_COUNT, STORE, VALUE, access, budget, chained,
-    crossed_edge, dead_byte, define_count, define_count_as, eliminate, fixture, instruction,
-    make_packed_dead, mutated_chained, packed_dead_chained, place, sequence_store, settlement,
-    settlement_at, span_copy, span_length, successor,
+    BETWEEN, DEAD_SEQUENCE_INDEX, DEAD_SPAN_COUNT, KILLER, MATERIALIZE_COUNT, MATERIALIZE_INDEX,
+    PACKED_SCRATCH, POINTER, SCRATCH, SEQUENCE_INDEX, SPAN_COUNT, STORE, VALUE, access, budget,
+    chained, crossed_edge, dead_byte, dead_span_copy, dead_span_length, define_count,
+    define_count_as, eliminate, fixture, instruction, make_packed_dead, mutated_chained,
+    packed_dead_chained, place, runtime_count, sequence_store, settlement, settlement_at,
+    span_copy, span_length, successor,
 };
 use crate::rewrites::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -2174,6 +2175,141 @@ fn cross_block_local_dead_write_eliminates_across_the_edge() {
         );
         validate_dead_store_elimination(
             &source,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// The `CopyBytes` dead store walks across edges like every other route:
+/// the copy sits in block 0 and the covering write opens block 1. A runtime
+/// `length` is covered by a second `CopyBytes` spelling the same extent
+/// there; a materialized `length` collapses the dead extent to an exact
+/// range the successor's plain store contains.
+#[test]
+fn byte_span_dead_store_dies_across_an_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Runtime count: the covering copy in block 1 writes the same
+        // extent — the same `byte_offset` and the same `length` value.
+        let same_extent = mutated_chained(target, |function, environment| {
+            dead_span_copy(
+                function,
+                environment,
+                0,
+                DEAD_SPAN_COUNT,
+                dead_span_length(),
+            );
+            runtime_count(function, environment, DEAD_SPAN_COUNT, dead_span_length());
+            span_copy(
+                function,
+                environment,
+                KILLER,
+                1,
+                0,
+                SPAN_COUNT,
+                dead_span_length(),
+            );
+            runtime_count(function, environment, SPAN_COUNT, dead_span_length());
+        });
+        let result = eliminate(&same_extent, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![KILLER]
+        );
+        // Both of the dead copy's rows drop; the covering copy's span and
+        // source read survive.
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    KILLER,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: dead_span_length(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    }
+                ),
+                (
+                    KILLER,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: dead_span_length(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    }
+                ),
+            ]
+        );
+        validate_dead_store_elimination(
+            &same_extent,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // Resolved count: the dead extent is eight bytes at offset 0, and
+        // the successor block's exact store contains it.
+        let resolved = mutated_chained(target, |function, environment| {
+            dead_span_copy(
+                function,
+                environment,
+                0,
+                DEAD_SPAN_COUNT,
+                dead_span_length(),
+            );
+            define_count_as(
+                function,
+                environment,
+                0,
+                1,
+                MATERIALIZE_INDEX,
+                DEAD_SPAN_COUNT,
+                dead_span_length(),
+                8,
+            );
+        });
+        let result = eliminate(&resolved, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
+        );
+        validate_dead_store_elimination(
+            &resolved,
             0,
             STORE,
             &environment,

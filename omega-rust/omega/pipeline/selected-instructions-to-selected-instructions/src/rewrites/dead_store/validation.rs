@@ -13,10 +13,10 @@ use crate::ValidatedSelectedAnalysis;
 
 /// Independently consume the proposed program: admission re-derives the dead
 /// pair from the source, and the proposal must equal the source minus exactly
-/// the admitted store, its write row, and the shifted settlement ordinals.
-/// Reinserting the store and its row with the source settlements must restore
-/// the complete source by content — every other instruction, register, call,
-/// and function included.
+/// the admitted store, its complete roster rows, and the shifted settlement
+/// ordinals. Reinserting the store and its rows with the source settlements
+/// must restore the complete source by content — every other instruction,
+/// register, call, and function included.
 pub fn validate_dead_store_elimination(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -42,7 +42,7 @@ pub fn validate_dead_store_elimination(
         .memory_accesses
         .iter()
         .enumerate()
-        .filter(|(index, _)| *index != admitted.store_access)
+        .filter(|(index, _)| !admitted.store_accesses.contains(index))
         .map(|(_, access)| access.clone())
         .collect();
     if function
@@ -68,13 +68,17 @@ pub fn validate_dead_store_elimination(
             admitted.store_index,
             source_instructions[admitted.store_index].clone(),
         );
-    if admitted.store_access > restored_function.memory_accesses.len() {
-        return Err(DeadStoreEliminationError::ReplayMismatch);
+    // Every removed row reinserts at its own source index, lowest first:
+    // the rows below a restored position are already back in place, so each
+    // source ordinal is where its row belongs again.
+    for &row in &admitted.store_accesses {
+        if row > restored_function.memory_accesses.len() {
+            return Err(DeadStoreEliminationError::ReplayMismatch);
+        }
+        restored_function
+            .memory_accesses
+            .insert(row, admitted.function.memory_accesses[row].clone());
     }
-    restored_function.memory_accesses.insert(
-        admitted.store_access,
-        admitted.function.memory_accesses[admitted.store_access].clone(),
-    );
     // The proposed settlements already matched the shifted source, so
     // restoring the source rows restores the source function.
     restored_function.boundary_settlements = admitted.function.boundary_settlements.clone();

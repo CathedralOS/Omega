@@ -1,8 +1,8 @@
 //! Shared admission for dead-store elimination: locate the named `Store`,
-//! `StorePacked`, own-storage `Store64`, or byte-sequence `Store { 0, 1 }`,
-//! prove its single write row, then walk forward to the first access on the
-//! dead place and require it to be a write of the dead place's storage whose
-//! own row covers the dead range entirely.
+//! `StorePacked`, own-storage `Store64`, byte-sequence `Store { 0, 1 }`, or
+//! `CopyBytes` destination span, prove its write row, then walk forward to
+//! the first access on the dead place and require it to be a write of the
+//! dead place's storage whose own row covers the dead range entirely.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
@@ -17,8 +17,17 @@
 //! extent is itself dynamic the directions mirror the store-motion walk: an
 //! exact or local row still reaches the dead byte once its own extent ends
 //! past the row's fixed offset, and a dynamic-extent row on the dead place
-//! always meets it — unless the dead store's own `index` resolved the same
-//! way, collapsing the extent to that one byte before the walk. Rows for other
+//! always meets it — unless the dead store's own extent decider resolved
+//! the same way, collapsing the extent to the fixed bytes the constant
+//! names before the walk. A `CopyBytes` dead store carries that second
+//! dynamic shape: its destination `WriteByteSpan` claims `length` bytes at
+//! its fixed `byte_offset`, so the may-written set is again unbounded
+//! upward from `byte_offset`; a resolved `length` collapses it to the exact
+//! range `[byte_offset, byte_offset + length)` and every covering route
+//! applies unchanged, while an unresolved one is covered only by another
+//! `CopyBytes` whose destination span spells the same extent — the same
+//! `byte_offset` and the same `length` value — since nothing else can bound
+//! an unbounded reach. Rows for other
 //! places are safe under place exclusivity. A `WriteLocal` on the dead
 //! place's own storage interferes exactly like a `WritePlace` on that place:
 //! an overlapping row decides coverage below, a disjoint row walks past. The
@@ -82,38 +91,59 @@ pub(super) struct Admission<'source> {
     pub block_index: usize,
     pub block: SelectedBlockId,
     pub store_index: usize,
-    /// Index of the store's single write row in `memory_accesses`; replay
-    /// requires the proposed roster to drop exactly this row.
-    pub store_access: usize,
+    /// Indices of the dead store's roster rows in `memory_accesses`, in
+    /// roster order — the one write row for every route but the `CopyBytes`,
+    /// whose source read row drops with the instruction beside its
+    /// destination span row. Replay requires the proposed roster to drop
+    /// exactly these rows.
+    pub store_accesses: Vec<usize>,
 }
 
 /// The bytes the dead store wrote within one place root: an exact range, or
-/// a dynamic extent when the store is a byte-sequence write — its single
-/// written byte sits at `byte_offset + index` for the runtime `index`, so
-/// every byte it can touch lies at or after `byte_offset` with no static
-/// upper bound. When that `index` itself resolves to a clean materialized
-/// constant, `admit` collapses the extent to the one byte
-/// `byte_offset + index` before the walk: the dead byte's position is then
-/// fixed, and every interference and coverage check below decides on it.
+/// a dynamic extent whose runtime decider places it anywhere at or after
+/// `byte_offset` with no static upper bound — a byte-sequence store's
+/// single written byte at `byte_offset + index`, or a `CopyBytes`
+/// destination span's `length` bytes at `byte_offset`. When the decider
+/// itself resolves to a clean materialized constant, `admit` collapses the
+/// extent to the exact bytes the constant names before the walk: the dead
+/// extent's position is then fixed, and every interference and coverage
+/// check below decides on it.
 struct Dead {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
-    /// The byte-sequence dead store's runtime index, deciding the written
-    /// byte's position: `byte_offset + index`. `None` for an exact store,
-    /// and for a byte-sequence store whose index resolved — its dead byte
-    /// is the collapsed `byte_offset` then.
-    sequence_index: Option<semantic_vocabulary::ValueId>,
+    extent: DeadExtent,
+}
+
+/// How a dynamic dead extent's reach is decided at runtime: the
+/// byte-sequence store's `index` places its one byte at
+/// `byte_offset + index`, and the `CopyBytes` destination span's `length`
+/// is the number of bytes it writes at `byte_offset`. `Exact` carries no
+/// decider — the dead range is `byte_count` bytes at `byte_offset`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeadExtent {
+    Exact,
+    SequenceByte(semantic_vocabulary::ValueId),
+    ByteSpan(semantic_vocabulary::ValueId),
+}
+
+impl DeadExtent {
+    /// Whether the dead store's written bytes sit anywhere at or after
+    /// `byte_offset` with no static upper bound — the interference shape
+    /// both dynamic extents share.
+    fn dynamic(&self) -> bool {
+        !matches!(self, DeadExtent::Exact)
+    }
 }
 
 impl Dead {
     /// Exact rows intersect when their half-open byte intervals share a byte;
     /// widened to u64 so edge offsets cannot wrap. A dynamic dead extent is
     /// unbounded upward from `byte_offset`, so the exact row still reaches
-    /// the written byte once its own extent ends past that offset — ending
+    /// the written bytes once its own extent ends past that offset — ending
     /// at or below it is the only provable disjointness.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        if self.sequence_index.is_some() {
+        if self.extent.dynamic() {
             return u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count);
         }
@@ -132,9 +162,9 @@ impl Dead {
     /// `MaterializeI64` — the same carrier audit the covering routes run —
     /// touches exactly that one byte wherever its payload base sits, so it
     /// reaches this range only by landing inside it. When the dead extent
-    /// is itself dynamic — its own index unresolved — an unresolved row
-    /// always meets it, and a resolved landing byte meets it only at or
-    /// past the payload base the dead byte starts at.
+    /// is itself dynamic — its own extent decider unresolved — an
+    /// unresolved row always meets it, and a resolved landing byte meets it
+    /// only at or past the fixed offset the dead extent starts at.
     fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
         if let SelectedMemoryAccessRole::ReadByteSequence { index, .. }
         | SelectedMemoryAccessRole::WriteByteSequence { index, .. } = access.role
@@ -142,13 +172,13 @@ impl Dead {
             && let Some(position) = u64::from(access.byte_offset).checked_add(landed)
         {
             let start = u64::from(self.byte_offset);
-            return if self.sequence_index.is_some() {
+            return if self.extent.dynamic() {
                 position >= start
             } else {
                 position >= start && position < start + u64::from(self.byte_count)
             };
         }
-        if self.sequence_index.is_some() {
+        if self.extent.dynamic() {
             return true;
         }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
@@ -192,8 +222,11 @@ pub(super) fn admit<'source>(
     // slot directly. The packed form's extra early-clobber scratch `Def`
     // drops with the instruction, so its admission additionally proves that
     // register occurs nowhere else in the function — a surviving mention
-    // would lose its definition to the removal.
-    let (encoded_offset, encoded_size, packed, direct_slot) = match dead_store.kind {
+    // would lose its definition to the removal. The `CopyBytes` dead store
+    // writes a dynamic extent instead: `length` bytes at its destination
+    // span's fixed `byte_offset`, carrying the copy's source `ReadByteSpan`
+    // beside it on the same instruction.
+    let (encoded_offset, encoded_size, packed, direct_slot, byte_span) = match dead_store.kind {
         SelectedInstructionKind::Store {
             byte_offset,
             byte_size,
@@ -201,20 +234,22 @@ pub(super) fn admit<'source>(
             if !matches!(byte_size, 1 | 2 | 4 | 8) {
                 return Err(DeadStoreEliminationError::UnsupportedInstruction);
             }
-            (byte_offset, u32::from(byte_size), false, None)
+            (byte_offset, u32::from(byte_size), false, None, false)
         }
         SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            (byte_offset, u32::from(width.byte_size()), true, None)
+            (byte_offset, u32::from(width.byte_size()), true, None, false)
         }
         SelectedInstructionKind::Store64 {
             slot: FrameStorageSlotId::Local(slot),
             byte_offset,
-        } => (byte_offset, 8, false, Some(slot)),
+        } => (byte_offset, 8, false, Some(slot), false),
+        SelectedInstructionKind::CopyBytes => (0, 0, false, None, true),
         _ => return Err(DeadStoreEliminationError::UnsupportedInstruction),
     };
-    // The write's semantic identity: exactly one roster row, one place root,
-    // and the same bytes the instruction encodes. The row's role must match
-    // the route the instruction takes to the place's storage: `WritePlace`
+    // The write's semantic identity: the place root and the same bytes the
+    // instruction encodes. Every route but the `CopyBytes` carries exactly
+    // one roster row, whose role must match the route the instruction takes
+    // to the place's storage: `WritePlace`
     // for the referent-pointer place stores, or `WriteLocal` on the place's
     // own storage slot for the local-storage routes — the direct `Store64`'s
     // row naming the same slot the instruction encodes. An operation-owned
@@ -228,19 +263,50 @@ pub(super) fn admit<'source>(
     // lower bound the index extends, not the encoded range, and the written
     // byte's position is decided at runtime. Its bounds-obligation payload
     // drops with the row: the write it guarded is gone, and the address
-    // computation's own provenance still names the obligation.
+    // computation's own provenance still names the obligation. The
+    // `CopyBytes` row is its destination `WriteByteSpan`: `length` bytes at
+    // the row's `byte_offset`, the same lower bound the runtime `length`
+    // extends — and the instruction's other rows are the copy's reads, which
+    // the removal drops beside it.
     let structural_places = structural_place_declarations(function);
-    let mut rows = function
+    let mut write = None;
+    let mut store_accesses = Vec::new();
+    for (index, access) in function
         .memory_accesses
         .iter()
         .enumerate()
-        .filter(|(_, access)| access.instruction == store);
-    let (store_access, write) = rows
-        .next()
-        .ok_or(DeadStoreEliminationError::UnsupportedInstruction)?;
-    let sequence_index = match write.role {
-        SelectedMemoryAccessRole::WriteByteSequence { index, .. } => Some(index),
-        _ => None,
+        .filter(|(_, access)| access.instruction == store)
+    {
+        if byte_span {
+            match access.role {
+                SelectedMemoryAccessRole::WriteByteSpan { .. } if write.is_none() => {
+                    write = Some((index, access));
+                }
+                // The copy's source read — and any read role — drops with
+                // the instruction; a second write row would be an effect
+                // the removal contract does not name.
+                SelectedMemoryAccessRole::ReadPlace
+                | SelectedMemoryAccessRole::ReadByteSpan { .. }
+                | SelectedMemoryAccessRole::ReadByteSequence { .. } => {}
+                _ => return Err(DeadStoreEliminationError::UnsupportedPair),
+            }
+        } else {
+            if write.is_some() {
+                return Err(DeadStoreEliminationError::UnsupportedPair);
+            }
+            write = Some((index, access));
+        }
+        store_accesses.push(index);
+    }
+    let Some((_, write)) = write else {
+        return Err(DeadStoreEliminationError::UnsupportedInstruction);
+    };
+    let extent = match write.role {
+        SelectedMemoryAccessRole::WriteByteSequence { index, .. } => {
+            DeadExtent::SequenceByte(index)
+        }
+        SelectedMemoryAccessRole::WriteByteSpan { length, .. } => DeadExtent::ByteSpan(length),
+        _ => DeadExtent::Exact,
     };
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
@@ -253,11 +319,16 @@ pub(super) fn admit<'source>(
         (SelectedMemoryAccessRole::WriteByteSequence { .. }, None) => {
             encoded_offset == 0 && encoded_size == 1 && write.byte_count == 1
         }
+        // A `WriteByteSpan` names no encoded range — its `byte_count` is
+        // contractual zero and the `length` is the authoritative extent —
+        // so the row is the dead copy's write row only on a `CopyBytes`.
+        (SelectedMemoryAccessRole::WriteByteSpan { .. }, None) => {
+            byte_span && write.byte_count == 0
+        }
         _ => false,
     };
-    if rows.next().is_some()
-        || !storage_route
-        || (sequence_index.is_none()
+    if !storage_route
+        || (!extent.dynamic()
             && (write.byte_offset != encoded_offset || write.byte_count != encoded_size))
     {
         return Err(DeadStoreEliminationError::UnsupportedPair);
@@ -266,37 +337,65 @@ pub(super) fn admit<'source>(
         place: write.place,
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
-        sequence_index,
+        extent,
     };
-    // A byte-sequence dead store whose own `index` resolves through the
+    // A dynamic dead extent whose own decider resolves through the
     // same carrier audit the covering routes run — sole `InstructionResult`
     // carrier, clean `MaterializeI64` definition, no edge-transport or
-    // case-payload redefinition — writes one fixed byte at
-    // `byte_offset + index`: the dead extent collapses to that exact byte.
-    // Every check below then decides on a fixed position — a row that
-    // cannot contain or land on the dead byte walks past, and a write that
-    // does covers — while an unresolved index, or a position no u32 names,
-    // leaves the extent unbounded upward from `byte_offset`.
-    if let Some(index) = dead.sequence_index
-        && let Ok(landed) = constant_index(function, index)
-        && let Some(position) = u64::from(dead.byte_offset).checked_add(landed)
-        && let Ok(position) = u32::try_from(position)
-    {
-        dead.byte_offset = position;
-        dead.byte_count = 1;
-        dead.sequence_index = None;
+    // case-payload redefinition — collapses to fixed bytes before the
+    // walk: the byte-sequence store's one byte at `byte_offset + index`,
+    // or the copy's `length` bytes at `byte_offset`. Every check below
+    // then decides on a fixed position — a row that
+    // cannot contain or land on the dead bytes walks past, and a write that
+    // does covers — while an unresolved decider, or an extent no u32 names,
+    // leaves the reach unbounded upward from `byte_offset`.
+    match dead.extent {
+        DeadExtent::SequenceByte(index) => {
+            if let Ok(landed) = constant_index(function, index)
+                && let Some(position) = u64::from(dead.byte_offset).checked_add(landed)
+                && let Ok(position) = u32::try_from(position)
+            {
+                dead.byte_offset = position;
+                dead.byte_count = 1;
+                dead.extent = DeadExtent::Exact;
+            }
+        }
+        DeadExtent::ByteSpan(length) => {
+            if let Ok(written) = constant_index(function, length)
+                && let Ok(count) = u32::try_from(written)
+            {
+                dead.byte_count = count;
+                dead.extent = DeadExtent::Exact;
+            }
+        }
+        DeadExtent::Exact => {}
     }
     // The removed instruction must keep the operand surface its kind
     // declares: the plain two-use place store, the packed store's
-    // two-use-plus-dead-scratch row, or the direct slot store's single-use
-    // row. An exotic operand surface would make the removal contract
-    // unclear.
+    // two-use-plus-dead-scratch row, the direct slot store's single-use
+    // row, or the copy's three-use-plus-two-dead-scratch row. An exotic
+    // operand surface would make the removal contract unclear.
     if packed {
         packed_store_shape(dead_store, function, environment)?;
     } else if direct_slot.is_some() {
         local_store_shape(dead_store, environment)?;
+    } else if byte_span {
+        byte_span_store_shape(dead_store, write, function, environment)?;
     } else {
         place_store_shape(dead_store, environment)?;
+    }
+    // The copy's source read rides on the removed instruction beside its
+    // destination span, so no row of the dead copy may reach the dead
+    // extent: a source span overlapping the destination it feeds would
+    // leave the removal contract guessing which bytes the copy observed.
+    if byte_span
+        && function.memory_accesses.iter().any(|access| {
+            access.instruction == store
+                && !matches!(access.role, SelectedMemoryAccessRole::WriteByteSpan { .. })
+                && interferes(&dead, access, structural_places, function)
+        })
+    {
+        return Err(DeadStoreEliminationError::UnsupportedPair);
     }
     // Walk forward along every path the crossed region admits: the first
     // access that can reach the dead bytes must be a write of the dead
@@ -448,7 +547,7 @@ pub(super) fn admit<'source>(
         block_index,
         block: block.id,
         store_index,
-        store_access,
+        store_accesses,
     })
 }
 
@@ -537,6 +636,88 @@ fn local_store_shape(
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())
+}
+
+/// The removed `CopyBytes` carries the target's declared `copy_bytes` row:
+/// `[use source, use destination, use count]` plus the two early-clobber
+/// scratch defs the copy loop writes through. Removing the instruction
+/// removes both scratch definitions, so each register must occur nowhere
+/// else in the function — the custody the packed store's scratch needs —
+/// and operand 2's count register must carry the destination span row's
+/// `length` value: the row-instruction agreement that makes a resolved
+/// constant, or a same-extent covering span naming that same value, the
+/// extent the instruction really writes.
+fn byte_span_store_shape(
+    instruction: &SelectedInstruction,
+    write: &SelectedMemoryAccess,
+    function: &SelectedFunction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(), DeadStoreEliminationError> {
+    if environment.selected_keys().copy_bytes != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let row = environment
+        .constraint(instruction.constraint)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
+    if row.operands.len() != 5
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || row.operands[1].operand != 1
+        || row.operands[1].access != RegisterOperandAccess::Use
+        || row.operands[2].operand != 2
+        || row.operands[2].access != RegisterOperandAccess::Use
+        || row.operands[3].operand != 3
+        || row.operands[3].access != RegisterOperandAccess::Def
+        || !row.operands[3].early_clobber
+        || row.operands[4].operand != 4
+        || row.operands[4].access != RegisterOperandAccess::Def
+        || !row.operands[4].early_clobber
+    {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    if instruction.operands.len() != 5
+        || instruction.operands[3].operand != 3
+        || instruction.operands[3].access != RegisterOperandAccess::Def
+        || instruction.operands[4].operand != 4
+        || instruction.operands[4].access != RegisterOperandAccess::Def
+        || !scratch_definition_is_dead(function, instruction.operands[3].virtual_register)
+        || !scratch_definition_is_dead(function, instruction.operands[4].virtual_register)
+    {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let SelectedMemoryAccessRole::WriteByteSpan { length, .. } = write.role else {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    };
+    let count = instruction
+        .operands
+        .iter()
+        .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?
+        .virtual_register;
+    let register = function
+        .virtual_registers
+        .iter()
+        .find(|register| register.id == count)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
+    if !origin_carries(register.origin, length) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    Ok(())
+}
+
+/// Whether `origin` names `value` as the source scalar the register carries:
+/// an `EntryParameter`, `BlockParameter`, or `InstructionResult` all carry
+/// their value's identity, so a runtime `length` — an entry or block
+/// parameter with no materializing producer — agrees with the span row as
+/// surely as a constant's instruction result does. Compiler-owned origins
+/// carry no source value and never agree.
+fn origin_carries(origin: VirtualRegisterOrigin, value: semantic_vocabulary::ValueId) -> bool {
+    match origin {
+        VirtualRegisterOrigin::EntryParameter { source_value, .. }
+        | VirtualRegisterOrigin::BlockParameter { source_value, .. }
+        | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value == value,
+        _ => false,
+    }
 }
 
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
@@ -727,6 +908,13 @@ fn covering_source(
     if rows.next().is_some() || row.place != dead.place {
         return Err(reject());
     }
+    // An unresolved `CopyBytes` dead store wrote `length` bytes at its
+    // span's `byte_offset` — an extent unbounded upward that only another
+    // `CopyBytes` spelling the same extent could rewrite; that route
+    // returned above, so no other write kind can cover it.
+    if matches!(dead.extent, DeadExtent::ByteSpan(_)) {
+        return Err(reject());
+    }
     // A byte-sequence dead store wrote exactly one byte at
     // `byte_offset + index`; the covering write must spell that same byte.
     // Equal row offset and equal index identity place it exactly — no other
@@ -736,7 +924,7 @@ fn covering_source(
     // carrier audit the exact-dead-range route runs — because the two
     // `byte_offset + index` sums then name one fixed position apiece, and
     // equal sums are the same byte whatever the payload bases were.
-    if let Some(index) = dead.sequence_index {
+    if let DeadExtent::SequenceByte(index) = dead.extent {
         if !matches!(
             instruction.kind,
             SelectedInstructionKind::Store {
@@ -861,6 +1049,12 @@ fn covering_source(
 /// A byte-sequence dead store still cannot be covered here — its dead byte
 /// sits at `byte_offset + index`, a position no fixed span can contain.
 ///
+/// An unresolved `CopyBytes` dead extent is the other shape this route
+/// covers: it reaches unboundedly upward from `byte_offset`, so no bounded
+/// write can contain it — only another `CopyBytes` spelling the same
+/// extent, the same `byte_offset` and the same `length` value, rewrites
+/// every byte the dead copy could have written whatever the runtime count.
+///
 /// The roster's other rows on the copy — its source read span among them —
 /// must stay quiet on the dead range: exactly one row may reach it, the
 /// covering span itself. A second reaching row either reads the dead bytes
@@ -874,7 +1068,7 @@ fn byte_span_covering(
     structural_places: &[StructuralPlaceDeclaration],
 ) -> Result<(), DeadStoreEliminationError> {
     let reject = || DeadStoreEliminationError::InterveningAccess;
-    if dead.sequence_index.is_some() {
+    if matches!(dead.extent, DeadExtent::SequenceByte(_)) {
         return Err(reject());
     }
     let mut covering = None;
@@ -914,18 +1108,27 @@ fn byte_span_covering(
         .ok_or_else(reject)?
         .virtual_register;
     // Row-instruction agreement for a dynamic extent: the count register
-    // must carry the `length` value the row claims, so the constant the
-    // audit resolves really is the span's reach.
+    // must carry the `length` value the row claims, so a resolved constant
+    // — or a same-extent dead span naming the value — really is the reach
+    // the instruction writes.
     let register = function
         .virtual_registers
         .iter()
         .find(|register| register.id == count)
         .ok_or_else(reject)?;
-    if !matches!(
-        register.origin,
-        VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == length
-    ) {
+    if !origin_carries(register.origin, length) {
         return Err(reject());
+    }
+    // The same-extent route: the dead copy's `length` never resolved, so
+    // its reach is unbounded upward and only a span writing the identical
+    // extent — the same `byte_offset` and the same `length` value — can
+    // provably rewrite all of it.
+    if let DeadExtent::ByteSpan(dead_length) = dead.extent {
+        return if row.byte_offset == dead.byte_offset && length == dead_length {
+            Ok(())
+        } else {
+            Err(reject())
+        };
     }
     let written = materialized_bits(function, count).map_err(|_| reject())?;
     if transport_defines(function, count) {

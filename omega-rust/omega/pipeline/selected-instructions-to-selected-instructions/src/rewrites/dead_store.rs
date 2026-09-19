@@ -11,10 +11,17 @@
 //! under the same byte coordinates — through the slot's materialized
 //! address, and a `Store64` writes that slot directly; a dead store
 //! carrying the `WriteLocal` row on such a slot is removed the same way.
-//! The byte-sequence store is the last dead-store route: a `Store { 0, 1 }`
+//! The byte-sequence store is another dead-store route: a `Store { 0, 1 }`
 //! through a fully computed view address carries one `WriteByteSequence`
 //! row, so its dead extent is dynamic — the written byte sits at the row's
 //! `byte_offset + index`, unbounded upward from that fixed offset.
+//! A `CopyBytes` is the last dead-store route and the only one carrying
+//! several roster rows: its destination `WriteByteSpan` writes `length`
+//! bytes at a fixed `byte_offset` — again an extent unbounded upward —
+//! and its source `ReadByteSpan` rides on the same instruction, so the
+//! removal drops the whole row set the copy owns. Both scratch defs of the
+//! copy's operand row take the packed store's custody check, and the count
+//! operand's register must carry the span row's `length` value.
 //! A `Structural` slot the place's declaration does not charge to that
 //! operation only stages bytes that name the place and stays inadmissible.
 //! A later write of the place's storage whose byte range
@@ -80,6 +87,19 @@
 //! contain a byte placed at runtime, and a sequence write whose index
 //! stays runtime or lands elsewhere may land on a different byte
 //! entirely.
+//! A `CopyBytes` dead store follows the same pattern one level up: while
+//! its `length` stays runtime the destination extent is unbounded upward
+//! from `byte_offset`, so only another `CopyBytes` spelling the same
+//! extent — the same `byte_offset` and the same `length` value — provably
+//! rewrites every byte it could have written, and no exact, local, or
+//! sequence write can bound the reach. Once the `length` value's carrier
+//! resolves to a clean `MaterializeI64` under the same audit — sole
+//! `InstructionResult` carrier, no edge-transport or case-payload
+//! redefinition — the dead extent collapses to `length` bytes at
+//! `byte_offset` and every exact-range covering route applies unchanged:
+//! a wider `CopyBytes` whose own count resolves, an exact store
+//! containing the range, or — when the collapsed range is the one byte —
+//! a byte-sequence write landing on it all cover.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they
