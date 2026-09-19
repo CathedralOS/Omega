@@ -68,6 +68,24 @@ terminates by outer.inner.remaining -> Outer::Doubled in 0..=10;
     }
 }
 "#;
+/// A declared computation view over a bare formal: the produced rank is
+/// `value * 2`, but the endpoint is still an ordinary projected field the
+/// edge judgment must bind and pin on every arrival.
+const COMPUTED_BARE: &str = r#"
+data Limits { cap: u64 [0..=10]; }
+data Countdown {}
+measure Countdown::Doubled(value: u64) -> u64 { value * 2 }
+
+machine walk(remaining: u64 [0..=5], limits: Limits)
+requires remaining * 2 <= limits.cap;
+terminates by remaining -> Countdown::Doubled in 0..=limits.cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1, limits)
+        false -> remaining
+    }
+}
+"#;
 
 fn prove_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
@@ -280,6 +298,25 @@ fn projected_slice_length_relation_checks_through_complete_lowering() {
         lower_typed_trees(typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
+}
+
+#[test]
+fn computed_bare_subject_still_binds_and_pins_projected_endpoints() {
+    prove_termination(COMPUTED_BARE);
+    // A rebuilt carrier that moves the endpoint is not a conserved limit.
+    reject_range(&COMPUTED_BARE.replace(
+        "walk(remaining - 1, limits)",
+        "walk(remaining - 1, Limits { cap: limits.cap + 1 })",
+    ));
+    // The exact literal rebuild preserves the endpoint through the same
+    // checked correspondence a plain forward uses.
+    prove_termination(&COMPUTED_BARE.replace(
+        "walk(remaining - 1, limits)",
+        "walk(remaining - 1, Limits { cap: limits.cap })",
+    ));
+    // The endpoint still owes entry membership against its own premise.
+    reject_range(&COMPUTED_BARE.replace("requires remaining * 2 <= limits.cap;", ""));
+    reject_range(&COMPUTED_BARE.replace("in 0..=limits.cap", "in 1..=limits.cap"));
 }
 
 #[test]

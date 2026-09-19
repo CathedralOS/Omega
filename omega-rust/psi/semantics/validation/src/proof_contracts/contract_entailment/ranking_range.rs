@@ -402,28 +402,17 @@ fn prove_edge(
         // A declared scalar view may read projected storage: the subject's
         // member chain resolves to the exact `u64` coordinate the view body
         // consumes, so `computed_rank` and arrival substitution share the
-        // atom a field view would use. A subject that resolves to no
-        // coordinate keeps the bare-name path: its symbol binding or an
-        // unbound member spelling decides normalization.
-        RankingRangeMeasure::Computed { subject, .. } => {
-            match fields::FieldCoordinate::resolve_projection(program, root, subject) {
-                Some(coordinate) => {
-                    let coordinate = match entry_parameters {
-                        Some(entries) => coordinate.at_arrival(
-                            program,
-                            RankingRangeState {
-                                state,
-                                entry_parameters: entries,
-                            },
-                            coordinate.parameter.symbol,
-                        )?,
-                        None => coordinate,
-                    };
-                    Some(field_coordinates::FieldCoordinates::new(coordinate))
-                }
-                None => None,
-            }
-        }
+        // atom a field view would use. A bare subject keeps the bare-name
+        // path -- its symbol binding or an unbound member spelling decides
+        // normalization -- while the installed set still binds the authored
+        // endpoint and premise projections the same edge judgment reads.
+        RankingRangeMeasure::Computed { subject, .. } => Some(subject_field_coordinates(
+            program,
+            root,
+            state,
+            entry_parameters,
+            &[subject],
+        )?),
         // A builtin scalar rank may read projected storage directly:
         // `bag.count` names the exact unsigned coordinate rooted at its
         // carrier formal, of whatever unsigned width the declaration gives
@@ -451,7 +440,19 @@ fn prove_edge(
             entry_parameters,
             &[lower, upper],
         )?),
-        _ => None,
+        // A produced slice length is a length coordinate, never a field
+        // atom, so the subject names no natural coordinate here. The range
+        // endpoints and the rest of the read surface still spell authored
+        // member projections (`limits.cap`): the installed set binds exactly
+        // those projections so entry membership and endpoint pinning read
+        // real atoms instead of failing to normalize.
+        RankingRangeMeasure::SliceLength(subject) => Some(subject_field_coordinates(
+            program,
+            root,
+            state,
+            entry_parameters,
+            &[subject],
+        )?),
     };
     // A slice over projected storage produces its length from the member
     // chain's exact leaf: `record.field` names one slice coordinate whose
@@ -827,8 +828,15 @@ fn prove_edge(
         let source_symbol = destination.map_or(parameter.symbol, |destination| {
             destination.entry_parameters[position]
         });
-        if let Some(field) = &field_rank
-            && field.substitute(
+        // One carrier can owe both kinds of produced coordinate: a record
+        // slot may claim a scalar endpoint leaf and the ranked collection's
+        // slice leaf at once. Each substituter owns only its own atoms, so a
+        // field match must not skip the slice coordinate's demanded actual.
+        // The scalar fallback below applies only when neither coordinate
+        // kind claims this slot's role.
+        let mut coordinate_matched = false;
+        if let Some(field) = &field_rank {
+            coordinate_matched |= field.substitute(
                 program,
                 state,
                 entry_parameters,
@@ -839,12 +847,10 @@ fn prove_edge(
                 source_symbol,
                 *argument,
                 &mut substitutions,
-            )?
-        {
-            continue;
+            )?;
         }
-        if let Some(slice) = &slice_rank
-            && slice.substitute(
+        if let Some(slice) = &slice_rank {
+            coordinate_matched |= slice.substitute(
                 program,
                 machine,
                 state,
@@ -855,8 +861,9 @@ fn prove_edge(
                 *argument,
                 &length_bindings,
                 &mut substitutions,
-            )?
-        {
+            )?;
+        }
+        if coordinate_matched {
             continue;
         }
         if !source_symbol.is_valid()

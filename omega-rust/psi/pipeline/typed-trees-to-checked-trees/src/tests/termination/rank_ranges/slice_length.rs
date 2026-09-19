@@ -354,6 +354,57 @@ fn named_slice_arrivals_and_entry_reentry_share_the_length_rank() {
     ));
 }
 
+/// A produced slice length still reads projected endpoints: the rank is the
+/// collection's length coordinate, but `limits.cap` is an ordinary field
+/// projection the same edge judgment must bind and pin across arrivals.
+const PROJECTED_LIMIT: &str = r#"
+data Limits { cap: u64; }
+data Entry { value: u32; }
+
+machine drain(entries: &[Entry], limits: Limits)
+requires entries.len <= limits.cap;
+terminates by entries -> Slice::Length in 0..=limits.cap;
+-> u64 {
+    transition entries.len > 0 {
+        true -> drain(entries[1..], limits)
+        false -> 0
+    }
+}
+"#;
+
+#[test]
+fn slice_rank_pins_a_projected_endpoint_across_every_arrival() {
+    prove(PROJECTED_LIMIT);
+    // The same transport through a named state keeps the pinned endpoint.
+    prove(&PROJECTED_LIMIT.replace(
+        "        true -> drain(entries[1..], limits)\n        false -> 0\n    }\n}",
+        r#"        true -> stage(entries[1..], limits)
+        false -> 0
+    }
+    state stage(pending: &[Entry], bounds: Limits) {
+        transition pending.len > 0 {
+            true -> stage(pending[1..], bounds)
+            false -> 0
+        }
+    }
+}"#,
+    ));
+    // A rebuilt carrier that moves the endpoint is not a conserved limit.
+    reject(&PROJECTED_LIMIT.replace(
+        "true -> drain(entries[1..], limits)",
+        "true -> drain(entries[1..], Limits { cap: limits.cap + 1 })",
+    ));
+    // Even rebuilding the same value is rejected only when correspondence
+    // fails; the exact literal rebuild preserves the endpoint.
+    prove(&PROJECTED_LIMIT.replace(
+        "true -> drain(entries[1..], limits)",
+        "true -> drain(entries[1..], Limits { cap: limits.cap })",
+    ));
+    // The endpoint still owes entry membership and pinning.
+    reject(&PROJECTED_LIMIT.replace("requires entries.len <= limits.cap;", ""));
+    reject(&PROJECTED_LIMIT.replace("in 0..=limits.cap", "in 1..=limits.cap"));
+}
+
 #[test]
 fn a_terminal_slice_body_still_owes_its_authored_range() {
     prove(
