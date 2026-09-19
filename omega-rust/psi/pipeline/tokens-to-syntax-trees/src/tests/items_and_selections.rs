@@ -4,6 +4,61 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 
 #[test]
+fn name_expression_source_custody_retains_complete_authored_paths() {
+    for expression in ["VALUE", "settings::VALUE", "settings :: nested :: VALUE"] {
+        let source =
+            format!("machine read() -> u64 {{ let selected: u64 = {expression}; selected }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let source_id = source::SourceId(17);
+        let parsed = crate::parser::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let statements = first_machine_statements(&parsed);
+        let StatementNode::LocalData(local) = parsed.statements.statement(statements[0]) else {
+            panic!("local initializer")
+        };
+        assert!(matches!(
+            parsed.expressions.expression(local.initial_value),
+            ExpressionNode::Name(_)
+        ));
+        let start = source.find(expression).expect("authored name expression");
+        assert_eq!(
+            parsed.expressions.source_span(local.initial_value),
+            source::SourceSpan::new(
+                source_id,
+                source::Span::new(start, start + expression.len())
+            )
+        );
+    }
+}
+
+#[test]
+fn name_expression_source_custody_survives_nested_constant_leaves() {
+    let source = "const SELECTED: Point = Point { value: VALUE, nested: Pair { value: settings::VALUE } }; const ALIAS: u64 = settings::VALUE;";
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let source_id = source::SourceId(23);
+    let parsed = crate::parser::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let names = parsed
+        .expressions
+        .iter_expressions()
+        .filter_map(|(handle, expression)| {
+            matches!(expression, ExpressionNode::Name(_))
+                .then_some(parsed.expressions.source_span(handle))
+        })
+        .collect::<Vec<_>>();
+    let expected = [
+        "value: VALUE",
+        "value: settings::VALUE",
+        "= settings::VALUE",
+    ]
+    .map(|occurrence| {
+        let name = occurrence.split_once(' ').expect("name after prefix").1;
+        let start = source.find(occurrence).expect("authored constant leaf") + occurrence.len()
+            - name.len();
+        source::SourceSpan::new(source_id, source::Span::new(start, start + name.len()))
+    });
+    assert_eq!(names, expected);
+}
+
+#[test]
 fn local_bindings_parse_their_type_and_initializer_once() {
     let tokens = Lexer::new("machine sample() { let value: Buffer<count(4)> = make(9); }")
         .tokenize()

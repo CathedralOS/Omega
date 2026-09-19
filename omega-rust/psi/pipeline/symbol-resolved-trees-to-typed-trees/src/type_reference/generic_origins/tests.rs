@@ -144,6 +144,50 @@ fn inferred_literals_and_lifetime_arguments_retain_their_actual_owners() {
 }
 
 #[test]
+fn nested_generic_arguments_preserve_contiguous_parent_rosters() {
+    let source = resolve(
+        "data Inner<T> { value: T; } data Pair<A, B> { first: A; second: B; }
+         machine keep(value: Pair<u8, Inner<u64>>) -> Pair<u8, Inner<u64>> { value }",
+    );
+    let typed = crate::lower_symbol_resolved_trees(&source)
+        .expect("nested argument lowering cannot interleave a parent roster");
+    let pair = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| {
+            definition.generic_instance.is_some()
+                && typed.symbols.name(definition.symbol).starts_with("Pair<")
+        })
+        .expect("closed Pair instance");
+    let typed::types::TypeReferenceNode::Generic { arguments, .. } = typed
+        .type_reference_table
+        .type_reference(pair.generic_instance.expect("retained Pair application"))
+    else {
+        panic!("retained generic application")
+    };
+    let [first, second] = typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("two parent arguments, excluding the nested child's arguments")
+    };
+    let typed::types::TypeReferenceNode::Named { symbol, .. } =
+        typed.type_reference_table.type_reference(*first)
+    else {
+        panic!("first argument is the authored scalar")
+    };
+    assert_eq!(typed.symbols.name(*symbol), "u8");
+    let inner_symbol = match typed.type_reference_table.type_reference(*second) {
+        typed::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+        typed::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        _ => panic!("second argument retains the nested carrier"),
+    };
+    assert!(typed.symbols.name(inner_symbol).starts_with("Inner"));
+    replay_with_roster_lookup(&source, &typed)
+        .expect("retained exact application identities replay");
+}
+
+#[test]
 fn range_replay_visits_each_origin_once_and_agrees_with_use_lookup() {
     for count in [1, 16, 64] {
         let mut text = String::from(

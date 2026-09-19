@@ -1,4 +1,3 @@
-use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -86,18 +85,22 @@ pub(super) fn lower_type_reference_handle_with_context(
                 .insert(typed::types::TypeReferenceNode::Slice { element_type }))
         }
         resolved::types::TypeReference::Generic(generic) => {
-            let mut arguments = HandleSpan::empty();
-            for argument in source_trees.child_type_references(generic.arguments) {
+            // Nested applications publish child spans into this same arena.
+            // Finish recursion before inserting the parent's contiguous roster.
+            let source_arguments = source_trees.child_type_references(generic.arguments);
+            let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
+            for argument in source_arguments {
                 let argument = lower_type_reference_handle_with_context(
                     source_trees,
                     typed_trees,
                     argument,
                     exposure,
                 )?;
-                typed_trees
-                    .type_reference_table
-                    .push_type_reference_handle(&mut arguments, argument);
+                lowered_arguments.push(argument);
             }
+            let arguments = typed_trees
+                .type_reference_table
+                .insert_type_reference_handles(lowered_arguments);
 
             super::retain_type_reference_selection(
                 source_trees,

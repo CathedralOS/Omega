@@ -172,6 +172,10 @@ pub(crate) fn finalize(
             .copied()
             .chain(lowerer.pending_const_argument_expressions.iter().copied()),
     );
+    if lowerer.const_resolution_mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
+        declaration_values::validate_nominal_destinations(program)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    }
     crate::selection::authored_selections::finalize_constant_expression_selections(
         program,
         lowerer

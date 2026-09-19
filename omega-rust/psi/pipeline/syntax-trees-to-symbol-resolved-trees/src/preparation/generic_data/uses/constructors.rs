@@ -180,6 +180,24 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
         TypeReferenceNode::Constrained { base_type, .. } => *base_type,
         _ => expected_type,
     };
+    if let TypeReferenceNode::FixedArray { element_type, .. } =
+        syntax.type_references.type_reference(expected_type)
+        && let ExpressionNode::ArrayLiteral(elements) = syntax.expressions.expression(expression)
+    {
+        let element_type = *element_type;
+        let elements = syntax.expressions.expression_handles(*elements).to_vec();
+        for element in elements {
+            relabel_data_literal_for_expected_type(
+                syntax,
+                element,
+                element_type,
+                instances,
+                selection,
+                frontier,
+            );
+        }
+        return;
+    }
     let instance = expected_instance(syntax, instances, selection, expected_type);
     let expected_owner = if let Some(instance) = instance {
         instance.declaration

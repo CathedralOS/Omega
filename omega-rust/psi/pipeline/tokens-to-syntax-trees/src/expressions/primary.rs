@@ -263,6 +263,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_name_like() {
+        let start = input;
         let (path, input) = parse_path_handle_span(input, |member| {
             syntax_trees
                 .expressions
@@ -284,10 +285,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             return parse_struct_literal_handle(syntax_trees, constructor_name, input);
         }
 
-        return Ok((
-            syntax_trees.expressions.insert(ExpressionNode::Name(path)),
-            input,
-        ));
+        let expression = syntax_trees.expressions.insert(ExpressionNode::Name(path));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, start.source_span_until(input));
+        return Ok((expression, input));
     }
 
     Err(input.error_here("expected expression"))
