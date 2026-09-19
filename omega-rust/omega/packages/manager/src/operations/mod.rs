@@ -26,6 +26,7 @@ pub use check_locked_sources::{
 };
 pub use check_project::{
     CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest, check_prepared_local_project,
+    check_prepared_local_project_for_inspection,
 };
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,

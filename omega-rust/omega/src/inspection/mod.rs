@@ -2,13 +2,14 @@
 //!
 //! Source preparation follows the compile command rather than a focused-file
 //! shortcut. A root beside a `build.omg` (or an `omega.lock`) is a package
-//! project: the package manager resolves its declared closure and the checked
-//! compile receives that graph as package inputs, so `use alias::module;`
-//! binds to the declared dependency instead of a sibling path under the root.
+//! project: the package manager resolves its declared closure and checks each
+//! prerequisite build before its consumer, retaining generated source under
+//! the producer's custody. Acquisition-only compiler inputs cannot provide
+//! that handoff, even if a helper happens to have usable physical source.
 //! A standalone root keeps the direct, optionally targetless check unchanged.
 //! Inspection stops at the checked program and neither admits trust nor
-//! realizes native output, so the manager's review and acceptance passes that
-//! `--check` and `run` add on top of the same prepared closure are not run here.
+//! realizes native output. Candidate checking is shared with `--check`, but
+//! trust admission and native acceptance/publication remain separate operations.
 
 pub mod evidence;
 
@@ -34,6 +35,7 @@ pub struct TerminalInspection {
 pub enum InspectTerminalError {
     Diagnostics(Vec<Diagnostic>),
     Preparation(packages::PrepareLocalProjectError),
+    Review(package_manager::review::CompileResolvedPackageReviewsError),
     Lowering {
         machine: String,
         error: checked_trees_to_lowered_psi::LoweringError,
@@ -57,6 +59,7 @@ impl std::fmt::Display for InspectTerminalError {
                 Ok(())
             }
             Self::Preparation(error) => write!(formatter, "{error}"),
+            Self::Review(error) => write!(formatter, "cannot check inspection project: {error}"),
             Self::Lowering { machine, error } => write!(
                 formatter,
                 "cannot lower terminal machine `{machine}`: {error}"
@@ -74,8 +77,7 @@ impl std::error::Error for InspectTerminalError {}
 pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
-    let checked = compiler::compile_to_checked(checked_compile_request(request)?)
-        .map_err(InspectTerminalError::Diagnostics)?;
+    let checked = check_inspection_sources(request)?;
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &request.machine).map_err(
         |error| InspectTerminalError::Lowering {
             machine: request.machine.clone(),
@@ -97,9 +99,8 @@ pub fn inspect_terminal(
     })
 }
 
-/// Prepare the checked compile the same way `--check` does: the manager decides
-/// whether the root is a package project and, if so, supplies the resolved
-/// closure. The prepared entry lives in an immutable resolver snapshot, so
+/// Check package sources through the manager's dependency-first candidate
+/// pipeline. The prepared entry lives in an immutable resolver snapshot, so
 /// build staging is placed beside the authored root exactly as the compile
 /// command places it; the compiler's default of `<entry>/../build` would
 /// otherwise fall inside that snapshot. Package preparation needs an exact
@@ -109,9 +110,9 @@ pub fn inspect_terminal(
 /// With the profile resolved, the checked compile keeps it so package
 /// inputs and target attachments agree; a standalone root without a target
 /// stays targetless, as before.
-fn checked_compile_request(
+fn check_inspection_sources(
     request: &InspectTerminalRequest,
-) -> Result<CheckedCompileRequest<'static>, InspectTerminalError> {
+) -> Result<compiler::CheckedCompilation, InspectTerminalError> {
     let target = crate::invocation_target_profile(request.target_name.as_deref())
         .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
     let prepared = packages::prepare_local_project(
@@ -123,10 +124,11 @@ fn checked_compile_request(
     )
     .map_err(InspectTerminalError::Preparation)?;
     let Some(prepared) = prepared else {
-        return Ok(CheckedCompileRequest::new(
+        return compiler::compile_to_checked(CheckedCompileRequest::new(
             &request.root_path,
             request.target_name.as_deref(),
-        ));
+        ))
+        .map_err(InspectTerminalError::Diagnostics);
     };
     let build_dir = CompileOptions {
         root_path: request.root_path.clone(),
@@ -134,23 +136,6 @@ fn checked_compile_request(
         target_name: None,
     }
     .build_dir();
-    let (entry_path, package_inputs) = prepared
-        .try_into_parts()
-        .map_err(InspectTerminalError::Preparation)?;
-    let mut checked = CheckedCompileRequest::new(&entry_path, Some(target.target_name()));
-    // A packaged binding carrying the compiler-captured canonical Source
-    // metadata index is sealed package custody: its build activation runs
-    // against a fresh private materialization of the captured inventory,
-    // never the shared resolver snapshot, exactly as the manager's review
-    // pass and the retained-source `check` rejoin already request. The
-    // invocation roster stays empty; required outputs remain the obligations
-    // the build registers through `builder.output.require`. A binding without
-    // that index has no validated inventory to capture against and keeps the
-    // root it names.
-    checked.build_snapshot = package_inputs
-        .canonical_source_metadata(package_inputs.root())
-        .map(|_| compiler::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
-    checked.package_inputs = Some(package_inputs);
-    checked.build_dir = Some(build_dir);
-    Ok(checked)
+    packages::check_prepared_local_project_for_inspection(prepared, &build_dir, target)
+        .map_err(InspectTerminalError::Review)
 }

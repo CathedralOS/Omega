@@ -458,9 +458,12 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     implementation fences in `review/candidate/compilation/package_pass.rs`.
     Replace the one-review/one-generated-bundle-per-package addressing with
     exact activation purpose/profile/target occurrences before lifting them.
-    Acquisition-only inspection/sample refresh rejects nested activations via
-    `PreparedLocalProject::try_into_parts`; route those consumers through
-    prerequisite execution before admitting them. These are implementation
+    Packaged terminal inspection uses the same prerequisite checking and
+    generated-source handoff without trust admission or native publication;
+    its nested-build CLI regression retains a non-default entry and publishes
+    no acceptance record. Sample refresh still rejects nested activations via
+    `PreparedLocalProject::try_into_parts`; route it through prerequisite
+    execution before admitting them. These are implementation
     gaps, not unresolved language decisions. Windows runtime validation remains.
   - Retain exact purpose/profile/target and accepted authority through
     acquisition, review, lock recovery, generated-source handoff, and checking.

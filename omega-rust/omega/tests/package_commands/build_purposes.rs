@@ -188,14 +188,54 @@ fn nested_build_cycle_rejects_before_any_activation() {
 }
 
 #[test]
-fn nested_build_inspection_cannot_skip_physical_helper_prerequisites() {
+fn nested_build_inspection_runs_prerequisites_and_uses_generated_helpers() {
     let Some(profile) = nested_build_target() else {
         return;
     };
     let fixture = nested_build_fixture();
-    // Physical source would let an acquisition-only consumer run the root
-    // without noticing that the helper's build activation never happened.
+    // Keep the requested entry distinct from the package's default main, and
+    // retain a boundary declaration: inspection must not publish acceptance.
+    fixture.write(
+        "root/entry.omg",
+        "boundary machine assumed_zero() -> u64 ensures result == 0;\nmachine inspected() {}\n",
+    );
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&[
+        "inspect-terminal",
+        "--machine",
+        "inspected",
+        "--target",
+        profile.target_name(),
+        "entry.omg",
+    ]);
+    assert_status(&output, 0);
+    let text = combined(&output);
+    let generator = text
+        .find("generator activation")
+        .expect("generator build ran");
+    let helper = text.find("helper activation").expect("helper build ran");
+    let consumer = text
+        .find("consumer received generated answer")
+        .expect("inspection retained generated helper source");
+    assert!(generator < helper && helper < consumer, "{text}");
+    assert!(text.contains("selected_machine=inspected"), "{text}");
+    assert!(!fixture.path("dependency/generated.omg").exists());
+    assert!(!fixture.path("root/omega.admissions").exists());
+    assert_eq!(fixture.accepted_files(), before);
+}
+
+#[test]
+fn nested_build_inspection_rejects_a_failed_prerequisite_before_the_consumer() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = nested_build_fixture();
+    // Physical helper source cannot excuse skipping its broken prerequisite.
     fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
+    fixture.write(
+        "generator/main.omg",
+        "pub machine generation_value() -> u64 { false }\n",
+    );
     let before = fixture.accepted_files();
     let output = fixture.omega(&[
         "inspect-terminal",
@@ -207,12 +247,12 @@ fn nested_build_inspection_cannot_skip_physical_helper_prerequisites() {
     ]);
     assert_status(&output, 1);
     let text = combined(&output);
-    assert!(text.contains("requires nested build activation"), "{text}");
+    assert!(text.contains("generator"), "{text}");
     assert!(
         !text.contains("consumer received generated answer"),
         "{text}"
     );
-    assert!(!text.contains("generator activation"), "{text}");
+    assert!(!text.contains("selected_machine="), "{text}");
     assert_eq!(fixture.accepted_files(), before);
 }
 
