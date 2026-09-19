@@ -5,8 +5,9 @@ use selected_instructions::SelectedInstructionId;
 use super::{StoreMutationMotionError, ValidatedStoreMutationMotion, admission};
 use crate::ValidatedSelectedAnalysis;
 
-/// Sink one admitted `Store` to the latest position that keeps the write
-/// ordered before every access that could observe it. The roster rows name
+/// Sink one admitted `Store`, `StorePacked`, or own-storage or staging-slot
+/// `Store64` to the latest position that keeps the write ordered before
+/// every access that could observe it. The roster rows name
 /// the store by instruction identity, so the access roster is retained
 /// unchanged; boundary settlements at or after the landing index in a crossed
 /// target block shift one ordinal later. Every other function, block,

@@ -13,12 +13,22 @@
 //! offset — unless the `index` resolves to a clean `MaterializeI64`, when
 //! admission collapses the extent to the one byte `byte_offset + index`
 //! before the walk.
+//! A `Structural` slot the place's declaration does not charge to the
+//! slot's operation only stages bytes that name the place under its own
+//! slot coordinates: a store into it — the `Store`/`StorePacked` through
+//! its materialized address or the direct `Store64` — is the moved store
+//! of the slot's own bytes, and no place-named row can reach them. The
+//! staging store sinks under the same walk, bounded by the first roster row
+//! naming that very slot — a `WriteLocal` rewriting the staged bytes or an
+//! `AddressLocal` materializing their address — rather than by the place's
+//! own accesses.
 //! Sinking the store later along the control-flow path defers the write
-//! inside the window where nothing can observe the place's old bytes: every
-//! instruction the store slides past must leave the relative order of the
-//! write and every later access on the same place unchanged. The motion
+//! inside the window where nothing can observe the written bytes' old
+//! contents: every instruction the store slides past must leave the
+//! relative order of the write and every later access on the same storage
+//! unchanged. The motion
 //! lands the store immediately before the first position that must stay
-//! ordered after it — the first roster access on the moved place, a call or
+//! ordered after it — the first roster access on the moved storage, a call or
 //! hosted effect, a redefinition of a carried register, an unaccounted
 //! memory-capable instruction, or a boundary settlement — or at the end of
 //! the last block the walk can prove it still reaches on every path. The
@@ -35,10 +45,11 @@
 //! referent under different place identities — exclusivity rejects
 //! overlapping exclusive custody before selection — so rows for other places
 //! and exact rows on disjoint ranges of the moved place cannot observe the
-//! slide. A `WriteLocal` or `AddressLocal` row names a slot: the place's own
-//! storage — a parameter, block-parameter, or producer-declared `Structural`
-//! home — interferes on the moved bytes like a place row, while a slot that
-//! only stages bytes naming the place never reaches them. A dynamic-extent
+//! slide. A `WriteLocal` or `AddressLocal` row names a slot: the moved
+//! bytes' storage — a parameter, block-parameter, or producer-declared
+//! `Structural` home for a place subject, the staging slot itself for a
+//! staging subject — interferes on them like a place row, while a slot
+//! holding other bytes never reaches them. A dynamic-extent
 //! row reaches only upward from its fixed byte offset — a span covers
 //! `length` bytes there and a sequence row touches `offset + index` — so
 //! one starting at or past the moved range's end is provably disjoint and
@@ -64,7 +75,7 @@
 //! the successor would add the write to paths that never carried it. The
 //! terminator's roster rows and register definitions decide before each
 //! crossed edge's transports, which may not redefine the carried registers or
-//! write the moved place's storage. Returns and hosted exits, forked or
+//! write the moved storage. Returns and hosted exits, forked or
 //! joined targets, and re-entered blocks each bound the motion at the crossed
 //! block's end.
 //!
