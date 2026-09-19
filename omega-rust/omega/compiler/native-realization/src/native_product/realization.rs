@@ -107,10 +107,12 @@ pub(super) fn realize(
     }
     // This compile's own verified build filesystem replay record realizes one
     // occurrence-specific ordinary-release contract per retained
-    // open/query/close chain. The contracts narrow demanded release-cohort
-    // mechanisms into their evidence-bound keys; the receiving policy gains
-    // exactly the explicit-empty rows that evidence authorizes, and any key
-    // the caller already rowed keeps the caller's classification.
+    // open/query/close chain. Realization emits each contract's evidence-bound
+    // explicit-empty row into the artifact's terminal-authority policy as
+    // retained proof of the build execution's constrained occurrences. The
+    // contracts never narrow a demanded program mechanism — they describe a
+    // different execution — so settlement classification ignores them until a
+    // program-side checked-flow derivation rejoins a contract per call site.
     let replay_limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
     let filesystem_release_contracts = checked
         .build_observation_summary()
@@ -137,35 +139,6 @@ pub(super) fn realize(
             ))]
         })?
         .unwrap_or_default();
-    let terminal_authority_policy = if filesystem_release_contracts.is_empty() {
-        terminal_authority_policy
-    } else {
-        let release_rows = crate::filesystem_release_occurrence_mechanism_rows(
-            &filesystem_release_contracts,
-            &demanded_intrinsics,
-            checked.selected_provider_plans(),
-            checked.external_binding_rows(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact retained filesystem release evidence did not realize its mechanism rows: {error}"
-            ))]
-        })?;
-        let mut rows = terminal_authority_policy.explicit_rows().to_vec();
-        for row in release_rows {
-            if rows
-                .iter()
-                .all(|existing| existing.mechanism() != row.mechanism())
-            {
-                rows.push(row);
-            }
-        }
-        crate::terminal_authority_policy_with_rows(rows).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact retained filesystem release rows do not form one exact mechanism policy: {error:?}"
-            ))]
-        })?
-    };
     let request = crate::NativeRealizationRequest {
         checked_scope: Some(&checked_boundary_operator_scope),
         prepared_input: Some(prepared_input),

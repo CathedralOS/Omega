@@ -613,7 +613,6 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
         artifact.proof_bytes(),
         *artifact.manifest().identity().as_bytes(),
         &request,
-        &[],
     )
     .expect("provider admission");
     let emitted = super::emit_realization_object(
@@ -685,7 +684,6 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         artifact.proof_bytes(),
         *artifact.manifest().identity().as_bytes(),
         &request,
-        &[],
     )
     .expect("provider admission");
     let emitted = super::emit_realization_object(

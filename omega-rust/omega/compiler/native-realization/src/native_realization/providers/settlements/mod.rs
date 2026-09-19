@@ -27,7 +27,6 @@ use source_imports::validate_source_evaluated_import_coverage;
 pub(crate) fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
     request: &NativeRealizationRequest<'request>,
-    filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
@@ -45,7 +44,6 @@ pub(crate) fn settle_provider_executions<'request>(
         request.external_binding_rows,
         request.settlements,
         request.native_callbacks,
-        filesystem_release_contracts,
     )?;
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(request.settlements.len());
