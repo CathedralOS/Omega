@@ -1,0 +1,20 @@
+// PASS CANARY. `Pair { left: pair.left - 1 }` is the moved copy of the
+// required `remaining` packed at `Pair`'s unique natural leaf: the rebuilt
+// literal names the continuation the rank reads, the bare-forward `copy`
+// demotes to a stale snapshot, and the loop still descends through
+// `pair.left`. Before this leg only a bare `carrier +/- positive` actual
+// could name the moved copy of a duplicated required entry, so the packed
+// carriage contested its stale sibling instead of resolving it.
+data Pair { left: u32 [0..=5]; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> s(Pair { left: remaining }, remaining) }
+    state s(pair: Pair, copy: u32 [0..=5]) {
+        transition pair.left > 0 {
+            true -> s(Pair { left: pair.left - 1 }, copy)
+            false -> pair.left
+        }
+    }
+}

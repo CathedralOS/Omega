@@ -26,7 +26,9 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// at every arrival; a duplicated claim on any other entry resolves to its
 /// bare forward so one slot stays the unique carrier, and a duplicated
 /// required claim resolves to the one slot the role ever reaches through a
-/// strict `carrier +/- positive` step.
+/// strict `carrier +/- positive` step or the carrier-rebuild shapes that
+/// step (`&R { f: carrier.f - 1 }` packs the scalar's moved copy inside the
+/// record that keeps the role).
 pub fn discover_state_entry_mappings(
     program: &TypedTrees,
     machine: &Machine,
@@ -169,14 +171,16 @@ pub fn discover_state_entry_mappings_preferring(
 /// `s(left - 1, right)` cannot be proved while both slots carry the role.
 /// When exactly one claimant ever receives the entry through a strict
 /// `carrier +/- positive` step -- a literal amount, or one whose declared
-/// range proves it nonzero -- that moved copy is the continuation the rank
-/// must read; a sibling whose arrivals are all bare forwards still denotes
-/// the entry's own value -- a stale snapshot, not an equal carrier -- so its
-/// claim demotes rather than forcing an equality the step broke. Naming the
-/// moved copy is arrival-shape evidence, not a positional guess: zero or
-/// several stepped claimants leave the set contested, and a claimant with any
-/// non-step computed arrival keeps its equality obligation, since the edge
-/// judgment may still prove it equal (a `carrier + 0` spell changes nothing).
+/// range proves it nonzero -- or through the rebuilt-literal and borrowed
+/// carrier shapes `moved_copy_claim` judges, that moved copy is the
+/// continuation the rank must read; a sibling whose arrivals are all bare
+/// forwards still denotes the entry's own value -- a stale snapshot, not an
+/// equal carrier -- so its claim demotes rather than forcing an equality the
+/// step broke. Naming the moved copy is arrival-shape evidence, not a
+/// positional guess: zero or several stepped claimants leave the set
+/// contested, and a claimant with any non-step computed arrival keeps its
+/// equality obligation, since the edge judgment may still prove it equal (a
+/// `carrier + 0` spell changes nothing).
 /// The same naming also resolves duplicated claims on entries outside
 /// `required`: a slice or record carrier diverges through shapes
 /// `carrier +/- positive` cannot spell, so a strict subslice or a rebuilt
@@ -229,10 +233,24 @@ fn demote_stale_copies(
                 continue;
             }
             if required.contains(claimed) {
-                if strict_step_claim(program, source, source_mapping, *argument, *claimed) {
+                // A required entry's moved copy is a strict step of a formal
+                // carrying it. `carrier +/- positive` spells that directly;
+                // a role packed inside a record moves through the same shapes
+                // an unrequired carrier uses -- a rebuilt literal or its
+                // borrow -- since the slot itself is the carrier that steps.
+                if strict_step_claim(program, source, source_mapping, *argument, *claimed)
+                    || moved_copy_claim(
+                        program,
+                        machine,
+                        source,
+                        source_mapping,
+                        *argument,
+                        *claimed,
+                    )
+                {
                     stepped[target_position][position] = true;
                 }
-            } else if moved_unranked_claim(
+            } else if moved_copy_claim(
                 program,
                 machine,
                 source,
@@ -361,10 +379,11 @@ fn strict_step_claim(
 /// rooted at one), and a record carrier moves through a literal rebuild
 /// whose some field value is itself a strict leaf step of that carrier's
 /// chain (`&R { f: carrier.f - 1 }`). A bare `carrier +/- positive` actual
-/// is the integer shape `strict_step_claim` already judges for required
-/// entries; for an unrequired integer role the bare forward keeps naming
-/// the carrier exactly as before.
-fn moved_unranked_claim(
+/// is the integer shape `strict_step_claim` judges. Required claims use the
+/// same evidence when the entry's value packs inside the record carrier a
+/// literal rebuild steps; a slice spelling cannot carry a scalar entry, so
+/// only the literal and borrowed shapes newly apply there.
+fn moved_copy_claim(
     program: &TypedTrees,
     machine: &Machine,
     source: &State,
@@ -374,7 +393,7 @@ fn moved_unranked_claim(
 ) -> bool {
     let argument = unwrapped(program, argument);
     match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(borrow) => moved_unranked_claim(
+        ExpressionNode::Borrow(borrow) => moved_copy_claim(
             program,
             machine,
             source,
@@ -769,7 +788,7 @@ fn argument_mapping(
             .iter()
             .copied()
             .filter(|&slot| {
-                moved_unranked_claim(
+                moved_copy_claim(
                     program,
                     machine,
                     source,
