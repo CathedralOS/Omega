@@ -31,11 +31,13 @@
 //!   non-address integers — including compound scalar operands — denote
 //!   into one shared mathematical-integer vocabulary: `Int : Type 0`
 //!   with each `IntegerMathTerm` interned by exact evaluated value
-//!   (open terms intern by the term itself). Closed magnitudes in the
+//!   (opaque open terms intern by the term itself). Closed magnitudes in the
 //!   fixed scalar literal vocabulary have shared signed binary definitions;
 //!   larger closed mathematical values retain opaque `Int` constants.
-//!   Unevaluated exact scalar subtraction denotes a shared subtraction
-//!   function applied to its operands; other open terms stay opaque. Thus
+//!   Open mathematical and unevaluated exact scalar subtraction share a
+//!   function applied to their operands. An already-admitted open mathematical
+//!   subtraction stays opaque if a previously skipped child exceeds evaluation
+//!   resources; other open operations also stay opaque. Thus
 //!   evaluated `2 + 0 = 2` remains reflexive without a decision assumption.
 //!   `IntLt` and `IntLe` are the two relation constants `Π(_ : Int). Π(_ : Int).
 //!   Type 0`, and `IntegerMathEqual`/lifted `Equal` the `Id Int`
@@ -91,10 +93,12 @@
 //! the cited premises. Evaluated scalar differences retain canonical numeral
 //! identity: binary order proves their positive-decrement case, while a
 //! contradictory positivity premise uses fixed strict irreflexivity and
-//! checked empty elimination. The remaining families — witness-bearing bound
-//! rules, multiple-equation or nested transports and denotation-conversion
-//! instances outside the supported `Int` vocabulary —
-//! denote a *rule-instance decision*: an assumption constant whose type
+//! checked empty elimination. The checked correlated unsigned subtraction bound
+//! applies fixed self-subtraction and nonstrict right-antitonicity laws to
+//! derive nonnegativity; closed instances use binary order or contradictory
+//! premise elimination. Other witness-bearing bound rules, multiple-equation
+//! or nested transports and denotation-conversion instances outside the
+//! supported `Int` vocabulary denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
 //! applied to the denoted premise evidence (ambient axiom and
 //! assumption citations bind as further premises). Each rule's
@@ -931,14 +935,36 @@ impl Denotation {
     /// The `Int`-typed declaration a mathematical term denotes —
     /// interned by its exact closed value when the shared evaluator has
     /// one, so `add(1, 1)` and `2` name one constant and a decided
-    /// `IntegerMathEqual` on them is `refl`-provable; open terms intern
-    /// by the term itself. Fixed scalar magnitudes are binary definitions;
+    /// `IntegerMathEqual` on them is `refl`-provable. Open subtraction
+    /// composes child denotations; other open terms intern by source structure.
+    /// Fixed scalar magnitudes are binary definitions;
     /// larger closed values retain opaque assumptions so this focused
     /// discreteness encoding adds no numeric acceptance limit.
     fn math_term(&mut self, term: &IntegerMathTerm) -> Result<TermHandle, BoundedDenotationError> {
         let key = match ClosedIntegerEvaluator::default().evaluate_closed(term) {
             Ok(Some(value)) => MathTermKey::Closed(value),
-            Ok(None) => MathTermKey::Open(term.clone()),
+            Ok(None) => {
+                // Open subtraction shares the scalar subtraction function.
+                // Retain shallow applications, not cloned source-tree keys
+                // for every nested prefix. Closed values still intern above.
+                if let IntegerMathTerm::Subtract(left, right) = term
+                    && ClosedIntegerEvaluator::default()
+                        .evaluate_closed(left)
+                        .is_ok()
+                    && ClosedIntegerEvaluator::default()
+                        .evaluate_closed(right)
+                        .is_ok()
+                {
+                    let left = self.math_term(left)?;
+                    let right = self.math_term(right)?;
+                    return self.subtract_terms(left, right);
+                }
+                // Evaluation short-circuits on an open left child. If an
+                // unvisited child would exceed its numeric work budget, keep
+                // this already-admitted expression opaque as before. This
+                // does not relax the whole-term preflight or a closed refusal.
+                MathTermKey::Open(term.clone())
+            }
             Err(error) => {
                 // The same refusal the primitive judgment reports —
                 // interning shares the evaluator's budget, so a term
@@ -2397,6 +2423,15 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
+                if let Some(evidence) = self.denotation.unsigned_subtract_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
                 let mut premises = Vec::with_capacity(cited.len() + 1);
                 let mut evidence = Vec::with_capacity(cited.len() + 1);
                 premises.push(root_bound.conclusion.clone());

@@ -352,10 +352,17 @@ subtraction-by-zero and right-antitonicity laws, then transports the endpoints.
 Representable closed differences keep canonical numeral identity and derive
 their order through binary comparison. Contradictory positivity premises
 use an explicit strict-irreflexivity law and checked empty elimination.
-Other open arithmetic remains opaque; these fixed laws are assumptions,
-not an arithmetic consistency result.
+The correlated unsigned subtraction witness derives its zero lower bound
+from fixed self-zero and non-strict right-antitonicity laws. Open mathematical
+subtraction shares the scalar operation when its children can be denoted;
+if evaluating a previously skipped child would introduce a resource refusal,
+the already-admitted open expression retains its prior opaque identity.
+Whole closed-term resource refusals are unchanged. Other open arithmetic
+remains opaque; these fixed laws are assumptions, not an arithmetic
+consistency result. Recursive evaluator preflights may revisit prefixes;
+shallow term storage does not establish linear checking cost.
 
-Remaining families, including bound and correlated-root
+Remaining families, including other bound and correlated-root
 witnesses, multiple-equation or nested transport and transports outside the
 supported integer vocabulary, denote
 a *rule-instance decision*: an assumption constant of type
@@ -369,12 +376,14 @@ tests inspect exact law closure and identity compositions;
 `compiler/tests/kernel_discreteness.rs` independently checks a source-produced
 certificate, its mathematical wire roundtrip and its invalid control.
 `compiler/tests/kernel_subtract_order.rs` checks the complete source-produced
-ranked-loop edge against the independently reconstructed obligation, exact
-assumption closure through the mathematical wire, and rejection of a
-non-decreasing rank. The `terminal-codec` bounded-certificate tests exercise
-retained declarations, exact shared-integer closure, universally quantified
-order laws and fixed-to-mathematical equality citations. Changed endpoints,
-forged evidence, mismatched conclusions and malformed wire data reject.
+ranked-loop edge and its subtraction operation against independently
+reconstructed obligations, exact assumption closure through the mathematical
+wire, and rejection of a non-decreasing rank. A guarded decrement-two operation
+checks the same lower-bound rule and rejects an insufficient guard. The
+`terminal-codec` bounded-certificate tests exercise retained declarations,
+exact shared-integer closure, universally quantified order laws and
+fixed-to-mathematical equality citations. Changed endpoints, forged evidence,
+mismatched conclusions and malformed wire data reject.
 
 What the kernel does *not* discharge: faithfulness of the encoding to a
 *source* declaration — positivity, nominal identity and statement fidelity
