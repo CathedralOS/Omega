@@ -1,15 +1,11 @@
 //! The prepared filesystem call and the argument cursor that builds it.
 
+use crate::FilesystemRootedPathOperandResolution;
 use crate::interpreter::evaluator::filesystem_preparation::MAX_FILESYSTEM_TRANSFER_BYTES;
 use crate::interpreter::evaluator::filesystem_preparation::logical_handle_plans::{
     FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
     PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandleOutput,
     PreparedFilesystemLogicalHandlePlan, PreparedFilesystemLogicalHandleRetirement,
-    PreparedFilesystemPreparation,
-};
-use crate::interpreter::evaluator::filesystem_preparation::observation_plans::{
-    PreparedFilesystemMutableObservationPlan, mutable_byte_observation, mutable_i64_observation,
-    observed_bytes, observed_path_like_bytes, observed_scalar,
 };
 use crate::interpreter::evaluator::filesystem_preparation::prepared_outputs::{
     PreparedByteOutput, PreparedI64Output, PreparedMutableByteInput, PreparedTransferCount,
@@ -25,10 +21,6 @@ use crate::interpreter::evaluator::{
     EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, FilesystemLogicalHandleKind,
     Frame, Halt, Value, real_filesystem, rooted_build_path_parts, trap, unsupported,
     validate_build_relative_path,
-};
-use crate::{
-    FilesystemByteOperand, FilesystemPathLikeOperand, FilesystemRootedPathOperandResolution,
-    FilesystemScalarOperand, FilesystemScalarOperandValue,
 };
 
 /// Every canonical authored operand is represented, including ABI-shape
@@ -252,6 +244,29 @@ pub(crate) enum PreparedFilesystemCall {
 }
 
 impl PreparedFilesystemCall {
+    /// Later arguments can alias earlier carriers. Validate their current
+    /// contents without retaining another copy before entering the provider.
+    pub(crate) fn validate_output_carriers(&self) -> EvalResult<()> {
+        match self {
+            Self::Read { buffer, .. }
+            | Self::ReadAt { buffer, .. }
+            | Self::ReadLink { buffer, .. }
+            | Self::Canonicalize { buffer, .. }
+            | Self::FinalPathNameByHandle { buffer, .. }
+            | Self::ReadMetadata { buffer, .. }
+            | Self::ReadFileMetadata { buffer, .. }
+            | Self::ReadSymlinkMetadata { buffer, .. } => buffer.validate_contents(),
+            Self::ReadDir {
+                buffer, position, ..
+            } => {
+                buffer.validate_contents()?;
+                position.validate_contents()
+            }
+            Self::FindFirst { data, .. } | Self::FindNext { data, .. } => data.validate_contents(),
+            _ => Ok(()),
+        }
+    }
+
     /// Project the closed canonical call into descriptor/handle roles before a
     /// provider consumes it. Scalar values that merely share an integer ABI
     /// width (pointers, offsets, flags, ownership IDs) never enter this plan.
@@ -418,248 +433,6 @@ impl PreparedFilesystemCall {
             retirement,
         }
     }
-
-    /// Project canonical non-handle scalars, immutable payload bytes, and
-    /// unrooted path-like spellings from a fully prepared call. Rooted paths
-    /// remain excluded because their separate semantic sidecar owns portable
-    /// input resolution and scoped grant evidence owns authorization; neither
-    /// may be reconstructed from raw physical provider spellings.
-    pub(crate) fn operand_observation_plan(
-        &self,
-    ) -> (
-        Vec<FilesystemScalarOperand>,
-        Vec<FilesystemByteOperand>,
-        Vec<FilesystemPathLikeOperand>,
-    ) {
-        use FilesystemScalarOperandValue as Scalar;
-
-        let mut scalars = Vec::new();
-        let mut bytes = Vec::new();
-        let mut path_like = Vec::new();
-
-        match self {
-            Self::Create { mode, .. } => scalars.push(observed_scalar(1, Scalar::I32(*mode))),
-            Self::Open { flags, .. } => scalars.push(observed_scalar(1, Scalar::I32(*flags))),
-            Self::OpenCreate { flags, mode, .. } => {
-                scalars.push(observed_scalar(1, Scalar::I32(*flags)));
-                scalars.push(observed_scalar(2, Scalar::I32(*mode)));
-            }
-            Self::Read { count, .. } => {
-                scalars.push(observed_scalar(2, Scalar::U64(count.raw)));
-            }
-            Self::Write { bytes: value, .. } => bytes.push(observed_bytes(1, value)),
-            Self::ReadAt { count, offset, .. } => {
-                scalars.push(observed_scalar(2, Scalar::U64(count.raw)));
-                scalars.push(observed_scalar(3, Scalar::I64(*offset)));
-            }
-            Self::WriteAt {
-                bytes: value,
-                offset,
-                ..
-            } => {
-                bytes.push(observed_bytes(1, value));
-                scalars.push(observed_scalar(2, Scalar::I64(*offset)));
-            }
-            Self::Seek { offset, whence, .. } => {
-                scalars.push(observed_scalar(1, Scalar::I64(*offset)));
-                scalars.push(observed_scalar(2, Scalar::I32(*whence)));
-            }
-            Self::CreateDir { mode, .. } => {
-                scalars.push(observed_scalar(1, Scalar::I32(*mode)));
-            }
-            Self::CreateDirName { name, mode } => {
-                path_like.push(observed_path_like_bytes(0, name));
-                scalars.push(observed_scalar(1, Scalar::I32(*mode)));
-            }
-            Self::OpenAt { name, flags, .. } | Self::UnlinkAt { name, flags, .. } => {
-                bytes.push(observed_bytes(1, name));
-                scalars.push(observed_scalar(2, Scalar::I32(*flags)));
-            }
-            Self::SetPermissions { mode, .. } | Self::SetFilePermissions { mode, .. } => {
-                scalars.push(observed_scalar(1, Scalar::U32(*mode)));
-            }
-            Self::ReadLink { count, .. } | Self::ReadDir { count, .. } => {
-                scalars.push(observed_scalar(2, Scalar::U64(count.raw)));
-            }
-            Self::CreateHardLink {
-                security_attributes,
-                ..
-            } => scalars.push(observed_scalar(2, Scalar::I64(*security_attributes))),
-            Self::OpenPathHandle {
-                desired_access,
-                share_mode,
-                security_attributes,
-                creation_disposition,
-                flags_and_attributes,
-                ..
-            } => {
-                scalars.push(observed_scalar(1, Scalar::U32(*desired_access)));
-                scalars.push(observed_scalar(2, Scalar::U32(*share_mode)));
-                scalars.push(observed_scalar(3, Scalar::I64(*security_attributes)));
-                scalars.push(observed_scalar(4, Scalar::U32(*creation_disposition)));
-                scalars.push(observed_scalar(5, Scalar::U32(*flags_and_attributes)));
-            }
-            Self::FinalPathNameByHandle {
-                capacity, flags, ..
-            } => {
-                scalars.push(observed_scalar(2, Scalar::U64(capacity.raw)));
-                scalars.push(observed_scalar(3, Scalar::U32(*flags)));
-            }
-            Self::SetFileTime {
-                creation,
-                last_access,
-                last_write,
-                ..
-            } => {
-                scalars.push(observed_scalar(1, Scalar::I64(*creation)));
-                bytes.push(observed_bytes(2, last_access));
-                bytes.push(observed_bytes(3, last_write));
-            }
-            Self::LockFileEx {
-                flags,
-                reserved,
-                length_low,
-                length_high,
-                ..
-            } => {
-                scalars.push(observed_scalar(1, Scalar::U32(*flags)));
-                scalars.push(observed_scalar(2, Scalar::U32(*reserved)));
-                scalars.push(observed_scalar(3, Scalar::U32(*length_low)));
-                scalars.push(observed_scalar(4, Scalar::U32(*length_high)));
-            }
-            Self::UnlockFile {
-                offset_low,
-                offset_high,
-                length_low,
-                length_high,
-                ..
-            } => {
-                scalars.push(observed_scalar(1, Scalar::U32(*offset_low)));
-                scalars.push(observed_scalar(2, Scalar::U32(*offset_high)));
-                scalars.push(observed_scalar(3, Scalar::U32(*length_low)));
-                scalars.push(observed_scalar(4, Scalar::U32(*length_high)));
-            }
-            Self::SetLen { length, .. } => {
-                scalars.push(observed_scalar(1, Scalar::I64(*length)));
-            }
-            Self::LockFile { operation, .. } => {
-                scalars.push(observed_scalar(1, Scalar::I32(*operation)));
-            }
-            Self::ChangeOwner { uid, gid, .. }
-            | Self::ChangeOwnerNoFollow { uid, gid, .. }
-            | Self::ChangeFileOwner { uid, gid, .. } => {
-                scalars.push(observed_scalar(1, Scalar::I32(*uid)));
-                scalars.push(observed_scalar(2, Scalar::I32(*gid)));
-            }
-            Self::Symlink { target, .. }
-            | Self::FindFirst {
-                pattern: target, ..
-            }
-            | Self::RemoveName { path: target }
-            | Self::RemoveDirName { path: target } => {
-                path_like.push(observed_path_like_bytes(0, target));
-            }
-            Self::Close { .. }
-            | Self::Remove { .. }
-            | Self::RemoveDir { .. }
-            | Self::Rename { .. }
-            | Self::HardLink { .. }
-            | Self::Canonicalize { .. }
-            | Self::FindNext { .. }
-            | Self::FindClose { .. }
-            | Self::CloseHandle { .. }
-            | Self::GetOsfHandle { .. }
-            | Self::GetLastError
-            | Self::ReadMetadata { .. }
-            | Self::ReadFileMetadata { .. }
-            | Self::ReadSymlinkMetadata { .. }
-            | Self::SetFileTimes { .. }
-            | Self::Sync { .. }
-            | Self::SyncData { .. }
-            | Self::Duplicate { .. }
-            | Self::Errno => {}
-        }
-        (scalars, bytes, path_like)
-    }
-
-    /// Snapshot mutable carriers only after all authored arguments have been
-    /// evaluated. A later argument may alias an earlier carrier, so capturing
-    /// while the argument cursor advances would not describe provider-visible
-    /// pre-state.
-    pub(crate) fn mutable_observation_plan(
-        &self,
-    ) -> EvalResult<PreparedFilesystemMutableObservationPlan> {
-        let mut byte_operands = Vec::new();
-        let mut i64_operands = Vec::new();
-        match self {
-            Self::Read { buffer, .. }
-            | Self::ReadAt { buffer, .. }
-            | Self::ReadLink { buffer, .. }
-            | Self::Canonicalize { buffer, .. }
-            | Self::FinalPathNameByHandle { buffer, .. }
-            | Self::ReadMetadata { buffer, .. }
-            | Self::ReadFileMetadata { buffer, .. }
-            | Self::ReadSymlinkMetadata { buffer, .. } => {
-                byte_operands.push(mutable_byte_observation(1, buffer)?);
-            }
-            Self::ReadDir {
-                buffer, position, ..
-            } => {
-                byte_operands.push(mutable_byte_observation(1, buffer)?);
-                i64_operands.push(mutable_i64_observation(3, position)?);
-            }
-            Self::FindFirst { data, .. } | Self::FindNext { data, .. } => {
-                byte_operands.push(mutable_byte_observation(1, data)?);
-            }
-            Self::LockFileEx { overlapped, .. } => {
-                byte_operands.push(mutable_byte_observation(5, &overlapped.output)?);
-            }
-            Self::SetFileTimes { times, .. } => {
-                byte_operands.push(mutable_byte_observation(1, &times.output)?);
-            }
-            Self::Create { .. }
-            | Self::Open { .. }
-            | Self::OpenCreate { .. }
-            | Self::Write { .. }
-            | Self::WriteAt { .. }
-            | Self::Close { .. }
-            | Self::Remove { .. }
-            | Self::Seek { .. }
-            | Self::CreateDir { .. }
-            | Self::RemoveDir { .. }
-            | Self::CreateDirName { .. }
-            | Self::OpenAt { .. }
-            | Self::UnlinkAt { .. }
-            | Self::SetPermissions { .. }
-            | Self::SetFilePermissions { .. }
-            | Self::Rename { .. }
-            | Self::HardLink { .. }
-            | Self::Symlink { .. }
-            | Self::FindClose { .. }
-            | Self::CreateHardLink { .. }
-            | Self::OpenPathHandle { .. }
-            | Self::CloseHandle { .. }
-            | Self::GetOsfHandle { .. }
-            | Self::SetFileTime { .. }
-            | Self::UnlockFile { .. }
-            | Self::GetLastError
-            | Self::RemoveName { .. }
-            | Self::RemoveDirName { .. }
-            | Self::SetLen { .. }
-            | Self::Sync { .. }
-            | Self::SyncData { .. }
-            | Self::Duplicate { .. }
-            | Self::LockFile { .. }
-            | Self::ChangeOwner { .. }
-            | Self::ChangeOwnerNoFollow { .. }
-            | Self::ChangeFileOwner { .. }
-            | Self::Errno => {}
-        }
-        Ok(PreparedFilesystemMutableObservationPlan {
-            byte_operands,
-            i64_operands,
-        })
-    }
 }
 
 struct FilesystemArgumentCursor<'evaluation, 'program, 'arguments, 'frame> {
@@ -668,7 +441,6 @@ struct FilesystemArgumentCursor<'evaluation, 'program, 'arguments, 'frame> {
     arguments: std::slice::Iter<'arguments, ExpressionHandle>,
     frame: &'frame Frame,
     consumed: usize,
-    rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
 }
 
 impl<'evaluation, 'program, 'arguments, 'frame>
@@ -686,7 +458,6 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             arguments: arguments.iter(),
             frame,
             consumed: 0,
-            rooted_path_operand_resolutions: Vec::new(),
         }
     }
 
@@ -716,11 +487,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn i64(&mut self) -> EvalResult<i64> {
-        let (operand_ordinal, value) = self.integer()?;
-        self.evaluator.record_prepared_filesystem_scalar_operand(
-            self.attempt_index,
-            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::I64(value)),
-        );
+        let (_, value) = self.integer()?;
         Ok(value)
     }
 
@@ -754,30 +521,22 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn i32(&mut self) -> EvalResult<i32> {
-        let (operand_ordinal, raw) = self.integer()?;
+        let (_, raw) = self.integer()?;
         let value = i32::try_from(raw).map_err(|_| {
             Halt::Trap(format!(
                 "canonical filesystem i32 operand `{raw}` is out of range"
             ))
         })?;
-        self.evaluator.record_prepared_filesystem_scalar_operand(
-            self.attempt_index,
-            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::I32(value)),
-        );
         Ok(value)
     }
 
     fn u32(&mut self) -> EvalResult<u32> {
-        let (operand_ordinal, raw) = self.integer()?;
+        let (_, raw) = self.integer()?;
         let value = u32::try_from(raw).map_err(|_| {
             Halt::Trap(format!(
                 "canonical filesystem u32 operand `{raw}` is out of range"
             ))
         })?;
-        self.evaluator.record_prepared_filesystem_scalar_operand(
-            self.attempt_index,
-            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::U32(value)),
-        );
         Ok(value)
     }
 
@@ -809,14 +568,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn count(&mut self) -> EvalResult<PreparedTransferCount> {
-        let (operand_ordinal, raw) = self.integer()?;
-        let typed = u64::try_from(raw).map_err(|_| {
-            Halt::Trap("filesystem transfer count is negative or not host-representable".to_owned())
-        })?;
-        self.evaluator.record_prepared_filesystem_scalar_operand(
-            self.attempt_index,
-            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::U64(typed)),
-        );
+        let (_, raw) = self.integer()?;
         checked_filesystem_transfer_count(raw).map_err(|error| match error {
             FilesystemTransferCountError::NegativeOrUnrepresentable => Halt::Trap(
                 "filesystem transfer count is negative or not host-representable".to_owned(),
@@ -858,31 +610,18 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn bytes(&mut self) -> EvalResult<Vec<u8>> {
-        let (operand_ordinal, bytes) = self.raw_bytes()?;
-        self.evaluator.record_prepared_filesystem_byte_operand(
-            self.attempt_index,
-            observed_bytes(operand_ordinal, &bytes),
-        )?;
+        let (_, bytes) = self.raw_bytes()?;
         Ok(bytes)
     }
 
     fn path_like_bytes(&mut self) -> EvalResult<Vec<u8>> {
-        let (operand_ordinal, bytes) = self.raw_bytes()?;
-        self.evaluator
-            .record_prepared_filesystem_path_like_operand(
-                self.attempt_index,
-                observed_path_like_bytes(operand_ordinal, &bytes),
-            )?;
+        let (_, bytes) = self.raw_bytes()?;
         Ok(bytes)
     }
 
     fn relative_component(&mut self) -> EvalResult<Vec<u8>> {
-        let (operand_ordinal, bytes) = self.raw_bytes()?;
+        let (_, bytes) = self.raw_bytes()?;
         let bytes = checked_relative_component(bytes)?;
-        self.evaluator.record_prepared_filesystem_byte_operand(
-            self.attempt_index,
-            observed_bytes(operand_ordinal, &bytes),
-        )?;
         Ok(bytes)
     }
 
@@ -917,14 +656,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             };
         };
         validate_build_relative_path(&relative)?;
-        let provider_path = if self.evaluator.filesystem_replay.is_some() {
-            let mut stable = format!("/root/{}", root.get()).into_bytes();
-            if !relative.is_empty() {
-                stable.push(b'/');
-                stable.extend_from_slice(&relative);
-            }
-            stable
-        } else {
+        let provider_path = {
             let filesystem = self.evaluator.real_fs.as_ref().ok_or_else(|| {
                 Halt::Trap("rooted build path requires a scoped real filesystem".to_owned())
             })?;
@@ -942,14 +674,13 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         self.evaluator
             .record_prepared_filesystem_rooted_path_operand_resolution(
                 self.attempt_index,
-                resolution.clone(),
+                resolution,
             )?;
-        self.rooted_path_operand_resolutions.push(resolution);
         Ok(provider_path)
     }
 
     fn mutable_bytes(&mut self) -> EvalResult<PreparedByteOutput> {
-        let (operand_ordinal, handle) = self.next()?;
+        let (_, handle) = self.next()?;
         let cell = self.evaluator.resolve_place(handle, self.frame)?;
         let cell = self.evaluator.deref_cell(cell);
         let output = {
@@ -972,29 +703,18 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 )),
             }
         }?;
-        self.evaluator
-            .record_prepared_filesystem_mutable_byte_operand_resolution(
-                self.attempt_index,
-                operand_ordinal,
-                &output,
-            )?;
+        output.validate_contents()?;
         Ok(output)
     }
 
     fn mutable_i64(&mut self) -> EvalResult<PreparedI64Output> {
-        let (operand_ordinal, handle) = self.next()?;
+        let (_, handle) = self.next()?;
         let cell = self.evaluator.resolve_place(handle, self.frame)?;
         let cell = self.evaluator.deref_cell(cell);
         let initial = match *cell.borrow() {
             Value::Int(value) => value,
             _ => return trap("filesystem mutable scalar operand is not an integer"),
         };
-        self.evaluator
-            .record_prepared_filesystem_mutable_i64_operand_resolution(
-                self.attempt_index,
-                operand_ordinal,
-                initial,
-            );
         Ok(PreparedI64Output { cell, initial })
     }
 
@@ -1005,12 +725,12 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         let output = self.mutable_bytes()?;
         output.require_capacity(required_bytes)?;
         let bytes = output.snapshot()?;
-        Ok(PreparedMutableByteInput { output, bytes })
+        Ok(PreparedMutableByteInput { bytes })
     }
 
-    fn finish(self) -> EvalResult<Vec<FilesystemRootedPathOperandResolution>> {
+    fn finish(self) -> EvalResult<()> {
         if self.arguments.len() == 0 {
-            Ok(self.rooted_path_operand_resolutions)
+            Ok(())
         } else {
             trap("canonical filesystem call has unconsumed authored operands")
         }
@@ -1023,7 +743,7 @@ impl<'program> Evaluator<'program> {
         operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],
         frame: &Frame,
-    ) -> EvalResult<PreparedFilesystemPreparation> {
+    ) -> EvalResult<PreparedFilesystemCall> {
         check_filesystem_arity(operation, arguments.len())?;
         if self.rooted_build_paths_required
             && let Some(reason) = rooted_package_build_operation_refusal(operation)
@@ -1311,10 +1031,7 @@ impl<'program> Evaluator<'program> {
             },
             FilesystemHostOperation::Errno => PreparedFilesystemCall::Errno,
         };
-        let rooted_path_operand_resolutions = a.finish()?;
-        Ok(PreparedFilesystemPreparation {
-            call,
-            rooted_path_operand_resolutions,
-        })
+        a.finish()?;
+        Ok(call)
     }
 }

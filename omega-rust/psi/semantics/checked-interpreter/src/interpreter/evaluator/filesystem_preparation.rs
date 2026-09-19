@@ -3,11 +3,9 @@
 //! `prepared_calls.rs` carries the prepared call and its argument cursor,
 //! `prepared_outputs.rs` the prepared byte and integer outputs,
 //! `logical_handle_plans.rs` the logical handle inputs, outputs and
-//! retirements, `observation_plans.rs` the mutable observation plans and
-//! `tests.rs` the preparation tests.
+//! retirements, and `tests.rs` the preparation tests.
 
 mod logical_handle_plans;
-mod observation_plans;
 mod prepared_calls;
 mod prepared_outputs;
 #[cfg(test)]
@@ -20,13 +18,9 @@ pub(crate) use logical_handle_plans::{
 };
 pub(crate) use logical_handle_plans::{
     PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
-    PreparedFilesystemPreparation,
 };
-pub(crate) use observation_plans::PreparedFilesystemMutableObservationPlan;
 pub(crate) use prepared_calls::PreparedFilesystemCall;
 pub(crate) use prepared_outputs::{PreparedByteOutput, PreparedTransferCount};
-#[cfg(test)]
-pub(crate) use prepared_outputs::{PreparedI64Output, PreparedMutableByteInput};
 
 use super::{EvalResult, FilesystemHostOperation, Halt, trap};
 
@@ -58,10 +52,7 @@ pub(super) fn checked_filesystem_transfer_count(
     if host > MAX_FILESYSTEM_TRANSFER_BYTES {
         return Err(FilesystemTransferCountError::ExceedsEvaluatorLimit);
     }
-    Ok(PreparedTransferCount {
-        raw: raw as u64,
-        host,
-    })
+    Ok(PreparedTransferCount { host })
 }
 
 fn check_byte_len(length: usize) -> EvalResult<()> {

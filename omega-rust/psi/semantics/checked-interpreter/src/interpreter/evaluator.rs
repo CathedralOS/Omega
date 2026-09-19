@@ -110,8 +110,7 @@ use filesystem_host_operation::{FilesystemHostOperation, FilesystemHostResultKin
 use filesystem_logical_handles::FilesystemLogicalHandles;
 use filesystem_preparation::{
     FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
-    PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
-    PreparedFilesystemMutableObservationPlan, PreparedFilesystemPreparation, STAT_OUTPUT_BYTES,
+    PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan, STAT_OUTPUT_BYTES,
     synthetic_handle_fd,
 };
 pub(crate) use halts::Halt;
@@ -141,11 +140,7 @@ pub(super) const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
 /// rather than overflow the host stack. Deep recursive programs are skipped (reported as
 /// unsupported), never crash the differential harness.
 const CALL_DEPTH_BUDGET: u32 = 512;
-/// Aggregate byte custody for immutable, path-like, rooted-resolution,
-/// returned-path, and mutable filesystem evidence retained during one
-/// evaluator run. A successful mutable byte call retains resolution, provider
-/// pre-state, and provider post-state under this same sponsor. Individual
-/// prepared carriers remain bounded by their separate 16 MiB evaluator limit.
+/// Aggregate byte custody for rooted output coordinates retained during one run.
 const MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES: usize = 256 * 1024 * 1024;
 /// Exact logical ceiling for one complete directory-enumeration payload lane:
 /// packed records for `read_dir`, retained names for a find cursor. Packed
@@ -378,8 +373,6 @@ pub(crate) struct Evaluator<'program> {
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
     pub(super) real_fs: Option<real_filesystem::RealFs>,
-    /// Expected compiler-produced events for bounded no-host filesystem replay.
-    pub(super) filesystem_replay: Option<crate::FilesystemReplay>,
     /// The canonical Build activation carried Source/Output facets. In this
     /// mode path-taking host operations require interpreter-retained rooted
     /// provenance; bare byte spellings cannot select a grant root.
@@ -420,12 +413,8 @@ pub(crate) struct Evaluator<'program> {
     /// while still rejecting every OTHER host boundary (console, clock, gui)
     /// as its dynamic backstop.
     non_fs_host_boundary_touched: bool,
-    /// Ordered operation-attempt evidence for exact canonical filesystem host
-    /// calls. Direct scoped path authorizations retain compiler-rooted paths;
-    /// typed operands, mutable carriers, and logical handles retain their
-    /// completed preparation prefix. Exact path results and file/directory
-    /// observation regions and canonical metadata values are designated, but
-    /// replay execution remains incomplete.
+    /// Ordered filesystem outcomes, rooted authorization and output coordinates,
+    /// and logical handle lifetimes. Payload buffers are not retained.
     pub(super) filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.
@@ -436,10 +425,7 @@ pub(crate) struct Evaluator<'program> {
         BTreeMap<crate::FilesystemLogicalHandleIdentity, BuildEvaluationLiveFilesystemHandleLease>,
     /// Aggregate retained authorized rooted-path bytes.
     filesystem_observation_path_bytes: usize,
-    /// Aggregate retained immutable, path-like, rooted-resolution,
-    /// returned-path, and mutable evidence bytes, including resolution and
-    /// provider pre/post copies. Observed-byte regions reference post-state and
-    /// add no byte copy. This compiler-side account is not observable by Omega.
+    /// Aggregate bytes of rooted output coordinates retained for writer custody.
     filesystem_observation_evidence_bytes: usize,
     /// Pending non-catchable halt set when retaining a successfully authorized
     /// rooted path would exceed the compiler's evidence-custody bound.

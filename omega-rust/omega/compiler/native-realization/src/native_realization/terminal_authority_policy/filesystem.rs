@@ -22,10 +22,9 @@ use effects::{
     CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
     PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
     SyscallTerminalMechanismIdentity, TerminalAuthorityDisposition, TerminalMechanismIdentity,
-    provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSchemaDigest},
+    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
 };
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
 
 use super::TerminalAuthorityPolicyRow;
 
@@ -33,25 +32,6 @@ use super::TerminalAuthorityPolicyRow;
 /// for the occurrence-specific ordinary-release contract.
 const ORDINARY_RELEASE_CONTRACT_DOMAIN: &[u8] =
     b"omega.checked-syscall-argument-contract.filesystem-ordinary-release.v1\0";
-
-/// Domain separation for one retained bounded Source native-handle
-/// query-release occurrence inside a verified build filesystem replay
-/// record. The occurrence commitment binds the verified record's own strong
-/// commitment and the occurrence's ordinal position in the retained event
-/// sequence, so one record can carry several proved occurrences without
-/// letting them share a contract.
-const NATIVE_HANDLE_QUERY_RELEASE_OCCURRENCE_DOMAIN: &[u8] =
-    b"omega.filesystem-ordinary-release.native-handle-query-occurrence.v1\0";
-
-/// Operation tags of the retained bounded Source native-handle query-release
-/// chain in the checked filesystem replay grammar
-/// (`FilesystemSourceNativeHandleQueryChainReplayRecord`): constrained
-/// `open_path_handle`, admitted `final_path_name_by_handle`/`get_last_error`
-/// observations, and the releasing `close_handle`.
-const OPEN_PATH_HANDLE_TAG: u16 = 28;
-const CLOSE_HANDLE_TAG: u16 = 29;
-const FINAL_PATH_NAME_BY_HANDLE_TAG: u16 = 31;
-const GET_LAST_ERROR_TAG: u16 = 35;
 
 /// One canonical `FilesystemHost` requirement's settled cohort disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,9 +91,8 @@ impl FilesystemOrdinaryReleaseContract {
 /// coordinate of a direct-syscall mechanism.
 ///
 /// `occurrence_commitment` is the checking stage's strong commitment of the
-/// retained constrained acquisition/observation/release lifecycle — for the
-/// `FilesystemHost` native-handle chain, the checked query-release record's
-/// own commitment. Minting this coordinate does not itself establish the
+/// program's constrained acquisition/observation/release lifecycle.
+/// Minting this coordinate does not itself establish the
 /// occurrence and grants no classification, permission, or admission: the
 /// mechanism row still emits only through `filesystem_release_mechanism_row`.
 pub fn filesystem_ordinary_release_contract(
@@ -125,86 +104,6 @@ pub fn filesystem_ordinary_release_contract(
     FilesystemOrdinaryReleaseContract(CheckedSyscallArgumentContractIdentity::from_digest(
         digest.finalize().into(),
     ))
-}
-
-/// Realize every retained bounded Source native-handle query-release
-/// occurrence in one verified build filesystem replay record into its
-/// ordinary-release contract, in authored operation order.
-///
-/// The retained record replays through the verified build-evaluation
-/// boundary: rehydration reconstructs each retained event through the
-/// checked replay record constructors, so every attempt this routine
-/// attributes to an occurrence already proved the exact constrained
-/// acquisition/observation/release lifecycle — the constrained
-/// `open_path_handle` contract, `Resolved` handle preservation through
-/// admitted `final_path_name_by_handle`/`get_last_error` observations, and
-/// one successful `close_handle` retiring the identity exactly once.
-///
-/// Each occurrence's commitment binds the verified record's own strong
-/// commitment and the occurrence's ordinal position among the retained
-/// query-release occurrences. Minting a contract establishes no
-/// classification by itself: the row still emits only through
-/// `filesystem_release_mechanism_row` for the direct-syscall mechanism
-/// carrying the exact coordinate. Stale or substituted evidence fails
-/// closed — a tampered record cannot rehydrate, a different record commits
-/// differently, and a mechanism bound to one occurrence cannot inherit
-/// another occurrence's contract.
-///
-/// Attempts that do not form a complete retained occurrence earn no
-/// contract: failed acquisition, escapes, invalidating calls, early
-/// retirement, deferred deletion, and missing or late release all fail the
-/// checked constructors upstream, and a partial sequence is never an
-/// occurrence here.
-pub fn filesystem_native_handle_query_release_contracts(
-    record: &build_evaluation::ReviewOnlyBuildFilesystemReplayRecord,
-    limits: build_evaluation::BuildFilesystemReplayRecordLimits,
-) -> Result<
-    Vec<FilesystemOrdinaryReleaseContract>,
-    build_evaluation::BuildFilesystemReplayRecordError,
-> {
-    let replay =
-        build_evaluation::rehydrate_review_only_build_filesystem_replay_record(record, limits)?;
-    let attempts = replay.attempts();
-    let mut contracts = Vec::new();
-    let mut cursor = 0;
-    while cursor < attempts.len() {
-        if attempts[cursor].operation_tag() != OPEN_PATH_HANDLE_TAG {
-            cursor += 1;
-            continue;
-        }
-        cursor += 1;
-        let observations_start = cursor;
-        while cursor < attempts.len()
-            && matches!(
-                attempts[cursor].operation_tag(),
-                FINAL_PATH_NAME_BY_HANDLE_TAG | GET_LAST_ERROR_TAG
-            )
-        {
-            cursor += 1;
-        }
-        let complete = cursor < attempts.len()
-            && attempts[cursor].operation_tag() == CLOSE_HANDLE_TAG
-            && attempts[observations_start..cursor]
-                .iter()
-                .any(|attempt| attempt.operation_tag() == FINAL_PATH_NAME_BY_HANDLE_TAG);
-        if !complete {
-            // Successful rehydration already admitted the record's event
-            // structure, so an incomplete run is not a retained occurrence.
-            continue;
-        }
-        let mut digest = Sha256::new();
-        digest.update(NATIVE_HANDLE_QUERY_RELEASE_OCCURRENCE_DOMAIN);
-        digest.update(record.commitment());
-        digest.update(
-            u64::try_from(contracts.len())
-                .expect("bounded occurrence ordinals fit u64")
-                .to_le_bytes(),
-        );
-        let occurrence_commitment: [u8; 32] = digest.finalize().into();
-        contracts.push(filesystem_ordinary_release_contract(occurrence_commitment));
-        cursor += 1;
-    }
-    Ok(contracts)
 }
 
 /// Bind one retained ordinary-release contract into an exact mechanism's
@@ -238,116 +137,6 @@ pub fn filesystem_release_bound_mechanism(
         TerminalMechanismIdentity::CompilerIntrinsic(_)
         | TerminalMechanismIdentity::CheckedPhysical(_) => None,
     }
-}
-
-/// Realize each retained ordinary-release contract into the evidence-bound
-/// mechanism rows the demanded syscall/import selections earn.
-///
-/// For every demanded requirement whose selected provider row is a direct
-/// syscall or normalized foreign import in the ordinary-release cohort, each
-/// contract mints the occurrence-bound mechanism key through
-/// `filesystem_release_bound_mechanism` and emits its explicit-empty row
-/// through `filesystem_release_mechanism_row`. Undemanded requirements,
-/// selections outside the release cohort, methods absent from their own
-/// schema, and imports without exactly one retained boundary contract mint
-/// nothing: settlement's own coverage diagnostics reject those demands
-/// separately. A stale or substituted record derives different contracts, so
-/// its rows bind different mechanism keys entirely.
-pub fn filesystem_release_occurrence_mechanism_rows(
-    contracts: &[FilesystemOrdinaryReleaseContract],
-    demanded: &BTreeSet<String>,
-    selected_plans: &effects::SelectedProviderPlanFacts,
-    external_binding_rows: &[calling_conventions::ExternalBindingRow],
-) -> Result<Vec<TerminalAuthorityPolicyRow>, String> {
-    let mut rows = Vec::new();
-    for provider_plan in selected_plans.plans() {
-        for plan_row in &provider_plan.rows {
-            if !demanded.contains(&plan_row.requirement_identity) {
-                continue;
-            }
-            let Some(method) = provider_plan
-                .schema
-                .methods
-                .iter()
-                .find(|method| method.name == plan_row.method)
-            else {
-                continue;
-            };
-            if settled_filesystem_cohort(&method.name)
-                != Some(FilesystemCohortDisposition::OrdinaryReleaseContract)
-            {
-                continue;
-            }
-            match &plan_row.binding {
-                ProviderBinding::Syscall { number } => {
-                    let target_profile = target::TargetProfile::from_canonical_target_name(
-                        &provider_plan.target,
-                    )
-                    .map_err(|diagnostic| {
-                        format!(
-                            "selected filesystem release plan targets an uncanonical name: {diagnostic}"
-                        )
-                    })?;
-                    let number = u32::try_from(*number).map_err(|_| {
-                        "selected filesystem release syscall number does not fit the checked u32 domain"
-                            .to_owned()
-                    })?;
-                    for contract in contracts {
-                        let bound = SyscallTerminalMechanismIdentity::new(
-                            target_profile,
-                            number,
-                            contract.checked_argument_contract(),
-                        )
-                        .into();
-                        rows.push(
-                            filesystem_release_mechanism_row(bound, method, *contract).map_err(
-                                |error| {
-                                    format!(
-                                        "demanded filesystem release `{}` could not emit its bound mechanism row: {error:?}",
-                                        plan_row.requirement_identity
-                                    )
-                                },
-                            )?,
-                        );
-                    }
-                }
-                ProviderBinding::Import { evaluated } => {
-                    let externals = external_binding_rows
-                        .iter()
-                        .filter(|row| row.requirement_identity == plan_row.requirement_identity)
-                        .collect::<Vec<_>>();
-                    // Settlement reports retained-row multiplicity itself; only
-                    // the exact one-plan case can mint a bound key here.
-                    let [external] = externals.as_slice() else {
-                        continue;
-                    };
-                    let Some(boundary_entry_plan) = &external.boundary_entry_plan else {
-                        continue;
-                    };
-                    let base = super::normalized_foreign_terminal_mechanism(
-                        evaluated.locator(),
-                        boundary_entry_plan,
-                    )?;
-                    for contract in contracts {
-                        let bound = filesystem_release_bound_mechanism(base, *contract)
-                            .expect("a normalized foreign key accepts a checked coordinate");
-                        rows.push(
-                            filesystem_release_mechanism_row(bound, method, *contract).map_err(
-                                |error| {
-                                    format!(
-                                        "demanded filesystem release `{}` could not emit its bound mechanism row: {error:?}",
-                                        plan_row.requirement_identity
-                                    )
-                                },
-                            )?,
-                        );
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    Ok(rows)
 }
 
 /// Look up the settled cohort for one canonical `FilesystemHost` requirement

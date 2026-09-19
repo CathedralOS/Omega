@@ -451,14 +451,14 @@ fn captured_build_source_input_rejects_every_one_field_substitution() {
             .and_then(CapturedSourceEntry::content_digest),
         "the retained content digest must diverge with the captured bytes"
     );
-    // The replay direction materializes the substitution faithfully: the
+    // Materialization preserves the substitution faithfully: the
     // snapshot bytes differ from the baseline even though the index join
     // is unchanged. Only the retained digest carries the difference.
     let fixture = Fixture::new("bytes-substituted");
     let backing = fixture.0.join("snapshot");
     std::fs::create_dir(&backing).expect("create empty backing");
     // `input_with_template` carries an executable file this host may not
-    // represent; replay the substitution over the portable inventory.
+    // represent; apply the substitution over the portable inventory.
     let mut portable_rows = entry_rows(&ordinary_input());
     for (path, entry) in portable_rows.iter_mut() {
         if path == b"templates/banner.tmpl" {
@@ -512,7 +512,7 @@ fn captured_build_source_input_rejects_every_one_field_substitution() {
     // Symlink target, same length: the extent join still holds; the
     // retained spelling digest diverges. Captured links stay inert, so
     // materialization never re-inspects them — the divergence is
-    // identity-bound through the record, not replay-bound.
+    // identity-bound through the record, not execution-derived.
     let mut rows = entry_rows(&baseline);
     for (path, entry) in rows.iter_mut() {
         if path == b"link" {
@@ -994,8 +994,8 @@ fn captured_build_source_input_rejects_every_one_field_substitution() {
     );
 
     // ── The `file_bytes` projection field is a derived cache: a forged
-    //    value diverges the record identity but no local replay re-derives
-    //    it — it stays identity-bound, not replay-bound. ──
+    //    value diverges the record identity but no local execution re-derives
+    //    it — it stays identity-bound, not execution-derived. ──
     let mut forged = baseline.clone();
     forged.file_bytes += 1;
     assert_ne!(forged, baseline);

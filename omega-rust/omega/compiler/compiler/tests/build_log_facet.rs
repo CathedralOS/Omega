@@ -1,4 +1,3 @@
-use build_evaluation::BuildObservationClass;
 use checked_interpreter::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
 };
@@ -106,8 +105,7 @@ fn compile_package_build_log() {
     let observation = checked
         .build_observation_summary()
         .expect("BuildLog execution retains a build observation");
-    assert_eq!(observation.ceiling(), BuildObservationClass::Hermetic);
-    assert_eq!(observation.realized(), BuildObservationClass::Hermetic);
+    assert!(!observation.filesystem_host_observed());
     assert_eq!(
         observation.build_log(),
         format!("{BUILD_LOG_LINE}\n").as_bytes()
@@ -122,9 +120,7 @@ fn compile_package_build_log() {
         usage.build_log_bytes,
         u64::try_from(BUILD_LOG_LINE.len() + 1).expect("short test log")
     );
-    assert_eq!(usage.replay_build_log_bytes, 0);
     assert_eq!(usage.filesystem_operation_attempts, 0);
-    assert_eq!(usage.replay_filesystem_operation_attempts, 0);
     assert!(observation.filesystem_operation_attempts().is_empty());
     let staged_output = observation
         .staged_output_tree()

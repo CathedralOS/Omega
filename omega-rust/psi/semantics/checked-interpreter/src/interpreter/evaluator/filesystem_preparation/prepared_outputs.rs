@@ -5,7 +5,6 @@ use crate::interpreter::evaluator::{Cell, EvalResult, Halt, Value, trap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PreparedTransferCount {
-    pub(crate) raw: u64,
     pub(crate) host: usize,
 }
 
@@ -43,6 +42,15 @@ impl PreparedByteOutput {
         }
     }
 
+    pub(crate) fn validate_contents(&self) -> EvalResult<()> {
+        if let Self::Array(cells) = self {
+            for cell in cells {
+                prepared_byte(cell)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn write(&self, bytes: &[u8]) -> EvalResult<()> {
         check_byte_len(bytes.len())?;
         self.require_capacity(bytes.len())?;
@@ -71,8 +79,6 @@ pub(crate) fn prepared_byte(cell: &Cell) -> EvalResult<u8> {
 }
 
 pub(crate) struct PreparedMutableByteInput {
-    #[allow(dead_code)]
-    pub(super) output: PreparedByteOutput,
     pub(crate) bytes: Vec<u8>,
 }
 
@@ -83,23 +89,15 @@ pub(crate) struct PreparedI64Output {
 }
 
 impl PreparedI64Output {
-    #[cfg(test)]
-    pub(crate) fn test_fixture(initial: i64) -> Self {
-        Self {
-            cell: Value::Int(initial).cell(),
-            initial,
+    pub(crate) fn validate_contents(&self) -> EvalResult<()> {
+        if self.cell.borrow().as_int().is_none() {
+            return trap("filesystem mutable scalar became non-integer");
         }
+        Ok(())
     }
 
     pub(crate) fn write(&self, value: i64) -> EvalResult<()> {
         *self.cell.borrow_mut() = Value::Int(value);
         Ok(())
-    }
-
-    pub(crate) fn snapshot(&self) -> EvalResult<i64> {
-        self.cell
-            .borrow()
-            .as_int()
-            .ok_or_else(|| Halt::Trap("filesystem mutable scalar became non-integer".to_owned()))
     }
 }

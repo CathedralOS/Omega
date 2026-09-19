@@ -151,9 +151,10 @@ or explicitly fail it. Publication waits for all required outputs and final
 product checks; logging an error is not the same as recording failure.
 Artifact-only mode changes entry requiredness, not target identity or authority.
 
-Build observations distinguish `Hermetic`, `Receipted`, and `Volatile`
-operations. An exact build may be replayable from retained inputs without being
-rebuildable from source: recording an input does not establish its origin.
+The root selects the filesystem backend; helpers and dependencies can only receive
+narrower access to it. A virtual root never becomes a host filesystem because a
+leaf imports a filesystem API. Builds run once against locked dependencies and
+accepted permissions; a mismatch fails rather than updating acceptance.
 See [build execution](../spec/build/execution.md),
 [observations](../spec/build/observations.md), and
 [semantic evaluation](../spec/language/evaluation.md).

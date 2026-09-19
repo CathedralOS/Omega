@@ -1,4 +1,4 @@
-//! Staged-output custody: reconciling the replayed and sponsored Output trees,
+//! Staged-output custody: settling obligations against captured Output trees,
 //! settling the compiler-owned required-output obligations, and selecting the
 //! generated sources the run handed off.
 
@@ -9,63 +9,6 @@ use build_output::{
     select_included_sources,
 };
 use diagnostics::Diagnostic;
-
-/// The Output tree the result may publish from, and whether a complete replay
-/// verified it.
-pub(super) struct StagedOutputCustody {
-    pub(super) tree: Option<BuildStagedOutputTree>,
-    pub(super) complete_replay_verified: bool,
-}
-
-/// Reconcile the Output tree a replay reproduced with the tree the sponsored
-/// filesystem scope captured. Disagreement rejects; agreement, or a replay
-/// scope that captures nothing physical, marks the replay complete.
-pub(super) fn reconcile_staged_output(
-    replayed_output_tree: Option<BuildStagedOutputTree>,
-    captured_output_tree: Option<BuildStagedOutputTree>,
-    scope_is_replay: bool,
-    replay_includes_complete_no_output_failure: bool,
-    source_inputs_replayed: bool,
-    machine_name: &str,
-) -> Result<StagedOutputCustody, Vec<Diagnostic>> {
-    let (staged_output_tree, complete_replay_verified) = match (
-        replayed_output_tree,
-        captured_output_tree,
-        scope_is_replay,
-    ) {
-        (Some(replayed), Some(captured), false) => {
-            if replayed != captured {
-                return Err(vec![Diagnostic::error(format!(
-                    "build-time replay of `{machine_name}` reproduced an Output tree that differs from sponsored staged-output custody"
-                ))]);
-            }
-            (Some(captured), true)
-        }
-        (Some(replayed), None, true) => (Some(replayed), true),
-        (Some(replayed), None, false) if replay_includes_complete_no_output_failure => {
-            (Some(replayed), true)
-        }
-        (Some(_), None, false) => (None, false),
-        (Some(_), Some(_), true) => {
-            unreachable!("replay scope cannot capture a physical staged-output tree")
-        }
-        (None, captured, _) => (captured, false),
-    };
-    if complete_replay_verified && !source_inputs_replayed {
-        return Err(vec![Diagnostic::error(format!(
-            "build-time replay of `{machine_name}` completed without exact source-input replay"
-        ))]);
-    }
-    if complete_replay_verified && staged_output_tree.is_none() {
-        return Err(vec![Diagnostic::error(format!(
-            "build-time replay of `{machine_name}` completed without staged-output custody"
-        ))]);
-    }
-    Ok(StagedOutputCustody {
-        tree: staged_output_tree,
-        complete_replay_verified,
-    })
-}
 
 /// Settle the compiler-owned required-output obligations recorded by a
 /// successful build evaluation against retained staged-output custody.

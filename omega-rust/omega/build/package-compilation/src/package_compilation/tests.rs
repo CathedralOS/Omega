@@ -74,8 +74,12 @@ fn generated_bundle(
 }
 
 fn generated_source(relative_path: &[u8], bytes: &[u8]) -> PackageGeneratedSource {
-    let tree = build_output::replayed_single_ordinary_file(relative_path, bytes)
-        .expect("test source must form a canonical retained output tree");
+    let tree = build_output::from_entries(&[build_output::OutputTreeEntry::regular_file(
+        relative_path,
+        bytes,
+        false,
+    )])
+    .expect("test source must form a canonical retained output tree");
     build_output::select_included_sources(&tree, &[relative_path.to_vec()])
         .expect("test source must be explicitly included")
         .pop()

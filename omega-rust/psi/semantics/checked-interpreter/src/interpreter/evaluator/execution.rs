@@ -48,7 +48,6 @@ impl<'program> Evaluator<'program> {
                 .collect(),
             virtual_errno: 0,
             real_fs: None,
-            filesystem_replay: None,
             rooted_build_paths_required: false,
             build_included_sources: Vec::new(),
             output_obligations: Vec::new(),

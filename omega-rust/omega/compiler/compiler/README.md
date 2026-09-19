@@ -18,7 +18,7 @@ their product owners; [package.rs](src/compiler/package.rs) owns package-custody
 checks without calling back into the coordinator.
 
 Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked`.
-Package inputs, build staging, session sponsors and replay evidence are request
+Package inputs, build staging and session sponsors are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
 Ordinary production accepts `CompileRequest::with_build_snapshot`, or distinct

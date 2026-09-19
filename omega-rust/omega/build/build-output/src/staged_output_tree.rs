@@ -1,10 +1,9 @@
 //! The staged output tree: the retained entries a build wrote, the
 //! canonical commitment over them, the sealed entry views, and the
-//! constructors that replay a tree from retained content.
+//! selection of generated sources from retained content.
 
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
-use crate::materialization::{materialize_retained_tree, retained_native_path};
-use crate::replayed_tree::{ReplayedBuildOutputEntry, replayed_output_tree};
+use crate::materialization::materialize_retained_tree;
 use diagnostics::Diagnostic;
 use sha2::Digest;
 use sha2::Sha256;
@@ -224,66 +223,6 @@ pub(crate) enum RetainedStagedOutputEntryKind {
 
 pub fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
-}
-
-/// Reconstruct the initial singleton Output grammar's complete staged tree.
-pub fn replayed_single_ordinary_file(
-    relative_path: &[u8],
-    bytes: &[u8],
-) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
-    replayed_ordinary_files(&[(relative_path, bytes)])
-}
-
-/// Reconstruct the repeated ordinary-artifact receipt grammar from canonical
-/// replay operands. Every file is a distinct direct child created by one exact
-/// create/full-write*/close sequence. Directory and other namespace effects remain
-/// outside this grammar rather than being inferred from a final digest.
-pub fn replayed_ordinary_files(
-    files: &[(&[u8], &[u8])],
-) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
-    let files = files
-        .iter()
-        .map(|(relative_path, bytes)| (*relative_path, *bytes, false))
-        .collect::<Vec<_>>();
-    replayed_files(&files)
-}
-
-/// Reconstruct repeated regular-file outputs with their compiler-derived
-/// executable class. The boolean is not package-authored metadata: callers
-/// derive it from the retained filesystem operation grammar.
-pub fn replayed_files(
-    files: &[(&[u8], &[u8], bool)],
-) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
-    if files.is_empty() {
-        return Err(diagnostics(
-            "receipted regular-file build output requires at least one file",
-        ));
-    }
-    let mut entries = Vec::new();
-    entries.try_reserve_exact(files.len()).map_err(|_| {
-        diagnostics("receipted build output entry allocation failed on this compiler host")
-    })?;
-    for (relative_path, bytes, executable) in files {
-        let native = retained_native_path(relative_path).map_err(|error| {
-            diagnostics(format!(
-                "receipted build output path is not canonical: {error}"
-            ))
-        })?;
-        if native
-            .parent()
-            .is_some_and(|parent| !parent.as_os_str().is_empty())
-        {
-            return Err(diagnostics(
-                "the repeated ordinary-artifact grammar requires direct-child files",
-            ));
-        }
-        entries.push(ReplayedBuildOutputEntry::regular_file(
-            relative_path,
-            bytes,
-            *executable,
-        ));
-    }
-    replayed_output_tree(&entries)
 }
 
 pub fn select_included_sources(

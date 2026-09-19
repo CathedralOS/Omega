@@ -1,5 +1,5 @@
 //! Fixtures shared by the build config tests: the temporary project,
-//! package inputs, bound output sessions and serialized replay projects.
+//! package inputs, bound output sessions and generated-source projects.
 
 // The embedded Omega programs use `format!` only to keep their many source
 // braces visually paired; spelling each as a Rust raw string would require a
@@ -117,48 +117,19 @@ fn bound_build_output_session(label: &str) -> (PathBuf, FilesystemSponsor, PathB
     (session, sponsor, build_dir)
 }
 
-/// One generated-source build activation shared by the serialized-replay
-/// tests: the granted machine reads an authored input and hands off
-/// `generated.omg` into the later checking stratum.
-fn write_serialized_replay_project(project: &Project) {
-    project.write("main.omg", "data Main { value: u8; }\n");
-    project.write("input.txt", "input\n");
-    project.write(
-        "build.omg",
-        &format!(
-            r#"machine build(builder: &mut Build) {{
-    builder.application("build-facet-serialized-replay");
-    let input: BuildPath = builder.source.resolve("input.txt");
-    let input_descriptor: i32 = builder.source.open(input, 0);
-    let mut input_bytes: [u8; 6];
-    let input_count: i64 = builder.source.read(input_descriptor, &mut input_bytes, 6);
-    let input_close: i32 = builder.source.close(input_descriptor);
-
-    let generated: BuildPath = builder.output.resolve("generated.omg");
-    let output_descriptor: i32 = builder.output.create(generated, 438);
-    let output_count: i64 = builder.output.write(
-        output_descriptor,
-        "data ReplayGenerated {{ base: Main; }}\n"
-    );
-    let output_close: i32 = builder.output.close(output_descriptor);
-    builder.output.include_source(generated);
-}}
-"#,
-        ),
-    );
-}
-
-fn write_interleaved_serialized_replay_project(project: &Project) {
+/// Interleaved output descriptors preserve operation order and hand generated
+/// source into the later checking stratum.
+fn write_interleaved_build_project(project: &Project) {
     project.write("main.omg", "data Main { value: u8; }\n");
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-facet-interleaved-replay");
+    builder.application("build-facet-interleaved-build");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
     let generated_descriptor: i32 = builder.output.create(generated, 438);
     let artifact_descriptor: i32 = builder.output.create(artifact, 438);
-    let generated_prefix: i64 = builder.output.write(generated_descriptor, "data ReplayGenerated {");
+    let generated_prefix: i64 = builder.output.write(generated_descriptor, "data BuildGenerated {");
     let artifact_prefix: i64 = builder.output.write(artifact_descriptor, "ab");
     let generated_suffix: i64 = builder.output.write(generated_descriptor, " base: Main; }\n");
     let artifact_middle: i64 = builder.output.write(artifact_descriptor, "Z");
@@ -172,14 +143,14 @@ fn write_interleaved_serialized_replay_project(project: &Project) {
     );
 }
 
-fn write_mixed_interleaved_serialized_replay_project(project: &Project) {
+fn write_mixed_interleaved_build_project(project: &Project) {
     project.write("main.omg", "data Main { value: u8; }\n");
-    project.write("prefix.txt", "data ReplayGenerated {");
+    project.write("prefix.txt", "data BuildGenerated {");
     project.write("suffix.txt", " base: Main; }\n");
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-facet-mixed-interleaved-replay");
+    builder.application("build-facet-mixed-interleaved-build");
     let prefix: BuildPath = builder.source.resolve("prefix.txt");
     let suffix: BuildPath = builder.source.resolve("suffix.txt");
     let generated: BuildPath = builder.output.resolve("generated.omg");
@@ -188,8 +159,8 @@ fn write_mixed_interleaved_serialized_replay_project(project: &Project) {
     let generated_descriptor: i32 = builder.output.create(generated, 438);
     let suffix_descriptor: i32 = builder.source.open(suffix, 0);
     let artifact_descriptor: i32 = builder.output.create(artifact, 438);
-    let mut prefix_bytes: [u8; 22];
-    let prefix_count: i64 = builder.source.read(prefix_descriptor, &mut prefix_bytes, 22);
+    let mut prefix_bytes: [u8; 21];
+    let prefix_count: i64 = builder.source.read(prefix_descriptor, &mut prefix_bytes, 21);
     let generated_prefix: i64 = builder.output.write(generated_descriptor, &prefix_bytes);
     let artifact_prefix: i64 = builder.output.write(artifact_descriptor, "ab");
     let mut suffix_bytes: [u8; 15];
@@ -201,7 +172,7 @@ fn write_mixed_interleaved_serialized_replay_project(project: &Project) {
     let artifact_close: i32 = builder.output.close(artifact_descriptor);
     let generated_close: i32 = builder.output.close(generated_descriptor);
     builder.output.include_source(generated);
-    let prefix_end: i64 = builder.source.read(prefix_descriptor, &mut prefix_bytes, 22);
+    let prefix_end: i64 = builder.source.read(prefix_descriptor, &mut prefix_bytes, 21);
     let suffix_close: i32 = builder.source.close(suffix_descriptor);
     let prefix_close: i32 = builder.source.close(prefix_descriptor);
 }
@@ -215,19 +186,19 @@ fn sponsored_build_session(label: &str) -> (PathBuf, FilesystemSponsor, PathBuf)
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&session);
-    std::fs::create_dir(&session).expect("create serialized-replay build session");
-    let session = std::fs::canonicalize(session).expect("canonicalize serialized-replay session");
-    let sponsor = FilesystemSponsor::new(&session).expect("create serialized-replay sponsor");
+    std::fs::create_dir(&session).expect("create generated-source build session");
+    let session = std::fs::canonicalize(session).expect("canonicalize generated-source session");
+    let sponsor = FilesystemSponsor::new(&session).expect("create generated-source sponsor");
     let build_dir = session.join("output");
     let bound_build_dir = sponsor
         .bind_path(&build_dir)
-        .expect("bind serialized-replay output root");
+        .expect("bind generated-source output root");
     let prepared_build_dir = sponsor
         .prepare_create_directory(&bound_build_dir)
-        .expect("prepare serialized-replay output root");
-    std::fs::create_dir(&build_dir).expect("create serialized-replay output root");
+        .expect("prepare generated-source output root");
+    std::fs::create_dir(&build_dir).expect("create generated-source output root");
     prepared_build_dir
         .commit()
-        .expect("commit serialized-replay output root");
+        .expect("commit generated-source output root");
     (session, sponsor, build_dir)
 }

@@ -14,14 +14,14 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-/// Inert compiler replay input for one receipted `Output` namespace entry.
+/// Explicit content for one canonical output namespace entry.
 ///
 /// These values are not staged-tree authority. The constructor below validates
 /// the complete namespace and issues the private [`BuildStagedOutputTree`]
 /// carrier. Symbolic links carry only their exact link path and target
-/// spelling; replay grants them no filesystem authority.
+/// spelling; construction grants them no filesystem authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplayedBuildOutputEntry<'entry> {
+pub enum OutputTreeEntry<'entry> {
     Directory {
         relative_path: &'entry [u8],
     },
@@ -36,7 +36,7 @@ pub enum ReplayedBuildOutputEntry<'entry> {
     },
 }
 
-impl<'entry> ReplayedBuildOutputEntry<'entry> {
+impl<'entry> OutputTreeEntry<'entry> {
     pub const fn directory(relative_path: &'entry [u8]) -> Self {
         Self::Directory { relative_path }
     }
@@ -76,27 +76,27 @@ enum NamespaceEntryKind {
     SymbolicLink,
 }
 
-/// Reconstruct one complete mixed receipted `Output` tree.
+/// Construct a complete output tree without accessing the host filesystem.
 ///
 /// Entries use canonical root-relative paths. Every nested entry must follow
-/// its exact parent directory in the replay sequence; no directory is inferred.
-/// Siblings may retain operation order because the issued tree is sorted into
+/// its exact parent directory in the entry sequence; no directory is inferred.
+/// Siblings may appear in any order because the issued tree is sorted into
 /// canonical path order. Any exact path collision, including a directory/file
 /// collision, rejects. Entry, aggregate path, per-file, and unique-content byte
 /// ceilings are the same limits used by physical staged-output capture.
-pub fn replayed_output_tree(
-    entries: &[ReplayedBuildOutputEntry<'_>],
+pub fn from_entries(
+    entries: &[OutputTreeEntry<'_>],
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
     if entries.len() > MAX_STAGED_OUTPUT_ENTRIES {
         return Err(diagnostics(format!(
-            "receipted build output exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
+            "build output exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
         )));
     }
 
     let mut retained = Vec::new();
-    retained.try_reserve_exact(entries.len()).map_err(|_| {
-        diagnostics("receipted build output entry allocation failed on this compiler host")
-    })?;
+    retained
+        .try_reserve_exact(entries.len())
+        .map_err(|_| diagnostics("build output entry allocation failed on this compiler host"))?;
     let mut namespace = BTreeMap::<Vec<u8>, NamespaceEntryKind>::new();
     let mut distinct_content = BTreeSet::new();
     let mut unique_file_bytes = 0u64;
@@ -104,15 +104,12 @@ pub fn replayed_output_tree(
 
     for entry in entries.iter().copied() {
         let relative_path = entry.relative_path();
-        let relative_native = retained_native_path(relative_path).map_err(|error| {
-            diagnostics(format!(
-                "receipted build output path is not canonical: {error}"
-            ))
-        })?;
+        let relative_native = retained_native_path(relative_path)
+            .map_err(|error| diagnostics(format!("build output path is not canonical: {error}")))?;
         total_path_bytes = reserve_path_bytes(total_path_bytes, relative_path.len())?;
         if namespace.contains_key(relative_path) {
             return Err(diagnostics(format!(
-                "receipted build output namespace contains more than one entry at `{}`",
+                "build output namespace contains more than one entry at `{}`",
                 String::from_utf8_lossy(relative_path),
             )));
         }
@@ -122,13 +119,13 @@ pub fn replayed_output_tree(
                 Some(NamespaceEntryKind::Directory) => {}
                 Some(NamespaceEntryKind::RegularFile | NamespaceEntryKind::SymbolicLink) => {
                     return Err(diagnostics(format!(
-                        "receipted build output entry `{}` has a non-directory parent",
+                        "build output entry `{}` has a non-directory parent",
                         String::from_utf8_lossy(relative_path),
                     )));
                 }
                 None => {
                     return Err(diagnostics(format!(
-                        "receipted nested build output entry `{}` must follow its exact parent directory",
+                        "nested build output entry `{}` must follow its exact parent directory",
                         String::from_utf8_lossy(relative_path),
                     )));
                 }
@@ -136,19 +133,19 @@ pub fn replayed_output_tree(
         }
 
         let (namespace_kind, retained_kind) = match entry {
-            ReplayedBuildOutputEntry::Directory { .. } => (
+            OutputTreeEntry::Directory { .. } => (
                 NamespaceEntryKind::Directory,
                 RetainedStagedOutputEntryKind::Directory,
             ),
-            ReplayedBuildOutputEntry::RegularFile {
+            OutputTreeEntry::RegularFile {
                 bytes, executable, ..
             } => {
                 let length = u64::try_from(bytes.len()).map_err(|_| {
-                    diagnostics("receipted build output length cannot be represented canonically")
+                    diagnostics("build output length cannot be represented canonically")
                 })?;
                 if length > MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES {
                     return Err(diagnostics(format!(
-                        "receipted build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
+                        "build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
                     )));
                 }
                 let digest: [u8; 32] = Sha256::digest(bytes).into();
@@ -158,7 +155,7 @@ pub fn replayed_output_tree(
                         .filter(|total| *total <= MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES)
                         .ok_or_else(|| {
                             diagnostics(format!(
-                                "receipted build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte unique-content ceiling"
+                                "build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte unique-content ceiling"
                             ))
                         })?;
                 }
@@ -170,10 +167,10 @@ pub fn replayed_output_tree(
                     },
                 )
             }
-            ReplayedBuildOutputEntry::SymbolicLink { target, .. } => {
+            OutputTreeEntry::SymbolicLink { target, .. } => {
                 let target_spelling = std::str::from_utf8(target).map_err(|_| {
                     diagnostics(format!(
-                        "receipted build output symlink `{}` has a non-UTF-8 target",
+                        "build output symlink `{}` has a non-UTF-8 target",
                         String::from_utf8_lossy(relative_path),
                     ))
                 })?;
@@ -200,7 +197,7 @@ pub fn replayed_output_tree(
 
     retained.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     let commitment = commitment_for_retained_entries(&retained).ok_or_else(|| {
-        diagnostics("receipted build output exceeds the staged-output unique-content ceiling")
+        diagnostics("build output exceeds the staged-output unique-content ceiling")
     })?;
     debug_assert_eq!(commitment.file_bytes(), unique_file_bytes);
     let tree = BuildStagedOutputTree {
@@ -209,7 +206,7 @@ pub fn replayed_output_tree(
     };
     validate_retained_tree(&tree).map_err(|error| {
         diagnostics(format!(
-            "receipted build output failed canonical tree validation: {error}"
+            "build output failed canonical tree validation: {error}"
         ))
     })?;
     Ok(tree)
@@ -217,26 +214,26 @@ pub fn replayed_output_tree(
 
 #[cfg(test)]
 mod tests {
-    use super::{ReplayedBuildOutputEntry, replayed_output_tree};
+    use super::{OutputTreeEntry, from_entries};
+    use crate::empty;
     use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
     #[cfg(unix)]
     use crate::staged_output_tree::RetainedStagedOutputEntryKind;
-    use crate::{empty, replayed_empty_directories, replayed_files};
 
     #[test]
     fn reconstructs_mixed_parent_before_child_output_trees_canonically() {
-        let mixed = replayed_output_tree(&[
-            ReplayedBuildOutputEntry::directory(b"generated"),
-            ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
-            ReplayedBuildOutputEntry::regular_file(b"tool", b"ordinary", false),
+        let mixed = from_entries(&[
+            OutputTreeEntry::directory(b"generated"),
+            OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false),
+            OutputTreeEntry::regular_file(b"tool", b"ordinary", false),
         ])
-        .expect("mixed receipted tree");
-        let reordered_siblings = replayed_output_tree(&[
-            ReplayedBuildOutputEntry::regular_file(b"tool", b"ordinary", false),
-            ReplayedBuildOutputEntry::directory(b"generated"),
-            ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
+        .expect("mixed tree");
+        let reordered_siblings = from_entries(&[
+            OutputTreeEntry::regular_file(b"tool", b"ordinary", false),
+            OutputTreeEntry::directory(b"generated"),
+            OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false),
         ])
-        .expect("operation order does not become tree identity");
+        .expect("sibling order does not become tree identity");
 
         assert_eq!(mixed, reordered_siblings);
         assert_eq!(mixed.entry_count(), 3);
@@ -246,20 +243,20 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn retains_inert_symbolic_links_with_exact_target_spelling() {
-        let mixed = replayed_output_tree(&[
-            ReplayedBuildOutputEntry::directory(b"generated"),
-            ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
-            ReplayedBuildOutputEntry::symbolic_link(b"generated/current", b"data.bin"),
-            ReplayedBuildOutputEntry::regular_file(b"tool", b"executable", true),
-            ReplayedBuildOutputEntry::symbolic_link(b"generated/tool", b"../tool"),
+        let mixed = from_entries(&[
+            OutputTreeEntry::directory(b"generated"),
+            OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false),
+            OutputTreeEntry::symbolic_link(b"generated/current", b"data.bin"),
+            OutputTreeEntry::regular_file(b"tool", b"executable", true),
+            OutputTreeEntry::symbolic_link(b"generated/tool", b"../tool"),
         ])
-        .expect("receipted tree with symbolic links");
-        let reordered_siblings = replayed_output_tree(&[
-            ReplayedBuildOutputEntry::regular_file(b"tool", b"executable", true),
-            ReplayedBuildOutputEntry::directory(b"generated"),
-            ReplayedBuildOutputEntry::symbolic_link(b"generated/tool", b"../tool"),
-            ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
-            ReplayedBuildOutputEntry::symbolic_link(b"generated/current", b"data.bin"),
+        .expect("tree with symbolic links");
+        let reordered_siblings = from_entries(&[
+            OutputTreeEntry::regular_file(b"tool", b"executable", true),
+            OutputTreeEntry::directory(b"generated"),
+            OutputTreeEntry::symbolic_link(b"generated/tool", b"../tool"),
+            OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false),
+            OutputTreeEntry::symbolic_link(b"generated/current", b"data.bin"),
         ])
         .expect("sibling order does not become tree identity");
 
@@ -280,20 +277,9 @@ mod tests {
     #[test]
     fn rejects_tree_kinds_the_host_cannot_faithfully_materialize() {
         assert!(
-            replayed_output_tree(&[ReplayedBuildOutputEntry::regular_file(
-                b"tool",
-                b"executable",
-                true,
-            )])
-            .is_err()
+            from_entries(&[OutputTreeEntry::regular_file(b"tool", b"executable", true,)]).is_err()
         );
-        assert!(
-            replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(
-                b"current",
-                b"artifact",
-            )])
-            .is_err()
-        );
+        assert!(from_entries(&[OutputTreeEntry::symbolic_link(b"current", b"artifact",)]).is_err());
     }
 
     #[test]
@@ -309,17 +295,16 @@ mod tests {
             b"../outside",
         ] {
             assert!(
-                replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(b"link", target,)])
-                    .is_err(),
+                from_entries(&[OutputTreeEntry::symbolic_link(b"link", target,)]).is_err(),
                 "accepted invalid symbolic-link target {:?}",
                 String::from_utf8_lossy(target),
             );
         }
 
         assert!(
-            replayed_output_tree(&[
-                ReplayedBuildOutputEntry::directory(b"generated"),
-                ReplayedBuildOutputEntry::symbolic_link(b"generated/link", b"../../outside",),
+            from_entries(&[
+                OutputTreeEntry::directory(b"generated"),
+                OutputTreeEntry::symbolic_link(b"generated/link", b"../../outside",),
             ])
             .is_err()
         );
@@ -328,9 +313,9 @@ mod tests {
     #[test]
     fn rejects_symbolic_links_as_namespace_parents() {
         assert!(
-            replayed_output_tree(&[
-                ReplayedBuildOutputEntry::symbolic_link(b"alias", b"target"),
-                ReplayedBuildOutputEntry::regular_file(b"alias/child", b"bytes", false),
+            from_entries(&[
+                OutputTreeEntry::symbolic_link(b"alias", b"target"),
+                OutputTreeEntry::regular_file(b"alias/child", b"bytes", false),
             ])
             .is_err()
         );
@@ -339,23 +324,20 @@ mod tests {
     #[test]
     fn charges_symbolic_link_targets_to_the_shared_path_byte_ceiling() {
         let target = vec![b'a'; crate::staged_output_tree::MAX_STAGED_OUTPUT_PATH_BYTES];
-        assert!(
-            replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(b"link", &target)])
-                .is_err()
-        );
+        assert!(from_entries(&[OutputTreeEntry::symbolic_link(b"link", &target)]).is_err());
     }
 
     #[test]
     fn rejects_namespace_collisions_missing_parents_and_file_parents() {
         assert!(
-            replayed_output_tree(&[
-                ReplayedBuildOutputEntry::directory(b"generated"),
-                ReplayedBuildOutputEntry::regular_file(b"generated", b"data", false),
+            from_entries(&[
+                OutputTreeEntry::directory(b"generated"),
+                OutputTreeEntry::regular_file(b"generated", b"data", false),
             ])
             .is_err()
         );
         assert!(
-            replayed_output_tree(&[ReplayedBuildOutputEntry::regular_file(
+            from_entries(&[OutputTreeEntry::regular_file(
                 b"generated/data.bin",
                 b"data",
                 false,
@@ -363,44 +345,36 @@ mod tests {
             .is_err()
         );
         assert!(
-            replayed_output_tree(&[
-                ReplayedBuildOutputEntry::regular_file(b"generated", b"data", false),
-                ReplayedBuildOutputEntry::regular_file(b"generated/nested.bin", b"nested", false,),
+            from_entries(&[
+                OutputTreeEntry::regular_file(b"generated", b"data", false),
+                OutputTreeEntry::regular_file(b"generated/nested.bin", b"nested", false,),
             ])
             .is_err()
         );
         assert!(
-            replayed_output_tree(&[
-                ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false,),
-                ReplayedBuildOutputEntry::directory(b"generated"),
+            from_entries(&[
+                OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false,),
+                OutputTreeEntry::directory(b"generated"),
             ])
             .is_err()
         );
     }
 
     #[test]
-    fn enforces_entry_ceiling_and_preserves_compatibility_facades() {
-        let repeated =
-            vec![ReplayedBuildOutputEntry::directory(b"entry"); MAX_STAGED_OUTPUT_ENTRIES + 1];
-        assert!(replayed_output_tree(&repeated).is_err());
-        assert_eq!(replayed_output_tree(&[]).unwrap(), empty());
+    fn enforces_entry_ceiling_and_accepts_empty_trees() {
+        let repeated = vec![OutputTreeEntry::directory(b"entry"); MAX_STAGED_OUTPUT_ENTRIES + 1];
+        assert!(from_entries(&repeated).is_err());
+        assert_eq!(from_entries(&[]).unwrap(), empty());
+    }
 
-        assert_eq!(
-            replayed_files(&[(b"artifact", b"bytes", false)]).unwrap(),
-            replayed_output_tree(&[ReplayedBuildOutputEntry::regular_file(
-                b"artifact",
-                b"bytes",
-                false,
-            )])
-            .unwrap(),
-        );
-        assert_eq!(
-            replayed_empty_directories(&[b"generated", b"generated/nested"]).unwrap(),
-            replayed_output_tree(&[
-                ReplayedBuildOutputEntry::directory(b"generated"),
-                ReplayedBuildOutputEntry::directory(b"generated/nested"),
-            ])
-            .unwrap(),
-        );
+    #[cfg(unix)]
+    #[test]
+    fn file_commitment_binds_executable_class() {
+        let ordinary =
+            from_entries(&[OutputTreeEntry::regular_file(b"tool.bin", b"tool", false)]).unwrap();
+        let executable =
+            from_entries(&[OutputTreeEntry::regular_file(b"tool.bin", b"tool", true)]).unwrap();
+        assert_ne!(ordinary.digest(), executable.digest());
+        assert_eq!(ordinary.file_bytes(), executable.file_bytes());
     }
 }

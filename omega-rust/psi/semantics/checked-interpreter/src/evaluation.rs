@@ -78,7 +78,7 @@ pub struct EvaluationUsage {
 /// Host observations made while evaluating one machine.
 ///
 /// This is deliberately separate from [`EvaluationUsage`]: deterministic
-/// evaluator work and build-host observation/replay are different policy
+/// evaluator work and build-host observations are different policy
 /// axes. Ordinary semantic evaluation must always return an empty row. The
 /// granted build-machine entry may report a filesystem observation, which the
 /// compiler classifies according to the exact provider it selected.
@@ -106,21 +106,6 @@ impl Default for EvaluationObservations {
 }
 
 impl EvaluationObservations {
-    #[cfg(test)]
-    pub(crate) fn from_filesystem_operation_attempts(
-        filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
-        build_included_sources: Vec<BuildIncludedSource>,
-    ) -> Self {
-        Self {
-            filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-            filesystem_operation_attempts,
-            build_included_sources,
-            build_log: Vec::new(),
-            build_output_obligations: Vec::new(),
-            build_output_receipts: Vec::new(),
-        }
-    }
-
     pub(crate) fn from_build_run(
         filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
         build_included_sources: Vec<BuildIncludedSource>,
@@ -249,7 +234,7 @@ impl BuildOutputObligation {
 /// One completion receipt issued by `BuildOutput::complete`. Receipts are
 /// activation-local custody: the `OutputReceipt` value evaluated code holds
 /// carries only this row's index, so a receipt cannot satisfy an obligation
-/// from another occurrence or be replayed against a different output name.
+/// from another occurrence or be reused against a different output name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildOutputReceipt {
     /// Index into the run's `build_output_obligations` identifying the
@@ -313,7 +298,7 @@ impl BuildIncludedSource {
     }
 
     /// Reconstruct one compiler-supplied handoff coordinate from canonical
-    /// replay/codec data. This names a path and its ordering point only; it does
+    /// retained data. This names a path and its ordering point only; it does
     /// not assert that the file exists or belongs to a reconstructed tree.
     pub fn from_coordinate(
         root: FilesystemGrantRootIdentity,
@@ -858,3 +843,6 @@ impl InterpretOutcome {
         self.error.is_some()
     }
 }
+
+/// Maximum generated sources included by one build evaluation.
+pub const MAX_INCLUDED_BUILD_SOURCES: usize = 256;

@@ -1,13 +1,9 @@
 //! Operation attempts, outcomes, halts and service bindings.
 
 use crate::filesystem::{
-    FilesystemAuthorizedPath, FilesystemByteOperand, FilesystemGrantRefusal,
-    FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInput, FilesystemLogicalHandleOutput,
-    FilesystemMetadataObservation, FilesystemMutableByteOperand,
-    FilesystemMutableByteOperandResolution, FilesystemMutableI64Operand,
-    FilesystemMutableI64OperandResolution, FilesystemObservationProvider,
-    FilesystemObservedByteRegion, FilesystemPathLikeOperand, FilesystemReturnedPath,
-    FilesystemRootedPathOperandResolution, FilesystemScalarOperand,
+    FilesystemAuthorizedPath, FilesystemGrantRefusal, FilesystemLogicalHandleIdentity,
+    FilesystemLogicalHandleInput, FilesystemLogicalHandleOutput, FilesystemObservationProvider,
+    FilesystemRootedPathOperandResolution,
 };
 use checked_trees::CheckedTrees;
 
@@ -41,27 +37,14 @@ pub enum FilesystemOperationAttemptOutcome {
 /// The operation tag is an append-only compiler-owned identity. No package
 /// string enters this row. Successful descriptor/handle results and uses are
 /// normalized into logical lifetimes; provider token numbers do not survive.
-/// Failed handle-result sentinels remain scalar results. Mutable carriers
-/// retain both their successfully resolved preparation prefix and complete
-/// provider-visible pre/post snapshots. Path results and successful file and
-/// directory and metadata observations have semantic rows. Replay execution
-/// remains incomplete, so this stays below receipt strength.
+/// Failed handle-result sentinels remain scalar results. Rooted paths support
+/// sealed-output custody; grant and handle observations do not confer authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     pub(crate) operation_tag: u16,
     pub(crate) provider: FilesystemObservationProvider,
     pub(crate) outcome: Option<FilesystemOperationAttemptOutcome>,
-    pub(crate) scalar_operands: Vec<FilesystemScalarOperand>,
-    pub(crate) byte_operands: Vec<FilesystemByteOperand>,
-    pub(crate) path_like_operands: Vec<FilesystemPathLikeOperand>,
     pub(crate) rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
-    pub(crate) returned_paths: Vec<FilesystemReturnedPath>,
-    pub(crate) observed_byte_regions: Vec<FilesystemObservedByteRegion>,
-    pub(crate) metadata_observations: Vec<FilesystemMetadataObservation>,
-    pub(crate) mutable_byte_operand_resolutions: Vec<FilesystemMutableByteOperandResolution>,
-    pub(crate) mutable_i64_operand_resolutions: Vec<FilesystemMutableI64OperandResolution>,
-    pub(crate) mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
-    pub(crate) mutable_i64_operands: Vec<FilesystemMutableI64Operand>,
     pub(crate) authorized_paths: Vec<FilesystemAuthorizedPath>,
     pub(crate) logical_handle_inputs: Vec<FilesystemLogicalHandleInput>,
     pub(crate) logical_handle_output: Option<FilesystemLogicalHandleOutput>,
@@ -78,17 +61,7 @@ impl FilesystemOperationAttempt {
             operation_tag,
             provider,
             outcome: None,
-            scalar_operands: Vec::new(),
-            byte_operands: Vec::new(),
-            path_like_operands: Vec::new(),
             rooted_path_operand_resolutions: Vec::new(),
-            returned_paths: Vec::new(),
-            observed_byte_regions: Vec::new(),
-            metadata_observations: Vec::new(),
-            mutable_byte_operand_resolutions: Vec::new(),
-            mutable_i64_operand_resolutions: Vec::new(),
-            mutable_byte_operands: Vec::new(),
-            mutable_i64_operands: Vec::new(),
             authorized_paths: Vec::new(),
             logical_handle_inputs: Vec::new(),
             logical_handle_output: None,
@@ -125,48 +98,8 @@ impl FilesystemOperationAttempt {
         }
     }
 
-    pub fn scalar_operands(&self) -> &[FilesystemScalarOperand] {
-        &self.scalar_operands
-    }
-
-    pub fn byte_operands(&self) -> &[FilesystemByteOperand] {
-        &self.byte_operands
-    }
-
-    pub fn path_like_operands(&self) -> &[FilesystemPathLikeOperand] {
-        &self.path_like_operands
-    }
-
     pub fn rooted_path_operand_resolutions(&self) -> &[FilesystemRootedPathOperandResolution] {
         &self.rooted_path_operand_resolutions
-    }
-
-    pub fn returned_paths(&self) -> &[FilesystemReturnedPath] {
-        &self.returned_paths
-    }
-
-    pub fn observed_byte_regions(&self) -> &[FilesystemObservedByteRegion] {
-        &self.observed_byte_regions
-    }
-
-    pub fn metadata_observations(&self) -> &[FilesystemMetadataObservation] {
-        &self.metadata_observations
-    }
-
-    pub fn mutable_byte_operand_resolutions(&self) -> &[FilesystemMutableByteOperandResolution] {
-        &self.mutable_byte_operand_resolutions
-    }
-
-    pub fn mutable_i64_operand_resolutions(&self) -> &[FilesystemMutableI64OperandResolution] {
-        &self.mutable_i64_operand_resolutions
-    }
-
-    pub fn mutable_byte_operands(&self) -> &[FilesystemMutableByteOperand] {
-        &self.mutable_byte_operands
-    }
-
-    pub fn mutable_i64_operands(&self) -> &[FilesystemMutableI64Operand] {
-        &self.mutable_i64_operands
     }
 
     pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {

@@ -1,7 +1,7 @@
 //! Filesystem grant roots, refusals, authorized paths and access.
 
+use crate::FilesystemSponsor;
 use crate::filesystem::CanonicalFilesystemMetadataIndex;
-use crate::{FilesystemReplay, FilesystemSponsor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -191,11 +191,6 @@ pub enum FilesystemAccess {
         grants: FsGrants,
         sponsor: FilesystemSponsor,
     },
-    /// Consume compiler-produced bounded events without installing host
-    /// filesystem authority. Source observations are record-served; an
-    /// admitted Output suffix executes in a fresh virtual namespace. Every
-    /// event and lane must match exactly and the record must be exhausted.
-    ReplayFilesystem(FilesystemReplay),
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

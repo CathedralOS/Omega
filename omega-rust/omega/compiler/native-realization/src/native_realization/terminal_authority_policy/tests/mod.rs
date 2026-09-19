@@ -7,7 +7,6 @@ mod checked_physical_rows;
 mod filesystem_cohorts;
 mod foreign_rows;
 mod inventory;
-mod native_release_occurrences;
 mod syscall_rows;
 
 fn foreign_mechanism(

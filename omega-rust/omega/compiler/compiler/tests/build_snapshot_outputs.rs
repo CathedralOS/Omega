@@ -1261,7 +1261,7 @@ fn write_native_generated_project(project: &Project) {
     let descriptor: i32 = builder.output.create(generated, 438);
     let written: i64 = builder.output.write(
         descriptor,
-        "pub data ReplayGenerated { value: u64; }\n"
+        "pub data BuildGenerated { value: u64; }\n"
     );
     let closed: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -1435,15 +1435,12 @@ fn publish_native_product(
     (published, executable)
 }
 
-/// Acceptance: a serialized replay of the admitted activation reproduces the
-/// retained native product built with generated source — the identical
-/// consumed source commitment, generated-source bundle, production subject,
-/// and published executable bytes.
+/// A real build's generated source is retained through native publication.
 #[test]
-fn serialized_replay_reproduces_the_retained_native_product() {
-    let project = Project::new("replay-product");
+fn generated_source_build_publishes_the_retained_native_product() {
+    let project = Project::new("generated-product");
     write_native_generated_project(&project);
-    let (session, sponsor, build_dir) = bound_build_output_session("replay-product");
+    let (session, sponsor, build_dir) = bound_build_output_session("generated-product");
     set_canonical_source_tree_permissions(&project.root, true);
     let inputs = application_inputs(&project.root);
     let checked = compile_to_checked(CheckedCompileRequest {
@@ -1463,7 +1460,7 @@ fn serialized_replay_reproduces_the_retained_native_product() {
             .typed
             .data_definitions()
             .iter()
-            .any(|definition| definition.name.as_str() == "ReplayGenerated"),
+            .any(|definition| definition.name.as_str() == "BuildGenerated"),
         "the build's generated source joins the checked product"
     );
     assert!(
@@ -1474,55 +1471,9 @@ fn serialized_replay_reproduces_the_retained_native_product() {
         "the checked product retains the generated-source bundle"
     );
 
-    // The activation's review-only record is canonical bytes: serialize it,
-    // recover it, and replay the complete activation with no staged output or
-    // sponsor authority. Replay reproduces the identical consumed inputs.
-    let summary = checked
-        .build_observation_summary()
-        .expect("admitted activation retains observation custody");
-    assert!(
-        summary.filesystem_replay_verdict().is_complete(),
-        "primary activation completes its internal verifier replay"
-    );
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("capture the verified replay record")
-        .expect("a complete receipted activation issues a replay record");
-    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
-        record.canonical_bytes(),
-        limits,
-    )
-    .expect("serialized replay record recovers");
-    let replayed = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(inputs.clone()),
-        replay_record: Some(recovered),
-        ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
-    })
-    .expect("serialized replay reproduces the admitted activation");
     set_canonical_source_tree_permissions(&project.root, false);
     let _ = std::fs::remove_dir_all(&session);
-    assert_eq!(
-        replayed.source_consumption_commitment(),
-        checked.source_consumption_commitment(),
-        "the replayed activation consumes identical authored and generated source"
-    );
-    assert_eq!(
-        replayed
-            .package_generated_source_bundle()
-            .expect("replayed activation retains its generated-source bundle")
-            .sources(),
-        checked
-            .package_generated_source_bundle()
-            .expect("primary activation retains its generated-source bundle")
-            .sources(),
-        "replay retains the identical generated-source custody"
-    );
-
-    // Both checked products carry the identical production subject — root,
-    // authored role, target profile, build usage, and observation identity —
-    // and publish byte-identical executables.
     let primary = realize_checked_native_product(&project, checked);
-    let replayed = realize_checked_native_product(&project, replayed);
     let subject = primary
         .subject
         .as_ref()
@@ -1536,24 +1487,17 @@ fn serialized_replay_reproduces_the_retained_native_product() {
         package_compilation::BuildDeclarationKind::Application
     );
     assert_eq!(subject.target_profile(), target::TargetProfile::LinuxX64);
-    assert_eq!(
-        replayed.subject.as_ref(),
-        Some(subject),
-        "replay binds the identical production subject"
-    );
     let publish_root = std::env::temp_dir().join(format!(
-        "omega-snapshot-outputs-publish-replay-{}",
+        "omega-snapshot-outputs-publish-generated-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&publish_root);
     let (_primary_report, primary_executable) =
         publish_native_product(primary, &publish_root.join("primary"));
-    let (_replayed_report, replayed_executable) =
-        publish_native_product(replayed, &publish_root.join("replayed"));
-    assert_eq!(
-        std::fs::read(&primary_executable).expect("read the primary executable"),
-        std::fs::read(&replayed_executable).expect("read the replayed executable"),
-        "serialized replay reproduces the identical retained native product"
+    assert!(
+        !std::fs::read(&primary_executable)
+            .expect("read published executable")
+            .is_empty()
     );
     let _ = std::fs::remove_dir_all(&publish_root);
 }

@@ -18,9 +18,8 @@ mod tests;
 pub use filesystem::{
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract, UnsettledFilesystemRequirement,
     filesystem_host_permission_row, filesystem_host_permission_rows, filesystem_mechanism_row,
-    filesystem_native_handle_query_release_contracts, filesystem_ordinary_release_contract,
-    filesystem_release_bound_mechanism, filesystem_release_mechanism_row,
-    filesystem_release_occurrence_mechanism_rows, settled_filesystem_cohort,
+    filesystem_ordinary_release_contract, filesystem_release_bound_mechanism,
+    filesystem_release_mechanism_row, settled_filesystem_cohort,
 };
 pub use model::{
     TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,

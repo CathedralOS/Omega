@@ -13,8 +13,7 @@ use crate::interpreter::evaluator::{
     EvalResult, ExpressionHandle, FilesystemEvaluationHaltKind, FilesystemHostOperation,
     FilesystemHostResultKind, FilesystemObservationProvider, FilesystemOperationAttempt,
     FilesystemOperationAttemptOutcome, FilesystemOperationResult, Frame, Halt,
-    MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, PreparedFilesystemCall,
-    PreparedFilesystemPreparation, Value, trap,
+    MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, PreparedFilesystemCall, Value,
 };
 
 pub(crate) fn checked_observation_evidence_total(
@@ -40,100 +39,29 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         self.charge_filesystem_operation_attempt()?;
         let attempt_index = self.filesystem_operation_attempts.len();
-        let replay_expected = self.expected_filesystem_replay_attempt(attempt_index, operation)?;
-        let execute_replayed_attempt = self
-            .filesystem_replay
-            .as_ref()
-            .is_some_and(|replay| replay.executes_replay_attempt(attempt_index));
-        let provider = replay_expected.as_ref().map_or_else(
-            || match self.real_fs.as_ref() {
-                None => FilesystemObservationProvider::Virtual,
-                Some(filesystem) if filesystem.is_scoped() => {
-                    FilesystemObservationProvider::RealScoped
-                }
-                Some(_) => FilesystemObservationProvider::RealUnscoped,
-            },
-            |expected| expected.provider(),
-        );
+        let provider = match self.real_fs.as_ref() {
+            None => FilesystemObservationProvider::Virtual,
+            Some(filesystem) if filesystem.is_scoped() => FilesystemObservationProvider::RealScoped,
+            Some(_) => FilesystemObservationProvider::RealUnscoped,
+        };
         self.filesystem_operation_attempts
             .push(FilesystemOperationAttempt::pending(
                 operation.operation_tag(),
                 provider,
             ));
         self.filesystem_operation_attempt_stack.push(attempt_index);
-        let mut outcome = match self.prepare_filesystem_call(operation, arguments, frame) {
-            Ok(PreparedFilesystemPreparation {
-                call,
-                rooted_path_operand_resolutions,
-            }) => {
-                let logical_handle_plan = call.logical_handle_plan();
-                let (scalar_operands, byte_operands, path_like_operands) =
-                    call.operand_observation_plan();
-                match call.mutable_observation_plan().and_then(|mutable_plan| {
-                    self.record_operand_observations(
-                        attempt_index,
-                        scalar_operands,
-                        byte_operands,
-                        path_like_operands,
-                        &rooted_path_operand_resolutions,
-                        &mutable_plan,
-                    )?;
-                    Ok(mutable_plan)
-                }) {
-                    Ok(mutable_plan) => {
-                        match self
-                            .validate_incremental_logical_handle_inputs(
-                                attempt_index,
-                                &logical_handle_plan,
-                            )
-                            .and_then(|()| {
-                                self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
-                            })
-                            .and_then(|()| {
-                                self.reject_rooted_final_path_result(attempt_index, &call)
-                            }) {
-                            Err(halt) => Err(halt),
-                            Ok(()) => {
-                                match self
-                                    .reserve_prepared_live_filesystem_handle(&logical_handle_plan)
-                                {
-                                    Err(halt) => Err(halt),
-                                    Ok(live_handle_lease) => {
-                                        let served = match replay_expected.as_ref() {
-                                            Some(expected) if execute_replayed_attempt => self
-                                                .serve_executed_replay_filesystem_call(
-                                                    attempt_index,
-                                                    expected,
-                                                    call,
-                                                ),
-                                            Some(expected) => self.serve_replayed_filesystem_call(
-                                                attempt_index,
-                                                &mutable_plan,
-                                                expected,
-                                            ),
-                                            None => self.serve_filesystem_call(call),
-                                        };
-                                        let completed = self.complete_mutable_observations(
-                                            attempt_index,
-                                            &mutable_plan,
-                                        );
-                                        match (served, completed) {
-                                            (Ok(value), Ok(())) => {
-                                                Ok((value, logical_handle_plan, live_handle_lease))
-                                            }
-                                            (Err(halt), Ok(())) => Err(halt),
-                                            (_, Err(halt)) => Err(halt),
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(halt) => Err(halt),
-                }
-            }
-            Err(halt) => Err(halt),
-        };
+        let mut outcome = (|| {
+            let call = self.prepare_filesystem_call(operation, arguments, frame)?;
+            call.validate_output_carriers()?;
+            let logical_handle_plan = call.logical_handle_plan();
+            self.validate_incremental_logical_handle_inputs(attempt_index, &logical_handle_plan)?;
+            self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)?;
+            self.reject_rooted_final_path_result(attempt_index, &call)?;
+            let live_handle_lease =
+                self.reserve_prepared_live_filesystem_handle(&logical_handle_plan)?;
+            let value = self.serve_filesystem_call(call)?;
+            Ok((value, logical_handle_plan, live_handle_lease))
+        })();
         if let Some(message) = self.filesystem_observation_resource_halt.take() {
             // Observation custody is compiler policy, not Omega program
             // semantics. The provider has already refused host access, and the
@@ -168,24 +96,6 @@ impl<'program> Evaluator<'program> {
                         "canonical filesystem operation `{operation}` returned `{result}` outside its i32 result type"
                     )));
                 }
-                if let Err(halt) =
-                    self.validate_observed_byte_regions(attempt_index, operation, result)
-                {
-                    self.filesystem_operation_attempts[attempt_index].outcome =
-                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
-                            FilesystemEvaluationHaltKind::Trap,
-                        ));
-                    return Err(halt);
-                }
-                if let Err(halt) =
-                    self.validate_metadata_observations(attempt_index, operation, result)
-                {
-                    self.filesystem_operation_attempts[attempt_index].outcome =
-                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
-                            FilesystemEvaluationHaltKind::Trap,
-                        ));
-                    return Err(halt);
-                }
                 if let Err(halt) = self.complete_logical_handle_observations(
                     attempt_index,
                     &logical_handle_plan,
@@ -216,18 +126,7 @@ impl<'program> Evaluator<'program> {
                         result: observation_result,
                         post_error,
                     });
-                if let Some(expected) = replay_expected.as_ref()
-                    && &self.filesystem_operation_attempts[attempt_index] != expected
-                {
-                    self.filesystem_operation_attempts[attempt_index].outcome =
-                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
-                            FilesystemEvaluationHaltKind::Trap,
-                        ));
-                    return trap(format!("filesystem replay event {attempt_index} changed"));
-                }
-                // Sealed-file custody follows only fully observed attempts: a
-                // replay mismatch or an observation failure must not mint or
-                // retire writers.
+                // Only a fully observed attempt may mint or retire output writers.
                 self.note_completed_build_output_attempt(attempt_index);
                 Ok(value)
             }
@@ -245,128 +144,8 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(in crate::interpreter) fn finish_filesystem_replay(&self) -> EvalResult<()> {
-        let Some(replay) = &self.filesystem_replay else {
-            return Ok(());
-        };
-        if self.filesystem_operation_attempts.len() != replay.attempts().len() {
-            return trap(format!(
-                "filesystem replay ended after {} event(s), but the record contains {}",
-                self.filesystem_operation_attempts.len(),
-                replay.attempts().len()
-            ));
-        }
-        let outputs = replay.output_files();
-        let output_directories = replay.output_directories();
-        let output_hard_links = replay.output_hard_links();
-        let output_symlinks = replay.output_symlinks();
-        if outputs.is_empty()
-            && output_directories.is_empty()
-            && output_hard_links.is_empty()
-            && output_symlinks.is_empty()
-        {
-            if !self.build_included_sources.is_empty() {
-                return trap("source-only filesystem replay observed generated-source handoff");
-            }
-            if !self.virtual_files.is_empty()
-                || !self.virtual_fds.is_empty()
-                || !self.virtual_dirs.is_empty()
-                || !self.virtual_finds.is_empty()
-                || !self.virtual_perms.is_empty()
-                || !self.virtual_symlinks.is_empty()
-                || !self.virtual_times.is_empty()
-                || !self.virtual_flocks.is_empty()
-            {
-                return trap(
-                    "filesystem replay with no final Output entries changed its namespace",
-                );
-            }
-            return Ok(());
-        }
-        if self.build_included_sources.as_slice() != replay.expected_included_sources() {
-            return trap("filesystem replay generated-source handoff sequence changed");
-        }
-        let mut expected_files = std::collections::BTreeMap::new();
-        let mut expected_permissions = std::collections::BTreeMap::new();
-        let mut expected_times = std::collections::BTreeMap::new();
-        for output in outputs {
-            let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
-            expected_path.push(b'/');
-            expected_path.extend_from_slice(output.output_relative_path());
-            let bytes = output.replayed_bytes().map_err(Halt::Resource)?;
-            if expected_files
-                .insert(expected_path.clone(), bytes)
-                .is_some()
-            {
-                return trap("filesystem replay contains duplicate Output paths");
-            }
-            if let Some(mode) = output.replayed_file_permissions() {
-                expected_permissions.insert(expected_path.clone(), mode);
-            }
-            if let Some(modification_time) = output.replayed_file_modification_time() {
-                expected_times.insert(expected_path, modification_time);
-            }
-        }
-        for hard_link in output_hard_links {
-            let mut existing_path = format!("/root/{}", hard_link.output_root().get()).into_bytes();
-            existing_path.push(b'/');
-            existing_path.extend_from_slice(hard_link.existing_relative_path());
-            let mut output_path = format!("/root/{}", hard_link.output_root().get()).into_bytes();
-            output_path.push(b'/');
-            output_path.extend_from_slice(hard_link.output_relative_path());
-            let bytes = expected_files
-                .get(&existing_path)
-                .ok_or_else(|| {
-                    Halt::Trap(
-                        "filesystem replay hard link has no existing regular-file name".to_owned(),
-                    )
-                })?
-                .clone();
-            if expected_files.insert(output_path.clone(), bytes).is_some() {
-                return trap("filesystem replay contains duplicate Output paths");
-            }
-            if let Some(mode) = expected_permissions.get(&existing_path).copied() {
-                expected_permissions.insert(output_path.clone(), mode);
-            }
-            if let Some(modification_time) = expected_times.get(&existing_path).copied() {
-                expected_times.insert(output_path, modification_time);
-            }
-        }
-        let expected_directories = output_directories
-            .into_iter()
-            .map(|directory| {
-                let mut path = format!("/root/{}", directory.output_root().get()).into_bytes();
-                path.push(b'/');
-                path.extend_from_slice(directory.output_relative_path());
-                path
-            })
-            .collect::<std::collections::BTreeSet<_>>();
-        let expected_symlinks = output_symlinks
-            .into_iter()
-            .map(|symlink| {
-                let mut path = format!("/root/{}", symlink.output_root().get()).into_bytes();
-                path.push(b'/');
-                path.extend_from_slice(symlink.output_relative_path());
-                (path, symlink.target_spelling().to_vec())
-            })
-            .collect::<std::collections::BTreeMap<_, _>>();
-        if self.virtual_files != expected_files
-            || !self.virtual_fds.is_empty()
-            || self.virtual_dirs != expected_directories
-            || !self.virtual_finds.is_empty()
-            || self.virtual_perms != expected_permissions
-            || self.virtual_symlinks != expected_symlinks
-            || self.virtual_times != expected_times
-            || !self.virtual_flocks.is_empty()
-        {
-            return trap("filesystem replay output namespace changed");
-        }
-        Ok(())
-    }
-
-    /// Drive a value-returning `FilesystemHost` operation against the selected
-    /// filesystem provider. Canonical preparation has already evaluated every
-    /// authored operand exactly once and validated every mutable output place.
+    /// Drive a value-returning filesystem operation against the selected provider.
+    /// Preparation has evaluated every operand once and validated output places.
     pub(super) fn serve_filesystem_call(
         &mut self,
         call: PreparedFilesystemCall,

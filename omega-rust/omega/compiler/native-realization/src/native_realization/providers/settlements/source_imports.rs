@@ -287,12 +287,9 @@ fn settled_filesystem_cohort_row(
 
 /// Classify one demanded mechanism under the receiving policy's own keys.
 ///
-/// Retained ordinary-release contracts never consult here: they describe the
-/// compile's own build replay — a different execution — so no bound key they
-/// mint may narrow a demanded program mechanism. Release narrowing arrives
-/// with the program's own checked-flow derivation, rejoined per call site;
-/// until it exists the conservative key classifies or the demand fails
-/// closed exactly as before.
+/// Build execution establishes no runtime occurrence. Release narrowing requires
+/// the program's own checked-flow derivation, rejoined per call site; until it
+/// exists the conservative key classifies or the demand fails closed.
 fn classify_terminal_mechanism(
     policy: &crate::native_realization::TerminalAuthorityPolicy,
     mechanism: effects::TerminalMechanismIdentity,

@@ -6,10 +6,7 @@ use super::{
     EBADF, SelectedFilesystemMetadata, checked_written_count, io_errno, positioned_read,
     positioned_write, real_lock, real_lock_win32, real_os_bytes, win32_error_code,
 };
-use crate::{
-    FilesystemMetadataObservationKind, FilesystemObservedByteRegionKind,
-    FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
-};
+use crate::FilesystemMetadataObservationKind;
 use std::io::{Read, Seek, SeekFrom, Write};
 
 impl<'program> super::super::Evaluator<'program> {
@@ -38,13 +35,6 @@ impl<'program> super::super::Evaluator<'program> {
                 Ok(bytes) => {
                     let n = bytes.len() as i64;
                     buffer.write(&bytes)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::SequentialFileRead,
-                        &buffer,
-                        0,
-                        bytes.len(),
-                    )?;
                     n
                 }
                 Err(errno) => {
@@ -271,13 +261,6 @@ impl<'program> super::super::Evaluator<'program> {
                 Ok(bytes) => {
                     let n = bytes.len() as i64;
                     buffer.write(&bytes)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::PositionedFileRead,
-                        &buffer,
-                        0,
-                        bytes.len(),
-                    )?;
                     n
                 }
                 Err(errno) => {
@@ -425,12 +408,6 @@ impl<'program> super::super::Evaluator<'program> {
                             let mut bytes = path.clone();
                             bytes.push(0);
                             buffer.write(&bytes)?;
-                            self.record_returned_path_observation(
-                                1,
-                                FilesystemReturnedPathKind::FinalPath,
-                                FilesystemReturnedPathCompleteness::Complete,
-                                &path,
-                            )?;
                             path.len() as i64
                         } else {
                             (path.len() + 1) as i64

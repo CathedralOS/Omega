@@ -1,8 +1,6 @@
-//! Bind a request's package and root staging scope, reopening matching
-//! review evidence, before build admission.
+//! Bind the request's package and root staging scope before build admission.
 
 use crate::BuildMachineFilesystemScope;
-use crate::ReviewOnlyBuildFilesystemReplayRecord;
 use build_time_evaluation::BuildMachineFilesystemSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -16,11 +14,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// write root (so the machine cannot reach it through its Output grant).
 static NEXT_CAPTURED_SOURCE_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 
-/// Reopen matching review evidence and bind the request's package/root staging
-/// scope before build admission. Replay remains review-only filesystem custody.
-/// `build_execution_profile` is the request's admitted profile for build-scope
-/// sources and the build machine; it joins the activation every replay record
-/// is bound to. `None` records an admitted host no catalogued profile
+/// Bind the request's package/root staging scope before build admission.
+/// The execution profile joins the retained activation identity.
+/// `None` records an admitted host no catalogued profile
 /// describes rather than naming one. `required_sources` are the source
 /// files this compilation already assembled; a scoped capture request must
 /// cover every member located under the captured root.
@@ -31,54 +27,8 @@ pub fn prepare_filesystem_scope(
     build_execution_profile: Option<target::TargetProfile>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
-    replay_record: Option<&ReviewOnlyBuildFilesystemReplayRecord>,
     build_snapshot: Option<&crate::BuildSnapshotRequest>,
 ) -> Result<BuildMachineFilesystemScope, Vec<Diagnostic>> {
-    if replay_record.is_some() && build_snapshot.is_some() {
-        return Err(vec![Diagnostic::error(
-            "a build snapshot request applies only to a primary execution; filesystem replay evidence already fixes this build occurrence",
-        )]);
-    }
-    if let Some(replay_record) = replay_record {
-        let expected_source_metadata = package_inputs
-            .map(|inputs| {
-                inputs
-                    .canonical_source_metadata(inputs.root())
-                    .map(|metadata| {
-                        crate::BuildCanonicalSourceMetadataIdentity::new(
-                            metadata.policy_version(),
-                            *metadata.source_content_commitment(),
-                        )
-                    })
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "package-aware filesystem replay requires canonical Source metadata",
-                        )]
-                    })
-            })
-            .transpose()?;
-        if replay_record.canonical_source_metadata_identity() != expected_source_metadata {
-            return Err(vec![Diagnostic::error(
-                "build filesystem replay record does not match the current canonical Source metadata identity",
-            )]);
-        }
-    }
-    let filesystem_replay = replay_record
-        .map(|record| {
-            crate::rehydrate_review_only_build_filesystem_replay_record(
-                record,
-                crate::BuildFilesystemReplayRecordLimits::new(
-                    record.canonical_bytes().len(),
-                    4_096,
-                ),
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "could not reopen build filesystem replay record: {error}"
-                ))]
-            })
-        })
-        .transpose()?;
     let build_dir = build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
         root_path
             .parent()
@@ -205,16 +155,6 @@ pub fn prepare_filesystem_scope(
         }
         .with_dependency_inputs(dependency_inputs)
         .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
-    }
-    if let Some(filesystem_replay) = filesystem_replay {
-        build_machine_filesystem_scope.replayed_source_inventory =
-            replay_record.and_then(|record| record.captured_source_inventory());
-        build_machine_filesystem_scope = build_machine_filesystem_scope.with_replay(
-            filesystem_replay,
-            replay_record
-                .expect("a rehydrated filesystem replay always accompanies its record")
-                .replay_activation(),
-        );
     }
     Ok(build_machine_filesystem_scope)
 }

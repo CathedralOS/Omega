@@ -298,38 +298,24 @@ fn package_subject_from(
 fn sponsored_usage(usage: BuildEvaluationUsage) -> BuildEvaluationUsage {
     let mut sponsored = usage;
     sponsored.sponsor_schema_version = Some(1);
-    sponsored.session_fuel_ceiling = Some(usage.fuel_units + usage.replay_fuel_units + 1);
-    sponsored.session_build_log_byte_ceiling =
-        Some(usage.build_log_bytes + usage.replay_build_log_bytes + 1);
-    sponsored.session_filesystem_attempt_ceiling =
-        Some(usage.filesystem_operation_attempts + usage.replay_filesystem_operation_attempts + 1);
+    sponsored.session_fuel_ceiling = Some(usage.fuel_units + 1);
+    sponsored.session_build_log_byte_ceiling = Some(usage.build_log_bytes + 1);
+    sponsored.session_filesystem_attempt_ceiling = Some(usage.filesystem_operation_attempts + 1);
     sponsored.session_live_filesystem_handle_ceiling =
         Some(usage.session_peak_live_filesystem_handles + 1);
-    sponsored.session_live_cell_ceiling = Some(
-        usage
-            .peak_live_cells
-            .max(usage.replay_peak_live_cells)
-            .max(usage.session_peak_live_cells)
-            + 1,
-    );
+    sponsored.session_live_cell_ceiling =
+        Some(usage.peak_live_cells.max(usage.session_peak_live_cells) + 1);
     sponsored.session_live_text_byte_ceiling = Some(
         usage
             .peak_live_text_bytes
-            .max(usage.replay_peak_live_text_bytes)
             .max(usage.session_peak_live_text_bytes)
             + 1,
     );
-    sponsored.session_result_cell_ceiling =
-        Some(usage.result_cells + usage.replay_result_cells + 1);
-    sponsored.session_result_text_byte_ceiling =
-        Some(usage.result_text_bytes + usage.replay_result_text_bytes + 1);
-    sponsored.session_peak_live_cells = usage
-        .peak_live_cells
-        .max(usage.replay_peak_live_cells)
-        .max(usage.session_peak_live_cells);
+    sponsored.session_result_cell_ceiling = Some(usage.result_cells + 1);
+    sponsored.session_result_text_byte_ceiling = Some(usage.result_text_bytes + 1);
+    sponsored.session_peak_live_cells = usage.peak_live_cells.max(usage.session_peak_live_cells);
     sponsored.session_peak_live_text_bytes = usage
         .peak_live_text_bytes
-        .max(usage.replay_peak_live_text_bytes)
         .max(usage.session_peak_live_text_bytes);
     sponsored
 }
@@ -545,38 +531,24 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
     );
 
     // == build_evaluation_usage axes: the invocation-accounting fields ==
-    let usage_fields: [(&'static str, fn(&mut BuildEvaluationUsage)); 17] = [
+    let usage_fields: [(&'static str, fn(&mut BuildEvaluationUsage)); 10] = [
         ("usage_schema_version", |u| u.usage_schema_version += 1),
         ("step_schedule_marker", |u| u.step_schedule_marker += 1),
         ("invocation_fuel_ceiling", |u| {
             u.invocation_fuel_ceiling += 1
         }),
         ("fuel_units", |u| u.fuel_units += 1),
-        ("replay_fuel_units", |u| u.replay_fuel_units += 1),
         ("build_log_bytes", |u| u.build_log_bytes += 1),
-        ("replay_build_log_bytes", |u| u.replay_build_log_bytes += 1),
         ("filesystem_operation_attempts", |u| {
             u.filesystem_operation_attempts += 1
         }),
-        ("replay_filesystem_operation_attempts", |u| {
-            u.replay_filesystem_operation_attempts += 1
-        }),
         ("peak_live_cells", |u| u.peak_live_cells += 1),
-        ("replay_peak_live_cells", |u| u.replay_peak_live_cells += 1),
         ("peak_live_text_bytes", |u| u.peak_live_text_bytes += 1),
-        ("replay_peak_live_text_bytes", |u| {
-            u.replay_peak_live_text_bytes += 1
-        }),
         ("result_cells", |u| u.result_cells += 1),
-        ("replay_result_cells", |u| u.replay_result_cells += 1),
         ("result_text_bytes", |u| u.result_text_bytes += 1),
-        ("replay_result_text_bytes", |u| {
-            u.replay_result_text_bytes += 1
-        }),
     ];
     assert!(
-        parts.usage.invocation_fuel_ceiling > parts.usage.fuel_units
-            && parts.usage.invocation_fuel_ceiling > parts.usage.replay_fuel_units,
+        parts.usage.invocation_fuel_ceiling > parts.usage.fuel_units,
         "the fixture's usage leaves headroom below its invocation fuel ceiling"
     );
     for (name, mutate) in usage_fields {
@@ -593,16 +565,13 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
         );
         admits(name, changed);
     }
-    let unsustainable: [(&'static str, fn(&mut BuildEvaluationUsage)); 3] = [
+    let unsustainable: [(&'static str, fn(&mut BuildEvaluationUsage)); 2] = [
         (
             "zero invocation fuel ceiling",
             |u: &mut BuildEvaluationUsage| u.invocation_fuel_ceiling = 0,
         ),
         ("fuel above the invocation ceiling", |u| {
             u.fuel_units = u.invocation_fuel_ceiling + 1
-        }),
-        ("replay fuel above the invocation ceiling", |u| {
-            u.replay_fuel_units = u.invocation_fuel_ceiling + 1
         }),
     ];
     for (name, mutate) in unsustainable {
@@ -626,15 +595,13 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
             u.sponsor_schema_version = Some(1)
         }),
         ("session_fuel_ceiling", |u| {
-            u.session_fuel_ceiling = Some(u.fuel_units + u.replay_fuel_units + 1)
+            u.session_fuel_ceiling = Some(u.fuel_units + 1)
         }),
         ("session_build_log_byte_ceiling", |u| {
-            u.session_build_log_byte_ceiling =
-                Some(u.build_log_bytes + u.replay_build_log_bytes + 1)
+            u.session_build_log_byte_ceiling = Some(u.build_log_bytes + 1)
         }),
         ("session_filesystem_attempt_ceiling", |u| {
-            u.session_filesystem_attempt_ceiling =
-                Some(u.filesystem_operation_attempts + u.replay_filesystem_operation_attempts + 1)
+            u.session_filesystem_attempt_ceiling = Some(u.filesystem_operation_attempts + 1)
         }),
         ("session_live_filesystem_handle_ceiling", |u| {
             u.session_live_filesystem_handle_ceiling =
@@ -737,8 +704,7 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
     }
 
     // == build_observation_identity ==
-    let foreign_observation =
-        build_evaluation::test_support::replayable_unknown_descriptor_summary();
+    let foreign_observation = build_evaluation::test_support::unknown_descriptor_summary();
     assert_ne!(
         foreign_observation.identity(),
         parts.observation.identity(),

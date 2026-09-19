@@ -300,8 +300,8 @@ Package input membership comes from the exact captured source inventory; no
 implicit reads of parent directories or mutable host files are permitted. A
 secret included in that inventory is readable input, not protected by its name.
 Extra files are captured by the caller/sponsor before being exposed as immutable
-inputs. Record their exact consumed bytes and admitted metadata. Replaying a
-build cannot reread a changed host pathname and call it the same input.
+inputs. Bind their exact bytes and admitted metadata for this activation;
+reopening a changed host pathname cannot supply the same immutable input.
 
 Code generators should normally consume input bytes/views and a narrow output
 writer. A library needing filesystem-shaped access can accept explicitly passed
@@ -422,8 +422,8 @@ executing them. The consuming project's `omega.lock` retains accepted request
 meaning under [restricted-build acceptance](../packages/acceptance.md#restricted-build-acceptance);
 the invocation supplies actual grants separately. No dependency's own lock,
 runtime acceptance, or ordinary resolution refresh substitutes for that decision.
-Specify operation, root/object scope, lifetime, bounds, and observation/replay
-requirements; do not use an undifferentiated "trust this package" flag. A host
+Specify operation, root/object scope, lifetime, and bounds;
+do not use an undifferentiated "trust this package" flag. A host
 grant does not propagate automatically to dependency builds or sibling helpers.
 Prefer capturing another input over lending live filesystem authority. Network
 and subprocess facilities, if later justified, need their own admitted protocols;
@@ -434,8 +434,8 @@ The first portable protocol makes additional host files available by capturing
 read-only inputs, not by lending arbitrary live paths. Existing explicitly admitted
 live filesystem routes may remain separately identified transitional modes; they
 must not report snapshot-isolated execution. Their host observations and external
-effects require the existing replay/admission evidence, and are excluded from the
-new snapshot-output cache unless a complete replay contract is supplied. Enabling
+effects require explicit admission and actual scoped capabilities. They are
+excluded from the snapshot-output cache. Enabling
 a mode is an independently accepted executor decision, never an option a package
 can use to approve itself. A generally extensible live-host grant API is deferred.
 

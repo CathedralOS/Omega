@@ -22,9 +22,7 @@ fn verify_fuel(
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported = reviews.iter().try_fold(0_u64, |total, review| {
         let usage = review.build_evaluation_usage()?;
-        total
-            .checked_add(usage.fuel_units)
-            .and_then(|total| total.checked_add(usage.replay_fuel_units))
+        total.checked_add(usage.fuel_units)
     });
     let sponsored = sponsor.consumed_fuel_units();
     if reported != Some(sponsored) {
@@ -44,9 +42,7 @@ fn verify_build_log(
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported = reviews.iter().try_fold(0_u64, |total, review| {
         let usage = review.build_evaluation_usage()?;
-        total
-            .checked_add(usage.build_log_bytes)
-            .and_then(|total| total.checked_add(usage.replay_build_log_bytes))
+        total.checked_add(usage.build_log_bytes)
     });
     let sponsored = sponsor.consumed_build_log_bytes();
     if reported != Some(sponsored) {
@@ -66,9 +62,7 @@ fn verify_filesystem_attempts(
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported = reviews.iter().try_fold(0_u64, |total, review| {
         let usage = review.build_evaluation_usage()?;
-        total
-            .checked_add(usage.filesystem_operation_attempts)
-            .and_then(|total| total.checked_add(usage.replay_filesystem_operation_attempts))
+        total.checked_add(usage.filesystem_operation_attempts)
     });
     let sponsored = sponsor.consumed_filesystem_operation_attempts();
     if reported != Some(sponsored) {
@@ -116,7 +110,7 @@ fn verify_live_cells(
         reviews
             .iter()
             .filter_map(|review| review.build_evaluation_usage())
-            .flat_map(|usage| [usage.peak_live_cells, usage.replay_peak_live_cells])
+            .map(|usage| usage.peak_live_cells)
             .max()
             .unwrap_or(0),
     );
@@ -151,12 +145,7 @@ fn verify_live_text_bytes(
         reviews
             .iter()
             .filter_map(|review| review.build_evaluation_usage())
-            .flat_map(|usage| {
-                [
-                    usage.peak_live_text_bytes,
-                    usage.replay_peak_live_text_bytes,
-                ]
-            })
+            .map(|usage| usage.peak_live_text_bytes)
             .max()
             .unwrap_or(0),
     );
@@ -189,15 +178,11 @@ fn verify_results(
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported_cells = reviews.iter().try_fold(0_u64, |total, review| {
         let usage = review.build_evaluation_usage()?;
-        total
-            .checked_add(usage.result_cells)
-            .and_then(|total| total.checked_add(usage.replay_result_cells))
+        total.checked_add(usage.result_cells)
     });
     let reported_text_bytes = reviews.iter().try_fold(0_u64, |total, review| {
         let usage = review.build_evaluation_usage()?;
-        total
-            .checked_add(usage.result_text_bytes)
-            .and_then(|total| total.checked_add(usage.replay_result_text_bytes))
+        total.checked_add(usage.result_text_bytes)
     });
     let sponsored_cells = sponsor.consumed_result_cells();
     let sponsored_text_bytes = sponsor.consumed_result_text_bytes();

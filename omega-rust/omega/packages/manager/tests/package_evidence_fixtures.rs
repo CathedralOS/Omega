@@ -1,4 +1,3 @@
-use build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
 use package_evidence::ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };

@@ -10,7 +10,7 @@ use package_compilation::PackageCompilationSubject;
 use sha2::{Digest, Sha256};
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V9\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V10\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -121,10 +121,7 @@ impl ProductionCompilationSubject {
         if build_evaluation_usage.invocation_fuel_ceiling == 0 {
             return Err("production compilation subject has a zero invocation fuel ceiling");
         }
-        if build_evaluation_usage.fuel_units > build_evaluation_usage.invocation_fuel_ceiling
-            || build_evaluation_usage.replay_fuel_units
-                > build_evaluation_usage.invocation_fuel_ceiling
-        {
+        if build_evaluation_usage.fuel_units > build_evaluation_usage.invocation_fuel_ceiling {
             return Err("production compilation subject exceeded its invocation fuel ceiling");
         }
         match (
@@ -187,28 +184,17 @@ impl ProductionCompilationSubject {
                 Some(result_cell_ceiling),
                 Some(result_text_byte_ceiling),
             ) => {
-                let consumed = build_evaluation_usage
-                    .fuel_units
-                    .checked_add(build_evaluation_usage.replay_fuel_units)
-                    .ok_or("production compilation subject build fuel overflowed")?;
+                let consumed = build_evaluation_usage.fuel_units;
                 if consumed > session_ceiling {
                     return Err("production compilation subject exceeded its session fuel ceiling");
                 }
-                let build_log = build_evaluation_usage
-                    .build_log_bytes
-                    .checked_add(build_evaluation_usage.replay_build_log_bytes)
-                    .ok_or("production compilation subject BuildLog accounting overflowed")?;
+                let build_log = build_evaluation_usage.build_log_bytes;
                 if build_log > build_log_ceiling {
                     return Err(
                         "production compilation subject exceeded its session BuildLog ceiling",
                     );
                 }
-                let filesystem_attempts = build_evaluation_usage
-                    .filesystem_operation_attempts
-                    .checked_add(build_evaluation_usage.replay_filesystem_operation_attempts)
-                    .ok_or(
-                        "production compilation subject filesystem-attempt accounting overflowed",
-                    )?;
+                let filesystem_attempts = build_evaluation_usage.filesystem_operation_attempts;
                 if filesystem_attempts > filesystem_attempt_ceiling {
                     return Err(
                         "production compilation subject exceeded its session filesystem-attempt ceiling",
@@ -223,14 +209,11 @@ impl ProductionCompilationSubject {
                 }
                 if build_evaluation_usage.session_peak_live_cells > live_cell_ceiling
                     || build_evaluation_usage.peak_live_cells > live_cell_ceiling
-                    || build_evaluation_usage.replay_peak_live_cells > live_cell_ceiling
                 {
                     return Err("production compilation subject exceeded its live-cell ceiling");
                 }
                 if build_evaluation_usage.peak_live_cells
                     > build_evaluation_usage.session_peak_live_cells
-                    || build_evaluation_usage.replay_peak_live_cells
-                        > build_evaluation_usage.session_peak_live_cells
                 {
                     return Err(
                         "production compilation subject live-cell peak exceeds its session peak",
@@ -238,7 +221,6 @@ impl ProductionCompilationSubject {
                 }
                 if build_evaluation_usage.session_peak_live_text_bytes > live_text_byte_ceiling
                     || build_evaluation_usage.peak_live_text_bytes > live_text_byte_ceiling
-                    || build_evaluation_usage.replay_peak_live_text_bytes > live_text_byte_ceiling
                 {
                     return Err(
                         "production compilation subject exceeded its live-Text-byte ceiling",
@@ -246,24 +228,16 @@ impl ProductionCompilationSubject {
                 }
                 if build_evaluation_usage.peak_live_text_bytes
                     > build_evaluation_usage.session_peak_live_text_bytes
-                    || build_evaluation_usage.replay_peak_live_text_bytes
-                        > build_evaluation_usage.session_peak_live_text_bytes
                 {
                     return Err(
                         "production compilation subject live-Text-byte peak exceeds its session peak",
                     );
                 }
-                let result_cells = build_evaluation_usage
-                    .result_cells
-                    .checked_add(build_evaluation_usage.replay_result_cells)
-                    .ok_or("production compilation subject result-cell accounting overflowed")?;
+                let result_cells = build_evaluation_usage.result_cells;
                 if result_cells > result_cell_ceiling {
                     return Err("production compilation subject exceeded its result-cell ceiling");
                 }
-                let result_text_bytes = build_evaluation_usage
-                    .result_text_bytes
-                    .checked_add(build_evaluation_usage.replay_result_text_bytes)
-                    .ok_or("production compilation subject result-Text accounting overflowed")?;
+                let result_text_bytes = build_evaluation_usage.result_text_bytes;
                 if result_text_bytes > result_text_byte_ceiling {
                     return Err(
                         "production compilation subject exceeded its result-Text-byte ceiling",
@@ -544,22 +518,15 @@ fn canonical_manifest_bytes(
         _ => unreachable!("validated production subject has paired sponsor identity"),
     }
     bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_fuel_units.to_le_bytes());
     bytes.extend_from_slice(&usage.build_log_bytes.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_build_log_bytes.to_le_bytes());
     bytes.extend_from_slice(&usage.filesystem_operation_attempts.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_filesystem_operation_attempts.to_le_bytes());
     bytes.extend_from_slice(&usage.session_peak_live_filesystem_handles.to_le_bytes());
     bytes.extend_from_slice(&usage.session_peak_live_cells.to_le_bytes());
     bytes.extend_from_slice(&usage.peak_live_cells.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_peak_live_cells.to_le_bytes());
     bytes.extend_from_slice(&usage.session_peak_live_text_bytes.to_le_bytes());
     bytes.extend_from_slice(&usage.peak_live_text_bytes.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_peak_live_text_bytes.to_le_bytes());
     bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_result_cells.to_le_bytes());
     bytes.extend_from_slice(&usage.result_text_bytes.to_le_bytes());
-    bytes.extend_from_slice(&usage.replay_result_text_bytes.to_le_bytes());
     bytes.extend_from_slice(subject.build_observation_identity.as_bytes());
     bytes.push(target_profile_tag(subject.target_profile));
     append_native_target(&mut bytes, subject.native_target);

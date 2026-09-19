@@ -31,7 +31,7 @@ Before step 4, pre-resolution evaluation, target filtering, symbol/type
 resolution, semantic prechecks, and exact dynamic-call binding are complete.
 The admitted checkpoint binds the base typed program, prepared specialized
 build projection, operational/reach plans, source snapshot, and authority verdict.
-Execution and replay use that exact admitted entry, not a later name lookup.
+Execution uses that exact admitted entry, not a later name lookup, and runs once.
 
 Reach, authority roots, retained storage, resource bounds, failure, and
 termination must fit the executor's policy. A blocking operation must expose
@@ -62,6 +62,12 @@ No nested call, dependency edge, or accepted runtime permission hides or authori
 a build-host action. Retain the originating package, build purpose, operation,
 logical resource scope, bounds, and applicable profile/target context. Delegation
 uses explicitly supplied capabilities and cannot widen their authority.
+
+The root selects the filesystem implementation. Descendants receive scoped views
+of that selection, not independent backend choices. Importing a real-filesystem
+API cannot bypass a root-supplied virtual filesystem; an unsupported operation
+rejects instead of opening a host route. Lock agreement and actual capability
+checks govern execution, not replay or a reproducibility classification.
 
 [Install/update review](../packages/acceptance.md#restricted-build-acceptance)
 surfaces those requests before restricted execution. Explicit project decisions

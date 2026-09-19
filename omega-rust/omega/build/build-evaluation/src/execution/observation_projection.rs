@@ -3,20 +3,12 @@
 
 use crate::evidence::filesystem_scope::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
 use crate::evidence::observations::{
-    BuildFilesystemAuthorizedPath, BuildFilesystemByteOperand, BuildFilesystemGrantAccess,
-    BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
-    BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleOutput,
-    BuildFilesystemMetadataObservation, BuildFilesystemMetadataObservationKind,
-    BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
-    BuildFilesystemMutableI64Operand, BuildFilesystemMutableI64OperandResolution,
-    BuildFilesystemObservedByteRegion, BuildFilesystemObservedByteRegionKind,
-    BuildFilesystemOperationAttempt, BuildFilesystemOperationObservationClass,
-    BuildFilesystemPathLikeOperand, BuildFilesystemProvider, BuildFilesystemReturnedPath,
-    BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
-    BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
-    BuildIncludedSourceHandoff, project_logical_handle_identity,
+    BuildFilesystemAuthorizedPath, BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal,
+    BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleInput,
+    BuildFilesystemLogicalHandleOutput, BuildFilesystemOperationAttempt, BuildFilesystemProvider,
+    BuildFilesystemRoot, BuildIncludedSourceHandoff, project_logical_handle_identity,
     project_logical_handle_input_resolution, project_logical_handle_kind,
-    project_logical_handle_output_source, project_operation_result, project_scalar_operand_value,
+    project_logical_handle_output_source, project_operation_result,
 };
 use checked_interpreter::EvaluationObservations;
 use diagnostics::Diagnostic;
@@ -26,7 +18,6 @@ use diagnostics::Diagnostic;
 pub(super) fn project_filesystem_operation_attempts(
     observations: &EvaluationObservations,
     machine_name: &str,
-    source_inputs_replayed: bool,
 ) -> Result<Vec<BuildFilesystemOperationAttempt>, Vec<Diagnostic>> {
     observations
         .filesystem_operation_attempts()
@@ -70,177 +61,6 @@ pub(super) fn project_filesystem_operation_attempts(
                     resolution: project_logical_handle_input_resolution(input.resolution()),
                 })
                 .collect();
-            let scalar_operands = attempt
-                .scalar_operands()
-                .iter()
-                .map(|operand| BuildFilesystemScalarOperand {
-                    operand_ordinal: operand.operand_ordinal(),
-                    value: project_scalar_operand_value(operand.value()),
-                })
-                .collect();
-            let byte_operands = attempt
-                .byte_operands()
-                .iter()
-                .map(|operand| BuildFilesystemByteOperand {
-                    operand_ordinal: operand.operand_ordinal(),
-                    bytes: operand.bytes().to_vec(),
-                })
-                .collect();
-            let path_like_operands = attempt
-                .path_like_operands()
-                .iter()
-                .map(|operand| BuildFilesystemPathLikeOperand {
-                    operand_ordinal: operand.operand_ordinal(),
-                    bytes: operand.bytes().to_vec(),
-                })
-                .collect();
-            let rooted_path_operand_resolutions = attempt
-                .rooted_path_operand_resolutions()
-                .iter()
-                .map(|operand| {
-                    let root = if operand.root() == BUILD_SOURCE_ROOT_IDENTITY {
-                        BuildFilesystemRoot::Source
-                    } else if operand.root() == BUILD_OUTPUT_ROOT_IDENTITY {
-                        BuildFilesystemRoot::Output
-                    } else {
-                        return Err(Diagnostic::error(format!(
-                            "build-time evaluation of `{machine_name}` returned unknown rooted-path operand identity `{}`",
-                            operand.root().get()
-                        )));
-                    };
-                    Ok(BuildFilesystemRootedPathOperandResolution {
-                        operand_ordinal: operand.operand_ordinal(),
-                        root,
-                        relative_path: operand.relative_path().to_vec(),
-                    })
-                })
-                .collect::<Result<Vec<_>, Diagnostic>>()?;
-            let returned_paths = attempt
-                .returned_paths()
-                .iter()
-                .map(|returned| BuildFilesystemReturnedPath {
-                    operand_ordinal: returned.operand_ordinal(),
-                    kind: match returned.kind() {
-                        checked_interpreter::FilesystemReturnedPathKind::ReadLinkPayload => {
-                            BuildFilesystemReturnedPathKind::ReadLinkPayload
-                        }
-                        checked_interpreter::FilesystemReturnedPathKind::CanonicalPath => {
-                            BuildFilesystemReturnedPathKind::CanonicalPath
-                        }
-                        checked_interpreter::FilesystemReturnedPathKind::FinalPath => {
-                            BuildFilesystemReturnedPathKind::FinalPath
-                        }
-                    },
-                    completeness: match returned.completeness() {
-                        checked_interpreter::FilesystemReturnedPathCompleteness::Complete => {
-                            BuildFilesystemReturnedPathCompleteness::Complete
-                        }
-                        checked_interpreter::FilesystemReturnedPathCompleteness::LimitReached => {
-                            BuildFilesystemReturnedPathCompleteness::LimitReached
-                        }
-                    },
-                    bytes: returned.bytes().to_vec(),
-                })
-                .collect();
-            let observed_byte_regions = attempt
-                .observed_byte_regions()
-                .iter()
-                .map(|region| {
-                    Ok(BuildFilesystemObservedByteRegion {
-                        output_operand_ordinal: region.output_operand_ordinal(),
-                        kind: match region.kind() {
-                            checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead => {
-                                BuildFilesystemObservedByteRegionKind::SequentialFileRead
-                            }
-                            checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead => {
-                                BuildFilesystemObservedByteRegionKind::PositionedFileRead
-                            }
-                            checked_interpreter::FilesystemObservedByteRegionKind::DirectoryRecords => {
-                                BuildFilesystemObservedByteRegionKind::DirectoryRecords
-                            }
-                            checked_interpreter::FilesystemObservedByteRegionKind::FindEntry => {
-                                BuildFilesystemObservedByteRegionKind::FindEntry
-                            }
-                        },
-                        offset: u64::try_from(region.offset()).map_err(|_| {
-                            Diagnostic::error(
-                                "build observation byte-region offset is not canonically representable",
-                            )
-                        })?,
-                        length: u64::try_from(region.length()).map_err(|_| {
-                            Diagnostic::error(
-                                "build observation byte-region length is not canonically representable",
-                            )
-                        })?,
-                    })
-                })
-                .collect::<Result<Vec<_>, Diagnostic>>()?;
-            let metadata_observations = attempt
-                .metadata_observations()
-                .iter()
-                .map(|observation| BuildFilesystemMetadataObservation {
-                    output_operand_ordinal: observation.output_operand_ordinal(),
-                    kind: match observation.kind() {
-                        checked_interpreter::FilesystemMetadataObservationKind::FollowedPath => {
-                            BuildFilesystemMetadataObservationKind::FollowedPath
-                        }
-                        checked_interpreter::FilesystemMetadataObservationKind::OpenDescriptor => {
-                            BuildFilesystemMetadataObservationKind::OpenDescriptor
-                        }
-                        checked_interpreter::FilesystemMetadataObservationKind::UnfollowedFinalPath => {
-                            BuildFilesystemMetadataObservationKind::UnfollowedFinalPath
-                        }
-                    },
-                    device: observation.device(),
-                    mode: observation.mode(),
-                    link_count: observation.link_count(),
-                    inode: observation.inode(),
-                    user: observation.user(),
-                    group: observation.group(),
-                    referenced_device: observation.referenced_device(),
-                    access_time: observation.access_time(),
-                    modification_time: observation.modification_time(),
-                    change_time: observation.change_time(),
-                    birth_time: observation.birth_time(),
-                    size: observation.size(),
-                    blocks_512: observation.blocks_512(),
-                    preferred_block_size: observation.preferred_block_size(),
-                })
-                .collect();
-            let mutable_byte_operand_resolutions = attempt
-                .mutable_byte_operand_resolutions()
-                .iter()
-                .map(|operand| BuildFilesystemMutableByteOperandResolution {
-                    operand_ordinal: operand.operand_ordinal(),
-                    bytes: operand.bytes().to_vec(),
-                })
-                .collect();
-            let mutable_i64_operand_resolutions = attempt
-                .mutable_i64_operand_resolutions()
-                .iter()
-                .map(|operand| BuildFilesystemMutableI64OperandResolution {
-                    operand_ordinal: operand.operand_ordinal(),
-                    value: operand.value(),
-                })
-                .collect();
-            let mutable_byte_operands = attempt
-                .mutable_byte_operands()
-                .iter()
-                .map(|operand| BuildFilesystemMutableByteOperand {
-                    operand_ordinal: operand.operand_ordinal(),
-                    pre_bytes: operand.pre_bytes().to_vec(),
-                    post_bytes: operand.post_bytes().to_vec(),
-                })
-                .collect();
-            let mutable_i64_operands = attempt
-                .mutable_i64_operands()
-                .iter()
-                .map(|operand| BuildFilesystemMutableI64Operand {
-                    operand_ordinal: operand.operand_ordinal(),
-                    pre_value: operand.pre_value(),
-                    post_value: operand.post_value(),
-                })
-                .collect();
             let logical_handle_output = attempt.logical_handle_output().map(|output| {
                 BuildFilesystemLogicalHandleOutput {
                     kind: project_logical_handle_kind(output.kind()),
@@ -267,11 +87,6 @@ pub(super) fn project_filesystem_operation_attempts(
                     BuildFilesystemProvider::RealScoped
                 }
             },
-                observation_class: if source_inputs_replayed {
-                    BuildFilesystemOperationObservationClass::Receipted
-                } else {
-                    BuildFilesystemOperationObservationClass::Volatile
-                },
                 result: project_operation_result(
                     attempt
                         .result()
@@ -280,17 +95,6 @@ pub(super) fn project_filesystem_operation_attempts(
                 post_error: attempt
                     .post_error()
                     .expect("successful build evaluation cannot retain a halted filesystem call"),
-                scalar_operands,
-                byte_operands,
-                path_like_operands,
-                rooted_path_operand_resolutions,
-                returned_paths,
-                observed_byte_regions,
-                metadata_observations,
-                mutable_byte_operand_resolutions,
-                mutable_i64_operand_resolutions,
-                mutable_byte_operands,
-                mutable_i64_operands,
                 authorized_paths,
                 logical_handle_inputs,
                 logical_handle_output,

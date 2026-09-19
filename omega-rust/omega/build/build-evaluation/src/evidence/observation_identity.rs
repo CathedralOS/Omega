@@ -1,16 +1,12 @@
 //! Canonical identity of one retained build observation.
 
 #[cfg(test)]
-use crate::{
-    BUILD_OBSERVATION_SCHEMA_VERSION, BuildCapturedSourceInventory, BuildFilesystemReplayVerdict,
-};
+use crate::{BUILD_OBSERVATION_SCHEMA_VERSION, BuildCapturedSourceInventory};
 use crate::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationObservationClass,
-    BuildFilesystemOperationResult, BuildFilesystemProvider, BuildFilesystemReplayDisposition,
-    BuildFilesystemRoot, BuildFilesystemScalarOperandValue, BuildObservationClass,
-    BuildObservationSummary,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
+    BuildFilesystemProvider, BuildFilesystemRoot, BuildObservationSummary,
 };
 use sha2::{Digest, Sha256};
 
@@ -38,8 +34,7 @@ impl BuildObservationSummary {
         let mut digest = Sha256::new();
         digest.update(BUILD_OBSERVATION_IDENTITY_DOMAIN);
         digest.update(self.schema_version().to_le_bytes());
-        digest.update([observation_class_tag(self.ceiling())]);
-        digest.update([observation_class_tag(self.realized())]);
+        digest.update([u8::from(self.filesystem_host_observed())]);
         digest.update(self.filesystem_operation_schema_version().to_le_bytes());
         match self.canonical_source_metadata_identity() {
             None => digest.update([0]),
@@ -49,23 +44,23 @@ impl BuildObservationSummary {
                 digest.update(identity.source_content_commitment());
             }
         }
-        let replay_activation = self.replay_activation();
-        match replay_activation.root_package_identity() {
+        let activation = self.activation();
+        match activation.root_package_identity() {
             None => digest.update([0]),
             Some(identity) => {
                 digest.update([1]);
                 digest.update(identity.digest());
             }
         }
-        digest.update([declaration_role_tag(replay_activation.root_role())]);
-        match replay_activation.selected_target_profile() {
+        digest.update([declaration_role_tag(activation.root_role())]);
+        match activation.selected_target_profile() {
             None => digest.update([0]),
             Some(profile) => {
                 digest.update([1]);
                 hash_bytes(&mut digest, profile.target_name().as_bytes());
             }
         }
-        match replay_activation.build_execution_profile() {
+        match activation.build_execution_profile() {
             None => digest.update([0]),
             Some(profile) => {
                 digest.update([1]);
@@ -91,11 +86,6 @@ impl BuildObservationSummary {
                 );
             }
         }
-        let replay_verdict = self.filesystem_replay_verdict();
-        digest.update(replay_verdict.schema_version().to_le_bytes());
-        digest.update([filesystem_replay_disposition_tag(
-            replay_verdict.disposition(),
-        )]);
         digest.update(
             u64::try_from(self.included_source_handoffs().len())
                 .expect("included-source handoff count fits u64")
@@ -132,9 +122,6 @@ impl BuildObservationSummary {
         for attempt in self.filesystem_operation_attempts() {
             digest.update(attempt.operation_tag().to_le_bytes());
             digest.update([filesystem_provider_tag(attempt.provider())]);
-            digest.update([filesystem_operation_observation_class_tag(
-                attempt.observation_class(),
-            )]);
             match attempt.result() {
                 BuildFilesystemOperationResult::Scalar(value) => {
                     digest.update([0]);
@@ -146,162 +133,6 @@ impl BuildObservationSummary {
                 }
             }
             digest.update(attempt.post_error().to_le_bytes());
-            digest.update(
-                u64::try_from(attempt.scalar_operands().len())
-                    .expect("build observation scalar-operand count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.scalar_operands() {
-                digest.update([operand.operand_ordinal()]);
-                match operand.value() {
-                    BuildFilesystemScalarOperandValue::I32(value) => {
-                        digest.update([0]);
-                        digest.update(value.to_le_bytes());
-                    }
-                    BuildFilesystemScalarOperandValue::U32(value) => {
-                        digest.update([1]);
-                        digest.update(value.to_le_bytes());
-                    }
-                    BuildFilesystemScalarOperandValue::I64(value) => {
-                        digest.update([2]);
-                        digest.update(value.to_le_bytes());
-                    }
-                    BuildFilesystemScalarOperandValue::U64(value) => {
-                        digest.update([3]);
-                        digest.update(value.to_le_bytes());
-                    }
-                }
-            }
-            digest.update(
-                u64::try_from(attempt.byte_operands().len())
-                    .expect("build observation byte-operand count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.byte_operands() {
-                digest.update([operand.operand_ordinal()]);
-                hash_bytes(&mut digest, operand.bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.path_like_operands().len())
-                    .expect("build observation path-like-operand count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.path_like_operands() {
-                digest.update([operand.operand_ordinal()]);
-                hash_bytes(&mut digest, operand.bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.rooted_path_operand_resolutions().len())
-                    .expect("build observation rooted-path-resolution count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.rooted_path_operand_resolutions() {
-                digest.update([operand.operand_ordinal()]);
-                digest.update([match operand.root() {
-                    BuildFilesystemRoot::Source => 0,
-                    BuildFilesystemRoot::Output => 1,
-                }]);
-                hash_bytes(&mut digest, operand.relative_path());
-            }
-            digest.update(
-                u64::try_from(attempt.returned_paths().len())
-                    .expect("build observation returned-path count fits u64")
-                    .to_le_bytes(),
-            );
-            for returned in attempt.returned_paths() {
-                digest.update([returned.operand_ordinal()]);
-                digest.update([match returned.kind() {
-                    crate::BuildFilesystemReturnedPathKind::ReadLinkPayload => 0,
-                    crate::BuildFilesystemReturnedPathKind::CanonicalPath => 1,
-                    crate::BuildFilesystemReturnedPathKind::FinalPath => 2,
-                }]);
-                digest.update([match returned.completeness() {
-                    crate::BuildFilesystemReturnedPathCompleteness::Complete => 0,
-                    crate::BuildFilesystemReturnedPathCompleteness::LimitReached => 1,
-                }]);
-                hash_bytes(&mut digest, returned.bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.observed_byte_regions().len())
-                    .expect("build observation observed-byte-region count fits u64")
-                    .to_le_bytes(),
-            );
-            for region in attempt.observed_byte_regions() {
-                digest.update([region.output_operand_ordinal()]);
-                digest.update([match region.kind() {
-                    crate::BuildFilesystemObservedByteRegionKind::SequentialFileRead => 0,
-                    crate::BuildFilesystemObservedByteRegionKind::PositionedFileRead => 1,
-                    crate::BuildFilesystemObservedByteRegionKind::DirectoryRecords => 2,
-                    crate::BuildFilesystemObservedByteRegionKind::FindEntry => 3,
-                }]);
-                digest.update(region.offset().to_le_bytes());
-                digest.update(region.length().to_le_bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.metadata_observations().len())
-                    .expect("build observation metadata count fits u64")
-                    .to_le_bytes(),
-            );
-            for metadata in attempt.metadata_observations() {
-                digest.update([metadata.output_operand_ordinal()]);
-                digest.update([match metadata.kind() {
-                    crate::BuildFilesystemMetadataObservationKind::FollowedPath => 0,
-                    crate::BuildFilesystemMetadataObservationKind::OpenDescriptor => 1,
-                    crate::BuildFilesystemMetadataObservationKind::UnfollowedFinalPath => 2,
-                }]);
-                digest.update(metadata.device().to_le_bytes());
-                digest.update(metadata.mode().to_le_bytes());
-                digest.update(metadata.link_count().to_le_bytes());
-                digest.update(metadata.inode().to_le_bytes());
-                digest.update(metadata.user().to_le_bytes());
-                digest.update(metadata.group().to_le_bytes());
-                digest.update(metadata.referenced_device().to_le_bytes());
-                digest.update(metadata.access_time().to_le_bytes());
-                digest.update(metadata.modification_time().to_le_bytes());
-                digest.update(metadata.change_time().to_le_bytes());
-                digest.update(metadata.birth_time().to_le_bytes());
-                digest.update(metadata.size().to_le_bytes());
-                digest.update(metadata.blocks_512().to_le_bytes());
-                digest.update(metadata.preferred_block_size().to_le_bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.mutable_byte_operand_resolutions().len())
-                    .expect("build observation mutable-byte-resolution count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.mutable_byte_operand_resolutions() {
-                digest.update([operand.operand_ordinal()]);
-                hash_bytes(&mut digest, operand.bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.mutable_i64_operand_resolutions().len())
-                    .expect("build observation mutable-i64-resolution count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.mutable_i64_operand_resolutions() {
-                digest.update([operand.operand_ordinal()]);
-                digest.update(operand.value().to_le_bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.mutable_byte_operands().len())
-                    .expect("build observation mutable-byte-operand count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.mutable_byte_operands() {
-                digest.update([operand.operand_ordinal()]);
-                hash_bytes(&mut digest, operand.pre_bytes());
-                hash_bytes(&mut digest, operand.post_bytes());
-            }
-            digest.update(
-                u64::try_from(attempt.mutable_i64_operands().len())
-                    .expect("build observation mutable-i64-operand count fits u64")
-                    .to_le_bytes(),
-            );
-            for operand in attempt.mutable_i64_operands() {
-                digest.update([operand.operand_ordinal()]);
-                digest.update(operand.pre_value().to_le_bytes());
-                digest.update(operand.post_value().to_le_bytes());
-            }
             digest.update(
                 u64::try_from(attempt.authorized_paths().len())
                     .expect("build observation authorized-path count fits u64")
@@ -381,23 +212,6 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
     digest.update(bytes);
 }
 
-const fn observation_class_tag(class: BuildObservationClass) -> u8 {
-    match class {
-        BuildObservationClass::Hermetic => 0,
-        BuildObservationClass::Receipted => 1,
-        BuildObservationClass::Volatile => 2,
-    }
-}
-
-const fn filesystem_operation_observation_class_tag(
-    class: BuildFilesystemOperationObservationClass,
-) -> u8 {
-    match class {
-        BuildFilesystemOperationObservationClass::Receipted => 0,
-        BuildFilesystemOperationObservationClass::Volatile => 1,
-    }
-}
-
 const fn filesystem_provider_tag(provider: BuildFilesystemProvider) -> u8 {
     match provider {
         BuildFilesystemProvider::Virtual => 0,
@@ -437,14 +251,6 @@ const fn grant_refusal_reason_tag(reason: BuildFilesystemGrantRefusalReason) -> 
     }
 }
 
-const fn filesystem_replay_disposition_tag(disposition: BuildFilesystemReplayDisposition) -> u8 {
-    match disposition {
-        BuildFilesystemReplayDisposition::NotReplayed => 0,
-        BuildFilesystemReplayDisposition::SourceInputsOnly => 1,
-        BuildFilesystemReplayDisposition::Complete => 2,
-    }
-}
-
 const fn declaration_role_tag(role: Option<package_compilation::BuildDeclarationKind>) -> u8 {
     match role {
         None => 0,
@@ -457,26 +263,20 @@ const fn declaration_role_tag(role: Option<package_compilation::BuildDeclaration
 #[cfg(test)]
 mod tests {
     use super::{
-        BUILD_OBSERVATION_SCHEMA_VERSION, BuildCapturedSourceInventory,
-        BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict, BuildObservationClass,
-        BuildObservationSummary,
+        BUILD_OBSERVATION_SCHEMA_VERSION, BuildCapturedSourceInventory, BuildObservationSummary,
     };
-    use crate::BuildReplayActivation;
+    use crate::BuildActivation;
 
     fn empty_summary() -> BuildObservationSummary {
         BuildObservationSummary {
             schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
-            ceiling: BuildObservationClass::Hermetic,
-            realized: BuildObservationClass::Hermetic,
+            filesystem_host_observed: false,
             filesystem_operation_schema_version:
                 checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
             canonical_source_metadata_identity: None,
-            replay_activation: BuildReplayActivation::default(),
+            activation: BuildActivation::default(),
             captured_source_inventory: None,
-            filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
-                BuildFilesystemReplayDisposition::NotReplayed,
-            ),
             included_source_handoffs: Vec::new(),
             required_output_settlements: Vec::new(),
             staged_output_tree: None,
@@ -494,11 +294,11 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0xe1, 0xaf, 0x90, 0xe5, 0x8b, 0x3b, 0x83, 0x4d, 0x1e, 0xd7, 0x58, 0x7f, 0x39, 0x51,
-                0x3c, 0x9b, 0x6e, 0x82, 0x8f, 0x5f, 0x79, 0xe9, 0x49, 0x56, 0x75, 0x2b, 0x04, 0x6d,
-                0x35, 0x51, 0x81, 0x6d,
+                0x46, 0xfc, 0x54, 0x4d, 0xf3, 0xfd, 0x60, 0x8e, 0x83, 0x5e, 0x4f, 0xe3, 0xe2, 0x1f,
+                0x38, 0x9d, 0x38, 0xa9, 0xdf, 0x65, 0x53, 0x40, 0x0f, 0x49, 0x58, 0xbf, 0xe6, 0x47,
+                0x97, 0x4b, 0xec, 0x8b,
             ],
-            "the current package build-observation byte contract remains stable"
+            "single-execution observation schema 80 with operation schema 20 has stable canonical bytes",
         );
     }
 
@@ -511,25 +311,11 @@ mod tests {
         assert_ne!(baseline, changed.identity());
 
         let mut changed = empty_summary();
-        changed.ceiling = BuildObservationClass::Receipted;
-        assert_ne!(baseline, changed.identity());
-
-        let mut changed = empty_summary();
-        changed.realized = BuildObservationClass::Volatile;
+        changed.filesystem_host_observed = true;
         assert_ne!(baseline, changed.identity());
 
         let mut changed = empty_summary();
         changed.filesystem_operation_schema_version += 1;
-        assert_ne!(baseline, changed.identity());
-
-        let mut changed = empty_summary();
-        changed.filesystem_replay_verdict =
-            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::SourceInputsOnly);
-        assert_ne!(baseline, changed.identity());
-
-        let mut changed = empty_summary();
-        changed.filesystem_replay_verdict =
-            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::Complete);
         assert_ne!(baseline, changed.identity());
 
         let mut changed = empty_summary();
@@ -549,9 +335,9 @@ mod tests {
         assert_ne!(first_selection, changed.identity());
 
         let mut changed = empty_summary();
-        changed.replay_activation = BuildReplayActivation {
+        changed.activation = BuildActivation {
             selected_target_profile: Some(target::TargetProfile::LinuxX64),
-            ..BuildReplayActivation::default()
+            ..BuildActivation::default()
         };
         let selected_target_only = changed.identity();
         assert_ne!(baseline, selected_target_only);
@@ -559,10 +345,10 @@ mod tests {
         // The execution profile is its own activation member: binding the
         // same profile there as the selected target still changes the digest.
         let mut changed = empty_summary();
-        changed.replay_activation = BuildReplayActivation {
+        changed.activation = BuildActivation {
             selected_target_profile: Some(target::TargetProfile::LinuxX64),
             build_execution_profile: Some(target::TargetProfile::LinuxX64),
-            ..BuildReplayActivation::default()
+            ..BuildActivation::default()
         };
         assert_ne!(baseline, changed.identity());
         assert_ne!(selected_target_only, changed.identity());
@@ -570,27 +356,5 @@ mod tests {
         let mut changed = empty_summary();
         changed.build_log = b"compiler-owned build log\n".to_vec();
         assert_ne!(baseline, changed.identity());
-    }
-
-    #[test]
-    fn replay_verdict_has_exactly_three_closed_dispositions() {
-        let not_replayed =
-            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::NotReplayed);
-        assert_eq!(
-            not_replayed.schema_version(),
-            crate::BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION
-        );
-        assert!(!not_replayed.replays_source_inputs());
-        assert!(!not_replayed.is_complete());
-
-        let source_inputs_only =
-            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::SourceInputsOnly);
-        assert!(source_inputs_only.replays_source_inputs());
-        assert!(!source_inputs_only.is_complete());
-
-        let complete =
-            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::Complete);
-        assert!(complete.replays_source_inputs());
-        assert!(complete.is_complete());
     }
 }

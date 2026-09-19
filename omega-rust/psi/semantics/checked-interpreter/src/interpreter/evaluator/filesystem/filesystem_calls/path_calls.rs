@@ -1,12 +1,9 @@
 //! Operations addressed by path: opens and creates, removals, renames,
 //! links, permissions, ownership, canonicalization and path metadata.
 
+use crate::FilesystemMetadataObservationKind;
 use crate::interpreter::evaluator::{
     EvalResult, PreparedFilesystemCall, VIRTUAL_MTIME_SECS, host_open_flags,
-};
-use crate::{
-    FilesystemMetadataObservationKind, FilesystemReturnedPathCompleteness,
-    FilesystemReturnedPathKind,
 };
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
@@ -337,16 +334,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 Some(target) => {
                     let n = target.len().min(count.host);
                     buffer.write(&target[..n])?;
-                    self.record_returned_path_observation(
-                        1,
-                        FilesystemReturnedPathKind::ReadLinkPayload,
-                        if n == target.len() {
-                            FilesystemReturnedPathCompleteness::Complete
-                        } else {
-                            FilesystemReturnedPathCompleteness::LimitReached
-                        },
-                        &target[..n],
-                    )?;
                     n as i64
                 }
                 None => {
@@ -375,12 +362,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 let mut bytes = resolved.clone();
                 bytes.push(0); // NUL-terminate like realpath's C string
                 buffer.write(&bytes)?;
-                self.record_returned_path_observation(
-                    1,
-                    FilesystemReturnedPathKind::CanonicalPath,
-                    FilesystemReturnedPathCompleteness::Complete,
-                    &resolved,
-                )?;
                 1
             } else {
                 self.virtual_errno = 2; // ENOENT

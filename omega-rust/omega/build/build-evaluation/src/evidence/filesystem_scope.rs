@@ -4,7 +4,7 @@ pub mod preparation;
 
 use crate::{
     BuildCanonicalSourceMetadataIdentity,
-    evidence::observations::{BuildCapturedSourceInventory, BuildReplayActivation},
+    evidence::observations::{BuildActivation, BuildCapturedSourceInventory},
 };
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
@@ -48,9 +48,6 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
-    replay: Option<checked_interpreter::FilesystemReplay>,
-    replay_activation: Option<BuildReplayActivation>,
-    replayed_source_inventory: Option<BuildCapturedSourceInventory>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
     build_execution_profile: Option<target::TargetProfile>,
@@ -100,9 +97,6 @@ impl BuildMachineFilesystemScope {
             canonical_source_metadata_required: false,
             build_dir,
             sponsor,
-            replay: None,
-            replay_activation: None,
-            replayed_source_inventory: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -126,9 +120,6 @@ impl BuildMachineFilesystemScope {
             canonical_source_metadata_required: true,
             build_dir,
             sponsor,
-            replay: None,
-            replay_activation: None,
-            replayed_source_inventory: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -140,9 +131,7 @@ impl BuildMachineFilesystemScope {
     }
 
     /// Bind the root package occurrence and authored declaration role whose
-    /// validated inputs produced this scope. With these bound, a replay
-    /// record's own activation may be checked against the requesting
-    /// compilation rather than trusted from custody alone.
+    /// validated inputs produced this scope.
     pub fn with_package_activation(
         mut self,
         root_package_identity: semantic_vocabulary::PackageKeyIdentity,
@@ -166,20 +155,6 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    /// Bind retained replay evidence and the activation it was captured
-    /// under. The activation travels with the evidence so admission can
-    /// reject a record replayed under a different root package, declaration
-    /// role, selected target, or build execution profile.
-    pub fn with_replay(
-        mut self,
-        replay: checked_interpreter::FilesystemReplay,
-        replay_activation: BuildReplayActivation,
-    ) -> Self {
-        self.replay = Some(replay);
-        self.replay_activation = Some(replay_activation);
-        self
-    }
-
     /// Bind this build occurrence's source reads to one compiler-captured
     /// immutable input inventory.
     ///
@@ -193,11 +168,6 @@ impl BuildMachineFilesystemScope {
         input: CapturedBuildSourceInput,
         snapshot_dir: PathBuf,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if self.replay.is_some() {
-            return Err(vec![Diagnostic::error(
-                "filesystem replay evidence already fixes this build occurrence; a captured source snapshot applies only to a primary execution",
-            )]);
-        }
         if let Some(existing) = &self.canonical_source_metadata {
             if existing != input.canonical_source_metadata() {
                 return Err(vec![Diagnostic::error(
@@ -234,11 +204,6 @@ impl BuildMachineFilesystemScope {
         input: CapturedBuildSourceInput,
         snapshot_dir: PathBuf,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if self.replay.is_some() {
-            return Err(vec![Diagnostic::error(
-                "filesystem replay evidence already fixes this build occurrence; a captured source snapshot applies only to a primary execution",
-            )]);
-        }
         if snapshot_dir == self.build_dir
             || snapshot_dir.starts_with(&self.build_dir)
             || self.build_dir.starts_with(&snapshot_dir)
@@ -329,23 +294,14 @@ impl BuildMachineFilesystemScope {
         Ok(self)
     }
 
-    pub(crate) const fn is_replay(&self) -> bool {
-        self.replay.is_some()
-    }
-
-    /// The activation any bound replay evidence was captured under.
-    pub(crate) const fn replay_activation(&self) -> Option<BuildReplayActivation> {
-        self.replay_activation
-    }
-
     /// The activation this scope describes: the bound package occurrence
     /// members and admitted execution profile plus the selected target the
     /// requesting compilation asked for.
     pub(crate) fn activation(
         &self,
         selected_target_profile: Option<target::TargetProfile>,
-    ) -> BuildReplayActivation {
-        BuildReplayActivation {
+    ) -> BuildActivation {
+        BuildActivation {
             root_package_identity: self.root_package_identity,
             root_role: self.root_role,
             selected_target_profile,
@@ -372,16 +328,12 @@ impl BuildMachineFilesystemScope {
                         .source_content_commitment(),
                 ),
             })
-            .or(self.replayed_source_inventory)
     }
 
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
-        if let Some(replay) = &self.replay {
-            return BuildMachineFilesystemAccess::ReplayFilesystem(replay.clone());
-        }
         // A captured input switches the Source grant to this occurrence's
         // fresh private materialization. Its selected index narrows access;
-        // the full package index remains separate provenance for replay.
+        // the full package index remains separate package provenance.
         let read_root = self
             .snapshot_dir
             .clone()
@@ -413,9 +365,6 @@ impl BuildMachineFilesystemScope {
     }
 
     pub(crate) fn ensure_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
-        if self.replay.is_some() {
-            return Ok(());
-        }
         if let Some(sponsor) = &self.sponsor {
             let path = sponsor
                 .bind_path(&self.build_dir)
@@ -594,9 +543,6 @@ impl BuildMachineFilesystemScope {
         // The private captured-source backing is scratch for the completed
         // run only; release it before staged-output custody is captured.
         self.captured_snapshot_release().release();
-        if self.replay.is_some() {
-            return Ok(None);
-        }
         // When the selected build machine cannot reach the filesystem, the
         // Output namespace is exactly empty without needing a physical
         // staging sponsor. Canonicalize that semantic fact so sponsored
@@ -973,8 +919,12 @@ mod tests {
             .expect_err("no staged custody means no completion");
         assert!(diagnostics[0].to_string().contains("staged-output custody"));
 
-        let tree = build_output::replayed_ordinary_files(&[(b"artifact.txt", b"done")])
-            .expect("sealed output tree");
+        let tree = build_output::from_entries(&[build_output::OutputTreeEntry::regular_file(
+            b"artifact.txt",
+            b"done",
+            false,
+        )])
+        .expect("sealed output tree");
         scope
             .verify_required_outputs(Some(&tree), "build")
             .expect("the sealed file completes its required output");
@@ -991,8 +941,10 @@ mod tests {
         .expect_err("an omitted required member cannot publish");
         assert!(diagnostics[0].to_string().contains("omitted"));
 
-        let dirs_only =
-            build_output::replayed_empty_directories(&[b"artifact.txt"]).expect("dir tree");
+        let dirs_only = build_output::from_entries(&[build_output::OutputTreeEntry::directory(
+            b"artifact.txt",
+        )])
+        .expect("dir tree");
         let diagnostics = scope
             .verify_required_outputs(Some(&dirs_only), "build")
             .expect_err("a directory cannot complete a required file");

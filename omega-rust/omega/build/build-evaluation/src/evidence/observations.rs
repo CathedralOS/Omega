@@ -9,8 +9,7 @@ use build_output::BuildStagedOutputTree;
 pub struct BuildEvaluationUsage {
     pub usage_schema_version: u32,
     pub step_schedule_marker: u32,
-    /// Deterministic per-invocation ceiling applied independently to the
-    /// initial evaluation and an exact replay. This is not a CPU limit.
+    /// Deterministic ceiling applied to the single evaluation, not a CPU limit.
     pub invocation_fuel_ceiling: u64,
     /// Shared sponsor-limit schema for package review. Standalone compilation
     /// has no aggregate sponsor.
@@ -46,37 +45,25 @@ pub struct BuildEvaluationUsage {
     /// Highest live interpreter Text payload-byte count observed in the shared
     /// sponsored session when this result was issued.
     pub session_peak_live_text_bytes: u64,
-    /// Fuel consumed by the initial build-machine evaluation.
+    /// Fuel consumed by this build-machine evaluation.
     pub fuel_units: u64,
-    /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
-    pub replay_fuel_units: u64,
-    /// BuildLog bytes emitted by initial evaluation.
+    /// BuildLog bytes emitted by this evaluation.
     pub build_log_bytes: u64,
-    /// BuildLog bytes emitted by exact replay, or zero when no replay ran.
-    pub replay_build_log_bytes: u64,
-    /// Filesystem operation attempts retained by initial evaluation.
+    /// Filesystem operation attempts retained by this evaluation.
     pub filesystem_operation_attempts: u64,
-    /// Filesystem operation attempts retained by replay, or zero when absent.
-    pub replay_filesystem_operation_attempts: u64,
-    /// Maximum semantic interpreter cells live concurrently in the initial
+    /// Maximum semantic interpreter cells live concurrently in this
     /// evaluation.
     pub peak_live_cells: u64,
-    /// Maximum semantic interpreter cells live concurrently in replay, or zero
-    /// when no replay ran.
-    pub replay_peak_live_cells: u64,
-    /// Maximum logical bytes in live Text backing buffers during initial
-    /// evaluation and exact replay.
+    /// Maximum logical bytes in live Text backing buffers during this
+    /// evaluation.
     pub peak_live_text_bytes: u64,
-    pub replay_peak_live_text_bytes: u64,
     pub result_cells: u64,
-    pub replay_result_cells: u64,
     pub result_text_bytes: u64,
-    pub replay_result_text_bytes: u64,
 }
 
 impl BuildEvaluationUsage {
     /// Compare the deterministic accounting owned by one build-machine
-    /// invocation and its exact replay, excluding aggregate sponsor/session
+    /// invocation, excluding aggregate sponsor/session
     /// context.
     ///
     /// A package review may run inside a shared sponsored session while the
@@ -88,53 +75,18 @@ impl BuildEvaluationUsage {
             && self.step_schedule_marker == other.step_schedule_marker
             && self.invocation_fuel_ceiling == other.invocation_fuel_ceiling
             && self.fuel_units == other.fuel_units
-            && self.replay_fuel_units == other.replay_fuel_units
             && self.build_log_bytes == other.build_log_bytes
-            && self.replay_build_log_bytes == other.replay_build_log_bytes
             && self.filesystem_operation_attempts == other.filesystem_operation_attempts
-            && self.replay_filesystem_operation_attempts
-                == other.replay_filesystem_operation_attempts
             && self.peak_live_cells == other.peak_live_cells
-            && self.replay_peak_live_cells == other.replay_peak_live_cells
             && self.peak_live_text_bytes == other.peak_live_text_bytes
-            && self.replay_peak_live_text_bytes == other.replay_peak_live_text_bytes
             && self.result_cells == other.result_cells
-            && self.replay_result_cells == other.replay_result_cells
             && self.result_text_bytes == other.result_text_bytes
-            && self.replay_result_text_bytes == other.replay_result_text_bytes
     }
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 78;
-pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 80;
 
-/// Normalized build-host observation class for one selected build machine.
-///
-/// The static ceiling remains conservative. A realized run becomes receipted
-/// only when a bounded no-host replay reproduces its complete admitted Output
-/// mutation and that tree matches independent sponsored custody.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BuildObservationClass {
-    Hermetic,
-    Receipted,
-    Volatile,
-}
-
-/// Exact replay disposition for one exercised filesystem operation.
-///
-/// An exercised operation cannot be `Hermetic`: it was either reproduced by
-/// the compiler-owned replay provider or it remains a volatile host
-/// observation. This row does not claim containment of the host provider.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemOperationObservationClass {
-    Receipted,
-    Volatile,
-}
-
-/// Compiler-issued observation facts for one completed build-machine run.
-///
-/// This is execution evidence, not capability/API comparison identity. A
-/// volatile row carries no replay receipt and makes no rebuildability claim.
+/// Provider used for an observed filesystem operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildFilesystemProvider {
     /// Deterministic in-memory provider.
@@ -172,23 +124,16 @@ impl BuildCanonicalSourceMetadataIdentity {
     }
 }
 
-/// The exact admitted activation a retained build activation or replay claim
-/// stands in for. A build machine observes its selected target through
-/// `Build.target`, executes under the request's admitted build execution
-/// profile, and its granted scope is bound to the root package occurrence
-/// and authored declaration role of the requesting compilation, so evidence
-/// produced under one activation is not interchangeable evidence for
-/// another. Each member is independently optional; a scope with no package
-/// occurrence or no bound replay records only the members it proved.
+/// The exact admitted package occurrence, declaration role, and profiles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct BuildReplayActivation {
+pub struct BuildActivation {
     pub(crate) root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) root_role: Option<package_compilation::BuildDeclarationKind>,
     pub(crate) selected_target_profile: Option<target::TargetProfile>,
     pub(crate) build_execution_profile: Option<target::TargetProfile>,
 }
 
-impl BuildReplayActivation {
+impl BuildActivation {
     /// Root package occurrence the activation was admitted under.
     pub const fn root_package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
         self.root_package_identity
@@ -282,337 +227,6 @@ impl BuildFilesystemAuthorizedPath {
 
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemScalarOperandValue {
-    I32(i32),
-    U32(u32),
-    I64(i64),
-    U64(u64),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemScalarOperand {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) value: BuildFilesystemScalarOperandValue,
-}
-
-impl BuildFilesystemScalarOperand {
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn value(self) -> BuildFilesystemScalarOperandValue {
-        self.value
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemByteOperand {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) bytes: Vec<u8>,
-}
-
-impl BuildFilesystemByteOperand {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-/// Exact path-like bytes consumed by an operation but not interpreted as one
-/// rooted grant path. This includes directory-entry names, search patterns,
-/// and symlink target spellings; keeping it distinct from payload bytes and
-/// authorized paths preserves the operation's argument semantics.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemPathLikeOperand {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) bytes: Vec<u8>,
-}
-
-impl BuildFilesystemPathLikeOperand {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-/// Portable compiler-rooted path retained when its authored operand resolves,
-/// before lowering to provider-specific path bytes. This does not claim that
-/// the later grant check authorized the same rooted location.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemRootedPathOperandResolution {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) root: BuildFilesystemRoot,
-    pub(crate) relative_path: Vec<u8>,
-}
-
-impl BuildFilesystemRootedPathOperandResolution {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn root(&self) -> BuildFilesystemRoot {
-        self.root
-    }
-
-    pub fn relative_path(&self) -> &[u8] {
-        &self.relative_path
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemReturnedPathKind {
-    ReadLinkPayload,
-    CanonicalPath,
-    FinalPath,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemReturnedPathCompleteness {
-    Complete,
-    LimitReached,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemReturnedPath {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) kind: BuildFilesystemReturnedPathKind,
-    pub(crate) completeness: BuildFilesystemReturnedPathCompleteness,
-    pub(crate) bytes: Vec<u8>,
-}
-
-impl BuildFilesystemReturnedPath {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn kind(&self) -> BuildFilesystemReturnedPathKind {
-        self.kind
-    }
-
-    pub const fn completeness(&self) -> BuildFilesystemReturnedPathCompleteness {
-        self.completeness
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemObservedByteRegionKind {
-    SequentialFileRead,
-    PositionedFileRead,
-    DirectoryRecords,
-    FindEntry,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemObservedByteRegion {
-    pub(crate) output_operand_ordinal: u8,
-    pub(crate) kind: BuildFilesystemObservedByteRegionKind,
-    pub(crate) offset: u64,
-    pub(crate) length: u64,
-}
-
-impl BuildFilesystemObservedByteRegion {
-    pub const fn output_operand_ordinal(self) -> u8 {
-        self.output_operand_ordinal
-    }
-
-    pub const fn kind(self) -> BuildFilesystemObservedByteRegionKind {
-        self.kind
-    }
-
-    pub const fn offset(self) -> u64 {
-        self.offset
-    }
-
-    pub const fn length(self) -> u64 {
-        self.length
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemMetadataObservationKind {
-    FollowedPath,
-    OpenDescriptor,
-    UnfollowedFinalPath,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemMetadataObservation {
-    pub(crate) output_operand_ordinal: u8,
-    pub(crate) kind: BuildFilesystemMetadataObservationKind,
-    pub(crate) device: u64,
-    pub(crate) mode: u32,
-    pub(crate) link_count: u64,
-    pub(crate) inode: u64,
-    pub(crate) user: u32,
-    pub(crate) group: u32,
-    pub(crate) referenced_device: u64,
-    pub(crate) access_time: i64,
-    pub(crate) modification_time: i64,
-    pub(crate) change_time: i64,
-    pub(crate) birth_time: i64,
-    pub(crate) size: i64,
-    pub(crate) blocks_512: u64,
-    pub(crate) preferred_block_size: u64,
-}
-
-impl BuildFilesystemMetadataObservation {
-    pub const fn output_operand_ordinal(self) -> u8 {
-        self.output_operand_ordinal
-    }
-    pub const fn kind(self) -> BuildFilesystemMetadataObservationKind {
-        self.kind
-    }
-    pub const fn device(self) -> u64 {
-        self.device
-    }
-    pub const fn mode(self) -> u32 {
-        self.mode
-    }
-    pub const fn link_count(self) -> u64 {
-        self.link_count
-    }
-    pub const fn inode(self) -> u64 {
-        self.inode
-    }
-    pub const fn user(self) -> u32 {
-        self.user
-    }
-    pub const fn group(self) -> u32 {
-        self.group
-    }
-    pub const fn referenced_device(self) -> u64 {
-        self.referenced_device
-    }
-    pub const fn access_time(self) -> i64 {
-        self.access_time
-    }
-    pub const fn modification_time(self) -> i64 {
-        self.modification_time
-    }
-    pub const fn change_time(self) -> i64 {
-        self.change_time
-    }
-    pub const fn birth_time(self) -> i64 {
-        self.birth_time
-    }
-    pub const fn size(self) -> i64 {
-        self.size
-    }
-    pub const fn blocks_512(self) -> u64 {
-        self.blocks_512
-    }
-    pub const fn preferred_block_size(self) -> u64 {
-        self.preferred_block_size
-    }
-}
-
-/// Complete mutable-byte carrier contents at the moment the authored operand
-/// resolves. This is distinct from provider-visible pre/post state because
-/// evaluation of a later argument may legally alias and mutate the carrier.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemMutableByteOperandResolution {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) bytes: Vec<u8>,
-}
-
-impl BuildFilesystemMutableByteOperandResolution {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemMutableI64OperandResolution {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) value: i64,
-}
-
-impl BuildFilesystemMutableI64OperandResolution {
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn value(self) -> i64 {
-        self.value
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemMutableByteOperand {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) pre_bytes: Vec<u8>,
-    pub(crate) post_bytes: Vec<u8>,
-}
-
-impl BuildFilesystemMutableByteOperand {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub fn pre_bytes(&self) -> &[u8] {
-        &self.pre_bytes
-    }
-
-    pub fn post_bytes(&self) -> &[u8] {
-        &self.post_bytes
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemMutableI64Operand {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) pre_value: i64,
-    pub(crate) post_value: i64,
-}
-
-impl BuildFilesystemMutableI64Operand {
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn pre_value(self) -> i64 {
-        self.pre_value
-    }
-
-    pub const fn post_value(self) -> i64 {
-        self.post_value
-    }
-}
-
-pub(crate) const fn project_scalar_operand_value(
-    value: checked_interpreter::FilesystemScalarOperandValue,
-) -> BuildFilesystemScalarOperandValue {
-    match value {
-        checked_interpreter::FilesystemScalarOperandValue::I32(value) => {
-            BuildFilesystemScalarOperandValue::I32(value)
-        }
-        checked_interpreter::FilesystemScalarOperandValue::U32(value) => {
-            BuildFilesystemScalarOperandValue::U32(value)
-        }
-        checked_interpreter::FilesystemScalarOperandValue::I64(value) => {
-            BuildFilesystemScalarOperandValue::I64(value)
-        }
-        checked_interpreter::FilesystemScalarOperandValue::U64(value) => {
-            BuildFilesystemScalarOperandValue::U64(value)
-        }
     }
 }
 
@@ -777,25 +391,13 @@ pub(crate) const fn project_operation_result(
 }
 
 /// One completed call from a successful build evaluation. This partial row is
-/// execution evidence, not a replay event or receipt.
+/// execution evidence, not authorization for another execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildFilesystemOperationAttempt {
     pub(crate) operation_tag: u16,
     pub(crate) provider: BuildFilesystemProvider,
-    pub(crate) observation_class: BuildFilesystemOperationObservationClass,
     pub(crate) result: BuildFilesystemOperationResult,
     pub(crate) post_error: i32,
-    pub(crate) scalar_operands: Vec<BuildFilesystemScalarOperand>,
-    pub(crate) byte_operands: Vec<BuildFilesystemByteOperand>,
-    pub(crate) path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
-    pub(crate) rooted_path_operand_resolutions: Vec<BuildFilesystemRootedPathOperandResolution>,
-    pub(crate) returned_paths: Vec<BuildFilesystemReturnedPath>,
-    pub(crate) observed_byte_regions: Vec<BuildFilesystemObservedByteRegion>,
-    pub(crate) metadata_observations: Vec<BuildFilesystemMetadataObservation>,
-    pub(crate) mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
-    pub(crate) mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
-    pub(crate) mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
-    pub(crate) mutable_i64_operands: Vec<BuildFilesystemMutableI64Operand>,
     pub(crate) authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
     pub(crate) logical_handle_inputs: Vec<BuildFilesystemLogicalHandleInput>,
     pub(crate) logical_handle_output: Option<BuildFilesystemLogicalHandleOutput>,
@@ -812,73 +414,12 @@ impl BuildFilesystemOperationAttempt {
         self.provider
     }
 
-    pub const fn observation_class(&self) -> BuildFilesystemOperationObservationClass {
-        self.observation_class
-    }
-
     pub const fn result(&self) -> BuildFilesystemOperationResult {
         self.result
     }
 
     pub const fn post_error(&self) -> i32 {
         self.post_error
-    }
-
-    pub fn scalar_operands(&self) -> &[BuildFilesystemScalarOperand] {
-        &self.scalar_operands
-    }
-
-    pub fn byte_operands(&self) -> &[BuildFilesystemByteOperand] {
-        &self.byte_operands
-    }
-
-    pub fn path_like_operands(&self) -> &[BuildFilesystemPathLikeOperand] {
-        &self.path_like_operands
-    }
-
-    pub fn rooted_path_operand_resolutions(&self) -> &[BuildFilesystemRootedPathOperandResolution] {
-        &self.rooted_path_operand_resolutions
-    }
-
-    pub fn returned_paths(&self) -> &[BuildFilesystemReturnedPath] {
-        &self.returned_paths
-    }
-
-    pub fn observed_byte_regions(&self) -> &[BuildFilesystemObservedByteRegion] {
-        &self.observed_byte_regions
-    }
-
-    pub fn metadata_observations(&self) -> &[BuildFilesystemMetadataObservation] {
-        &self.metadata_observations
-    }
-
-    pub fn observed_bytes(&self, region: &BuildFilesystemObservedByteRegion) -> Option<&[u8]> {
-        let output = self
-            .mutable_byte_operands
-            .iter()
-            .find(|output| output.operand_ordinal == region.output_operand_ordinal)?;
-        let offset = usize::try_from(region.offset).ok()?;
-        let length = usize::try_from(region.length).ok()?;
-        let end = offset.checked_add(length)?;
-        output.post_bytes.get(offset..end)
-    }
-
-    pub fn mutable_byte_operand_resolutions(
-        &self,
-    ) -> &[BuildFilesystemMutableByteOperandResolution] {
-        &self.mutable_byte_operand_resolutions
-    }
-
-    pub fn mutable_i64_operand_resolutions(&self) -> &[BuildFilesystemMutableI64OperandResolution] {
-        &self.mutable_i64_operand_resolutions
-    }
-
-    pub fn mutable_byte_operands(&self) -> &[BuildFilesystemMutableByteOperand] {
-        &self.mutable_byte_operands
-    }
-
-    pub fn mutable_i64_operands(&self) -> &[BuildFilesystemMutableI64Operand] {
-        &self.mutable_i64_operands
     }
 
     pub fn authorized_paths(&self) -> &[BuildFilesystemAuthorizedPath] {
@@ -899,54 +440,6 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
         &self.grant_refusals
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemReplayDisposition {
-    NotReplayed,
-    SourceInputsOnly,
-    Complete,
-}
-
-/// Closed compiler verdict for one build's filesystem replay.
-///
-/// `Complete` is meaningful only as part of its owning
-/// [`BuildObservationSummary`]: the summary retains the exact operation
-/// sequence, staged Output commitment, and generated-source handoffs that the
-/// compiler compared while issuing the verdict.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemReplayVerdict {
-    pub(crate) schema_version: u32,
-    pub(crate) disposition: BuildFilesystemReplayDisposition,
-}
-
-impl BuildFilesystemReplayVerdict {
-    pub(crate) const fn new(disposition: BuildFilesystemReplayDisposition) -> Self {
-        Self {
-            schema_version: BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION,
-            disposition,
-        }
-    }
-
-    pub const fn schema_version(self) -> u32 {
-        self.schema_version
-    }
-
-    pub const fn disposition(self) -> BuildFilesystemReplayDisposition {
-        self.disposition
-    }
-
-    pub const fn replays_source_inputs(self) -> bool {
-        matches!(
-            self.disposition,
-            BuildFilesystemReplayDisposition::SourceInputsOnly
-                | BuildFilesystemReplayDisposition::Complete
-        )
-    }
-
-    pub const fn is_complete(self) -> bool {
-        matches!(self.disposition, BuildFilesystemReplayDisposition::Complete)
     }
 }
 
@@ -981,14 +474,12 @@ impl BuildCapturedSourceInventory {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
     pub(crate) schema_version: u32,
-    pub(crate) ceiling: BuildObservationClass,
-    pub(crate) realized: BuildObservationClass,
+    pub(crate) filesystem_host_observed: bool,
     pub(crate) filesystem_operation_schema_version: u32,
     pub(crate) filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
     pub(crate) canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
-    pub(crate) replay_activation: BuildReplayActivation,
+    pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
-    pub(crate) filesystem_replay_verdict: BuildFilesystemReplayVerdict,
     pub(crate) included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
     /// Terminal settlement rows for the compiler-owned required-output
     /// obligations issued through `BuildOutput::require`, in issue order.
@@ -1044,12 +535,8 @@ impl BuildObservationSummary {
         self.schema_version
     }
 
-    pub const fn ceiling(&self) -> BuildObservationClass {
-        self.ceiling
-    }
-
-    pub const fn realized(&self) -> BuildObservationClass {
-        self.realized
+    pub const fn filesystem_host_observed(&self) -> bool {
+        self.filesystem_host_observed
     }
 
     pub const fn filesystem_operation_schema_version(&self) -> u32 {
@@ -1063,16 +550,15 @@ impl BuildObservationSummary {
     }
 
     /// The exact activation this summary's evidence was produced under.
-    /// Replay records and rejoined checkpoints bind to this tuple; a
+    /// Retained observations bind to this tuple; a
     /// different root package, declaration role, or selected target is a
     /// different activation, not a refresh of the same one.
-    pub const fn replay_activation(&self) -> BuildReplayActivation {
-        self.replay_activation
+    pub const fn activation(&self) -> BuildActivation {
+        self.activation
     }
 
     /// Identity and extent of this occurrence's selected immutable inventory.
-    /// Primary execution reads its private materialization; review-only replay
-    /// retains the original capture evidence without rereading host files.
+    /// Execution reads its private materialization.
     pub const fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_inventory
     }
@@ -1099,20 +585,8 @@ impl BuildObservationSummary {
         &self.required_output_settlements
     }
 
-    /// One versioned disposition over the compiler's replay of this summary.
-    /// `SourceInputsOnly` proves only provider-free consumption of the exact
-    /// Source prefix. `Complete` additionally proves exact build-result and
-    /// attempted-operation equality, generated-source handoffs, replay
-    /// teardown, reconstructed Output namespace, and staged-output custody.
-    pub const fn filesystem_replay_verdict(&self) -> BuildFilesystemReplayVerdict {
-        self.filesystem_replay_verdict
-    }
-
     /// Ordered operation/result/error evidence from the successful evaluator
-    /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally broader than the currently admitted replay grammar. Exact
-    /// path results, file and directory regions, and canonical metadata
-    /// observations are retained even when no complete replay claim is made.
+    /// run. Scoped path authorizations are compiler-rooted.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }

@@ -87,7 +87,6 @@ mod build_evaluation_sponsor;
 mod build_time;
 mod evaluation;
 mod filesystem;
-mod filesystem_replay;
 mod filesystem_sponsor;
 pub mod interpreter;
 mod value;
@@ -97,46 +96,6 @@ pub use build_evaluation_sponsor::{
     BuildEvaluationSponsorLimits,
 };
 pub use build_time::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
-pub use filesystem_replay::{
-    FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
-    FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
-    FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
-    FilesystemInputUnknownDescriptorOpenAtReplayRecord,
-    FilesystemInputUnknownDescriptorOperationReplayKind,
-    FilesystemInputUnknownDescriptorOperationReplayRecord,
-    FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord,
-    FilesystemInputUnknownDescriptorReadDirReplayRecord,
-    FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
-    FilesystemInputUnknownDescriptorReadReplayKind,
-    FilesystemInputUnknownDescriptorReadReplayRecord,
-    FilesystemInputUnknownDescriptorSeekReplayRecord,
-    FilesystemInputUnknownDescriptorSetFileTimesReplayRecord,
-    FilesystemInputUnknownDescriptorUnlinkAtReplayRecord,
-    FilesystemInputUnknownDescriptorWriteOperationReplayKind,
-    FilesystemInputUnknownDescriptorWriteOperationReplayRecord,
-    FilesystemInputUnknownDescriptorWriteReplayKind,
-    FilesystemInputUnknownDescriptorWriteReplayRecord,
-    FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
-    FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord,
-    FilesystemInputUnknownNativeHandleMutationReplayKind,
-    FilesystemInputUnknownNativeHandleMutationReplayRecord,
-    FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord,
-    FilesystemNativeHandleErrorObservationReplayRecord,
-    FilesystemNativeHandleFinalPathQueryReplayRecord,
-    FilesystemNativeHandleQueryOperationReplayRecord, FilesystemOutputAbsentRemoveKind,
-    FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputChangeFileOwnerReplayRecord,
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
-    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
-    FilesystemOutputLockReplayRecord, FilesystemOutputSymlinkReplayRecord,
-    FilesystemOutputTreeEntryReplayRecord, FilesystemSourceDirectoryReadChainReplayRecord,
-    FilesystemSourceDirectoryReadReplayRecord, FilesystemSourceNativeHandleQueryChainReplayRecord,
-    FilesystemSourceReadLinkReplayRecord, FilesystemSourceWriteRefusalReplayKind,
-    FilesystemSourceWriteRefusalReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
-};
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
     COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES, FilesystemOpenDescriptor, FilesystemSponsor,
@@ -156,7 +115,8 @@ pub use evaluation::{
     EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
     ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
     ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
-    MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
+    MAX_INCLUDED_BUILD_SOURCES, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    PrivateLayoutPlacementReceipt,
 };
 pub use filesystem::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
@@ -164,37 +124,16 @@ pub use filesystem::{
     CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
     FILESYSTEM_METADATA_API_CARRIER_BYTES, FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemAccess, FilesystemAuthorizedPath,
-    FilesystemByteOperand, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
-    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemGrantRoot,
-    FilesystemGrantRootIdentity, FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInput,
+    FilesystemEvaluationHaltKind, FilesystemGrantAccess, FilesystemGrantRefusal,
+    FilesystemGrantRefusalReason, FilesystemGrantRoot, FilesystemGrantRootIdentity,
+    FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInput,
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource, FilesystemMetadataField,
     FilesystemMetadataFieldLayout, FilesystemMetadataLayout, FilesystemMetadataObservation,
-    FilesystemMetadataObservationKind, FilesystemMutableByteOperand,
-    FilesystemMutableByteOperandResolution, FilesystemMutableI64Operand,
-    FilesystemMutableI64OperandResolution, FilesystemObservationProvider,
-    FilesystemObservedByteRegion, FilesystemObservedByteRegionKind, FilesystemOperationAttempt,
-    FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemPathLikeOperand,
-    FilesystemReturnedPath, FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
-    FilesystemRootedPathOperandResolution, FilesystemScalarOperand, FilesystemScalarOperandValue,
-    FilesystemServiceBinding, FsGrants, canonical_filesystem_metadata_path_is_canonical,
-    filesystem_root_relative_path_is_canonical,
-};
-pub use filesystem_replay::{
-    FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE, FilesystemInputOutputReplayRecord,
-    FilesystemOutputFileOperationReplayRecord, FilesystemOutputFileReplayRecord,
-    FilesystemOutputWriteReplayKind, FilesystemOutputWriteReplayRecord, FilesystemReplay,
-    FilesystemReplayReadKind, FilesystemReplayReadRecord,
-    FilesystemSourceDescriptorMetadataReplayRecord, FilesystemSourceInputReplayEventRecord,
-    FilesystemSourceInputReplayRecord, FilesystemSourcePathMetadataReplayRecord,
-    FilesystemSourceReadChainReplayRecord, MAX_FILESYSTEM_REPLAY_RETAINED_BYTES,
-    MAX_INCLUDED_BUILD_SOURCES,
-};
-pub(crate) use filesystem_replay::{
-    output_file_attempt_count, source_attempts_overlap_output, source_descriptor_close_attempt,
-    source_descriptor_open_attempt, source_input_record_attempts, validate_filesystem_replay_size,
-    validate_output_replay_extents, validate_output_time_replay_retention,
-    validate_source_input_attempts,
+    FilesystemMetadataObservationKind, FilesystemObservationProvider, FilesystemOperationAttempt,
+    FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+    FilesystemRootedPathOperandResolution, FilesystemServiceBinding, FsGrants,
+    canonical_filesystem_metadata_path_is_canonical, filesystem_root_relative_path_is_canonical,
 };
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions,

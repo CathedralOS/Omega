@@ -1,12 +1,9 @@
 //! Operations on an open descriptor or handle: reads, writes, seeks,
 //! duplication, extents, syncs, locks, and descriptor-scoped metadata.
 
+use crate::FilesystemMetadataObservationKind;
 use crate::interpreter::evaluator::{
     EvalResult, PreparedFilesystemCall, VIRTUAL_MTIME_SECS, VirtualFd, synthetic_handle_fd,
-};
-use crate::{
-    FilesystemMetadataObservationKind, FilesystemObservedByteRegionKind,
-    FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
 };
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
@@ -19,13 +16,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 Some(bytes) => {
                     let n = bytes.len() as i64;
                     buffer.write(&bytes)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::SequentialFileRead,
-                        &buffer,
-                        0,
-                        bytes.len(),
-                    )?;
                     n
                 }
                 None => {
@@ -68,13 +58,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 Some(bytes) => {
                     let n = bytes.len() as i64;
                     buffer.write(&bytes)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::PositionedFileRead,
-                        &buffer,
-                        0,
-                        bytes.len(),
-                    )?;
                     n
                 }
                 None => {
@@ -464,12 +447,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         let mut bytes = path.clone();
                         bytes.push(0);
                         buffer.write(&bytes)?;
-                        self.record_returned_path_observation(
-                            1,
-                            FilesystemReturnedPathKind::FinalPath,
-                            FilesystemReturnedPathCompleteness::Complete,
-                            &path,
-                        )?;
                         path.len() as i64
                     } else {
                         (path.len() + 1) as i64

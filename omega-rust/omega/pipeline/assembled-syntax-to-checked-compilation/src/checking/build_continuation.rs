@@ -54,7 +54,6 @@ pub(super) fn evaluate_build_and_continue(
         build_dir,
         filesystem_sponsor,
         evaluation_sponsor,
-        replay_record,
         build_snapshot,
         optimization_rollback: _,
     } = child;
@@ -91,7 +90,6 @@ pub(super) fn evaluate_build_and_continue(
         build_execution_profile,
         build_dir,
         filesystem_sponsor,
-        replay_record,
         build_snapshot,
     )?;
     let admitted_build = build_evaluation::admit_build_program(

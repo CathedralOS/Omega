@@ -7,7 +7,6 @@ use super::super::{
 use super::{
     EACCES, EBADF, EINVAL, ENOENT, io_errno, open_options_for, open_real, real_os_bytes, real_path,
 };
-use crate::{FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind};
 
 impl<'program> super::super::Evaluator<'program> {
     pub(super) fn real_create(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
@@ -181,12 +180,6 @@ impl<'program> super::super::Evaluator<'program> {
                         let mut bytes = path_bytes.clone();
                         bytes.push(0);
                         buffer.write(&bytes)?;
-                        self.record_returned_path_observation(
-                            1,
-                            FilesystemReturnedPathKind::CanonicalPath,
-                            FilesystemReturnedPathCompleteness::Complete,
-                            &path_bytes,
-                        )?;
                         1
                     }
                     Err(error) => {
@@ -306,16 +299,6 @@ impl<'program> super::super::Evaluator<'program> {
                         };
                         let n = bytes.len().min(count.host);
                         buffer.write(&bytes[..n])?;
-                        self.record_returned_path_observation(
-                            1,
-                            FilesystemReturnedPathKind::ReadLinkPayload,
-                            if n == bytes.len() {
-                                FilesystemReturnedPathCompleteness::Complete
-                            } else {
-                                FilesystemReturnedPathCompleteness::LimitReached
-                            },
-                            &bytes[..n],
-                        )?;
                         n as i64
                     }
                     Err(error) => {
