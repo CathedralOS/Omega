@@ -4180,21 +4180,33 @@ Owners include
   drift in any of them, or in source, target or artifact, stops publication
   (`compiler/tests/build_config_granted/checkpoints_and_snapshots.rs`,
   `compiler/tests/build_snapshot_outputs.rs`,
-  `omega/tests/package_commands/generated.rs`). Neither restricted-build
-  acceptance nor dependency-purpose binding exists.
+  `omega/tests/package_commands/generated.rs`). Restricted-build acceptance
+  now surfaces compiler-derived requests in review output; dependency-purpose
+  binding still does not exist.
 
   Remaining work:
 
   - Wire [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-    through compiler-derived review, package-manager install/update/audit,
-    normalized lock comparison, recoverable review/resume, and build
-    execution. `packages/manager/README.md` still lists this as required, and
-    no manager or lock type carries a build-host request. Surface direct and
-    transitive build-host requests separately from product authority before
-    running them; retain accepted request meaning in `omega.lock`, with actual
-    invocation grants separate. Benign snapshot/staging builds need no
-    restricted-action approval. Do not implement an arbitrary recursive build
-    API or a new host protocol as part of this join.
+    through package-manager install/update/audit, normalized lock comparison,
+    recoverable review/resume, and build execution.
+    `packages/manager/README.md` still lists this as required. The
+    compiler-derived review leg exists: an admitted build program projects its
+    filesystem-reaching authority into normalized `RestrictedBuildRequest`
+    values — operation, logical grant roots without host paths, sponsor
+    bounds, required outputs, and build/target profiles — and a package's
+    review surfaces them in a `build-request` block beside its dependency
+    path and product-authority `change`/`decision` rows, attributed to the
+    requesting package whether direct or transitive
+    (`omega-rust/omega/build/build-evaluation/src/admitted_build_program.rs`,
+    `omega-rust/omega/packages/manager/tests/package_policy_changes/document.rs`:
+    `build_host_requests_render_distinctly_from_product_authority`). Accepted
+    request meaning is not yet retained in `omega.lock`, no decision token
+    attaches to a request, review choices do not yet issue or withhold actual
+    invocation grants, and nothing gates execution on acceptance: new and
+    widened request acceptance, the benign snapshot/staging exemption, lock
+    normalization and comparison, recoverable review/resume, and the
+    execution-time grant join all remain. Do not implement an arbitrary
+    recursive build API or a new host protocol as part of this join.
   - Bind dependency purpose on checkpoints and generated handoffs, joining the
     [scoped build work](#scoped-build-execution). This waits on
     **BUILD-DEPENDENCY-PURPOSES** supplying a per-occurrence purpose value:
