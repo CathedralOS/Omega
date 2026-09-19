@@ -613,9 +613,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     and no bit-test kind, and `literal_minuend` admits only equality readers
     because no reversed ordering predicate exists. `copy_removal` substitutes
     within one block only. `address_fold` needs the `AddressOffset` producer
-    in the consumer's block and applies the AArch64 scaled 12-bit
-    displacement bound on every target, although x86-64 encodes disp32; the
-    wider form needs target applicability in the descriptor.
+    in the consumer's block and now applies the plan architecture's
+    displacement bound — AArch64's scaled 12-bit immediate or x86-64's
+    disp32 — rather than sharing the scaled bound on every target.
 
   Acceptance: source-produced programs select each rule by exact name through
   `optimize_selected_instructions`, execute natively on a supported host, and
