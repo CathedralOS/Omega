@@ -112,7 +112,7 @@ fn initializer_preparation_does_not_relax_literal_or_declaration_validity() {
     for text in [
         "const BAD: u8 = 256; const PENDING: u64 = 1 + 2;",
         "const SAME: u64 = 1 + 2; const SAME: u64 = 3 + 4;",
-        "const BAD: f32 = 1 + 2;",
+        "const BAD: f32 = 1.5f64;",
     ] {
         let syntax = parse(&[(SourceId(1), text)]);
         assert!(
@@ -125,4 +125,22 @@ fn initializer_preparation_does_not_relax_literal_or_declaration_validity() {
             "{text}"
         );
     }
+}
+
+#[test]
+fn floating_initializer_preparation_retains_the_unevaluated_root() {
+    let syntax = parse(&[(SourceId(1), "pub const VALUE: f32 = 1 + 2;")]);
+    let preparation = prepare_const_initializer_selection(ResolutionRequest::new(&syntax))
+        .expect("anonymous arithmetic waits for typed evaluation");
+    let trees = preparation.trees();
+    let declaration = &trees.const_declarations[0];
+    assert!(declaration.canonical_value_encoding.is_none());
+    assert!(matches!(
+        trees
+            .tables
+            .bodies
+            .expressions
+            .expression(declaration.initializer),
+        ExpressionNode::Binary(_)
+    ));
 }

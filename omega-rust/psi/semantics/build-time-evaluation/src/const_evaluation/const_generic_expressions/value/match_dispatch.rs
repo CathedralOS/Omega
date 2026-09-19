@@ -549,7 +549,7 @@ fn contains_match(program: &TypedTrees, root: ExpressionHandle) -> bool {
     false
 }
 
-fn validate_anonymous_fragments(
+pub(super) fn validate_anonymous_fragments(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

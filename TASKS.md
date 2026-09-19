@@ -2984,7 +2984,9 @@ Owners include
     transitive-exposure controls for each.
   - Complete declaration evaluation, including unused initializers:
     specialized provider applications, target-dependent declarations, and
-    floating/NaN identities, which need determined bits. Constrained constants
+    selected floating operations/NaN identities and aggregate floating values,
+    which need determined bits through ordinary typed floating provider
+    applications and recursive materialization. Constrained constants
     still fence aggregate values, non-integer index arguments,
     carrier-polymorphic families, open applications, non-domain constraints
     and unprovable facts (`generic_data/const_evaluation/facts.rs`).

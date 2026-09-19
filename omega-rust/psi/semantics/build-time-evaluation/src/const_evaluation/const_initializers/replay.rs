@@ -78,6 +78,28 @@ pub(crate) fn validate(
         } else {
             false
         };
+        let destination = float_destination(typed, declaration.declared_type);
+        let encoded_float = declaration
+            .canonical_value_encoding
+            .as_deref()
+            .is_some_and(|encoding| encoding.starts_with("float:"));
+        if destination.is_some() || encoded_float {
+            let destination = destination.ok_or_else(|| {
+                super::failure(
+                    reference,
+                    "floating constant result encoding lost its exact declared format",
+                )
+            })?;
+            validate_anonymous_float(
+                typed,
+                declaration,
+                destination,
+                authority.clone(),
+                retained_call || authored_call,
+            )
+            .map_err(|reason| super::failure(reference, reason))?;
+            continue;
+        }
         if !retained_call && !authored_call {
             continue;
         }
@@ -188,54 +210,11 @@ pub(crate) fn validate(
                     declaration.authored_initializer,
                     declaration.materialized_initializer,
                 )?;
-                // Reconstructed closure dependencies, not the fold's claimed
-                // roster, identify values to rejoin. Check both declaration
-                // roots and direct substituted uses: changing a declaration
-                // cannot leave a same-source helper copy at its former value.
-                for dependency in dependencies {
-                    let mut declarations = program.const_declarations().iter()
-                        .filter(|declaration| declaration.symbol == dependency.declaration);
-                    let declaration = declarations.next().ok_or("constant dependency lost its exact declaration")?;
-                    if declarations.next().is_some() {
-                        return Err("constant dependency declaration is ambiguous".into());
-                    }
-                    let identity = CanonicalConstIdentity {
-                        type_name: String::new(),
-                        encoding: declaration.canonical_value_encoding.clone()
-                            .ok_or("constant dependency lost its canonical value")?,
-                    };
-                    let expected = identity.decode_encoding()
-                        .ok_or("constant dependency has an invalid canonical value")?;
-                    let mut dependency_leaves = Vec::new();
-                    pair(program, Leaf {
-                        owner: declaration.symbol,
-                        original: dependency.expression,
-                        materialized: dependency.expression,
-                        destination: declaration.declared_type,
-                        structured: false,
-                        expected,
-                    }, &mut Vec::new(), &mut dependency_leaves)?;
-                    for leaf in dependency_leaves {
-                        if leaf.structured {
-                            // An aggregate dependency leaf is an exact
-                            // constant or case use: reconstruct the value it
-                            // crossed as from the receiving forest's own
-                            // selected declaration, never the producer's
-                            // claim.
-                            let actual = dependency_leaf_value(program, leaf.materialized)?;
-                            if actual != leaf.expected {
-                                return Err("constant dependency or its substituted use drifted from its canonical value".into());
-                            }
-                            continue;
-                        }
-                        let destination = crate::const_evaluation::const_generic_expressions::exact_probe_destination(program, leaf.destination)
-                            .ok_or("constant dependency lost its exact scalar destination")?;
-                        let value = calls.evaluate(leaf.materialized, destination)?.0;
-                        if value.decode_encoding().as_ref() != Some(&leaf.expected) {
-                            return Err("constant dependency or its substituted use drifted from its canonical value".into());
-                        }
-                    }
-                }
+                validate_dependency_values(program, &dependencies, |expression, destination| {
+                    calls
+                        .evaluate(expression, destination)
+                        .map(|(value, _)| value)
+                })?;
                 Ok(())
             })
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
@@ -286,6 +265,396 @@ pub(crate) fn validate(
         })?;
     }
     Ok(())
+}
+
+fn float_destination(
+    program: &TypedTrees,
+    destination: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(destination)
+    else {
+        return None;
+    };
+    match program.symbols.builtin_type_atom(*symbol)? {
+        symbols::BuiltinTypeAtom::F32 => Some(PrimitiveType::F32),
+        symbols::BuiltinTypeAtom::F64 => Some(PrimitiveType::F64),
+        _ => None,
+    }
+}
+
+/// Float declaration values are materializable bits, not generic-index atoms.
+/// Recompute the authored value before comparing either retained result claim.
+fn validate_anonymous_float(
+    typed: &TypedTrees,
+    declaration: &typed_trees::constant::ConstDeclaration,
+    destination: PrimitiveType,
+    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    has_calls: bool,
+) -> Result<(), String> {
+    use crate::const_evaluation::const_generic_expressions::value::{ScalarValue, evaluate_scalar};
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+    use numerics::literals::FloatFormat;
+
+    let original = declaration.authored_initializer;
+    let materialized = declaration.materialized_initializer;
+    if !typed.expression_table.expression_is_valid(original)
+        || typed.expression_table.source_span(original) != declaration.initializer_source_span
+    {
+        return Err("floating constant lost its distinct source-owned initializer roots".into());
+    }
+    if matches!(
+        typed.expression_table.expression(original),
+        ExpressionNode::Float(_) | ExpressionNode::Integer(_)
+    ) {
+        if typed
+            .expression_table
+            .authored_selection_occurrences(original)
+            .next()
+            .is_some()
+            || typed
+                .expression_table
+                .authored_selection_occurrences(materialized)
+                .next()
+                .is_some()
+        {
+            return Err(
+                "floating constant literal root retains computation or declaration custody".into(),
+            );
+        }
+        let format = match destination {
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
+            _ => return Err("floating constant lost its exact declared format".into()),
+        };
+        let bits = float_literal_bits(typed, original, format)?;
+        if float_literal_bits(typed, materialized, format)? != bits
+            || declaration.canonical_value_encoding.as_deref()
+                != Some(ScalarValue::Float { format, bits }.encoding().as_str())
+        {
+            return Err("floating constant literal bits or result encoding drifted".into());
+        }
+        return Ok(());
+    }
+    if original == materialized {
+        return Err("floating constant computation lost its distinct materialized root".into());
+    }
+    let mut probe = typed.clone();
+    let owner = super::invocations::append_probe(
+        &mut probe,
+        declaration.symbol,
+        "@const-float-replay".to_owned(),
+        original,
+        declaration.declared_type,
+    );
+    let checked = has_calls
+        .then(|| {
+            super::invocations::CheckedInitializers::prepare(&probe, authority.clone(), &[owner])
+        })
+        .transpose()
+        .map_err(|diagnostics| {
+            format!("floating initializer call preparation failed: {diagnostics:?}")
+        })?;
+    let probe = checked
+        .as_ref()
+        .map_or(&probe, super::invocations::CheckedInitializers::typed);
+    let calls = checked
+        .as_ref()
+        .map(|checked| checked.calls_for_symbol(owner))
+        .transpose()?;
+    let scalar_calls = calls.as_ref().map(|calls| {
+        calls as &dyn crate::const_evaluation::const_generic_expressions::value::ConstantCalls
+    });
+    let machine = probe
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner)
+        .ok_or("floating constant lost its receiving probe")?;
+    let [state] = probe.machine_states(machine) else {
+        return Err("floating constant lost its receiving expression state".into());
+    };
+    crate::machine_execution::admission::require_const_expression_selection(
+        probe,
+        machine,
+        declaration.initializer_source_span,
+        authority.as_deref(),
+    )?;
+    let dependencies = match &calls {
+        Some(calls) => calls.validate_custody(original, materialized)?,
+        None => crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
+            probe, machine, state, original, materialized,
+        )?,
+    };
+    let dependency_roots =
+        validate_dependency_values(probe, &dependencies, |expression, destination| {
+            evaluate_scalar(probe, machine, state, expression, destination, scalar_calls)?
+                .0
+                .into_index()
+        })?;
+    let (evaluated, _) =
+        evaluate_scalar(probe, machine, state, original, destination, scalar_calls)?;
+    let ScalarValue::Float { format, bits } = &evaluated else {
+        return Err("floating constant replay did not produce selected format bits".into());
+    };
+
+    let mut operators = Vec::new();
+    let mut visited = Vec::new();
+    let mut pending = vec![original];
+    pending.extend(dependency_roots);
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        if let ExpressionNode::Binary(binary) = probe.expression_table.expression(expression) {
+            if !validation::has_builtin_binary_expression_meaning(
+                probe,
+                machine,
+                Some(state),
+                expression,
+            ) {
+                return Err("floating constant replay lost selected builtin meaning".into());
+            }
+            let reference = probe.expression_table.source_span(expression);
+            if !operators.contains(&reference) {
+                operators.push(reference);
+            }
+            pending.push(binary.right);
+            pending.push(binary.left);
+        } else if let ExpressionNode::Match(dispatch) =
+            probe.expression_table.expression(expression)
+        {
+            pending.push(dispatch.subject);
+            for arm in probe.expression_table.match_arms(dispatch.arms) {
+                pending.push(arm.value);
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    pending.push(pattern);
+                }
+            }
+        } else if let ExpressionNode::Call(call) = probe.expression_table.expression(expression) {
+            if call.receiver.is_valid() {
+                pending.push(call.receiver);
+            }
+            pending.extend(
+                probe
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        }
+    }
+    let mut retained_operators = Vec::new();
+    for occurrence in probe
+        .expression_table
+        .authored_selection_occurrences(materialized)
+    {
+        let selection = probe
+            .authored_declaration_selections()
+            .get(occurrence)
+            .ok_or("floating constant lost its retained operator selection")?;
+        if selection.kind() == Kind::Call {
+            // The shared custody check already reconstructed each exact call
+            // target from the authored invocation closure.
+            continue;
+        }
+        if selection.kind() == Kind::StaticPathSegment
+            && let Target::Resolved(selected) = selection.target()
+            && dependencies
+                .iter()
+                .any(|dependency| dependency.declaration == selected.selected_symbol())
+        {
+            continue;
+        }
+        if selection.kind() != Kind::Operator
+            || selection.target() != Target::Intrinsic(Intrinsic::BuiltinOperator)
+        {
+            return Err("anonymous floating constant retained a non-builtin selection".into());
+        }
+        if !retained_operators.contains(&selection.source_span()) {
+            retained_operators.push(selection.source_span());
+        }
+    }
+    if operators.len() != retained_operators.len()
+        || operators
+            .iter()
+            .any(|reference| !retained_operators.contains(reference))
+    {
+        return Err("floating constant authored and retained operator custody drifted".into());
+    }
+    let ExpressionNode::Float(literal) = probe.expression_table.expression(materialized) else {
+        return Err("floating constant materialization is not a floating literal".into());
+    };
+    if literal.landing().is_some_and(|landing| landing != *format) {
+        return Err("floating constant materialized format drifted".into());
+    }
+    let materialized_bits = match format {
+        FloatFormat::F32 => u64::from(literal.value_f32().to_bits()),
+        FloatFormat::F64 => literal.value_f64().to_bits(),
+    };
+    if materialized_bits != *bits
+        || declaration.canonical_value_encoding.as_deref() != Some(evaluated.encoding().as_str())
+    {
+        return Err(
+            "floating constant computation, materialized bits, or result encoding drifted".into(),
+        );
+    }
+    Ok(())
+}
+
+fn float_literal_bits(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    format: numerics::literals::FloatFormat,
+) -> Result<u64, String> {
+    use numerics::literals::{FloatFormat, FloatLiteral};
+    let literal = match program.expression_table.expression(expression) {
+        ExpressionNode::Float(literal)
+            if literal.landing().is_none_or(|landing| landing == format) =>
+        {
+            literal.clone()
+        }
+        ExpressionNode::Integer(literal) if literal.landing().is_none() => {
+            let value = literal
+                .value_bignum()
+                .ok_or("floating constant has invalid anonymous integer value")?;
+            FloatLiteral::parse(&value.to_string())
+                .ok_or("floating constant integer value cannot select format bits")?
+        }
+        _ => {
+            return Err(
+                "floating constant literal root lost its carrier or retained computation".into(),
+            );
+        }
+    };
+    Ok(match format {
+        FloatFormat::F32 => {
+            let value = literal.value_f32();
+            if value.is_nan() {
+                return Err(
+                    "floating declaration identity requires explicit NaN representation bits"
+                        .into(),
+                );
+            }
+            u64::from(value.to_bits())
+        }
+        FloatFormat::F64 => {
+            let value = literal.value_f64();
+            if value.is_nan() {
+                return Err(
+                    "floating declaration identity requires explicit NaN representation bits"
+                        .into(),
+                );
+            }
+            value.to_bits()
+        }
+    })
+}
+
+/// Reconstructed closure dependencies identify both declaration values and
+/// direct substituted uses. Both must still equal the receiving declaration's
+/// canonical value; a stale helper copy cannot validate a changed declaration.
+fn validate_dependency_values(
+    program: &TypedTrees,
+    dependencies: &[crate::const_evaluation::const_generic_expressions::DependencyValue],
+    mut evaluate: impl FnMut(
+        ExpressionHandle,
+        PrimitiveType,
+    )
+        -> Result<language_semantics::const_value::CanonicalConstValue, String>,
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut authored_roots = Vec::new();
+    for dependency in dependencies {
+        let mut declarations = program
+            .const_declarations()
+            .iter()
+            .filter(|declaration| declaration.symbol == dependency.declaration);
+        let declaration = declarations
+            .next()
+            .ok_or("constant dependency lost its exact declaration")?;
+        if declarations.next().is_some() {
+            return Err("constant dependency declaration is ambiguous".into());
+        }
+        let expected = CanonicalConstIdentity {
+            type_name: String::new(),
+            encoding: declaration
+                .canonical_value_encoding
+                .clone()
+                .ok_or("constant dependency lost its canonical value")?,
+        }
+        .decode_encoding()
+        .ok_or("constant dependency has an invalid canonical value")?;
+        if let Some(destination) =
+            crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                program,
+                declaration.declared_type,
+            )
+        {
+            if !program
+                .expression_table
+                .expression_is_valid(declaration.authored_initializer)
+                || program
+                    .expression_table
+                    .source_span(declaration.authored_initializer)
+                    != declaration.initializer_source_span
+            {
+                return Err("constant dependency lost its exact authored initializer".into());
+            }
+            if !authored_roots.contains(&declaration.authored_initializer) {
+                let authored = evaluate(declaration.authored_initializer, destination)?;
+                if authored.decode_encoding().as_ref() != Some(&expected) {
+                    return Err(
+                        "constant dependency authored computation drifted from its canonical value"
+                            .into(),
+                    );
+                }
+            }
+        }
+        let mut leaves = Vec::new();
+        pair(
+            program,
+            Leaf {
+                owner: declaration.symbol,
+                original: dependency.expression,
+                materialized: dependency.expression,
+                destination: declaration.declared_type,
+                structured: false,
+                expected,
+            },
+            &mut Vec::new(),
+            &mut leaves,
+        )?;
+        for leaf in leaves {
+            let actual = if leaf.structured {
+                dependency_leaf_value(program, leaf.materialized)?
+            } else {
+                let destination =
+                    crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                        program,
+                        leaf.destination,
+                    )
+                    .ok_or("constant dependency lost its exact scalar destination")?;
+                evaluate(leaf.materialized, destination)?
+                    .decode_encoding()
+                    .ok_or("constant dependency has an invalid scalar value")?
+            };
+            if actual != leaf.expected {
+                return Err(
+                    "constant dependency or its substituted use drifted from its canonical value"
+                        .into(),
+                );
+            }
+        }
+        if declaration.authored_initializer.is_valid()
+            && !authored_roots.contains(&declaration.authored_initializer)
+        {
+            authored_roots.push(declaration.authored_initializer);
+        }
+    }
+    Ok(authored_roots)
 }
 
 /// Reconstruct the canonical value one aggregate dependency leaf crossed as:
@@ -566,3 +935,7 @@ fn pair(
     active.pop();
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/noncall_float_replay.rs"]
+mod noncall_float_replay;

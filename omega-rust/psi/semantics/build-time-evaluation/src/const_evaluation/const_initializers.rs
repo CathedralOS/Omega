@@ -430,28 +430,42 @@ pub(crate) fn evaluate(
                         builtin_operators.push(operator);
                     }
                 }
-                scalar_encoding = Some(result.value.encoding.clone());
-                let literal = match result.value.decode_encoding() {
-                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                        let spelling = value.to_string();
-                        ExpressionNode::Integer(
-                            numerics::literals::IntegerLiteral::from_parts(
-                                spelling.starts_with('-'),
-                                numerics::literals::IntegerRadix::Decimal,
-                                spelling.strip_prefix('-').unwrap_or(&spelling),
+                scalar_encoding = Some(result.value.encoding());
+                use crate::const_evaluation::const_generic_expressions::value::ScalarValue;
+                let literal = match result.value {
+                    ScalarValue::Float { format, bits } => {
+                        let spelling = match format {
+                            numerics::literals::FloatFormat::F32 => {
+                                format!("{:?}f32", f32::from_bits(bits as u32))
+                            }
+                            numerics::literals::FloatFormat::F64 => {
+                                format!("{:?}f64", f64::from_bits(bits))
+                            }
+                        };
+                        ExpressionNode::Float(source::SourceText::new(spelling, reference))
+                    }
+                    ScalarValue::Index(value) => match value.decode_encoding() {
+                        Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                            let spelling = value.to_string();
+                            ExpressionNode::Integer(
+                                numerics::literals::IntegerLiteral::from_parts(
+                                    spelling.starts_with('-'),
+                                    numerics::literals::IntegerRadix::Decimal,
+                                    spelling.strip_prefix('-').unwrap_or(&spelling),
+                                )
+                                .map_err(|reason| failure(reference, reason))?,
                             )
-                            .map_err(|reason| failure(reference, reason))?,
-                        )
-                    }
-                    Some(DecodedCanonicalConstValue::Boolean(value)) => {
-                        ExpressionNode::Boolean(value)
-                    }
-                    _ => {
-                        return Err(failure(
-                            reference,
-                            "initializer probe did not produce a scalar value",
-                        ));
-                    }
+                        }
+                        Some(DecodedCanonicalConstValue::Boolean(value)) => {
+                            ExpressionNode::Boolean(value)
+                        }
+                        _ => {
+                            return Err(failure(
+                                reference,
+                                "initializer probe did not produce a scalar value",
+                            ));
+                        }
+                    },
                 };
                 let materialized = syntax.expressions.insert(literal);
                 syntax.expressions.set_source_span(materialized, reference);

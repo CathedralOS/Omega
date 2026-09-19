@@ -294,13 +294,12 @@ fn lower_item_with_exposure(
                     })?,
                 )
             } else {
-                crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
+                crate::constant::public_declaration_value_encoding(
                     syntax_trees,
                     definition,
                     lowerer.constant_selection.as_ref(),
                 )
                 .ok()
-                .map(|value| value.encoding)
             };
             let declared_type = crate::lowering::type_reference::lower_type_reference_handle(
                 lowerer,
@@ -317,10 +316,10 @@ fn lower_item_with_exposure(
                         .pending_const_initializers
                         .last()
                         .filter(|_| definition.normalization.is_some())
-                        .map_or_else(
-                            symbol_resolved_trees::expression::ExpressionHandle::invalid,
-                            |record| record.authored,
-                        ),
+                        // Literal roots remain authored evidence too. Otherwise
+                        // erasing an operator-free computed root could masquerade
+                        // as a declaration which never needed evaluation.
+                        .map_or(initializer, |record| record.authored),
                     initializer_source_span: syntax_trees.expressions.source_span(definition.value),
                     canonical_value_encoding,
                 },

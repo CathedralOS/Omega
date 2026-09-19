@@ -50,13 +50,13 @@ pub(crate) fn retain(
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
+    let value = super::declaration_values::public_declaration_value_encoding(
         syntax,
         definition,
         lowerer.constant_selection.as_ref(),
     )
     .map_err(|_| error(reference, "materialized value is not canonical"))?;
-    if value.encoding != receipt.canonical_result_encoding {
+    if value != receipt.canonical_result_encoding {
         return Err(error(
             reference,
             "materialized value drifted from its canonical result",

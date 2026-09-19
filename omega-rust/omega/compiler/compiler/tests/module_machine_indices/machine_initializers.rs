@@ -1,7 +1,22 @@
 use super::{Sources, compile, root_inputs};
-use terminal_interpreter::{TerminalExecutionResult, interpret_terminal_artifact};
+use semantic_vocabulary::IeeeFloatValue;
+use terminal_interpreter::{
+    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
+};
 
 fn assert_source_free_result(checked: compiler::CheckedCompilation, machine: &str, expected: u64) {
+    assert_source_free_scalar_result(
+        checked,
+        machine,
+        super::array_construction::integer(u128::from(expected), 64),
+    );
+}
+
+fn assert_source_free_scalar_result(
+    checked: compiler::CheckedCompilation,
+    machine: &str,
+    expected: TerminalScalarValue,
+) {
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, machine)
         .produce_artifact()
         .expect("machine-computed constant reaches Terminal");
@@ -14,10 +29,134 @@ fn assert_source_free_result(checked: compiler::CheckedCompilation, machine: &st
             &[],
         )
         .expect("machine-computed constant executes without checked source"),
-        TerminalExecutionResult::Scalar(super::array_construction::integer(
-            u128::from(expected),
-            64
-        )),
+        TerminalExecutionResult::Scalar(expected),
+    );
+}
+
+#[test]
+fn imported_anonymous_float_constants_round_once_before_source_free_execution() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, initializer, expected) in [
+        ("f32", "1.0 + 0.5", IeeeFloatValue::Binary32(0x3fc0_0000)),
+        (
+            "f64",
+            "1.0 + 0.5",
+            IeeeFloatValue::Binary64(0x3ff8_0000_0000_0000),
+        ),
+        (
+            "f32",
+            "(16777216 + 1) - 16777216",
+            IeeeFloatValue::Binary32(0x3f80_0000),
+        ),
+        (
+            "f64",
+            "(9007199254740992 + 1) - 9007199254740992",
+            IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000),
+        ),
+        ("f32", "1 / 10", IeeeFloatValue::Binary32(0x3dcc_cccd)),
+        ("f32", "1e100 + 0", IeeeFloatValue::Binary32(0x7f80_0000)),
+        ("f32", "1e-45 + 0", IeeeFloatValue::Binary32(0x0000_0001)),
+        (
+            "f64",
+            "1e400 + 0",
+            IeeeFloatValue::Binary64(0x7ff0_0000_0000_0000),
+        ),
+        (
+            "f32",
+            "(match true { true -> 1 / 3, false -> 2 / 3 }) * 3",
+            IeeeFloatValue::Binary32(0x3f80_0000),
+        ),
+        (
+            "f64",
+            "(match CHOOSE { true -> 1 / 3, false -> 2 / 3 }) * 3",
+            IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000),
+        ),
+        ("f32", "-1e-50 + 0", IeeeFloatValue::Binary32(0x8000_0000)),
+        (
+            "f32",
+            "(match truth() { true -> 1 / 3, false -> 2 / 3 }) * 3",
+            IeeeFloatValue::Binary32(0x3f80_0000),
+        ),
+        (
+            "f64",
+            "1 / 10",
+            IeeeFloatValue::Binary64(0x3fb9_9999_9999_999a),
+        ),
+        (
+            "f32",
+            "8388609 + 0.499999999999999",
+            IeeeFloatValue::Binary32(0x4b00_0001),
+        ),
+    ] {
+        Sources::write(
+            root.join("settings.omg"),
+            &format!(
+                "module settings; machine truth() -> bool {{ true }} const CHOOSE: bool = 2 > 1; pub const VALUE: {carrier} = {initializer};"
+            ),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!("use settings::VALUE; machine read() -> {carrier} {{ VALUE }}"),
+        );
+        assert_source_free_scalar_result(
+            compile(&root, root_inputs(&root)),
+            "read",
+            TerminalScalarValue::IeeeFloat(expected),
+        );
+    }
+}
+
+#[test]
+fn imported_float_constant_initializers_reject_wrong_formats_and_anonymous_zero_division() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, initializer) in [
+        ("f32", "1.0f64"),
+        ("f64", "1.0f32"),
+        ("f32", "1 / 0"),
+        ("f64", "0.0 / 0.0"),
+        ("f32", "1 / (2 - 2)"),
+        ("f32", "match true { true -> 1, false -> 1 / 0 }"),
+    ] {
+        Sources::write(
+            root.join("settings.omg"),
+            &format!("module settings; pub const VALUE: {carrier} = {initializer};"),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!("use settings::VALUE; machine read() -> {carrier} {{ VALUE }}"),
+        );
+        let result = compiler::compile_to_checked(compiler::CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)
+        });
+        assert!(
+            result.is_err(),
+            "invalid floating initializer was accepted: {carrier} = {initializer}"
+        );
+    }
+}
+
+#[test]
+fn unused_private_float_initializers_still_evaluate_and_validate() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "const UNUSED: f32 = 1 / 3; machine read() -> u64 { 7 }",
+    );
+    assert_source_free_result(compile(&root, root_inputs(&root)), "read", 7);
+    Sources::write(
+        root.join("main.omg"),
+        "const UNUSED: f32 = 1 / 0; machine read() -> u64 { 7 }",
+    );
+    assert!(
+        compiler::compile_to_checked(compiler::CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .is_err()
     );
 }
 
