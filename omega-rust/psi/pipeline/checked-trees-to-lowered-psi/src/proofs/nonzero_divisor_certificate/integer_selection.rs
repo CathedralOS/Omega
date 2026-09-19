@@ -57,6 +57,36 @@ pub(super) fn build_with_machine_parameters(
     implications::prove(goal, assumptions, semantic_axioms, ordinary)
 }
 
+/// Relaxed selection for obligations that outgrow the canonical custody
+/// envelope: the same guarded search, with the bounded equality/definition
+/// closure as an additional leaf producer.
+///
+/// Canonical producers still run first at every goal, so ordered
+/// definition-word custody keeps its contract inside `build`. The closure
+/// only consumes facts unconditional in its own scope: a premise cited under
+/// an `Implication` still discharges nothing outside that premise's scope.
+/// Only the operation-proof fallback calls this; the canonical certificate
+/// entry never reaches it.
+pub(super) fn prove_relaxed_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<ProofNode> {
+    let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
+        build_without_implications(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+        )
+        .or_else(|| derived::prove(context, goal, assumptions, semantic_axioms))
+    };
+    implications::prove(goal, assumptions, semantic_axioms, ordinary)
+}
+
 fn build_without_implications(
     context: &PropositionContext,
     goal: &Proposition,

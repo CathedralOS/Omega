@@ -7,9 +7,10 @@
 //   operand the declaration leaves unbounded -> [0..=9] fits y.
 // p=8, dir=1 -> exit 9.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     p: i32 [0..=8];
     dir: i32;
     y: i32 [0..=9];
