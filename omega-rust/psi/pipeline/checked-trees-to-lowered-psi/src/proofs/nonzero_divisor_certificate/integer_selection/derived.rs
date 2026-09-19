@@ -428,7 +428,14 @@ fn affine_definition_bounds(
     out: &mut Vec<ProofNode>,
 ) {
     let pairs: Vec<(&ScalarTerm, &ScalarTerm)> = match expression {
+        // A bitwise and is commutative like an add: either operand may be the
+        // chain root while the other must land as the mask literal.
         ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
             left,
             right,
@@ -689,6 +696,7 @@ fn operation_expression(term: &ScalarTerm) -> bool {
             | ScalarTerm::ExactIntegerRemainder { .. }
             | ScalarTerm::ExactIntegerShiftLeft { .. }
             | ScalarTerm::ExactIntegerShiftRight { .. }
+            | ScalarTerm::IntegerBitwiseAnd { .. }
     )
 }
 

@@ -102,6 +102,14 @@ pub fn integer_affine_truth_bounds(
                 maximum = carrier_maximum >> count;
                 saw_total_image = true;
             }
+            // `x & mask` with a checked non-negative mask keeps only mask
+            // bits: the image is `[0, mask]` on every fixed carrier and does
+            // not depend on the root value.
+            CheckedIntegerEndpointStep::BitwiseAndMask(mask) => {
+                minimum = 0;
+                maximum = *mask;
+                saw_total_image = true;
+            }
             // A wrapping step has no total endpoint image: its reduced result
             // is not a monotone function of a quantified root range.
             CheckedIntegerEndpointStep::WrappingAdd { .. }

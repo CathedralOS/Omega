@@ -1,4 +1,5 @@
 use super::{literal, value};
+use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use crate::integer_rules::integer_affine::{
     IntegerAffineWitness, IntegerAffineWitnessError, check_integer_affine_witness,
     integer_affine_wrapping_evidence, map_integer_affine_bound,
@@ -336,5 +337,130 @@ fn rejects_non_value_roots_stale_unsigned_words_and_checked_overflow() {
             },
         ),
         Err(IntegerAffineWitnessError::CoefficientOverflow),
+    );
+}
+
+#[test]
+fn bitwise_and_mask_witness_checks_both_orders_and_lands_a_value_mask() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let root = value(1, integer_type);
+    let sibling = value(2, integer_type);
+    let target = value(3, integer_type);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let witness = || IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![0],
+        literal_axioms: vec![None],
+    };
+
+    // A non-negative literal mask admits in either operand order.
+    for expression in [
+        ScalarTerm::integer_bitwise_and(integer_type, root.clone(), literal(integer_type, 15))
+            .unwrap(),
+        ScalarTerm::integer_bitwise_and(integer_type, literal(integer_type, 15), root.clone())
+            .unwrap(),
+    ] {
+        let checked = check_integer_affine_witness(
+            &context,
+            &[Proposition::Equal(target.clone(), expression)],
+            &witness(),
+        )
+        .expect("non-negative mask admits in either operand order");
+        assert_eq!(
+            checked.endpoint_steps.as_slice(),
+            &[CheckedIntegerEndpointStep::BitwiseAndMask(15)],
+        );
+    }
+
+    // A value mask resolves through a prior literal axiom.
+    let landing = Proposition::Equal(sibling.clone(), literal(integer_type, 15));
+    let definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::integer_bitwise_and(integer_type, root.clone(), sibling.clone()).unwrap(),
+    );
+    let checked = check_integer_affine_witness(
+        &context,
+        &[landing, definition],
+        &IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            definition_axioms: vec![1],
+            literal_axioms: vec![Some(0)],
+        },
+    )
+    .expect("a landed value mask resolves");
+    assert_eq!(
+        checked.endpoint_steps.as_slice(),
+        &[CheckedIntegerEndpointStep::BitwiseAndMask(15)],
+    );
+}
+
+#[test]
+fn bitwise_and_mask_witness_rejects_negative_and_unlanded_masks() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let root = value(1, integer_type);
+    let sibling = value(2, integer_type);
+    let target = value(3, integer_type);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let witness = || IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![0],
+        literal_axioms: vec![None],
+    };
+
+    // A negative signed mask leaves the sign bit reachable: no `[0, mask]`
+    // image exists, so the step fails closed in either operand order.
+    for mask in [literal(integer_type, -1), literal(integer_type, -256)] {
+        for expression in [
+            ScalarTerm::integer_bitwise_and(integer_type, root.clone(), mask.clone()).unwrap(),
+            ScalarTerm::integer_bitwise_and(integer_type, mask.clone(), root.clone()).unwrap(),
+        ] {
+            assert_eq!(
+                check_integer_affine_witness(
+                    &context,
+                    &[Proposition::Equal(target.clone(), expression)],
+                    &witness(),
+                ),
+                Err(IntegerAffineWitnessError::NegativeBitwiseAndMask),
+            );
+        }
+    }
+
+    // A value mask with no literal axiom fails closed as a shape mismatch.
+    let unlanded = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::integer_bitwise_and(integer_type, root.clone(), sibling.clone()).unwrap(),
+    );
+    assert_eq!(
+        check_integer_affine_witness(&context, &[unlanded], &witness()),
+        Err(IntegerAffineWitnessError::DefinitionShapeMismatch(0)),
+    );
+
+    // A cited literal axiom the mask does not need cannot ride along unused.
+    let landing = Proposition::Equal(sibling, literal(integer_type, 7));
+    let definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::integer_bitwise_and(integer_type, root, literal(integer_type, 15)).unwrap(),
+    );
+    assert_eq!(
+        check_integer_affine_witness(
+            &context,
+            &[landing, definition],
+            &IntegerAffineWitness {
+                root: value(1, integer_type),
+                target,
+                definition_axioms: vec![1],
+                literal_axioms: vec![Some(0)],
+            },
+        ),
+        Err(IntegerAffineWitnessError::UnusedLiteralAxiom(1)),
     );
 }

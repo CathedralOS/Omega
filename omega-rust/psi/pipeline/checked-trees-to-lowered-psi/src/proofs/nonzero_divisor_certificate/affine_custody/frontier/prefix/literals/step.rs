@@ -36,8 +36,12 @@ fn forward_sibling<'a>(
         ScalarType::Integer(integer_type) if integer_type.sign() == IntegerSign::Unsigned
     );
     let (left, right, subtraction) = match expression {
+        // A bitwise and reads like a commutative operand pair: the current
+        // value resumes at either side and the other side is the sibling
+        // mask the literal search must land.
         ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
+        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+        | ScalarTerm::IntegerBitwiseAnd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
         ScalarTerm::WrappingIntegerAdd { left, right, .. } if unsigned => {

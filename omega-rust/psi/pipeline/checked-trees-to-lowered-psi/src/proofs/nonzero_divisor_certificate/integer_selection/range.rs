@@ -193,100 +193,103 @@ pub(super) fn target_bounds(
     target: &ScalarTerm,
     semantic_axioms: &[Proposition],
 ) -> Vec<ProofNode> {
-    let Some((definition_axiom, root, divisor)) =
-        semantic_axioms.iter().enumerate().rev().find_map(
-            |(index, proposition)| match proposition {
-                Proposition::Equal(
-                    left,
-                    ScalarTerm::ExactIntegerMultiply {
-                        left: root,
-                        right: divisor,
-                        ..
-                    }
-                    | ScalarTerm::ExactIntegerDivide {
-                        left: root,
-                        right: divisor,
-                        ..
-                    }
-                    | ScalarTerm::ExactIntegerRemainder {
-                        left: root,
-                        right: divisor,
-                        ..
-                    },
-                ) if left == target => Some((index, root.as_ref(), divisor.as_ref())),
-                Proposition::Equal(
-                    ScalarTerm::ExactIntegerMultiply {
-                        left: root,
-                        right: divisor,
-                        ..
-                    }
-                    | ScalarTerm::ExactIntegerDivide {
-                        left: root,
-                        right: divisor,
-                        ..
-                    }
-                    | ScalarTerm::ExactIntegerRemainder {
-                        left: root,
-                        right: divisor,
-                        ..
-                    },
-                    right,
-                ) if right == target => Some((index, root.as_ref(), divisor.as_ref())),
-                _ => None,
-            },
-        )
-    else {
-        return Vec::new();
-    };
-    let literal_axiom = if divisor.integer_value().is_some() {
-        None
-    } else {
-        let Some(literal_axiom) = semantic_axioms[..definition_axiom]
+    // Each candidate is a `(root, sibling)` operand order the kernel can
+    // replay: the ordered operations resume only at their left operand,
+    // while a bitwise and resumes at either operand with the other landing
+    // as the mask literal.
+    let Some((definition_axiom, candidates)) =
+        semantic_axioms
             .iter()
             .enumerate()
             .rev()
-            .find_map(|(index, proposition)| match proposition {
-                Proposition::Equal(left, right)
-                    if left == divisor && right.integer_value().is_some() =>
-                {
-                    Some(index)
-                }
-                Proposition::Equal(left, right)
-                    if right == divisor && left.integer_value().is_some() =>
-                {
-                    Some(index)
-                }
-                _ => None,
+            .find_map(|(index, proposition)| {
+                let Proposition::Equal(left, right) = proposition else {
+                    return None;
+                };
+                let expression = if left == target {
+                    right
+                } else if right == target {
+                    left
+                } else {
+                    return None;
+                };
+                let candidates: Vec<(&ScalarTerm, &ScalarTerm)> = match expression {
+                    ScalarTerm::ExactIntegerMultiply {
+                        left: root,
+                        right: sibling,
+                        ..
+                    }
+                    | ScalarTerm::ExactIntegerDivide {
+                        left: root,
+                        right: sibling,
+                        ..
+                    }
+                    | ScalarTerm::ExactIntegerRemainder {
+                        left: root,
+                        right: sibling,
+                        ..
+                    } => vec![(root.as_ref(), sibling.as_ref())],
+                    ScalarTerm::IntegerBitwiseAnd { left, right, .. } => vec![
+                        (left.as_ref(), right.as_ref()),
+                        (right.as_ref(), left.as_ref()),
+                    ],
+                    _ => return None,
+                };
+                Some((index, candidates))
             })
-        else {
-            return Vec::new();
-        };
-        Some(literal_axiom)
-    };
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![definition_axiom],
-        literal_axioms: vec![literal_axiom],
-    };
-    let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+    else {
         return Vec::new();
     };
     let truth = ProofNode {
         conclusion: Proposition::Truth,
         rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
     };
-    let Ok(mapped_bounds) = integer_affine_truth_bounds(&form) else {
-        return Vec::new();
-    };
-    mapped_bounds
-        .into_iter()
-        .map(|mapped| ProofNode {
-            conclusion: mapped.clone(),
+    let mut bounds = Vec::new();
+    for (root, sibling) in candidates {
+        let literal_axiom = if sibling.integer_value().is_some() {
+            None
+        } else {
+            let Some(literal_axiom) = semantic_axioms[..definition_axiom]
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, proposition)| match proposition {
+                    Proposition::Equal(left, right)
+                        if left == sibling && right.integer_value().is_some() =>
+                    {
+                        Some(index)
+                    }
+                    Proposition::Equal(left, right)
+                        if right == sibling && left.integer_value().is_some() =>
+                    {
+                        Some(index)
+                    }
+                    _ => None,
+                })
+            else {
+                continue;
+            };
+            Some(literal_axiom)
+        };
+        let witness = IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            definition_axioms: vec![definition_axiom],
+            literal_axioms: vec![literal_axiom],
+        };
+        let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+            continue;
+        };
+        let Ok(mapped_bounds) = integer_affine_truth_bounds(&form) else {
+            continue;
+        };
+        bounds.extend(mapped_bounds.into_iter().map(|mapped| ProofNode {
+            conclusion: mapped,
             rule: ProofRule::IntegerAffineBound {
                 root_bound: Box::new(truth.clone()),
                 witness: witness.clone(),
             },
-        })
-        .collect()
+        }));
+    }
+    bounds
 }

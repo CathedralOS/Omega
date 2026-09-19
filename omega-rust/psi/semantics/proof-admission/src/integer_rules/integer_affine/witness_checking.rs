@@ -43,6 +43,12 @@ pub(crate) enum CheckedIntegerEndpointStep {
         operand: ScalarTerm,
         literal: i128,
     },
+    /// `x & mask` traversed toward the defined result, with `mask` a checked
+    /// non-negative literal or landed literal. An AND never sets a bit absent
+    /// from the mask, so the result image is `[0, mask]` whatever range the
+    /// operand carried. A negative signed mask leaves the sign bit reachable
+    /// and the step is rejected while the witness is checked.
+    BitwiseAndMask(i128),
     CorrelatedAddLower,
     CorrelatedAddUpper,
     CorrelatedSubtractLower,
@@ -747,6 +753,42 @@ fn apply_definition(
                 CheckedIntegerEndpointStep::Multiply(literal),
             )
         }
+        // `x & mask` carries no affine slope, but a non-negative mask pins
+        // the whole image to `[0, mask]`: the result keeps only mask bits.
+        // A negative signed mask leaves the sign bit settable, so the step
+        // rejects rather than pretend the image is ordered.
+        ScalarTerm::IntegerBitwiseAnd {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            let (mask, used_landing) = signed_literal(right, integer_type, landed)?;
+            if mask < 0 {
+                return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
+            }
+            (
+                Some(coefficient),
+                Some(offset),
+                used_landing,
+                CheckedIntegerEndpointStep::BitwiseAndMask(mask),
+            )
+        }
+        ScalarTerm::IntegerBitwiseAnd {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && right.as_ref() == current => {
+            let (mask, used_landing) = signed_literal(left, integer_type, landed)?;
+            if mask < 0 {
+                return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
+            }
+            (
+                Some(coefficient),
+                Some(offset),
+                used_landing,
+                CheckedIntegerEndpointStep::BitwiseAndMask(mask),
+            )
+        }
         // Only unsigned fixed carriers traverse a wrapping definition: signed
         // wrapping arithmetic is not monotone around its reduced endpoints,
         // and address carriers have no literal order evidence here.
@@ -1124,6 +1166,7 @@ pub enum IntegerAffineWitnessError {
     AmbiguousDefinition(usize),
     CoefficientOverflow,
     ZeroDivisionLiteral,
+    NegativeBitwiseAndMask,
     ShiftCountNotLanded(usize),
     ShiftCountOutsideValueWidth(usize),
     TargetMismatch,

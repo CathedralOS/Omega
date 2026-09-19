@@ -170,3 +170,126 @@ fn mathematical_exact_cast_bounds_replay_the_operation_and_result_alias() {
         assert!(check_certificate(&context(), &goal, &[], &missing_alias, &proof).is_err());
     }
 }
+
+fn bitwise_and_axioms(mask: &ScalarTerm) -> Vec<Proposition> {
+    vec![
+        Proposition::Equal(
+            value(3),
+            ScalarTerm::IntegerBitwiseAnd {
+                scalar_type: integer_type(),
+                left: Box::new(value(1)),
+                right: Box::new(mask.clone()),
+            },
+        ),
+        Proposition::Equal(value(4), value(3)),
+    ]
+}
+
+#[test]
+fn bitwise_and_mask_bounds_reach_the_aliased_result() {
+    // `v3 = v1 & 15` has the total image `[0, 15]`; the alias `v4 = v3`
+    // carries both endpoints across. The operand's own range is irrelevant.
+    let semantic_axioms = bitwise_and_axioms(&literal(15));
+    for goal in [
+        Proposition::LessOrEqual(value(4), literal(15)),
+        Proposition::LessOrEqual(literal(0), value(4)),
+    ] {
+        let proof = prove(&context(), &goal, &[], &semantic_axioms)
+            .expect("the mask image crosses the result alias");
+        check_certificate(&context(), &goal, &[], &semantic_axioms, &proof).unwrap();
+    }
+
+    // The mask image also lands on the operation result itself.
+    let goal = Proposition::LessOrEqual(value(3), literal(15));
+    let proof = prove(&context(), &goal, &[], &semantic_axioms).unwrap();
+    check_certificate(&context(), &goal, &[], &semantic_axioms, &proof).unwrap();
+    // A relaxed goal just inside the mask still proves through the image.
+    let relaxed = Proposition::LessOrEqual(value(3), literal(300));
+    let proof = prove(&context(), &relaxed, &[], &semantic_axioms).unwrap();
+    check_certificate(&context(), &relaxed, &[], &semantic_axioms, &proof).unwrap();
+
+    // Dropping the definition or the alias removes the bound.
+    for omitted in [0, 1] {
+        let mut missing = semantic_axioms.clone();
+        missing[omitted] = Proposition::Truth;
+        assert!(
+            prove(
+                &context(),
+                &Proposition::LessOrEqual(value(4), literal(15)),
+                &[],
+                &missing,
+            )
+            .is_none()
+        );
+        assert!(
+            check_certificate(
+                &context(),
+                &Proposition::LessOrEqual(value(4), literal(15)),
+                &[],
+                &missing,
+                &proof,
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn bitwise_and_value_mask_lands_through_a_prior_literal_axiom() {
+    // `v3 = v1 & v2` proves only once `v2` lands as the non-negative mask.
+    let landed = vec![
+        Proposition::Equal(value(2), literal(15)),
+        Proposition::Equal(
+            value(3),
+            ScalarTerm::IntegerBitwiseAnd {
+                scalar_type: integer_type(),
+                left: Box::new(value(1)),
+                right: Box::new(value(2)),
+            },
+        ),
+    ];
+    let goal = Proposition::LessOrEqual(value(3), literal(15));
+    let proof = prove(&context(), &goal, &[], &landed).expect("landed value mask");
+    check_certificate(&context(), &goal, &[], &landed, &proof).unwrap();
+
+    let mut unlanded = landed.clone();
+    unlanded[0] = Proposition::Truth;
+    assert!(prove(&context(), &goal, &[], &unlanded).is_none());
+    assert!(check_certificate(&context(), &goal, &[], &unlanded, &proof).is_err());
+}
+
+#[test]
+fn bitwise_and_negative_signed_mask_never_proves() {
+    let signed_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let signed_value = |identity: u64| {
+        ScalarTerm::value(
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(signed_type),
+        )
+    };
+    let signed_literal =
+        |number: i128| ScalarTerm::integer(signed_type, IntegerValue::Signed(number)).unwrap();
+    let context = PropositionContext::from_value_types((1..=3).map(|identity| {
+        (
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(signed_type),
+        )
+    }))
+    .unwrap();
+    // `x & -1` keeps the sign bit reachable; the step must not produce a
+    // bound, not even the trivially true carrier one.
+    let semantic_axioms = vec![Proposition::Equal(
+        signed_value(3),
+        ScalarTerm::IntegerBitwiseAnd {
+            scalar_type: signed_type,
+            left: Box::new(signed_value(1)),
+            right: Box::new(signed_literal(-1)),
+        },
+    )];
+    for goal in [
+        Proposition::LessOrEqual(signed_value(3), signed_literal(0)),
+        Proposition::LessOrEqual(signed_literal(0), signed_value(3)),
+    ] {
+        assert!(prove(&context, &goal, &[], &semantic_axioms).is_none());
+    }
+}
