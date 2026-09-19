@@ -313,9 +313,7 @@ fn generate_tuple_specialization(
             tuple.display.join(", ")
         ))]);
     }
-    if let Err(errors) = validate_candidate_conformance_bounds(program, &mut candidate) {
-        return Err(errors);
-    }
+    validate_candidate_conformance_bounds(program, &mut candidate)?;
     const_arguments::validate_bindings(program, &candidate).map_err(|error| vec![error])?;
 
     let canonical_template_contract_bytes = canonical_template_contract_bytes(

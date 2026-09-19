@@ -29,10 +29,10 @@ fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHan
         .symbol
 }
 
-fn contract_plan<'a>(
-    checked: &'a checked_trees::CheckedTrees,
+fn contract_plan(
+    checked: &checked_trees::CheckedTrees,
     machine: SymbolHandle,
-) -> &'a checked_trees::MachineContractPlan {
+) -> &checked_trees::MachineContractPlan {
     checked
         .facts
         .contract_plans

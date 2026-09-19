@@ -37,7 +37,10 @@ fn parameter_type_reference(
         .iter()
         .find(|machine| machine.name.as_str() == machine_name)
         .unwrap_or_else(|| panic!("missing machine `{machine_name}`"));
-    let state = program.machine_states(machine).first().expect("entry state");
+    let state = program
+        .machine_states(machine)
+        .first()
+        .expect("entry state");
     program.state_parameters(state)[parameter_index].type_reference
 }
 

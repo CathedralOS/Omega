@@ -1343,15 +1343,14 @@ fn uninitialized_nominal_local_carries_zii_field_coverage() {
 /// `consume(&row)` on a fresh `NonEmpty` field still rejects.
 #[test]
 fn uninitialized_local_field_with_ungated_domain_still_requires_a_write() {
-    let source = format!(
-        r#"domain [u8; 4]::NonEmpty requires non_empty(self);
-        data Gated {{ bytes: [u8; 4] in NonEmpty; }}
-        machine consume(row: &Gated) ensures row.bytes in NonEmpty {{ }}
-        machine caller() {{
+    let source = r#"domain [u8; 4]::NonEmpty requires non_empty(self);
+        data Gated { bytes: [u8; 4] in NonEmpty; }
+        machine consume(row: &Gated) ensures row.bytes in NonEmpty { }
+        machine caller() {
             let row: Gated;
             consume(&row);
-        }}
+        }
     "#
-    );
+    .to_string();
     check(&source, false);
 }
