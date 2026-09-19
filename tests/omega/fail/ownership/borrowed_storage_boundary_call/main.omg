@@ -1,0 +1,14 @@
+boundary machine sample() -> i32 ensures true;
+
+machine wrapped_sample() -> i32 { sample() }
+
+data Inventory { slots: i32; }
+data Main { inventory: Inventory; }
+
+machine Main::replace(&mut self) {
+    let taken: Inventory = self.inventory;
+    let reading: i32 = wrapped_sample();
+    self.inventory = move taken;
+}
+
+machine Main::main() -> i32 { 0 }

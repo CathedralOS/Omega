@@ -2869,12 +2869,16 @@ Owners include
     per-call suspension/blocking summaries, including initializer, assignment,
     aggregate and call-argument positions; replacement evaluation is checked
     before the repair store. Quiet checked bodies remain usable even with an
-    authored may-ceiling. Regressions: `typed-trees-to-checked-trees --lib`
-    filtered by `borrowed_restoration`, and `checked-interpreter --test suite`
-    with the same filter (macOS ARM64). Separate nonblocking boundary/capability
-    fences remain missing. Within one statement, moves are still processed
-    before calls rather than in evaluation order. Contained-loan transport and
-    recoverable-failure paths have no regression.
+    authored may-ceiling. Nonblocking boundary/service calls, including
+    empty-reach boundaries and named/spelled boundary operators hidden behind
+    ordinary wrappers, require repair first. The fence follows retained call
+    topology and scheduled operator invocations; exact no-service builtins and
+    quiet recursive helpers remain usable. Regressions:
+    `typed-trees-to-checked-trees --lib` filtered by `borrowed_restoration`,
+    `checked-interpreter --test suite` with the same filter, and compiler fail
+    canary `ownership/borrowed_storage_boundary_call` (macOS ARM64). Within one
+    statement, moves are still processed before calls rather than in evaluation
+    order. Contained-loan transport and recoverable-failure paths have no regression.
 
   Acceptance: a consuming transform followed by replacement executes with
   caller-visible updated contents and exact-once custody in the Terminal

@@ -268,6 +268,8 @@ fn validate_partial_moves(
                     &moved,
                     &facts.flow.control,
                     state_calls,
+                    &facts.service_reaches,
+                    &facts.operators,
                     &mut diagnostics,
                 );
                 // A taken transition edge leaves the state; a window open on

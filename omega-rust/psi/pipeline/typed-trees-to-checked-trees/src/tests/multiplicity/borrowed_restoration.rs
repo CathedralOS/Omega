@@ -459,12 +459,17 @@ fn crash_exit_abandons_the_window() {
 }
 
 fn operational_window_source(contract: &str, body: &str) -> String {
+    let body_contract = if contract.is_empty() {
+        String::new()
+    } else {
+        format!("{contract};")
+    };
     format!(
         "boundary trait Waiter {{ machine wait() -> i32 {contract}; }}
          machine identity(value: i32) -> i32 {{ value }}
          data Inventory {{ slots: i32; }}
          data Main {{ inventory: Inventory; waiter: Waiter; observed: i32; }}
-         machine Main::replace(&mut self) reaches Waiter {contract}; {{ {body} }}"
+         machine Main::replace(&mut self) reaches Waiter {body_contract} {{ {body} }}"
     )
 }
 
@@ -559,4 +564,219 @@ fn skipped_blocking_operand_does_not_cross_the_storage_window() {
     )
     .replace("machine wait() -> i32", "machine wait() -> bool");
     check_source(&source).expect("an operand that cannot execute does not park the invocation");
+}
+
+fn assert_boundary_window_rejection(source: &str) {
+    let diagnostics = match check_source(source) {
+        Ok(_) => panic!("a boundary must not observe an incomplete borrowed owner"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("boundary or service call")
+                && diagnostic.message.contains("inventory")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn nonblocking_service_call_requires_restored_borrowed_storage() {
+    assert_boundary_window_rejection(&operational_window_source(
+        "",
+        "let taken: Inventory = self.inventory;
+         let reading: i32 = self.waiter.wait();
+         self.inventory = move taken;",
+    ));
+}
+
+#[test]
+fn empty_reach_boundary_and_its_wrapper_require_restored_borrowed_storage() {
+    for invocation in ["sample()", "wrapped_sample()", "outer_sample()"] {
+        assert_boundary_window_rejection(&format!(
+            "boundary machine sample() -> i32 ensures true;
+             machine wrapped_sample() -> i32 {{ sample() }}
+             machine outer_sample() -> i32 {{ wrapped_sample() }}
+             data Inventory {{ slots: i32; }}
+             data Main {{ inventory: Inventory; }}
+             machine Main::replace(&mut self) {{
+                 let taken: Inventory = self.inventory;
+                 let reading: i32 = {invocation};
+                 self.inventory = move taken;
+             }}"
+        ));
+    }
+}
+
+#[test]
+fn empty_reach_boundary_on_a_later_callee_state_still_fences_the_call() {
+    assert_boundary_window_rejection(
+        "boundary machine sample() -> i32 ensures true;
+         machine wrapped_sample(flag: bool) -> i32 {
+             transition flag { true -> later() _ -> 0 }
+             state later() -> i32 { sample() }
+         }
+         data Inventory { slots: i32; }
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self, flag: bool) {
+             let taken: Inventory = self.inventory;
+             let reading: i32 = wrapped_sample(flag);
+             self.inventory = move taken;
+         }",
+    );
+}
+
+#[test]
+fn ordinary_wrapper_retains_its_conservative_service_reach() {
+    for body in ["observer.wait()", "7"] {
+        assert_boundary_window_rejection(&format!(
+            "boundary trait Observer {{ machine wait() -> i32; }}
+             machine observe(observer: &Observer) -> i32 reaches Observer {{ {body} }}
+             data Inventory {{ slots: i32; }}
+             data Main {{ inventory: Inventory; observer: Observer; }}
+             machine Main::replace(&mut self) reaches Observer {{
+                 let taken: Inventory = self.inventory;
+                 let reading: i32 = observe(&self.observer);
+                 self.inventory = move taken;
+             }}"
+        ));
+    }
+}
+
+#[test]
+fn nonblocking_boundary_replacement_is_checked_before_its_store() {
+    assert_boundary_window_rejection(
+        "pub data Inventory { slots: i32; }
+         boundary machine replacement() -> Inventory ensures true;
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.inventory;
+             self.inventory = replacement();
+         }",
+    );
+}
+
+#[test]
+fn boundary_calls_outside_the_storage_window_remain_valid() {
+    check_source(&operational_window_source(
+        "",
+        "let before: i32 = self.waiter.wait();
+         let taken: Inventory = self.inventory;
+         self.inventory = move taken;
+         self.observed = self.waiter.wait();",
+    ))
+    .expect("boundary calls before extraction and after repair remain valid");
+}
+
+#[test]
+fn recursive_quiet_calls_do_not_invent_boundary_exposure() {
+    let source = "boundary machine sample() -> i32 ensures true;
+         machine quiet(flag: bool) -> i32 {
+             transition flag { true -> 7 _ -> quiet(true) }
+         }
+         data Inventory { slots: i32; }
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self, flag: bool) {
+             let taken: Inventory = self.inventory;
+             let reading: i32 = quiet(flag);
+             self.inventory = move taken;
+         }";
+    check_source(source).expect("a cycle in the retained call graph is not itself a boundary");
+    assert_boundary_window_rejection(&source.replace("true -> 7", "true -> sample()"));
+}
+
+#[test]
+fn named_boundary_operator_requires_restored_borrowed_storage() {
+    for invocation in ["CheckedMath::read(7)", "wrapped_read(7)"] {
+        assert_boundary_window_rejection(&format!(
+            "data CheckedMath {{}}
+             boundary operator CheckedMath::read(value: i32) -> i32;
+             machine wrapped_read(value: i32) -> i32 {{ CheckedMath::read(value) }}
+             data Inventory {{ slots: i32; }}
+             data Main {{ inventory: Inventory; }}
+             machine Main::replace(&mut self) {{
+                 let taken: Inventory = self.inventory;
+                 let reading: i32 = {invocation};
+                 self.inventory = move taken;
+             }}"
+        ));
+    }
+}
+
+#[test]
+fn spelled_boundary_operator_and_wrapper_require_restored_storage() {
+    for invocation in ["left + right", "combine(left, right)"] {
+        assert_boundary_window_rejection(&format!(
+            "data Number [copy] {{ value: i32; }}
+             boundary operator + Number::add(left: Number, right: Number) -> Number;
+             machine combine(left: Number, right: Number) -> Number {{ left + right }}
+             data Inventory {{ slots: i32; }}
+             data Main {{ inventory: Inventory; }}
+             machine Main::replace(&mut self, left: Number, right: Number) {{
+                 let taken: Inventory = self.inventory;
+                 let reading: Number = {invocation};
+                 self.inventory = move taken;
+             }}"
+        ));
+    }
+}
+
+#[test]
+fn skipped_boundary_operator_does_not_cross_the_window() {
+    check_source(
+        "data CheckedMath {}
+         boundary operator CheckedMath::read(value: i32) -> bool;
+         data Inventory { slots: i32; }
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.inventory;
+             let skipped: bool = false && CheckedMath::read(7);
+             self.inventory = move taken;
+         }",
+    )
+    .expect("an operator invocation in a skipped operand cannot expose storage");
+}
+
+#[test]
+fn quiet_builtin_wrapper_can_run_during_a_storage_window() {
+    check_source(
+        "machine quiet(value: i32) -> i32 { min(value, value) }
+         data Inventory { slots: i32; }
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.inventory;
+             let reading: i32 = quiet(7);
+             self.inventory = move taken;
+         }",
+    )
+    .expect("an exact pure builtin inside a checked body is not a boundary");
+}
+
+#[test]
+fn unknown_call_reach_cannot_authorize_an_open_storage_window() {
+    let checked = check_source(
+        "machine identity(value: i32) -> i32 { value }
+         data Inventory { slots: i32; }
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.inventory;
+             let value: i32 = identity(7);
+             self.inventory = move taken;
+         }",
+    )
+    .expect("an ordinary pure call can execute during the window");
+    crate::checks::check_checked_facts(&checked.typed, &checked.facts)
+        .expect("unmodified facts replay");
+    let mut facts = checked.facts.clone();
+    facts.flow.control.calls.for_each_mut(|_, call| {
+        call.service_reach = Default::default();
+    });
+    let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect_err("missing reach is not a proven empty row");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("boundary or service call")),
+        "{diagnostics:#?}"
+    );
 }
