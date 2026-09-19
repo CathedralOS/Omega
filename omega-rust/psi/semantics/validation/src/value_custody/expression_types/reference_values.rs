@@ -498,6 +498,13 @@ fn selected_value_type(
             )
             .map(|field| field.type_reference)
         }
+        // A projected `const` value arrives as its substituted array literal;
+        // the authored selection still names the declaring constant, so its
+        // declared carrier — not literal inference — supplies the exact
+        // collection type. Such a literal never forwards a caller-owned root.
+        ExpressionNode::ArrayLiteral(_) if forwarding_root.is_none() => {
+            crate::declared_constant_array_type(program, expression)
+        }
         ExpressionNode::Indexed(indexed) => {
             if matches!(
                 program.expression_table.expression(indexed.index),
@@ -532,7 +539,23 @@ fn selected_value_type(
                 } else {
                     crate::value_custody::places::has_retained_builtin_index_meaning(
                         program, expression,
-                    )
+                    ) || {
+                        // A substituted `const` collection has no place root,
+                        // so no selecting machine is recoverable; its `[]`
+                        // occurrence is still in checked custody during
+                        // validation. With no specialization in the program no
+                        // machine can supply a selected trait meaning, making
+                        // the machine argument vacuous and the builtin check
+                        // exact rather than an approximation.
+                        program.machine_specializations.is_empty()
+                            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                                program,
+                                symbols::SymbolHandle::invalid(),
+                                expression,
+                                language_core::OperatorSpelling::Index,
+                                &[Some(collection), index_type],
+                            )
+                    }
                 };
             if !meaning_is_builtin
                 || !typed_trees::operator::resolve_indexed_spelling_for_operands(
