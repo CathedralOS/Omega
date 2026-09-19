@@ -1163,16 +1163,16 @@ Owners include
   installation. [Terminal specification subjects](wiki/README.md#current-specification-subjects)
   own the vocabulary. The [encoding contract](wiki/spec/terminal-psi/encoding.md)
   now specifies every operation, terminator, scalar-term, proposition, and
-  proof-node form the codec accepts; `tests/architecture/encoding_contract.rs`
-  pins each table against the `terminal-codec` tag definitions so they cannot
-  drift. The contract still owes physical tables for the machine, scalar-block
-  invariant, catalog, and ledger rows it currently describes only in prose.
+  proof-node form the codec accepts, plus the machine, scalar-block-invariant,
+  catalog, and obligation-ledger row layouts;
+  `tests/architecture/encoding_contract.rs` pins each closed tag space against
+  the `terminal-codec` tag definitions so they cannot drift.
 
   Acceptance: source and producer state can be discarded before an
   independent verifier reconstructs every obligation and executes or lowers
   the same artifact, and the encoding contract specifies every operation and
-  proof-node form the codec accepts. The table half of the second clause is
-  landed; the independent-reconstruction half remains open.
+  proof-node form the codec accepts. The physical-table leg is landed; the
+  independent-reconstruction half remains open.
 
   Native/external execution, ABI, fixed native resource, and final-code replay
   claims additionally require exact final-realization evidence. Preserve

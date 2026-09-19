@@ -364,6 +364,130 @@ fn proof_rule_table_matches_codec() {
     );
 }
 
+const MACHINE_WIRE: &str =
+    "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/machine_wire.rs";
+
+#[test]
+fn machine_result_table_matches_codec() {
+    assert_table_matches(
+        "<!-- machine-result-tags -->",
+        code_tags(MACHINE_WIRE, "encode_machine", "TerminalMachineResult"),
+    );
+}
+
+#[test]
+fn ranked_scc_table_matches_codec() {
+    assert_table_matches(
+        "<!-- ranked-scc-tags -->",
+        code_tags(MACHINE_WIRE, "encode_ranked_scc", "TerminalRankedScc"),
+    );
+}
+
+#[test]
+fn rank_comparison_table_matches_codec() {
+    assert_table_matches(
+        "<!-- rank-comparison-tags -->",
+        code_tags(
+            MACHINE_WIRE,
+            "encode_ranked_scc",
+            "TerminalNaturalRankComparison",
+        ),
+    );
+}
+
+#[test]
+fn place_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- place-kind-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/structural_place_wire.rs",
+            "encode_structural_place_kind",
+            "StructuralPlaceKind",
+        ),
+    );
+}
+
+#[test]
+fn closed_reach_tag_tables_match_codec() {
+    const REACH_WIRE: &str = "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/reach_application_wire.rs";
+    assert_table_matches(
+        "<!-- reach-parameter-tags -->",
+        code_tags(REACH_WIRE, "encode", "ClosedReachParameter"),
+    );
+    assert_table_matches(
+        "<!-- reach-argument-tags -->",
+        code_tags(REACH_WIRE, "encode", "ClosedReachArgument"),
+    );
+}
+
+#[test]
+fn content_tag_tables_match_codec() {
+    const CONTENT_WIRE: &str =
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/content_wire.rs";
+    assert_table_matches(
+        "<!-- content-place-version-tags -->",
+        code_tags(
+            CONTENT_WIRE,
+            "encode_content_structural_place",
+            "ContentPlaceVersion",
+        ),
+    );
+    assert_table_matches(
+        "<!-- content-place-segment-tags -->",
+        code_tags(
+            CONTENT_WIRE,
+            "encode_content_structural_place",
+            "ContentPlaceSegment",
+        ),
+    );
+    assert_table_matches(
+        "<!-- content-algebra-kind-tags -->",
+        code_tags(CONTENT_WIRE, "encode_content_algebra", "ContentAlgebraKind"),
+    );
+    assert_table_matches(
+        "<!-- content-term-tags -->",
+        code_tags(CONTENT_WIRE, "encode_content_term", "ContentTerm"),
+    );
+}
+
+const LEDGER_WIRE: &str =
+    "omega-rust/psi/semantics/terminal-codec/src/sections/obligation_ledger.rs";
+
+#[test]
+fn ledger_owner_table_matches_codec() {
+    assert_table_matches(
+        "<!-- ledger-owner-tags -->",
+        code_tags(
+            LEDGER_WIRE,
+            "encode_owner",
+            "ReconstructedTerminalObligationOwner",
+        ),
+    );
+}
+
+#[test]
+fn obligation_class_table_matches_codec() {
+    assert_table_matches(
+        "<!-- obligation-class-tags -->",
+        code_tags(LEDGER_WIRE, "encode_obligation_class", "ObligationClass"),
+    );
+}
+
+#[test]
+fn admission_kind_table_matches_both_codecs() {
+    let ledger = code_tags(LEDGER_WIRE, "encode_obligation_class", "AdmissionKind");
+    let bundle = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/evidence_codec.rs",
+        "encode_admission_kind",
+        "AdmissionKind",
+    );
+    assert_eq!(
+        ledger, bundle,
+        "ledger and proof-bundle admission kind grammars diverge"
+    );
+    assert_table_matches("<!-- admission-kind-tags -->", ledger);
+}
+
 /// The decode-side child counts pin the spec's Children column: `let remaining
 /// = match tag` classifies leading children per tag, and `matches!(parent.tag,
 /// ...)` names the rules that append a counted continuation after one child.
