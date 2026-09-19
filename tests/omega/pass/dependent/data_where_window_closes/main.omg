@@ -3,7 +3,7 @@
 // of refusing; the next write restores the facts (1 <= 2) and CLOSES it
 // before any consumption point (read / call / state exit). The strict
 // store-time order-sensitivity dissolves exactly as ch11 sanctions.
-use omega::language::std::console;
+use omega_language_std::console;
 data MemoryMap
 where
     count <= len,

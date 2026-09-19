@@ -3,7 +3,7 @@
 // into the successor, so count = 3 folds `count <= len` as 3 <= 8 and the
 // write discharges (this exact shape over-refused under slice 4's
 // poison-everything-non-boot rule).
-use omega::language::std::console;
+use omega_language_std::console;
 data MemoryMap
 where
     count <= len,

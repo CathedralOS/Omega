@@ -3,7 +3,7 @@
 // the anonymous integer landing gives the literal its real carrier instead
 // of a sign-blind two's-complement bit pattern, so `stored < u64::MAX`
 // keeps honest unsigned ordering.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::probe(&mut self, stored: u64) reaches Console {
     let under: bool = stored < 18446744073709551615;

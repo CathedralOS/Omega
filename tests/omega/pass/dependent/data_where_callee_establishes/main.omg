@@ -3,7 +3,7 @@
 // path; its summary joins main's tracking at the call site, so the read
 // AFTER the call passes the access gate (establishment is globally
 // monotone -- a call can only add it).
-use omega::language::std::console;
+use omega_language_std::console;
 data Player
 where
     health >= 1,

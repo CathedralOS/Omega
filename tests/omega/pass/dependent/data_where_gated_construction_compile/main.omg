@@ -1,6 +1,6 @@
 // COMPILE CANARY. A zero-excluding default domain gates the type, while an
 // explicit construction that proves the fact establishes an ordinary value.
-use omega::language::std::console;
+use omega_language_std::console;
 data Player
 where
     health >= 1,

@@ -2,7 +2,7 @@
 // payload into a new binding transfers the original obligation; it does not
 // strand a debt on the affine sum or mint a fresh origin for the payload.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] {
     code: i32;

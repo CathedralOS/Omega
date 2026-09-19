@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70). A literal-indexed dependent element owns its own
 // window; writes to maps[0] restore that element before the call.
-use omega::language::std::console;
+use omega_language_std::console;
 data Map
 where
     start <= end,

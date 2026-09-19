@@ -419,7 +419,7 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
 fn filesystem_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/filesystem"),
-        24,
+        79,
     );
 }
 
@@ -430,9 +430,9 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("backend", 2),
         ("borrow", 3),
         ("comptime", 5),
-        ("constants", 2),
+        ("constants", 3),
         ("data", 20),
-        ("dependent", 12),
+        ("dependent", 34),
         ("errors", 1),
         ("generics", 30),
         ("layouts", 19),
@@ -500,8 +500,8 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
 fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/arithmetic"),
+        140,
         139,
-        138,
     );
 }
 
@@ -509,8 +509,8 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
+        176,
         174,
-        172,
     );
 }
 
@@ -564,7 +564,7 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
     let dependency_free = ownership.join("linear_boundary_entry_handoff");
     let mut ownership_roots = Vec::new();
     collect_build_roots(&ownership, &mut ownership_roots);
-    assert_eq!(ownership_roots.len(), 10);
+    assert_eq!(ownership_roots.len(), 12);
     for root in ownership_roots {
         if root == dependency_free {
             let projection = extract_build_dependency_projection(&root).unwrap();
@@ -588,13 +588,13 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
     for (category, expected_roots, expected_standard_library_consumers) in [
         ("ranges", 3, 2),
         ("targets", 22, 2),
-        ("versioning", 3, 3),
+        ("versioning", 4, 4),
         ("termination", 4, 4),
         ("range", 6, 6),
         ("core", 14, 7),
         ("dungeon", 19, 15),
         ("domains", 28, 26),
-        ("host", 21, 20),
+        ("host", 22, 21),
         ("providers", 30, 15),
     ] {
         assert_mixed_canary_category_standard_library_edges(

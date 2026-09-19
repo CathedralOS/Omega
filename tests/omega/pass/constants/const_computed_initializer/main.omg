@@ -1,7 +1,7 @@
 // COMPILE CANARY (promoted from fail/ when the build-time-evaluation arc
 // landed -- see pass/modules/computed_constant_initializers): const
 // initializers admit computed arithmetic expressions, not just literals.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Limits { ceiling: i32; }
 
