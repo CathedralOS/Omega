@@ -21,9 +21,9 @@ use terminal_psi::{
 };
 
 use crate::{
-    describe_component_facts, encode_component_description, verify_component, AdmissionProfile,
-    ComponentDescriptionFacts, ComponentVerificationRequest, VerifiedComponent,
-    COMPONENT_DESCRIPTION_SCHEMA_V2,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts,
+    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
+    encode_component_description, verify_component,
 };
 
 fn machine_id(raw: u64) -> MachineId {

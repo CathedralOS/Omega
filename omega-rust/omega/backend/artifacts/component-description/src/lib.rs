@@ -30,16 +30,16 @@ pub mod component_verification;
 pub mod test_support;
 
 pub use component_description::{
-    component_description_identity, decode_component_description, describe_component_facts,
-    description_subject, encode_component_description, port_mechanism_assumption,
-    requirement_contract_identity, requirement_export_identity, ComponentDescription,
-    ComponentDescriptionFacts, ComponentEntry, ComponentEntryKind, CustodyConstraint,
-    CustodyEvidence, CustodyKind, DescribeError, DescriptionDecodeRejection, DescriptionFrontier,
-    EntryEvidence, ExportSurface, ImportSlot, InstallationObligation, InstallationServiceBound,
-    ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
-    StackDemandFacts, COMPONENT_DESCRIPTION_SCHEMA_V2,
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentDescriptionFacts,
+    ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
+    DescribeError, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface,
+    ImportSlot, InstallationObligation, InstallationServiceBound, ObligationKind,
+    OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
+    StackDemandFacts, component_description_identity, decode_component_description,
+    describe_component_facts, description_subject, encode_component_description,
+    port_mechanism_assumption, requirement_contract_identity, requirement_export_identity,
 };
 pub use component_verification::{
-    verify_component, AdmissionProfile, ComponentVerificationRejection,
-    ComponentVerificationRequest, IndependentRealizationMismatch, VerifiedComponent,
+    AdmissionProfile, ComponentVerificationRejection, ComponentVerificationRequest,
+    IndependentRealizationMismatch, VerifiedComponent, verify_component,
 };

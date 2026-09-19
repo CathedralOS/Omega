@@ -28,12 +28,12 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 pub use proof_admission::AdmissionProfile;
 
 use crate::component_description::{
+    ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
+    InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
+    ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
     component_description_identity, decode_component_description, derive_component_inventory, hex,
-    requirement_contract_identity, requirement_export_identity, ComponentDescription,
-    ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
-    DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot, InstallationObligation,
-    InstallationServiceBound, ObligationKind, OutgoingAuthority, OutgoingAuthorityClass,
-    OutgoingEvidence, RetainedProvider, MAX_COMPONENT_DESCRIPTION_BYTES,
+    requirement_contract_identity, requirement_export_identity,
 };
 
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";

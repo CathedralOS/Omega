@@ -3,21 +3,21 @@
 use std::collections::BTreeSet;
 
 use super::{
-    verify_component, ComponentVerificationRejection, ComponentVerificationRequest,
-    IndependentRealizationMismatch, VerifiedComponent,
+    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
+    VerifiedComponent, verify_component,
 };
 use crate::component_description::{
-    component_description_identity, decode_component_description, encode_component_description,
-    requirement_contract_identity, requirement_export_identity, ComponentDescription,
-    ComponentDescriptionFacts, ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind,
-    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
-    InstallationObligation, InstallationServiceBound, ObligationKind, OutgoingAuthorityClass,
-    OutgoingEvidence, COMPONENT_DESCRIPTION_SCHEMA_V2, MAX_IDENTITY_BYTES,
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentDescriptionFacts,
+    ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
+    DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot, InstallationObligation,
+    InstallationServiceBound, MAX_IDENTITY_BYTES, ObligationKind, OutgoingAuthorityClass,
+    OutgoingEvidence, component_description_identity, decode_component_description,
+    encode_component_description, requirement_contract_identity, requirement_export_identity,
 };
+use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
-use effects::SelectedProviderPlanFacts;
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
@@ -346,10 +346,12 @@ fn verifies_a_complete_minimal_description() {
         verified.frontier(),
         DescriptionFrontier::TerminalArtifactClosure
     );
-    assert!(verified
-        .entries()
-        .iter()
-        .any(|entry| entry.kind == ComponentEntryKind::Canonical));
+    assert!(
+        verified
+            .entries()
+            .iter()
+            .any(|entry| entry.kind == ComponentEntryKind::Canonical)
+    );
     assert!(verified.imports().is_empty());
     assert!(verified.providers().is_empty());
 }
