@@ -1,36 +1,38 @@
-//! Explicit integer relations stated by the forming scope's `requires`
-//! contracts.
+//! Integer relations established at the forming scope's entry.
 //!
 //! A premised compatibility derivation consumes the same establishment point
-//! as the range checker: machine `requires` apply at the machine's entry
-//! state and a state's own `requires` apply in that state. Each premise keeps
-//! its exact `ContractProofFact` token and both operands normalized onto the
-//! immutable-bound vocabulary the selector snapshot already uses, so replay
-//! can re-derive the available set without trusting a serialized relation.
+//! as the range checker: authored preconditions and surviving incoming
+//! guards. Tokens retain the establishment identity, not a trusted dominance
+//! assertion. Guard queries are transported back through immutable scalar
+//! parameter bindings to the guard's evaluation scope. This direction also
+//! handles multiple destination parameters carrying the same source value.
+//! Replay reconstructs availability and transport from the typed program.
 //! Premises prove bound ordering, equality or disequality the structural
 //! judgment could not. Disequality distinguishes singleton elements without
 //! choosing an ordering; it says nothing about overlap of wider windows.
 //! No relation can form a loan, extend a lifetime, or widen access.
 
 use checked_trees::{
-    BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation, ContractProofFact,
-    ContractProofFactKind, ContractProofFactOwner,
+    BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
+    BorrowCompatibilityPremiseSource, ContractProofFactKind,
 };
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 use super::indexes::{NormalizedBound, normalized_bound, selector_value};
+use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
+use crate::checks::ranges::requirements::state_requires_facts;
 
-/// One ordering relation an exact `requires` row states over normalized
-/// immutable bounds. The `fact` handle is the premise's durable identity; the
-/// normalized operands are what bound queries shift against.
-#[derive(Debug, Clone, Copy)]
+/// Normalized immutable relation and its reconstructed query transport.
+/// Transport is local checking state, never serialized proof authority.
+#[derive(Debug, Clone)]
 pub struct StatedOrderingPremise {
-    fact: arena::Handle<ContractProofFact>,
+    source: BorrowCompatibilityPremiseSource,
     relation: BorrowCompatibilityPremiseRelation,
     left: NormalizedBound,
     right: NormalizedBound,
+    parameter_arguments: Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
 }
 
 impl StatedOrderingPremise {
@@ -38,7 +40,7 @@ impl StatedOrderingPremise {
     /// derivation, in the order the contract row stated the relation.
     pub fn token(&self) -> BorrowCompatibilityPremise {
         BorrowCompatibilityPremise {
-            fact: self.fact,
+            source: self.source,
             relation: self.relation,
             left: selector_value(self.left),
             right: selector_value(self.right),
@@ -48,40 +50,22 @@ impl StatedOrderingPremise {
 
 /// Collect the ordering premises available at one formation scope.
 ///
-/// Owner filtering mirrors `ranges::requirements::seed_state_requires`: a
-/// machine-level `requires` belongs to the machine's entry state, while a
-/// state-level `requires` belongs to its exact state. Inherited conformance
-/// rows are excluded because the range establishment point reads only the
-/// authored `machine_contracts`/`state_contracts` surfaces. Facts that do not
-/// decompose into builtin integer comparisons over immutable bounds
-/// contribute no premise.
+/// Both establishment readers are shared with range checking. Facts that do
+/// not decompose into builtin integer comparisons over immutable bounds
+/// contribute no premise; mutable storage needs version evidence first.
 pub fn stated_ordering_premises(
     program: &typed_trees::TypedTrees,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     state: &State,
+    incoming_guards: &IncomingGuardIndex,
 ) -> Vec<StatedOrderingPremise> {
-    let is_entry = state.symbol.is_valid()
-        && program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == state.symbol);
     let mut premises = Vec::new();
     for (fact, row) in facts.proof.contract_facts.iter() {
         if row.kind != ContractProofFactKind::Requires || row.inherited_scope.is_some() {
             continue;
         }
-        let owned = match row.owner {
-            ContractProofFactOwner::Machine { machine_symbol } => {
-                is_entry && machine_symbol == machine.symbol
-            }
-            ContractProofFactOwner::MachineState {
-                machine_symbol,
-                state_symbol,
-            } => machine_symbol == machine.symbol && state_symbol == state.symbol,
-            _ => false,
-        };
-        if !owned {
+        if !state_requires_facts(program, machine, state).any(|candidate| candidate == row.fact) {
             continue;
         }
         let typed_trees::domain::ProofFact::Expression(expression) =
@@ -89,7 +73,53 @@ pub fn stated_ordering_premises(
         else {
             continue;
         };
-        decompose_premise_expression(program, machine, state, *expression, fact, &mut premises);
+        decompose_premise_expression(
+            program,
+            machine,
+            state,
+            *expression,
+            false,
+            BorrowCompatibilityPremiseSource::Requires(fact),
+            &None,
+            &mut premises,
+        );
+    }
+    for guard in incoming_guards
+        .for_machine(machine.symbol)
+        .iter()
+        .filter(|guard| guard.applies_at(state.symbol))
+    {
+        let Some(evaluation_state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|candidate| candidate.symbol == guard.evaluation_state())
+        else {
+            continue;
+        };
+        let bindings = Some(
+            program
+                .state_parameters(state)
+                .iter()
+                .filter_map(|parameter| {
+                    guard
+                        .immutable_argument_symbol_for_parameter(parameter.symbol)
+                        .map(|argument| (parameter.symbol, argument))
+                })
+                .collect(),
+        );
+        decompose_premise_expression(
+            program,
+            machine,
+            evaluation_state,
+            guard.guard(),
+            guard.is_negated(),
+            BorrowCompatibilityPremiseSource::IncomingGuard {
+                expression: guard.guard(),
+                negated: guard.is_negated(),
+            },
+            &bindings,
+            &mut premises,
+        );
     }
     premises
 }
@@ -106,7 +136,9 @@ fn decompose_premise_expression(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    fact: arena::Handle<ContractProofFact>,
+    negated: bool,
+    source: BorrowCompatibilityPremiseSource,
+    parameter_arguments: &Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
     if !expression.is_valid()
@@ -119,22 +151,95 @@ fn decompose_premise_expression(
     {
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let node = program.expression_table.expression(expression);
+    if let ExpressionNode::Unary(unary) = node
+        && unary.operator == UnaryOperator::LogicalNot
+    {
+        decompose_premise_expression(
+            program,
+            machine,
+            state,
+            unary.operand,
+            !negated,
+            source,
+            parameter_arguments,
+            premises,
+        );
+        return;
+    }
+    let ExpressionNode::Binary(binary) = node else {
         return;
     };
     use BorrowCompatibilityPremiseRelation as Relation;
-    let (relation, left, right) = match binary.operator {
-        BinaryOperator::And => {
-            decompose_premise_expression(program, machine, state, binary.left, fact, premises);
-            decompose_premise_expression(program, machine, state, binary.right, fact, premises);
+    if matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        let boolean_operand = match (
+            program.expression_table.expression(binary.left),
+            program.expression_table.expression(binary.right),
+        ) {
+            (ExpressionNode::Boolean(value), _) => Some((binary.right, *value)),
+            (_, ExpressionNode::Boolean(value)) => Some((binary.left, *value)),
+            _ => None,
+        };
+        if let Some((operand, value)) = boolean_operand {
+            let equality_negated = negated ^ (binary.operator == BinaryOperator::NotEqual);
+            decompose_premise_expression(
+                program,
+                machine,
+                state,
+                operand,
+                equality_negated == value,
+                source,
+                parameter_arguments,
+                premises,
+            );
             return;
         }
-        BinaryOperator::Less => (Relation::StrictlyBefore, binary.left, binary.right),
-        BinaryOperator::LessOrEqual => (Relation::LessOrEqual, binary.left, binary.right),
-        BinaryOperator::Greater => (Relation::StrictlyBefore, binary.right, binary.left),
-        BinaryOperator::GreaterOrEqual => (Relation::LessOrEqual, binary.right, binary.left),
-        BinaryOperator::Equal => (Relation::Equal, binary.left, binary.right),
-        BinaryOperator::NotEqual => (Relation::NotEqual, binary.left, binary.right),
+    }
+    let (relation, left, right) = match (binary.operator, negated) {
+        (BinaryOperator::And, false) | (BinaryOperator::Or, true) => {
+            decompose_premise_expression(
+                program,
+                machine,
+                state,
+                binary.left,
+                negated,
+                source,
+                parameter_arguments,
+                premises,
+            );
+            decompose_premise_expression(
+                program,
+                machine,
+                state,
+                binary.right,
+                negated,
+                source,
+                parameter_arguments,
+                premises,
+            );
+            return;
+        }
+        (BinaryOperator::Less, false) | (BinaryOperator::GreaterOrEqual, true) => {
+            (Relation::StrictlyBefore, binary.left, binary.right)
+        }
+        (BinaryOperator::LessOrEqual, false) | (BinaryOperator::Greater, true) => {
+            (Relation::LessOrEqual, binary.left, binary.right)
+        }
+        (BinaryOperator::Greater, false) | (BinaryOperator::LessOrEqual, true) => {
+            (Relation::StrictlyBefore, binary.right, binary.left)
+        }
+        (BinaryOperator::GreaterOrEqual, false) | (BinaryOperator::Less, true) => {
+            (Relation::LessOrEqual, binary.right, binary.left)
+        }
+        (BinaryOperator::Equal, false) | (BinaryOperator::NotEqual, true) => {
+            (Relation::Equal, binary.left, binary.right)
+        }
+        (BinaryOperator::NotEqual, false) | (BinaryOperator::Equal, true) => {
+            (Relation::NotEqual, binary.left, binary.right)
+        }
         _ => return,
     };
     let (Some(left), Some(right)) = (
@@ -144,10 +249,11 @@ fn decompose_premise_expression(
         return;
     };
     premises.push(StatedOrderingPremise {
-        fact,
+        source,
         relation,
         left,
         right,
+        parameter_arguments: parameter_arguments.clone(),
     });
 }
 
@@ -163,6 +269,12 @@ pub fn premise_proves(
     query: BorrowCompatibilityPremiseRelation,
     right: NormalizedBound,
 ) -> bool {
+    let (Some(left), Some(right)) = (
+        transport_query_bound(premise, left),
+        transport_query_bound(premise, right),
+    ) else {
+        return false;
+    };
     premise_orientation_proves(
         premise.left,
         premise.relation,
@@ -181,6 +293,52 @@ pub fn premise_proves(
         query,
         right,
     ))
+}
+
+fn transport_query_bound(
+    premise: &StatedOrderingPremise,
+    bound: NormalizedBound,
+) -> Option<NormalizedBound> {
+    let Some(bindings) = &premise.parameter_arguments else {
+        return Some(bound);
+    };
+    let argument = |symbol| {
+        bindings
+            .iter()
+            .find_map(|(parameter, argument)| (*parameter == symbol).then_some(*argument))
+    };
+    Some(match bound {
+        NormalizedBound::Integer(_) => bound,
+        NormalizedBound::Symbol { symbol, offset } => NormalizedBound::Symbol {
+            symbol: argument(symbol)?,
+            offset,
+        },
+        NormalizedBound::SymbolSum {
+            first,
+            second,
+            offset,
+        } => {
+            let first = argument(first)?;
+            let second = argument(second)?;
+            // Two aliases of one argument mean coefficient two, not one.
+            // That coefficient is outside the current normalized vocabulary.
+            if first == second {
+                return None;
+            }
+            let (first, second) = if (first.arena_index(), first.generation())
+                < (second.arena_index(), second.generation())
+            {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            NormalizedBound::SymbolSum {
+                first,
+                second,
+                offset,
+            }
+        }
+    })
 }
 
 /// Whether `premise_left <premise> premise_right` proves
@@ -239,10 +397,11 @@ pub(super) fn ordering_premise(
     right: NormalizedBound,
 ) -> StatedOrderingPremise {
     StatedOrderingPremise {
-        fact: arena::Handle::invalid(),
+        source: BorrowCompatibilityPremiseSource::Requires(arena::Handle::invalid()),
         relation,
         left,
         right,
+        parameter_arguments: None,
     }
 }
 
@@ -318,10 +477,13 @@ mod tests {
         right: NormalizedBound,
     ) -> StatedOrderingPremise {
         StatedOrderingPremise {
-            fact: arena::Handle::invalid(),
+            source: checked_trees::BorrowCompatibilityPremiseSource::Requires(
+                arena::Handle::invalid(),
+            ),
             relation,
             left,
             right,
+            parameter_arguments: None,
         }
     }
 

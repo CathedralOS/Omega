@@ -25,7 +25,7 @@ fn compatibility_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnosti
             "checked borrow compatibility certificate selector snapshot drifted from its captured-place shape",
         ),
         CompatibilityReplayDrift::Premise => Diagnostic::error(
-            "checked borrow compatibility certificate premise tokens drifted from their stated requires evidence",
+            "checked borrow compatibility certificate premise tokens drifted from their established scope evidence",
         ),
     }
 }
@@ -37,7 +37,7 @@ fn mutation_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnostic {
             "checked borrow mutation certificate selector snapshot drifted from its captured-place shape",
         ),
         CompatibilityReplayDrift::Premise => Diagnostic::error(
-            "checked borrow mutation certificate premise tokens drifted from their stated requires evidence",
+            "checked borrow mutation certificate premise tokens drifted from their established scope evidence",
         ),
     }
 }

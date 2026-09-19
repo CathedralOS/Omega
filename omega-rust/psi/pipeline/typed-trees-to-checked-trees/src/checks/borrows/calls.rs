@@ -15,12 +15,15 @@ use self::conflicts::check_call_access_conflicts;
 use self::evidence::CallCompatibility;
 use self::writability::check_mutable_argument_writability;
 use super::overlap::StatedOrderingPremise;
+use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 
 /// Initial construction is deliberately separate from replay: a checked
 /// program with deleted evidence must not be mistaken for an unbuilt ledger.
 pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts: &mut CheckFacts) {
     let mut diagnostics = Vec::new();
-    let certificates = collect_compatibility(program, facts, &mut diagnostics);
+    let call_frames = validation::CallFrameResolver::new(program);
+    let incoming_guards = IncomingGuardIndex::build(program, call_frames.as_ref());
+    let certificates = collect_compatibility(program, facts, &incoming_guards, &mut diagnostics);
     // Initial construction retains successful comparisons, not an admission.
     // The ordinary check pass repeats every obligation and aggregates failures
     // with statement/resource diagnostics before checked trees can be returned.
@@ -37,9 +40,10 @@ pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts:
 pub(super) fn validate_compatibility(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
+    incoming_guards: &IncomingGuardIndex,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<Diagnostic> {
-    let reconstructed = collect_compatibility(program, facts, diagnostics);
+    let reconstructed = collect_compatibility(program, facts, incoming_guards, diagnostics);
     let mut retained_diagnostics = Vec::new();
     // Rebuild every invocation's comparisons in semantic order. Exact equality
     // verifies the full roster as well as each frozen selector and premise:
@@ -61,6 +65,7 @@ pub(super) fn validate_compatibility(
 fn collect_compatibility(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
+    incoming_guards: &IncomingGuardIndex,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<checked_trees::CheckedBorrowCallCompatibilityCertificate> {
     let mut certificates = Vec::new();
@@ -90,7 +95,13 @@ fn collect_compatibility(
                 .map(|machine| (machine, state))
         })
         .map(|(machine, state)| {
-            super::overlap::stated_ordering_premises(program, facts, machine, state)
+            super::overlap::stated_ordering_premises(
+                program,
+                facts,
+                machine,
+                state,
+                incoming_guards,
+            )
         })
         .unwrap_or_default();
         for (ordinal, call) in (0..borrow_state.calls.count())
