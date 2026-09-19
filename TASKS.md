@@ -1698,7 +1698,12 @@ Owners include
 
   - Erased non-primitive parameters: `erased_scalar_parameter_plans` still
     refuses typed formals such as `Nat` (the
-    `erased_proof_only_typed_parameter_exit` canary stays checked-only).
+    `erased_proof_only_typed_parameter_exit` canary stays checked-only),
+    now by name — `shape_admission`'s
+    `validate_erased_runtime_scalar_formals` rejects an erased non-scalar
+    formal on a non-proof machine at check time instead of omitting it
+    from the calling plan silently (`fail/relevance/erased_nonscalar_parameter`
+    pins the surface; proof machines keep their proof-side carriers).
   - Done: the internal-calls lane carries requires-bearing and
     erased-formal callees — composed-control internal targets publish
     `erased_scalar_formals` and `requires`, emission resolves erased
