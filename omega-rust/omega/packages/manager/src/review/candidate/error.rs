@@ -17,6 +17,10 @@ mod diagnostic_output;
 
 #[derive(Debug)]
 pub enum CompileResolvedPackageReviewsError {
+    UnsupportedNestedBuildActivation {
+        package: PackageKey,
+        reason: &'static str,
+    },
     BuildStagingCreate {
         path: PathBuf,
         error: io::Error,
@@ -141,6 +145,11 @@ pub enum CompileResolvedPackageReviewsError {
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnsupportedNestedBuildActivation { package, reason } => write!(
+                formatter,
+                "cannot schedule nested build activation for package `{}`: {reason}",
+                package.name().as_str()
+            ),
             Self::BuildStagingCreate { path, error } => write!(
                 formatter,
                 "could not create a fresh package-review build session at `{}`: {error}",

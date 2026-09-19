@@ -125,21 +125,8 @@ where
             .clone();
         let requester_depth = depths[&requester_key];
 
-        // Host build inputs are selected only by the root build context. A
-        // non-root package's authored build rows have no host-of-host
-        // interpretation and are rejected rather than silently ignored.
-        if requester_key != root_key {
-            let build_rows = requester.build_dependency_requests().len();
-            if build_rows != 0 {
-                return Err(
-                    PackageSourceClosureResolutionError::UnsupportedBuildDependencies {
-                        requester: requester_key.clone(),
-                        authored_rows: build_rows,
-                    },
-                );
-            }
-        }
-
+        // Acquisition retains each package's authored scopes. Activation
+        // scheduling and compilation authority are checked by their consumers.
         let mut selected_dependencies =
             Vec::with_capacity(requester.dependency_projections().authored_request_count());
 

@@ -20,6 +20,202 @@ const BETA_MAIN: &str =
 const PRODUCT_IMPORT_REJECTION: &str = "a product import may only select product dependencies";
 const BUILD_IMPORT_REJECTION: &str = "a build import may only select build dependencies";
 
+fn nested_build_fixture() -> Fixture {
+    let fixture = Fixture::new();
+    std::fs::create_dir(fixture.path("generator")).unwrap();
+    fixture.write(
+        "generator/build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"generator\"); builder.log.write_line(\"generator activation\"); }\n",
+    );
+    fixture.write(
+        "generator/main.omg",
+        "pub machine generation_value() -> u64 { 7 }\n",
+    );
+    fixture.write(
+        "dependency/build.omg",
+        r#"use generator::main;
+machine build(builder: &mut Build) {
+    builder.package("arithmetic-kernels");
+    builder.build_depend_as("generator", Source::Path { location: "../generator" });
+    transition generation_value() == 7 { true -> generate(builder) _ -> wrong() }
+    state generate(builder: &mut Build) {
+        let generated: BuildPath = builder.output.resolve("generated.omg");
+        let descriptor: i32 = builder.output.create(generated, 438);
+        let written: i64 = builder.output.write(descriptor, "pub machine value() -> u64 { 7 }\n");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+        builder.log.write_line("helper activation");
+    }
+    state wrong() {}
+}
+"#,
+    );
+    fixture.write(
+        "dependency/main.omg",
+        "// The public value machine is supplied by this package's build.\n",
+    );
+    fixture.write(
+        "root/build.omg",
+        r#"use kit::main;
+machine build(builder: &mut Build) {
+    builder.package("cli-project");
+    builder.build_depend_as("kit", Source::Path { location: "../dependency" });
+    transition value() == 7 { true -> received(builder) _ -> wrong() }
+    state received(builder: &mut Build) { builder.log.write_line("consumer received generated answer"); }
+    state wrong() {}
+}
+"#,
+    );
+    fixture
+}
+
+fn nested_build_target() -> Option<target::TargetProfile> {
+    let profile = target::TargetProfile::host_if_supported();
+    if profile.is_none() {
+        eprintln!("skipping nested build execution: no supported build execution profile");
+    }
+    profile
+}
+
+#[test]
+fn a_build_helper_runs_its_own_build_dependency_before_the_consumer() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = nested_build_fixture();
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
+    assert_status(&output, 0);
+    assert_lock_published(&fixture, &before);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let generator = stdout
+        .find("generator activation")
+        .expect("generator build ran");
+    let helper = stdout.find("helper activation").expect("helper build ran");
+    let consumer = stdout
+        .find("consumer received generated answer")
+        .expect("consumer used generated source");
+    assert!(generator < helper && helper < consumer, "{stdout}");
+    assert!(!fixture.path("dependency/generated.omg").exists());
+    assert!(!fixture.path("root/generated.omg").exists());
+    let checked = fixture.omega(&[
+        "--check",
+        "--target",
+        profile.target_name(),
+        "--offline",
+        "main.omg",
+    ]);
+    assert_status(&checked, 0);
+    assert!(combined(&checked).contains("consumer received generated answer"));
+}
+
+#[test]
+fn nested_build_cross_profile_and_dual_purpose_inputs_reject_before_execution() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let foreign = if profile == target::TargetProfile::LinuxX64 {
+        target::TargetProfile::MacosArm64
+    } else {
+        target::TargetProfile::LinuxX64
+    };
+    for dual_purpose in [false, true] {
+        let fixture = nested_build_fixture();
+        if dual_purpose {
+            let build = fixture.read("root/build.omg").replace(
+                "    transition value()",
+                "    builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
+            );
+            fixture.write("root/build.omg", &build);
+        }
+        let target = if dual_purpose { profile } else { foreign };
+        let before = fixture.accepted_files();
+        let output = fixture.omega(&["update", "--target", target.target_name(), "--offline"]);
+        assert_status(&output, 1);
+        let text = combined(&output);
+        let expected = if dual_purpose {
+            "dual-purpose nested builds"
+        } else {
+            "cross-profile nested builds"
+        };
+        assert!(text.contains(expected), "{text}");
+        assert!(!text.contains("generator activation"), "{text}");
+        assert!(!text.contains("helper activation"), "{text}");
+        assert_eq!(fixture.accepted_files(), before);
+    }
+}
+
+#[test]
+fn nested_build_dependency_does_not_become_a_helper_product_import() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = nested_build_fixture();
+    fixture.write(
+        "dependency/main.omg",
+        "use generator::main;\npub machine value() -> u64 { generation_value() }\n",
+    );
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
+    assert_status(&output, 1);
+    let text = combined(&output);
+    assert!(text.contains(PRODUCT_IMPORT_REJECTION), "{text}");
+    assert!(
+        text.contains("names build dependency `generator`"),
+        "{text}"
+    );
+    assert_eq!(fixture.accepted_files(), before);
+}
+
+#[test]
+fn nested_build_cycle_rejects_before_any_activation() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = nested_build_fixture();
+    fixture.write(
+        "generator/build.omg",
+        "machine build(builder: &mut Build) {\n    builder.package(\"generator\");\n    builder.depend_as(\"kit\", Source::Path { location: \"../dependency\" });\n    builder.log.write_line(\"generator activation\");\n}\n",
+    );
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
+    assert_status(&output, 1);
+    let text = combined(&output);
+    assert!(text.contains("cycle"), "{text}");
+    assert!(!text.contains("generator activation"), "{text}");
+    assert!(!text.contains("helper activation"), "{text}");
+    assert_eq!(fixture.accepted_files(), before);
+}
+
+#[test]
+fn nested_build_inspection_cannot_skip_physical_helper_prerequisites() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = nested_build_fixture();
+    // Physical source would let an acquisition-only consumer run the root
+    // without noticing that the helper's build activation never happened.
+    fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&[
+        "inspect-terminal",
+        "--machine",
+        "main",
+        "--target",
+        profile.target_name(),
+        "main.omg",
+    ]);
+    assert_status(&output, 1);
+    let text = combined(&output);
+    assert!(text.contains("requires nested build activation"), "{text}");
+    assert!(
+        !text.contains("consumer received generated answer"),
+        "{text}"
+    );
+    assert!(!text.contains("generator activation"), "{text}");
+    assert_eq!(fixture.accepted_files(), before);
+}
+
 /// A root beside `alpha` and `beta`; the build imports `kit` and the
 /// product source imports `lib`, each resolved only within its own scope.
 fn purposes_fixture(build_edges: &str, product_alias: &str) -> Fixture {

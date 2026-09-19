@@ -806,7 +806,7 @@ fn version_one_text_decodes_as_product_only_and_reencodes_as_version_two() {
 }
 
 #[test]
-fn build_edges_beyond_the_root_reject_in_the_canonical_subject() {
+fn nested_build_selections_replay_only_with_their_exact_authored_occurrence() {
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let application = git_source("application", "application", 1);
     let host = git_source("host-tool", "host-tool", 2);
@@ -834,7 +834,7 @@ fn build_edges_beyond_the_root_reject_in_the_canonical_subject() {
             selected: selected.clone(),
         };
 
-    let error = finish(
+    let subject = finish(
         root_selection.clone(),
         vec![application.clone(), host.clone(), nested.clone()],
         vec![
@@ -855,9 +855,66 @@ fn build_edges_beyond_the_root_reject_in_the_canonical_subject() {
         ],
         limits,
     )
-    .unwrap_err();
+    .expect("nested build edges retain source custody without granting activation authority");
+    let text = subject.canonical_text(limits).unwrap();
     assert_eq!(
-        error.message(),
-        "build dependency edge is not authorized by the root build context"
+        CanonicalSourceClosureSubject::recover_text(&text, limits).unwrap(),
+        subject
+    );
+
+    let replay = |selections| {
+        CanonicalSourceClosureSubject::finish_with_projections(
+            subject.target_profile,
+            subject.root.clone(),
+            subject.packages.clone(),
+            subject.package_navigations.clone(),
+            subject.package_dependency_projections.clone(),
+            selections,
+            limits,
+        )
+    };
+    let nested_position = subject
+        .dependency_requests
+        .iter()
+        .position(|selection| selection.requester == *host.key())
+        .unwrap();
+    let mut missing = subject.dependency_requests.clone();
+    missing.remove(nested_position);
+    assert_eq!(
+        replay(missing).unwrap_err().message(),
+        "source-closure authored and selected dependency counts disagree"
+    );
+
+    let mut foreign_purpose = subject.dependency_requests.clone();
+    foreign_purpose[nested_position].purpose = DependencyPurpose::Product;
+    assert_eq!(
+        replay(foreign_purpose).unwrap_err().message(),
+        "active dependency selection names an unknown authored occurrence"
+    );
+
+    let mut foreign_requester = subject.dependency_requests.clone();
+    foreign_requester[nested_position].requester = application.key().clone();
+    assert_eq!(
+        replay(foreign_requester).unwrap_err().message(),
+        "active dependency selection names an unknown authored occurrence"
+    );
+
+    let mut foreign_request = subject.dependency_requests.clone();
+    let CanonicalDependencySourceRequest::Git { revision, .. } =
+        &mut foreign_request[nested_position].request
+    else {
+        panic!("git fixture")
+    };
+    *revision = "foreign".to_owned();
+    assert_eq!(
+        replay(foreign_request).unwrap_err().message(),
+        "active dependency selection disagrees with its complete projection"
+    );
+
+    let mut foreign_alias = subject.dependency_requests.clone();
+    foreign_alias[nested_position].alias = AliasName::parse("foreign").unwrap();
+    assert_eq!(
+        replay(foreign_alias).unwrap_err().message(),
+        "dependency request alias disagrees with its authored selection"
     );
 }

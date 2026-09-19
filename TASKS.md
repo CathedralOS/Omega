@@ -431,13 +431,24 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   canonical consumption/review projections dedupe the identical fact rows a
   second instance re-derives.
 
-  - Schedule each helper's own build activation in its correct execution
-    profile and prerequisite graph. Package-manager reconciliation/closure
-    validation and `package-compilation` currently reject non-root build
-    dependency rows. Remove that implementation restriction only with scoped
-    activation ownership and cross-purpose cycle detection. An imported
-    helper still cannot declare dependencies for the caller or import another
-    activation's build entry.
+  - Extend nested build activation beyond same-profile, single-purpose
+    closures. The existing dependency-first review pass re-roots each package
+    for its own build and hands generated source to its consumer; source
+    acquisition and canonical replay retain nested requester/purpose edges
+    and reject cycles across both edge kinds. `package-compilation` still
+    correctly rejects non-root build edges inside one activation: those belong
+    to the dependency's separate compilation, not the caller's imports.
+    `build_purposes::a_build_helper_runs_its_own_build_dependency_before_the_consumer`
+    exercises generator → helper build → consuming build through CLI update,
+    generated source, lock recovery and ordinary `--check` on macOS ARM64.
+    Cross-profile and dual-purpose nested graphs remain explicit pre-execution
+    implementation fences in `review/candidate/compilation/package_pass.rs`.
+    Replace the one-review/one-generated-bundle-per-package addressing with
+    exact activation purpose/profile/target occurrences before lifting them.
+    Acquisition-only inspection/sample refresh rejects nested activations via
+    `PreparedLocalProject::try_into_parts`; route those consumers through
+    prerequisite execution before admitting them. These are implementation
+    gaps, not unresolved language decisions. Windows runtime validation remains.
   - Retain exact purpose/profile/target and accepted authority through
     acquisition, review, lock recovery, generated-source handoff, and checking.
     Extend the existing owners; no second dependency resolver or build executor.

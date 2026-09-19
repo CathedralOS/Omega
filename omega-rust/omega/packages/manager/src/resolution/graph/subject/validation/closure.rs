@@ -98,12 +98,6 @@ pub(in super::super) fn validate_subject_with_budget(
     for edge in edges {
         validate_source_identity(&edge.selected, limits.maximum_identity_bytes)?;
         validate_dependency_request(Request::from(&edge.request), limits.maximum_request_bytes)?;
-        // Host build inputs are selected only by the root build context.
-        if edge.purpose == DependencyPurpose::Build && edge.requester != *root.selected.key() {
-            return Err(Error::new(
-                "build dependency edge is not authorized by the root build context",
-            ));
-        }
         let requester = packages
             .binary_search_by(|source| source.key().cmp(&edge.requester))
             .map_err(|_| Error::new("dependency request names an unknown requester"))?;
@@ -163,15 +157,6 @@ pub(in super::super) fn validate_subject_with_budget(
     let mut aliases = budget.reserve::<&str>(edges.len())?;
     for (source, projection) in packages.iter().zip(projections) {
         let selected = selected_edges(edges, source);
-        // A non-root package's authored build rows cannot produce edges:
-        // host build inputs are selected only by the root build context.
-        if source.key() != root.selected.key()
-            && !projection.requests(DependencyPurpose::Build).is_empty()
-        {
-            return Err(Error::new(
-                "non-root package retains unauthorized build dependency rows",
-            ));
-        }
         for purpose in DependencyPurpose::ALL {
             let authored_requests = projection.requests(purpose);
             let mut expected_index = 0usize;

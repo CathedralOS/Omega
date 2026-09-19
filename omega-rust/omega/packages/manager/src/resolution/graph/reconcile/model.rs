@@ -156,13 +156,6 @@ pub enum PackageSourceClosureResolutionError<E> {
         selected: PackageKey,
         role: BuildDeclarationKind,
     },
-    /// A package other than the closure root authored build-purpose
-    /// dependency rows. Host build inputs are selected only by the root
-    /// build context; host libraries use their own ordinary dependencies.
-    UnsupportedBuildDependencies {
-        requester: PackageKey,
-        authored_rows: usize,
-    },
     /// Requester-local aliases conflict after package-authored names have been
     /// recovered from source custody.
     InvalidAliases {
@@ -180,7 +173,6 @@ impl<E> PackageSourceClosureResolutionError<E> {
             | Self::LimitExceeded { .. }
             | Self::InvalidClosure { .. }
             | Self::InvalidDependencyRole { .. }
-            | Self::UnsupportedBuildDependencies { .. }
             | Self::InvalidAliases { .. } => None,
         }
     }
@@ -210,11 +202,29 @@ impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
                 "source closure contains conflicting custody for {} package key(s)",
                 conflicts.len()
             ),
-            Self::InvalidClosure { errors } => write!(
-                formatter,
-                "resolved package source closure failed {} graph validation check(s)",
-                errors.len()
-            ),
+            Self::InvalidClosure { errors } => {
+                write!(
+                    formatter,
+                    "resolved package source closure failed {} graph validation check(s)",
+                    errors.len()
+                )?;
+                if let Some(cycle) = errors.iter().find_map(|error| match error {
+                    PackageClosureValidationError::DependencyCycle { cycle } => Some(cycle),
+                    _ => None,
+                }) {
+                    formatter.write_str("; dependency cycle: ")?;
+                    for (position, package) in cycle.iter().take(16).enumerate() {
+                        if position != 0 {
+                            formatter.write_str(" -> ")?;
+                        }
+                        formatter.write_str(package.name().as_str())?;
+                    }
+                    if cycle.len() > 16 {
+                        formatter.write_str(" -> ...")?;
+                    }
+                }
+                Ok(())
+            }
             Self::InvalidDependencyRole {
                 requester,
                 purpose,
@@ -227,14 +237,6 @@ impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
                 purpose.name(),
                 requester.name().as_str(),
                 selected.name().as_str(),
-            ),
-            Self::UnsupportedBuildDependencies {
-                requester,
-                authored_rows,
-            } => write!(
-                formatter,
-                "package `{}` authors {authored_rows} build dependency row(s), but host build inputs may only be selected by the root build context",
-                requester.name().as_str(),
             ),
             Self::InvalidAliases {
                 requester,
