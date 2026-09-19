@@ -70,6 +70,7 @@ fn record_reference_module() -> TerminalModule {
             id: operation_id(97),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: machine_id(92),
                 arguments: vec![],
                 structural_arguments: vec![StructuralArgument {
@@ -87,6 +88,7 @@ fn record_reference_module() -> TerminalModule {
         edge: edge_id(96),
         target: block_id(96),
         arguments: vec![],
+        erased_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![place_id(96)],
         residual_affine_discards: vec![],
@@ -98,6 +100,7 @@ fn record_reference_module() -> TerminalModule {
         qualifications: Default::default(),
     });
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(96),
         structural_parameters: vec![],
         parameters: vec![],
@@ -704,11 +707,13 @@ fn returned_child_record_restores_its_parent_only_after_disposal() {
         edge: edge_id(216),
         target: block_id(216),
         arguments: vec![],
+        erased_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![place_id(216)],
         residual_affine_discards: vec![],
     };
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(216),
         parameters: vec![],
         structural_parameters: vec![],

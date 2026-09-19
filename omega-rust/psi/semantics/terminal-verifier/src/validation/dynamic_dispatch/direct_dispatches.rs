@@ -118,6 +118,7 @@ pub(super) fn validate_direct_dispatches(
                 OperationKind::CallStructuralScalar {
                     callee,
                     arguments,
+                    erased_arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -127,6 +128,7 @@ pub(super) fn validate_direct_dispatches(
                 TerminalMachineResult::Scalar(callable_result),
             ) if *callee == dispatch.realization
                 && arguments.is_empty()
+                && erased_arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && operation_result.scalar_type == callable_result.scalar_type
                 && operation_result.qualifications == callable_result.qualifications
@@ -139,6 +141,7 @@ pub(super) fn validate_direct_dispatches(
                 OperationKind::CallUnit {
                     callee,
                     arguments,
+                    erased_arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -148,6 +151,7 @@ pub(super) fn validate_direct_dispatches(
                 TerminalMachineResult::Unit,
             ) if *callee == dispatch.realization
                 && arguments.is_empty()
+                && erased_arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && claim_transfers.is_empty()
                 && requirement_obligations.is_empty()

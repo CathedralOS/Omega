@@ -1015,6 +1015,7 @@ fn ordinary_inline_byte_module(
         trivial_affine_discards: Vec::new(),
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
+        erased_arguments: Vec::new(),
         callee: callee.id,
         arguments: Vec::new(),
         structural_arguments,

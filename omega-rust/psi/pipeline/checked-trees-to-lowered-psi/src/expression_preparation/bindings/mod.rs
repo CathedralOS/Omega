@@ -522,6 +522,7 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
+            | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. } => {}
         }
         Ok(())
@@ -557,6 +558,7 @@ impl ScalarBindings {
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
             | CheckedBooleanExpression::ByteSequenceEqual { .. }
             | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+            | CheckedBooleanExpression::ErasedParameter { .. }
             | CheckedBooleanExpression::StructuralCaseMembership { .. } => {}
         }
         Ok(())

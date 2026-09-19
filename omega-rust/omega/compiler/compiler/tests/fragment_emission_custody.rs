@@ -73,6 +73,7 @@ fn branching_calling_module() -> TerminalModule {
         ensures: Vec::new(),
         outcome_specific_ensures: Vec::new(),
         crash_routes: Vec::new(),
+        erased_scalar_formals: Vec::new(),
     };
     let block = |id: u64,
                  parameters: Vec<ValueDeclaration>,
@@ -80,6 +81,7 @@ fn branching_calling_module() -> TerminalModule {
                  terminator: Terminator| Block {
         id: BlockId::new(id).unwrap(),
         parameters,
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         operations,
         terminator,
@@ -117,6 +119,7 @@ fn branching_calling_module() -> TerminalModule {
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -165,6 +168,7 @@ fn branching_calling_module() -> TerminalModule {
                         OperationKind::Call {
                             callee: MachineId::new(2).unwrap(),
                             arguments: vec![ValueId::new(14).unwrap()],
+                            erased_arguments: Vec::new(),
                             requirement_obligations: Vec::new(),
                             crash_continuations: Vec::new(),
                         },
@@ -196,6 +200,7 @@ fn branching_calling_module() -> TerminalModule {
                     edge: EdgeId::new(35).unwrap(),
                     target: BlockId::new(36).unwrap(),
                     arguments: vec![ValueId::new(13).unwrap()],
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
@@ -209,6 +214,7 @@ fn branching_calling_module() -> TerminalModule {
                     edge: EdgeId::new(37).unwrap(),
                     target: BlockId::new(36).unwrap(),
                     arguments: vec![ValueId::new(13).unwrap()],
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),

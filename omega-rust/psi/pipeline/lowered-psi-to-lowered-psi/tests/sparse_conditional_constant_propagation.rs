@@ -188,6 +188,7 @@ fn independent_check_rejects_wrong_and_unjustified_folds() {
         edge: semantic_vocabulary::EdgeId::new(9).unwrap(),
         target: common::block_id(2),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),

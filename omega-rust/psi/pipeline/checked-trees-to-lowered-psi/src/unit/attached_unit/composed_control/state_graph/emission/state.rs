@@ -71,6 +71,7 @@ impl StateGraphEmission<'_, '_> {
                 .zip(&state_parameters)
                 .map(|(source, parameter)| (source.position, parameter.clone()))
                 .collect(),
+            erased_scalar_formals: self.state_erased[position].clone(),
             entry: self.state_ids[position],
             block_structural_parameters: Vec::new(),
             current: self.state_ids[position],
@@ -128,6 +129,7 @@ impl StateGraphEmission<'_, '_> {
             &self.claims.source_claims,
             &mut evaluation,
             &mut values,
+            &self.state_erased[position],
             &mut next_value,
             &mut next_block,
             &mut next_edge,
@@ -201,6 +203,7 @@ impl StateGraphEmission<'_, '_> {
             &self.claims.source_claims,
             &mut evaluation,
             &mut values,
+            &self.state_erased[position],
             &mut next_value,
             &mut next_block,
             &mut next_edge,
@@ -420,6 +423,35 @@ impl StateGraphEmission<'_, '_> {
                     &mut operations,
                 ));
             }
+            // Proof-only actuals never evaluate: each checked erased row
+            // lowers to a term over the emitting state's scalar values and
+            // erased formals, in the target's erased-roster order.
+            if edge.erased_arguments.len() != self.state_erased[target].len() {
+                return unsupported("Unit graph successor erased arity drifted");
+            }
+            let erased_arguments = edge
+                .erased_arguments
+                .iter()
+                .enumerate()
+                .map(|(erased_index, argument)| {
+                    if argument.target_scalar_parameter_index as usize != erased_index {
+                        return unsupported("Unit graph successor erased order drifted");
+                    }
+                    let expression = bindings.expression_at(
+                        checked,
+                        state.state,
+                        edge.statement_ordinal,
+                        CheckedScalarExpressionRole::TransitionArgument {
+                            argument_ordinal: argument.argument_ordinal,
+                        },
+                    )?;
+                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                        &expression,
+                        &values,
+                        &self.state_erased[position],
+                    )
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
             let arriving_rank = if current_rank.is_some() {
                 if let Some(position) = ranking::scalar_parameter_position(plan, target_state) {
                     arguments.get(position).copied()
@@ -468,6 +500,10 @@ impl StateGraphEmission<'_, '_> {
                 let staged = block_id(allocate_dense(&mut next_block)?);
                 let backedge = edge_id(allocate_dense(&mut next_edge)?);
                 let selection_edge = edge_id(allocate_dense(&mut next_edge)?);
+                self.arrival_edges
+                    .entry(target)
+                    .or_insert_with(Vec::new)
+                    .push(backedge);
                 if let Some(rank) = current_rank {
                     self.block_ranks.insert(staged, rank);
                     self.rank_edges.insert(
@@ -487,6 +523,9 @@ impl StateGraphEmission<'_, '_> {
                 edge_blocks.push(Block {
                     id: staged,
                     parameters: payload_values.iter().map(|(_, value)| *value).collect(),
+                    // The forwarding block redeclares the emitting state's
+                    // erased roster so forwarded proof terms stay in scope.
+                    erased_scalar_formals: self.state_erased[position].clone(),
                     structural_parameters: Vec::new(),
                     operations: operations[operation_start..].to_vec(),
                     terminator: Terminator::Jump {
@@ -494,6 +533,7 @@ impl StateGraphEmission<'_, '_> {
                         target,
                         arguments,
                         structural_arguments,
+                        erased_arguments,
                         trivial_affine_discards,
                         residual_affine_discards: Vec::new(),
                     },
@@ -502,11 +542,16 @@ impl StateGraphEmission<'_, '_> {
                     edge: selection_edge,
                     target: staged,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 })
             } else {
                 let successor_edge = edge_id(allocate_dense(&mut next_edge)?);
+                self.arrival_edges
+                    .entry(target)
+                    .or_insert_with(Vec::new)
+                    .push(successor_edge);
                 if let Some(after) = arriving_rank {
                     self.rank_edges.insert(
                         successor_edge,
@@ -518,6 +563,7 @@ impl StateGraphEmission<'_, '_> {
                     target,
                     arguments,
                     structural_arguments,
+                    erased_arguments,
                     trivial_affine_discards,
                 })
             }
@@ -631,6 +677,7 @@ impl StateGraphEmission<'_, '_> {
                     edge: edge.edge,
                     target: edge.target,
                     arguments: edge.arguments,
+                    erased_arguments: edge.erased_arguments,
                     structural_arguments: edge.structural_arguments,
                     trivial_affine_discards: edge.trivial_affine_discards,
                     residual_affine_discards: Vec::new(),
@@ -659,12 +706,14 @@ impl StateGraphEmission<'_, '_> {
                         edge_blocks.push(Block {
                             id,
                             parameters: Vec::new(),
+                            erased_scalar_formals: self.state_erased[position].clone(),
                             structural_parameters: Vec::new(),
                             operations: Vec::new(),
                             terminator: Terminator::Jump {
                                 edge: successor.edge,
                                 target: successor.target,
                                 arguments: successor.arguments,
+                                erased_arguments: successor.erased_arguments,
                                 structural_arguments: successor.structural_arguments,
                                 trivial_affine_discards: successor.trivial_affine_discards,
                                 residual_affine_discards: Vec::new(),
@@ -727,6 +776,7 @@ impl StateGraphEmission<'_, '_> {
                         edge,
                         target: decision_block,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
@@ -921,6 +971,7 @@ impl StateGraphEmission<'_, '_> {
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
+            erased_scalar_formals: Vec::new(),
             structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start
                 ..if condition.is_some() || branch_guard.is_some() || prepared_cases.is_some() {
@@ -954,6 +1005,9 @@ impl StateGraphEmission<'_, '_> {
                 })
                 .map(|(_, parameter)| parameter)
                 .collect();
+            // The authored state's own erased roster rides on its root block;
+            // a plain entry's formals already live on the machine contract.
+            root.erased_scalar_formals = self.state_erased[position].clone();
         }
         if let Some(rank) = current_rank {
             self.block_ranks

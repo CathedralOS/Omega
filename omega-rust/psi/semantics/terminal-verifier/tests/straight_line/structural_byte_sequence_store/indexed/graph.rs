@@ -14,6 +14,7 @@ fn edge(raw: u64, target: u64) -> SuccessorEdge {
         edge: id(raw),
         target: id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -24,6 +25,7 @@ fn jump(raw: u64, target: u64) -> Terminator {
         edge: id(raw),
         target: id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
@@ -35,6 +37,7 @@ fn split_after_length(module: &mut TerminalModule) {
     let operations = machine.blocks[0].operations.split_off(5);
     let terminator = std::mem::replace(&mut machine.blocks[0].terminator, jump(901, 901));
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(901),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -83,6 +86,7 @@ fn any_mutating_predecessor_invalidates_the_joined_length() {
         when_false: edge(902, 902),
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(902),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -120,6 +124,7 @@ fn backedge_replacement_invalidates_an_entry_length_but_byte_stores_do_not() {
         },
     );
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(902),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -168,6 +173,7 @@ fn mutable_call_invalidates_length_but_shared_call_preserves_it() {
                 id: id(8),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    erased_arguments: Vec::new(),
                     callee: id(901),
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -207,6 +213,7 @@ fn repeated_literal_replacement_and_indexed_store_reconstruct_each_iteration() {
     let operations = std::mem::take(&mut machine.blocks[0].operations);
     let terminator = std::mem::replace(&mut machine.blocks[0].terminator, jump(901, 901));
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(901),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -218,6 +225,7 @@ fn repeated_literal_replacement_and_indexed_store_reconstruct_each_iteration() {
         },
     });
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(902),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -261,6 +269,7 @@ fn unknown_live_length_uses_only_the_selected_true_edge_bound() {
     };
     for (block, operations) in [(901, vec![store]), (902, Vec::new())] {
         machine.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
             id: id(block),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

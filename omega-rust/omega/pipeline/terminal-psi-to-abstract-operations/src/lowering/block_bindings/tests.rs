@@ -92,11 +92,13 @@ fn fixture() -> TerminalModule {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     structural_parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         edge: EdgeId::new(1).unwrap(),
                         target,
                         arguments: Vec::new(),
@@ -110,6 +112,7 @@ fn fixture() -> TerminalModule {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     id: target,
                     parameters: Vec::new(),
                     structural_parameters: vec![StructuralParameterDeclaration {
@@ -124,6 +127,7 @@ fn fixture() -> TerminalModule {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -157,6 +161,7 @@ fn each_conditional_arm_is_checked_even_without_byte_operations() {
     for selected_arm in 0..2 {
         let mut module = fixture();
         let successor = |ordinal| SuccessorEdge {
+            erased_arguments: Vec::new(),
             edge: EdgeId::new(ordinal).unwrap(),
             target: BlockId::new(2).unwrap(),
             arguments: Vec::new(),

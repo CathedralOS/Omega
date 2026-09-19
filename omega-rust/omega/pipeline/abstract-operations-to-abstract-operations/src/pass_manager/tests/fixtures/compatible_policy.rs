@@ -79,6 +79,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -123,6 +124,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(461).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -261,6 +263,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: join,
                     parameters: vec![
@@ -284,6 +287,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: left_block,
                     parameters: Vec::new(),
@@ -297,6 +301,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                         },
                     }],
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(521).unwrap(),
                         target: join,
@@ -306,6 +311,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -320,6 +326,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(522).unwrap(),
                             target: left_block,
@@ -327,6 +334,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(523).unwrap(),
                             target: right_block,
@@ -336,6 +344,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: right_block,
                     parameters: Vec::new(),
@@ -349,6 +358,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                         },
                     }],
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(525).unwrap(),
                         target: join,
@@ -359,6 +369,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(526).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -427,6 +427,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                         primitive_type: PrimitiveType::I32,
                                     },
                                 ],
+                                erased_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![1],
                             },
                             when_false: checked_trees::CheckedStructuralControlSuccessorPlan {
@@ -446,6 +447,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                         primitive_type: PrimitiveType::I32,
                                     },
                                 ],
+                                erased_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
                         },
@@ -592,6 +594,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
                 target_scalar_parameter_index: 0,
                 primitive_type: PrimitiveType::I32,
             }],
+            erased_arguments: Vec::new(),
             trivial_affine_discard_parameter_positions: Vec::new(),
         };
     plan.states[1].terminator = CheckedStructuralUnitControlTerminatorPlan::Conditional {
@@ -827,12 +830,14 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
             when_true: SuccessorEdge {
                 target: true_target,
                 arguments: true_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: true_discards,
                 ..
             },
             when_false: SuccessorEdge {
                 target: false_target,
                 arguments: false_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: false_discards,
                 ..
             },
@@ -979,12 +984,14 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
             when_true: SuccessorEdge {
                 target: true_target,
                 arguments: true_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: true_discards,
                 ..
             },
             when_false: SuccessorEdge {
                 target: false_target,
                 arguments: false_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: false_discards,
                 ..
             },
@@ -1058,12 +1065,14 @@ fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
             when_true: SuccessorEdge {
                 target: true_target,
                 arguments: true_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: true_discards,
                 ..
             },
             when_false: SuccessorEdge {
                 target: false_target,
                 arguments: false_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: false_discards,
                 ..
             },
@@ -1097,12 +1106,14 @@ fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
             when_true: SuccessorEdge {
                 target: true_target,
                 arguments: true_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: true_discards,
                 ..
             },
             when_false: SuccessorEdge {
                 target: false_target,
                 arguments: false_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: false_discards,
                 ..
             },
@@ -1147,12 +1158,14 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
             when_true: SuccessorEdge {
                 target: true_target,
                 arguments: true_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: true_discards,
                 ..
             },
             when_false: SuccessorEdge {
                 target: false_target,
                 arguments: false_arguments,
+                erased_arguments: _,
                 trivial_affine_discards: false_discards,
                 ..
             },

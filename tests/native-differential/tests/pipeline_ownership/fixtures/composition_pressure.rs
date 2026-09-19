@@ -129,6 +129,7 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(base + 100).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(base + 100).unwrap(),
             parameters: Vec::new(),
@@ -139,6 +140,7 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(base + 300).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -211,6 +213,7 @@ fn composition_pressure_module(
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee,
             arguments,
             structural_arguments: Vec::new(),
@@ -220,6 +223,7 @@ fn composition_pressure_module(
         },
     };
     let edge = |id: u64, target: BlockId| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(id).unwrap(),
         target,
         arguments: Vec::new(),
@@ -264,6 +268,7 @@ fn composition_pressure_module(
     // pins and a call-crossing filler leave exactly the two-view sets each
     // architecture needs.
     let pressure_leaf = |block: BlockId, victim, op_base: u64, filler_base: u64| Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block,
         parameters: Vec::new(),
@@ -335,6 +340,7 @@ fn composition_pressure_module(
             },
             vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: leaf,
                     parameters: Vec::new(),
@@ -349,11 +355,13 @@ fn composition_pressure_module(
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: jump,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         edge: EdgeId::new(COMPOSITION_PRESSURE_EDGE_BASE + 4).unwrap(),
                         target: x_leaf,
                         arguments: Vec::new(),
@@ -369,6 +377,7 @@ fn composition_pressure_module(
                 // strand a victim while segment homes take `rbx` and let
                 // both survivors place.
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: x_leaf,
                     parameters: Vec::new(),
@@ -431,6 +440,7 @@ fn composition_pressure_module(
             },
             vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: leaf,
                     parameters: Vec::new(),
@@ -445,11 +455,13 @@ fn composition_pressure_module(
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: jump,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         edge: EdgeId::new(COMPOSITION_PRESSURE_EDGE_BASE + 4).unwrap(),
                         target: x_leaf,
                         arguments: Vec::new(),
@@ -464,6 +476,7 @@ fn composition_pressure_module(
                 // crossing the first call removes `x19` from `X`'s fragment,
                 // leaving `{x0, x1}`.
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: x_leaf,
                     parameters: Vec::new(),
@@ -491,6 +504,7 @@ fn composition_pressure_module(
                     terminator: return_unit(COMPOSITION_PRESSURE_EDGE_BASE + 5),
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: mid,
                     parameters: Vec::new(),
@@ -528,6 +542,7 @@ fn composition_pressure_module(
         entry: BlockId::new(COMPOSITION_PRESSURE_ENTRY).unwrap(),
         blocks: {
             let mut blocks = vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(COMPOSITION_PRESSURE_ENTRY).unwrap(),
                 parameters: Vec::new(),
@@ -542,6 +557,7 @@ fn composition_pressure_module(
             blocks
         },
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(COMPOSITION_PRESSURE_CONTRACT).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

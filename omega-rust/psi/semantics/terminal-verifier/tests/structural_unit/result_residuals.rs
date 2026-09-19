@@ -75,10 +75,12 @@ fn partial_continuation_module() -> TerminalModule {
         edge,
         target: block_id(3),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards,
     };
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(3),
         parameters: Vec::new(),

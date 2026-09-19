@@ -43,6 +43,7 @@ fn jump(edge: u64, target: u64) -> Terminator {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     }
@@ -89,6 +90,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             id: operation_id(13),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: vec![value_id(14)],
                 structural_arguments: vec![StructuralArgument {
@@ -105,6 +107,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     helper.blocks[1].terminator = jump(4, 5);
     helper.blocks[2].terminator = jump(5, 5);
     helper.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
@@ -120,6 +123,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     inspector.structural_places.push(declaration(6, 35));
     inspector.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(6),
             parameters: Vec::new(),
@@ -154,6 +158,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(7),
             parameters: Vec::new(),
@@ -199,6 +204,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(8),
             parameters: Vec::new(),
@@ -206,6 +212,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             terminator: finish(10),
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(9),
             parameters: Vec::new(),

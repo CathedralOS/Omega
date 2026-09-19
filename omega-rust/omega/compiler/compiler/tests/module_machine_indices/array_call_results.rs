@@ -257,6 +257,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
     caller.blocks = vec![Block {
         id: caller.entry,
         parameters: vec![],
+        erased_scalar_formals: Vec::new(),
         structural_parameters: vec![],
         operations: vec![
             Operation {
@@ -285,6 +286,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
                 kind: OperationKind::CallStructuralWithScalarArguments {
                     callee: callee_id,
                     arguments: vec![value],
+                    erased_arguments: vec![],
                     structural_arguments: vec![],
                     claim_transfers: vec![],
                     returned_claim_transfers: vec![],

@@ -108,6 +108,7 @@ fn minimal_module() -> TerminalModule {
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
+                erased_scalar_formals: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
                     id: OperationId::new(1).unwrap(),
@@ -127,6 +128,7 @@ fn minimal_module() -> TerminalModule {
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
+                erased_scalar_formals: Vec::new(),
                 crash_routes: Vec::new(),
             },
         }],

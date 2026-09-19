@@ -553,6 +553,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
         edge: edge_id(next_edge),
         target: loop_block,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
@@ -560,6 +561,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
     machine.blocks.push(Block {
         id: loop_block,
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         operations,
         terminator: Terminator::Conditional {
@@ -568,6 +570,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
                 edge: edge_id(next_edge + 1),
                 target: loop_block,
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -575,6 +578,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
                 edge: edge_id(next_edge + 2),
                 target: exit_block,
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -583,6 +587,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
     machine.blocks.push(Block {
         id: exit_block,
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         operations: Vec::new(),
         terminator,

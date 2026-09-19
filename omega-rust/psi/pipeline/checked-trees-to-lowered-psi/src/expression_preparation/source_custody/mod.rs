@@ -274,9 +274,39 @@ pub(crate) fn locate(
             {
                 return unsupported("scalar source custody disagrees with its call argument role");
             }
+            // `argument_ordinal` indexes the retained plan lane; the authored
+            // roster interleaves proof-only erased positions the plan strips.
             call.scalar_arguments
-                .get(argument_ordinal as usize)
-                .map(|(expression, primitive)| (*expression, absent, *primitive))
+                .iter()
+                .zip(0u32..)
+                .filter(|(_, position)| !call.erased_scalar_positions.contains(position))
+                .nth(argument_ordinal as usize)
+                .map(|((expression, primitive), _)| (*expression, absent, *primitive))
+        }
+        (
+            _,
+            CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                call_ordinal,
+                erased_ordinal,
+            },
+        ) => {
+            let call = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                state.symbol,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: statement,
+                    call_ordinal,
+                },
+            )?;
+            if call.boundary {
+                return unsupported("scalar source custody disagrees with its call argument role");
+            }
+            call.scalar_arguments
+                .iter()
+                .zip(0u32..)
+                .filter(|(_, position)| call.erased_scalar_positions.contains(position))
+                .nth(erased_ordinal as usize)
+                .map(|((expression, primitive), _)| (*expression, absent, *primitive))
         }
         (
             StatementNode::LocalData(local),

@@ -197,6 +197,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: vec![value_id(1)],
                 structural_arguments: vec![argument(2, true)],
@@ -408,6 +409,7 @@ fn jump(edge: u64, target: u64, discards: Vec<PlaceId>) -> Terminator {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: discards,
         residual_affine_discards: Vec::new(),
@@ -423,6 +425,7 @@ fn reference_result_edge_discard_releases_permission_before_continuing_read() {
     let completion = caller.blocks[0].terminator.clone();
     caller.blocks[0].terminator = jump(4, 4, vec![place_id(2)]);
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -462,6 +465,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -474,6 +478,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
     other_release.id = operation_id(6);
     caller.blocks.extend([
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -481,6 +486,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
             terminator: jump(6, 6, Vec::new()),
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(5),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -488,6 +494,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
             terminator: jump(7, 6, Vec::new()),
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(6),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -712,6 +719,7 @@ fn record_reference_module() -> TerminalModule {
     let completion = caller.blocks[0].terminator.clone();
     caller.blocks[0].terminator = jump(4, 4, vec![place_id(3)]);
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -1033,6 +1041,7 @@ pub(super) fn owned_reference_record_module(two_leaves: bool, consumes: bool) ->
         };
         call.result = OperationResult::Unit;
         call.kind = OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(4),
             arguments: Vec::new(),
             structural_arguments: vec![owned],

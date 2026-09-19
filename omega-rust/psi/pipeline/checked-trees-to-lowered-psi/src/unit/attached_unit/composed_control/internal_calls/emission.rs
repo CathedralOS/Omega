@@ -156,6 +156,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             operation,
             crate::unit::attached_unit::ordinary_calls::PreparedCall {
                 arguments: arguments.into_iter().map(|value| value.id).collect(),
+                erased_arguments: Vec::new(),
                 structural_arguments,
                 requirement_obligations: Vec::new(),
                 crash_continuations,
@@ -195,6 +196,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
         kind: OperationKind::CallUnit {
             callee: target.id,
             arguments: arguments.into_iter().map(|value| value.id).collect(),
+            erased_arguments: Vec::new(),
             structural_arguments,
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

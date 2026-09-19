@@ -73,6 +73,7 @@ impl LoweredScalarBinding {
 pub(crate) fn emit_scalar_binding(
     binding: &LoweredScalarBinding,
     parameters: &[ValueDeclaration],
+    caller_erased_formals: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
@@ -269,6 +270,7 @@ pub(crate) fn emit_scalar_binding(
         LoweredScalarBinding::DirectCall(call) => calls::emit_scalar_call_binding(
             call,
             parameters,
+            caller_erased_formals,
             next_value_identity,
             operations,
             call_emission,

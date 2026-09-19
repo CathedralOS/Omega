@@ -73,6 +73,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -80,6 +81,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_011).unwrap(),
                             target: when_true,
@@ -87,6 +89,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_012).unwrap(),
                             target: when_false,
@@ -96,6 +99,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
@@ -107,6 +111,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),
@@ -119,6 +124,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_015).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -200,6 +206,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -215,6 +222,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_111).unwrap(),
                             target: when_true,
@@ -222,6 +230,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_112).unwrap(),
                             target: when_false,
@@ -231,6 +240,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
@@ -242,6 +252,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),
@@ -254,6 +265,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_115).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -326,11 +338,13 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_211).unwrap(),
                         target: empty,
@@ -340,11 +354,13 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: empty,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_212).unwrap(),
                         target,
@@ -354,6 +370,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: target,
                     parameters: Vec::new(),
@@ -365,6 +382,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_215).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -445,11 +463,13 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_257).unwrap(),
                         target,
@@ -459,6 +479,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: target,
                     parameters: vec![boolean(forwarded)],
@@ -476,6 +497,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_260).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -556,11 +578,13 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_278).unwrap(),
                         target: decision,
@@ -570,6 +594,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: decision,
                     parameters: vec![boolean(forwarded)],
@@ -577,6 +602,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     terminator: Terminator::Conditional {
                         condition: forwarded,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_279).unwrap(),
                             target: left,
@@ -584,6 +610,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_280).unwrap(),
                             target: right,
@@ -593,6 +620,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: left,
                     parameters: Vec::new(),
@@ -603,6 +631,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: right,
                     parameters: Vec::new(),
@@ -614,6 +643,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_283).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -693,6 +723,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -700,6 +731,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_311).unwrap(),
                             target: left,
@@ -707,6 +739,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(4_312).unwrap(),
                             target: right,
@@ -716,11 +749,13 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: left,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_313).unwrap(),
                         target: empty,
@@ -730,11 +765,13 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: right,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_314).unwrap(),
                         target: empty,
@@ -744,11 +781,13 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: empty,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_315).unwrap(),
                         target,
@@ -758,6 +797,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: target,
                     parameters: Vec::new(),
@@ -769,6 +809,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_317).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -852,11 +893,13 @@ pub(crate) fn chained_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_511).unwrap(),
                         target: mid,
@@ -866,11 +909,13 @@ pub(crate) fn chained_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: mid,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(4_512).unwrap(),
                         target: leaf,
@@ -880,6 +925,7 @@ pub(crate) fn chained_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: leaf,
                     parameters: Vec::new(),
@@ -892,6 +938,7 @@ pub(crate) fn chained_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(4_514).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

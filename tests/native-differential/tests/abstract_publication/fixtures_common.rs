@@ -205,6 +205,7 @@ pub(super) fn module_with_blocks(
             entry,
             blocks,
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(machine.get() + 100).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -224,6 +225,7 @@ pub(super) fn empty_verified() -> VerifiedPsiOptimizationUnit {
             block,
             TerminalMachineResult::Unit,
             vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),

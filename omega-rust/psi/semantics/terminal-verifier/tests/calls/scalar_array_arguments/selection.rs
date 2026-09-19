@@ -15,6 +15,7 @@ fn jump(edge: u64, target: u64) -> Terminator {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: vec![],
+        erased_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
         residual_affine_discards: vec![],
@@ -36,6 +37,7 @@ fn selected_call(dimensions: &[u64]) -> TerminalModule {
             edge: edge_id(10),
             target: block_id(3),
             arguments: vec![],
+            erased_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },
@@ -43,6 +45,7 @@ fn selected_call(dimensions: &[u64]) -> TerminalModule {
             edge: edge_id(11),
             target: block_id(4),
             arguments: vec![],
+            erased_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },
@@ -60,6 +63,7 @@ fn selected_call(dimensions: &[u64]) -> TerminalModule {
         ),
     ] {
         caller.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(identity),
             parameters: vec![],
             structural_parameters: vec![],
@@ -169,6 +173,7 @@ fn guarded_mixed_call() -> TerminalModule {
         panic!("array-returning call")
     };
     call.kind = OperationKind::CallStructuralWithScalarArguments {
+        erased_arguments: Vec::new(),
         callee,
         arguments: vec![value_id(90)],
         structural_arguments,

@@ -124,6 +124,7 @@ fn machine() -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: id(1, BlockId::new),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),
@@ -134,6 +135,7 @@ fn machine() -> TerminalMachine {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: id(1, ContractId::new),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -366,11 +368,13 @@ fn an_early_return_through_a_second_block_rejects() {
         edge: id(2, EdgeId::new),
         target: id(2, BlockId::new),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(2, BlockId::new),
         parameters: Vec::new(),
@@ -553,6 +557,7 @@ fn the_window_cannot_cross_an_edge() {
             edge: id(2, EdgeId::new),
             target: id(2, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(1, PlaceId::new),
                 path: argument,
@@ -562,6 +567,7 @@ fn the_window_cannot_cross_an_edge() {
             residual_affine_discards: Vec::new(),
         };
         machine.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: id(5, PlaceId::new),
                 position: 0,
@@ -618,6 +624,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             edge: id(2, EdgeId::new),
             target: id(2, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -625,11 +632,13 @@ fn a_join_must_carry_the_window_through_both_arms() {
             edge: id(3, EdgeId::new),
             target: id(3, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     let open_arm = Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(2, BlockId::new),
         parameters: Vec::new(),
@@ -638,12 +647,14 @@ fn a_join_must_carry_the_window_through_both_arms() {
             edge: id(4, EdgeId::new),
             target: id(4, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
         },
     };
     let quiet_arm = Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),
@@ -652,12 +663,14 @@ fn a_join_must_carry_the_window_through_both_arms() {
             edge: id(5, EdgeId::new),
             target: id(4, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
         },
     };
     let merge = Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),

@@ -24,6 +24,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     selected.id = BlockId::new(120).unwrap();
     selected.operations.truncate(1);
     let jump = |edge| Terminator::Jump {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(140).unwrap(),
         arguments: Vec::new(),
@@ -59,6 +60,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     continuation.id = BlockId::new(140).unwrap();
     continuation.operations.remove(0);
     let successor = |edge, target| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
         arguments: Vec::new(),

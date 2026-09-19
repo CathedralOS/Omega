@@ -293,6 +293,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     // for this machine once the state-contract boundary widens.
     let graph_state =
         |state: &checked_trees::state::State| checked_trees::CheckedScalarStateGraph {
+            erased_scalar_parameters: Vec::new(),
             state: state.symbol,
             structural_parameters: Vec::new(),
             scalar_parameters: checked
@@ -336,6 +337,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let inspect_value = semantic_vocabulary::ValueId::new(3).unwrap();
     let block = |id: u64, parameters| terminal_psi::Block {
         id: BlockId::new(id).unwrap(),
+        erased_scalar_formals: Vec::new(),
         parameters,
         structural_parameters: Vec::new(),
         operations: Vec::new(),
@@ -395,6 +397,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
             ),
         ],
         contract: terminal_psi::MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),

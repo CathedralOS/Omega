@@ -42,6 +42,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
             scalar_type,
         }),
         kind: OperationKind::Call {
+            erased_arguments: Vec::new(),
             callee,
             arguments: vec![argument],
             requirement_obligations: Vec::new(),

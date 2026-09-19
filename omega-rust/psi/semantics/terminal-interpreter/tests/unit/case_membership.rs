@@ -463,6 +463,7 @@ fn projected_case_membership_calls_keep_the_original_root_and_selected_index() {
                 unreachable!()
             };
             operation.kind = OperationKind::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -512,6 +513,7 @@ fn projected_case_membership_rejects_a_discarded_affine_root() {
         edge: edge_id(1),
         target: block_id(2),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: vec![place_id(1)],
         residual_affine_discards: Vec::new(),
@@ -695,6 +697,7 @@ fn ordinary_case_calls_move_affine_and_preserve_copy_or_shared_payloads() {
                 },
             }];
             callee.blocks = vec![Block {
+                erased_scalar_formals: Vec::new(),
                 id: block_id(2),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -725,6 +728,7 @@ fn ordinary_case_calls_move_affine_and_preserve_copy_or_shared_payloads() {
             }];
             let caller = &mut module.machines[0];
             caller.blocks[0].operations[2].kind = OperationKind::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -857,6 +861,7 @@ fn case_membership_rejects_a_constructor_that_does_not_dominate_the_join() {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: vec![],
+        erased_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
     };
@@ -864,12 +869,14 @@ fn case_membership_rejects_a_constructor_that_does_not_dominate_the_join() {
         edge: edge_id(edge),
         target: block_id(4),
         arguments: vec![],
+        erased_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
         residual_affine_discards: vec![],
     };
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(1),
             parameters: vec![],
             structural_parameters: vec![],
@@ -881,6 +888,7 @@ fn case_membership_rejects_a_constructor_that_does_not_dominate_the_join() {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(2),
             parameters: vec![],
             structural_parameters: vec![],
@@ -888,6 +896,7 @@ fn case_membership_rejects_a_constructor_that_does_not_dominate_the_join() {
             terminator: jump(3),
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(3),
             parameters: vec![],
             structural_parameters: vec![],
@@ -916,6 +925,7 @@ fn case_membership_cannot_read_an_owner_discarded_on_an_earlier_edge() {
     };
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(1),
             parameters: vec![],
             structural_parameters: vec![],
@@ -924,6 +934,7 @@ fn case_membership_cannot_read_an_owner_discarded_on_an_earlier_edge() {
                 edge: edge_id(1),
                 target: block_id(2),
                 arguments: vec![],
+                erased_arguments: Vec::new(),
                 structural_arguments: vec![],
                 trivial_affine_discards: vec![place_id(1)],
                 residual_affine_discards: vec![],

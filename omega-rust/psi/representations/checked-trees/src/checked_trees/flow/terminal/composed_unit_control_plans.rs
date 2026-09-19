@@ -1,7 +1,6 @@
 //! Composed unit control plans: state plans, natural ranks, case returns and
 //! closed-sum successors.
 
-use crate::CheckedScalarExpression;
 use crate::checked_trees::flow::terminal::{
     CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBranchDestination,
     CheckedScalarGuardedExit, CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
@@ -9,6 +8,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
 };
+use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -65,6 +65,13 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Proof-only erased scalar formals in authored order, retaining their
+    /// authored parameter positions. They own no runtime argument lane.
+    pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Lowered `requires` clauses for a non-entry state, in authored contract
+    /// order. `None` marks a clause outside the admitted closed namespace;
+    /// emission admits the state only when every row is `Some`.
+    pub requires: Vec<Option<ClosedScalarContractValue>>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Ordered primitive declarations and storage assignments before this state's
     /// effects and terminator. Initializer expressions remain in the exact

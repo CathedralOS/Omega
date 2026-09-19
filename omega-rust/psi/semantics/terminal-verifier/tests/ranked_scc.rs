@@ -134,6 +134,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
             entry: preheader,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: preheader,
                     parameters: Vec::new(),
@@ -143,11 +144,13 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         edge: preheader_edge,
                         target: header,
                         arguments: vec![initial],
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
@@ -189,6 +192,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                             edge: guard_edge,
                             target: decrement,
                             arguments: Vec::new(),
+                            erased_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -196,11 +200,13 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                             edge: exit_edge,
                             target: done,
                             arguments: Vec::new(),
+                            erased_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: decrement,
                     parameters: Vec::new(),
@@ -237,11 +243,13 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         edge: backedge,
                         target: header,
                         arguments: vec![next],
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: done,
                     parameters: Vec::new(),
@@ -253,6 +261,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -278,6 +287,7 @@ fn unranked_scalar_cycle() -> TerminalModule {
     machine.entry = entry;
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
@@ -289,6 +299,7 @@ fn unranked_scalar_cycle() -> TerminalModule {
                     edge: id(10, EdgeId::new),
                     target: entry,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -296,11 +307,13 @@ fn unranked_scalar_cycle() -> TerminalModule {
                     edge: id(11, EdgeId::new),
                     target: done,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: done,
             parameters: Vec::new(),

@@ -454,6 +454,7 @@ mod tests {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
@@ -464,6 +465,7 @@ mod tests {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: ContractId::new(1).unwrap(),
                     crash_routes: Vec::new(),
                     requires: vec![Proposition::Truth],

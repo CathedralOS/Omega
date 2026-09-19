@@ -79,6 +79,7 @@ pub fn bare_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(1).expect("block identity"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 id: BlockId::new(1).expect("block identity"),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -89,6 +90,7 @@ pub fn bare_module() -> TerminalModule {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

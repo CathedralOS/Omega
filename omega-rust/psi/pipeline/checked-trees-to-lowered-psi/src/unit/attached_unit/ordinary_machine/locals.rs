@@ -31,6 +31,9 @@ impl MachineEmission<'_> {
         else {
             unreachable!("dispatched establish_structural_value")
         };
+        // The operand closure holds an immutable view of the caller's scalar
+        // namespace while the emitter mutates `scalar_result_values` around it.
+        let operand_scalar_values = self.scalar_result_values.clone();
         let mut emit_operand_call = |operand: &CheckedUnitEffectOperationPlan,
                                      evaluated: Option<&[ValueDeclaration]>,
                                      call_context: &mut CallEmissionContext<'_>,
@@ -53,6 +56,8 @@ impl MachineEmission<'_> {
                 operand,
                 signatures::find(self.machine_signatures, *target_machine)?.call_target(),
                 evaluated,
+                &operand_scalar_values,
+                &signatures::find(self.machine_signatures, plan.machine)?.erased_scalar_parameters,
                 self.parameters,
                 &self.local_places,
                 &self.structural_result_places,

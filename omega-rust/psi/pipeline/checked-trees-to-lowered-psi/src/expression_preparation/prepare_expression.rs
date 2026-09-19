@@ -123,6 +123,13 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             position: *position,
             scalar_type: terminal_scalar_type(*primitive_type)?,
         }),
+        CheckedScalarExpression::ErasedParameter {
+            position,
+            primitive_type,
+        } => Ok(LoweredDirectExpression::ErasedParameter {
+            position: *position,
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+        }),
         CheckedScalarExpression::Local {
             position,
             primitive_type,
@@ -541,6 +548,7 @@ fn lower_checked_boolean_expression_with_parameters(
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
             return unsupported("structural equality is contract-only terminal vocabulary");
         }

@@ -22,7 +22,9 @@ mod structural_route_buckets;
 
 pub(crate) use argument_prefix::structural_crash_route_argument_prefix;
 pub(crate) use crash_predicates::{checked_boolean_proposition, lower_checked_crash_predicates};
-pub(crate) use scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
+pub(crate) use scalar_terms::{
+    checked_boolean_scalar_term, checked_scalar_term, lowered_direct_scalar_term,
+};
 pub(crate) use structural_members::{lower_structural_member_path, lower_structural_member_term};
 pub(crate) use structural_route_buckets::{
     lower_structural_crash_route_buckets, substitute_structural_crash_route_roots,

@@ -45,6 +45,13 @@ pub(crate) enum LoweredDirectExpression {
         position: usize,
         scalar_type: ScalarType,
     },
+    /// Proof-only reference to one erased formal in the enclosing contract
+    /// roster. Runtime emission and evaluation reject this form; only scalar
+    /// contract terms may carry it.
+    ErasedParameter {
+        position: usize,
+        scalar_type: ScalarType,
+    },
     Local {
         position: usize,
         scalar_type: ScalarType,
@@ -113,6 +120,7 @@ impl LoweredDirectExpression {
     pub(crate) const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Parameter { scalar_type, .. }
+            | Self::ErasedParameter { scalar_type, .. }
             | Self::PrimitiveRead { scalar_type, .. }
             | Self::StructuralField { scalar_type, .. }
             | Self::ByteSequenceLength { scalar_type, .. }
@@ -217,6 +225,9 @@ pub(crate) fn emit_direct_expression(
             next_value_identity,
             operations,
         ),
+        LoweredDirectExpression::ErasedParameter { .. } => {
+            unreachable!("erased formal is proof-only and has no runtime operand")
+        }
         LoweredDirectExpression::Parameter { position, .. }
         | LoweredDirectExpression::Local { position, .. } => parameters[*position].id,
         LoweredDirectExpression::IntegerLiteral { value, scalar_type } => emit_scalar_leaf(

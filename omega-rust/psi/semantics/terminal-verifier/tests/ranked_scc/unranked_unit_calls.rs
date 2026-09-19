@@ -33,6 +33,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
     helper.parameters.clear();
     helper.ranked_scc = None;
     helper.contract = MachineContract {
+        erased_scalar_formals: Vec::new(),
         id: id(2, ContractId::new),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -48,6 +49,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
         },
     }];
     helper.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -76,6 +78,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
         id: id(40, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: id(2, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

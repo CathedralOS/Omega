@@ -67,6 +67,7 @@ pub(super) fn cleanup(
                     edge: taken.edge,
                     target: taken.target,
                     arguments: taken.arguments.clone(),
+                    erased_arguments: Vec::new(),
                     structural_arguments: taken.structural_arguments.clone(),
                     trivial_affine_discards: taken.trivial_affine_discards.clone(),
                     residual_affine_discards: Vec::new(),

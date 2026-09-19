@@ -19,6 +19,36 @@ pub(crate) fn retain_proposition(
     });
 }
 
+/// Erased-argument lanes carry caller-side proof terms: retain every identity
+/// they name so a rewrite cannot strip a formal's evidence.
+pub(crate) fn retain_erased_arguments(
+    terms: &[semantic_vocabulary::ScalarTerm],
+    retained_values: &mut BTreeSet<ValueId>,
+) {
+    for term in terms {
+        term.visit_value_ids(|value| retained_values.insert(value));
+    }
+}
+
+/// The erased-argument lane of a call kind that carries one.
+pub(crate) fn call_erased_arguments(kind: &O) -> &[semantic_vocabulary::ScalarTerm] {
+    match kind {
+        O::Call {
+            erased_arguments, ..
+        }
+        | O::CallUnit {
+            erased_arguments, ..
+        }
+        | O::CallStructuralScalar {
+            erased_arguments, ..
+        }
+        | O::CallStructuralWithScalarArguments {
+            erased_arguments, ..
+        } => erased_arguments,
+        _ => &[],
+    }
+}
+
 pub(crate) fn retain_crash_routes(
     routes: &[CrashRouteBucket],
     retained_values: &mut BTreeSet<ValueId>,
@@ -187,12 +217,14 @@ mod tests {
         let callee = MachineId::new(2).unwrap();
         let calls = [
             O::Call {
+                erased_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: truth_bucket(),
             },
             O::CallUnit {
+                erased_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -201,6 +233,7 @@ mod tests {
                 crash_continuations: truth_bucket(),
             },
             O::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -240,6 +273,7 @@ mod tests {
                 selected_evidence: Vec::new(),
             },
             O::CallStructuralWithScalarArguments {
+                erased_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

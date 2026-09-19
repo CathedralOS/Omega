@@ -93,6 +93,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             obligation: ObligationId::new(1).unwrap(),
         },
         OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: MachineId::new(1).unwrap(),
             structural_arguments: Vec::new(),
@@ -124,6 +125,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         edge: edge_id(1),
         target: semantic_vocabulary::BlockId::new(2).unwrap(),
         arguments: vec![value_id(1)],
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: vec![place_id(1)],
     };

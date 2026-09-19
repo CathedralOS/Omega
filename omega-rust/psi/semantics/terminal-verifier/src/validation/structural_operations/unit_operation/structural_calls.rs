@@ -25,6 +25,7 @@ pub(super) fn validate_call_structural_scalar(
     let OperationKind::CallStructuralScalar {
         callee,
         arguments,
+        erased_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -73,6 +74,15 @@ pub(super) fn validate_call_structural_scalar(
             actual: requirement_obligations.len(),
         });
     }
+    if erased_arguments.len() != callee.contract.erased_scalar_formals.len() {
+        return Err(ModuleError::ErasedCallArgumentArityMismatch {
+            operation: operation.id,
+            expected: callee.contract.erased_scalar_formals.len(),
+            actual: erased_arguments.len(),
+        });
+    }
+    crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
+
     validate_unit_call_claim_transfers(
         module,
         machine,
@@ -119,6 +129,12 @@ pub(super) fn validate_call_structural(
     }) = &operation.kind
     else {
         unreachable!("dispatched validate_call_structural")
+    };
+    let erased_arguments = match &operation.kind {
+        OperationKind::CallStructuralWithScalarArguments {
+            erased_arguments, ..
+        } => erased_arguments.as_slice(),
+        _ => &[],
     };
     let arguments = match &operation.kind {
         OperationKind::CallStructuralWithScalarArguments { arguments, .. } => arguments.as_slice(),
@@ -308,6 +324,15 @@ pub(super) fn validate_call_structural(
             actual: requirement_obligations.len(),
         });
     }
+    if erased_arguments.len() != callee.contract.erased_scalar_formals.len() {
+        return Err(ModuleError::ErasedCallArgumentArityMismatch {
+            operation: operation.id,
+            expected: callee.contract.erased_scalar_formals.len(),
+            actual: erased_arguments.len(),
+        });
+    }
+    crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
+
     validate_unit_call_claim_transfers(
         module,
         machine,

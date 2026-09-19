@@ -27,6 +27,7 @@ fn output_call(identity: u64, argument: ValueId) -> Operation {
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: MachineId::new(200).unwrap(),
             arguments: vec![argument],
             structural_arguments: Vec::new(),
@@ -95,6 +96,7 @@ fn derived_unit_output_module() -> TerminalModule {
         panic!("suffix reader")
     };
     call.kind = OperationKind::CallUnit {
+        erased_arguments: Vec::new(),
         callee: *callee,
         arguments: vec![ValueId::new(120).unwrap()],
         structural_arguments: structural_arguments.clone(),
@@ -119,6 +121,7 @@ fn derived_unit_output_module() -> TerminalModule {
         },
     );
     caller.blocks[1].terminator = Terminator::Jump {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(109).unwrap(),
         target: BlockId::new(140).unwrap(),
         arguments: Vec::new(),

@@ -55,6 +55,7 @@ fn crash(edge: u64, guards: Vec<Proposition>) -> Terminator {
 
 fn block(identity: u64, terminator: Terminator) -> Block {
     Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: BlockId::new(identity).unwrap(),
         parameters: Vec::new(),
@@ -69,6 +70,7 @@ fn successor(edge: u64, target: u64, arguments: &[u64]) -> SuccessorEdge {
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
         arguments: arguments.iter().copied().map(value).collect(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
 }
@@ -80,6 +82,7 @@ fn jump(edge: u64, target: u64, arguments: &[u64]) -> Terminator {
         edge: successor.edge,
         target: successor.target,
         arguments: successor.arguments,
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -133,6 +136,7 @@ fn module(parameter: u64, expected: bool) -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![block(1, crash(1, vec![boolean(parameter, expected)]))],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 requires: Vec::new(),
                 ensures: Vec::new(),

@@ -77,7 +77,14 @@ pub(in crate::unit::attached_unit) fn emit(
     scalar_parameters: Vec<ValueDeclaration>,
     shared: SharedCatalog<'_>,
     counters: EmissionCounters<'_>,
-) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+) -> Result<
+    (
+        TerminalMachine,
+        Vec<LoweredSourceCallOccurrence>,
+        Vec<terminal_psi::ScalarBlockInvariant>,
+    ),
+    LoweringError,
+> {
     let lowered_boundaries = shared
         .boundary_parameters
         .iter()
@@ -109,7 +116,7 @@ pub(in crate::unit::attached_unit) fn emit(
         .map(|(body, _)| {
             let target = body.entry()?;
             let signature = signatures::find(shared.signatures, target.machine)?;
-            if !signature.runtime_requirements.is_empty() {
+            if !signature.requires.is_empty() {
                 return unsupported(
                     "composed Unit call needs structural arguments or caller-specific requirements",
                 );
@@ -157,16 +164,26 @@ pub(in crate::unit::attached_unit) fn emit(
         next_edge: *counters.edge,
     };
     let identity = lookup_machine_id(shared.machine_ids, plan.machine)?;
-    let (mut machine, occurrences) = match admitted {
-        CallableBody::Composed(body) => emission::emit_callable_body(
-            checked,
-            plan,
-            body,
-            identity,
-            scalar_parameters,
-            parameters,
-            &mut catalogs,
-        )?,
+    // The signature's erased formals are the single namespace the published
+    // contract's `requires` and erased call lanes both cite; the emitted
+    // contract reuses them rather than minting parallel declarations.
+    let entry_erased_formals = signatures::find(shared.signatures, plan.machine)?
+        .erased_scalar_parameters
+        .clone();
+    let (mut machine, occurrences, scalar_block_invariants) = match admitted {
+        CallableBody::Composed(body) => {
+            let (machine, occurrences) = emission::emit_callable_body(
+                checked,
+                plan,
+                body,
+                identity,
+                scalar_parameters,
+                entry_erased_formals,
+                parameters,
+                &mut catalogs,
+            )?;
+            (machine, occurrences, Vec::new())
+        }
         CallableBody::Graph(body) => state_graph::emit(
             checked,
             plan,
@@ -174,11 +191,14 @@ pub(in crate::unit::attached_unit) fn emit(
             identity,
             parameters,
             scalar_parameters,
+            entry_erased_formals,
             &mut catalogs,
         )?,
     };
+    // `requires` already carries the merged closed clause proposition ahead
+    // of the runtime requirements in published contract order.
     machine.contract.requires = signatures::find(shared.signatures, plan.machine)?
-        .runtime_requirements
+        .requires
         .clone();
     *counters.place = catalogs.next_place;
     *counters.value = catalogs.next_value;
@@ -186,5 +206,5 @@ pub(in crate::unit::attached_unit) fn emit(
     *counters.operation = catalogs.next_operation;
     *counters.edge = catalogs.next_edge;
     *counters.call_obligation = catalogs.scalar_calls.next_call_obligation;
-    Ok((machine, occurrences))
+    Ok((machine, occurrences, scalar_block_invariants))
 }

@@ -284,6 +284,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
@@ -319,6 +320,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

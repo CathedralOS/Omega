@@ -61,6 +61,7 @@ pub(super) fn successor(edge: u64, block: u64) -> SuccessorEdge {
         edge: edge_id(edge),
         target: block_id(block),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
 }
@@ -82,6 +83,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: vec![value_id(2)],
                 structural_arguments: vec![StructuralArgument {
@@ -120,6 +122,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
     }];
     helper.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -153,6 +156,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
@@ -173,6 +177,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             terminator: finish(4),
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
@@ -332,11 +337,13 @@ fn byte_read_rejects_duplicate_obligations_and_guard_facts_from_other_paths() {
             edge: edge_id(edge),
             target: block_id(5),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         };
     }
     joined.machines[1].blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
@@ -509,6 +516,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 };

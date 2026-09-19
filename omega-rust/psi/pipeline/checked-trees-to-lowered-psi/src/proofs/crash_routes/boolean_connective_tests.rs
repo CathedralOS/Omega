@@ -118,7 +118,7 @@ fn scalar_atoms_keep_their_existing_crash_predicate_encoding() {
             CheckedBooleanExpression::Not(Box::new(comparison)),
         ] {
             let mut terms = [
-                checked_boolean_scalar_term(&expression, &values).unwrap(),
+                checked_boolean_scalar_term(&expression, &values, &[]).unwrap(),
                 ScalarTerm::boolean(true),
             ];
             terms.sort();
@@ -201,7 +201,7 @@ fn negated_connectives_lower_to_logical_propositions_without_scalar_operations()
             checked_boolean_proposition(&negated, &values).unwrap(),
             expected
         );
-        assert!(checked_boolean_scalar_term(&negated, &values).is_err());
+        assert!(checked_boolean_scalar_term(&negated, &values, &[]).is_err());
         for wrapped in [
             CheckedBooleanExpression::Equal {
                 left: Box::new(negated),

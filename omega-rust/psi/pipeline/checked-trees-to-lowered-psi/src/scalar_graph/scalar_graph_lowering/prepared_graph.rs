@@ -35,6 +35,8 @@ pub(crate) enum LoweredScalarBranchTerminator {
     Jump {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
+        /// Proof-only erased actuals for the successor state's erased roster.
+        erased_arguments: Vec<LoweredDirectExpression>,
         structural_arguments: Vec<StructuralArgument>,
         trivial_affine_discards: Vec<PlaceId>,
     },
@@ -42,8 +44,10 @@ pub(crate) enum LoweredScalarBranchTerminator {
         condition: LoweredBooleanReturnExpression,
         when_true_target: usize,
         when_true_arguments: Vec<LoweredDirectExpression>,
+        when_true_erased_arguments: Vec<LoweredDirectExpression>,
         when_false_target: usize,
         when_false_arguments: Vec<LoweredDirectExpression>,
+        when_false_erased_arguments: Vec<LoweredDirectExpression>,
     },
     Return {
         expression: LoweredDirectExpression,
@@ -63,6 +67,8 @@ pub(crate) struct LoweredScalarBranchState {
     /// Structural edge bindings introduce independent storage homes before effects.
     pub(crate) structural_parameters: Vec<StructuralParameterDeclaration>,
     pub(crate) parameter_types: Vec<QualifiedScalarType>,
+    /// Proof-only erased formals in authored order — the block's erased roster.
+    pub(crate) erased_formal_types: Vec<QualifiedScalarType>,
     pub(crate) bindings: Vec<LoweredScalarBinding>,
     /// Effects execute after the scalar prefix, without creating scalar slots.
     pub(crate) structural_effects: Vec<LoweredScalarEffect>,

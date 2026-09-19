@@ -673,6 +673,18 @@ pub enum ModuleError {
         expected: usize,
         actual: usize,
     },
+    /// A call supplies a different number of proof-only erased actuals than
+    /// the callee contract's erased-formal roster declares.
+    ErasedCallArgumentArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    /// An erased call actual's term references a ValueId the caller never
+    /// admitted — erased actuals stay inside the caller's own value scope.
+    ErasedCallArgumentUnknownValue {
+        operation: OperationId,
+    },
     UnknownBoundaryCallArgument {
         operation: OperationId,
         argument: ValueId,

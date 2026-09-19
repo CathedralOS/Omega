@@ -860,6 +860,7 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
         payload_paths: &mut Vec<Vec<Path>>,
     ) {
         match expression {
+            CheckedBooleanExpression::ErasedParameter { .. } => {}
             CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => {
                 membership_paths.push(subject.path.clone());
             }
@@ -962,6 +963,7 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
 
     fn collect_leaf_paths(expression: &CheckedBooleanExpression, paths: &mut Vec<Vec<Path>>) {
         match expression {
+            CheckedBooleanExpression::ErasedParameter { .. } => {}
             CheckedBooleanExpression::StructuralParameterField { path, .. } => {
                 paths.push(path.clone());
             }
@@ -1079,6 +1081,7 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
         payload_paths: &mut Vec<Vec<Path>>,
     ) {
         match expression {
+            CheckedBooleanExpression::ErasedParameter { .. } => {}
             CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => {
                 membership_paths.push(subject.path.clone());
             }

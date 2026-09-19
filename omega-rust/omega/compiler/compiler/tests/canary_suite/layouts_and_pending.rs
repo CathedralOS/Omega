@@ -2,7 +2,8 @@ use super::{
     ACTIVE_PENDING_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command,
     PendingCanaryExpectation, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_target, executable_name, fs, interpret, pass_canary, pending_canary,
+    compile_rooted_canary_for_target, compile_single_file_hosted_main, executable_name, fs,
+    interpret, native_hosted_target, pass_canary, pending_canary,
 };
 use compiler::CheckedCompileRequest;
 
@@ -284,12 +285,56 @@ fn assert_erased_parameter_call_plan(canary_name: &str, callees: &[(&str, &[u32]
 
 #[test]
 fn erased_parameter_proof_only_strips_the_erased_position() {
-    // Checked plan only: `requires n < bound` mentions the erased binding and
-    // Terminal contracts have no proof-only value for it yet, so this fixture
-    // stays on `CHECKED_ONLY_PASS_CANARIES` (PROOF-RELEVANCE-MIGRATION).
+    // The erased binding contributes no runtime position: the checked calling
+    // plan strips it, the Terminal contract carries it as a proof-only scalar
+    // formal, and the call's erased-argument lane discharges the instantiated
+    // `requires n < bound` at proof finalization. The native run exits 70 only
+    // when the retained runtime argument reaches the callee intact.
     assert_erased_parameter_call_plan(
         fixture_roster::ERASED_PARAMETER_PROOF_ONLY,
         &[("keep", &[0], &[70])],
+    );
+    assert_erased_parameter_canary_exits_70(
+        fixture_roster::ERASED_PARAMETER_PROOF_ONLY,
+        "erased-parameter-proof-only",
+    );
+}
+
+#[test]
+fn erased_parameter_named_transition_forward_runs_natively() {
+    // The erased machine parameter forwards through the named transition into
+    // the erased state parameter: each edge's erased-argument lane carries the
+    // initializer as a proof-only term, `store`'s block roster admits it, and
+    // `requires n < bound` discharges against it. Running the compiled
+    // artifact proves the retained runtime operand still reaches the callee.
+    let canary = pass_canary(fixture_roster::ERASED_PARAMETER_NAMED_TRANSITION_FORWARD);
+    let scratch =
+        std::env::temp_dir().join(format!("omega-erased-named-forward-{}", std::process::id()));
+    let compilation = compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "erased named-transition forward should compile natively:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("erased named-transition forward should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("erased named-transition forward should run");
+    let _ = fs::remove_dir_all(&scratch);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "erased named-transition forward: the forwarded erased actual should admit the run; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 

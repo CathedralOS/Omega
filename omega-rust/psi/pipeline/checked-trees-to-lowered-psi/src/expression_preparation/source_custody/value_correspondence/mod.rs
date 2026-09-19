@@ -508,6 +508,8 @@ impl Context<'_> {
             ),
             Scalar::StructuralParameterIndexedRead { index, .. } => matches!(node,
                 ExpressionNode::Indexed(indexed) if self.scalar(indexed.index, index, operands, depth + 1)),
+            // Erased formals have no authored runtime expression to match.
+            Scalar::ErasedParameter { .. } => false,
         }
     }
 
@@ -663,6 +665,7 @@ impl Context<'_> {
             // expression producer used by array operands.
             Boolean::IeeeFloatComparison { .. }
             | Boolean::ByteSequenceEqual { .. }
+            | Boolean::ErasedParameter { .. }
             | Boolean::PayloadlessSumEqual { .. } => false,
         }
     }

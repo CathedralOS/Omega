@@ -44,6 +44,7 @@ fn scalar_call_cycle() -> TerminalModule {
             scalar_type: ScalarType::Boolean,
         }),
         kind: OperationKind::Call {
+            erased_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![id(10, ValueId::new)],
             requirement_obligations: Vec::new(),
@@ -231,6 +232,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
     });
     callee.entry = id(100, BlockId::new);
     callee.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
@@ -279,6 +281,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
                 scalar_type: ScalarType::Boolean,
             }),
             kind: OperationKind::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: vec![id(10, ValueId::new)],
                 structural_arguments: vec![StructuralArgument {
@@ -485,6 +488,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
     });
     callee.entry = id(100, BlockId::new);
     callee.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
@@ -536,6 +540,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
                 claims: Vec::new(),
             }),
             kind: OperationKind::CallStructuralWithScalarArguments {
+                erased_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: vec![id(10, ValueId::new)],
                 structural_arguments: Vec::new(),

@@ -10,12 +10,13 @@ use super::super::super::{
     Block, MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
     Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_claim_id,
     lookup_type_id, lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
-    lower_unit_parameters, terminal_scalar_type, value_id,
+    lower_unit_parameters, obligation_id, terminal_scalar_type, unsupported, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
+use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
@@ -40,6 +41,12 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     state_ids: Vec<BlockId>,
     state_views: Vec<Vec<StructuralParameterDeclaration>>,
     state_values: Vec<Vec<ValueDeclaration>>,
+    /// Each emitted state's erased-formal roster: the machine contract
+    /// formals for a plain entry, fresh block-level declarations otherwise.
+    state_erased: Vec<Vec<ValueDeclaration>>,
+    /// Jump and Conditional edge identities emitted so far, keyed by their
+    /// target block — the exact roster a header invariant must cite.
+    arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
     occurrences: Vec<LoweredSourceCallOccurrence>,
@@ -54,8 +61,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     terminal_machine: MachineId,
     parameters: Vec<StructuralParameterDeclaration>,
     scalar_parameters: Vec<ValueDeclaration>,
+    entry_erased_formals: Vec<ValueDeclaration>,
     catalogs: &mut catalogs::ComposedCatalogs,
-) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+) -> Result<
+    (
+        TerminalMachine,
+        Vec<LoweredSourceCallOccurrence>,
+        Vec<terminal_psi::ScalarBlockInvariant>,
+    ),
+    LoweringError,
+> {
     let result_places_start = catalogs.result_places.len();
     let mut structural_places = parameters
         .iter()
@@ -114,6 +129,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let mut state_ids = Vec::new();
     let mut state_views = Vec::new();
     let mut state_values = Vec::new();
+    let mut state_erased = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
         if position != 0 || entry_reentered {
@@ -194,24 +210,46 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?,
             );
+            state_erased.push(
+                crate::scalar_graph::scalar_contracts::erased_formal_declarations(
+                    &state.erased_scalar_parameters,
+                    &mut catalogs.next_value,
+                )?,
+            );
         } else {
             state_views.push(parameters.clone());
             state_values.push(scalar_parameters.clone());
+            // A plain entry shares the machine contract formals; the block
+            // does not redeclare them.
+            state_erased.push(entry_erased_formals.clone());
         }
     }
     let mut blocks = Vec::new();
+    let mut arrival_edges = BTreeMap::new();
     if let Some(entry) = invocation_entry {
+        let edge = edge_id(allocate_dense(&mut catalogs.next_edge)?);
+        arrival_edges
+            .entry(state_ids[0])
+            .or_insert_with(Vec::new)
+            .push(edge);
         blocks.push(Block {
             id: entry,
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
-                edge: edge_id(allocate_dense(&mut catalogs.next_edge)?),
+                edge,
                 target: state_ids[0],
                 arguments: scalar_parameters
                     .iter()
                     .map(|parameter| parameter.id)
+                    .collect(),
+                // A reentered entry forwards the machine's proof-only
+                // formals into the authored block's own erased declarations.
+                erased_arguments: entry_erased_formals
+                    .iter()
+                    .map(|parameter| ScalarTerm::value(parameter.id, parameter.scalar_type))
                     .collect(),
                 structural_arguments: parameters
                     .iter()
@@ -253,6 +291,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         state_ids,
         state_views,
         state_values,
+        state_erased,
+        arrival_edges,
         structural_places,
         blocks,
         occurrences,
@@ -271,6 +311,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         content_entry_claims,
         content_identity_reshuffles,
         state_ids,
+        state_values,
+        state_erased,
+        arrival_edges,
         mut structural_places,
         mut blocks,
         occurrences,
@@ -278,6 +321,53 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         rank_edges,
         ..
     } = emission;
+    // A retained `requires` becomes the header's scalar block invariant:
+    // every incoming Jump or Conditional edge discharges it before the block
+    // runs. A plain entry publishes its clauses on the machine contract
+    // instead — invocation is an arrival without an edge proof.
+    let mut scalar_block_invariants = Vec::new();
+    for (position, state) in plan.states.iter().enumerate() {
+        if state.requires.is_empty() || (position == 0 && !entry_reentered) {
+            continue;
+        }
+        let header = state_ids[position];
+        let case_arrival = blocks.iter().any(|block| {
+            matches!(
+                &block.terminator,
+                Terminator::StructuralCase { cases, .. }
+                    if cases.iter().any(|case| case.target == header)
+            )
+        });
+        if case_arrival {
+            return unsupported("Unit graph requires header reached by case dispatch");
+        }
+        let Some(predicate) = crate::scalar_graph::scalar_contracts::clauses(
+            &state.requires,
+            &state_values[position],
+            &state_erased[position],
+        )?
+        else {
+            continue;
+        };
+        let mut arrivals = Vec::new();
+        for edge in arrival_edges.get(&header).cloned().unwrap_or_default() {
+            arrivals.push(terminal_psi::ScalarBlockInvariantArrival {
+                edge,
+                obligation: obligation_id(allocate_dense(
+                    &mut catalogs.scalar_calls.next_call_obligation,
+                )?),
+            });
+        }
+        if arrivals.is_empty() {
+            return unsupported("Unit graph requires header has no edge arrivals");
+        }
+        scalar_block_invariants.push(terminal_psi::ScalarBlockInvariant {
+            machine: terminal_machine,
+            header,
+            predicate,
+            arrivals,
+        });
+    }
     blocks.sort_by_key(|block| block.id);
     structural_places.extend(
         blocks
@@ -361,11 +451,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             requires: Vec::new(),
             ensures: Vec::new(),
             crash_routes: Vec::new(),
+            erased_scalar_formals: entry_erased_formals,
             outcome_specific_ensures: Vec::new(),
         },
     };
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
-    Ok((machine, occurrences))
+    Ok((machine, occurrences, scalar_block_invariants))
 }

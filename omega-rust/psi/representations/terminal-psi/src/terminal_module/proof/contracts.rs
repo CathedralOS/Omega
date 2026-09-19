@@ -9,6 +9,11 @@ pub struct MachineContract {
     pub id: ContractId,
     /// Strictly ordered canonical may-routes. Omitting a cause forbids it.
     pub crash_routes: Vec<CrashRouteBucket>,
+    /// Proof-only erased formals in dense authored order. Each entry's `id`
+    /// names one erased scalar parameter inside `requires` propositions; the
+    /// roster carries no runtime position, storage, or argument lane. A call
+    /// operation must supply one erased argument per roster row.
+    pub erased_scalar_formals: Vec<crate::ValueDeclaration>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<ContractClause>,
     /// Outcome-specific guarantees remain disjoint from unconditional lanes.

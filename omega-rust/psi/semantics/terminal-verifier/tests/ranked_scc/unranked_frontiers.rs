@@ -120,6 +120,7 @@ fn cyclic_jump_rejects_nonexistent_discard() {
         edge,
         target: id(3, BlockId::new),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: vec![id(999, PlaceId::new)],
         residual_affine_discards: Vec::new(),

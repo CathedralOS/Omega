@@ -136,7 +136,9 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 .ok_or(LoweringError::Unsupported(
                     "shared Unit target declaration is absent",
                 ))?;
-            if !declaration.contract.requires.is_empty() {
+            if !declaration.contract.requires.is_empty()
+                || !declaration.contract.erased_scalar_formals.is_empty()
+            {
                 return unsupported(
                     "composed Unit call needs structural arguments or caller-specific requirements",
                 );

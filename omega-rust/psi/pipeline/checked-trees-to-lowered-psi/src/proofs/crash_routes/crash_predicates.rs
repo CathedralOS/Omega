@@ -139,7 +139,7 @@ fn checked_boolean_proposition_with_budget(
             })
         }
         expression => {
-            let mut left = checked_boolean_scalar_term(expression, values)?;
+            let mut left = checked_boolean_scalar_term(expression, values, &[])?;
             let mut right = ScalarTerm::boolean(true);
             if left > right {
                 std::mem::swap(&mut left, &mut right);
@@ -271,7 +271,7 @@ fn checked_boolean_atom_polarity(
     if positive {
         return checked_boolean_proposition_with_budget(expression, values, remaining, depth + 1);
     }
-    let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(expression, values)?)
+    let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(expression, values, &[])?)
         .map_err(LoweringError::InvalidCrashPredicate)?;
     let mut right = ScalarTerm::boolean(true);
     if left > right {

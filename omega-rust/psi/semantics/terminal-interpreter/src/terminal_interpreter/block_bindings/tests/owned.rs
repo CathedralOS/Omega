@@ -35,6 +35,7 @@ fn jump(edge: SuccessorEdge) -> Terminator {
         edge: edge.edge,
         target: edge.target,
         arguments: edge.arguments,
+        erased_arguments: Vec::new(),
         structural_arguments: edge.structural_arguments,
         trivial_affine_discards: edge.trivial_affine_discards,
         residual_affine_discards: Vec::new(),

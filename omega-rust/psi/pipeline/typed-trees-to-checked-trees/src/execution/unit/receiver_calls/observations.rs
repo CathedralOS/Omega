@@ -131,7 +131,8 @@ fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {
         | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. } => false,
+        | CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ErasedParameter { .. } => false,
     }
 }
 
@@ -160,6 +161,7 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
         CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::Local { .. } => false,
     }
 }

@@ -224,6 +224,7 @@ fn partial_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -232,6 +233,7 @@ fn partial_affine_fixture() -> TerminalModule {
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
+                            erased_arguments: Vec::new(),
                             arguments: Vec::new(),
                             callee: machine_id(2),
                             structural_arguments: vec![StructuralArgument {
@@ -255,6 +257,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(1),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -294,6 +297,7 @@ fn partial_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -304,6 +308,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(2),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -474,6 +479,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -490,6 +496,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(1),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -514,6 +521,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -524,6 +532,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(2),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -676,6 +685,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(100),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(100),
                     parameters: Vec::new(),
@@ -684,6 +694,7 @@ fn structural_effect_fixture() -> TerminalModule {
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
+                            erased_arguments: Vec::new(),
                             arguments: Vec::new(),
                             callee: machine_id(101),
                             structural_arguments: vec![StructuralArgument {
@@ -705,6 +716,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(100),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -744,6 +756,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(101),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(101),
                     parameters: Vec::new(),
@@ -783,6 +796,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(101),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -1180,6 +1194,7 @@ fn unit_fixture() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(900),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
@@ -1190,6 +1205,7 @@ fn unit_fixture() -> TerminalModule {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: contract_id(900),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1259,6 +1275,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
     machine.entry = preheader;
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: preheader,
             parameters: Vec::new(),
@@ -1268,11 +1285,13 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 edge: preheader_edge,
                 target: header,
                 arguments: vec![initial],
+                erased_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: header,
             parameters: vec![ValueDeclaration {
@@ -1314,6 +1333,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                     edge: guard_edge,
                     target: decrement,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -1321,11 +1341,13 @@ fn ranked_countdown_fixture() -> TerminalModule {
                     edge: exit_edge,
                     target: done,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: decrement,
             parameters: Vec::new(),
@@ -1362,11 +1384,13 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 edge: backedge,
                 target: header,
                 arguments: vec![next],
+                erased_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: done,
             parameters: Vec::new(),
@@ -1443,6 +1467,7 @@ fn fixture() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -1463,11 +1488,13 @@ fn fixture() -> TerminalModule {
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
@@ -1495,6 +1522,7 @@ fn fixture() -> TerminalModule {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: vec![
@@ -1623,6 +1651,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
             content_partition_compositions: Vec::new(),
             entry: block_id(80),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(80),
                 parameters: Vec::new(),
@@ -1634,6 +1663,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: contract_id(80),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1845,6 +1875,7 @@ fn call_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(100),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(100),
                     parameters: Vec::new(),
@@ -1860,6 +1891,7 @@ fn call_fixture() -> TerminalModule {
                             id: operation_id(101),
                             result: OperationResult::Scalar(boolean(101)),
                             kind: OperationKind::Call {
+                                erased_arguments: Vec::new(),
                                 callee: machine_id(101),
                                 arguments: vec![value_id(100)],
                                 requirement_obligations: Vec::new(),
@@ -1874,6 +1906,7 @@ fn call_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(100),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -1898,6 +1931,7 @@ fn call_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(101),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(101),
                     parameters: Vec::new(),
@@ -1909,6 +1943,7 @@ fn call_fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(101),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),

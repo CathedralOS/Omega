@@ -11,7 +11,7 @@ use crate::emission::expression_validation::{
 };
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
+use crate::proofs::crash_routes::{lower_checked_crash_route_buckets, lowered_direct_scalar_term};
 use crate::terminal_identities::block_id;
 use crate::terminal_identities::edge_id;
 use crate::terminal_identities::obligation_id;
@@ -27,6 +27,9 @@ pub(crate) struct LoweredDirectCallBinding {
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
+    /// Proof-only actuals in the callee's erased-formal order, lowered under
+    /// the caller's retained/erased scalar namespaces.
+    pub(crate) erased_arguments: Vec<LoweredDirectExpression>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) uses_structural_frame: bool,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
@@ -63,6 +66,7 @@ impl CallEmissionContext<'_> {
 pub(super) fn emit_scalar_call_binding(
     call: &LoweredDirectCallBinding,
     parameters: &[ValueDeclaration],
+    caller_erased_formals: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
@@ -95,6 +99,7 @@ pub(super) fn emit_scalar_call_binding(
         &call.parameter_relative_crash_routes,
         &arguments,
         parameters,
+        caller_erased_formals,
         &arguments,
         next_value_identity,
         operations,
@@ -109,6 +114,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
     stage_parameter_types: &[QualifiedScalarType],
     stage_block_parameters: Vec<ValueDeclaration>,
     stage_block: BlockId,
+    caller_erased_formals: &[ValueDeclaration],
     next_block_identity: &mut u64,
     next_value_identity: &mut u64,
     next_edge_identity: &mut u64,
@@ -220,10 +226,12 @@ pub(crate) fn emit_staged_scalar_call_binding(
                 structural_parameters: Vec::new(),
                 id: current_block,
                 parameters: current_block_parameters,
+                erased_scalar_formals: Vec::new(),
                 operations: operations[operation_start..].to_vec(),
                 terminator: Terminator::Jump {
                     structural_arguments: Vec::new(),
                     edge,
+                    erased_arguments: Vec::new(),
                     target: next_stage,
                     arguments,
                     residual_affine_discards: Vec::new(),
@@ -248,6 +256,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
         &call.parameter_relative_crash_routes,
         &arguments,
         &current_parameters[..caller_value_count],
+        caller_erased_formals,
         &arguments,
         next_value_identity,
         operations,
@@ -266,12 +275,14 @@ pub(crate) fn emit_staged_scalar_call_binding(
         structural_parameters: Vec::new(),
         id: current_block,
         parameters: current_block_parameters,
+        erased_scalar_formals: Vec::new(),
         operations: operations[operation_start..].to_vec(),
         terminator: Terminator::Jump {
             structural_arguments: Vec::new(),
             edge,
             target: continuation,
             arguments: continuation_arguments,
+            erased_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -284,6 +295,7 @@ fn emit_direct_call_operation(
     crash_routes: &[checked_trees::CrashRouteBucket],
     crash_values: &[ValueDeclaration],
     source_values_before_call: &[ValueDeclaration],
+    caller_erased_formals: &[ValueDeclaration],
     arguments: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
@@ -319,6 +331,13 @@ fn emit_direct_call_operation(
         call.target_machine,
         source_values_before_call,
     )?;
+    let erased_arguments = call
+        .erased_arguments
+        .iter()
+        .map(|argument| {
+            lowered_direct_scalar_term(argument, source_values_before_call, caller_erased_formals)
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     operations.push(Operation {
         static_reach_binding: None,
         id: operation,
@@ -331,6 +350,7 @@ fn emit_direct_call_operation(
             OperationKind::Call {
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
+                erased_arguments,
                 requirement_obligations,
                 crash_continuations,
             }
@@ -338,6 +358,7 @@ fn emit_direct_call_operation(
             OperationKind::CallStructuralScalar {
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
+                erased_arguments,
                 structural_arguments: call.structural_arguments.clone(),
                 claim_transfers: Vec::new(),
                 requirement_obligations,

@@ -752,6 +752,7 @@ mod tests {
                 content_partition_compositions: Vec::new(),
                 entry: block,
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
@@ -759,6 +760,7 @@ mod tests {
                     terminator,
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: id(13, ContractId::new),
                     crash_routes,
                     requires: Vec::new(),

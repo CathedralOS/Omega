@@ -6,7 +6,7 @@ use super::super::super::{
     Block, MachineContract, ScalarType, TerminalMachine, TerminalMachineResult, Terminator,
     ValueDeclaration, allocate_dense, contract_id, edge_id, emit_direct_expression, lookup_type_id,
     lower_checked_crash_route_buckets, lower_checked_scalar_expression,
-    lower_installation_machine_service_ceiling, machine_id, unsupported,
+    lower_installation_machine_service_ceiling, machine_id, terminal_scalar_type, unsupported,
     validate_direct_parameter_types, value_id,
 };
 
@@ -20,11 +20,30 @@ pub(super) fn emit(
     mut catalogs: super::super::catalogs::ComposedCatalogs,
 ) -> Result<SourceMappedLowered, LoweringError> {
     let control_count = admitted.controls.len();
+    if plan
+        .states
+        .iter()
+        .skip(1)
+        .any(|state| !state.erased_scalar_parameters.is_empty())
+    {
+        return unsupported("composed states with erased formals require erased edge operands");
+    }
     let mut next_block = catalogs.next_block;
     let state_ids = (0..plan.states.len())
         .map(|_| Ok(block_id(allocate_dense(&mut next_block)?)))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_value = catalogs.next_value;
+    let erased_scalar_formals = plan.states[0]
+        .erased_scalar_parameters
+        .iter()
+        .map(|parameter| {
+            Ok(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(allocate_dense(&mut next_value)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let control_parameters = admitted
         .controls
         .iter()
@@ -84,6 +103,7 @@ pub(super) fn emit(
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
+            erased_scalar_formals: erased_scalar_formals.clone(),
             entry: state_ids[index],
             block_structural_parameters: Vec::new(),
             current: state_ids[index],
@@ -106,6 +126,7 @@ pub(super) fn emit(
             &[],
             &mut evaluation,
             &mut values,
+            &[],
             &mut next_value,
             &mut next_block,
             &mut next_edge,
@@ -124,6 +145,7 @@ pub(super) fn emit(
             structural_parameters: evaluation.block_structural_parameters,
             id: evaluation.current,
             parameters: evaluation.parameters,
+            erased_scalar_formals: Vec::new(),
             operations: operations[evaluation.operation_start..].to_vec(),
             terminator: Terminator::Conditional {
                 condition,
@@ -144,6 +166,7 @@ pub(super) fn emit(
             state,
             *block,
             &mut catalogs,
+            &[],
             &[],
             &[],
             &[],
@@ -216,6 +239,7 @@ pub(super) fn emit(
         blocks,
         contract: MachineContract {
             id: contract_id(1),
+            erased_scalar_formals,
             crash_routes: lower_checked_crash_route_buckets(
                 &catalogs.root_crash_routes,
                 &control_parameters[0],
@@ -243,6 +267,7 @@ fn successor(
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments,
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     })
 }

@@ -93,6 +93,7 @@ pub(crate) fn lower_call_arguments(
     let mut explicit_index = 0usize;
     let mut scalar_index = 0usize;
     let mut structural_index = 0usize;
+    let mut erased_index = 0usize;
     let mut output = Vec::new();
     for target in target_parameters {
         if target.is_self && !explicit_self {
@@ -101,8 +102,37 @@ pub(crate) fn lower_call_arguments(
         let argument = *explicit_arguments.get(explicit_index)?;
         explicit_index = explicit_index.checked_add(1)?;
         // An erased position consumes its authored argument but owns neither a
-        // scalar nor a structural ordinal.
+        // scalar nor a structural ordinal. Its lowered expression stays under
+        // an erased role so a Unit call can rebuild the proof-only actuals.
         if crate::execution::terminal_unit::strips_erased_parameter(target)? {
+            if !is_boundary {
+                let expected_type = program.primitive_type_reference(target.type_reference)?;
+                if let Some(lowered) = lower_return_expression(
+                    program,
+                    operators,
+                    argument,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    expected_type,
+                    exact_integer_casts,
+                ) {
+                    output.push((
+                        argument,
+                        CheckedLocatedScalarExpression {
+                            state: state.symbol,
+                            statement_ordinal,
+                            role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                                call_ordinal: u32::try_from(call_ordinal).ok()?,
+                                erased_ordinal: u32::try_from(erased_index).ok()?,
+                            },
+                            expression: lowered,
+                        },
+                    ));
+                }
+            }
+            erased_index = erased_index.checked_add(1)?;
             continue;
         }
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
@@ -266,24 +296,34 @@ pub(crate) fn lower_direct_call_binding_arguments(
         return None;
     }
     let mut argument_ordinal = 0u32;
+    let mut erased_ordinal = 0u32;
     arguments
         .iter()
         .zip(target_parameters)
-        .filter(|(_, target_parameter)| !target_parameter.relevance.is_erased())
         .map(|(argument, target_parameter)| {
             let expected_type =
                 program.primitive_type_reference(target_parameter.type_reference)?;
-            let ordinal = argument_ordinal;
-            argument_ordinal = argument_ordinal.checked_add(1)?;
+            let role = if target_parameter.relevance.is_erased() {
+                let ordinal = erased_ordinal;
+                erased_ordinal = erased_ordinal.checked_add(1)?;
+                CheckedScalarExpressionRole::ErasedCallArgument {
+                    binding_ordinal,
+                    erased_ordinal: ordinal,
+                }
+            } else {
+                let ordinal = argument_ordinal;
+                argument_ordinal = argument_ordinal.checked_add(1)?;
+                CheckedScalarExpressionRole::CallArgument {
+                    binding_ordinal,
+                    argument_ordinal: ordinal,
+                }
+            };
             Some((
                 *argument,
                 CheckedLocatedScalarExpression {
                     state,
                     statement_ordinal,
-                    role: CheckedScalarExpressionRole::CallArgument {
-                        binding_ordinal,
-                        argument_ordinal: ordinal,
-                    },
+                    role,
                     expression: lower_return_expression(
                         program,
                         operators,

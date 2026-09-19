@@ -92,6 +92,7 @@ fn integer(
             };
             Some((scalar_type, admitted_integer(scalar_type, &value)?))
         }
+        CheckedScalarExpression::ErasedParameter { .. } => None,
         CheckedScalarExpression::IntegerLiteral { literal } => {
             let landed = literal.landing()?.landed_type;
             // This target-neutral evaluator receives no address-width
@@ -261,6 +262,7 @@ fn boolean(
         | CheckedBooleanExpression::Local { position } => {
             binding_boolean(*position, resolve_binding)
         }
+        CheckedBooleanExpression::ErasedParameter { .. } => None,
         CheckedBooleanExpression::Not(operand) => Some(!boolean(operand, resolve_binding)?),
         CheckedBooleanExpression::Equal { left, right } => {
             Some(boolean(left, resolve_binding)? == boolean(right, resolve_binding)?)

@@ -165,6 +165,7 @@ fn constructed_scalar_record_block_transport_retains_exact_source_contract() {
         edge: EdgeId::new(901).unwrap(),
         target: target.id,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: PlaceId::new(1).unwrap(),
             path: Vec::new(),
@@ -379,6 +380,7 @@ fn runtime_scalar_record_shared_getter_preserves_exclusive_overlap_rejection() {
         id: OperationId::new(2).unwrap(),
         result: read().result,
         kind: OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
             callee: getter.id,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -423,6 +425,7 @@ fn branch_local_record_cannot_be_read_on_a_bypass_but_unused_record_allows_join(
         edge: EdgeId::new(3).unwrap(),
         target: BlockId::new(902).unwrap(),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -435,6 +438,7 @@ fn branch_local_record_cannot_be_read_on_a_bypass_but_unused_record_allows_join(
         edge: EdgeId::new(identity).unwrap(),
         target: BlockId::new(target).unwrap(),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };

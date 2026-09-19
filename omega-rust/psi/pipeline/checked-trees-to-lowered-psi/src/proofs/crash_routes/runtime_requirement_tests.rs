@@ -42,6 +42,7 @@ fn runtime_requirement_equality_orders_literal_and_formal_without_reversing_ineq
             std::slice::from_ref(&formal),
             &[],
             &[],
+            &[],
         )
         .expect("bounded runtime requirement");
         match proposition {

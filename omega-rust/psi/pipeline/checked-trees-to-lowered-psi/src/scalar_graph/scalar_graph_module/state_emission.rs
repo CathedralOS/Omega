@@ -16,6 +16,7 @@ use super::{GraphEmission, StateFrame};
 use crate::emission::boolean_control::{LoweredBooleanDecision, LoweredBooleanDecisionExit};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::proofs::crash_routes::lowered_direct_scalar_term;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator;
 
 impl GraphEmission<'_> {
@@ -41,12 +42,14 @@ impl GraphEmission<'_> {
         let staged_short_circuit_terminator =
             staged_short_circuit_bindings_terminator(&state.bindings, &state.terminator);
         if let Some((binding_plans, continuation_plan)) = staged_short_circuit_terminator {
+            let erased_formals = self.state_erased_formals[index].clone();
             return self.emit_staged_state(
                 StateFrame {
                     state,
                     source_block,
                     source_block_parameters,
                     current_parameters: &current_parameters,
+                    erased_formals: &erased_formals,
                 },
                 binding_plans,
                 continuation_plan,
@@ -59,6 +62,7 @@ impl GraphEmission<'_> {
             let id = emit_scalar_binding(
                 binding,
                 &current_values,
+                &self.state_erased_formals[index],
                 &mut self.next_value_identity,
                 &mut self.all_operations,
                 &mut self.call_emission,
@@ -97,9 +101,16 @@ impl GraphEmission<'_> {
             LoweredScalarBranchTerminator::Jump {
                 target,
                 arguments,
+                erased_arguments,
                 structural_arguments,
                 trivial_affine_discards,
             } => {
+                if erased_arguments
+                    .iter()
+                    .any(direct_expression_contains_short_circuit)
+                {
+                    return unsupported("erased call operands require completed scalar operands");
+                }
                 if (!structural_arguments.is_empty() || !trivial_affine_discards.is_empty())
                     && arguments
                         .iter()
@@ -112,6 +123,11 @@ impl GraphEmission<'_> {
                 if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                     && contains_short_circuit(expression)
                 {
+                    if !erased_arguments.is_empty() {
+                        return unsupported(
+                            "erased call operands do not stage through Boolean decisions",
+                        );
+                    }
                     let decision = lower_boolean_value_decision(expression);
                     let block_count = boolean_decision_block_count(&decision);
                     let first_synthetic_block = block_id(self.next_block_identity);
@@ -148,6 +164,11 @@ impl GraphEmission<'_> {
                     .iter()
                     .any(direct_expression_contains_short_circuit)
                 {
+                    if !erased_arguments.is_empty() {
+                        return unsupported(
+                            "erased call operands do not stage through tuple entry",
+                        );
+                    }
                     let target = build_scalar_conditional_target(
                         *target,
                         arguments,
@@ -168,6 +189,7 @@ impl GraphEmission<'_> {
                         edge,
                         target: target.block,
                         arguments: target.arguments,
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }
@@ -183,6 +205,16 @@ impl GraphEmission<'_> {
                             )
                         })
                         .collect();
+                    let erased_arguments = erased_arguments
+                        .iter()
+                        .map(|argument| {
+                            lowered_direct_scalar_term(
+                                argument,
+                                &current_values,
+                                &self.state_erased_formals[index],
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
                     let edge = edge_id(self.next_edge_identity);
                     self.next_edge_identity = self
                         .next_edge_identity
@@ -193,6 +225,7 @@ impl GraphEmission<'_> {
                         edge,
                         target: scalar_source_block(self.identity_base, *target),
                         arguments,
+                        erased_arguments,
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: trivial_affine_discards.clone(),
                     }
@@ -202,9 +235,18 @@ impl GraphEmission<'_> {
                 condition,
                 when_true_target,
                 when_true_arguments,
+                when_true_erased_arguments,
                 when_false_target,
                 when_false_arguments,
+                when_false_erased_arguments,
             } => {
+                if when_true_erased_arguments
+                    .iter()
+                    .chain(when_false_erased_arguments.iter())
+                    .any(direct_expression_contains_short_circuit)
+                {
+                    return unsupported("erased call operands require completed scalar operands");
+                }
                 if contains_short_circuit(condition) {
                     let decision = lower_boolean_control_decision(
                         condition,
@@ -245,6 +287,13 @@ impl GraphEmission<'_> {
                         &mut self.pending_blocks,
                         self.identity_base,
                     )?;
+                    if !when_true_erased_arguments.is_empty()
+                        || !when_false_erased_arguments.is_empty()
+                    {
+                        return unsupported(
+                            "erased call operands do not stage through guard decisions",
+                        );
+                    }
                     let (root, children) = emit_inlined_boolean_guard_blocks(
                         &decision,
                         &current_values,
@@ -304,6 +353,42 @@ impl GraphEmission<'_> {
                         &mut self.pending_blocks,
                         self.identity_base,
                     )?;
+                    let erased_terms = |arguments: &[LoweredDirectExpression]| {
+                        arguments
+                            .iter()
+                            .map(|argument| {
+                                lowered_direct_scalar_term(
+                                    argument,
+                                    &current_values,
+                                    &self.state_erased_formals[index],
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                    };
+                    let when_true_erased = if when_true.block
+                        == scalar_source_block(self.identity_base, *when_true_target)
+                    {
+                        erased_terms(when_true_erased_arguments)?
+                    } else {
+                        if !when_true_erased_arguments.is_empty() {
+                            return unsupported(
+                                "erased call operands do not stage through tuple entry",
+                            );
+                        }
+                        Vec::new()
+                    };
+                    let when_false_erased = if when_false.block
+                        == scalar_source_block(self.identity_base, *when_false_target)
+                    {
+                        erased_terms(when_false_erased_arguments)?
+                    } else {
+                        if !when_false_erased_arguments.is_empty() {
+                            return unsupported(
+                                "erased call operands do not stage through tuple entry",
+                            );
+                        }
+                        Vec::new()
+                    };
                     Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
@@ -311,6 +396,7 @@ impl GraphEmission<'_> {
                             edge: when_true_edge,
                             target: when_true.block,
                             arguments: when_true.arguments,
+                            erased_arguments: when_true_erased,
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -318,6 +404,7 @@ impl GraphEmission<'_> {
                             edge: when_false_edge,
                             target: when_false.block,
                             arguments: when_false.arguments,
+                            erased_arguments: when_false_erased,
                             trivial_affine_discards: Vec::new(),
                         },
                     }
@@ -391,10 +478,16 @@ impl GraphEmission<'_> {
                 }
             }
         };
+        let erased_scalar_formals = if index == 0 && loop_plan.is_none() {
+            Vec::new()
+        } else {
+            self.state_erased_formals[index].clone()
+        };
         self.blocks.push(Block {
             structural_parameters: Vec::new(),
             id: source_block,
             parameters: source_block_parameters,
+            erased_scalar_formals,
             operations: self.all_operations[operation_start..].to_vec(),
             terminator,
         });

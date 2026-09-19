@@ -23,6 +23,7 @@ fn edge_and_scalar_cleanup_release_reference_descriptor_after_fuel_commit() {
                 edge: EdgeId::new(1).unwrap(),
                 target: BlockId::new(2).unwrap(),
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: vec![carrier_place],
                 residual_affine_discards: Vec::new(),

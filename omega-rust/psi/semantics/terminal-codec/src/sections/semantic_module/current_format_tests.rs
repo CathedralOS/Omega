@@ -137,6 +137,7 @@ fn closed_reach_module() -> terminal_psi::TerminalModule {
             static_reach_binding: Some(binder),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: MachineId::new(callee).unwrap(),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -891,6 +892,7 @@ fn nominal_schema_dependency_follows_helpers_but_not_disconnected_applications()
         static_reach_binding: None,
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: helper.id,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

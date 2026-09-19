@@ -110,6 +110,7 @@ fn mutable_write_retains_equation_for_same_origin_incoming_edges() {
         edge: id(40, EdgeId::new),
         target: *target,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: structural_arguments.clone(),
         trivial_affine_discards: Vec::new(),
     };
@@ -173,6 +174,7 @@ fn jump(edge: u64, target: u64, arguments: Vec<StructuralArgument>) -> Terminato
         edge: id(edge, EdgeId::new),
         target: id(target, BlockId::new),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: arguments,
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
@@ -261,6 +263,7 @@ fn reconverging_branch_does_not_resurrect_a_moved_machine_view() {
     machine.blocks[1].operations.clear();
     machine.blocks[1].terminator = jump(51, 4, Vec::new());
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -268,6 +271,7 @@ fn reconverging_branch_does_not_resurrect_a_moved_machine_view() {
         terminator: jump(52, 4, Vec::new()),
     });
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -278,6 +282,7 @@ fn reconverging_branch_does_not_resurrect_a_moved_machine_view() {
         edge: id(identity, EdgeId::new),
         target: id(target, BlockId::new),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments,
         trivial_affine_discards: Vec::new(),
     };
@@ -340,6 +345,7 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
     helper.entry = id(100, BlockId::new);
     helper.parameters.clear();
     helper.contract = MachineContract {
+        erased_scalar_formals: Vec::new(),
         id: id(2, ContractId::new),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -355,6 +361,7 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
         },
     }];
     helper.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -370,6 +377,7 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
         id: id(identity, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: id(2, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![mutable_argument(place)],

@@ -30,6 +30,7 @@ pub(super) fn validate_call_unit(
     let OperationKind::CallUnit {
         callee,
         arguments,
+        erased_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -220,6 +221,15 @@ pub(super) fn validate_call_unit(
             actual: requirement_obligations.len(),
         });
     }
+    if erased_arguments.len() != callee.contract.erased_scalar_formals.len() {
+        return Err(ModuleError::ErasedCallArgumentArityMismatch {
+            operation: operation.id,
+            expected: callee.contract.erased_scalar_formals.len(),
+            actual: erased_arguments.len(),
+        });
+    }
+    crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
+
     validate_unit_call_claim_transfers(
         module,
         machine,

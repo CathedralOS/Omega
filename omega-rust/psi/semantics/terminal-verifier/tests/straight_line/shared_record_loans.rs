@@ -189,10 +189,12 @@ fn pair_module(multiplicity: StructuralMultiplicity) -> TerminalModule {
         edge: id(901),
         target: id(JOIN_BLOCK),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(VIEW, 0, PAYLOAD_TYPE)],
         id: id(JOIN_BLOCK),
         parameters: Vec::new(),
@@ -348,6 +350,7 @@ fn shared_loan_rejects_non_dominating_sibling_roots() {
             edge: id(903),
             target: id(JOIN_BLOCK),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -355,10 +358,12 @@ fn shared_loan_rejects_non_dominating_sibling_roots() {
             edge: id(904),
             target: id(SIBLING_BLOCK),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(SECOND_VIEW, 0, PAYLOAD_TYPE)],
         id: id(SIBLING_BLOCK),
         parameters: Vec::new(),
@@ -457,6 +462,7 @@ fn shared_loan_keeps_the_root_whole_for_the_binding_block() {
             id: id(904),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: id(CALLEE),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -521,6 +527,7 @@ fn consumer_machine(access: StructuralAccess) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: id(CALLEE_BLOCK),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(CALLEE_BLOCK),
             parameters: Vec::new(),
@@ -528,6 +535,7 @@ fn consumer_machine(access: StructuralAccess) -> TerminalMachine {
             terminator: return_unit(910, if affine { &[CALLEE_ROOT] } else { &[] }),
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: id(910),
             crash_routes: Vec::new(),
             requires: Vec::new(),

@@ -105,14 +105,42 @@ pub(super) fn build_traced(
     let mut attachment = None;
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
+    let mut state_requires = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
         trace.phase("state graph: state signature: result and contracts");
         trace.state(u32::try_from(state_index).ok());
-        if returns::signature(program, shapes, state.return_type)? != result
-            || !validation::structural_state_contracts_are_parameter_qualifications(program, state)
-        {
+        if returns::signature(program, shapes, state.return_type)? != result {
+            trace.phase("state graph: state signature: result differs");
             return None;
         }
+        // Membership contracts still restate the exact declared parameter
+        // qualifications. Authored scalar `requires` expressions lower into
+        // the state's proof-only contract roster; any other shape stays
+        // outside the state graph's admitted custody.
+        let Some(contract_predicates) =
+            validation::structural_state_contract_scalar_predicates(program, state)
+        else {
+            trace.phase("state graph: state signature: contract shape unadmitted");
+            return None;
+        };
+        let mut requires = Vec::with_capacity(contract_predicates.len());
+        for expression in contract_predicates {
+            let Some(predicate) = crate::values::lower_state_scalar_contract_predicate(
+                program,
+                &facts.operators,
+                machine,
+                state,
+                expression,
+                &mut 4096,
+            ) else {
+                trace.phase("state graph: state signature: predicate lowering failed");
+                return None;
+            };
+            requires.push(Some(checked_trees::ClosedScalarContractValue::Predicate(
+                predicate,
+            )));
+        }
+        state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if machine.attached_data.is_some() {
             let (identity, structural, scalar) = structural_scalar_signature_traced(
@@ -802,6 +830,11 @@ pub(super) fn build_traced(
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),
+            erased_scalar_parameters:
+                crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+                    program, state,
+                )?,
+            requires: state_requires[state_index].clone(),
             entry_claims: state_entry_claims[state_index].clone(),
             bindings,
             binding_initializers,
@@ -959,6 +992,7 @@ enum SuccessorGuard {
     ResultTransfer,
     ParameterTransfer,
     ScalarArguments,
+    ErasedArguments,
     EdgeCleanup,
 }
 
@@ -992,6 +1026,9 @@ impl SuccessorEdge {
             (Self::Jump, SuccessorGuard::ScalarArguments) => {
                 "state graph: terminator: jump successor: scalar arguments"
             }
+            (Self::Jump, SuccessorGuard::ErasedArguments) => {
+                "state graph: terminator: jump successor: erased arguments"
+            }
             (Self::Jump, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: jump successor: edge cleanup"
             }
@@ -1022,6 +1059,9 @@ impl SuccessorEdge {
             (Self::Conditional, SuccessorGuard::ScalarArguments) => {
                 "state graph: terminator: conditional successors: scalar arguments"
             }
+            (Self::Conditional, SuccessorGuard::ErasedArguments) => {
+                "state graph: terminator: conditional successors: erased arguments"
+            }
             (Self::Conditional, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: conditional successors: edge cleanup"
             }
@@ -1051,6 +1091,9 @@ impl SuccessorEdge {
             }
             (Self::ClosedCase, SuccessorGuard::ScalarArguments) => {
                 "state graph: terminator: closed-sum case successor: scalar arguments"
+            }
+            (Self::ClosedCase, SuccessorGuard::ErasedArguments) => {
+                "state graph: terminator: closed-sum case successor: erased arguments"
             }
             (Self::ClosedCase, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: closed-sum case successor: edge cleanup"
@@ -1341,11 +1384,47 @@ fn successor_bindings(
             })
         })
         .collect::<Option<Vec<_>>>()?;
+    mark(SuccessorGuard::ErasedArguments);
+    // Erased formals read the same retained transition expressions but index
+    // the proof-only roster densely; their lowered terms are emitted against
+    // the source state's erased namespace.
+    let erased_arguments =
+        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, target)?
+            .iter()
+            .enumerate()
+            .map(|(erased_index, target)| {
+                let argument = argument_at(target.source_position)?;
+                let (custody, expression) = facts.values.scalar_expressions.bound_expression_at(
+                    source.symbol,
+                    ordinal,
+                    CheckedScalarExpressionRole::TransitionArgument {
+                        argument_ordinal: target.source_position,
+                    },
+                )?;
+                if custody.expression != argument
+                    || custody.destination
+                        != target_parameters
+                            .get(target.source_position as usize)?
+                            .symbol
+                    || crate::values::scalar_expression_type(expression)
+                        != Some(target.primitive_type)
+                {
+                    return None;
+                }
+                Some(CheckedStructuralScalarArgumentPlan {
+                    argument_ordinal: target.source_position,
+                    source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression,
+                    target_scalar_parameter_index: u32::try_from(erased_index).ok()?,
+                    primitive_type: target.primitive_type,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
     Some(CheckedStructuralControlSuccessorPlan {
         statement_ordinal: ordinal,
         target_state: target.symbol,
         transfers,
         scalar_arguments,
+        erased_arguments,
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

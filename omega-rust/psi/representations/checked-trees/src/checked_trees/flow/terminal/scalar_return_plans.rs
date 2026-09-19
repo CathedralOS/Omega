@@ -119,6 +119,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// Together with `structural_parameters`, this must exactly partition the
     /// authored state-parameter positions.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Proof-only erased scalar formals in authored order, retaining their
+    /// authored parameter positions. They own no runtime argument lane.
+    pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     /// Immutable primitive bindings evaluated in source order. Initializer
     /// expressions remain in `CheckedScalarExpressionPlans` at the binding's
     /// exact statement coordinate.
@@ -238,6 +241,9 @@ pub struct CheckedBoundaryScalarReturnMachinePlan {
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Dense scalar order, with each parameter retaining its authored position.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Proof-only erased scalar formals in authored order, retaining their
+    /// authored parameter positions. They own no runtime argument lane.
+    pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     pub boundary_call: CheckedUnitEffectOperationPlan,
     pub result_type: PrimitiveType,

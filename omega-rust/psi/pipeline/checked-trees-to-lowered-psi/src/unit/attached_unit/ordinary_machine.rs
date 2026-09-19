@@ -365,6 +365,7 @@ pub(super) fn emit(
     let structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
     let structural_value_temporaries = Vec::<StructuralPlaceDeclaration>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
     evaluation.record_fields = crate::scalar_graph::scalar_computations::fields::prepare(
         checked,
         plan.machine,
@@ -715,6 +716,7 @@ pub(super) fn emit(
     evaluation.blocks.push(Block {
         id: block,
         parameters: evaluation.parameters,
+        erased_scalar_formals: Vec::new(),
         structural_parameters: evaluation.block_structural_parameters,
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: if let Some((source, _)) = &scalar_return {
@@ -811,15 +813,19 @@ pub(super) fn emit(
             scalar_parameters.len(),
             &contract.closed_scalar_values,
         )?;
-        crate::scalar_graph::scalar_contracts::clauses(refined.ensures(), &namespace)?
-            .into_iter()
-            .map(|proposition| {
-                Ok(ContractClause {
-                    obligation: obligation_id(allocate_dense(&mut next_call_obligation)?),
-                    proposition,
-                })
+        crate::scalar_graph::scalar_contracts::clauses(
+            refined.ensures(),
+            &namespace,
+            &signature.erased_scalar_parameters,
+        )?
+        .into_iter()
+        .map(|proposition| {
+            Ok(ContractClause {
+                obligation: obligation_id(allocate_dense(&mut next_call_obligation)?),
+                proposition,
             })
-            .collect::<Result<Vec<_>, LoweringError>>()?
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?
     } else {
         Vec::new()
     };
@@ -862,7 +868,8 @@ pub(super) fn emit(
         contract: MachineContract {
             id: contract_id(terminal_machine.get()),
             crash_routes,
-            requires: runtime_requirements.clone(),
+            erased_scalar_formals: signature.erased_scalar_parameters.clone(),
+            requires: signature.requires.clone(),
             ensures: normal_guarantees,
             outcome_specific_ensures: Vec::new(),
         },

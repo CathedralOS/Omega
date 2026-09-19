@@ -67,6 +67,7 @@ pub(crate) fn lower_checked_direct_call_binding(
         call_ordinal,
         result_type,
         caller_value_types,
+        scalar_bindings,
         arguments,
         Vec::new(),
         ScalarCallCrashScope::CallerValues,
@@ -85,6 +86,7 @@ pub(crate) fn lower_scalar_call(
     call_ordinal: u32,
     result_type: QualifiedScalarType,
     caller_value_types: &[QualifiedScalarType],
+    scalar_bindings: &storage::ScalarBindings,
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<StructuralArgument>,
     crash_scope: ScalarCallCrashScope,
@@ -132,6 +134,25 @@ pub(crate) fn lower_scalar_call(
         }
         validate_direct_parameter_types(expression, &scalar_carriers(caller_value_types))?;
     }
+    // Erased actuals sit on the proof-only lane the checker bound under
+    // `ErasedUnitCallArgument`, in the target's erased-formal order.
+    let erased_arguments = (0..target.erased_parameters().len())
+        .map(|erased_ordinal| {
+            scalar_bindings.expression_at(
+                checked,
+                caller_state,
+                statement_ordinal,
+                CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                    call_ordinal,
+                    erased_ordinal: u32::try_from(erased_ordinal).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "scalar call erased argument ordinal exceeds u32",
+                        )
+                    })?,
+                },
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let checked_call = checked
         .facts
         .contract_plans
@@ -193,6 +214,7 @@ pub(crate) fn lower_scalar_call(
         target_machine,
         result_type,
         arguments,
+        erased_arguments,
         structural_arguments,
         // The selected body owns storage even when its public signature has
         // only scalars. Graph and ordered-body callers use the same decision.
@@ -213,7 +235,14 @@ pub(crate) fn lower_scalar_graph_successor(
     computations: &mut computations::Expansion<'_>,
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
-) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
+) -> Result<
+    (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+    ),
+    LoweringError,
+> {
     source_custody::validate_successor(checked, source_state, successor)?;
     let target = states
         .iter()
@@ -287,7 +316,11 @@ pub(crate) fn lower_scalar_graph_successor(
         &target_parameter_types,
         &structural_arguments,
     )? {
-        return Ok((entry, computations::parameters(source_value_types)));
+        return Ok((
+            entry,
+            computations::parameters(source_value_types),
+            Vec::new(),
+        ));
     }
     let arguments = scalar_arguments
         .iter()
@@ -312,5 +345,38 @@ pub(crate) fn lower_scalar_graph_successor(
                 ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, arguments))
+    let erased_arguments = plans
+        .scalar_arguments
+        .span(successor.erased_arguments)
+        .ok_or(LoweringError::Unsupported(
+            "scalar successor erased argument span is stale",
+        ))?
+        .iter()
+        .map(|argument| {
+            let expression = scalar_bindings.expression_at(
+                checked,
+                source_state,
+                successor.statement_ordinal,
+                if successor.is_continuation {
+                    CheckedScalarExpressionRole::TransitionContinuationArgument {
+                        argument_ordinal: argument.argument_ordinal,
+                    }
+                } else {
+                    CheckedScalarExpressionRole::TransitionArgument {
+                        argument_ordinal: argument.argument_ordinal,
+                    }
+                },
+            )?;
+            validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
+            let erased_type: QualifiedScalarType =
+                crate::emission::scalar_types::terminal_scalar_type(argument.primitive_type)?
+                    .into();
+            (expression.value_type(source_value_types)? == erased_type)
+                .then_some(expression)
+                .ok_or(LoweringError::Unsupported(
+                    "checked scalar successor erased expression type must match its target",
+                ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((target, arguments, erased_arguments))
 }

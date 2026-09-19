@@ -138,6 +138,7 @@ impl Prepared {
         let store = computations.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: completed.clone(),
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: vec![LoweredScalarEffect::StoreScalarField {
                 destination: self.destination,
@@ -149,6 +150,7 @@ impl Prepared {
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,
                 arguments: computations::parameters(prefix),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -157,11 +159,13 @@ impl Prepared {
             Some(expression) => Ok(computations.push(LoweredScalarBranchState {
                 structural_parameters: Vec::new(),
                 parameter_types: prefix.to_vec(),
+                erased_formal_types: Vec::new(),
                 bindings: vec![LoweredScalarBinding::Expression(expression)],
                 structural_effects: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Jump {
                     target: store,
                     arguments: computations::parameters(&completed),
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },

@@ -143,6 +143,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
             },
         });
         OperationKind::CallStructuralWithScalarArguments {
+            erased_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

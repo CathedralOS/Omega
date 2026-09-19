@@ -118,6 +118,7 @@ impl Evaluation {
                     structural_arguments: Vec::new(),
                     target,
                     arguments: crate::scalar_graph::scalar_computations::parameters(&source_types),
+                    erased_arguments: Vec::new(),
                 }
             }
             CheckedScalarStateTerminator::Conditional {
@@ -136,10 +137,12 @@ impl Evaluation {
                     (
                         true_target,
                         crate::scalar_graph::scalar_computations::parameters(&source_types),
+                        Vec::new(),
                     ),
                     (
                         false_target,
                         crate::scalar_graph::scalar_computations::parameters(&source_types),
+                        Vec::new(),
                     ),
                     when_false,
                     &mut expansion,
@@ -185,10 +188,12 @@ impl Evaluation {
                         (
                             target,
                             crate::scalar_graph::scalar_computations::parameters(&source_types),
+                            Vec::new(),
                         ),
                         (
                             next,
                             crate::scalar_graph::scalar_computations::parameters(&source_types),
+                            Vec::new(),
                         ),
                         &mut expansion,
                     )?;
@@ -196,6 +201,7 @@ impl Evaluation {
                         structural_parameters: Vec::new(),
                         structural_effects: Vec::new(),
                         parameter_types: source_types.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: Vec::new(),
                         terminator,
                     });
@@ -205,6 +211,7 @@ impl Evaluation {
                     structural_arguments: Vec::new(),
                     target: next,
                     arguments: crate::scalar_graph::scalar_computations::parameters(&source_types),
+                    erased_arguments: Vec::new(),
                 }
             }
             _ => return unsupported("ordered scalar completion requires a returning tail"),
@@ -213,6 +220,7 @@ impl Evaluation {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: source_types,
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             terminator,
         });

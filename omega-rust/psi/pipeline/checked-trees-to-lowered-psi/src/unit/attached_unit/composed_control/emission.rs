@@ -44,6 +44,17 @@ pub(super) fn emit_composed_unit_control(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let entry_erased_formals = entry
+        .erased_scalar_parameters
+        .iter()
+        .map(|parameter| {
+            Ok(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(allocate_dense(&mut next_value)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_place = catalogs.next_place;
     let structural_parameters = lower_unit_parameters(
         &entry.structural_parameters,
@@ -59,6 +70,7 @@ pub(super) fn emit_composed_unit_control(
         admitted,
         machine_id(1),
         entry_parameters,
+        entry_erased_formals,
         structural_parameters,
         &mut catalogs,
     )?;
@@ -71,6 +83,7 @@ pub(in crate::unit::attached_unit) fn emit_callable_body(
     admitted: admission::AdmittedComposedUnit<'_>,
     terminal_machine: MachineId,
     entry_parameters: Vec<ValueDeclaration>,
+    entry_erased_formals: Vec<ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
     catalogs: &mut catalogs::ComposedCatalogs,
 ) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
@@ -168,6 +181,7 @@ pub(in crate::unit::attached_unit) fn emit_callable_body(
         structural_parameters: Vec::new(),
         id: state_ids[0],
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         operations: entry_operations.operations,
         terminator: Terminator::Conditional {
             condition: guard,
@@ -186,6 +200,7 @@ pub(in crate::unit::attached_unit) fn emit_callable_body(
             &structural_parameters,
             &claim_bindings,
             &[],
+            &entry_erased_formals,
             &mut next_value,
             &mut next_block,
             &mut next_operation,
@@ -264,6 +279,7 @@ pub(in crate::unit::attached_unit) fn emit_callable_body(
         contract: MachineContract {
             id: contract_id(terminal_machine.get()),
             crash_routes: Vec::new(),
+            erased_scalar_formals: entry_erased_formals,
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
@@ -316,11 +332,22 @@ pub(crate) fn emit_call_leaf(
     parameters: &[StructuralParameterDeclaration],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     scalar_parameters: &[ValueDeclaration],
+    erased_parameters: &[ValueDeclaration],
     next_value: &mut u64,
     next_block: &mut u64,
     next_operation: &mut u64,
     next_edge: &mut u64,
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+    if !state.erased_scalar_parameters.is_empty() {
+        return unsupported(
+            "composed call leaves with erased formals require erased edge operands",
+        );
+    }
+    // A retained `requires` row belongs on a state-graph header invariant;
+    // call leaves have no header lane to publish it through.
+    if state.requires.iter().any(Option::is_some) {
+        return unsupported("composed call leaf cannot publish its retained requires");
+    }
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
         structural_value_owners: Vec::new(),
@@ -349,6 +376,7 @@ pub(crate) fn emit_call_leaf(
         structural_fields: Vec::new(),
         structural_cases: Vec::new(),
         structural_parameters: Vec::new(),
+        erased_scalar_formals: erased_parameters.to_vec(),
         entry: block,
         current: block,
         parameters: scalar_parameters.to_vec(),
@@ -368,6 +396,7 @@ pub(crate) fn emit_call_leaf(
         claim_bindings,
         &mut evaluation,
         &mut values,
+        erased_parameters,
         next_value,
         next_block,
         next_edge,
@@ -408,6 +437,7 @@ pub(crate) fn emit_call_leaf(
         structural_parameters: evaluation.block_structural_parameters,
         id: evaluation.current,
         parameters: evaluation.parameters,
+        erased_scalar_formals: Vec::new(),
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::ReturnUnit {
             edge: edge_id(allocate_dense(next_edge)?),
@@ -428,6 +458,9 @@ pub(super) fn emit_call_operations(
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     evaluation: &mut super::super::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
+    // The emitting machine's erased roster, for `ErasedParameter` actuals
+    // forwarded through proof-only call operands.
+    erased_parameters: &[ValueDeclaration],
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
@@ -439,6 +472,9 @@ pub(super) fn emit_call_operations(
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
         ) {
             let mut calls = catalogs.scalar_calls.emission_context();
+            // The operand closure holds an immutable view of the caller's
+            // scalar namespace while the emitter mutates `values` around it.
+            let operand_values = values.clone();
             let mut emit_operand_call =
                 |operand: &CheckedUnitEffectOperationPlan,
                  evaluated: Option<&[ValueDeclaration]>,
@@ -496,10 +532,14 @@ pub(super) fn emit_call_operations(
                         super::super::ordinary_calls::Target {
                             parameters: &target.structural_parameters,
                             scalar_parameters: &target.parameters,
+                            erased_scalar_parameters: &target.contract.erased_scalar_formals,
                             predicate_parameters: &predicates,
+                            requires: &target.contract.requires,
                             runtime_requirements: &target.contract.requires,
                         },
                         evaluated,
+                        &operand_values,
+                        erased_parameters,
                         parameters,
                         &[],
                         &earlier,
@@ -1035,6 +1075,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     })
 }

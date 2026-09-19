@@ -300,6 +300,18 @@ fn build_machine_graph(
                     Vec::new(),
                 )
             };
+            let erased_scalar_parameters = parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| parameter.relevance.is_erased())
+                .map(|(position, parameter)| {
+                    Some(checked_trees::CheckedStructuralScalarParameterPlan {
+                        source_position: u32::try_from(position).ok()?,
+                        primitive_type: program
+                            .primitive_type_reference(parameter.type_reference)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
             let parameter_types = scalar_parameters
                 .iter()
                 .map(|parameter| parameter.primitive_type)
@@ -423,6 +435,7 @@ fn build_machine_graph(
                     state: state.symbol,
                     structural_parameters,
                     scalar_parameters,
+                    erased_scalar_parameters,
                     parameter_types,
                     parameter_storage: arena::HandleSpan::empty(),
                     primitive_locals,
@@ -686,6 +699,7 @@ fn checked_successor(
             .ok()?,
         structural_transfers: arena::HandleSpan::empty(),
         scalar_arguments: arena::HandleSpan::empty(),
+        erased_arguments: arena::HandleSpan::empty(),
     })
 }
 

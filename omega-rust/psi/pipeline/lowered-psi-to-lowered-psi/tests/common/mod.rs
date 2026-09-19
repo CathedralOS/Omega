@@ -114,6 +114,7 @@ pub fn contract(ordinal: u64) -> MachineContract {
         requires: Vec::new(),
         ensures: Vec::new(),
         outcome_specific_ensures: Vec::new(),
+        erased_scalar_formals: Vec::new(),
     }
 }
 
@@ -198,6 +199,7 @@ pub fn block(
         structural_parameters: Vec::new(),
         id: BlockId::new(ordinal).unwrap(),
         parameters,
+        erased_scalar_formals: Vec::new(),
         operations,
         terminator,
     }
@@ -208,6 +210,7 @@ pub fn successor(ordinal: u64, target: BlockId, arguments: Vec<ValueId>) -> Succ
         edge: EdgeId::new(ordinal).unwrap(),
         target,
         arguments,
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -230,6 +233,7 @@ pub fn jump(ordinal: u64, target: BlockId, arguments: Vec<ValueId>) -> Terminato
         edge: EdgeId::new(ordinal).unwrap(),
         target,
         arguments,
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -824,6 +828,7 @@ pub fn unit_call(ordinal: u64, callee: MachineId) -> Operation {
         kind: OperationKind::CallUnit {
             callee,
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

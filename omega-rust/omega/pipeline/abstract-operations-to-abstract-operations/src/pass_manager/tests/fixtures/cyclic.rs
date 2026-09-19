@@ -25,6 +25,7 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
     let edge = |raw| EdgeId::new(raw).unwrap();
     let block = |raw| BlockId::new(raw).unwrap();
     let successor = |edge, target, arguments| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge,
         target,
         arguments,
@@ -84,11 +85,13 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
             entry: block(503),
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block(503),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         edge: edge(504),
                         target: block(505),
                         arguments: vec![value(502)],
@@ -98,6 +101,7 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block(505),
                     parameters: vec![ValueDeclaration {
@@ -124,6 +128,7 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block(511),
                     parameters: Vec::new(),
@@ -135,6 +140,7 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(513).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

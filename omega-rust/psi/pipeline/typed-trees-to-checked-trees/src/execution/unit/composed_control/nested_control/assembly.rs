@@ -78,6 +78,8 @@ pub(super) fn finish(
                 state: state.symbol,
                 structural_parameters: Vec::new(),
                 scalar_parameters: parameters,
+                erased_scalar_parameters: Vec::new(),
+                requires: Vec::new(),
                 entry_claims: Vec::new(),
                 bindings: Vec::new(),
                 binding_initializers: Vec::new(),

@@ -251,79 +251,92 @@ pub(crate) fn validate_operation(
             }
         }
     }
-    let (coordinate, target_machine, target_state, arguments, boundary, source_site) =
-        match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                ..
-            } => (
-                coordinate,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                false,
-                None,
-            ),
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                source_site,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                ..
-            } => (
-                coordinate,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                false,
-                Some(source_site),
-            ),
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate,
-                source_site,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate,
-                source_site,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                source_site,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                ..
-            } => (
-                coordinate,
-                target_machine,
-                target_state,
-                scalar_arguments,
-                true,
-                Some(source_site),
-            ),
-            // Selected operators retain their own exact provider application;
-            // they are not authored calls with positional argument facts.
-            _ => return Ok(()),
-        };
+    let (
+        coordinate,
+        target_machine,
+        target_state,
+        arguments,
+        erased_arguments,
+        boundary,
+        source_site,
+    ) = match operation {
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            erased_scalar_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            erased_scalar_arguments,
+            ..
+        } => (
+            coordinate,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            erased_scalar_arguments.as_slice(),
+            false,
+            None,
+        ),
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            erased_scalar_arguments,
+            ..
+        } => (
+            coordinate,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            erased_scalar_arguments.as_slice(),
+            false,
+            Some(source_site),
+        ),
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            ..
+        } => (
+            coordinate,
+            target_machine,
+            target_state,
+            scalar_arguments,
+            &[][..],
+            true,
+            Some(source_site),
+        ),
+        // Selected operators retain their own exact provider application;
+        // they are not authored calls with positional argument facts.
+        _ => return Ok(()),
+    };
     if matches!(
         operation,
         CheckedUnitEffectOperationPlan::ScalarCall { .. }
@@ -349,18 +362,69 @@ pub(crate) fn validate_operation(
     )?;
     if call.boundary != boundary
         || source_site.is_some_and(|site| *site != call.source_site)
-        || call.scalar_arguments.len() != arguments.len()
+        || call.scalar_arguments.len() != arguments.len() + erased_arguments.len()
     {
         return unsupported("call operands disagree with their authored call site or signature");
     }
     literal_arguments::validate(checked, caller_machine, &call, operation)?;
     boundary_buffers::validate(checked, caller_state, caller_parameters, &call, operation)?;
     validate_owned_parameter_arguments(checked, caller_state, caller_parameters, &call, operation)?;
-    for (ordinal, (argument, (expression, primitive_type))) in
-        arguments.iter().zip(&call.scalar_arguments).enumerate()
-    {
-        let argument_ordinal = u32::try_from(ordinal)
+    // Authored scalar operands include the erased positions; the checked plan
+    // splits them onto the proof-only erased lane in erased-formal order.
+    let mut retained_ordinal = 0usize;
+    let mut erased_ordinal = 0usize;
+    for (position, (expression, primitive_type)) in call.scalar_arguments.iter().enumerate() {
+        if call
+            .erased_scalar_positions
+            .contains(&u32::try_from(position).map_err(|_| {
+                LoweringError::Unsupported("call authored operand position exceeds u32")
+            })?)
+        {
+            let argument =
+                erased_arguments
+                    .get(erased_ordinal)
+                    .ok_or(LoweringError::Unsupported(
+                        "call erased operand has no checked actual",
+                    ))?;
+            let role = CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                call_ordinal: coordinate.call_ordinal,
+                erased_ordinal: u32::try_from(erased_ordinal).map_err(|_| {
+                    LoweringError::Unsupported("call erased operand ordinal exceeds u32")
+                })?,
+            };
+            erased_ordinal += 1;
+            let checked_trees::CheckedCallScalarArgument::Pure(argument) = argument else {
+                return unsupported("call erased operand requires a pure checked term");
+            };
+            let (binding, selected) = checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(caller_state, coordinate.statement_index, role)
+                .ok_or(LoweringError::Unsupported(
+                    "call erased operand has no unique source-bound checked plan",
+                ))?;
+            if binding.expression != *expression
+                || selected != argument
+                || argument.primitive_type() != Some(*primitive_type)
+            {
+                return unsupported("call erased operand disagrees with its authored argument");
+            }
+            crate::expression_preparation::source_custody::validate_pure(
+                checked,
+                binding,
+                terminal_scalar_type(*primitive_type)?,
+            )?;
+            continue;
+        }
+        let argument = arguments
+            .get(retained_ordinal)
+            .ok_or(LoweringError::Unsupported(
+                "call scalar operand has no checked actual",
+            ))?;
+        let argument_ordinal = u32::try_from(retained_ordinal)
             .map_err(|_| LoweringError::Unsupported("call scalar operand ordinal exceeds u32"))?;
+        retained_ordinal += 1;
         let role = if boundary {
             CheckedScalarExpressionRole::BoundaryCallArgument {
                 call_ordinal: coordinate.call_ordinal,

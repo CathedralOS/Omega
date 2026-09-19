@@ -199,6 +199,7 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
     let OperationKind::Call {
         callee,
         arguments,
+        erased_arguments: _,
         requirement_obligations,
         crash_continuations,
     } = &call.kind

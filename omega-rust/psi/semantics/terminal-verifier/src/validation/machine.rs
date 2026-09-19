@@ -41,7 +41,12 @@ pub(super) fn validate_machine(
     let mut blocks = BTreeMap::new();
     let mut value_types = BTreeMap::new();
     let structural_place_kinds = structural_places::register_structural_places(machine, registry)?;
-    for declaration in machine.parameters.iter().chain(machine.result.scalar_ref()) {
+    for declaration in machine
+        .parameters
+        .iter()
+        .chain(machine.contract.erased_scalar_formals.iter())
+        .chain(machine.result.scalar_ref())
+    {
         insert_value(
             &mut value_types,
             &mut registry.values,
@@ -105,6 +110,7 @@ pub(super) fn validate_machine(
     let requires_values = machine
         .parameters
         .iter()
+        .chain(machine.contract.erased_scalar_formals.iter())
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
     validate_crash_frontiers(module, machine, &context, &requires_values)?;

@@ -151,6 +151,7 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     assert_eq!(call.result, OperationResult::Unit);
     let OperationKind::CallUnit {
         arguments,
+        erased_arguments: _,
         callee,
         structural_arguments,
         claim_transfers,
@@ -230,6 +231,7 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
         assert_eq!(operation.result, OperationResult::Unit);
         let OperationKind::CallUnit {
             arguments,
+            erased_arguments: _,
             callee,
             structural_arguments,
             claim_transfers,

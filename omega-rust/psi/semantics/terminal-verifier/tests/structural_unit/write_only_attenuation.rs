@@ -134,6 +134,7 @@ fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
         scalar_type: ScalarType::Boolean,
     });
     operation.kind = OperationKind::CallStructuralScalar {
+        erased_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: Vec::new(),
         structural_arguments,

@@ -28,6 +28,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         scalar_type,
     };
     let successor = |id, block| SuccessorEdge {
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: EdgeId::new(id).unwrap(),
         target: BlockId::new(block).unwrap(),
@@ -35,6 +36,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         trivial_affine_discards: Vec::new(),
     };
     let leaf = |block, operation, result, edge, literal| Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: BlockId::new(block).unwrap(),
         parameters: Vec::new(),
@@ -70,6 +72,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         entry: BlockId::new(1).unwrap(),
         blocks: vec![
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
@@ -106,6 +109,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
             leaf(3, 3, 5, 4, 0),
         ],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),

@@ -4,8 +4,8 @@
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::byte_subslice;
 use crate::execution::terminal_unit::calls::argument_paths::{
-    byte_sequence_literal_argument, checked_call_scalar_arguments,
-    ordinary_projected_call_is_supported, projected_argument_path,
+    byte_sequence_literal_argument, checked_call_erased_scalar_arguments,
+    checked_call_scalar_arguments, ordinary_projected_call_is_supported, projected_argument_path,
     target_contract_mentions_projected_parameter,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
@@ -548,6 +548,26 @@ pub(in crate::execution) fn build_call_operation(
     } else {
         checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, false)?
     };
+    let erased_scalar_parameters =
+        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+            program,
+            target_state,
+        )?;
+    // Boundary calls and bodyless targets own no erased proof lane; retained
+    // erased formals belong to in-module Unit callees only.
+    let erased_scalar_arguments = if boundary {
+        if !erased_scalar_parameters.is_empty() {
+            return None;
+        }
+        Vec::new()
+    } else {
+        checked_call_erased_scalar_arguments(
+            facts,
+            state.symbol,
+            coordinate,
+            &erased_scalar_parameters,
+        )?
+    };
     if !boundary {
         let carries_routed_service = caller_parameters
             .iter()
@@ -622,6 +642,7 @@ pub(in crate::execution) fn build_call_operation(
             target_contract_commitment: target_contract.commitment,
             service_reach: call.service_reach,
             scalar_arguments,
+            erased_scalar_arguments,
             structural_arguments,
             discard_result_on_return: false,
         };
@@ -808,6 +829,7 @@ pub(in crate::execution) fn build_call_operation(
                 target_contract_commitment: target_contract.commitment,
                 service_reach: call.service_reach,
                 scalar_arguments,
+                erased_scalar_arguments,
                 structural_arguments,
                 discard_result_on_return: result.multiplicity == Multiplicity::Affine
                     && !reference_loan.is_valid(),
@@ -860,6 +882,7 @@ pub(in crate::execution) fn build_call_operation(
             target_contract_commitment: target_contract.commitment,
             service_reach: call.service_reach,
             scalar_arguments,
+            erased_scalar_arguments,
             structural_arguments,
             discard_result_on_return: true,
         })
@@ -882,6 +905,7 @@ pub(in crate::execution) fn build_call_operation(
             target_contract_report_fingerprint: target_contract.report_fingerprint,
             service_reach: call.service_reach,
             scalar_arguments,
+            erased_scalar_arguments,
             structural_arguments,
             claim_transfers: transfers,
         })

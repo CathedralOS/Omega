@@ -119,6 +119,7 @@ pub(crate) fn evaluate_known_scalar_graph(
                 when_true_arguments,
                 when_false_target,
                 when_false_arguments,
+                ..
             } => match evaluate_compile_known_boolean_expression(condition, &values) {
                 Some(true) => merge_known_parameters(
                     &mut known_parameters[*when_true_target],
@@ -167,6 +168,7 @@ pub(crate) fn evaluate_direct_expression(
     parameters: &[Option<KnownDirectScalar>],
 ) -> Option<KnownDirectScalar> {
     match expression {
+        LoweredDirectExpression::ErasedParameter { .. } => None,
         LoweredDirectExpression::Parameter { position, .. }
         | LoweredDirectExpression::Local { position, .. } => {
             parameters.get(*position).copied().flatten()

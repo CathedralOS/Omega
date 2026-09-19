@@ -143,6 +143,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
     operations.extend(calls);
     caller.blocks.extend([
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(8),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -150,6 +151,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
             terminator: returned,
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(9),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -277,6 +279,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
         when_false,
     };
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(8),
         parameters: Vec::new(),
         structural_parameters: vec![parameter],

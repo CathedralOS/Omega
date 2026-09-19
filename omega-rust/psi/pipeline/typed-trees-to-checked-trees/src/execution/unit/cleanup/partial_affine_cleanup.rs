@@ -399,6 +399,8 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
         trivial_affine_local_discard_ordinals: Vec::new(),
         trivial_affine_discards: Vec::new(),
     });
+    let erased_scalar_parameters =
+        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
     Some(CheckedPartialAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             scalar_result: None,
@@ -409,6 +411,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             attachment_type_identity,
             structural_parameters,
             scalar_parameters: Vec::new(),
+            erased_scalar_parameters,
             provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
             entry_claims,

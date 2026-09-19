@@ -12,7 +12,8 @@
 //! untouched; module validation already rejects them on the public entrance.
 
 use crate::retained_identities::proof_values::{
-    crash_continuations, retain_crash_routes, retain_proposition,
+    call_erased_arguments, crash_continuations, retain_crash_routes, retain_erased_arguments,
+    retain_proposition,
 };
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,6 +57,7 @@ pub(super) fn deduplicate(
         .collect::<Vec<_>>();
     for operation in &operations {
         retain_crash_routes(crash_continuations(&operation.kind), &mut retained_values);
+        retain_erased_arguments(call_erased_arguments(&operation.kind), &mut retained_values);
     }
     for block in &machine.blocks {
         if let Terminator::Crash { site_guard, .. } = &block.terminator {
@@ -333,6 +335,7 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             blocks,
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -344,6 +347,7 @@ mod tests {
 
     fn block(ordinal: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(ordinal).unwrap(),
             parameters: Vec::new(),
@@ -383,6 +387,7 @@ mod tests {
                 .into_iter()
                 .map(|ordinal| ValueId::new(ordinal).unwrap())
                 .collect(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -438,6 +443,7 @@ mod tests {
                 edge: EdgeId::new(1).unwrap(),
                 target: BlockId::new(2).unwrap(),
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -445,6 +451,7 @@ mod tests {
                 edge: EdgeId::new(5).unwrap(),
                 target: BlockId::new(3).unwrap(),
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -483,6 +490,7 @@ mod tests {
                         edge: EdgeId::new(1).unwrap(),
                         target: BlockId::new(2).unwrap(),
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
@@ -490,6 +498,7 @@ mod tests {
                         edge: EdgeId::new(2).unwrap(),
                         target: BlockId::new(3).unwrap(),
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
@@ -586,6 +595,7 @@ mod tests {
                 jump(1, 2, vec![]),
             ),
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(2).unwrap(),
                 parameters: vec![ValueDeclaration {
@@ -763,6 +773,7 @@ mod tests {
                 id: OperationId::new(20).unwrap(),
                 result: OperationResult::Scalar(i32(20)),
                 kind: OperationKind::Call {
+                    erased_arguments: Vec::new(),
                     callee: MachineId::new(9).unwrap(),
                     arguments: Vec::new(),
                     requirement_obligations: Vec::new(),

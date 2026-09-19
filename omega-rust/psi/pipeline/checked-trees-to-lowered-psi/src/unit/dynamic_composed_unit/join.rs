@@ -126,6 +126,7 @@ pub(super) fn lower(
     let call_kind = || OperationKind::CallStructuralScalar {
         callee: first_helper.machine,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
@@ -136,6 +137,7 @@ pub(super) fn lower(
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(1),
@@ -144,6 +146,7 @@ pub(super) fn lower(
                     edge: edge_id(1),
                     target: block_id(2),
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: terminal_psi::SuccessorEdge {
@@ -151,6 +154,7 @@ pub(super) fn lower(
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
@@ -616,6 +620,7 @@ fn branch_block(
         structural_parameters: Vec::new(),
         id: block,
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
             id: operation,

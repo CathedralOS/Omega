@@ -61,6 +61,11 @@ pub struct TerminalMachine {
 pub struct Block {
     pub id: BlockId,
     pub parameters: Vec<ValueDeclaration>,
+    /// Proof-only erased formals in dense authored order. Each entry's `id`
+    /// names one erased scalar parameter of the state inside block-invariant
+    /// propositions; it carries no runtime position, storage, or argument
+    /// lane. Every incoming edge supplies one erased argument per roster row.
+    pub erased_scalar_formals: Vec<ValueDeclaration>,
     /// Ordered structural bindings supplied simultaneously by the selected edge.
     /// Positions are dense and zero-based; `is_self` is false. Entry blocks
     /// declare no structural parameters.

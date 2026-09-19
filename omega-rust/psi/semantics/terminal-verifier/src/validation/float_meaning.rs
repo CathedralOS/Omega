@@ -273,6 +273,7 @@ mod tests {
             entry: semantic_id(owner.get(), BlockId::new),
             blocks: Vec::new(),
             contract: terminal_psi::MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: semantic_id(owner.get(), ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -359,6 +360,7 @@ mod tests {
         let result = semantic_id(2, ValueId::new);
         let block = module.machines[0].entry;
         module.machines[0].blocks = vec![Block {
+            erased_scalar_formals: Vec::new(),
             id: block,
             structural_parameters: Vec::new(),
             parameters: vec![ValueDeclaration {
@@ -435,6 +437,7 @@ mod tests {
             .expect("fixture call scalar result")
             .id;
         module.machines[0].blocks[0].operations[0].kind = OperationKind::Call {
+            erased_arguments: Vec::new(),
             callee: owner,
             arguments: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -945,6 +948,7 @@ mod tests {
 
         let mut call = module.clone();
         call.machines[0].blocks[0].operations[0].kind = OperationKind::Call {
+            erased_arguments: Vec::new(),
             callee: call.entry,
             arguments: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -990,6 +994,7 @@ mod tests {
 
         let variants = [
             OperationKind::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee: semantic_id(1, MachineId::new),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -1086,6 +1091,7 @@ mod tests {
 
         let mut unit_call = module.clone();
         unit_call.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: unit_call.entry,
             structural_arguments: Vec::new(),

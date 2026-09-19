@@ -44,6 +44,9 @@ pub(crate) fn validate_direct_parameter_types(
     parameter_types: &[ScalarType],
 ) -> Result<(), LoweringError> {
     match expression {
+        LoweredDirectExpression::ErasedParameter { .. } => {
+            return unsupported("erased formal is proof-only and has no runtime parameter type");
+        }
         LoweredDirectExpression::Parameter {
             position,
             scalar_type,

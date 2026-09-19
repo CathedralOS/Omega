@@ -1115,6 +1115,8 @@ fn build_checked_machine_with_trace(
     };
 
     trace.phase("service reach");
+    let erased_scalar_parameters =
+        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
     Some(CheckedUnitEffectMachinePlan {
         scalar_result,
         scalar_control,
@@ -1124,6 +1126,7 @@ fn build_checked_machine_with_trace(
         attachment_type_identity,
         structural_parameters,
         scalar_parameters,
+        erased_scalar_parameters,
         provider_attachment_requirements,
         trivial_affine_locals,
         entry_claims,
@@ -1653,6 +1656,7 @@ fn scalar_expression_reads_carrier(
         } => scalar_expression_reads_carrier(operand, symbols),
         checked_trees::CheckedScalarExpression::StructuralParameterByteLength { .. }
         | checked_trees::CheckedScalarExpression::Parameter { .. }
+        | checked_trees::CheckedScalarExpression::ErasedParameter { .. }
         | checked_trees::CheckedScalarExpression::Local { .. }
         | checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
         | checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
@@ -1683,6 +1687,7 @@ fn boolean_expression_reads_carrier(
         }
         checked_trees::CheckedBooleanExpression::Constant(_)
         | checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
         | checked_trees::CheckedBooleanExpression::Local { .. }
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }

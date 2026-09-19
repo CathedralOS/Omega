@@ -48,6 +48,7 @@ fn result_consumer_module() -> TerminalModule {
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

@@ -18,6 +18,7 @@ use typed_trees::{
 struct SuccessorArguments {
     structural: Vec<CheckedStructuralControlTransferPlan>,
     scalar: Vec<CheckedStructuralScalarArgumentPlan>,
+    erased: Vec<CheckedStructuralScalarArgumentPlan>,
 }
 
 pub(super) fn iter(
@@ -91,6 +92,7 @@ pub(super) fn retain(
     {
         successor.structural_transfers = structural.insert_many(rows.structural);
         successor.scalar_arguments = scalar.insert_many(rows.scalar);
+        successor.erased_arguments = scalar.insert_many(rows.erased);
     }
     Some(())
 }
@@ -106,6 +108,7 @@ pub(super) fn validate(
             let expected = arguments(program, graph, source, successor)?;
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
+                || scalar.span(successor.erased_arguments)? != expected.erased
             {
                 return None;
             }
@@ -178,18 +181,41 @@ fn arguments(
         || arguments.len() != successor.argument_count as usize
         || arguments.len() != target_parameters.len()
         || target_parameters.len()
-            != target.scalar_parameters.len() + target.structural_parameters.len()
+            != target.scalar_parameters.len()
+                + target.structural_parameters.len()
+                + target.erased_scalar_parameters.len()
     {
         return None;
     }
     let mut rows = SuccessorArguments {
         structural: Vec::new(),
         scalar: Vec::new(),
+        erased: Vec::new(),
     };
     let mut transferred_affine = Vec::new();
     for (argument_position, (actual, formal)) in arguments.iter().zip(target_parameters).enumerate()
     {
         let argument_ordinal = u32::try_from(argument_position).ok()?;
+        if formal.relevance.is_erased() {
+            let Some(primitive_type) = program.primitive_type_reference(formal.type_reference)
+            else {
+                return None;
+            };
+            let target_erased_parameter_index = u32::try_from(rows.erased.len()).ok()?;
+            let retained = target.erased_scalar_parameters.get(rows.erased.len())?;
+            if retained.source_position != argument_ordinal
+                || retained.primitive_type != primitive_type
+            {
+                return None;
+            }
+            rows.erased.push(CheckedStructuralScalarArgumentPlan {
+                argument_ordinal,
+                source: CheckedStructuralScalarArgumentSourcePlan::Expression,
+                target_scalar_parameter_index: target_erased_parameter_index,
+                primitive_type,
+            });
+            continue;
+        }
         if let Some(primitive_type) = program.primitive_type_reference(formal.type_reference) {
             let target_scalar_parameter_index = u32::try_from(rows.scalar.len()).ok()?;
             let retained = target.scalar_parameters.get(rows.scalar.len())?;

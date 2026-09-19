@@ -328,6 +328,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
                 id: OperationId::new(base + 1).unwrap(),
                 result: OperationResult::Scalar(declaration(base + 3)),
                 kind: OperationKind::Call {
+                    erased_arguments: Vec::new(),
                     callee: MachineId::new(base + 100).unwrap(),
                     arguments: vec![ValueId::new(base + 1).unwrap()],
                     requirement_obligations: Vec::new(),
@@ -336,6 +337,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
             });
         }
         machine.blocks = vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: machine.entry,
             parameters: Vec::new(),

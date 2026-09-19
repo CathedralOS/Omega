@@ -304,6 +304,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: block_parameters,
+                erased_scalar_formals: Vec::new(),
                 operations: all_operations[operation_start..operation_end].to_vec(),
                 terminator: Terminator::Conditional {
                     condition,
@@ -312,6 +313,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         edge: true_edge,
                         target: when_true.block,
                         arguments: when_true.arguments,
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -319,6 +321,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         edge: false_edge,
                         target: when_false.block,
                         arguments: when_false.arguments,
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -380,6 +383,7 @@ fn emit_reserved_boolean_value_blocks(
                     edge,
                     target,
                     arguments: vec![value],
+                    erased_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
@@ -433,6 +437,7 @@ fn emit_reserved_boolean_value_blocks(
                         edge: true_edge,
                         target: when_true,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -440,6 +445,7 @@ fn emit_reserved_boolean_value_blocks(
                         edge: false_edge,
                         target: when_false,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -451,6 +457,7 @@ fn emit_reserved_boolean_value_blocks(
         structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
+        erased_scalar_formals: Vec::new(),
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
@@ -583,6 +590,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                     structural_arguments: Vec::new(),
                     edge,
                     target: next_stage,
+                    erased_arguments: Vec::new(),
                     arguments,
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
@@ -639,6 +647,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                         edge: true_edge,
                         target: when_true,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -646,6 +655,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                         edge: false_edge,
                         target: when_false,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -657,6 +667,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
+        erased_scalar_formals: Vec::new(),
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
@@ -682,6 +693,7 @@ pub(crate) fn build_scalar_conditional_target(
     let direct_arguments = arguments
         .iter()
         .map(|argument| match argument {
+            LoweredDirectExpression::ErasedParameter { .. } => None,
             LoweredDirectExpression::Parameter { position, .. }
             | LoweredDirectExpression::Local { position, .. } => {
                 Some(current_parameters[*position].id)

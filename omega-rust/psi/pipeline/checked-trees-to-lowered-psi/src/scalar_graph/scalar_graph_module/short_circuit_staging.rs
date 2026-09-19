@@ -33,6 +33,7 @@ impl GraphEmission<'_> {
             source_block,
             source_block_parameters,
             current_parameters,
+            erased_formals,
         } = frame;
         if !state.structural_effects.is_empty() {
             return unsupported(
@@ -134,6 +135,7 @@ impl GraphEmission<'_> {
                         &stage_parameter_types,
                         stage_block_parameters,
                         stage_block,
+                        erased_formals,
                         &mut self.next_block_identity,
                         &mut self.next_value_identity,
                         &mut self.next_edge_identity,
@@ -161,6 +163,7 @@ impl GraphEmission<'_> {
                     let value = emit_scalar_binding(
                         binding,
                         &stage_parameters,
+                        erased_formals,
                         &mut self.next_value_identity,
                         &mut self.all_operations,
                         &mut self.call_emission,
@@ -179,12 +182,14 @@ impl GraphEmission<'_> {
                         structural_parameters: Vec::new(),
                         id: stage_block,
                         parameters: stage_block_parameters,
+                        erased_scalar_formals: Vec::new(),
                         operations: self.all_operations[stage_operation_start..].to_vec(),
                         terminator: Terminator::Jump {
                             structural_arguments: Vec::new(),
                             edge,
                             target: next_stage,
                             arguments,
+                            erased_arguments: Vec::new(),
                             residual_affine_discards: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
@@ -237,6 +242,7 @@ impl GraphEmission<'_> {
             arguments,
             structural_arguments,
             trivial_affine_discards,
+            ..
         } = &continuation_plan
             && structural_arguments.is_empty()
             && trivial_affine_discards.is_empty()
@@ -275,6 +281,7 @@ impl GraphEmission<'_> {
             when_true_arguments,
             when_false_target,
             when_false_arguments,
+            ..
         } = &continuation_plan
             && contains_short_circuit(condition)
         {
@@ -375,6 +382,7 @@ impl GraphEmission<'_> {
                 when_true_arguments,
                 when_false_target,
                 when_false_arguments,
+                ..
             } => {
                 let condition = emit_boolean_expression(
                     &condition,
@@ -419,6 +427,7 @@ impl GraphEmission<'_> {
                         edge: when_true_edge,
                         target: when_true.block,
                         arguments: when_true.arguments,
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -426,6 +435,7 @@ impl GraphEmission<'_> {
                         edge: when_false_edge,
                         target: when_false.block,
                         arguments: when_false.arguments,
+                        erased_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 }
@@ -435,6 +445,7 @@ impl GraphEmission<'_> {
                 arguments,
                 structural_arguments,
                 trivial_affine_discards,
+                ..
             } => {
                 if (!structural_arguments.is_empty() || !trivial_affine_discards.is_empty())
                     && arguments
@@ -469,6 +480,7 @@ impl GraphEmission<'_> {
                         edge,
                         target: target.block,
                         arguments: target.arguments,
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }
@@ -489,6 +501,7 @@ impl GraphEmission<'_> {
                         edge,
                         target: scalar_source_block(self.identity_base, target),
                         arguments,
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards,
                     }
@@ -512,6 +525,7 @@ impl GraphEmission<'_> {
             structural_parameters: Vec::new(),
             id: stage_block,
             parameters: stage_parameters,
+            erased_scalar_formals: Vec::new(),
             operations: self.all_operations[operation_start..].to_vec(),
             terminator,
         });

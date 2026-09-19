@@ -68,6 +68,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         edge: edge_id(1),
         target: block_id(4),
         arguments: vec![value_id(1)],
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: if complete_transfer {
             Vec::new()
@@ -76,6 +77,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         },
     };
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(4),
         parameters: vec![ValueDeclaration {

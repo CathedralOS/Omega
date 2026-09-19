@@ -71,6 +71,7 @@ fn integer(
             position,
             primitive_type,
         } => (*primitive_type, source.binding(*position, *primitive_type)?),
+        Expression::ErasedParameter { .. } => return None,
         Expression::StorageRead {
             symbol,
             primitive_type,

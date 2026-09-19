@@ -7,11 +7,15 @@ use super::super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
 use super::super::wire::{Reader, Writer};
 use super::operation_tags;
+use crate::sections::semantic_module::scalar_term_wire::{
+    decode_scalar_terms, encode_scalar_terms,
+};
 use crate::sections::semantic_module::structural_place_wire::encode_obligation_ids;
 use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_arguments, encode_structural_arguments,
 };
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
+use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ObligationId, ServiceId, ValueId};
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, OperationKind, OutcomeSpecificCallEvidence,
@@ -24,6 +28,7 @@ pub(super) fn encode_call(
     writer: &mut Writer,
     callee: MachineId,
     arguments: Vec<ValueId>,
+    erased_arguments: Vec<ScalarTerm>,
     requirement_obligations: Vec<ObligationId>,
     crash_continuations: Vec<CrashRouteBucket>,
 ) -> Result<(), CodecError> {
@@ -33,6 +38,7 @@ pub(super) fn encode_call(
     for argument in arguments {
         writer.id(argument);
     }
+    encode_scalar_terms(writer, &erased_arguments)?;
     writer.len(
         "call requirement obligations",
         requirement_obligations.len(),
@@ -52,6 +58,7 @@ pub(super) fn decode_call(reader: &mut Reader<'_>) -> Result<OperationKind, Code
     for _ in 0..argument_count {
         arguments.push(reader.id("ValueId")?);
     }
+    let erased_arguments = decode_scalar_terms(reader)?;
     let requirement_count = reader.count()?;
     let mut requirement_obligations =
         Vec::with_capacity(usize::try_from(requirement_count).expect("u32 count fits usize"));
@@ -62,6 +69,7 @@ pub(super) fn decode_call(reader: &mut Reader<'_>) -> Result<OperationKind, Code
     Ok(OperationKind::Call {
         callee,
         arguments,
+        erased_arguments,
         requirement_obligations,
         crash_continuations,
     })
@@ -71,6 +79,7 @@ pub(super) fn encode_call_unit(
     writer: &mut Writer,
     callee: MachineId,
     arguments: Vec<ValueId>,
+    erased_arguments: Vec<ScalarTerm>,
     structural_arguments: Vec<StructuralArgument>,
     claim_transfers: Vec<ClaimTransfer>,
     requirement_obligations: Vec<ObligationId>,
@@ -82,6 +91,7 @@ pub(super) fn encode_call_unit(
     for argument in arguments {
         writer.id(argument);
     }
+    encode_scalar_terms(writer, &erased_arguments)?;
     encode_structural_arguments(writer, &structural_arguments)?;
     writer.len("unit-call claim transfers", claim_transfers.len())?;
     for transfer in claim_transfers {
@@ -97,6 +107,7 @@ pub(super) fn decode_call_unit(reader: &mut Reader<'_>) -> Result<OperationKind,
     Ok(OperationKind::CallUnit {
         callee: reader.id("MachineId")?,
         arguments: decode_ids(reader, "ValueId")?,
+        erased_arguments: decode_scalar_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
         claim_transfers: decode_counted(reader, |reader| {
             Ok(ClaimTransfer {
@@ -113,6 +124,7 @@ pub(super) fn encode_call_structural_scalar(
     writer: &mut Writer,
     callee: MachineId,
     arguments: Vec<ValueId>,
+    erased_arguments: Vec<ScalarTerm>,
     structural_arguments: Vec<StructuralArgument>,
     claim_transfers: Vec<ClaimTransfer>,
     requirement_obligations: Vec<ObligationId>,
@@ -124,6 +136,7 @@ pub(super) fn encode_call_structural_scalar(
     for argument in arguments {
         writer.id(argument);
     }
+    encode_scalar_terms(writer, &erased_arguments)?;
     encode_structural_arguments(writer, &structural_arguments)?;
     writer.len(
         "structural-scalar-call claim transfers",
@@ -144,6 +157,7 @@ pub(super) fn decode_call_structural_scalar(
     Ok(OperationKind::CallStructuralScalar {
         callee: reader.id("MachineId")?,
         arguments: decode_ids(reader, "ValueId")?,
+        erased_arguments: decode_scalar_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
         claim_transfers: decode_counted(reader, |reader| {
             Ok(ClaimTransfer {
@@ -407,6 +421,7 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     writer: &mut Writer,
     callee: MachineId,
     arguments: Vec<ValueId>,
+    erased_arguments: Vec<ScalarTerm>,
     structural_arguments: Vec<StructuralArgument>,
     claim_transfers: Vec<ClaimTransfer>,
     returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
@@ -419,6 +434,7 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     for argument in arguments {
         writer.id(argument);
     }
+    encode_scalar_terms(writer, &erased_arguments)?;
     encode_structural_arguments(writer, &structural_arguments)?;
     writer.len(
         "mixed structural-call claim transfers",
@@ -447,6 +463,7 @@ pub(super) fn decode_call_structural_with_scalar_arguments(
     Ok(OperationKind::CallStructuralWithScalarArguments {
         callee: reader.id("MachineId")?,
         arguments: decode_ids(reader, "ValueId")?,
+        erased_arguments: decode_scalar_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
         claim_transfers: decode_counted(reader, |reader| {
             Ok(ClaimTransfer {

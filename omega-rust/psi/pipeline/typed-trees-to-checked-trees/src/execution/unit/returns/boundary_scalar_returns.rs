@@ -220,12 +220,15 @@ pub(crate) fn build_boundary_scalar_return_machine(
     if !returns_binding {
         return None;
     }
+    let erased_scalar_parameters =
+        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
     Some(CheckedBoundaryScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
         scalar_parameters,
+        erased_scalar_parameters,
         entry_claims,
         boundary_call,
         result_type,

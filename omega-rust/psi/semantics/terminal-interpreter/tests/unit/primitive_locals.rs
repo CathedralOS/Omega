@@ -67,6 +67,7 @@ fn local_module() -> TerminalModule {
             id: operation_id(3),
             result: OperationResult::Scalar(scalar(3)),
             kind: OperationKind::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee: machine_id(92),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -263,6 +264,7 @@ fn primitive_local_missing_reordered_or_non_dominating_establishment_rejects() {
         edge: edge_id(3),
         target: block_id(3),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -285,6 +287,7 @@ fn primitive_local_missing_reordered_or_non_dominating_establishment_rejects() {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };

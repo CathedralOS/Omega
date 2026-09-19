@@ -112,11 +112,13 @@ pub(super) fn legacy_countdown() -> TerminalModule {
             entry: preheader,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: preheader,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: preheader_edge,
                         target: header,
@@ -126,6 +128,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
@@ -163,6 +166,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: guard_edge,
                             target: decrement,
@@ -170,6 +174,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: exit_edge,
                             target: done,
@@ -179,6 +184,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: decrement,
                     parameters: Vec::new(),
@@ -211,6 +217,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: backedge,
                         target: header,
@@ -220,6 +227,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: done,
                     parameters: Vec::new(),
@@ -231,6 +239,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -21,12 +21,19 @@ use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_val
 pub(super) struct Target<'a> {
     pub parameters: &'a [StructuralParameterDeclaration],
     pub scalar_parameters: &'a [ValueDeclaration],
+    pub erased_scalar_parameters: &'a [ValueDeclaration],
     pub predicate_parameters: &'a [StructuralParameterDeclaration],
+    /// The exact `requires` rows the callee's emitted contract carries, in
+    /// contract order: closed authored clauses merged ahead of runtime
+    /// requirements.
+    pub requires: &'a [Proposition],
     pub runtime_requirements: &'a [Proposition],
 }
 
 pub(super) struct PreparedCall {
     pub arguments: Vec<ValueId>,
+    /// Proof-only erased actuals in the callee's erased-formal order.
+    pub erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
     pub structural_arguments: Vec<StructuralArgument>,
     pub requirement_obligations: Vec<ObligationId>,
     pub crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
@@ -39,6 +46,8 @@ pub(super) fn prepare(
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
+    caller_scalar_values: &[ValueDeclaration],
+    caller_erased_scalar_parameters: &[ValueDeclaration],
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
     structural_result_places: &[(StructuralPlaceDeclaration, bool)],
@@ -48,35 +57,62 @@ pub(super) fn prepare(
     call_byte_places: &[PlaceId],
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<PreparedCall, LoweringError> {
-    let (target_machine, scalar_arguments, structural_arguments, claim_transfers) = match operation
-    {
+    let (
+        target_machine,
+        scalar_arguments,
+        erased_scalar_arguments,
+        structural_arguments,
+        claim_transfers,
+    ) = match operation {
         CheckedUnitEffectOperationPlan::CallUnit {
             target_machine,
             scalar_arguments,
+            erased_scalar_arguments,
             structural_arguments,
             claim_transfers,
             ..
         } => (
             target_machine,
             scalar_arguments,
+            erased_scalar_arguments.as_slice(),
             structural_arguments,
             claim_transfers.as_slice(),
         ),
         CheckedUnitEffectOperationPlan::StructuralCall {
             target_machine,
             scalar_arguments,
+            erased_scalar_arguments,
             structural_arguments,
             custody,
             ..
         } => (
             target_machine,
             scalar_arguments,
+            erased_scalar_arguments.as_slice(),
             structural_arguments,
             custody.claim_transfers.as_slice(),
         ),
         _ => return unsupported("ordinary call preparation has no call operation"),
     };
     let checked_target = UnitBody::find(plans, *target_machine)?.entry()?;
+    if target.erased_scalar_parameters.len() != checked_target.erased_scalar_parameters.len()
+        || erased_scalar_arguments.len() != checked_target.erased_scalar_parameters.len()
+    {
+        return unsupported("Unit call erased formal roster drifted from its checked target");
+    }
+    let erased_arguments = erased_scalar_arguments
+        .iter()
+        .map(|argument| {
+            let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
+                return unsupported("erased Unit call actual must be a pure checked expression");
+            };
+            crate::proofs::crash_routes::checked_scalar_term(
+                expression,
+                caller_scalar_values,
+                caller_erased_scalar_parameters,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     if scalar_arguments.len() != checked_target.scalar_parameters.len() {
         return unsupported("Unit call scalar argument count disagrees with its target");
     }
@@ -187,7 +223,11 @@ pub(super) fn prepare(
             .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
         substitute_structural_crash_route_roots(&mut crash_continuations, &substitutions)?;
     }
-    let requirement_obligations = target_runtime_requirements
+    // One obligation per published callee `requires` row: the verifier
+    // re-derives the proposition from the emitted contract, so the count must
+    // match the closed clauses plus runtime requirements exactly.
+    let requirement_obligations = target
+        .requires
         .iter()
         .map(|_| {
             // Proof finalization reconstructs this exact callee
@@ -198,6 +238,7 @@ pub(super) fn prepare(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok(PreparedCall {
         arguments: terminal_scalar_arguments,
+        erased_arguments,
         structural_arguments: terminal_arguments,
         requirement_obligations,
         crash_continuations,
@@ -332,7 +373,12 @@ pub(super) fn emit_structural(
     // Scalar values and structural custody are separate operand namespaces,
     // not different ownership rules. Keep the scalar-free encoding unchanged;
     // mixed calls retain the same checked claim and content correspondence.
-    let kind = if result.multiplicity == Multiplicity::Linear && prepared.arguments.is_empty() {
+    // `CallStructural` owns no erased lane; a proof-only actual selects the
+    // scalar-argument shape even when every runtime operand is empty.
+    let kind = if result.multiplicity == Multiplicity::Linear
+        && prepared.arguments.is_empty()
+        && prepared.erased_arguments.is_empty()
+    {
         OperationKind::CallStructural {
             callee,
             structural_arguments: prepared.structural_arguments,
@@ -346,6 +392,7 @@ pub(super) fn emit_structural(
         OperationKind::CallStructuralWithScalarArguments {
             callee,
             arguments: prepared.arguments,
+            erased_arguments: prepared.erased_arguments,
             structural_arguments: prepared.structural_arguments,
             claim_transfers,
             returned_claim_transfers,

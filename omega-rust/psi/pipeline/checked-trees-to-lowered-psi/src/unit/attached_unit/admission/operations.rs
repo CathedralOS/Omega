@@ -130,6 +130,7 @@ pub(super) fn validate<'a>(
                 target_contract_commitment,
                 service_reach,
                 scalar_arguments,
+                erased_scalar_arguments: _,
                 structural_arguments,
                 claim_transfers,
             } => {

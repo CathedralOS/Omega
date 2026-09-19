@@ -66,6 +66,9 @@ pub(crate) struct Evaluation {
         Vec<crate::expression_preparation::bindings::StructuralScalarFieldBinding>,
     pub structural_cases:
         Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
+    /// The enclosing signature's erased scalar formals, for `ErasedParameter`
+    /// positions inside proof-only call actuals lowered in this namespace.
+    pub erased_scalar_formals: Vec<ValueDeclaration>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -116,6 +119,7 @@ impl Evaluation {
             structural_parameters: self.structural_parameters.clone(),
             structural_fields: self.structural_fields.clone(),
             structural_cases: self.structural_cases.clone(),
+            erased_scalar_formals: self.erased_scalar_formals.clone(),
             entry: self.entry,
             current: block,
             parameters: Vec::new(),
@@ -473,12 +477,14 @@ impl Evaluation {
             structural_parameters: std::mem::take(&mut self.block_structural_parameters),
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
+            erased_scalar_formals: Vec::new(),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
+                erased_arguments: Vec::new(),
                 residual_affine_discards: residuals,
                 trivial_affine_discards: discards,
             },
@@ -505,6 +511,7 @@ impl Evaluation {
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             entry,
             current: entry,
             parameters: Vec::new(),
@@ -904,6 +911,7 @@ impl Evaluation {
             structural_parameters: std::mem::take(&mut self.block_structural_parameters),
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
+            erased_scalar_formals: Vec::new(),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
@@ -912,6 +920,7 @@ impl Evaluation {
                     "call computation entry is absent",
                 ))?,
                 arguments: values.iter().map(|value| value.id).collect(),
+                erased_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -921,6 +930,7 @@ impl Evaluation {
                 state,
                 targets[index + 1],
                 &parameters[index + 1],
+                &self.erased_scalar_formals,
                 &targets,
                 next_value,
                 next_block,
@@ -978,6 +988,7 @@ fn emit_state(
     state: &LoweredScalarBranchState,
     mut block: BlockId,
     parameters: &[ValueDeclaration],
+    caller_erased_formals: &[ValueDeclaration],
     targets: &[BlockId],
     next_value: &mut u64,
     next_block: &mut u64,
@@ -986,6 +997,7 @@ fn emit_state(
     calls: &mut CallEmissionContext<'_>,
     blocks: &mut Vec<Block>,
 ) -> Result<(), LoweringError> {
+    let erased_formals = declarations(&state.erased_formal_types, next_value)?;
     // Expansion-state order is not dominance order. Only observations made
     // within this state's path may be reused while emitting its decisions.
     operations.byte_lengths.clear();
@@ -1049,7 +1061,14 @@ fn emit_state(
                     .map(|value| value.value_type())
                     .collect::<Vec<_>>(),
             )?;
-            let id = emit_scalar_binding(binding, &values, next_value, operations, calls)?;
+            let id = emit_scalar_binding(
+                binding,
+                &values,
+                caller_erased_formals,
+                next_value,
+                operations,
+                calls,
+            )?;
             values.push(ValueDeclaration {
                 qualifications: value_type.qualifications,
                 id,
@@ -1096,6 +1115,7 @@ fn emit_state(
         LoweredScalarBranchTerminator::Jump {
             target,
             arguments: outgoing,
+            erased_arguments,
             structural_arguments,
             trivial_affine_discards,
         } => Terminator::Jump {
@@ -1105,6 +1125,16 @@ fn emit_state(
                 "call computation target is absent",
             ))?,
             arguments: arguments(outgoing)?,
+            erased_arguments: erased_arguments
+                .iter()
+                .map(|argument| {
+                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                        argument,
+                        &values,
+                        &erased_formals,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: trivial_affine_discards.clone(),
         },
@@ -1112,11 +1142,27 @@ fn emit_state(
             condition,
             when_true_target,
             when_true_arguments,
+            when_true_erased_arguments,
             when_false_target,
             when_false_arguments,
+            when_false_erased_arguments,
         } => {
             let when_true_arguments = arguments(when_true_arguments)?;
             let when_false_arguments = arguments(when_false_arguments)?;
+            let erased_terms = |expressions: &[LoweredDirectExpression]| {
+                expressions
+                    .iter()
+                    .map(|argument| {
+                        crate::proofs::crash_routes::lowered_direct_scalar_term(
+                            argument,
+                            &values,
+                            &erased_formals,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            };
+            let when_true_erased_arguments = erased_terms(when_true_erased_arguments)?;
+            let when_false_erased_arguments = erased_terms(when_false_erased_arguments)?;
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
@@ -1127,6 +1173,7 @@ fn emit_state(
                         .get(*when_true_target)
                         .ok_or(LoweringError::Unsupported("call true target is absent"))?,
                     arguments: when_true_arguments,
+                    erased_arguments: when_true_erased_arguments,
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -1136,6 +1183,7 @@ fn emit_state(
                         .get(*when_false_target)
                         .ok_or(LoweringError::Unsupported("call false target is absent"))?,
                     arguments: when_false_arguments,
+                    erased_arguments: when_false_erased_arguments,
                     trivial_affine_discards: Vec::new(),
                 },
             }
@@ -1150,6 +1198,7 @@ fn emit_state(
         structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
+        erased_scalar_formals: erased_formals,
         operations: operations[operation_start..].to_vec(),
         terminator,
     });

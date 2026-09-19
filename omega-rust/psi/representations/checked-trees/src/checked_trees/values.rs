@@ -251,6 +251,13 @@ pub enum CheckedScalarExpressionRole {
         binding_ordinal: u32,
         argument_ordinal: u32,
     },
+    /// Proof-only scalar actual for one erased callee formal, keyed by the
+    /// call's binding ordinal and the dense erased-formal ordinal in the
+    /// callee's contract roster. It owns no runtime operand.
+    ErasedCallArgument {
+        binding_ordinal: u32,
+        erased_ordinal: u32,
+    },
     /// Primitive argument to a bodyless boundary call, keyed by the exact
     /// call coordinate within its statement and dense scalar-parameter order.
     BoundaryCallArgument {
@@ -263,6 +270,13 @@ pub enum CheckedScalarExpressionRole {
     UnitCallArgument {
         call_ordinal: u32,
         argument_ordinal: u32,
+    },
+    /// Proof-only scalar actual for one erased formal of an in-module Unit
+    /// call, keyed by the exact call coordinate and the dense erased-formal
+    /// ordinal in the callee's contract roster. It owns no runtime operand.
+    ErasedUnitCallArgument {
+        call_ordinal: u32,
+        erased_ordinal: u32,
     },
     /// Present exclusive byte-subslice start, keyed by the enclosing call and
     /// dense structural argument ordinal, not its mixed authored position.
@@ -323,6 +337,13 @@ pub enum CheckedScalarExpression {
     /// mixed structural/scalar producer must separately retain the authored
     /// source-position partition.
     Parameter {
+        position: usize,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
+    /// Dense position in the machine's proof-only erased-formal roster. The
+    /// term names an erased scalar parameter inside `requires` propositions;
+    /// it has no runtime storage, position, or argument lane.
+    ErasedParameter {
         position: usize,
         primitive_type: typed_trees::types::PrimitiveType,
     },
@@ -398,6 +419,7 @@ impl CheckedScalarExpression {
         match self {
             Self::StructuralParameterByteLength { .. } => Some(PrimitiveType::U64),
             Self::Parameter { primitive_type, .. }
+            | Self::ErasedParameter { primitive_type, .. }
             | Self::StorageRead { primitive_type, .. }
             | Self::Local { primitive_type, .. }
             | Self::StructuralParameterField { primitive_type, .. }
@@ -461,6 +483,11 @@ pub enum CheckedBooleanExpression {
     },
     Constant(bool),
     Parameter {
+        position: usize,
+    },
+    /// Proof-only erased formal in authored erased order. Dense index into the
+    /// machine contract's erased-scalar roster; carries no runtime operand.
+    ErasedParameter {
         position: usize,
     },
     Local {

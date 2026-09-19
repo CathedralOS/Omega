@@ -529,6 +529,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             target_state: path.symbol,
                             transfers,
                             scalar_arguments,
+                            erased_arguments: Vec::new(),
                             trivial_affine_discard_parameter_positions: cleanup
                                 .trivial_affine_discard_parameter_positions
                                 .clone(),

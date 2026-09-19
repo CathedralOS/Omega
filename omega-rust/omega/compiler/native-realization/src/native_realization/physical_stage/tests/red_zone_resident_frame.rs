@@ -91,6 +91,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -117,6 +118,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(73).unwrap(),
                 crash_routes: Vec::new(),
                 requires: vec![goal.clone()],

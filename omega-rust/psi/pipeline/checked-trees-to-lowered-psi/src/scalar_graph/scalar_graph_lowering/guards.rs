@@ -18,8 +18,16 @@ pub(crate) fn lower(
     statement: u32,
     bindings: &storage::ScalarBindings,
     source_types: &[QualifiedScalarType],
-    when_true: (usize, Vec<LoweredDirectExpression>),
-    when_false: (usize, Vec<LoweredDirectExpression>),
+    when_true: (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+    ),
+    when_false: (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+    ),
     fallback: &CheckedScalarBranchDestination,
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
@@ -63,8 +71,16 @@ pub(crate) fn evaluate(
     statement: u32,
     bindings: &storage::ScalarBindings,
     source_types: &[QualifiedScalarType],
-    when_true: (usize, Vec<LoweredDirectExpression>),
-    when_false: (usize, Vec<LoweredDirectExpression>),
+    when_true: (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+    ),
+    when_false: (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+    ),
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
     let computed = is_computed(checked, state, statement);
@@ -90,8 +106,10 @@ pub(crate) fn evaluate(
         condition,
         when_true_target: when_true.0,
         when_true_arguments: when_true.1,
+        when_true_erased_arguments: when_true.2,
         when_false_target: when_false.0,
         when_false_arguments: when_false.1,
+        when_false_erased_arguments: when_false.2,
     };
     if !computed {
         return Ok(branch);
@@ -104,6 +122,7 @@ pub(crate) fn evaluate(
         structural_parameters: Vec::new(),
         structural_effects: Vec::new(),
         parameter_types,
+        erased_formal_types: Vec::new(),
         bindings: Vec::new(),
         terminator: branch,
     });
@@ -122,6 +141,7 @@ pub(crate) fn evaluate(
         structural_arguments: Vec::new(),
         target,
         arguments: computations::parameters(source_types),
+        erased_arguments: Vec::new(),
     })
 }
 

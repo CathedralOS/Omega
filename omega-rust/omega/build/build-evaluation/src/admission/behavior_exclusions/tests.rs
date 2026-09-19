@@ -51,6 +51,7 @@ fn service_id(raw: u64) -> ServiceId {
 
 fn empty_contract(raw: u64) -> MachineContract {
     MachineContract {
+        erased_scalar_formals: Vec::new(),
         id: contract_id(raw),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -61,6 +62,7 @@ fn empty_contract(raw: u64) -> MachineContract {
 
 fn return_unit_block(raw: u64) -> Block {
     Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(raw),
         structural_parameters: Vec::new(),
         parameters: Vec::new(),
@@ -106,6 +108,7 @@ fn unit_operation(raw: u64, kind: OperationKind) -> Operation {
 
 fn call_unit(callee: MachineId) -> OperationKind {
     OperationKind::CallUnit {
+        erased_arguments: Vec::new(),
         callee,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),

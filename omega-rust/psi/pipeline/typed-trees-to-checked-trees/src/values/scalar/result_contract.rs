@@ -45,6 +45,29 @@ pub(crate) fn lower_scalar_contract_predicate(
     .boolean(expression, 0)
 }
 
+/// One authored `requires` predicate on a non-entry state, lowered into the
+/// closed scalar contract namespace. The state's authored parameter roster
+/// indexes the subjects; no result position exists on an arrival contract.
+/// The machine still owns the builtin-meaning checks inside the predicate.
+pub(crate) fn lower_state_scalar_contract_predicate(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    remaining: &mut usize,
+) -> Option<CheckedBooleanExpression> {
+    ContractPredicates {
+        program,
+        operators,
+        machine,
+        parameters: program.state_parameters(state),
+        allow_result: false,
+        remaining,
+    }
+    .boolean(expression, 0)
+}
+
 struct ContractPredicates<'program, 'budget> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
@@ -55,7 +78,7 @@ struct ContractPredicates<'program, 'budget> {
 }
 
 impl ContractPredicates<'_, '_> {
-    fn subject(&self, expression: ExpressionHandle) -> Option<(usize, TypeReferenceHandle)> {
+    fn subject(&self, expression: ExpressionHandle) -> Option<(usize, TypeReferenceHandle, bool)> {
         let program = self.program;
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
             return None;
@@ -75,19 +98,25 @@ impl ContractPredicates<'_, '_> {
             if self.allow_result && parameter.is_mutable {
                 return None;
             }
-            // An erased binding has no scalar position; a contract naming it
-            // stays a checked proposition without a Terminal scalar term.
-            if parameter.relevance.is_erased() {
-                return None;
-            }
             program.primitive_type_reference(parameter.type_reference)?;
+            // Erased formals index the proof-only roster in authored order.
+            if parameter.relevance.is_erased() {
+                let erased_position = self.parameters[..position]
+                    .iter()
+                    .filter(|parameter| {
+                        parameter.relevance.is_erased()
+                            && crate::values::scalar::occupies_scalar_position(program, parameter)
+                    })
+                    .count();
+                return Some((erased_position, parameter.type_reference, true));
+            }
             let scalar_position = self.parameters[..position]
                 .iter()
                 .filter(|parameter| {
                     crate::values::scalar::occupies_scalar_position(program, parameter)
                 })
                 .count();
-            return Some((scalar_position, parameter.type_reference));
+            return Some((scalar_position, parameter.type_reference, false));
         }
         // Equal spelling or carrier does not establish result ownership. This
         // occurrence must belong to this machine's exact authored ensures.
@@ -104,6 +133,7 @@ impl ContractPredicates<'_, '_> {
                     })
                     .count(),
                 entry.return_type,
+                false,
             )
         })
     }
@@ -122,11 +152,19 @@ impl ContractPredicates<'_, '_> {
         let program = self.program;
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(_) => {
-                let (position, reference) = self.subject(expression)?;
+                let (position, reference, erased) = self.subject(expression)?;
+                let primitive_type = program.primitive_type_reference(reference)?;
                 Some((
-                    CheckedScalarExpression::Parameter {
-                        position,
-                        primitive_type: program.primitive_type_reference(reference)?,
+                    if erased {
+                        CheckedScalarExpression::ErasedParameter {
+                            position,
+                            primitive_type,
+                        }
+                    } else {
+                        CheckedScalarExpression::Parameter {
+                            position,
+                            primitive_type,
+                        }
                     },
                     reference,
                 ))
@@ -216,7 +254,7 @@ impl ContractPredicates<'_, '_> {
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)
         ) {
-            return self.subject(expression).map(|(_, reference)| reference);
+            return self.subject(expression).map(|(_, reference, _)| reference);
         }
         self.program
             .type_reference_table
@@ -247,9 +285,13 @@ impl ContractPredicates<'_, '_> {
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
             ExpressionNode::Name(_) => {
-                let (position, reference) = self.subject(expression)?;
+                let (position, reference, erased) = self.subject(expression)?;
                 (program.primitive_type_reference(reference) == Some(PrimitiveType::Bool))
-                    .then_some(CheckedBooleanExpression::Parameter { position })
+                    .then_some(if erased {
+                        CheckedBooleanExpression::ErasedParameter { position }
+                    } else {
+                        CheckedBooleanExpression::Parameter { position }
+                    })
             }
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot

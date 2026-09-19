@@ -24,7 +24,8 @@ pub use machine_calls::static_machine_call_contracts::{
 pub use machine_calls::structural_call_custody::{
     reconstruct_structural_call_custody, reconstruct_structural_parameter_return_claims,
     structural_claim_path, structural_result_projected_qualifications,
-    structural_result_qualifications, structural_state_contracts_are_parameter_qualifications,
+    structural_result_qualifications, structural_state_contract_scalar_predicates,
+    structural_state_contracts_are_parameter_qualifications,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,

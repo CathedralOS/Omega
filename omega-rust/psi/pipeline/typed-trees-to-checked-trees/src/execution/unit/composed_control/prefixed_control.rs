@@ -160,23 +160,33 @@ pub(super) fn build(
         .iter()
         .zip(&control_parameters[..control_parameters.len() - 1])
         .zip(prefixes)
-        .map(
-            |((state, parameters), successor)| CheckedComposedUnitControlStatePlan {
+        .map(|((state, parameters), successor)| {
+            Some(CheckedComposedUnitControlStatePlan {
                 state: state.symbol,
                 structural_parameters: Vec::new(),
                 scalar_parameters: parameters.clone(),
+                erased_scalar_parameters:
+                    crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+                        program, state,
+                    )?,
+                requires: Vec::new(),
                 entry_claims: Vec::new(),
                 bindings: Vec::new(),
                 binding_initializers: Vec::new(),
                 operations: Vec::new(),
                 terminator: CheckedComposedUnitControlTerminatorPlan::Jump { successor },
-            },
-        )
-        .collect::<Vec<_>>();
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
     checked_states.push(CheckedComposedUnitControlStatePlan {
         state: dispatch.symbol,
         structural_parameters: Vec::new(),
         scalar_parameters: control_parameters.last()?.clone(),
+        erased_scalar_parameters:
+            crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+                program, dispatch,
+            )?,
+        requires: Vec::new(),
         entry_claims: Vec::new(),
         bindings: Vec::new(),
         binding_initializers: Vec::new(),
@@ -265,6 +275,7 @@ fn prefix_successor(
             target_scalar_parameter_index: 0,
             primitive_type: parameters[0].primitive_type,
         }],
+        erased_arguments: Vec::new(),
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

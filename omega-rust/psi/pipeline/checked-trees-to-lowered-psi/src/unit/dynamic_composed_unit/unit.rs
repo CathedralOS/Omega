@@ -283,6 +283,7 @@ fn lower_dynamic_unit_machine(
                         structural_parameters: Vec::new(),
                         id: caller_block,
                         parameters: Vec::new(),
+                        erased_scalar_formals: Vec::new(),
                         operations: vec![Operation {
                             static_reach_binding: None,
                             id: call_operation,
@@ -681,6 +682,7 @@ pub(super) fn materialize_unit_realizations(
                     structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
+                    erased_scalar_formals: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::ReturnUnit {
                         edge,
@@ -761,6 +763,7 @@ fn lower_unit_call_custody(
                 OperationKind::CallUnit {
                     callee: helper.machine,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -786,6 +789,7 @@ fn lower_unit_call_custody(
                 OperationKind::CallUnit {
                     callee: realization_machine,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     structural_arguments: vec![latest_source],
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -864,6 +868,7 @@ fn lower_unit_call_custody(
                 OperationKind::CallUnit {
                     callee: helper.machine,
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -1112,6 +1117,7 @@ fn materialize_forwarded_unit_helper(
             structural_parameters: Vec::new(),
             id: ids.block,
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
                 id: ids.operation,
@@ -1120,6 +1126,7 @@ fn materialize_forwarded_unit_helper(
                     Some(callee) => OperationKind::CallUnit {
                         callee,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

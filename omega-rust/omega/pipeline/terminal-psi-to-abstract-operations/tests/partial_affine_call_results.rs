@@ -104,6 +104,7 @@ fn omega_retains_verified_partial_result_continuation_cleanup() {
     };
     assert!(!residual_affine_discards.is_empty());
     caller.blocks[0].terminator = terminal_psi::Terminator::Jump {
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge,
         target: next_block,
@@ -112,6 +113,7 @@ fn omega_retains_verified_partial_result_continuation_cleanup() {
         residual_affine_discards,
     };
     caller.blocks.push(terminal_psi::Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: next_block,
         parameters: Vec::new(),
