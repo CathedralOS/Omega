@@ -309,14 +309,35 @@ fn call_graph_rejects_stale_argument_spans_and_cycles_before_callbacks() {
 fn call_result_cannot_change_its_validated_carrier_or_encoding() {
     let identity = CanonicalConstIdentity::integer("u64", 7);
     let value = CanonicalConstValue::new(identity.type_name, identity.encoding, "7");
-    assert!(call_value(&value, Shape::Integer(LandedIntegerType::U8)).is_err());
+    assert!(
+        call_value(
+            &value,
+            Shape::Integer(
+                LandedIntegerType::U8,
+                typed_trees::types::TypeReferenceHandle::invalid()
+            )
+        )
+        .is_err()
+    );
     let identity = CanonicalConstIdentity::integer("u8", 256);
     let value = CanonicalConstValue::new(identity.type_name, identity.encoding, "256");
-    assert!(call_value(&value, Shape::Integer(LandedIntegerType::U8)).is_err());
+    assert!(
+        call_value(
+            &value,
+            Shape::Integer(
+                LandedIntegerType::U8,
+                typed_trees::types::TypeReferenceHandle::invalid()
+            )
+        )
+        .is_err()
+    );
     assert!(
         call_value(
             &CanonicalConstValue::boolean(true),
-            Shape::Integer(LandedIntegerType::U8)
+            Shape::Integer(
+                LandedIntegerType::U8,
+                typed_trees::types::TypeReferenceHandle::invalid()
+            )
         )
         .is_err()
     );

@@ -31,8 +31,8 @@
 //! ordinary static specialization (its all-expression scan covers calls in
 //! type positions) rewrites the call to a concrete instance, and the endpoint
 //! then resolves that instance from the prepared tree. Its signature types
-//! live in the prepared tree, so positions read there while argument values
-//! keep the working tree and the template's context. An application that
+//! live in the prepared tree, so their positions and original argument
+//! expressions read that same tree. An application that
 //! still needs inference is not pending here; a partially supplied one is
 //! pending so it can report the missing argument.
 //! Closed integer arguments share the type system's exact numeric evaluation,
@@ -49,7 +49,7 @@
 //! dependencies, independent of declaration order.
 //!
 //! Evaluation runs in rounds. Each round prepares the execution program from
-//! the current working tree and folds every call that closes; the driver
+//! the current working tree and folds every endpoint that closes; the driver
 //! publishes those folds and prepares again only when a static application
 //! failed while progress was made, because its instance's cloned signature
 //! bounds are read from the prepared tree and a template bound that folded
@@ -58,21 +58,23 @@
 //! failures and every published fold is restored, so a rejected program
 //! keeps its authored calls.
 //!
-//! Walk strict integer arithmetic and call arguments in postorder. Temporary
-//! call results keep their declared integer landing: making a returned u8
-//! anonymous would let surrounding arithmetic widen it or initialize u64.
-//! An argument-position helper may instead return `bool`; it folds to a
-//! Boolean literal for the enclosing call's Boolean parameter. The range
-//! bound itself is always prepared as an integer position, so a Boolean
-//! result can never become an endpoint.
-//! Argument selections still read the original prepared tree, while numeric
-//! queries read the working substitutions. Machine bodies always execute in
-//! the immutable prepared tree; a rollback journal avoids a clone per call.
-//! Remaining endpoint arithmetic stays authored for ordinary checking, including
-//! its overflow obligations and fractional diagnostics.
+//! Each complete endpoint runs through the shared closed scalar evaluator.
+//! Discovery collects roots independently of calls: removing a helper cannot
+//! prevent a closed composition from reaching evaluation. Unclosed optional
+//! roots remain authored for ordinary dependent/runtime range validation.
+//! Its shape pass checks all calls and operators before selective execution;
+//! the separate exhaustive custody walk preserves every original selection,
+//! including skipped branches. Call results retain their declared carriers,
+//! while an anonymous root remains an exact proof integer (including an
+//! exclusive bound one beyond the subject carrier). No callee activation is
+//! borrowed to interpret the caller's expression.
+//! The evaluator reads an immutable prepared tree. Whole endpoint literals
+//! and their deferral marks publish transactionally; the working tree supplies
+//! previously folded signature bounds between rounds.
 
 use crate::SelectedBuildTimeOperators;
 use diagnostics::Diagnostic;
+#[cfg(test)]
 use numerics::{
     arithmetic::ArithmeticDomain,
     literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
@@ -87,19 +89,27 @@ mod arguments;
 mod integer_type;
 
 struct PendingEndpoint {
-    constrained_type: TypeReferenceHandle,
     expression: ExpressionHandle,
+    root: ExpressionHandle,
     /// The resolved callee in the working tree: a plain machine, or the
     /// generic template of an explicit static application.
     machine: symbols::SymbolHandle,
-    source_span: source::SourceSpan,
     /// The authored call carries explicit static machine arguments; the
     /// executable callee is the prepared tree's specialized instance.
     static_application: bool,
-    /// Whether this call is the authored range bound itself, whose result
-    /// must land as an integer, or an argument of an enclosing call, whose
-    /// declared result may be Boolean.
-    range_bound: bool,
+}
+
+struct EndpointRoot {
+    constrained_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+}
+
+/// Every nonliteral bound is a candidate for the shared evaluator. Calls
+/// separately name required constant invocations and provider dependencies;
+/// an unclosed call-free bound remains owned by ordinary range validation.
+struct EndpointPlan {
+    roots: Vec<EndpointRoot>,
+    calls: Vec<PendingEndpoint>,
 }
 
 pub fn evaluate_const_range_endpoints(
@@ -143,12 +153,10 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     }))
 }
 
-/// The machine the endpoint actually invokes, plus the template whose entry
-/// supplies value-evaluation context in the working tree.
+/// The executable instance and the arena owning its prepared signature.
 #[derive(Clone, Copy)]
 pub(super) struct EndpointCallee {
     pub(super) instance: symbols::SymbolHandle,
-    pub(super) template: symbols::SymbolHandle,
     pub(super) static_application: bool,
 }
 
@@ -157,7 +165,6 @@ impl EndpointCallee {
     pub(super) fn plain(machine: symbols::SymbolHandle) -> Self {
         Self {
             instance: machine,
-            template: machine,
             static_application: false,
         }
     }
@@ -174,7 +181,6 @@ fn resolve_endpoint_callee(
     if !endpoint.static_application {
         return Ok(EndpointCallee {
             instance: endpoint.machine,
-            template: endpoint.machine,
             static_application: false,
         });
     }
@@ -213,7 +219,6 @@ fn resolve_endpoint_callee(
         })?;
     Ok(EndpointCallee {
         instance: instance.symbol,
-        template: endpoint.machine,
         static_application: true,
     })
 }
@@ -227,6 +232,7 @@ pub(crate) fn defer_pending_endpoint_calls(typed: &mut TypedTrees) -> Result<(),
         typed
             .pending_const_range_endpoints
             .insert(endpoint.expression);
+        typed.pending_const_range_endpoints.insert(endpoint.root);
     }
     Ok(())
 }
@@ -251,37 +257,39 @@ pub(crate) fn evaluate_selected_range_endpoints(
     // whether the deferral path had marked them. A round that ends in
     // rejection restores every one of them so a rejected program keeps its
     // authored calls, exactly as a single failing round did.
-    let mut published: Vec<(ExpressionHandle, ExpressionNode, bool)> = Vec::new();
+    let mut published: Vec<(ExpressionHandle, ExpressionNode, Vec<ExpressionHandle>)> = Vec::new();
     let mut warnings = Vec::new();
-    let restore = |typed: &mut TypedTrees,
-                   published: Vec<(ExpressionHandle, ExpressionNode, bool)>| {
-        for (expression, original, marked) in published.into_iter().rev() {
-            *typed.expression_table.expression_mut(expression) = original;
-            if marked {
-                typed.pending_const_range_endpoints.insert(expression);
+    let restore =
+        |typed: &mut TypedTrees,
+         published: Vec<(ExpressionHandle, ExpressionNode, Vec<ExpressionHandle>)>| {
+            for (expression, original, marked) in published.into_iter().rev() {
+                *typed.expression_table.expression_mut(expression) = original;
+                typed.pending_const_range_endpoints.extend(marked);
             }
-        }
-    };
+        };
     loop {
-        let pending = match pending_endpoints(typed) {
-            Ok(pending) => pending,
+        let plan = match endpoint_plan(typed) {
+            Ok(plan) => plan,
             Err(errors) => {
                 restore(typed, published);
                 return Err(errors);
             }
         };
-        if pending.is_empty() {
+        if plan.roots.is_empty() {
             break;
         }
         let round = match evaluate_round(
             typed,
-            &pending,
+            &plan,
             selection_authority.clone(),
             operators,
             provider_bodies,
             &mut warnings,
         ) {
             Ok(round) => round,
+            // Optional closed probing must not make preparation a new
+            // requirement for runtime or dependent range declarations.
+            Err(_) if plan.calls.is_empty() => break,
             Err(errors) => {
                 restore(typed, published);
                 return Err(errors);
@@ -291,7 +299,20 @@ pub(crate) fn evaluate_selected_range_endpoints(
         for (expression, folded) in round.folds {
             let original =
                 std::mem::replace(typed.expression_table.expression_mut(expression), folded);
-            let marked = typed.pending_const_range_endpoints.remove(&expression);
+            let mut marked: Vec<_> = plan
+                .calls
+                .iter()
+                .filter(|call| call.root == expression)
+                .filter_map(|call| {
+                    typed
+                        .pending_const_range_endpoints
+                        .remove(&call.expression)
+                        .then_some(call.expression)
+                })
+                .collect();
+            if typed.pending_const_range_endpoints.remove(&expression) {
+                marked.push(expression);
+            }
             published.push((expression, original, marked));
         }
         if round.diagnostics.is_empty() {
@@ -313,10 +334,10 @@ pub(crate) fn evaluate_selected_range_endpoints(
     Ok(())
 }
 
-/// One round over the still-authored endpoint calls against a program
+/// One round over the still-authored endpoint roots against a program
 /// prepared from the current working tree.
 struct Round {
-    /// Successfully folded calls, in evaluation order.
+    /// Successfully folded whole bounds, in dependency order.
     folds: Vec<(ExpressionHandle, ExpressionNode)>,
     diagnostics: Vec<Diagnostic>,
     /// At least one failure was an explicit static application, whose
@@ -326,7 +347,7 @@ struct Round {
 
 fn evaluate_round(
     typed: &mut TypedTrees,
-    pending: &[PendingEndpoint],
+    plan: &EndpointPlan,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
@@ -357,7 +378,7 @@ fn evaluate_round(
         failed_static_application: false,
     };
     let mut originals = Vec::new();
-    for endpoint in pending {
+    for endpoint in &plan.roots {
         let result = evaluate_endpoint(
             typed,
             execution,
@@ -378,13 +399,21 @@ fn evaluate_round(
                 round.folds.push((endpoint.expression, folded));
             }
             Err(reason) => {
-                round.failed_static_application |= endpoint.static_application;
+                let mut required_calls = plan
+                    .calls
+                    .iter()
+                    .filter(|call| call.root == endpoint.expression)
+                    .peekable();
+                if required_calls.peek().is_none() {
+                    continue;
+                }
+                round.failed_static_application |=
+                    required_calls.any(|call| call.static_application);
                 round.diagnostics.push(Diagnostic::error(format!(
-                    "range endpoint of `{}`: const evaluation of `{}` failed: {reason}",
+                    "range endpoint of `{}`: const evaluation failed: {reason}",
                     typed
                         .type_reference_table
                         .display_name(endpoint.constrained_type),
-                    typed.symbols.display_path(endpoint.machine, "::"),
                 )));
             }
         }
@@ -405,139 +434,42 @@ fn evaluate_endpoint(
     typed: &TypedTrees,
     execution: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
-    endpoint: &PendingEndpoint,
+    endpoint: &EndpointRoot,
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<ExpressionNode, String> {
-    // Admit this original call and qualifier before execution. The
-    // invocation floor checks its callee, not every retained occurrence;
-    // waiting for a parent argument check would be too late for this call.
-    crate::machine_execution::admission::require_call_expression_selection(
+    crate::machine_execution::admission::require_closed_expression_custody(
         execution,
         endpoint.expression,
         selection_authority,
-    )
-    .and_then(|()| resolve_endpoint_callee(execution, endpoint))
-    .and_then(|callee| {
-        arguments::evaluate(
-            typed,
+    )?;
+    let invocation = arguments::Invocation {
+        working: typed,
+        execution,
+        admission,
+        authority: selection_authority,
+    };
+    let (literal, additions) =
+        crate::const_evaluation::const_generic_expressions::value::evaluate_integer_endpoint(
             execution,
-            admission,
             endpoint.expression,
-            callee,
-            selection_authority,
-        )
-        .map(|(arguments, argument_warnings)| (callee, arguments, argument_warnings))
-    })
-    .and_then(|(callee, arguments, argument_warnings)| {
-        let machine = execution
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == callee.instance)
-            .ok_or_else(|| "range endpoint lost its selected machine".to_owned())?;
-        let entry = execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint machine has no entry state")?;
-        // A specialized instance's signature exists only in the prepared
-        // tree; a plain callee's positions read the working tree so
-        // already folded inner calls are visible.
-        let types: &TypedTrees = if callee.static_application {
-            execution
-        } else {
-            typed
-        };
-        let position = if endpoint.range_bound {
-            integer_type::ScalarPosition::Integer(integer_type::IntegerPosition::prepare(
-                types,
-                execution,
-                entry.return_type,
-                selection_authority,
-            )?)
-        } else {
-            integer_type::ScalarPosition::prepare(
-                types,
-                execution,
-                entry.return_type,
-                selection_authority,
-            )?
-        };
-        for warning in argument_warnings {
-            if !warnings.contains(&warning) {
-                warnings.push(warning);
-            }
-        }
-        // A domain-qualified parameter is a generated `requires` premise
-        // on the entry state. `arguments::evaluate` has just proved each
-        // concrete argument's membership through the shared domain-fact
-        // evaluator, which is the invocation proof the closure fence asks
-        // for; the fence stands down only when those parameter-domain
-        // premises are the closure's sole premises.
-        let custody = crate::BuildTimeInvocationCustody::Source(endpoint.source_span);
-        let value = if admission.closure_includes_authored_requires(execution, machine)
-            && admission.closure_requires_are_entry_parameter_domains(execution, machine)
-        {
-            admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
-                execution,
-                callee.instance,
-                arguments,
-                custody,
-            )?
-        } else {
-            admission.evaluate_const_evaluable_machine_symbol_for_invocation(
-                execution,
-                callee.instance,
-                arguments,
-                custody,
-            )?
-        };
-        let position = match position {
-            integer_type::ScalarPosition::Integer(position) => position,
-            integer_type::ScalarPosition::Boolean => {
-                return match value {
-                    crate::BuildTimeValue::Bool(value) => Ok(ExpressionNode::Boolean(value)),
-                    other => Err(format!(
-                        "machine `{}` returned `{other:?}` instead of `bool`",
-                        machine.name
-                    )),
-                };
-            }
-        };
-        let value = crate::const_evaluation::const_lengths::decode_integer_result(
-            execution, machine, value,
+            &invocation,
         )?;
-        position.require_value(execution, admission, &value)?;
-        let primitive = position.primitive;
-        let landed_type = match primitive {
-            typed_trees::types::PrimitiveType::I8 => LandedIntegerType::I8,
-            typed_trees::types::PrimitiveType::I16 => LandedIntegerType::I16,
-            typed_trees::types::PrimitiveType::I32 => LandedIntegerType::I32,
-            typed_trees::types::PrimitiveType::I64 => LandedIntegerType::I64,
-            typed_trees::types::PrimitiveType::U8 => LandedIntegerType::U8,
-            typed_trees::types::PrimitiveType::U16 => LandedIntegerType::U16,
-            typed_trees::types::PrimitiveType::U32 => LandedIntegerType::U32,
-            typed_trees::types::PrimitiveType::U64 => LandedIntegerType::U64,
-            _ => {
-                return Err("range endpoint result requires a fixed integer carrier".to_owned());
-            }
-        };
-        IntegerLiteral::from_parts(
-            value.is_negative(),
-            IntegerRadix::Decimal,
-            &value.abs().to_string(),
-        )
-        .map(|literal| {
-            ExpressionNode::Integer(literal.with_landing(IntegerLanding {
-                landed_type,
-                domain: ArithmeticDomain::Exact,
-            }))
-        })
-        .map_err(|reason| format!("invalid evaluated range endpoint: {reason}"))
-    })
+    for warning in additions {
+        if !warnings.contains(&warning) {
+            warnings.push(warning);
+        }
+    }
+    Ok(ExpressionNode::Integer(literal))
 }
 
 fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Diagnostic>> {
+    Ok(endpoint_plan(typed)?.calls)
+}
+
+fn endpoint_plan(typed: &TypedTrees) -> Result<EndpointPlan, Vec<Diagnostic>> {
     let mut pending = Vec::new();
+    let mut roots = Vec::new();
     let mut visited = Vec::new();
     for (constrained_type, _, constraints) in typed
         .type_reference_table
@@ -550,14 +482,9 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
             else {
                 continue;
             };
-            let mut work = vec![(*maximum, false), (*minimum, false)];
+            let mut work = vec![(*maximum, false, *maximum), (*minimum, false, *minimum)];
             let mut active = Vec::new();
-            // Expressions beneath a call's argument list. Everything else,
-            // including arithmetic around the bound and the callee's own
-            // signature bounds, is a range bound whose value must land as an
-            // integer.
-            let mut argument_positions = Vec::new();
-            while let Some((expression, leaving)) = work.pop() {
+            while let Some((expression, leaving, root)) = work.pop() {
                 if !typed.expression_table.expression_is_valid(expression) {
                     continue;
                 }
@@ -565,53 +492,50 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                     if active.contains(&expression) {
                         return Err(vec![Diagnostic::error("cyclic range endpoint expression")]);
                     }
-                    if visited.contains(&expression) {
+                    if visited.contains(&(expression, root)) {
                         continue;
                     }
                     active.push(expression);
-                    work.push((expression, true));
-                    match typed.expression_table.expression(expression) {
-                        ExpressionNode::Binary(binary) => {
-                            if argument_positions.contains(&expression) {
-                                argument_positions.push(binary.left);
-                                argument_positions.push(binary.right);
-                            }
-                            work.push((binary.right, false));
-                            work.push((binary.left, false));
-                        }
-                        ExpressionNode::Call(call) => {
-                            let arguments =
-                                typed.expression_table.expression_handles(call.arguments);
-                            argument_positions.extend(arguments.iter().copied());
-                            work.extend(arguments.iter().rev().map(|argument| (*argument, false)));
-                            if let Some((machine, _)) = selected_endpoint_machine(typed, expression)
-                            {
-                                append_signature_bounds(typed, machine, &mut work)?;
-                            }
-                        }
-                        _ => {}
+                    work.push((expression, true, root));
+                    let children =
+                        crate::machine_execution::admission::expression_children(typed, expression);
+                    work.extend(children.into_iter().rev().map(|child| (child, false, root)));
+                    if let Some((machine, _)) = selected_endpoint_machine(typed, expression) {
+                        append_signature_bounds(typed, machine, &mut work)?;
                     }
                     continue;
                 }
                 active.pop();
-                visited.push(expression);
+                visited.push((expression, root));
+                if expression == root
+                    && !matches!(
+                        typed.expression_table.expression(root),
+                        ExpressionNode::Integer(_)
+                    )
+                {
+                    roots.push(EndpointRoot {
+                        constrained_type,
+                        expression: root,
+                    });
+                }
                 let Some((machine, static_application)) =
                     selected_endpoint_machine(typed, expression)
                 else {
                     continue;
                 };
                 pending.push(PendingEndpoint {
-                    constrained_type,
                     expression,
+                    root,
                     machine: machine.symbol,
-                    source_span: typed.expression_table.source_span(expression),
                     static_application,
-                    range_bound: !argument_positions.contains(&expression),
                 });
             }
         }
     }
-    Ok(pending)
+    Ok(EndpointPlan {
+        roots,
+        calls: pending,
+    })
 }
 
 /// The endpoint's callee in the working tree and whether the call is an
@@ -670,7 +594,7 @@ fn selected_endpoint_machine(
 fn append_signature_bounds(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
-    work: &mut Vec<(ExpressionHandle, bool)>,
+    work: &mut Vec<(ExpressionHandle, bool, ExpressionHandle)>,
 ) -> Result<(), Vec<Diagnostic>> {
     let Some(entry) = typed.machine_states(machine).first() else {
         return Ok(());
@@ -701,8 +625,8 @@ fn append_signature_bounds(
                     minimum, maximum, ..
                 } = constraint
                 {
-                    work.push((*maximum, false));
-                    work.push((*minimum, false));
+                    work.push((*maximum, false, *maximum));
+                    work.push((*minimum, false, *minimum));
                 }
             }
             reference = *base_type;

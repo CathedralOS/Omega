@@ -42,7 +42,9 @@ use typed_trees::{
     types::PrimitiveType,
 };
 
+mod context;
 mod match_dispatch;
+use context::EvaluationContext;
 
 #[cfg(test)]
 #[path = "value/match_tests.rs"]
@@ -55,6 +57,15 @@ mod call_tests;
 /// The invocation owner validates all arguments without executing landed
 /// expressions, then evaluates arguments and the admitted machine only on demand.
 pub(crate) trait ConstantCalls {
+    /// A retained result type belongs to the same program passed to the scalar
+    /// evaluator. Invalid means this caller carries no additional type shell.
+    fn result_type(
+        &self,
+        _expression: ExpressionHandle,
+    ) -> typed_trees::types::TypeReferenceHandle {
+        typed_trees::types::TypeReferenceHandle::invalid()
+    }
+
     fn validate_call(
         &self,
         expression: ExpressionHandle,
@@ -70,7 +81,7 @@ pub(crate) trait ConstantCalls {
 enum Shape {
     Anonymous(ExpressionHandle),
     Boolean,
-    Integer(LandedIntegerType),
+    Integer(LandedIntegerType, typed_trees::types::TypeReferenceHandle),
 }
 
 #[derive(Clone, Copy)]
@@ -129,7 +140,14 @@ pub(crate) fn validate(
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<Vec<Diagnostic>, String> {
     match_dispatch::validate_graph(program, expression)?;
-    Ok(validate_shapes(program, machine, state, expression, destination, calls)?.warnings)
+    Ok(validate_shapes(
+        program,
+        EvaluationContext::Machine(machine, state),
+        expression,
+        Some(destination),
+        calls,
+    )?
+    .warnings)
 }
 
 pub(crate) fn evaluate(
@@ -153,6 +171,98 @@ pub(crate) fn evaluate_scalar(
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+    evaluate_scalar_in(
+        program,
+        EvaluationContext::Machine(machine, state),
+        expression,
+        destination,
+        calls,
+    )
+}
+
+fn evaluate_scalar_in(
+    program: &TypedTrees,
+    context: EvaluationContext<'_>,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+    let (value, selected_arms, mut warnings) =
+        evaluate_expression(program, context, expression, Some(destination), calls)?;
+    let value = match value {
+        Value::Anonymous(expression)
+            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                program,
+                expression,
+                &selected_arms,
+                |operand| context.has_builtin(program, operand),
+            )
+            .ok_or("floating constant requires a defined exact anonymous value")?;
+            // Round the completed rational directly at its declared format;
+            // an intermediate f64 would double-round some f32 destinations.
+            let value = match destination {
+                PrimitiveType::F32 => ScalarValue::Float {
+                    format: FloatFormat::F32,
+                    bits: u64::from(exact.to_f32().to_bits()),
+                },
+                _ => ScalarValue::Float {
+                    format: FloatFormat::F64,
+                    bits: exact.to_f64().to_bits(),
+                },
+            };
+            return Ok((value, warnings));
+        }
+        Value::Anonymous(expression) => land_anonymous(
+            program,
+            context,
+            expression,
+            destination,
+            &selected_arms,
+            &mut warnings,
+        )?,
+        value => value,
+    };
+    if let Value::Boolean(value) = value {
+        return Ok((
+            ScalarValue::Index(CanonicalConstValue::boolean(value)),
+            warnings,
+        ));
+    }
+    let Value::Landed(carrier, value) = value else {
+        return Err("constant expression has no integer landing".into());
+    };
+    let value = match value {
+        IntegerValue::Signed(value) => value,
+        IntegerValue::Unsigned(value) => i128::try_from(value)
+            .map_err(|_| "constant value exceeds canonical integer encoding")?,
+    };
+    let identity = CanonicalConstIdentity::integer(carrier.name(), value);
+    Ok((
+        ScalarValue::Index(CanonicalConstValue::new(
+            identity.type_name,
+            identity.encoding,
+            value.to_string(),
+        )),
+        warnings,
+    ))
+}
+
+fn evaluate_expression(
+    program: &TypedTrees,
+    context: EvaluationContext<'_>,
+    expression: ExpressionHandle,
+    destination: Option<PrimitiveType>,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<
+    (
+        Value,
+        Vec<(ExpressionHandle, ExpressionHandle)>,
+        Vec<Diagnostic>,
+    ),
+    String,
+> {
     if !program.expression_table.expression_is_valid(expression) {
         return Err("invalid constant expression".to_owned());
     }
@@ -174,7 +284,7 @@ pub(crate) fn evaluate_scalar(
         mut warnings,
         matches,
         call_shapes,
-    } = validate_shapes(program, machine, state, expression, destination, calls)?;
+    } = validate_shapes(program, context, expression, destination, calls)?;
     let mut selected_arms = Vec::new();
     while let Some(step) = pending.pop() {
         match step {
@@ -215,12 +325,7 @@ pub(crate) fn evaluate_scalar(
                         values.push(Value::Anonymous(expression));
                     }
                     ExpressionNode::Binary(binary) => {
-                        if !validation::has_builtin_binary_expression_meaning(
-                            program,
-                            machine,
-                            Some(state),
-                            expression,
-                        ) {
+                        if !context.has_builtin(program, expression) {
                             return Err(
                                 "constant expression has no selected builtin operator meaning"
                                     .into(),
@@ -250,8 +355,7 @@ pub(crate) fn evaluate_scalar(
                 let subject = values.pop().ok_or("missing constant Match subject")?;
                 let subject = match_dispatch::coerce(
                     program,
-                    machine,
-                    state,
+                    context,
                     subject,
                     plan.subject,
                     &selected_arms,
@@ -261,14 +365,7 @@ pub(crate) fn evaluate_scalar(
                     program,
                     subject,
                     &selected_arms,
-                    |operand| {
-                        validation::has_builtin_binary_expression_meaning(
-                            program,
-                            machine,
-                            Some(state),
-                            operand,
-                        )
-                    },
+                    |operand| context.has_builtin(program, operand),
                 )?;
                 pending.push(Step::MatchNext(expression, 0, subject));
             }
@@ -303,20 +400,14 @@ pub(crate) fn evaluate_scalar(
                 let pattern = values.pop().ok_or("missing constant Match pattern")?;
                 let pattern = match_dispatch::coerce(
                     program,
-                    machine,
-                    state,
+                    context,
                     pattern,
                     plan.subject,
                     &selected_arms,
                     &mut warnings,
                 )?;
                 let matched = subject.matches(program, pattern, &selected_arms, |operand| {
-                    validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        operand,
-                    )
+                    context.has_builtin(program, operand)
                 })?;
                 if matched {
                     let ExpressionNode::Match(dispatch) =
@@ -347,8 +438,7 @@ pub(crate) fn evaluate_scalar(
                 let value = values.pop().ok_or("constant Match lost selected result")?;
                 values.push(match_dispatch::coerce(
                     program,
-                    machine,
-                    state,
+                    context,
                     value,
                     plan.result,
                     &selected_arms,
@@ -397,8 +487,7 @@ pub(crate) fn evaluate_scalar(
                     {
                         Value::Boolean(compare_anonymous(
                             program,
-                            machine,
-                            state,
+                            context,
                             expression,
                             &selected_arms,
                         )?)
@@ -429,8 +518,7 @@ pub(crate) fn evaluate_scalar(
                         };
                         let right = land_anonymous(
                             program,
-                            machine,
-                            state,
+                            context,
                             right,
                             right_destination,
                             &selected_arms,
@@ -447,8 +535,7 @@ pub(crate) fn evaluate_scalar(
                         }
                         let left = land_anonymous(
                             program,
-                            machine,
-                            state,
+                            context,
                             left,
                             primitive(carrier)?,
                             &selected_arms,
@@ -465,70 +552,9 @@ pub(crate) fn evaluate_scalar(
     if values.len() != 1 {
         return Err("constant expression did not produce one value".into());
     }
-    let value = match values.pop().ok_or("missing constant expression value")? {
-        Value::Anonymous(expression)
-            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
-        {
-            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
-                program,
-                expression,
-                &selected_arms,
-                |operand| {
-                    validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        operand,
-                    )
-                },
-            )
-            .ok_or("floating constant requires a defined exact anonymous value")?;
-            // Round the completed rational directly at its declared format;
-            // an intermediate f64 would double-round some f32 destinations.
-            let value = match destination {
-                PrimitiveType::F32 => ScalarValue::Float {
-                    format: FloatFormat::F32,
-                    bits: u64::from(exact.to_f32().to_bits()),
-                },
-                _ => ScalarValue::Float {
-                    format: FloatFormat::F64,
-                    bits: exact.to_f64().to_bits(),
-                },
-            };
-            return Ok((value, warnings));
-        }
-        Value::Anonymous(expression) => land_anonymous(
-            program,
-            machine,
-            state,
-            expression,
-            destination,
-            &selected_arms,
-            &mut warnings,
-        )?,
-        value => value,
-    };
-    if let Value::Boolean(value) = value {
-        return Ok((
-            ScalarValue::Index(CanonicalConstValue::boolean(value)),
-            warnings,
-        ));
-    }
-    let Value::Landed(carrier, value) = value else {
-        return Err("constant expression has no integer landing".into());
-    };
-    let value = match value {
-        IntegerValue::Signed(value) => value,
-        IntegerValue::Unsigned(value) => i128::try_from(value)
-            .map_err(|_| "constant value exceeds canonical integer encoding")?,
-    };
-    let identity = CanonicalConstIdentity::integer(carrier.name(), value);
     Ok((
-        ScalarValue::Index(CanonicalConstValue::new(
-            identity.type_name,
-            identity.encoding,
-            value.to_string(),
-        )),
+        values.pop().ok_or("missing constant expression value")?,
+        selected_arms,
         warnings,
     ))
 }
@@ -548,10 +574,9 @@ struct ValidatedShapes {
 
 fn validate_shapes(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: EvaluationContext<'_>,
     root: ExpressionHandle,
-    destination: PrimitiveType,
+    destination: Option<PrimitiveType>,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<ValidatedShapes, String> {
     let mut pending = vec![(root, false)];
@@ -573,7 +598,10 @@ fn validate_shapes(
                     let (primitive, call_warnings) = calls
                         .ok_or("machine calls require constant invocation admission")?
                         .validate_call(expression)?;
-                    let shape = scalar_shape(primitive)?;
+                    let mut shape = scalar_shape(primitive)?;
+                    if let Shape::Integer(_, reference) = &mut shape {
+                        *reference = calls.expect("validated call owner").result_type(expression);
+                    }
                     shapes.push(shape);
                     call_shapes.push((expression, shape));
                     for warning in call_warnings {
@@ -603,19 +631,17 @@ fn validate_shapes(
                     let Value::Landed(carrier, _) = landed_literal(literal)? else {
                         unreachable!()
                     };
-                    shapes.push(Shape::Integer(carrier));
+                    shapes.push(Shape::Integer(
+                        carrier,
+                        typed_trees::types::TypeReferenceHandle::invalid(),
+                    ));
                 }
                 ExpressionNode::Integer(_) => shapes.push(Shape::Anonymous(expression)),
                 ExpressionNode::Float(literal) if literal.landing().is_none() => {
                     shapes.push(Shape::Anonymous(expression))
                 }
                 ExpressionNode::Binary(binary) => {
-                    if !validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        expression,
-                    ) {
+                    if !context.has_builtin(program, expression) {
                         return Err(
                             "constant expression has no selected builtin operator meaning".into(),
                         );
@@ -638,8 +664,7 @@ fn validate_shapes(
         ) {
             let plan = match_dispatch::validate_join(
                 program,
-                machine,
-                state,
+                context,
                 expression,
                 &mut shapes,
                 &mut warnings,
@@ -654,6 +679,7 @@ fn validate_shapes(
         let operator = binary.operator;
         let right = shapes.pop().ok_or("missing right constant operand type")?;
         let left = shapes.pop().ok_or("missing left constant operand type")?;
+        context.require_operator(program, expression, left, right)?;
         let shift = matches!(
             operator,
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
@@ -670,7 +696,7 @@ fn validate_shapes(
                         | BinaryOperator::GreaterOrEqual
                 ) =>
             {
-                match_dispatch::validate_anonymous_comparison(program, machine, state, expression)?;
+                match_dispatch::validate_anonymous_comparison(program, context, expression)?;
                 shapes.push(Shape::Boolean);
                 continue;
             }
@@ -689,7 +715,7 @@ fn validate_shapes(
                 shapes.push(Shape::Anonymous(expression));
                 continue;
             }
-            (Shape::Integer(carrier), Shape::Anonymous(right)) => {
+            (Shape::Integer(carrier, reference), Shape::Anonymous(right)) => {
                 let destination = if shift {
                     PrimitiveType::U64
                 } else {
@@ -697,27 +723,34 @@ fn validate_shapes(
                 };
                 let right_carrier = match_dispatch::validate_landing(
                     program,
-                    machine,
-                    state,
+                    context,
                     right,
                     destination,
                     &mut warnings,
                 )?;
-                (Shape::Integer(carrier), Shape::Integer(right_carrier))
+                (
+                    Shape::Integer(carrier, reference),
+                    Shape::Integer(
+                        right_carrier,
+                        typed_trees::types::TypeReferenceHandle::invalid(),
+                    ),
+                )
             }
-            (Shape::Anonymous(left), Shape::Integer(carrier)) => {
+            (Shape::Anonymous(left), Shape::Integer(carrier, reference)) => {
                 if shift {
                     return Err("shift value requires a selected fixed carrier".into());
                 }
                 match_dispatch::validate_landing(
                     program,
-                    machine,
-                    state,
+                    context,
                     left,
                     primitive(carrier)?,
                     &mut warnings,
                 )?;
-                (Shape::Integer(carrier), Shape::Integer(carrier))
+                (
+                    Shape::Integer(carrier, typed_trees::types::TypeReferenceHandle::invalid()),
+                    Shape::Integer(carrier, reference),
+                )
             }
             operands => operands,
         };
@@ -733,7 +766,7 @@ fn validate_shapes(
             {
                 Shape::Boolean
             }
-            (Shape::Integer(left), Shape::Integer(right)) => {
+            (Shape::Integer(left, left_reference), Shape::Integer(right, right_reference)) => {
                 if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
                     return Err("Boolean logic requires Boolean operands".into());
                 }
@@ -753,7 +786,8 @@ fn validate_shapes(
                 ) {
                     Shape::Boolean
                 } else {
-                    Shape::Integer(left)
+                    context.arithmetic_result(program, Shape::Integer(right, right_reference))?;
+                    context.arithmetic_result(program, Shape::Integer(left, left_reference))?
                 }
             }
             _ => return Err("constant operator has incompatible operand types".into()),
@@ -767,21 +801,31 @@ fn validate_shapes(
     // dispatch. Checking only a bare Match would let an unselected fractional
     // or out-of-range result disappear before the selected value is published.
     match shapes[0] {
-        Shape::Anonymous(_) if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) => {
-            match_dispatch::validate_anonymous_fragments(program, machine, state, root)?;
+        Shape::Anonymous(_)
+            if matches!(
+                destination,
+                None | Some(PrimitiveType::F32 | PrimitiveType::F64)
+            ) =>
+        {
+            match_dispatch::validate_anonymous_fragments(program, context, root)?;
         }
         Shape::Anonymous(_) => {
             match_dispatch::validate_landing(
                 program,
-                machine,
-                state,
+                context,
                 root,
-                destination,
+                destination.expect("anonymous integer destination"),
                 &mut warnings,
             )?;
         }
-        Shape::Boolean if calls.is_none() || destination == PrimitiveType::Bool => {}
-        Shape::Integer(carrier) if calls.is_none() || primitive(carrier)? == destination => {}
+        Shape::Boolean if destination.is_none() => {
+            return Err("range endpoint position requires an exact builtin integer carrier".into());
+        }
+        Shape::Boolean if calls.is_none() || destination == Some(PrimitiveType::Bool) => {}
+        Shape::Integer(carrier, _)
+            if calls.is_none()
+                || destination
+                    .is_none_or(|destination| primitive(carrier).ok() == Some(destination)) => {}
         _ => return Err("constant expression differs from its destination carrier".into()),
     }
     Ok(ValidatedShapes {
@@ -792,18 +836,21 @@ fn validate_shapes(
 }
 
 fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
-    Ok(Shape::Integer(match primitive {
-        PrimitiveType::Bool => return Ok(Shape::Boolean),
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        _ => return Err("constant call requires an exact integer or Boolean carrier".into()),
-    }))
+    Ok(Shape::Integer(
+        match primitive {
+            PrimitiveType::Bool => return Ok(Shape::Boolean),
+            PrimitiveType::I8 => LandedIntegerType::I8,
+            PrimitiveType::I16 => LandedIntegerType::I16,
+            PrimitiveType::I32 => LandedIntegerType::I32,
+            PrimitiveType::I64 => LandedIntegerType::I64,
+            PrimitiveType::U8 => LandedIntegerType::U8,
+            PrimitiveType::U16 => LandedIntegerType::U16,
+            PrimitiveType::U32 => LandedIntegerType::U32,
+            PrimitiveType::U64 => LandedIntegerType::U64,
+            _ => return Err("constant call requires an exact integer or Boolean carrier".into()),
+        },
+        typed_trees::types::TypeReferenceHandle::invalid(),
+    ))
 }
 
 fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String> {
@@ -814,7 +861,7 @@ fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String
             Ok(Value::Boolean(result))
         }
         (
-            Shape::Integer(carrier),
+            Shape::Integer(carrier, _),
             Some(DecodedCanonicalConstValue::Integer { value: result, .. }),
         ) if value.identity() == CanonicalConstIdentity::integer(carrier.name(), result) => {
             let result = if carrier.is_signed() {
@@ -835,8 +882,7 @@ fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String
 
 fn compare_anonymous(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: EvaluationContext<'_>,
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
 ) -> Result<bool, String> {
@@ -844,14 +890,7 @@ fn compare_anonymous(
         program,
         expression,
         selected_arms,
-        |operand| {
-            validation::has_builtin_binary_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                operand,
-            )
-        },
+        |operand| context.has_builtin(program, operand),
     )
     .ok_or_else(|| {
         "anonymous comparison requires defined exact numeric operands and selected builtin meaning"
@@ -861,8 +900,7 @@ fn compare_anonymous(
 
 fn land_anonymous(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: EvaluationContext<'_>,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
@@ -874,14 +912,7 @@ fn land_anonymous(
             expression,
             destination,
             selected_arms,
-            |expression| {
-                validation::has_builtin_binary_expression_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
-            },
+            |expression| context.has_builtin(program, expression),
         )
         .ok_or(
             "anonymous constant expression cannot land exactly at the selected integer carrier",
@@ -1004,6 +1035,95 @@ fn primitive(carrier: LandedIntegerType) -> Result<PrimitiveType, String> {
             return Err("address constant evaluation requires target authority".into());
         }
     })
+}
+
+/// Constant positions have no implicit machine activation. Calls still carry
+/// their selected result type and source custody through their invocation owner.
+pub(crate) fn validate_closed_scalar(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<Vec<Diagnostic>, String> {
+    match_dispatch::validate_graph(program, expression)?;
+    Ok(validate_shapes(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        Some(destination),
+        Some(calls),
+    )?
+    .warnings)
+}
+
+pub(crate) fn evaluate_closed_scalar(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    let (value, warnings) = evaluate_scalar_in(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        destination,
+        Some(calls),
+    )?;
+    Ok((value.into_index()?, warnings))
+}
+
+pub(crate) fn evaluate_integer_endpoint(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    calls: &dyn ConstantCalls,
+) -> Result<(IntegerLiteral, Vec<Diagnostic>), String> {
+    use numerics::literals::{IntegerLanding, IntegerRadix};
+    let (value, selected_arms, warnings) = evaluate_expression(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        None,
+        Some(calls),
+    )?;
+    let (integer, landing) = match value {
+        Value::Anonymous(expression) => {
+            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                program,
+                expression,
+                &selected_arms,
+                |_| true,
+            )
+            .and_then(|value| value.to_integer_exact())
+            .ok_or("range endpoint needs a defined exact integer")?;
+            (exact, None)
+        }
+        Value::Landed(carrier, value) => {
+            let integer = match value {
+                IntegerValue::Signed(value) => numerics::bignum::BigInt::from_i128(value),
+                IntegerValue::Unsigned(value) => numerics::bignum::BigInt::from_u128(value),
+            };
+            (
+                integer,
+                Some(IntegerLanding {
+                    landed_type: carrier,
+                    domain: ArithmeticDomain::Exact,
+                }),
+            )
+        }
+        Value::Boolean(_) => {
+            return Err("range endpoint position requires an exact builtin integer carrier".into());
+        }
+    };
+    let mut literal = IntegerLiteral::from_parts(
+        integer.is_negative(),
+        IntegerRadix::Decimal,
+        &integer.abs().to_string(),
+    )
+    .map_err(|error| error.to_string())?;
+    if let Some(landing) = landing {
+        literal = literal.with_landing(landing);
+    }
+    Ok((literal, warnings))
 }
 
 #[cfg(test)]

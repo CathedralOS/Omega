@@ -3,7 +3,7 @@ use source::{SourceOrigin, SourceSpan};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
+    expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
@@ -259,6 +259,21 @@ fn expression_selection_violation(
         return Some(violation);
     }
 
+    let children = expression_children(program, expression);
+    for child in children {
+        if let Some(violation) = expression_selection_violation(
+            program, machine, state, child, authority, selected, visited,
+        ) {
+            return Some(violation);
+        }
+    }
+    None
+}
+
+pub(crate) fn expression_children(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
     let table = &program.expression_table;
     let mut children = Vec::new();
     match table.expression(expression) {
@@ -319,14 +334,7 @@ fn expression_selection_violation(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
-    for child in children {
-        if let Some(violation) = expression_selection_violation(
-            program, machine, state, child, authority, selected, visited,
-        ) {
-            return Some(violation);
-        }
-    }
-    None
+    children
 }
 
 // Numeric type positions have no implicit machine activation. Check the same
@@ -358,19 +366,15 @@ pub(crate) fn require_closed_integer_argument(
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Result<(), String> {
-    require_closed_scalar_custody(program, expression, authority)?;
+    require_closed_expression_custody(program, expression, authority)?;
     evaluated.closed_integer_value_in(expression, SymbolHandle::invalid())
         .map(|_| ())
         .ok_or_else(|| "range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned())
 }
 
-/// A Boolean argument position admits Boolean literals, Boolean logic and
-/// folded helper calls. Comparisons stay outside: their integer operands
-/// would need the same owner-independent meaning the integer gate proves,
-/// and the shared scalar evaluator is the only place that can land them.
-/// Custody is resolved on the original tree exactly as for integers; the
-/// caller lands the value on the working tree through the shared evaluator.
-pub(crate) fn require_closed_boolean_argument(
+/// Visit every authored selection, including unexecuted branches, before the
+/// shared scalar evaluator validates shapes and executes demanded expressions.
+pub(crate) fn require_closed_expression_custody(
     program: &TypedTrees,
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
@@ -378,87 +382,17 @@ pub(crate) fn require_closed_boolean_argument(
     let mut pending = vec![expression];
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression) {
+            return Err("invalid constant selection expression".into());
+        }
         if visited.contains(&expression) {
             continue;
         }
         visited.push(expression);
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) => {
-                if let Some(violation) =
-                    expression_occurrence_violation(program, expression, authority)
-                {
-                    return Err(violation.message);
-                }
-            }
-            ExpressionNode::Binary(binary)
-                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
-            {
-                if let Some(violation) =
-                    expression_occurrence_violation(program, expression, authority)
-                {
-                    return Err(violation.message);
-                }
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            ExpressionNode::Call(_) => {
-                require_closed_scalar_custody(program, expression, authority)?
-            }
-            _ => {
-                return Err(
-                    "range endpoint Boolean argument admits only Boolean literals, Boolean logic and folded helper calls"
-                        .to_owned(),
-                );
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Selection custody over one closed scalar argument tree in the original
-/// program, where every call still has its target. Integer, decimal and
-/// Boolean leaves are all admitted here because a nested helper call may
-/// take either kind; the caller's final query on the working tree decides
-/// the carrier. Keep traversal complete if the shared evaluators grow new
-/// expression forms: each new form needs its own selection walk.
-fn require_closed_scalar_custody(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    authority: Option<&dyn BuildTimeSelectionAuthority>,
-) -> Result<(), String> {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        if matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Call(_)
-        ) {
-            require_call_expression_selection(program, expression, authority)?;
-        } else if let Some(violation) =
-            expression_occurrence_violation(program, expression, authority)
-        {
+        if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
             return Err(violation.message);
         }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Call(call) => {
-                // The range evaluator admits the exact call before replacing
-                // it in its working tree. Resolve occurrence custody here in
-                // the original tree, where CheckedCall still has its target.
-                pending.extend(
-                    program.expression_table.expression_handles(call.arguments).iter().rev().copied(),
-                );
-            }
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {}
-            _ => return Err("range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned()),
-        }
+        pending.extend(expression_children(program, expression).into_iter().rev());
     }
     Ok(())
 }

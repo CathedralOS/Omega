@@ -87,22 +87,18 @@ fn closed_integer_arguments_keep_carriers_and_exact_landings() {
 #[test]
 fn ignored_arguments_cannot_hide_invalid_or_unsupported_inputs() {
     for (parameter, arguments, diagnostic) in [
-        ("u64", "true", "closed integer expression"),
-        ("u8", "255u16", "range endpoint argument"),
-        ("u8", "255u64", "landed range endpoint argument"),
+        ("u64", "true", "destination carrier"),
+        ("u8", "255u16", "destination carrier"),
+        ("u8", "255u64", "destination carrier"),
         ("u8", "256", "cannot land exactly"),
         ("u64", "-1", "cannot land exactly"),
-        ("u64", "1 / 2", "closed integer expression"),
-        ("u64", "7u64 / 0", "closed integer expression"),
-        (
-            "u64",
-            "18446744073709551615u64 + 1",
-            "closed integer expression",
-        ),
+        ("u64", "1 / 2", "cannot land exactly"),
+        ("u64", "7u64 / 0", "constant"),
+        ("u64", "18446744073709551615u64 + 1", "constant"),
         ("u64[0..=8]", "9", "outside declared range"),
         ("u64", "", "argument count"),
         ("u64", "1, 2", "argument count"),
-        ("u64", "input", "closed integer expression"),
+        ("u64", "input", "unsupported node"),
     ] {
         let mut program = typed(&format!(
             "machine endpoint(ignored: {parameter}) -> u64 {{ 256 }}
@@ -642,11 +638,13 @@ fn boolean_results_never_become_range_bounds_and_mismatched_arguments_reject() {
          machine is_wide() -> bool { false }
          machine endpoint(value: u64) -> u64 { value }";
     for (endpoint, fragment) in [
-        ("is_wide()", "requires an exact builtin integer carrier"),
-        ("is_wide() + 1", "requires an exact builtin integer carrier"),
-        ("pick(256)", "admits only Boolean literals"),
-        ("endpoint(false)", "closed integer expression"),
-        ("pick(1 < 2)", "admits only Boolean literals"),
+        (
+            "is_wide()",
+            "range endpoint position requires an exact builtin integer carrier",
+        ),
+        ("is_wide() + 1", "constant"),
+        ("pick(256)", "constant"),
+        ("endpoint(false)", "destination carrier"),
     ] {
         let mut program = typed(&format!(
             "{declarations}
@@ -813,7 +811,7 @@ fn provider_endpoint_fixture() -> (TypedTrees, Vec<crate::SelectedBuildTimeProvi
          data Provider {}
          machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
          machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
-         machine take_bounded(value: u64[0..=limit()]) -> u64 { value }",
+         machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }",
     );
     let rows = provider_rows(&program);
     (program, rows)
@@ -882,7 +880,7 @@ fn provider_boundary_endpoint_waits_for_selected_execution() {
     );
     let independent = typed(
         "machine limit() -> u64 { 7 }
-         machine take_bounded(value: u64[0..=limit()]) -> u64 { value }",
+         machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }",
     );
     assert!(
         !super::pending_endpoint_calls_need_operator_selection(&independent, None).unwrap(),
@@ -939,7 +937,7 @@ boundary operator % Math::remainder(left: u64, right: u64) -> u64;
 data Provider {}
 machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
 machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
-machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
+machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }
 "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -963,7 +961,7 @@ machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
     };
     assert_eq!(
         program.pending_const_range_endpoints.len(),
-        1,
+        2,
         "the deferred endpoint must keep interim checking from reading it as a non-constant bound"
     );
     let rows = provider_rows(&program);
@@ -1000,7 +998,7 @@ boundary operator % Math::remainder(left: u64, right: u64) -> u64;
 data Provider {}
 machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
 machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
-machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
+machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }
 "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -1116,10 +1114,12 @@ fn rounds_stop_without_progress_and_restore_every_published_fold() {
     let mut program = typed(
         "machine limit() -> u64 { 256 }
          machine unclosable<const N: u64>(cap: u64, value: u64[0..=cap]) -> u64 { N }
-         machine keep(first: u64[0..=limit()], second: u64[0..=unclosable<256>(256, 0)]) {}",
+         machine keep(first: u64[0..=(match true { true -> limit(), false -> limit() })], second: u64[0..=unclosable<256>(256, 0)]) {}",
     );
     let authored = pending_endpoints(&program).unwrap().len();
-    assert_eq!(authored, 2);
+    assert_eq!(authored, 3);
+    super::defer_pending_endpoint_calls(&mut program).unwrap();
+    let marks = program.pending_const_range_endpoints.clone();
     let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("unclosable bound");
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert!(
@@ -1129,9 +1129,258 @@ fn rounds_stop_without_progress_and_restore_every_published_fold() {
         "{}",
         errors[0].message
     );
+    assert_eq!(program.pending_const_range_endpoints, marks);
     assert_eq!(
         pending_endpoints(&program).unwrap().len(),
         authored,
         "a rejected program keeps every authored endpoint call"
     );
+}
+
+#[test]
+fn whole_endpoint_comparison_customer_uses_shared_evaluation() {
+    let mut program = typed(
+        "machine pick(wide: bool) -> u64 { transition wide { true -> 512 false -> 256 } } machine keep(value: u64[0..=pick(1u64 < 2u64)]) {}",
+    );
+    evaluate_const_range_endpoints(&mut program, None)
+        .expect("comparison is an ordinary closed Boolean argument");
+    assert_eq!(folded_maximum(&program).as_deref(), Some("512"));
+}
+
+#[test]
+fn whole_endpoint_composes_calls_match_and_original_carriers() {
+    let declarations =
+        "machine endpoint(value: u64) -> u64 { value } machine flag() -> bool { false }";
+    for (endpoint, expected) in [
+        (
+            "(match flag() { true -> endpoint(endpoint(512)), false -> endpoint(256) }) + 1",
+            "257",
+        ),
+        ("match true { true -> endpoint(256), false -> 0u64 }", "256"),
+        (
+            "endpoint(256) + (match true { true -> 1u64, false -> endpoint(2) })",
+            "257",
+        ),
+        ("18446744073709551616", "18446744073709551616"),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations} machine keep(value: u64[0..{endpoint}]) {{}}"
+        ));
+        evaluate_const_range_endpoints(&mut program, None)
+            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
+        assert_eq!(
+            folded_maximum(&program).as_deref(),
+            Some(expected),
+            "{endpoint}"
+        );
+    }
+}
+
+#[test]
+fn whole_endpoint_rejects_overflow_and_preserves_qualified_operator_meaning() {
+    let declarations = "domain u64::Small requires self < 100; machine qualified() -> u64 in Small { 1 } machine pick(value: bool) -> u64 { transition value { true -> 512 false -> 256 } }";
+    let source =
+        format!("{declarations} machine keep(value: u64[0..=pick(qualified() < 2u64)]) {{}}");
+    let mut program = typed(&source);
+    evaluate_const_range_endpoints(&mut program, None)
+        .expect("domain-qualified result with builtin comparison");
+    assert_eq!(folded_maximum(&program).as_deref(), Some("512"));
+    let mut program = typed(&format!(
+        "{source} machine < u64::Small::compare(left: u64, right: u64) -> bool {{ false }}"
+    ));
+    assert!(
+        evaluate_const_range_endpoints(&mut program, None).is_err(),
+        "domain-homed comparison must not execute builtin token meaning"
+    );
+    for endpoint in [
+        "pick((255u8 + 1u8) == 0u8)",
+        "pick(true) + 18446744073709551615u64",
+    ] {
+        let mut program = typed(&format!(
+            "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        assert!(
+            evaluate_const_range_endpoints(&mut program, None).is_err(),
+            "{endpoint}"
+        );
+    }
+}
+
+#[test]
+fn whole_endpoint_checks_skipped_shapes_but_only_demanded_domain_values() {
+    let declarations = "domain u64::Positive requires self > 0; machine bounded(value: u64 in Positive) -> u64 { value }";
+    for (endpoint, accepted) in [
+        ("match false { true -> bounded(0), false -> 256u64 }", true),
+        ("match true { true -> bounded(0), false -> 256u64 }", false),
+        (
+            "match false { true -> bounded(false), false -> 256u64 }",
+            false,
+        ),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        let roots: Vec<_> = pending_endpoints(&program)
+            .unwrap()
+            .into_iter()
+            .map(|pending| pending.root)
+            .collect();
+        assert_eq!(
+            evaluate_const_range_endpoints(&mut program, None).is_ok(),
+            accepted,
+            "{endpoint}"
+        );
+        if accepted {
+            assert_eq!(folded_maximum(&program).as_deref(), Some("256"));
+        } else {
+            for root in roots {
+                assert!(matches!(
+                    program.expression_table.expression(root),
+                    ExpressionNode::Match(_)
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn whole_endpoint_computed_result_metadata_keeps_actual_carrier() {
+    let declarations = "machine count() -> u8 { 1 } machine pick(value: bool) -> u64 { transition value { true -> 512 false -> 256 } }";
+    let endpoint = "pick((1u64 << count()) < 4u64)";
+    let mut program = typed(&format!(
+        "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
+    ));
+    evaluate_const_range_endpoints(&mut program, None).unwrap();
+    assert_eq!(folded_maximum(&program).as_deref(), Some("512"));
+    let declarations =
+        "domain u64::Small requires self < 100; machine qualified() -> u64 in Small { 1 }";
+    for endpoint in [
+        "qualified() + 1",
+        "1 + qualified()",
+        "1u64 + qualified()",
+        "match true { true -> qualified(), false -> 1 }",
+    ] {
+        let mut program = typed(&format!(
+            "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        assert!(
+            evaluate_const_range_endpoints(&mut program, None).is_err(),
+            "computed result cannot inherit an operand domain: {endpoint}"
+        );
+    }
+}
+
+#[test]
+fn whole_endpoint_discovery_retains_distinct_roots_with_shared_call() {
+    let mut program = typed(
+        "machine endpoint() -> u64 { 256 } machine keep(first: u64[0..=endpoint() + 1], second: u64[0..=endpoint() + 2]) {}",
+    );
+    let pending = pending_endpoints(&program).unwrap();
+    assert_eq!(pending.len(), 2);
+    let roots = [pending[0].root, pending[1].root];
+    let shared_call = pending[0].expression;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression_mut(roots[1]) else {
+        panic!("second bound is arithmetic");
+    };
+    binary.left = shared_call;
+    assert_eq!(
+        pending_endpoints(&program).unwrap().len(),
+        2,
+        "each root owns its own normalization even when operands share handles"
+    );
+    evaluate_const_range_endpoints(&mut program, None).unwrap();
+    for (root, expected) in roots.into_iter().zip(["257", "258"]) {
+        let ExpressionNode::Integer(literal) = program.expression_table.expression(root) else {
+            panic!("each bound folds");
+        };
+        assert_eq!(literal.value_bignum().unwrap().to_string(), expected);
+    }
+}
+
+#[test]
+fn whole_endpoint_without_calls_uses_the_same_shared_evaluator() {
+    let mut program = typed(
+        "machine keep(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) {}",
+    );
+    assert!(pending_endpoints(&program).unwrap().is_empty());
+    evaluate_const_range_endpoints(&mut program, None).unwrap();
+    assert_eq!(folded_maximum(&program).as_deref(), Some("257"));
+    typed_trees_to_checked_trees::lower_typed_trees(program).unwrap();
+}
+
+#[test]
+fn optional_endpoint_probes_preserve_dependent_bounds_and_invalid_roots() {
+    for endpoint in [
+        "cap",
+        "cap + 1",
+        "match true { true -> cap, false -> 0u64 }",
+    ] {
+        let mut program = typed(&format!(
+            "machine keep(cap: u64, value: u64[0..={endpoint}]) {{}}"
+        ));
+        let plan = super::endpoint_plan(&program).unwrap();
+        assert!(plan.calls.is_empty());
+        let roots: Vec<_> = plan
+            .roots
+            .iter()
+            .map(|root| {
+                (
+                    root.expression,
+                    program.expression_table.expression(root.expression).clone(),
+                )
+            })
+            .collect();
+        super::defer_pending_endpoint_calls(&mut program).unwrap();
+        assert!(program.pending_const_range_endpoints.is_empty());
+        evaluate_const_range_endpoints(&mut program, None).unwrap();
+        for (root, original) in roots {
+            assert_eq!(program.expression_table.expression(root), &original);
+        }
+    }
+    let mut program =
+        typed("machine keep(value: u64[0..=(match true { true -> false, false -> true })]) {}");
+    evaluate_const_range_endpoints(&mut program, None).unwrap();
+    assert!(
+        typed_trees_to_checked_trees::lower_typed_trees(program).is_err(),
+        "optional probing cannot accept an invalid Boolean range bound"
+    );
+}
+
+#[test]
+fn optional_endpoint_preparation_failure_leaves_authored_roots_unchanged() {
+    let mut program = typed(
+        "machine two<const A: u64, const B: u64>() -> u64 { A + B }
+         machine unrelated() -> u64 { two<1>() }
+         machine keep(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) {}",
+    );
+    let plan = super::endpoint_plan(&program).unwrap();
+    assert!(plan.calls.is_empty());
+    assert!(!plan.roots.is_empty());
+    let roots: Vec<_> = plan
+        .roots
+        .iter()
+        .map(|root| {
+            (
+                root.expression,
+                program.expression_table.expression(root.expression).clone(),
+            )
+        })
+        .collect();
+    let marks = program.pending_const_range_endpoints.clone();
+    let Err(errors) = crate::PreparedBuildMachineProgram::prepare(&program) else {
+        panic!("the unrelated partial static application must prevent preparation");
+    };
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("cannot be derived")),
+        "{errors:?}"
+    );
+    evaluate_const_range_endpoints(&mut program, None)
+        .expect("optional probing leaves unrelated preparation errors to ordinary checking");
+    for (root, original) in roots {
+        assert_eq!(program.expression_table.expression(root), &original);
+    }
+    assert_eq!(program.pending_const_range_endpoints, marks);
+    assert!(typed_trees_to_checked_trees::lower_typed_trees(program).is_err());
 }

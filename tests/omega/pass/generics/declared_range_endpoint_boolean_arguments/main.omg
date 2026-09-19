@@ -18,12 +18,20 @@ machine literal_flag(value: u64[0..=pick(false)]) -> u64 { upper_bound(value) }
 machine helper_flag(value: u64[0..pick(is_wide()) + 1]) -> u64 { upper_bound(value) }
 machine composed_flag(value: u64[0..=pick(both(true, is_wide()))]) -> u64 { upper_bound(value) }
 
+machine comparison_flag(value: u64[0..=pick(1u64 < 2u64)]) -> u64 { upper_bound(value) }
+machine whole_expression_flag(value: u64[0..=(match is_wide() { true -> pick(true), false -> pick(both(true, is_wide())) }) + 1]) -> u64 { upper_bound(value) }
+
+machine call_free_flag(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) -> u64 { upper_bound(value) }
+
 data Main { console: Service<Console> in Bound; }
 machine Main::main(&mut self) reaches Console {
     let literal: u64 = literal_flag(0);
     let helper: u64 = helper_flag(0);
     let composed: u64 = composed_flag(0);
-    transition literal == 256 && helper == 256 && composed == 256 {
+    let comparison: u64 = comparison_flag(0);
+    let whole: u64 = whole_expression_flag(0);
+    let call_free: u64 = call_free_flag(0);
+    transition literal == 256 && helper == 256 && composed == 256 && comparison == 512 && whole == 257 && call_free == 257 {
         true -> passed()
         false -> failed()
     }

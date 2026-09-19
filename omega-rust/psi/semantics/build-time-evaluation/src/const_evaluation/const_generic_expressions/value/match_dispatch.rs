@@ -9,8 +9,6 @@ use numerics::literals::LandedIntegerType;
 use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern},
-    machine::Machine,
-    state::State,
     types::PrimitiveType,
 };
 
@@ -135,8 +133,7 @@ pub(super) fn validate_graph(program: &TypedTrees, root: ExpressionHandle) -> Re
 
 pub(super) fn validate_join(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     expression: ExpressionHandle,
     shapes: &mut Vec<Shape>,
     warnings: &mut Vec<Diagnostic>,
@@ -164,22 +161,34 @@ pub(super) fn validate_join(
         }
         results.push(children.next().ok_or("constant Match lost result type")?);
     }
-    let subject = join(program, machine, state, &patterns, warnings)?;
-    let result = join(program, machine, state, &results, warnings)?;
+    let subject = join(program, context, &patterns, warnings)?;
+    let result = join(program, context, &results, warnings)?;
     let result = if matches!(result, Shape::Anonymous(_)) {
         Shape::Anonymous(expression)
     } else {
         result
     };
     let mut diagnostics = Vec::new();
-    validation::validate_match_dispatch(
-        program,
-        machine,
-        state,
-        expression,
-        dispatch,
-        &mut diagnostics,
-    );
+    if let super::EvaluationContext::Machine(machine, state) = context {
+        validation::validate_match_dispatch(
+            program,
+            machine,
+            state,
+            expression,
+            dispatch,
+            &mut diagnostics,
+        );
+    } else {
+        // The scalar shape join above already checks every subject/pattern and
+        // result carrier. Closed positions have no local storage selections.
+        let wildcard = arms
+            .iter()
+            .any(|arm| matches!(arm.pattern, MatchPattern::Wildcard));
+        let covered = [false, true].into_iter().all(|expected| arms.iter().any(|arm| matches!(arm.pattern, MatchPattern::Value(pattern) if matches!(program.expression_table.expression(pattern), ExpressionNode::Boolean(value) if *value == expected))));
+        if !wildcard && !(matches!(subject, Shape::Boolean) && covered) {
+            return Err("match requires exhaustive Boolean patterns or a wildcard".into());
+        }
+    }
     if !diagnostics.is_empty() {
         return Err(diagnostics
             .into_iter()
@@ -196,8 +205,7 @@ pub(super) fn validate_join(
 
 fn join(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     shapes: &[Shape],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Shape, String> {
@@ -211,18 +219,11 @@ fn join(
         match (*shape, peer) {
             (Shape::Boolean, Shape::Boolean) => {}
             (Shape::Anonymous(expression), Shape::Anonymous(_)) => {
-                validate_anonymous_fragments(program, machine, state, expression)?;
+                validate_anonymous_fragments(program, context, expression)?;
             }
-            (Shape::Integer(left), Shape::Integer(right)) if left == right => {}
-            (Shape::Anonymous(expression), Shape::Integer(carrier)) => {
-                validate_landing(
-                    program,
-                    machine,
-                    state,
-                    expression,
-                    primitive(carrier)?,
-                    warnings,
-                )?;
+            (Shape::Integer(left, _), Shape::Integer(right, _)) if left == right => {}
+            (Shape::Anonymous(expression), Shape::Integer(carrier, _)) => {
+                validate_landing(program, context, expression, primitive(carrier)?, warnings)?;
             }
             _ => {
                 return Err(
@@ -231,13 +232,12 @@ fn join(
             }
         }
     }
-    Ok(peer)
+    context.joined_result(program, shapes, peer)
 }
 
 pub(super) fn validate_landing(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     warnings: &mut Vec<Diagnostic>,
@@ -269,40 +269,18 @@ pub(super) fn validate_landing(
                     .map(|arm| arm.value),
             );
         } else if contains_match(program, expression) {
-            validate_anonymous_fragments(program, machine, state, expression)?;
+            validate_anonymous_fragments(program, context, expression)?;
             let fractional_history = rational_bounds::validate_integer_landing(
                 program,
                 expression,
                 carrier,
-                |operand| {
-                    validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        operand,
-                    )
-                },
+                |operand| context.has_builtin(program, operand),
             )?;
             if fractional_history {
-                validate_fractional_landings(
-                    program,
-                    machine,
-                    state,
-                    expression,
-                    destination,
-                    warnings,
-                )?;
+                validate_fractional_landings(program, context, expression, destination, warnings)?;
             }
         } else {
-            land_anonymous(
-                program,
-                machine,
-                state,
-                expression,
-                destination,
-                &[],
-                warnings,
-            )?;
+            land_anonymous(program, context, expression, destination, &[], warnings)?;
         }
     }
     Ok(carrier)
@@ -328,17 +306,15 @@ struct LandingSummary {
 /// of arm combinations. Subjects and patterns are never evaluated.
 fn validate_fractional_landings(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     root: ExpressionHandle,
     destination: PrimitiveType,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), String> {
-    for summary in landing_summaries(program, machine, state, root)? {
+    for summary in landing_summaries(program, context, root)? {
         land_anonymous(
             program,
-            machine,
-            state,
+            context,
             root,
             destination,
             &summary.selection,
@@ -350,8 +326,7 @@ fn validate_fractional_landings(
 
 fn landing_summaries(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     root: ExpressionHandle,
 ) -> Result<Vec<LandingSummary>, String> {
     enum Step {
@@ -372,12 +347,7 @@ fn landing_summaries(
                     pending.extend(arms.iter().rev().map(|arm| Step::Enter(arm.value)));
                 }
                 ExpressionNode::Binary(binary) => {
-                    if !validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        expression,
-                    ) {
+                    if !context.has_builtin(program, expression) {
                         return Err(
                             "anonymous rational bounds require selected builtin meaning".into()
                         );
@@ -392,14 +362,7 @@ fn landing_summaries(
                             program,
                             expression,
                             &[],
-                            |operand| {
-                                validation::has_builtin_binary_expression_meaning(
-                                    program,
-                                    machine,
-                                    Some(state),
-                                    operand,
-                                )
-                            },
+                            |operand| context.has_builtin(program, operand),
                         )
                         .ok_or(
                             "anonymous constant expression requires defined exact numeric values",
@@ -551,8 +514,7 @@ fn contains_match(program: &TypedTrees, root: ExpressionHandle) -> bool {
 
 pub(super) fn validate_anonymous_fragments(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     root: ExpressionHandle,
 ) -> Result<(), String> {
     let mut pending = vec![root];
@@ -571,7 +533,7 @@ pub(super) fn validate_anonymous_fragments(
                 return Err("invalid anonymous result graph".into());
             };
             if binary.operator == typed_trees::expression::BinaryOperator::Divide {
-                validate_nonzero_divisor(program, machine, state, binary.right)?;
+                validate_nonzero_divisor(program, context, binary.right)?;
             }
             pending.push(binary.right);
             pending.push(binary.left);
@@ -580,14 +542,7 @@ pub(super) fn validate_anonymous_fragments(
                 program,
                 expression,
                 &[],
-                |operand| {
-                    validation::has_builtin_binary_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        operand,
-                    )
-                },
+                |operand| context.has_builtin(program, operand),
             )
             .ok_or("anonymous constant expression requires defined exact numeric values")?;
         }
@@ -597,14 +552,13 @@ pub(super) fn validate_anonymous_fragments(
 
 fn validate_nonzero_divisor(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     root: ExpressionHandle,
 ) -> Result<(), String> {
     // Direct dispatch and surrounding arithmetic use one result-domain proof.
     // Keeping opposite signs separate avoids a special path for bare Match.
     if !rational_bounds::excludes_zero(program, root, |operand| {
-        validation::has_builtin_binary_expression_meaning(program, machine, Some(state), operand)
+        context.has_builtin(program, operand)
     })? {
         return Err("anonymous constant division requires a nonzero divisor proof; its rational bounds include zero".into());
     }
@@ -613,35 +567,32 @@ fn validate_nonzero_divisor(
 
 pub(super) fn validate_anonymous_comparison(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     expression: ExpressionHandle,
 ) -> Result<(), String> {
     if contains_match(program, expression) {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
             return Err("anonymous comparison lost operands".into());
         };
-        validate_anonymous_fragments(program, machine, state, binary.left)?;
-        validate_anonymous_fragments(program, machine, state, binary.right)
+        validate_anonymous_fragments(program, context, binary.left)?;
+        validate_anonymous_fragments(program, context, binary.right)
     } else {
-        super::compare_anonymous(program, machine, state, expression, &[]).map(|_| ())
+        super::compare_anonymous(program, context, expression, &[]).map(|_| ())
     }
 }
 
 pub(super) fn coerce(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    context: super::EvaluationContext<'_>,
     value: Value,
     shape: Shape,
     selected: &[(ExpressionHandle, ExpressionHandle)],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Value, String> {
     match (value, shape) {
-        (Value::Anonymous(expression), Shape::Integer(carrier)) => land_anonymous(
+        (Value::Anonymous(expression), Shape::Integer(carrier, _)) => land_anonymous(
             program,
-            machine,
-            state,
+            context,
             expression,
             primitive(carrier)?,
             selected,
@@ -650,7 +601,7 @@ pub(super) fn coerce(
         (Value::Anonymous(_), Shape::Anonymous(_)) | (Value::Boolean(_), Shape::Boolean) => {
             Ok(value)
         }
-        (Value::Landed(left, _), Shape::Integer(right)) if left == right => Ok(value),
+        (Value::Landed(left, _), Shape::Integer(right, _)) if left == right => Ok(value),
         _ => Err("constant Match execution changed its scalar join type".into()),
     }
 }

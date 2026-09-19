@@ -9,6 +9,53 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use typed_trees::types::PrimitiveType;
 
 #[test]
+fn declared_range_boolean_endpoints_survive_terminal_publication() {
+    let canary = pass_canary("generics/declared_range_endpoint_boolean_arguments");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("whole range expressions select exact inferred endpoints");
+    let unsigned = |value| terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            64,
+        )
+        .unwrap(),
+        value: semantic_vocabulary::IntegerValue::Unsigned(value),
+    };
+    for (name, expected) in [
+        ("literal_flag", 256),
+        ("helper_flag", 256),
+        ("composed_flag", 256),
+        ("comparison_flag", 512),
+        ("whole_expression_flag", 257),
+        ("call_free_flag", 257),
+    ] {
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
+            .produce_artifact()
+            .unwrap_or_else(|error| panic!("Terminal endpoint consumer {name}: {error:?}"));
+        // The consumer receives serialized evidence and a fresh argument. It
+        // must observe the bound selected by ordinary generic inference, with
+        // no access to the compiler's constant-evaluation result table.
+        let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[unsigned(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
+        )
+        .unwrap_or_else(|error| panic!("Terminal endpoint execution {name}: {error:?}"));
+        assert_eq!(
+            execution.value(),
+            terminal_interpreter::TerminalExecutionResult::Scalar(unsigned(expected)),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn declared_range_inference_returns_the_selected_endpoint() {
     use build_time_evaluation::{
         BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue,
@@ -347,7 +394,7 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
             "machine small() -> u8 {255}
           machine endpoint(ignored: u64) -> u64 {256}
           machine bounded(value: u64[0..=endpoint(small())]) {}",
-            "range endpoint argument",
+            "constant expression differs from its destination carrier",
         ),
         (
             "machine small() -> u8 {255}
@@ -358,19 +405,19 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
             "machine small() -> u8 {255}
           machine endpoint(ignored: u8) -> u64 {256}
           machine bounded(value: u64[0..=endpoint(small() + 1)]) {}",
-            "closed integer expression",
+            "Exact integer constant operation overflows",
         ),
         (
             "data Limits {} machine Limits::capacity(&self) -> u64 {256}
           machine endpoint(ignored: u64) -> u64 {256}
           machine bounded(limits: Limits, value: u64[0..=endpoint(limits.capacity())]) {}",
-            "closed integer expression",
+            "range endpoint call needs an exact closed selected machine",
         ),
         (
             "machine open<const N: u64>() -> u64 {256}
           machine endpoint(ignored: u64) -> u64 {256}
           machine bounded(value: u64[0..=endpoint(open())]) {}",
-            "closed integer expression",
+            "range endpoint call needs an exact closed selected machine",
         ),
         (
             "machine endpoint(ignored: u64[1..=256]) -> u64 {256}
