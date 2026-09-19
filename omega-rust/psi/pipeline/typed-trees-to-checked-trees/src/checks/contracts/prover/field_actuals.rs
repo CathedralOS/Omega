@@ -142,7 +142,10 @@ fn has_explicit_formal_root(
     None
 }
 
-fn checked_place(program: &TypedTrees, expression: ExpressionHandle) -> Option<CanonicalPlace> {
+pub(super) fn checked_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlace> {
     let mut current = expression;
     let mut visited = Vec::new();
     loop {

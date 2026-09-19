@@ -65,8 +65,7 @@ pub(super) fn check_call_requires(
                         )
                         || call_entry_contexts_prove_boolean_contract_expression(
                             program,
-                            &facts.operators,
-                            &facts.semantic,
+                            facts,
                             state_flow,
                             call_flow,
                             &entry_contexts,

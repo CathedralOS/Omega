@@ -12,6 +12,7 @@ pub(super) use scalars::{
     has_builtin_operators,
 };
 mod booleans;
+mod call_guarantees;
 mod field_actuals;
 #[cfg(test)]
 mod tests;
@@ -43,14 +44,15 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
 
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     program: &typed_trees::TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
-    semantic: &facts::FactPlan,
+    facts: &checked_trees::CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     entry_contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
+    let operators = &facts.operators;
+    let semantic = &facts.semantic;
     let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
         state_flow.machine_symbol,
@@ -65,6 +67,18 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     else {
         return false;
     };
+
+    if call_guarantees::proves(
+        program,
+        facts,
+        state_flow,
+        call_flow,
+        entry_contexts,
+        expression,
+        call_frames,
+    ) {
+        return true;
+    }
 
     let mut field_handled = false;
     for entry_context in entry_contexts {
