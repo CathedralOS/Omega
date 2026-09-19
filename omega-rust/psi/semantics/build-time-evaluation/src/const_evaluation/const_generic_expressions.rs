@@ -347,6 +347,7 @@ pub(super) fn expression_custody(
     root: typed_trees::expression::ExpressionHandle,
     public: bool,
     syntax: &SyntaxTrees,
+    executed_calls: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
 ) -> Result<(Vec<ConstArgumentOrigin>, Vec<SourceSpan>), String> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionIntrinsic as Intrinsic,
@@ -371,7 +372,13 @@ pub(super) fn expression_custody(
                 .get(occurrence)
                 .ok_or("evaluated expression lost an authored selection")?;
             if selection.kind() == Kind::Call {
-                if !inherits_normalized_constant_call(program, expression, occurrence) {
+                // A call the shared endpoint evaluator already executed owes
+                // invocation custody, not a normalized-constant origin: its
+                // selection, admission and argument checks ran where the fold
+                // happened, and no authored constant supplied its value.
+                if !executed_calls.contains(&expression)
+                    && !inherits_normalized_constant_call(program, expression, occurrence)
+                {
                     return Err("call-free index expression has no owning normalized constant for its call receipt".into());
                 }
                 // This remains an ordinary Call selection for package admission
@@ -655,7 +662,15 @@ fn evaluate_probe_internal(
         }
         (custody.origins, custody.operators)
     } else {
-        expression_custody(typed, machine, state, *expression, public, syntax)?
+        expression_custody(
+            typed,
+            machine,
+            state,
+            *expression,
+            public,
+            syntax,
+            &std::collections::HashSet::new(),
+        )?
     };
     if expected_origins.is_some_and(|expected| {
         origins.len() != expected.len() || origins.iter().any(|origin| !expected.contains(origin))

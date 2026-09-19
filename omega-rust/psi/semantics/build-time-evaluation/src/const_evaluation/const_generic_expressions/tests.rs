@@ -157,6 +157,7 @@ fn genuine_builtin_binary_retains_exact_operator_custody() {
         expression,
         false,
         &syntax_trees::SyntaxTrees::default(),
+        &std::collections::HashSet::new(),
     )
     .expect("checked builtin meaning");
     assert!(constants.is_empty());
@@ -206,9 +207,16 @@ fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls()
     else {
         panic!("selected constant use");
     };
-    let (origins, operators) =
-        expression_custody(&program, machine, state, *expression, false, &syntax)
-            .expect("inherited call stays declaration-owned, not a direct index call");
+    let (origins, operators) = expression_custody(
+        &program,
+        machine,
+        state,
+        *expression,
+        false,
+        &syntax,
+        &std::collections::HashSet::new(),
+    )
+    .expect("inherited call stays declaration-owned, not a direct index call");
     assert_eq!(origins.len(), 1);
     assert_eq!(
         operators.len(),
@@ -231,7 +239,8 @@ fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls()
             state,
             declaration.authored_initializer,
             false,
-            &syntax
+            &syntax,
+            &std::collections::HashSet::new(),
         )
         .is_err(),
         "direct calls do not acquire call-free index authority"
@@ -255,8 +264,16 @@ fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls()
     changed
         .expression_table
         .attach_authored_selection_occurrences(*expression, [foreign_call]);
-    let error = expression_custody(&changed, machine, state, *expression, false, &syntax)
-        .expect_err("globally valid call receipt is not inherited from SIZE");
+    let error = expression_custody(
+        &changed,
+        machine,
+        state,
+        *expression,
+        false,
+        &syntax,
+        &std::collections::HashSet::new(),
+    )
+    .expect_err("globally valid call receipt is not inherited from SIZE");
     assert!(error.contains("owning normalized constant"), "{error}");
 }
 
@@ -298,6 +315,7 @@ fn folded_literal_cannot_promote_unresolved_operator_custody() {
             expression,
             false,
             &syntax_trees::SyntaxTrees::default(),
+            &std::collections::HashSet::new(),
         )
         .expect_err("folded literal has no checked operator meaning");
         assert!(error.contains("checked builtin meaning"));
