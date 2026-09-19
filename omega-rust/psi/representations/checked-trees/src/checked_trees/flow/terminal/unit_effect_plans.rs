@@ -180,6 +180,8 @@ pub enum CheckedUnitEffectOperationPlan {
         target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedCallScalarArgument>,
+        /// Proof-only erased actuals in the target's erased-formal order.
+        erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -196,6 +198,8 @@ pub enum CheckedUnitEffectOperationPlan {
         target_contract_commitment: crate::MachineContractCommitment,
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedCallScalarArgument>,
+        /// Proof-only erased actuals in the target's erased-formal order.
+        erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -213,6 +217,8 @@ pub enum CheckedUnitEffectOperationPlan {
         target_contract_commitment: crate::MachineContractCommitment,
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedCallScalarArgument>,
+        /// Proof-only erased actuals in the target's erased-formal order.
+        erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         discard_result_on_return: bool,
     },
@@ -439,6 +445,9 @@ pub struct CheckedUnitEffectMachinePlan {
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Proof-only erased scalar formals in authored order, retaining their
+    /// authored parameter positions. They own no runtime argument lane.
+    pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     /// Exact boundary requirements replacing one authored provider-backed
     /// attachment field. Empty means no attachment specialization occurred.
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,

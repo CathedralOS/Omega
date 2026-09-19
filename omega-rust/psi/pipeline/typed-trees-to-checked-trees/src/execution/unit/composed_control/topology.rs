@@ -21,6 +21,7 @@ pub(super) struct Topology<'a> {
     pub(super) attachment_type_identity: Option<String>,
     pub(super) entry_structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub(super) entry_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    pub(super) entry_erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub(super) entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     pub(super) entry_bindings: Vec<CheckedScalarBinding>,
     pub(super) entry_binding_initializers: Vec<CheckedScalarExpression>,
@@ -195,6 +196,8 @@ pub(super) fn admit<'a>(
         attachment_type_identity: attachment_type_identity?,
         entry_structural_parameters: entry_structural_parameters.clone(),
         entry_scalar_parameters: entry_scalar_parameters.clone(),
+        entry_erased_scalar_parameters:
+            crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, entry)?,
         entry_claims,
         entry_bindings,
         entry_binding_initializers,
@@ -380,6 +383,7 @@ pub(super) fn successor(
         target_state: expected,
         transfers,
         scalar_arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

@@ -95,6 +95,7 @@ fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     arguments,
+                    erased_arguments: _,
                     callee,
                     structural_arguments,
                     claim_transfers,

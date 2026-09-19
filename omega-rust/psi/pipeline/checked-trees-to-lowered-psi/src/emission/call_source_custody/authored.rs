@@ -16,6 +16,9 @@ pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
     pub source_site: Option<NominalMachineUseSite>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
+    /// Positions within `scalar_arguments` the callee strips as proof-only
+    /// erased formals. Plan rows carry them on a separate lane.
+    pub erased_scalar_positions: Vec<u32>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
     pub boundary: bool,
     pub target_machine: SymbolHandle,
@@ -169,6 +172,7 @@ pub(crate) fn locate_source(
     }
     let mut explicit = 0usize;
     let mut scalar_arguments = Vec::new();
+    let mut erased_scalar_positions = Vec::new();
     let mut structural_arguments = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
         if parameter.is_self && !explicit_self {
@@ -195,12 +199,18 @@ pub(crate) fn locate_source(
         {
             return unsupported("call source custody has no supported owned primitive argument");
         }
+        if parameter.relevance.is_erased() {
+            erased_scalar_positions.push(u32::try_from(scalar_arguments.len()).map_err(|_| {
+                LoweringError::Unsupported("call erased source position exceeds u32")
+            })?);
+        }
         scalar_arguments.push((argument, primitive));
     }
     Ok(AuthoredCall {
         source_target,
         source_site,
         scalar_arguments,
+        erased_scalar_positions,
         structural_arguments,
         boundary: target.boundary,
         target_machine: target.machine,

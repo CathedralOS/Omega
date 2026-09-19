@@ -15,6 +15,7 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
     use checked_trees::CheckedBooleanExpression;
 
     Some(match expression {
+        CheckedBooleanExpression::ErasedParameter { .. } => return None,
         CheckedBooleanExpression::StorageRead { .. } => {
             unreachable!("checked structural crash requirements cannot read local storage")
         }
@@ -104,6 +105,7 @@ fn project_scalar_expression(
     use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
+        CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }

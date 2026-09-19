@@ -104,6 +104,7 @@ fn fixture() -> (
         blocks: BTreeMap::from([(
             block,
             Block {
+                erased_scalar_formals: Vec::new(),
                 id: block,
                 structural_parameters: Vec::new(),
                 parameters: Vec::new(),

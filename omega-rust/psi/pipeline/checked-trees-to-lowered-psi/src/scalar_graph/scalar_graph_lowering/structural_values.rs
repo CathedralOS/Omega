@@ -417,11 +417,13 @@ impl Prepared {
         let mut target = computations.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,
                 arguments: computations::parameters(source_types),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -436,11 +438,13 @@ impl Prepared {
                     let copied = computations.push(LoweredScalarBranchState {
                         structural_parameters: vec![destination],
                         parameter_types: prefix.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Jump {
                             target,
                             arguments: computations::parameters(&prefix),
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
@@ -448,11 +452,13 @@ impl Prepared {
                     computations.push(LoweredScalarBranchState {
                         structural_parameters: Vec::new(),
                         parameter_types: prefix.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Jump {
                             target: copied,
                             arguments: computations::parameters(&prefix),
+                            erased_arguments: Vec::new(),
                             structural_arguments: vec![source],
                             trivial_affine_discards: Vec::new(),
                         },
@@ -478,11 +484,13 @@ impl Prepared {
                 } => computations.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
+                    erased_formal_types: Vec::new(),
                     bindings: Vec::new(),
                     structural_effects: vec![LoweredScalarEffect::EstablishRecord(construction)],
                     terminator: LoweredScalarBranchTerminator::Jump {
                         target,
                         arguments: computations::parameters(&prefix),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
@@ -670,11 +678,13 @@ pub(super) fn exit_target(
     let cleanup = computations.push(LoweredScalarBranchState {
         structural_parameters: destinations,
         parameter_types: parameter_types.to_vec(),
+        erased_formal_types: Vec::new(),
         bindings: Vec::new(),
         structural_effects: Vec::new(),
         terminator: LoweredScalarBranchTerminator::Jump {
             target,
             arguments: computations::parameters(parameter_types),
+            erased_arguments: Vec::new(),
             structural_arguments: std::mem::take(structural_arguments),
             trivial_affine_discards: discards,
         },
@@ -682,11 +692,13 @@ pub(super) fn exit_target(
     Ok(computations.push(LoweredScalarBranchState {
         structural_parameters: Vec::new(),
         parameter_types: parameter_types.to_vec(),
+        erased_formal_types: Vec::new(),
         bindings: Vec::new(),
         structural_effects: Vec::new(),
         terminator: LoweredScalarBranchTerminator::Jump {
             target: cleanup,
             arguments: computations::parameters(parameter_types),
+            erased_arguments: Vec::new(),
             structural_arguments: owners,
             trivial_affine_discards: Vec::new(),
         },

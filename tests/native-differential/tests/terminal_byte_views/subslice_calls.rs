@@ -76,6 +76,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
         },
     );
     let successor = |edge, block| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -84,6 +85,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
     };
     caller.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             id: caller.entry,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -122,6 +124,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
         },
         calls,
         Block {
+            erased_scalar_formals: Vec::new(),
             id: BlockId::new(140).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

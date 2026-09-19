@@ -148,15 +148,54 @@ impl EntryOperands<'_> {
         )
     }
 
+    /// Dense erased-scalar index of the parameter carrying `symbol`, or `None`
+    /// when no uniquely named erased scalar formal exists. Erased formals share
+    /// the authored parameter roster but index their own proof-only namespace.
+    fn erased_position(
+        &self,
+        symbol: symbols::SymbolHandle,
+        primitive: PrimitiveType,
+    ) -> Option<usize> {
+        let mut matches = self
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| symbol.is_valid() && parameter.symbol == symbol);
+        let (position, parameter) = matches.next()?;
+        if matches.next().is_some()
+            || !parameter.relevance.is_erased()
+            || crate::values::mutable_scalar_parameter_type(self.program, parameter)
+                != Some(primitive)
+        {
+            return None;
+        }
+        Some(
+            self.parameters[..position]
+                .iter()
+                .filter(|parameter| {
+                    parameter.relevance.is_erased()
+                        && crate::values::scalar::occupies_scalar_position(self.program, parameter)
+                })
+                .count(),
+        )
+    }
+
     fn scalar(&self, expression: &mut CheckedScalarExpression) -> Option<()> {
         match expression {
             CheckedScalarExpression::StorageRead {
                 symbol,
                 primitive_type,
             } => {
-                *expression = CheckedScalarExpression::Parameter {
-                    position: self.position(*symbol, *primitive_type)?,
-                    primitive_type: *primitive_type,
+                *expression = if let Some(position) = self.position(*symbol, *primitive_type) {
+                    CheckedScalarExpression::Parameter {
+                        position,
+                        primitive_type: *primitive_type,
+                    }
+                } else {
+                    CheckedScalarExpression::ErasedParameter {
+                        position: self.erased_position(*symbol, *primitive_type)?,
+                        primitive_type: *primitive_type,
+                    }
                 };
             }
             CheckedScalarExpression::Local { .. }
@@ -173,6 +212,7 @@ impl EntryOperands<'_> {
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::Parameter { .. }
+            | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. }
             | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. } => {}
@@ -183,8 +223,12 @@ impl EntryOperands<'_> {
     fn boolean(&self, expression: &mut CheckedBooleanExpression) -> Option<()> {
         match expression {
             CheckedBooleanExpression::StorageRead { symbol } => {
-                *expression = CheckedBooleanExpression::Parameter {
-                    position: self.position(*symbol, PrimitiveType::Bool)?,
+                *expression = if let Some(position) = self.position(*symbol, PrimitiveType::Bool) {
+                    CheckedBooleanExpression::Parameter { position }
+                } else {
+                    CheckedBooleanExpression::ErasedParameter {
+                        position: self.erased_position(*symbol, PrimitiveType::Bool)?,
+                    }
                 };
             }
             CheckedBooleanExpression::Local { .. } => return None,
@@ -200,6 +244,7 @@ impl EntryOperands<'_> {
                 self.scalar(right)?;
             }
             CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::ErasedParameter { .. }
             | CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }

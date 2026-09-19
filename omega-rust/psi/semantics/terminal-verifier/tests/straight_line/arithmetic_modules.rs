@@ -54,6 +54,7 @@ pub(super) fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationI
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(20).expect("block"),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(20).expect("block"),
             parameters: Vec::new(),
@@ -74,6 +75,7 @@ pub(super) fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationI
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(20).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -166,6 +168,7 @@ pub(super) fn saturating_add_module() -> (TerminalModule, Proposition, Obligatio
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(30).expect("block"),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(30).expect("block"),
             parameters: Vec::new(),
@@ -186,6 +189,7 @@ pub(super) fn saturating_add_module() -> (TerminalModule, Proposition, Obligatio
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(30).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -278,6 +282,7 @@ pub(super) fn wrapping_subtract_module() -> (TerminalModule, Proposition, Obliga
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(40).expect("block"),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(40).expect("block"),
             parameters: Vec::new(),
@@ -298,6 +303,7 @@ pub(super) fn wrapping_subtract_module() -> (TerminalModule, Proposition, Obliga
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(40).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -390,6 +396,7 @@ pub(super) fn saturating_subtract_module() -> (TerminalModule, Proposition, Obli
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(50).expect("block"),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(50).expect("block"),
             parameters: Vec::new(),
@@ -410,6 +417,7 @@ pub(super) fn saturating_subtract_module() -> (TerminalModule, Proposition, Obli
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(50).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -502,6 +510,7 @@ pub(super) fn wrapping_multiply_module() -> (TerminalModule, Proposition, Obliga
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(60).expect("block"),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(60).expect("block"),
             parameters: Vec::new(),
@@ -522,6 +531,7 @@ pub(super) fn wrapping_multiply_module() -> (TerminalModule, Proposition, Obliga
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(60).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -614,6 +624,7 @@ pub(super) fn saturating_multiply_module() -> (TerminalModule, Proposition, Obli
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(70).expect("block"),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(70).expect("block"),
             parameters: Vec::new(),
@@ -634,6 +645,7 @@ pub(super) fn saturating_multiply_module() -> (TerminalModule, Proposition, Obli
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(70).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),

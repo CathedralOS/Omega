@@ -22,6 +22,8 @@ pub(super) fn lower_terminator(
             trivial_affine_discards,
             residual_affine_discards,
             structural_arguments,
+            // Proof-only lane; runtime lowering has no erased actuals to read.
+            erased_arguments: _,
         } => {
             let target_block =
                 blocks

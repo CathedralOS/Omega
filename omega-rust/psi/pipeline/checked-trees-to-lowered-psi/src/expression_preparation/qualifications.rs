@@ -305,6 +305,37 @@ impl PreparedScalarQualifications {
             .collect::<Result<Vec<_>, _>>()?;
         Ok((parameters, self.value_type(checked, state.return_type)?))
     }
+
+    /// Erased formal carriers in authored order — the proof-only roster a
+    /// machine contract's `erased_scalar_formals` commits to.
+    pub(crate) fn scalar_state_erased_types(
+        &self,
+        checked: &CheckedTrees,
+        symbol: SymbolHandle,
+    ) -> Result<Vec<QualifiedScalarType>, LoweringError> {
+        let mut states = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .filter(|state| state.symbol == symbol);
+        let state = states.next().ok_or(LoweringError::Unsupported(
+            "scalar signature lost its state",
+        ))?;
+        if states.next().is_some() {
+            return unsupported("scalar signature has ambiguous state identity");
+        }
+        checked
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                parameter.relevance.is_erased()
+                    && checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+            })
+            .map(|parameter| self.value_type(checked, parameter.type_reference))
+            .collect()
+    }
 }
 
 pub(crate) fn type_atoms(

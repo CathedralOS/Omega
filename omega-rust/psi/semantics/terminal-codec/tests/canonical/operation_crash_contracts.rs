@@ -53,6 +53,7 @@ fn comparison_fixture() -> TerminalModule {
     ];
     machine.result = TerminalMachineResult::Scalar(declaration(940, ScalarType::Boolean));
     machine.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(900),
         parameters: Vec::new(),
@@ -72,6 +73,7 @@ fn comparison_fixture() -> TerminalModule {
         },
     }];
     machine.contract = MachineContract {
+        erased_scalar_formals: Vec::new(),
         id: contract_id(900),
         crash_routes: vec![guarded(CrashCause::Trap, negative(920))],
         requires: Vec::new(),

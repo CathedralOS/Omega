@@ -140,6 +140,7 @@ fn shared_integer_runtime_parameters(
         | LoweredDirectExpression::IntegerBitwiseNot { .. }
         | LoweredDirectExpression::IntegerExactCast { .. }
         | LoweredDirectExpression::IntegerWiden { .. }
+        | LoweredDirectExpression::ErasedParameter { .. }
         | LoweredDirectExpression::Boolean { .. } => None,
     }
 }

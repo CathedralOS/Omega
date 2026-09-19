@@ -288,6 +288,7 @@ fn array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
         id: operation_id(101),
         result: OperationResult::Scalar(scalar),
         kind: OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
             callee: machine_id(101),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

@@ -292,6 +292,7 @@ fn structural_value(opaque_identity: u64) -> TerminalStructuralValue {
 
 fn empty_contract(id: ContractId) -> MachineContract {
     MachineContract {
+        erased_scalar_formals: Vec::new(),
         id,
         crash_routes: Vec::new(),
         requires: Vec::new(),

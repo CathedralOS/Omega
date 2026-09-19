@@ -49,6 +49,7 @@ fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
             id: OperationId::new(ordinal).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: callee_id,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -162,6 +163,7 @@ fn execution() -> TerminalExecution {
                     blocks: BTreeMap::from([(
                         entry,
                         Block {
+                            erased_scalar_formals: Vec::new(),
                             id: entry,
                             parameters: Vec::new(),
                             structural_parameters: Vec::new(),

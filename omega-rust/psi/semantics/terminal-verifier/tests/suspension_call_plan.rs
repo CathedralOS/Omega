@@ -140,6 +140,7 @@ fn fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(1),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(1),
                     parameters: Vec::new(),
@@ -157,6 +158,7 @@ fn fixture() -> TerminalModule {
                             id: id(2),
                             result: OperationResult::Scalar(call_result),
                             kind: OperationKind::Call {
+                                erased_arguments: Vec::new(),
                                 callee: id(2),
                                 arguments: vec![caller_parameter.id],
                                 requirement_obligations: Vec::new(),
@@ -168,6 +170,7 @@ fn fixture() -> TerminalModule {
                             id: id(3),
                             result: OperationResult::Scalar(second_call_result),
                             kind: OperationKind::Call {
+                                erased_arguments: Vec::new(),
                                 callee: id(2),
                                 arguments: vec![caller_parameter.id],
                                 requirement_obligations: Vec::new(),
@@ -182,6 +185,7 @@ fn fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: id(1),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -206,6 +210,7 @@ fn fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(2),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: Vec::new(),
@@ -217,6 +222,7 @@ fn fixture() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: id(2),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),

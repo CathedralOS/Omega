@@ -68,6 +68,7 @@ fn owned_successor_module() -> TerminalModule {
         edge: EdgeId::new(904).unwrap(),
         target,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: PlaceId::new(1).unwrap(),
             access: StructuralAccess::Owned,
@@ -78,6 +79,7 @@ fn owned_successor_module() -> TerminalModule {
     };
     caller.result = TerminalMachineResult::Scalar(scalar(6));
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: target,
         parameters: Vec::new(),
         structural_parameters: vec![parameter],
@@ -87,6 +89,7 @@ fn owned_successor_module() -> TerminalModule {
                 id: OperationId::new(3).unwrap(),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    erased_arguments: Vec::new(),
                     callee: writer.id,
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {

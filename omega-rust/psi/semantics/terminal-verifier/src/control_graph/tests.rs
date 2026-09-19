@@ -28,6 +28,7 @@ fn machine(identities: &[u64], adjacency: &[Vec<usize>], entry: usize) -> Termin
             .iter()
             .enumerate()
             .map(|(position, targets)| Block {
+                erased_scalar_formals: Vec::new(),
                 id: block(identities[position]),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -62,6 +63,7 @@ fn machine(identities: &[u64], adjacency: &[Vec<usize>], entry: usize) -> Termin
             })
             .collect(),
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

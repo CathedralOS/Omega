@@ -58,7 +58,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
         ) -> Result<ScalarTerm, LoweringError> {
             match expression {
                 CheckedScalarExpression::Parameter { .. } => {
-                    checked_scalar_term(expression, scalar_parameters)
+                    checked_scalar_term(expression, scalar_parameters, &[])
                 }
                 CheckedScalarExpression::StructuralParameterField {
                     parameter_position,
@@ -423,7 +423,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
         match expression {
             CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
             CheckedBooleanExpression::Parameter { .. } => {
-                checked_boolean_scalar_term(expression, scalar_parameters)
+                checked_boolean_scalar_term(expression, scalar_parameters, &[])
             }
             CheckedBooleanExpression::StorageRead { .. } => {
                 unsupported("crash predicate cannot reconstruct mutable storage")
@@ -507,6 +507,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
                 unsupported("sum membership lowers as an atomic proposition")
             }
             CheckedBooleanExpression::Local { .. }
+            | CheckedBooleanExpression::ErasedParameter { .. }
             | CheckedBooleanExpression::And { .. }
             | CheckedBooleanExpression::Or { .. } => {
                 unsupported("structural crash route contains an unsupported Boolean term")
@@ -534,6 +535,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
             | CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::StructuralParameterField { .. }
+            | CheckedBooleanExpression::ErasedParameter { .. }
             | CheckedBooleanExpression::IntegerComparison { .. } => false,
         }
     }

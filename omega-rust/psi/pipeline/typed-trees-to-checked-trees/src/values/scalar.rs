@@ -56,7 +56,7 @@ pub(crate) use expression_plans::build_checked_scalar_expression_plans;
 pub(crate) use machine_parameter_booleans::lower_machine_parameter_boolean_expression;
 pub(crate) use result_contract::{
     lower_integer_parameter_range_requirements, lower_scalar_contract_predicate,
-    lower_scalar_parameter_range_requirements,
+    lower_scalar_parameter_range_requirements, lower_state_scalar_contract_predicate,
 };
 pub(crate) use scalar_lowering::{lower_state_scalar_expression, lower_unit_scalar_argument};
 pub(crate) use structural_fields::{exclusive_reference, resolve_structural_parameter_path};

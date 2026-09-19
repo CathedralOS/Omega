@@ -156,6 +156,8 @@ pub(super) fn build(
                 state: graph.entry.symbol,
                 structural_parameters: graph.entry_structural_parameters,
                 scalar_parameters: graph.entry_scalar_parameters,
+                erased_scalar_parameters: graph.entry_erased_scalar_parameters,
+                requires: Vec::new(),
                 entry_claims: graph.entry_claims,
                 bindings: graph.entry_bindings,
                 binding_initializers: graph.entry_binding_initializers,

@@ -6,7 +6,8 @@
 //! mention is retained before resolution begins.
 
 use crate::retained_identities::proof_values::{
-    crash_continuations, retain_crash_routes, retain_proposition,
+    call_erased_arguments, crash_continuations, retain_crash_routes, retain_erased_arguments,
+    retain_proposition,
 };
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,6 +43,7 @@ pub(super) fn propagate(
         .collect::<Vec<_>>();
     for operation in &operations {
         retain_crash_routes(crash_continuations(&operation.kind), retained_values);
+        retain_erased_arguments(call_erased_arguments(&operation.kind), retained_values);
     }
     for occurrence in source_calls {
         if operations
@@ -61,12 +63,16 @@ pub(super) fn propagate(
     for block in &machine.blocks {
         match &block.terminator {
             Terminator::Jump {
-                target, arguments, ..
+                target,
+                arguments,
+                erased_arguments,
+                ..
             } => {
                 incoming_arguments
                     .entry(*target)
                     .or_default()
                     .push(arguments.clone());
+                retain_erased_arguments(erased_arguments, retained_values);
             }
             Terminator::Conditional {
                 when_true,
@@ -78,6 +84,7 @@ pub(super) fn propagate(
                         .entry(edge.target)
                         .or_default()
                         .push(edge.arguments.clone());
+                    retain_erased_arguments(&edge.erased_arguments, retained_values);
                 }
             }
             Terminator::StructuralCase { cases, .. } => {

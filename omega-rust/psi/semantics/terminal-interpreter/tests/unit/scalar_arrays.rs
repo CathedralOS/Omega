@@ -392,6 +392,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
                 scalar_type: byte(0).scalar_type(),
             }),
             kind: OperationKind::Call {
+                erased_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: vec![],
                 requirement_obligations: vec![],
@@ -473,6 +474,7 @@ fn scalar_array_owned_unit_argument_preserves_caller_contents() {
         id: operation_id(100),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(2),
             arguments: vec![],
             structural_arguments: vec![StructuralArgument {
@@ -860,6 +862,7 @@ fn scalar_array_call_results_keep_payload_through_unit_arguments() {
         id: operation_id(302),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(4),
             arguments: vec![],
             structural_arguments: vec![StructuralArgument {

@@ -377,6 +377,7 @@ fn emit(
         structural_parameters: Vec::new(),
         id: state_ids[0],
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         operations: entry_operations.operations,
         terminator: Terminator::StructuralCase {
             source: result_place,
@@ -399,6 +400,7 @@ fn emit(
             &[],
             &[],
             &parameters,
+            &[],
             &mut next_value,
             &mut next_block,
             &mut next_operation,
@@ -474,6 +476,7 @@ fn emit(
         contract: MachineContract {
             id: contract_id(1),
             crash_routes: lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &[])?,
+            erased_scalar_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

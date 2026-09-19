@@ -214,6 +214,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -231,6 +232,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -307,10 +309,12 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
         edge: edge_id(101),
         target: block_id(102),
         arguments: vec![value_id(50)],
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: vec![place],
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(102),
         parameters: vec![ValueDeclaration {
@@ -353,6 +357,7 @@ fn conditional_affine_discards_round_trip_canonically() {
     let place = machine.structural_parameters[0].place;
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(101),
             parameters: Vec::new(),
@@ -364,6 +369,7 @@ fn conditional_affine_discards_round_trip_canonically() {
                     edge: edge_id(101),
                     target: block_id(102),
                     arguments: vec![value_id(50)],
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: vec![place],
                 },
                 when_false: SuccessorEdge {
@@ -371,11 +377,13 @@ fn conditional_affine_discards_round_trip_canonically() {
                     edge: edge_id(102),
                     target: block_id(103),
                     arguments: vec![value_id(50)],
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: vec![place],
                 },
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(102),
             parameters: vec![ValueDeclaration {
@@ -391,6 +399,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(103),
             parameters: vec![ValueDeclaration {

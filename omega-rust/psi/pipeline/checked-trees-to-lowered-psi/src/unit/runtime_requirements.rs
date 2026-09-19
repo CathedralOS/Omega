@@ -20,6 +20,7 @@ mod tests;
 pub(crate) fn lower_structural_runtime_requirement(
     expression: &CheckedBooleanExpression,
     scalar_parameters: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Proposition, LoweringError> {
@@ -29,6 +30,7 @@ pub(crate) fn lower_structural_runtime_requirement(
         expression,
         &RuntimeRequirementTerms {
             scalar_parameters,
+            erased,
             parameters,
             structural_types,
         },
@@ -39,6 +41,7 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
     match expression {
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. } => Ok(()),
         CheckedBooleanExpression::Not(operand) => validate_namespace(operand),
         CheckedBooleanExpression::Equal { left, right }
@@ -58,6 +61,7 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
 fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
+        | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
             if *primitive_type == PrimitiveType::Addr {
                 return unsupported("runtime requirement cannot use an address carrier");
@@ -73,6 +77,7 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
 
 struct RuntimeRequirementTerms<'parameters> {
     scalar_parameters: &'parameters [ValueDeclaration],
+    erased: &'parameters [ValueDeclaration],
     parameters: &'parameters [StructuralParameterDeclaration],
     structural_types: &'parameters [StructuralTypeDeclaration],
 }
@@ -80,9 +85,10 @@ struct RuntimeRequirementTerms<'parameters> {
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
     fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         match expression {
-            CheckedScalarExpression::Parameter { primitive_type, .. } => {
+            CheckedScalarExpression::Parameter { primitive_type, .. }
+            | CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
                 integer_scalar_type(*primitive_type)?;
-                checked_scalar_term(expression, self.scalar_parameters)
+                checked_scalar_term(expression, self.scalar_parameters, self.erased)
             }
             CheckedScalarExpression::StructuralParameterField {
                 parameter_position,
@@ -117,8 +123,10 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
                 ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
-            CheckedBooleanExpression::Constant(_) | CheckedBooleanExpression::Parameter { .. } => {
-                checked_boolean_scalar_term(expression, self.scalar_parameters)
+            CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::ErasedParameter { .. } => {
+                checked_boolean_scalar_term(expression, self.scalar_parameters, self.erased)
             }
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,

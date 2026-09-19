@@ -280,6 +280,7 @@ fn scalar_successor(
         target_state: path.symbol,
         transfers: Vec::new(),
         scalar_arguments,
+        erased_arguments: Vec::new(),
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

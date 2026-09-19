@@ -369,6 +369,7 @@ fn validate_operation_foundation(
         OperationKind::CallStructuralWithScalarArguments {
             callee,
             arguments,
+            erased_arguments: _,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,

@@ -88,6 +88,7 @@ fn module() -> TerminalModule {
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: vec![value_id(1)],
                 structural_arguments: vec![StructuralArgument {
@@ -138,6 +139,7 @@ fn branch(module: &mut TerminalModule) {
         edge: edge_id(ordinal),
         target: block_id(ordinal),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -167,6 +169,7 @@ fn consume(module: &mut TerminalModule, block: usize) {
     }];
     callee.result = TerminalMachineResult::Unit;
     callee.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -182,6 +185,7 @@ fn consume(module: &mut TerminalModule, block: usize) {
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -346,6 +350,7 @@ fn affine_parameter_return_rejects_disagreeing_join_custody() {
             edge: edge_id(8 + ordinal as u64),
             target: block_id(6),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),

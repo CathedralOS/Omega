@@ -99,6 +99,7 @@ pub(crate) fn emit(
                     kind: OperationKind::CallUnit {
                         callee: lookup_machine_id(calls.machine_ids, call.target_machine)?,
                         arguments: arguments.iter().map(|argument| argument.id).collect(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: call.structural_arguments.clone(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

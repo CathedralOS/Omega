@@ -82,6 +82,34 @@ pub(crate) fn checked_call_scalar_arguments(
         .collect()
 }
 
+/// Proof-only erased actuals of an in-module Unit call: the retained pure
+/// expressions recorded under `ErasedUnitCallArgument`, in the callee's dense
+/// erased-formal order.
+pub(crate) fn checked_call_erased_scalar_arguments(
+    facts: &CheckFacts,
+    caller_state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    parameters: &[CheckedStructuralScalarParameterPlan],
+) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(erased_ordinal, parameter)| {
+            let role = CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                call_ordinal: coordinate.call_ordinal,
+                erased_ordinal: u32::try_from(erased_ordinal).ok()?,
+            };
+            let (_, expression) = facts.values.scalar_expressions.bound_expression_at(
+                caller_state,
+                coordinate.statement_index,
+                role,
+            )?;
+            (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
+                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
+        })
+        .collect()
+}
+
 fn checked_nonempty_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
     !path.is_empty()
         && path

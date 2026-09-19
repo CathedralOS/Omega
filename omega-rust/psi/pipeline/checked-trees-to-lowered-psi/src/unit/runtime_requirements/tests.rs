@@ -15,7 +15,7 @@ fn boolean_parameter() -> ValueDeclaration {
 }
 
 fn lower(expression: &CheckedBooleanExpression) -> Result<Proposition, LoweringError> {
-    lower_structural_runtime_requirement(expression, &[boolean_parameter()], &[], &[])
+    lower_structural_runtime_requirement(expression, &[boolean_parameter()], &[], &[], &[])
 }
 
 #[test]
@@ -52,7 +52,9 @@ fn boolean_parameters_require_exact_namespace_and_actual_carriers() {
         id: value_id(2),
         scalar_type: integer_scalar_type(PrimitiveType::U8).unwrap(),
     };
-    assert!(lower_structural_runtime_requirement(&expression, &[wrong_type], &[], &[]).is_err());
+    assert!(
+        lower_structural_runtime_requirement(&expression, &[wrong_type], &[], &[], &[]).is_err()
+    );
     assert!(lower(&CheckedBooleanExpression::Parameter { position: 1 }).is_err());
     for substitutions in [BTreeMap::new(), BTreeMap::from([(value_id(1), wrong_type)])] {
         assert!(
@@ -149,7 +151,7 @@ fn compound_boolean_entry_equality_keeps_substitutable_scalar_denotations() {
             right: Box::new(right),
         };
         let mut proposition =
-            lower_structural_runtime_requirement(&expression, &parameters, &[], &[]).unwrap();
+            lower_structural_runtime_requirement(&expression, &parameters, &[], &[], &[]).unwrap();
         assert!(matches!(proposition, Proposition::Equal(_, _)));
         substitute_runtime_requirement_scalar_values(
             &mut proposition,
@@ -205,8 +207,14 @@ fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic(
         right: Box::new(literal.clone()),
     };
     assert!(matches!(
-        lower_structural_runtime_requirement(&predicate(parameter.clone()), &[formal], &[], &[])
-            .unwrap(),
+        lower_structural_runtime_requirement(
+            &predicate(parameter.clone()),
+            &[formal],
+            &[],
+            &[],
+            &[]
+        )
+        .unwrap(),
         Proposition::LessThan(_, _)
     ));
     for kind in [
@@ -220,7 +228,7 @@ fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic(
             right: Box::new(literal.clone()),
         };
         assert!(
-            lower_structural_runtime_requirement(&predicate(arithmetic), &[formal], &[], &[])
+            lower_structural_runtime_requirement(&predicate(arithmetic), &[formal], &[], &[], &[])
                 .is_err()
         );
     }
@@ -232,6 +240,7 @@ fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic(
                     primitive_type,
                 }),
                 &[formal],
+                &[],
                 &[],
                 &[]
             )

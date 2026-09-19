@@ -199,6 +199,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             content_partition_compositions: Vec::new(),
             entry: block_id(900),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
@@ -231,6 +232,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: contract_id(900),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -319,6 +321,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         content_partition_compositions: Vec::new(),
         entry: block_id(901),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(901),
             parameters: Vec::new(),
@@ -329,6 +332,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(901),
             crash_routes: Vec::new(),
             requires: Vec::new(),

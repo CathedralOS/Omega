@@ -38,6 +38,8 @@ use semantic_vocabulary::BlockId;
 pub(super) struct GraphEmission<'a> {
     pub(super) states: &'a [LoweredScalarBranchState],
     pub(super) state_parameters: Vec<Vec<ValueDeclaration>>,
+    /// Per-state proof-only erased formal rosters in authored order.
+    pub(super) state_erased_formals: Vec<Vec<ValueDeclaration>>,
     pub(super) loop_plan:
         Option<&'a crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
     pub(super) terminal_machine: MachineId,
@@ -60,6 +62,8 @@ pub(super) struct StateFrame<'s> {
     pub(super) source_block: BlockId,
     pub(super) source_block_parameters: Vec<ValueDeclaration>,
     pub(super) current_parameters: &'s Vec<ValueDeclaration>,
+    /// The emitting state's proof-only erased formal roster.
+    pub(super) erased_formals: &'s [ValueDeclaration],
 }
 
 /// Continuations are built backward, but fresh record producer identities must
@@ -177,18 +181,40 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             qualifications: scalar_type.qualifications,
         })
         .collect::<Vec<_>>();
+    let erased_scalar_formals = states[0]
+        .erased_formal_types
+        .iter()
+        .enumerate()
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                identity_base
+                    .checked_add(
+                        u64::try_from(parameters.len() + index)
+                            .expect("erased formal index fits a semantic identity"),
+                    )
+                    .expect("erased formal identity base admits the roster index")
+                    .checked_add(1)
+                    .expect("erased formal identity is nonzero"),
+            ),
+            scalar_type: scalar_type.scalar_type,
+            qualifications: scalar_type.qualifications,
+        })
+        .collect::<Vec<_>>();
     let crash_routes = lower_checked_crash_route_buckets(&crash_routes, &parameters)?;
     let mut next_value_identity = identity_base
         .checked_add(
-            u64::try_from(parameters.len()).expect("parameter count fits a semantic identity"),
+            u64::try_from(parameters.len() + erased_scalar_formals.len())
+                .expect("parameter count fits a semantic identity"),
         )
         .expect("parameter count fits the machine identity namespace")
         .checked_add(1)
         .expect("generated identities follow parameter identities");
     let mut state_parameters = Vec::with_capacity(states.len());
+    let mut state_erased_formals = Vec::with_capacity(states.len());
     for (position, state) in states.iter().enumerate() {
         if position == 0 && loop_plan.is_none() {
             state_parameters.push(parameters.clone());
+            state_erased_formals.push(erased_scalar_formals.clone());
             continue;
         }
         state_parameters.push(
@@ -204,6 +230,23 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     next_value_identity = next_value_identity
                         .checked_add(1)
                         .expect("scalar graph block parameter identities advance");
+                    parameter
+                })
+                .collect(),
+        );
+        state_erased_formals.push(
+            state
+                .erased_formal_types
+                .iter()
+                .map(|scalar_type| {
+                    let parameter = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type: scalar_type.scalar_type,
+                        qualifications: scalar_type.qualifications,
+                    };
+                    next_value_identity = next_value_identity
+                        .checked_add(1)
+                        .expect("scalar graph erased formal identities advance");
                     parameter
                 })
                 .collect(),
@@ -236,6 +279,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let mut emission = GraphEmission {
         states,
         state_parameters,
+        state_erased_formals,
         loop_plan,
         terminal_machine,
         identity_base,
@@ -379,6 +423,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             let requires = scalar_contracts::clauses(
                 &scalar_contracts::covered_requires(&plan)?,
                 &parameters,
+                &erased_scalar_formals,
             )?
             .into_iter()
             .collect();
@@ -414,17 +459,18 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             }
             let mut namespace = parameters.clone();
             namespace.push(result);
-            let ensures = scalar_contracts::clauses(plan.ensures(), &namespace)?
-                .into_iter()
-                .map(|proposition| ContractClause {
-                    obligation: obligation_id(
-                        identity_base
-                            .checked_add(1)
-                            .expect("contract obligation is one-based"),
-                    ),
-                    proposition,
-                })
-                .collect();
+            let ensures =
+                scalar_contracts::clauses(plan.ensures(), &namespace, &erased_scalar_formals)?
+                    .into_iter()
+                    .map(|proposition| ContractClause {
+                        obligation: obligation_id(
+                            identity_base
+                                .checked_add(1)
+                                .expect("contract obligation is one-based"),
+                        ),
+                        proposition,
+                    })
+                    .collect();
             // These are real parameter/result relations. Finalization proves
             // their requirements at calls and guarantees from emitted exits.
             (requires, ensures, Vec::new())
@@ -493,12 +539,14 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         blocks.push(Block {
             id: entry,
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
                 edge: edge_id(next_edge_identity),
                 target: graph_entry,
                 arguments: parameters.iter().map(|parameter| parameter.id).collect(),
+                erased_arguments: Vec::new(),
                 structural_arguments: structural_parameters
                     .iter()
                     .map(|parameter| StructuralArgument {
@@ -594,6 +642,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 contract: MachineContract {
                     id: contract_id(terminal_machine.get()),
                     crash_routes,
+                    erased_scalar_formals,
                     requires,
                     ensures,
                     outcome_specific_ensures: Vec::new(),

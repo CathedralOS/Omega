@@ -166,6 +166,7 @@ pub(super) fn emit(
     claims: &[(PermissionClaimIdentity, ClaimId)],
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
+    erased_parameters: &[ValueDeclaration],
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
@@ -220,6 +221,7 @@ pub(super) fn emit(
                 edge: edge_id(allocate_dense(counter)?),
                 target,
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             })
@@ -227,6 +229,7 @@ pub(super) fn emit(
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: std::mem::take(&mut evaluation.parameters),
+            erased_scalar_formals: Vec::new(),
             structural_parameters: std::mem::take(&mut evaluation.block_structural_parameters),
             operations: operations[evaluation.operation_start..].to_vec(),
             terminator: Terminator::Conditional {
@@ -249,6 +252,7 @@ pub(super) fn emit(
             claims,
             &mut selected_evaluation,
             &mut selected_values,
+            erased_parameters,
             next_value,
             next_block,
             next_edge,
@@ -265,6 +269,7 @@ pub(super) fn emit(
         selected_evaluation.blocks.push(Block {
             id: selected_evaluation.current,
             parameters: selected_evaluation.parameters,
+            erased_scalar_formals: Vec::new(),
             structural_parameters: selected_evaluation.block_structural_parameters,
             operations: operations[selected_evaluation.operation_start..].to_vec(),
             terminator,
@@ -283,8 +288,20 @@ pub(super) fn emit(
                 "ordered return lost its exhaustive final destination",
             ))?;
     emit_return(
-        checked, plan, state, fallback, catalogs, parameters, claims, evaluation, values,
-        next_value, next_block, next_edge, operations,
+        checked,
+        plan,
+        state,
+        fallback,
+        catalogs,
+        parameters,
+        claims,
+        evaluation,
+        values,
+        erased_parameters,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
     )
     .map(Some)
 }
@@ -300,6 +317,7 @@ fn emit_return(
     claims: &[(PermissionClaimIdentity, ClaimId)],
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
+    erased_parameters: &[ValueDeclaration],
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
@@ -315,6 +333,7 @@ fn emit_return(
         claims,
         evaluation,
         values,
+        erased_parameters,
         next_value,
         next_block,
         next_edge,

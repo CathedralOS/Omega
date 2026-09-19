@@ -62,6 +62,11 @@ fn decode_scalar_field_path(
 pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
+    encode_declarations(
+        writer,
+        "block erased scalar formals",
+        &block.erased_scalar_formals,
+    )?;
     encode_structural_parameters(writer, &block.structural_parameters)?;
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
@@ -254,18 +259,21 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::Call {
             callee,
             arguments,
+            erased_arguments,
             requirement_obligations,
             crash_continuations,
         } => call_operations::encode_call(
             writer,
             callee,
             arguments,
+            erased_arguments,
             requirement_obligations,
             crash_continuations,
         )?,
         OperationKind::CallUnit {
             callee,
             arguments,
+            erased_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -274,6 +282,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             writer,
             callee,
             arguments,
+            erased_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -282,6 +291,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::CallStructuralScalar {
             callee,
             arguments,
+            erased_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -290,6 +300,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             writer,
             callee,
             arguments,
+            erased_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -360,6 +371,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::CallStructuralWithScalarArguments {
             callee,
             arguments,
+            erased_arguments,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -369,6 +381,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             writer,
             callee,
             arguments,
+            erased_arguments,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -545,6 +558,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
 pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
+    let erased_scalar_formals = decode_declarations(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let operation_count = reader.count()?;
     let mut operations = Vec::new();
@@ -555,6 +569,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     Ok(Block {
         id,
         parameters,
+        erased_scalar_formals,
         structural_parameters,
         operations,
         terminator,
@@ -773,8 +788,8 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
 mod tests {
     use semantic_vocabulary::{
         BlockId, CanonicalStructuralPathSegment, ClaimId, EdgeId, EvidenceTermId, IntegerSign,
-        IntegerType, MachineId, ObligationId, OperationId, PlaceId, PropositionId, ScalarType,
-        StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
+        IntegerType, MachineId, ObligationId, OperationId, PlaceId, PropositionId, ScalarTerm,
+        ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
     };
     use terminal_psi::{
         Block, EvidenceInterfaceIdentity, Operation, OperationKind, OperationResult,
@@ -796,6 +811,7 @@ mod tests {
 
     fn jump_block(residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>) -> Block {
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
@@ -805,6 +821,7 @@ mod tests {
                 edge: id(2),
                 target: id(3),
                 arguments: vec![id(4)],
+                erased_arguments: Vec::new(),
                 trivial_affine_discards: vec![id(5)],
                 residual_affine_discards,
             },
@@ -899,6 +916,7 @@ mod tests {
 
     fn structural_call_block() -> Block {
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -939,6 +957,7 @@ mod tests {
     #[test]
     fn write_only_primitive_store_uses_exact_stable_wire_fields() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -988,6 +1007,7 @@ mod tests {
     #[test]
     fn structural_scalar_field_operations_use_exact_stable_wire_fields() {
         let store = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1050,6 +1070,7 @@ mod tests {
 
         let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
         let read = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(7),
             parameters: Vec::new(),
@@ -1132,6 +1153,7 @@ mod tests {
         ];
         for (operation, tag) in operations.into_iter().zip([59, 60]) {
             let block = Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(1),
                 parameters: Vec::new(),
@@ -1194,6 +1216,7 @@ mod tests {
             .zip([(61, 59, 11_u64), (62, 47, 23_u64)])
         {
             let block = Block {
+                erased_scalar_formals: Vec::new(),
                 id: id(1),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -1234,6 +1257,7 @@ mod tests {
             CanonicalStructuralPathSegment::FixedIndex(255),
         ];
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -1292,6 +1316,7 @@ mod tests {
     #[test]
     fn byte_field_store_roundtrips_every_identity_and_rejects_truncation() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1331,6 +1356,7 @@ mod tests {
     #[test]
     fn byte_sequence_length_wire_binds_exact_source_and_result() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1387,6 +1413,7 @@ mod tests {
     #[test]
     fn byte_sequence_subslice_wire_binds_each_operand_and_structural_result() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1445,6 +1472,7 @@ mod tests {
     #[test]
     fn byte_sequence_write_wire_binds_all_operands_and_unit_result() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1496,6 +1524,7 @@ mod tests {
     #[test]
     fn byte_sequence_read_wire_binds_all_operands() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1546,6 +1575,7 @@ mod tests {
     #[test]
     fn structural_scalar_call_round_trips_scalar_arguments() {
         let block = Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1558,6 +1588,7 @@ mod tests {
                     scalar_type: ScalarType::Boolean,
                 }),
                 kind: OperationKind::CallStructuralScalar {
+                    erased_arguments: Vec::new(),
                     callee: id::<MachineId>(4),
                     arguments: vec![id::<ValueId>(5)],
                     structural_arguments: vec![StructuralArgument {
@@ -1585,6 +1616,74 @@ mod tests {
         };
         assert_eq!(arguments, &[id::<ValueId>(5)]);
         assert_eq!(decoded, block);
+    }
+
+    #[test]
+    fn scalar_call_erased_lane_round_trips_and_rejects_pre_change_bytes() {
+        let mut block = Block {
+            erased_scalar_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                id: id::<OperationId>(2),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: id::<ValueId>(3),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::CallStructuralScalar {
+                    erased_arguments: vec![ScalarTerm::boolean(true)],
+                    callee: id::<MachineId>(4),
+                    arguments: vec![id::<ValueId>(5)],
+                    structural_arguments: vec![StructuralArgument {
+                        place: id::<PlaceId>(6),
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(7),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("erased call lane encodes");
+        let with_lane = writer.finish();
+        assert_eq!(
+            decode_block(&mut Reader::new(&with_lane)),
+            Ok(block.clone())
+        );
+
+        // The pre-change wire layout for the same operation is this stream
+        // with the erased-term count field removed; its offset is where the
+        // empty-lane and populated-lane encodings first diverge.
+        let OperationKind::CallStructuralScalar {
+            erased_arguments, ..
+        } = &mut block.operations[0].kind
+        else {
+            unreachable!()
+        };
+        erased_arguments.clear();
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("empty erased call lane encodes");
+        let empty_lane = writer.finish();
+        let lane_offset = empty_lane
+            .iter()
+            .zip(with_lane.iter())
+            .position(|(empty, populated)| empty != populated)
+            .expect("the erased lane contributes wire bytes");
+        let mut pre_change = empty_lane;
+        pre_change.drain(lane_offset..lane_offset + 4);
+        assert!(
+            decode_block(&mut Reader::new(&pre_change)).is_err(),
+            "bytes written before the erased lane existed must not decode"
+        );
     }
 
     #[test]

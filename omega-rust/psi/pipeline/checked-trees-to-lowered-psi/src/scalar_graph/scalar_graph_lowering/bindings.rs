@@ -20,6 +20,7 @@ pub(super) struct Prepared {
     pub(super) value_types: Vec<QualifiedScalarType>,
     pub(super) scalar_bindings: storage::ScalarBindings,
     parameter_types: Vec<QualifiedScalarType>,
+    erased_formal_types: Vec<QualifiedScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     prefixes: Vec<PendingStep>,
 }
@@ -67,6 +68,7 @@ pub(super) fn prepare(
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedScalarStateGraph,
     parameter_types: Vec<QualifiedScalarType>,
+    erased_formal_types: Vec<QualifiedScalarType>,
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
@@ -492,6 +494,7 @@ pub(super) fn prepare(
         value_types,
         scalar_bindings,
         parameter_types,
+        erased_formal_types,
         bindings,
         prefixes,
     })
@@ -557,6 +560,7 @@ impl Prepared {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: self.parameter_types,
+            erased_formal_types: self.erased_formal_types,
             bindings: self.bindings,
             terminator,
         };
@@ -588,6 +592,7 @@ impl Prepared {
                             let call_block = computations.push(LoweredScalarBranchState {
                                 structural_parameters: Vec::new(),
                                 parameter_types: argument_types,
+                                erased_formal_types: Vec::new(),
                                 bindings: Vec::new(),
                                 structural_effects: vec![LoweredScalarEffect::CallUnit(
                                     prepared.call,
@@ -596,6 +601,7 @@ impl Prepared {
                                     trivial_affine_discards: Vec::new(),
                                     target,
                                     arguments: computations::parameters(&prefix.value_types),
+                                    erased_arguments: Vec::new(),
                                     structural_arguments: Vec::new(),
                                 },
                             });
@@ -614,12 +620,14 @@ impl Prepared {
                     continuation = LoweredScalarBranchState {
                         structural_parameters: Vec::new(),
                         parameter_types: prefix.parameter_types,
+                        erased_formal_types: Vec::new(),
                         bindings: prefix.bindings,
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Jump {
                             trivial_affine_discards: Vec::new(),
                             target,
                             arguments: computations::parameters(&prefix.value_types),
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     };
@@ -634,6 +642,7 @@ impl Prepared {
                     structural_parameters: Vec::new(),
                     structural_effects: Vec::new(),
                     parameter_types: completed_types.clone(),
+                    erased_formal_types: Vec::new(),
                     bindings: vec![LoweredScalarBinding::StoredValue {
                         value: LoweredDirectExpression::Parameter {
                             position: prefix.value_types.len(),
@@ -646,6 +655,7 @@ impl Prepared {
                         structural_arguments: Vec::new(),
                         target,
                         arguments: computations::parameters(&completed_types),
+                        erased_arguments: Vec::new(),
                     },
                 });
             }
@@ -667,12 +677,14 @@ impl Prepared {
                         structural_parameters: Vec::new(),
                         structural_effects: Vec::new(),
                         parameter_types: prefix.value_types.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: vec![LoweredScalarBinding::Expression(expression)],
                         terminator: LoweredScalarBranchTerminator::Jump {
                             trivial_affine_discards: Vec::new(),
                             structural_arguments: Vec::new(),
                             target,
                             arguments: computations::parameters(&completed_types),
+                            erased_arguments: Vec::new(),
                         },
                     })
                 }
@@ -681,12 +693,14 @@ impl Prepared {
                 structural_parameters: Vec::new(),
                 structural_effects: Vec::new(),
                 parameter_types: prefix.parameter_types,
+                erased_formal_types: Vec::new(),
                 bindings: prefix.bindings,
                 terminator: LoweredScalarBranchTerminator::Jump {
                     trivial_affine_discards: Vec::new(),
                     structural_arguments: Vec::new(),
                     target,
                     arguments: computations::parameters(&prefix.value_types),
+                    erased_arguments: Vec::new(),
                 },
             };
         }

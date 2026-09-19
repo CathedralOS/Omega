@@ -45,6 +45,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
             id,
             result,
             OperationKind::Call {
+                erased_arguments: Vec::new(),
                 callee: MachineId::new(CALLEE).unwrap(),
                 arguments,
                 requirement_obligations: Vec::new(),
@@ -69,6 +70,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(CALLER_BASE).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALLER_BASE).unwrap(),
             parameters: Vec::new(),
@@ -98,6 +100,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(CALLER_BASE + 8).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -122,6 +125,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(CALLEE_BASE).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALLEE_BASE).unwrap(),
             parameters: Vec::new(),
@@ -133,6 +137,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(CALLEE_BASE + 4).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),

@@ -177,9 +177,14 @@ pub(crate) fn emit_boundary_scalar_return(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let erased_scalar_formals = crate::scalar_graph::scalar_contracts::erased_formal_declarations(
+        &plan.erased_scalar_parameters,
+        &mut next_value_identity,
+    )?;
     let mut next_block = first_identity;
     let mut next_edge = first_identity;
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    evaluation.erased_scalar_formals = erased_scalar_formals.clone();
     let mut scalar_values = scalar_parameters.clone();
     let arguments = evaluation.arguments(
         checked,
@@ -288,6 +293,7 @@ pub(crate) fn emit_boundary_scalar_return(
         structural_parameters: Vec::new(),
         id: evaluation.current,
         parameters: evaluation.parameters,
+        erased_scalar_formals: Vec::new(),
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::Return {
             edge: edge_id(allocate_dense(&mut next_edge)?),
@@ -334,6 +340,7 @@ pub(crate) fn emit_boundary_scalar_return(
         blocks: evaluation.blocks,
         contract: MachineContract {
             id: identities.contract,
+            erased_scalar_formals: erased_scalar_formals.clone(),
             crash_routes: lower_checked_crash_route_buckets(
                 &crate::unit::effective_crash_routes(checked, plan.machine)?,
                 &scalar_parameters,
@@ -341,6 +348,7 @@ pub(crate) fn emit_boundary_scalar_return(
             requires: crate::scalar_graph::scalar_contracts::clauses(
                 &checked_requirements(checked, plan)?,
                 &scalar_parameters,
+                &erased_scalar_formals,
             )?
             .into_iter()
             .collect(),

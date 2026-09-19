@@ -477,6 +477,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
         entry: block_id(3),
         blocks: vec![
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(3),
                 parameters: Vec::new(),
@@ -493,11 +494,13 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
                     edge: edge_id(3),
                     target: block_id(4),
                     arguments: vec![direct_operation_result.id],
+                    erased_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(4),
                 parameters: vec![direct_block_parameter],
@@ -510,6 +513,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
             },
         ],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: Vec::new(),
             requires: Vec::new(),

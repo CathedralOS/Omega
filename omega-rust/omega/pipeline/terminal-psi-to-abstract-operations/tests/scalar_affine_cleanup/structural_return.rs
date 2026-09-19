@@ -116,6 +116,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
@@ -128,6 +129,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -238,6 +240,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     branching.machines[0].blocks[0].terminator = Terminator::Conditional {
         condition,
         when_true: terminal_psi::SuccessorEdge {
+            erased_arguments: Vec::new(),
             edge: edge_id(2),
             target: block_id(2),
             arguments: Vec::new(),
@@ -245,6 +248,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             trivial_affine_discards: Vec::new(),
         },
         when_false: terminal_psi::SuccessorEdge {
+            erased_arguments: Vec::new(),
             edge: edge_id(3),
             target: block_id(2),
             arguments: Vec::new(),
@@ -253,6 +257,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
     };
     branching.machines[0].blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(2),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),

@@ -196,6 +196,7 @@ fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
         &[LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
@@ -259,6 +260,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
             LoweredScalarBranchState {
                 structural_parameters: Vec::new(),
                 parameter_types: vec![ScalarType::Boolean.into()],
+                erased_formal_types: Vec::new(),
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Jump {
@@ -266,11 +268,13 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
                     structural_arguments: Vec::new(),
                     target: 1,
                     arguments: vec![parameter_expression()],
+                    erased_arguments: Vec::new(),
                 },
             },
             LoweredScalarBranchState {
                 structural_parameters: Vec::new(),
                 parameter_types: vec![ScalarType::Boolean.into()],
+                erased_formal_types: Vec::new(),
                 bindings: Vec::new(),
                 structural_effects: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Return {
@@ -320,19 +324,23 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
         LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Conditional {
                 condition: LoweredBooleanReturnExpression::Parameter { position: 0 },
                 when_true_target: 1,
                 when_true_arguments: vec![parameter_expression()],
+                when_true_erased_arguments: Vec::new(),
                 when_false_target: 2,
                 when_false_arguments: vec![parameter_expression()],
+                when_false_erased_arguments: Vec::new(),
             },
         },
         LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
@@ -342,6 +350,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
         LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: vec![ScalarType::Boolean.into()],
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {

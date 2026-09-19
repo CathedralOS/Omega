@@ -72,6 +72,7 @@ fn fixture() -> TerminalModule {
     });
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -114,6 +115,7 @@ fn fixture() -> TerminalModule {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: id(2, BlockId::new),
             parameters: vec![ValueDeclaration {
                 qualifications: Default::default(),
@@ -126,12 +128,14 @@ fn fixture() -> TerminalModule {
                 edge: id(3, EdgeId::new),
                 target: id(1, BlockId::new),
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: id(3, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -188,6 +192,7 @@ fn unranked_case_result_cannot_reuse_a_preheader_value() {
     let producer = module.machines[0].blocks[0].operations.remove(0);
     module.machines[0].entry = id(4, BlockId::new);
     module.machines[0].blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -196,6 +201,7 @@ fn unranked_case_result_cannot_reuse_a_preheader_value() {
             edge: id(5, EdgeId::new),
             target: id(1, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),

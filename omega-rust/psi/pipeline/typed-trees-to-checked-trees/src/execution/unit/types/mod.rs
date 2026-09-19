@@ -753,6 +753,28 @@ pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
         .count()
 }
 
+/// The authored `[erased]` scalar formals in authored order, each retaining
+/// its authored parameter position. Erased formals with non-primitive types
+/// refuse the plan: a proof-only structural formal has no erased scalar
+/// representation this slice defines.
+pub(crate) fn erased_scalar_parameter_plans(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
+    program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .map(|(position, parameter)| {
+            Some(checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: u32::try_from(position).ok()?,
+                primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+            })
+        })
+        .collect()
+}
+
 pub(super) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(type_reference) {

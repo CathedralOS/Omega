@@ -78,6 +78,7 @@ fn block(identity: u64, terminator: Terminator) -> Block {
     Block {
         id: block_id(identity),
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         operations: Vec::new(),
         terminator,
@@ -102,6 +103,7 @@ fn jump(identity: u64, target: u64) -> Block {
             edge: edge_id(identity),
             target: block_id(target),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -114,6 +116,7 @@ fn successor(identity: u64, target: u64) -> SuccessorEdge {
         edge: edge_id(identity),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -129,6 +132,7 @@ fn transfer(place: PlaceId) -> Operation {
             scalar_type: terminal_scalar_type(PrimitiveType::U64).unwrap(),
         }),
         kind: OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
             callee: MachineId::new(2).unwrap(),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

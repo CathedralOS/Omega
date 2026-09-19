@@ -168,6 +168,7 @@ fn materialize_forwarded_helper_for_source(
             structural_parameters: Vec::new(),
             id: ids.block,
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
                 id: ids.operation,
@@ -180,6 +181,7 @@ fn materialize_forwarded_helper_for_source(
                     Some(callee) => OperationKind::CallStructuralScalar {
                         callee,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

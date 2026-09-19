@@ -93,6 +93,7 @@ fn owned_block_return_rejects_a_nondominating_binding() {
     machine.blocks[0].terminator = Terminator::Conditional {
         condition: id::<ValueId>(91),
         when_true: terminal_psi::SuccessorEdge {
+            erased_arguments: Vec::new(),
             edge,
             target,
             arguments,
@@ -103,6 +104,7 @@ fn owned_block_return_rejects_a_nondominating_binding() {
             edge: id::<EdgeId>(92),
             target: bypass.id,
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },

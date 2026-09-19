@@ -55,6 +55,7 @@ pub(in crate::pass_manager::tests) fn verified_empty_unit() -> VerifiedPsiOptimi
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(402).unwrap(),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(402).unwrap(),
                 parameters: Vec::new(),
@@ -65,6 +66,7 @@ pub(in crate::pass_manager::tests) fn verified_empty_unit() -> VerifiedPsiOptimi
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(404).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

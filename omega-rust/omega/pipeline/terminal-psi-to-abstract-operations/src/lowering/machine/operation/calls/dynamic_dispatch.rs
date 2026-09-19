@@ -493,6 +493,7 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             blocks: Vec::new(),
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

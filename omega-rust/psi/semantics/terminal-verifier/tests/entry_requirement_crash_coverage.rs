@@ -50,6 +50,7 @@ fn machine(identity: u64) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(identity).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(identity).unwrap(),
             parameters: Vec::new(),
@@ -60,6 +61,7 @@ fn machine(identity: u64) -> TerminalMachine {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(identity).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -103,6 +105,7 @@ fn module(scalar_call: bool) -> TerminalModule {
                 scalar_type: ScalarType::Boolean,
             }),
             kind: OperationKind::Call {
+                erased_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -115,6 +118,7 @@ fn module(scalar_call: bool) -> TerminalModule {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

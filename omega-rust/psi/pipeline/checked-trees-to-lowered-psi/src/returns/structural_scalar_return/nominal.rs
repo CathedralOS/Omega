@@ -205,6 +205,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         attachment_type_identity: plan.attachment_type_identity.clone(),
         structural_parameters: nominal_parameters,
         scalar_parameters: Vec::new(),
+        erased_scalar_parameters: plan.erased_scalar_parameters.clone(),
         provider_attachment_requirements: Vec::new(),
         trivial_affine_locals: Vec::new(),
         entry_claims: Vec::new(),
@@ -1284,6 +1285,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             structural_parameters: Vec::new(),
             id: continuation_block,
             parameters: vec![convergence_value],
+            erased_scalar_formals: Vec::new(),
             operations: operations.operations[continuation_operation_start..].to_vec(),
             terminator: Terminator::Return {
                 edge: return_edge,
@@ -1344,6 +1346,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             structural_parameters: Vec::new(),
             id: entry.entry,
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             operations: operations.operations,
             terminator: Terminator::Return {
                 edge,

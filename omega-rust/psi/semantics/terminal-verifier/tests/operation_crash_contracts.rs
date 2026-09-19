@@ -119,6 +119,7 @@ fn module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: id(1, BlockId::new),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id(1, BlockId::new),
                 parameters: Vec::new(),
@@ -151,6 +152,7 @@ fn module() -> TerminalModule {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: vec![guarded(CrashCause::Trap, negative(RIGHT))],
                 requires: Vec::new(),

@@ -144,6 +144,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
         id: operation_id(identity),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(callee),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -160,11 +161,13 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
         edge: edge_id(identity),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     let block = |identity, operations, terminator| Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(identity),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -175,6 +178,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
         edge: edge_id(identity),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };

@@ -51,6 +51,7 @@ fn call(
         identity,
         result,
         OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
             callee,
             arguments: arguments.iter().copied().map(value).collect(),
             structural_arguments: vec![StructuralArgument {
@@ -161,6 +162,7 @@ pub(super) fn conditional() -> TerminalModule {
         },
     ];
     let successor = |edge, block| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -174,6 +176,7 @@ pub(super) fn conditional() -> TerminalModule {
     };
     caller.blocks.extend([
         Block {
+            erased_scalar_formals: Vec::new(),
             id: BlockId::new(132).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -193,6 +196,7 @@ pub(super) fn conditional() -> TerminalModule {
             terminator: returned(148, 155),
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: BlockId::new(142).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -214,6 +218,7 @@ pub(super) fn conditional() -> TerminalModule {
 
 fn successor(edge: u64, block: u64) -> SuccessorEdge {
     SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -224,6 +229,7 @@ fn successor(edge: u64, block: u64) -> SuccessorEdge {
 
 fn empty_block(identity: u64) -> Block {
     Block {
+        erased_scalar_formals: Vec::new(),
         id: BlockId::new(identity).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),

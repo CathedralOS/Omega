@@ -283,13 +283,19 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     }
                 }
             }
-            let mut arrival = |edge, target, arguments: &[ValueId]| -> Result<(), ModuleError> {
+            let mut arrival = |edge,
+                               target,
+                               arguments: &[ValueId],
+                               erased_arguments: &[semantic_vocabulary::ScalarTerm]|
+             -> Result<(), ModuleError> {
                 let target = machine
                     .blocks
                     .iter()
                     .find(|block| block.id == target)
                     .ok_or_else(|| invalid("unknown scalar qualification successor"))?;
-                if arguments.len() != target.parameters.len() {
+                if arguments.len() != target.parameters.len()
+                    || erased_arguments.len() != target.erased_scalar_formals.len()
+                {
                     return Err(invalid("scalar qualification successor arity"));
                 }
                 for (ordinal, (argument, destination)) in
@@ -316,8 +322,9 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     edge,
                     target,
                     arguments,
+                    erased_arguments,
                     ..
-                } => arrival(*edge, *target, arguments)?,
+                } => arrival(*edge, *target, arguments, erased_arguments)?,
                 Terminator::Conditional {
                     when_true,
                     when_false,
@@ -327,7 +334,12 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     // change its declaration. Only the successor transfers
                     // establish new bindings and must preserve membership.
                     for successor in [when_true, when_false] {
-                        arrival(successor.edge, successor.target, &successor.arguments)?;
+                        arrival(
+                            successor.edge,
+                            successor.target,
+                            &successor.arguments,
+                            &successor.erased_arguments,
+                        )?;
                     }
                 }
                 Terminator::StructuralCase { cases, .. } => {

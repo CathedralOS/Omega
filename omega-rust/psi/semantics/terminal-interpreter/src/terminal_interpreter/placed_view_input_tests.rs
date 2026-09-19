@@ -54,6 +54,7 @@ fn unit_machine(id: u64) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: block_id(id),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(id),
             parameters: Vec::new(),
@@ -64,6 +65,7 @@ fn unit_machine(id: u64) -> TerminalMachine {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(id).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

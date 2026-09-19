@@ -13,6 +13,17 @@ use super::scalar_wire::{
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 
+pub(crate) fn encode_scalar_terms(
+    writer: &mut Writer,
+    terms: &[ScalarTerm],
+) -> Result<(), CodecError> {
+    writer.len("scalar terms", terms.len())?;
+    for term in terms {
+        encode_scalar_term(writer, term, 0)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn encode_scalar_term(
     writer: &mut Writer,
     term: &ScalarTerm,
@@ -380,6 +391,15 @@ pub(crate) fn encode_scalar_term(
         }
     }
     Ok(())
+}
+
+pub(crate) fn decode_scalar_terms(reader: &mut Reader<'_>) -> Result<Vec<ScalarTerm>, CodecError> {
+    let count = reader.count()?;
+    let mut terms = Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
+    for _ in 0..count {
+        terms.push(decode_scalar_term(reader, 0)?);
+    }
+    Ok(terms)
 }
 
 pub(crate) fn decode_scalar_term(

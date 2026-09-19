@@ -81,6 +81,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(198).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(198).expect("block"),
                 parameters: Vec::new(),
@@ -101,6 +102,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(198).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -177,6 +179,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(202).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(202).expect("block"),
                 parameters: Vec::new(),
@@ -197,6 +200,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(202).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -281,6 +285,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(212).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(212).expect("block"),
                 parameters: Vec::new(),
@@ -301,6 +306,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(212).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -403,6 +409,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(222).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(222).expect("block"),
                 parameters: Vec::new(),
@@ -423,6 +430,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(222).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -498,6 +506,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(232).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(232).expect("block"),
                 parameters: Vec::new(),
@@ -518,6 +527,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(232).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -593,6 +603,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(242).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(242).expect("block"),
                 parameters: Vec::new(),
@@ -613,6 +624,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(242).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -688,6 +700,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(252).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(252).expect("block"),
                 parameters: Vec::new(),
@@ -708,6 +721,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(252).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -783,6 +797,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(256).expect("block"),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(256).expect("block"),
                 parameters: Vec::new(),
@@ -803,6 +818,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(256).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -918,6 +934,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(70).expect("block"),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(70).expect("block"),
                     parameters: Vec::new(),
@@ -938,6 +955,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: ContractId::new(70).expect("contract"),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),

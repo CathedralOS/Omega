@@ -206,12 +206,14 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 );
             }
         }
+        let erased_formal_types = qualifications.scalar_state_erased_types(checked, state.state)?;
         let prepared = bindings::prepare(
             checked,
             qualifications,
             machine,
             state,
             parameter_types,
+            erased_formal_types,
             structural_parameters,
             primitive_locals,
             structural_types,
@@ -254,6 +256,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         trivial_affine_discards: Vec::new(),
                         target,
                         arguments: computations::parameters(value_types),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                     }
                 } else {
@@ -273,6 +276,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         LoweredScalarBranchTerminator::Jump {
                             target,
                             arguments: vec![expression],
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         }
@@ -300,7 +304,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     when_true,
                     when_false,
                 )?;
-                let (when_true_target, when_true_arguments) =
+                let (when_true_target, when_true_arguments, when_true_erased_arguments) =
                     branch_destinations::lower_destination(
                         checked,
                         qualifications,
@@ -317,7 +321,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         structural_types,
                         next_place,
                     )?;
-                let (when_false_target, when_false_arguments) =
+                let (when_false_target, when_false_arguments, when_false_erased_arguments) =
                     branch_destinations::lower_destination(
                         checked,
                         qualifications,
@@ -340,8 +344,16 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     *guard_statement_ordinal,
                     scalar_bindings,
                     value_types,
-                    (when_true_target, when_true_arguments),
-                    (when_false_target, when_false_arguments),
+                    (
+                        when_true_target,
+                        when_true_arguments,
+                        when_true_erased_arguments,
+                    ),
+                    (
+                        when_false_target,
+                        when_false_arguments,
+                        when_false_erased_arguments,
+                    ),
                     when_false,
                     &mut computations,
                 )?
@@ -355,7 +367,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         "an unconditional scalar jump cannot select continuation arguments",
                     );
                 }
-                let (target, arguments) = lower_scalar_graph_successor(
+                let (target, arguments, erased_arguments) = lower_scalar_graph_successor(
                     checked,
                     qualifications,
                     states,
@@ -371,6 +383,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     trivial_affine_discards: Vec::new(),
                     target,
                     arguments,
+                    erased_arguments,
                     structural_arguments: Vec::new(),
                 }
             }
@@ -386,6 +399,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: vec![result_type],
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
                 expression: LoweredDirectExpression::Parameter {

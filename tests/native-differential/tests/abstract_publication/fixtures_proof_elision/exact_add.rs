@@ -45,6 +45,7 @@ pub(in super::super) fn exact_add_verified_with_result(
             block,
             machine_result,
             vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),

@@ -279,6 +279,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         let mut call = length_operation(ordinal, source);
         call.result = OperationResult::Unit;
         call.kind = OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(2),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -304,6 +305,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         helper.blocks[0].operations = vec![length_operation(ordinal * 10, ordinal + 1)];
         if ordinal == 2 {
             helper.blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
+                erased_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {

@@ -154,6 +154,7 @@ impl Fixture {
             entry: BlockId::new(1).expect("entry block"),
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(1).expect("entry block"),
                     parameters: Vec::new(),
@@ -174,11 +175,13 @@ impl Fixture {
                         edge: EdgeId::new(1).expect("jump edge"),
                         target: BlockId::new(2).expect("exit block"),
                         arguments: vec![constant],
+                        erased_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(2).expect("exit block"),
                     parameters: vec![ValueDeclaration {
@@ -195,6 +198,7 @@ impl Fixture {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -157,6 +157,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -165,12 +166,14 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
                         edge: id(1, EdgeId::new),
                         target: retain,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: retain,
                     parameters: Vec::new(),
@@ -179,6 +182,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
                         edge: id(2, EdgeId::new),
                         target: retain,
                         arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
@@ -186,6 +190,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -237,6 +242,7 @@ fn claim_pinned_cycle_with_guard_arms_stays_pinned() {
             edge: id(2, EdgeId::new),
             target: id(2, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -244,6 +250,7 @@ fn claim_pinned_cycle_with_guard_arms_stays_pinned() {
             edge: id(3, EdgeId::new),
             target: id(2, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -390,6 +397,7 @@ fn claim_cycle_rejects_transfer_of_a_pinned_claim() {
         id: id(1, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: id(1, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![
@@ -442,6 +450,7 @@ fn claim_cycle_rejects_return_of_a_pinned_claim() {
             edge: id(2, EdgeId::new),
             target: id(2, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -449,11 +458,13 @@ fn claim_cycle_rejects_return_of_a_pinned_claim() {
             edge: id(3, EdgeId::new),
             target: id(3, BlockId::new),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),

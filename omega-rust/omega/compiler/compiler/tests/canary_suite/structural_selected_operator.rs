@@ -925,6 +925,7 @@ fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
     let terminal_psi::OperationKind::CallStructuralWithScalarArguments {
         callee,
         arguments,
+        erased_arguments: _,
         structural_arguments,
         claim_transfers,
         returned_claim_transfers,

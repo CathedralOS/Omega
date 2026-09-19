@@ -63,6 +63,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     machine.entry = block(1);
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(1),
             parameters: Vec::new(),
@@ -74,6 +75,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                     edge: edge(1),
                     target: block(2),
                     arguments: vec![value(1)],
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -81,11 +83,13 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                     edge: edge(2),
                     target: block(3),
                     arguments: vec![value(1)],
+                    erased_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(2),
             parameters: vec![declaration(10)],
@@ -100,6 +104,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     let divisor = if with_alias_hop { 14 } else { 11 };
     if with_alias_hop {
         machine.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(3),
             parameters: vec![declaration(11)],
@@ -109,12 +114,14 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                 edge: edge(4),
                 target: block(4),
                 arguments: vec![value(11)],
+                erased_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
         });
     }
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block(if with_alias_hop { 4 } else { 3 }),
         parameters: vec![declaration(divisor)],
@@ -244,6 +251,7 @@ fn false_edge_only_fact_cannot_escape_a_reconverged_join() {
         edge: edge(6),
         target: block(4),
         arguments: vec![value(10)],
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };

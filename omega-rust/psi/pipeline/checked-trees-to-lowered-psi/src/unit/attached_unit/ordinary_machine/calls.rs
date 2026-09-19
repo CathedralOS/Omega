@@ -11,7 +11,7 @@ use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError,
-    Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
+    Operation, OperationKind, OperationResult, ScalarTerm, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
     allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
     lookup_claim_id, lookup_machine_id, lookup_type_id, lower_checked_crash_route_buckets,
@@ -94,6 +94,7 @@ impl MachineEmission<'_> {
         self.scalar_calls.next_obligation_identity = self.next_call_obligation;
         let ordinary_calls::PreparedCall {
             arguments: terminal_scalar_arguments,
+            erased_arguments,
             structural_arguments: terminal_arguments,
             requirement_obligations,
             crash_continuations,
@@ -103,6 +104,8 @@ impl MachineEmission<'_> {
             operation,
             signatures::find(self.machine_signatures, *target_machine)?.call_target(),
             step.evaluated_scalar_arguments.as_deref(),
+            &self.scalar_result_values,
+            &signatures::find(self.machine_signatures, plan.machine)?.erased_scalar_parameters,
             self.parameters,
             &self.local_places,
             &self.structural_result_places,
@@ -125,6 +128,7 @@ impl MachineEmission<'_> {
                 operation,
                 ordinary_calls::PreparedCall {
                     arguments: terminal_scalar_arguments,
+                    erased_arguments,
                     structural_arguments: terminal_arguments,
                     requirement_obligations,
                     crash_continuations,
@@ -152,6 +156,7 @@ impl MachineEmission<'_> {
         Ok(Some(OperationKind::CallUnit {
             callee: lookup_machine_id(self.machine_ids, *target_machine)?,
             arguments: terminal_scalar_arguments,
+            erased_arguments,
             structural_arguments: terminal_arguments,
             claim_transfers: claim_transfers
                 .iter()
@@ -231,19 +236,63 @@ impl MachineEmission<'_> {
             }
         };
         let target_parameter_types = target.parameter_types()?;
+        let target_erased_parameters = target.erased_parameters();
+        let erased_positions = target_erased_parameters
+            .iter()
+            .map(|(position, _)| usize::try_from(*position))
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()
+            .map_err(|_| LoweringError::Unsupported("erased formal position exceeds usize"))?;
         if target.entry_state()? != *realization_state
             || target_result != terminal_scalar_type(result.primitive_type)?
         {
             return unsupported("Unit scalar call disagrees with its prepared target signature");
         }
-        let arguments = if let Some(arguments) = step.evaluated_scalar_arguments.as_deref() {
-            argument_evaluation::validated_values(
-                Some(arguments),
-                &target_parameter_types
-                    .iter()
-                    .map(|primitive| terminal_scalar_type(*primitive))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?
+        // Authored operands cover the erased formals too: they evaluate in the
+        // caller's namespace like any operand, then split off into the call's
+        // proof-only erased-argument lane in erased-roster order.
+        let erased_terms = |evaluated: &[ValueDeclaration]| {
+            if evaluated.len() != target_erased_parameters.len() {
+                return unsupported("scalar call erased argument count disagrees");
+            }
+            evaluated
+                .iter()
+                .zip(&target_erased_parameters)
+                .map(|(value, (_, primitive))| {
+                    if value.scalar_type != terminal_scalar_type(*primitive)? {
+                        return unsupported("scalar call erased argument type disagrees");
+                    }
+                    Ok(ScalarTerm::value(value.id, value.scalar_type))
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()
+        };
+        let (arguments, erased_arguments) = if let Some(arguments) =
+            step.evaluated_scalar_arguments.as_deref()
+        {
+            if arguments.len() != target_parameter_types.len() + erased_positions.len() {
+                return unsupported("scalar call argument count disagrees with authored roster");
+            }
+            let (dense, erased): (
+                Vec<(usize, ValueDeclaration)>,
+                Vec<(usize, ValueDeclaration)>,
+            ) = arguments
+                .iter()
+                .copied()
+                .enumerate()
+                .partition(|(index, _)| !erased_positions.contains(index));
+            let (dense, erased): (Vec<ValueDeclaration>, Vec<ValueDeclaration>) = (
+                dense.into_iter().map(|(_, value)| value).collect(),
+                erased.into_iter().map(|(_, value)| value).collect(),
+            );
+            (
+                argument_evaluation::validated_values(
+                    Some(&dense),
+                    &target_parameter_types
+                        .iter()
+                        .map(|primitive| terminal_scalar_type(*primitive))
+                        .collect::<Result<Vec<_>, _>>()?,
+                )?,
+                erased_terms(&erased)?,
+            )
         } else {
             let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
                 scalar_arguments, ..
@@ -256,15 +305,31 @@ impl MachineEmission<'_> {
                 .iter()
                 .map(|value| value.scalar_type)
                 .collect::<Vec<_>>();
-            if scalar_arguments.len() != target_parameter_types.len() {
+            if scalar_arguments.len() != target_parameter_types.len() + erased_positions.len() {
                 return unsupported("selected scalar call argument count disagrees");
             }
-            scalar_arguments
+            let evaluated = scalar_arguments
                 .iter()
-                .zip(&target_parameter_types)
-                .map(|(argument, primitive)| {
+                .enumerate()
+                .map(|(index, argument)| {
                     let argument = lower_checked_scalar_expression(argument)?;
-                    let scalar_type = terminal_scalar_type(*primitive)?;
+                    let scalar_type = if erased_positions.contains(&index) {
+                        terminal_scalar_type(
+                            target_erased_parameters[erased_positions
+                                .iter()
+                                .position(|position| *position == index)
+                                .expect("partitioned erased position")]
+                            .1,
+                        )?
+                    } else {
+                        terminal_scalar_type(
+                            target_parameter_types[index
+                                - erased_positions
+                                    .iter()
+                                    .filter(|position| **position < index)
+                                    .count()],
+                        )?
+                    };
                     if argument.scalar_type() != scalar_type
                         || direct_expression_contains_short_circuit(&argument)
                     {
@@ -284,7 +349,19 @@ impl MachineEmission<'_> {
                         scalar_type,
                     })
                 })
-                .collect::<Result<Vec<_>, LoweringError>>()?
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            let (dense, erased): (
+                Vec<(usize, ValueDeclaration)>,
+                Vec<(usize, ValueDeclaration)>,
+            ) = evaluated
+                .into_iter()
+                .enumerate()
+                .partition(|(index, _)| !erased_positions.contains(index));
+            let (dense, erased): (Vec<ValueDeclaration>, Vec<ValueDeclaration>) = (
+                dense.into_iter().map(|(_, value)| value).collect(),
+                erased.into_iter().map(|(_, value)| value).collect(),
+            );
+            (dense, erased_terms(&erased)?)
         };
         if checked
             .facts
@@ -381,6 +458,7 @@ impl MachineEmission<'_> {
             OperationKind::CallStructuralScalar {
                 callee,
                 arguments,
+                erased_arguments,
                 structural_arguments: lower_structural_arguments(
                     structural_arguments,
                     self.parameters,
@@ -405,6 +483,7 @@ impl MachineEmission<'_> {
             OperationKind::Call {
                 callee,
                 arguments,
+                erased_arguments,
                 requirement_obligations,
                 crash_continuations,
             }
@@ -562,6 +641,7 @@ impl MachineEmission<'_> {
             kind: OperationKind::CallStructuralScalar {
                 callee: lookup_machine_id(self.machine_ids, *realization_machine)?,
                 arguments: scalar_arguments,
+                erased_arguments: Vec::new(),
                 structural_arguments: arguments,
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -704,6 +784,7 @@ impl MachineEmission<'_> {
             kind: OperationKind::CallStructuralWithScalarArguments {
                 callee: lookup_machine_id(self.machine_ids, *realization_machine)?,
                 arguments: scalar_arguments,
+                erased_arguments: Vec::new(),
                 structural_arguments: arguments,
                 claim_transfers: Vec::new(),
                 returned_claim_transfers: Vec::new(),

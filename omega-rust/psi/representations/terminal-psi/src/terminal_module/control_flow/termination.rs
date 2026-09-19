@@ -3,7 +3,7 @@ use crate::{
     TerminalAffineCleanupAction,
 };
 use semantic_vocabulary::{
-    BlockId, ClaimId, EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId,
+    BlockId, ClaimId, EdgeId, PlaceId, ScalarTerm, StructuralCaseId, StructuralFieldId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +13,10 @@ pub enum Terminator {
         edge: EdgeId,
         target: BlockId,
         arguments: Vec<ValueId>,
+        /// Proof-only scalar terms for the target block's erased formals, in
+        /// the predecessor's namespace and the roster's authored order. They
+        /// carry no runtime operand.
+        erased_arguments: Vec<ScalarTerm>,
         /// Positional bindings for the target block's structural parameters.
         structural_arguments: Vec<StructuralArgument>,
         /// Exact no-code affine discards performed after edge fuel and outgoing
@@ -186,6 +190,10 @@ pub struct SuccessorEdge {
     pub edge: EdgeId,
     pub target: BlockId,
     pub arguments: Vec<ValueId>,
+    /// Proof-only scalar terms for the target block's erased formals, in the
+    /// predecessor's namespace and the roster's authored order. They carry no
+    /// runtime operand.
+    pub erased_arguments: Vec<ScalarTerm>,
     /// Positional bindings for the target block's structural parameters.
     pub structural_arguments: Vec<StructuralArgument>,
     /// Exact no-code affine discards committed only when this successor is

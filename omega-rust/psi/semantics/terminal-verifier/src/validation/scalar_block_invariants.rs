@@ -29,7 +29,9 @@ pub fn scalar_block_invariant_scope(
         machine
             .parameters
             .iter()
+            .chain(&machine.contract.erased_scalar_formals)
             .chain(&header.parameters)
+            .chain(&header.erased_scalar_formals)
             .map(|parameter| (parameter.id, parameter.scalar_type)),
         machine
             .structural_places
@@ -165,6 +167,7 @@ mod tests {
     fn fixture() -> (TerminalMachine, Block) {
         let header = BlockId::new(3).unwrap();
         let header_block = Block {
+            erased_scalar_formals: Vec::new(),
             id: header,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -221,6 +224,7 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![header_block.clone()],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

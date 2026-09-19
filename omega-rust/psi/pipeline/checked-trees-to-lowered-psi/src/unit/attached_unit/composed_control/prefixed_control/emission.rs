@@ -43,12 +43,14 @@ pub(super) fn emit(
                     .then_some(control_parameters[index])
                     .into_iter()
                     .collect(),
+                erased_scalar_formals: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
                     structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     target: state_ids[index + 1],
                     arguments: vec![control_parameters[index].id],
+                    erased_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
@@ -76,6 +78,7 @@ pub(super) fn emit(
         structural_parameters: Vec::new(),
         id: state_ids[dispatch_index],
         parameters: vec![dispatch_parameter],
+        erased_scalar_formals: Vec::new(),
         operations: dispatch_operations.operations,
         terminator: Terminator::Conditional {
             condition,
@@ -97,6 +100,7 @@ pub(super) fn emit(
             state,
             *block,
             &mut catalogs,
+            &[],
             &[],
             &[],
             &[],
@@ -164,6 +168,7 @@ pub(super) fn emit(
         blocks,
         contract: MachineContract {
             id: contract_id(1),
+            erased_scalar_formals: Vec::new(),
             crash_routes: lower_checked_crash_route_buckets(
                 &catalogs.root_crash_routes,
                 std::slice::from_ref(&control_parameters[0]),
@@ -187,6 +192,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     })
 }

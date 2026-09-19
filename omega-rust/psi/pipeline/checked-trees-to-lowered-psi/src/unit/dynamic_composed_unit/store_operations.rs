@@ -334,6 +334,7 @@ pub(crate) fn empty_terminal_contract(identity: u64) -> MachineContract {
     MachineContract {
         id: contract_id(identity),
         crash_routes: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         requires: Vec::new(),
         ensures: Vec::new(),
         outcome_specific_ensures: Vec::new(),

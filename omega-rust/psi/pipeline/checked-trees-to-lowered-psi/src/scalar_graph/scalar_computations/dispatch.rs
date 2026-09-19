@@ -89,11 +89,13 @@ impl Expansion<'_> {
                     structural_parameters: Vec::new(),
                     structural_effects: Vec::new(),
                     parameter_types: saved_types.clone(),
+                    erased_formal_types: Vec::new(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Jump {
                         trivial_affine_discards: Vec::new(),
                         target: selected,
                         arguments: parameters(input_types),
+                        erased_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                     },
                 }),
@@ -130,8 +132,10 @@ impl Expansion<'_> {
                             condition,
                             when_true_target: selected,
                             when_true_arguments: parameters(input_types),
+                            when_true_erased_arguments: Vec::new(),
                             when_false_target,
                             when_false_arguments: parameters(&saved_types),
+                            when_false_erased_arguments: Vec::new(),
                         }
                     } else {
                         // Source replay and the coverage pass above establish
@@ -140,6 +144,7 @@ impl Expansion<'_> {
                             trivial_affine_discards: Vec::new(),
                             target: selected,
                             arguments: parameters(input_types),
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         }
                     };
@@ -147,6 +152,7 @@ impl Expansion<'_> {
                         structural_parameters: Vec::new(),
                         structural_effects: Vec::new(),
                         parameter_types: tested_types.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: comparison_bindings,
                         terminator,
                     });

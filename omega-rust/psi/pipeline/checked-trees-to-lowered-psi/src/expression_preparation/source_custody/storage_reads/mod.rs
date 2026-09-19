@@ -174,6 +174,17 @@ fn validate_reads(
     let mut namespace = ReadNamespace {
         scope,
         scalar: namespace,
+        erased_scalar: checked
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                parameter.relevance.is_erased()
+                    && checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+            })
+            .map(|parameter| parameter.symbol)
+            .collect(),
         structural: checked.state_parameters(state),
         owned_field_paths: member_paths,
         unmatched_member_paths,
@@ -270,6 +281,8 @@ type StorageReadOccurrence = (Vec<usize>, symbols::SymbolHandle, PrimitiveType, 
 struct ReadNamespace<'checked> {
     scope: ReadScope,
     scalar: Vec<symbols::SymbolHandle>,
+    /// Proof-only erased formals in their dense roster order.
+    erased_scalar: Vec<symbols::SymbolHandle>,
     structural: &'checked [checked_trees::signature::StateParameter],
     owned_field_paths: Vec<Vec<usize>>,
     unmatched_member_paths: Vec<Vec<usize>>,
@@ -900,6 +913,30 @@ fn collect_scalar_storage_reads(
             // path still have to match this exact authored observation.
             *needs_value_replay = true;
         }
+        // Proof-only erased formals own no storage; the read still rejoins
+        // its authored formal under the dense erased roster.
+        CheckedScalarExpression::ErasedParameter {
+            position,
+            primitive_type,
+        } => {
+            if supported_mutable_parameter(*primitive_type)
+                || matches!(
+                    namespace.scope,
+                    ReadScope::Entry | ReadScope::NormalResult { .. }
+                )
+            {
+                reads.push((
+                    path.clone(),
+                    namespace
+                        .erased_scalar
+                        .get(*position)
+                        .copied()
+                        .unwrap_or_default(),
+                    *primitive_type,
+                    ReadKind::Parameter,
+                ));
+            }
+        }
     }
 }
 
@@ -986,6 +1023,18 @@ fn collect_boolean_storage_reads(
                     .unmatched_member_paths
                     .retain(|source_path| source_path != path);
             }
+        }
+        CheckedBooleanExpression::ErasedParameter { position } => {
+            reads.push((
+                path.clone(),
+                namespace
+                    .erased_scalar
+                    .get(*position)
+                    .copied()
+                    .unwrap_or_default(),
+                PrimitiveType::Bool,
+                ReadKind::Parameter,
+            ));
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }

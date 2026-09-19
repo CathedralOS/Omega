@@ -118,6 +118,7 @@ pub(super) fn emit(
         edge,
         target: scalar_source_block(identity_base, target),
         arguments: values,
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),

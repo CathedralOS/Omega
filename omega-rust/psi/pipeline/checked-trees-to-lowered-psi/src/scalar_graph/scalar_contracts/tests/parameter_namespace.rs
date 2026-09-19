@@ -79,7 +79,8 @@ fn mixed_parameter_positions_preserve_exact_value_ids_and_carriers() {
             parameter(position, primitive),
             literal(value, landed),
         );
-        let Proposition::Equal(subject, endpoint) = proposition(&predicate, &namespace).unwrap()
+        let Proposition::Equal(subject, endpoint) =
+            proposition(&predicate, &namespace, &[]).unwrap()
         else {
             panic!("integer equality");
         };
@@ -115,7 +116,7 @@ fn parameter_slot_carrier_mismatches_refuse() {
             literal(7, LandedIntegerType::U16),
         );
         assert!(
-            clauses(&[clause(predicate)], &namespace).is_err(),
+            clauses(&[clause(predicate)], &namespace, &[]).is_err(),
             "position={position}"
         );
     }
@@ -129,8 +130,8 @@ fn requires_namespace_excludes_the_result_slot() {
         parameter(3, PrimitiveType::U16),
         parameter(1, PrimitiveType::U16),
     );
-    assert!(clauses(&[clause(predicate.clone())], &namespace[..3]).is_err());
-    assert!(clauses(&[clause(predicate)], &namespace).is_ok());
+    assert!(clauses(&[clause(predicate.clone())], &namespace[..3], &[]).is_err());
+    assert!(clauses(&[clause(predicate)], &namespace, &[]).is_ok());
 }
 
 #[test]
@@ -138,7 +139,7 @@ fn boolean_requirements_retain_exact_entry_values_and_reject_wrong_carriers() {
     let namespace = namespace();
     let predicate = CheckedBooleanExpression::Parameter { position: 0 };
     assert_eq!(
-        proposition(&predicate, &namespace).unwrap(),
+        proposition(&predicate, &namespace, &[]).unwrap(),
         canonical_equality(
             ScalarTerm::value(namespace[0].id, ScalarType::Boolean),
             ScalarTerm::boolean(true),
@@ -149,12 +150,13 @@ fn boolean_requirements_retain_exact_entry_values_and_reject_wrong_carriers() {
         assert!(
             proposition(
                 &CheckedBooleanExpression::Parameter { position },
-                &namespace
+                &namespace,
+                &[],
             )
             .is_err()
         );
     }
-    assert!(proposition(&predicate, &[]).is_err());
+    assert!(proposition(&predicate, &[], &[]).is_err());
 }
 
 #[test]
@@ -181,7 +183,7 @@ fn boolean_literal_wrappers_and_negation_keep_one_canonical_predicate() {
                 right: Box::new(CheckedBooleanExpression::Constant(!positive)),
             })),
         ] {
-            assert_eq!(proposition(&predicate, &namespace).unwrap(), expected);
+            assert_eq!(proposition(&predicate, &namespace, &[]).unwrap(), expected);
         }
     }
 }
@@ -202,7 +204,7 @@ fn nested_boolean_body_locals_cannot_alias_entry_slots() {
                 right: Box::new(CheckedBooleanExpression::Constant(true)),
             },
         ] {
-            assert!(proposition(&predicate, &namespace).is_err());
+            assert!(proposition(&predicate, &namespace, &[]).is_err());
         }
     }
 }
@@ -223,7 +225,7 @@ fn nested_boolean_denotations_avoid_expansion_but_keep_resource_limits() {
             right: Box::new(CheckedBooleanExpression::Parameter { position }),
         };
     }
-    assert!(proposition(&predicate, &namespace).is_ok());
+    assert!(proposition(&predicate, &namespace, &[]).is_ok());
     for _ in 0..65 {
         predicate = CheckedBooleanExpression::Not(Box::new(predicate));
     }
@@ -232,7 +234,7 @@ fn nested_boolean_denotations_avoid_expansion_but_keep_resource_limits() {
         right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
     };
     assert!(matches!(
-        proposition(&deep, &namespace),
+        proposition(&deep, &namespace, &[]),
         Err(LoweringError::Unsupported(
             "scalar contract Boolean denotation exceeds its depth limit"
         ))
@@ -250,7 +252,7 @@ fn nested_boolean_denotations_avoid_expansion_but_keep_resource_limits() {
         };
     }
     assert!(matches!(
-        proposition(&logical, &namespace),
+        proposition(&logical, &namespace, &[]),
         Err(LoweringError::Unsupported(
             "scalar contract Boolean expansion exceeds its lowering budget"
         ))
@@ -285,7 +287,7 @@ fn reversed_parameter_result_equality_uses_canonical_serialized_term_order() {
             ScalarTerm::value(namespace[second].id, namespace[second].scalar_type),
         );
         for predicate in [forward, reversed] {
-            assert_eq!(proposition(&predicate, &namespace).unwrap(), expected);
+            assert_eq!(proposition(&predicate, &namespace, &[]).unwrap(), expected);
         }
     }
 }
@@ -306,6 +308,7 @@ fn duplicate_and_conjoined_requirements_have_one_stable_proposition() {
     let expected = clauses(
         &[clause(low.clone()), clause(high.clone())],
         &namespace[..3],
+        &[],
     )
     .unwrap();
     let conjunction = CheckedBooleanExpression::And {
@@ -322,7 +325,7 @@ fn duplicate_and_conjoined_requirements_have_one_stable_proposition() {
         clause(high),
         Some(ClosedScalarContractValue::Boolean(false)),
     ];
-    assert_eq!(clauses(&repeated, &namespace[..3]).unwrap(), expected);
+    assert_eq!(clauses(&repeated, &namespace[..3], &[]).unwrap(), expected);
     assert!(matches!(expected, Some(Proposition::Conjunction(parts)) if parts.len() == 2));
     assert_eq!(
         clauses(
@@ -331,6 +334,7 @@ fn duplicate_and_conjoined_requirements_have_one_stable_proposition() {
                 Some(ClosedScalarContractValue::Boolean(true))
             ],
             &namespace[..3],
+            &[]
         )
         .unwrap(),
         Some(Proposition::Truth)
@@ -340,12 +344,13 @@ fn duplicate_and_conjoined_requirements_have_one_stable_proposition() {
 #[test]
 fn absent_clauses_and_unsupported_clauses_remain_distinct() {
     let namespace = namespace();
-    assert_eq!(clauses(&[], &namespace[..3]).unwrap(), None);
-    assert!(clauses(&[None], &namespace[..3]).is_err());
+    assert_eq!(clauses(&[], &namespace[..3], &[]).unwrap(), None);
+    assert!(clauses(&[None], &namespace[..3], &[]).is_err());
     assert!(
         clauses(
             &[Some(ClosedScalarContractValue::Boolean(true)), None],
             &namespace[..3],
+            &[]
         )
         .is_err()
     );
@@ -408,7 +413,8 @@ fn covered_requires_delivers_float_range_clauses_only_through_the_roster() {
     assert!(
         clauses(
             &[Some(ClosedScalarContractValue::FloatRange(range))],
-            &namespace()
+            &namespace(),
+            &[],
         )
         .is_err()
     );

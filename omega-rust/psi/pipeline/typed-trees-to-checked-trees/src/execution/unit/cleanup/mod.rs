@@ -300,6 +300,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 target_contract_report_fingerprint,
                 service_reach,
                 scalar_arguments,
+                erased_scalar_arguments,
                 structural_arguments,
                 claim_transfers,
             } = operation
@@ -314,6 +315,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                     .any(|(helper, _, _)| helper == target_machine)
                 || !service_reach_is_empty(facts, *service_reach)
                 || !scalar_arguments.is_empty()
+                || !erased_scalar_arguments.is_empty()
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
             {
@@ -358,6 +360,8 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         });
     }
 
+    let erased_scalar_parameters =
+        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
     Some(CheckedNominalAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             scalar_result: None,
@@ -368,6 +372,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             attachment_type_identity,
             structural_parameters,
             scalar_parameters: Vec::new(),
+            erased_scalar_parameters,
             provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
             entry_claims: Vec::new(),

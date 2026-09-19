@@ -83,6 +83,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
     let result_parameter = next_value;
     next_value += 1;
     let successor = |id, block, argument: u64| SuccessorEdge {
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: EdgeId::new(id).unwrap(),
         target: BlockId::new(block).unwrap(),
@@ -107,11 +108,13 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
         entry: BlockId::new(1).unwrap(),
         blocks: vec![
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 operations,
                 terminator: Terminator::Jump {
+                    erased_arguments: Vec::new(),
                     edge: EdgeId::new(2).unwrap(),
                     target: BlockId::new(2).unwrap(),
                     arguments: vec![ValueId::new(parameter).unwrap()],
@@ -121,6 +124,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             },
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(2).unwrap(),
                 parameters: vec![value(acc_parameter)],
@@ -132,6 +136,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
                 },
             },
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(3).unwrap(),
                 parameters: vec![value(result_parameter)],
@@ -144,6 +149,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
             },
         ],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),

@@ -27,6 +27,7 @@ fn transported_case() -> TerminalModule {
     });
     caller.blocks[0].terminator = jump(4);
     caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(4),
         parameters: vec![],
         structural_parameters: vec![StructuralParameterDeclaration {
@@ -50,6 +51,7 @@ fn jump(edge: u64) -> Terminator {
         edge: edge_id(edge),
         target: block_id(4),
         arguments: vec![],
+        erased_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: place_id(3),
             path: vec![],
@@ -237,10 +239,12 @@ fn owned_case_block_parameter_rejects_forged_transfer_and_origin() {
                     edge: edge_id(edge),
                     target: block_id(target),
                     arguments: vec![],
+                    erased_arguments: Vec::new(),
                     structural_arguments: vec![],
                     trivial_affine_discards: vec![],
                 };
                 caller.blocks.push(Block {
+                    erased_scalar_formals: Vec::new(),
                     id: block_id(5),
                     parameters: vec![],
                     structural_parameters: vec![],
@@ -261,6 +265,7 @@ fn owned_case_block_parameter_rejects_forged_transfer_and_origin() {
                     },
                 });
                 caller.blocks.push(Block {
+                    erased_scalar_formals: Vec::new(),
                     id: block_id(6),
                     parameters: vec![],
                     structural_parameters: vec![],

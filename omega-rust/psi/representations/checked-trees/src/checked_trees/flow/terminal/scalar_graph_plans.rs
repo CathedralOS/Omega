@@ -91,6 +91,9 @@ pub struct CheckedScalarStateGraph {
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Dense scalar formals retain the corresponding authored positions.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Proof-only erased scalar formals in authored order, retaining their
+    /// authored parameter positions. They own no runtime argument lane.
+    pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub parameter_types: Vec<PrimitiveType>,
     pub parameter_storage: arena::HandleSpan<CheckedScalarParameterStorage>,
     /// Authored mutable locals borrowed by retained statements or computations.
@@ -193,4 +196,8 @@ pub struct CheckedScalarSuccessor {
     pub argument_count: u32,
     pub structural_transfers: arena::HandleSpan<CheckedStructuralControlTransferPlan>,
     pub scalar_arguments: arena::HandleSpan<CheckedStructuralScalarArgumentPlan>,
+    /// Proof-only erased actuals in erased-roster order. Each row's
+    /// `target_scalar_parameter_index` indexes the target state's
+    /// `erased_scalar_parameters` roster, not its dense scalar roster.
+    pub erased_arguments: arena::HandleSpan<CheckedStructuralScalarArgumentPlan>,
 }

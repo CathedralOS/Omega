@@ -103,6 +103,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             content_partition_compositions: Vec::new(),
             entry: block_id(91),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(91),
                 parameters: Vec::new(),
@@ -130,6 +131,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: contract_id(91),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -195,6 +197,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         content_partition_compositions: Vec::new(),
         entry: block_id(91),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(91),
             parameters: Vec::new(),
@@ -227,6 +230,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(91),
             crash_routes: Vec::new(),
             requires: Vec::new(),

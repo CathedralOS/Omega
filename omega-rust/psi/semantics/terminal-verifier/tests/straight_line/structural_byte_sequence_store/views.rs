@@ -139,10 +139,12 @@ fn immutable_block_source_keeps_exact_binding_and_capacity_question() {
         edge: id(901),
         target: id(901),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: vec![StructuralParameterDeclaration {
             place: id(3),
             position: 0,
@@ -196,10 +198,12 @@ fn cyclic_literal_store_requires_establishment_before_each_iteration_read() {
         edge: id(901),
         target: id(901),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(901),
         parameters: Vec::new(),
@@ -211,6 +215,7 @@ fn cyclic_literal_store_requires_establishment_before_each_iteration_read() {
                 edge: id(902),
                 target: id(901),
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
             when_false: SuccessorEdge {
@@ -218,11 +223,13 @@ fn cyclic_literal_store_requires_establishment_before_each_iteration_read() {
                 edge: id(903),
                 target: id(902),
                 arguments: Vec::new(),
+                erased_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
         },
     });
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(902),
         parameters: Vec::new(),

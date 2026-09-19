@@ -196,6 +196,7 @@ fn indexed_store_call_module(read_index: u64) -> TerminalModule {
             id: operation_id(5),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 callee: setter.id,
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {

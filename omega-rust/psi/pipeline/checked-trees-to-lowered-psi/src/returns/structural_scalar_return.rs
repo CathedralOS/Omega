@@ -117,6 +117,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
             attachment_type_identity: Some(attachment_type_identity),
             structural_parameters,
             scalar_parameters: Vec::new(),
+            erased_scalar_parameters: Vec::new(),
             bindings: Vec::new(),
             effects: Vec::new(),
             result_type: plan.result_type,
@@ -291,6 +292,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
                 id: operation_id(1),
@@ -298,6 +300,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
                 kind: OperationKind::CallStructuralScalar {
                     callee: machine_id(2),
                     arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
                     structural_arguments,
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -313,6 +316,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
         contract: MachineContract {
             id: contract_id(1),
             crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
@@ -818,6 +822,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                 structural_parameters: Vec::new(),
                 id: next_block,
                 parameters: next_block_parameters,
+                erased_scalar_formals: Vec::new(),
                 operations: operations.operations[operation_start..].to_vec(),
                 terminator: Terminator::Return {
                     edge: edge_id(next_edge),
@@ -902,6 +907,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                     .expect("validated identity base"),
             ),
             parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             operations: operations.operations,
             terminator: Terminator::Return {
                 edge: edge_id(
@@ -960,6 +966,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                     .expect("validated identity base"),
             ),
             crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

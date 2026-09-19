@@ -133,6 +133,7 @@ fn machine(
         entry,
         blocks,
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(ordinal).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -149,6 +150,7 @@ fn block(
     terminator: Terminator,
 ) -> Block {
     Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(ordinal),
         parameters,
@@ -159,6 +161,7 @@ fn block(
 
 fn successor(ordinal: u64, target: BlockId, arguments: Vec<ValueId>) -> SuccessorEdge {
     SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: edge(ordinal),
         target,
         arguments,
@@ -242,6 +245,7 @@ fn ranked_cycle_fixture() -> LoweredPsi {
                     edge: edge(5),
                     target: member,
                     arguments: vec![v30, v2, v21],
+                    erased_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
@@ -554,6 +558,7 @@ fn a_recorded_call_join_retains_its_environment_through_publication() {
                         id: OperationId::new(11).unwrap(),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
+                            erased_arguments: Vec::new(),
                             callee: MachineId::new(2).unwrap(),
                             arguments: Vec::new(),
                             structural_arguments: Vec::new(),

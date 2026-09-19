@@ -183,6 +183,29 @@ impl<'checked> CheckedScalarCallee<'checked> {
         }
     }
 
+    /// Proof-only erased scalar formals as (authored position, primitive type)
+    /// pairs in authored order. Empty for callees with no erased roster.
+    pub(crate) fn erased_parameters(&self) -> Vec<(u32, PrimitiveType)> {
+        fn erased(
+            parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+        ) -> Vec<(u32, PrimitiveType)> {
+            parameters
+                .iter()
+                .map(|parameter| (parameter.source_position, parameter.primitive_type))
+                .collect()
+        }
+        match self {
+            Self::Graph(graph) => graph
+                .states
+                .first()
+                .map(|state| erased(&state.erased_scalar_parameters))
+                .unwrap_or_default(),
+            Self::Boundary(plan) => erased(&plan.erased_scalar_parameters),
+            Self::Structural(plan) => erased(&plan.erased_scalar_parameters),
+            Self::Operations(plan) => erased(&plan.erased_scalar_parameters),
+        }
+    }
+
     pub(crate) fn result_type(&self) -> Result<ScalarType, LoweringError> {
         match self {
             Self::Graph(graph) => graph

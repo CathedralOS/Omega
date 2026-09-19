@@ -51,6 +51,7 @@ fn boundary_fixture() -> TerminalModule {
         .collect();
     machine.result = TerminalMachineResult::Unit;
     machine.contract = MachineContract {
+        erased_scalar_formals: Vec::new(),
         id: contract_id(1),
         crash_routes: routes(3),
         requires: Vec::new(),
@@ -58,6 +59,7 @@ fn boundary_fixture() -> TerminalModule {
         outcome_specific_ensures: Vec::new(),
     };
     machine.blocks = vec![Block {
+        erased_scalar_formals: Vec::new(),
         id: block_id(1),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),

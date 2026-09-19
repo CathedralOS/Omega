@@ -13,8 +13,18 @@ use crate::proofs::{
 pub(crate) fn checked_boolean_scalar_term(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
+        CheckedBooleanExpression::ErasedParameter { position } => {
+            let value = erased.get(*position).ok_or(LoweringError::Unsupported(
+                "erased formal position is outside the contract's erased roster",
+            ))?;
+            if value.scalar_type != ScalarType::Boolean {
+                return unsupported("erased formal predicate value has a non-Boolean type");
+            }
+            ScalarTerm::value(value.id, value.scalar_type)
+        }
         CheckedBooleanExpression::Constant(value) => ScalarTerm::boolean(*value),
         CheckedBooleanExpression::StorageRead { .. } => {
             return unsupported(
@@ -37,17 +47,17 @@ pub(crate) fn checked_boolean_scalar_term(
             );
         }
         CheckedBooleanExpression::Not(operand) => {
-            ScalarTerm::boolean_not(checked_boolean_scalar_term(operand, values)?)
+            ScalarTerm::boolean_not(checked_boolean_scalar_term(operand, values, erased)?)
                 .map_err(LoweringError::InvalidCrashPredicate)?
         }
         CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-            checked_boolean_scalar_term(left, values)?,
-            checked_boolean_scalar_term(right, values)?,
+            checked_boolean_scalar_term(left, values, erased)?,
+            checked_boolean_scalar_term(right, values, erased)?,
         )
         .map_err(LoweringError::InvalidCrashPredicate)?,
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            let left = checked_scalar_term(left, values)?;
-            let right = checked_scalar_term(right, values)?;
+            let left = checked_scalar_term(left, values, erased)?;
+            let right = checked_scalar_term(right, values, erased)?;
             let ScalarType::Integer(integer_type) = left.scalar_type() else {
                 return unsupported("crash comparison operand is not an integer");
             };
@@ -81,16 +91,30 @@ pub(crate) fn checked_boolean_scalar_term(
 pub(crate) fn checked_scalar_term(
     expression: &CheckedScalarExpression,
     values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     let expression = lower_checked_scalar_expression(expression)?;
-    lowered_direct_scalar_term(&expression, values)
+    lowered_direct_scalar_term(&expression, values, erased)
 }
 
-fn lowered_direct_scalar_term(
+pub(crate) fn lowered_direct_scalar_term(
     expression: &LoweredDirectExpression,
     values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
+        LoweredDirectExpression::ErasedParameter {
+            position,
+            scalar_type,
+        } => {
+            let value = erased.get(*position).ok_or(LoweringError::Unsupported(
+                "erased formal position is outside the contract's erased roster",
+            ))?;
+            if value.scalar_type != *scalar_type {
+                return unsupported("erased formal term type does not match its checked plan");
+            }
+            ScalarTerm::value(value.id, *scalar_type)
+        }
         LoweredDirectExpression::PrimitiveRead { .. } => {
             return unsupported(
                 "primitive storage read requires an occurrence-bound crash predicate",
@@ -136,8 +160,8 @@ fn lowered_direct_scalar_term(
             let ScalarType::Integer(integer_type) = scalar_type else {
                 return unsupported("crash predicate arithmetic has a non-integer type");
             };
-            let left = Box::new(lowered_direct_scalar_term(left, values)?);
-            let right = Box::new(lowered_direct_scalar_term(right, values)?);
+            let left = Box::new(lowered_direct_scalar_term(left, values, erased)?);
+            let right = Box::new(lowered_direct_scalar_term(right, values, erased)?);
             match kind {
                 LoweredIntegerBinaryKind::BitwiseAnd => ScalarTerm::IntegerBitwiseAnd {
                     scalar_type: *integer_type,
@@ -292,7 +316,7 @@ fn lowered_direct_scalar_term(
             };
             ScalarTerm::IntegerBitwiseNot {
                 scalar_type: *integer_type,
-                operand: Box::new(lowered_direct_scalar_term(operand, values)?),
+                operand: Box::new(lowered_direct_scalar_term(operand, values, erased)?),
             }
         }
         LoweredDirectExpression::IntegerWiden {
@@ -302,7 +326,7 @@ fn lowered_direct_scalar_term(
             let ScalarType::Integer(target_type) = scalar_type else {
                 return unsupported("crash predicate widen has a non-integer target");
             };
-            let operand = lowered_direct_scalar_term(operand, values)?;
+            let operand = lowered_direct_scalar_term(operand, values, erased)?;
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
                 return unsupported("crash predicate widen has a non-integer operand");
             };
@@ -319,7 +343,7 @@ fn lowered_direct_scalar_term(
             let ScalarType::Integer(target_type) = scalar_type else {
                 return unsupported("crash predicate cast has a non-integer target");
             };
-            let operand = lowered_direct_scalar_term(operand, values)?;
+            let operand = lowered_direct_scalar_term(operand, values, erased)?;
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
                 return unsupported("crash predicate cast has a non-integer operand");
             };
@@ -333,7 +357,7 @@ fn lowered_direct_scalar_term(
             return unsupported("generic scalar crash terms do not carry IEEE float literals");
         }
         LoweredDirectExpression::Boolean { expression } => {
-            return checked_boolean_scalar_term_from_lowered(expression, values);
+            return checked_boolean_scalar_term_from_lowered(expression, values, erased);
         }
     })
 }
@@ -341,6 +365,7 @@ fn lowered_direct_scalar_term(
 fn checked_boolean_scalar_term_from_lowered(
     expression: &LoweredBooleanReturnExpression,
     values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
@@ -373,18 +398,18 @@ fn checked_boolean_scalar_term_from_lowered(
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed crash-predicate lowering")
         }
-        LoweredBooleanReturnExpression::Not { operand } => {
-            ScalarTerm::boolean_not(checked_boolean_scalar_term_from_lowered(operand, values)?)
-                .map_err(LoweringError::InvalidCrashPredicate)
-        }
+        LoweredBooleanReturnExpression::Not { operand } => ScalarTerm::boolean_not(
+            checked_boolean_scalar_term_from_lowered(operand, values, erased)?,
+        )
+        .map_err(LoweringError::InvalidCrashPredicate),
         LoweredBooleanReturnExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-            checked_boolean_scalar_term_from_lowered(left, values)?,
-            checked_boolean_scalar_term_from_lowered(right, values)?,
+            checked_boolean_scalar_term_from_lowered(left, values, erased)?,
+            checked_boolean_scalar_term_from_lowered(right, values, erased)?,
         )
         .map_err(LoweringError::InvalidCrashPredicate),
         LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
-            let left = lowered_direct_scalar_term(left, values)?;
-            let right = lowered_direct_scalar_term(right, values)?;
+            let left = lowered_direct_scalar_term(left, values, erased)?;
+            let right = lowered_direct_scalar_term(right, values, erased)?;
             let ScalarType::Integer(integer_type) = left.scalar_type() else {
                 return unsupported("crash comparison operand is not an integer");
             };

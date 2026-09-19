@@ -148,6 +148,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
@@ -167,6 +168,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: Vec::new(),
@@ -220,6 +222,7 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
@@ -1022,10 +1025,12 @@ fn linear_projected_custody_survives_an_empty_jump() {
         edge: edge_id(1),
         target: block_id(3),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     module.machines[0].blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(3),
         parameters: Vec::new(),
@@ -1380,6 +1385,7 @@ fn projected_move_blocks_later_whole_root_use() {
         id: operation_id(6),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: vec![StructuralArgument {

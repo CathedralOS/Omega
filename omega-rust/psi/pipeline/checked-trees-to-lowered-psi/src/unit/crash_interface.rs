@@ -112,6 +112,7 @@ fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::Local { .. } => false,
         CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
@@ -136,6 +137,7 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. } => false,
         CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerLiteral { .. } => true,

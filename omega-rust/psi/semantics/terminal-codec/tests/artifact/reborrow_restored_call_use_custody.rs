@@ -576,6 +576,7 @@ fn caller_machine(raw: u64, place: u64, operation: u64) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: block_id(raw),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(raw),
             parameters: Vec::new(),
@@ -584,6 +585,7 @@ fn caller_machine(raw: u64, place: u64, operation: u64) -> TerminalMachine {
                 id: operation_id(operation),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    erased_arguments: Vec::new(),
                     callee: machine_id(2),
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -602,6 +604,7 @@ fn caller_machine(raw: u64, place: u64, operation: u64) -> TerminalMachine {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(raw),
             crash_routes: Vec::new(),
             requires: Vec::new(),

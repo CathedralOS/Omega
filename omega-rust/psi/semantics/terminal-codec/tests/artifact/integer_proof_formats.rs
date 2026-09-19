@@ -89,6 +89,7 @@ fn synopsis_is_projected_from_the_exact_accepted_certificate() {
     );
     assert_eq!(
         current_rust_operation_semantics_trust_identity(&OperationKind::Call {
+            erased_arguments: Vec::new(),
             callee: machine_id(9),
             arguments: vec![value_id(1)],
             requirement_obligations: vec![obligation_id(2)],

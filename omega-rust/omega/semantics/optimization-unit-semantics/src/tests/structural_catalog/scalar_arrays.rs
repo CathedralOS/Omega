@@ -32,6 +32,7 @@ fn array_unit(length: u64) -> PsiOptimizationUnit {
         });
     for function in &mut candidate.functions {
         function.verified_contract = Some(terminal_psi::MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: id(30_006, semantic_vocabulary::ContractId::new),
             crash_routes: Vec::new(),
             requires: Vec::new(),

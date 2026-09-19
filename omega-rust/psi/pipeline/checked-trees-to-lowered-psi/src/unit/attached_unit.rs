@@ -643,9 +643,10 @@ fn assemble_unit_closure(
             plans
                 .for_machine(signature.source)
                 .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
-                .map(|_| (signature.source, signature.runtime_requirements.len()))
+                .map(|_| (signature.source, signature.requires.len()))
         }))
         .collect::<Vec<_>>();
+    let mut scalar_block_invariants = Vec::new();
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
@@ -686,7 +687,7 @@ fn assemble_unit_closure(
             body: admitted,
         } = admitted
         {
-            let (machine, mut occurrences) = composed_control::callable::emit(
+            let (machine, mut occurrences, mut invariants) = composed_control::callable::emit(
                 checked,
                 source_plan,
                 admitted,
@@ -716,6 +717,7 @@ fn assemble_unit_closure(
             )?;
             machines.push(machine);
             source_call_occurrences.append(&mut occurrences);
+            scalar_block_invariants.append(&mut invariants);
             continue;
         }
         let plan = body.ordinary()?;
@@ -1050,13 +1052,15 @@ fn assemble_unit_closure(
 
     call_evidence.append(&mut scalar_evidence);
     float_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
+    // The verifier reads the roster in exactly (machine, header) order.
+    scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: ScalarQualificationCatalog {
                 float_entry_ranges,
                 ..Default::default()
             },
-            scalar_block_invariants: Vec::new(),
+            scalar_block_invariants,
             operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             // Operation bodies are emitted first; a scalar entry may follow

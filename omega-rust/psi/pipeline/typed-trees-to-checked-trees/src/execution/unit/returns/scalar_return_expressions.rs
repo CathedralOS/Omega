@@ -18,6 +18,7 @@ pub(crate) fn checked_boolean_contains_short_circuit(
         }
         checked_trees::CheckedBooleanExpression::Constant(_)
         | checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
         | checked_trees::CheckedBooleanExpression::Local { .. }
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
@@ -60,6 +61,7 @@ pub(crate) fn checked_boolean_local_reference_count(
         }
         checked_trees::CheckedBooleanExpression::Constant(_)
         | checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
@@ -118,6 +120,7 @@ pub(crate) fn is_structural_boolean_return_expression(
         checked_trees::CheckedBooleanExpression::Parameter { position } => {
             *position < scalar_parameters
         }
+        checked_trees::CheckedBooleanExpression::ErasedParameter { .. } => false,
         checked_trees::CheckedBooleanExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -162,6 +165,7 @@ pub(crate) fn is_branch_free_structural_integer_expression(
             )
         }
         CheckedScalarExpression::Parameter { position, .. } => *position < scalar_parameters,
+        CheckedScalarExpression::ErasedParameter { .. } => false,
         CheckedScalarExpression::Local { position, .. } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -227,6 +231,7 @@ pub(crate) fn is_branch_free_structural_boolean_expression(
         checked_trees::CheckedBooleanExpression::Parameter { position } => {
             *position < scalar_parameters
         }
+        checked_trees::CheckedBooleanExpression::ErasedParameter { .. } => false,
         checked_trees::CheckedBooleanExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)

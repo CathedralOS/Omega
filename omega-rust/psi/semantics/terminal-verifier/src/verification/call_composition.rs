@@ -42,6 +42,7 @@ pub(super) fn compose_call_operation(
             OperationKind::Call {
                 callee,
                 arguments,
+                erased_arguments,
                 requirement_obligations,
                 ..
             },
@@ -64,6 +65,14 @@ pub(super) fn compose_call_operation(
                     .id,
                 value_term(operation.result.expect_scalar().id, value_types),
             );
+            for (formal, argument) in callee
+                .contract
+                .erased_scalar_formals
+                .iter()
+                .zip(erased_arguments)
+            {
+                substitutions.insert(formal.id, argument.clone());
+            }
             for (requirement_position, (required, obligation)) in callee
                 .contract
                 .requires
@@ -99,6 +108,7 @@ pub(super) fn compose_call_operation(
             OperationKind::CallUnit {
                 callee,
                 arguments,
+                erased_arguments,
                 structural_arguments,
                 requirement_obligations,
                 ..
@@ -110,12 +120,20 @@ pub(super) fn compose_call_operation(
                 .expect("validated unit-call target exists");
             let structural_substitutions =
                 structural_contract_substitutions(module, machine, callee, structural_arguments)?;
-            let value_substitutions = callee
+            let mut value_substitutions = callee
                 .parameters
                 .iter()
                 .zip(arguments)
                 .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
                 .collect::<BTreeMap<_, _>>();
+            for (formal, argument) in callee
+                .contract
+                .erased_scalar_formals
+                .iter()
+                .zip(erased_arguments)
+            {
+                value_substitutions.insert(formal.id, argument.clone());
+            }
             let substitute = |proposition: &Proposition| {
                 substitute_proposition_values(
                     &substitute_proposition_structural_places(
@@ -164,6 +182,7 @@ pub(super) fn compose_call_operation(
             OperationKind::CallStructuralScalar {
                 callee,
                 arguments,
+                erased_arguments,
                 structural_arguments,
                 requirement_obligations,
                 ..
@@ -179,6 +198,7 @@ pub(super) fn compose_call_operation(
                 operation,
                 callee,
                 arguments,
+                erased_arguments,
                 structural_arguments,
                 requirement_obligations,
                 value_types,
@@ -258,6 +278,7 @@ pub(super) fn compose_call_operation(
                 operation,
                 callee,
                 &[],
+                &[],
                 std::slice::from_ref(&selection.source),
                 requirement_obligations,
                 value_types,
@@ -328,6 +349,12 @@ pub(super) fn compose_call_operation(
                 } => (&[][..], selected_evidence.as_slice()),
                 _ => return Err(ModuleError::ScalarCaseResultMismatch(operation.id)),
             };
+            let erased_arguments: &[ScalarTerm] = match &operation.kind {
+                OperationKind::CallStructuralWithScalarArguments {
+                    erased_arguments, ..
+                } => erased_arguments.as_slice(),
+                _ => &[],
+            };
             let callee = machines
                 .get(callee)
                 .copied()
@@ -343,12 +370,20 @@ pub(super) fn compose_call_operation(
             let mut substitutions =
                 structural_contract_substitutions(module, machine, callee, structural_arguments)?;
             substitutions.insert(callee_result.place, (call_result.place, Vec::new()));
-            let scalar_substitutions = callee
+            let mut scalar_substitutions = callee
                 .parameters
                 .iter()
                 .zip(arguments)
                 .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
                 .collect::<BTreeMap<_, _>>();
+            scalar_substitutions.extend(
+                callee
+                    .contract
+                    .erased_scalar_formals
+                    .iter()
+                    .zip(erased_arguments)
+                    .map(|(formal, argument)| (formal.id, argument.clone())),
+            );
             let instantiate = |proposition: &Proposition| {
                 substitute_proposition_values(
                     &substitute_proposition_structural_places(proposition, &substitutions),
@@ -453,6 +488,7 @@ fn compose_structural_scalar_call(
     operation: &Operation,
     callee: &TerminalMachine,
     arguments: &[ValueId],
+    erased_arguments: &[ScalarTerm],
     structural_arguments: &[terminal_psi::StructuralArgument],
     requirement_obligations: &[semantic_vocabulary::ObligationId],
     value_types: &BTreeMap<ValueId, ScalarType>,
@@ -468,6 +504,14 @@ fn compose_structural_scalar_call(
         .zip(arguments)
         .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
         .collect::<BTreeMap<_, _>>();
+    value_substitutions.extend(
+        callee
+            .contract
+            .erased_scalar_formals
+            .iter()
+            .zip(erased_arguments)
+            .map(|(formal, argument)| (formal.id, argument.clone())),
+    );
     value_substitutions.insert(
         callee
             .result

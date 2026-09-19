@@ -149,11 +149,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         if source.symbol != state.state {
             return unsupported("Unit graph state identity, contract, or custody drifted");
         }
-        if !validation::structural_state_contracts_are_parameter_qualifications(
-            &checked.typed,
-            source,
-        ) {
-            return unsupported("structural graph state has unrepresented authored contracts");
+        // `requires` rows that lower into closed scalar predicates stay on
+        // the plan as retained state requires and emit as header invariants;
+        // every other authored contract row is still rejected outright.
+        match validation::structural_state_contract_scalar_predicates(&checked.typed, source) {
+            Some(predicates)
+                if predicates.len() == state.requires.len()
+                    && state.requires.iter().all(Option::is_some) => {}
+            _ => {
+                return unsupported("structural graph state has unrepresented authored contracts");
+            }
         }
         if !super::returns::signature_matches(checked, source, &plan.result) {
             return unsupported("structural graph result signature disagrees with source");

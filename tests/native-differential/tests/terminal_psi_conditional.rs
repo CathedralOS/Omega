@@ -133,6 +133,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
@@ -140,6 +141,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(1).unwrap(),
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
@@ -147,6 +149,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
@@ -156,6 +159,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: vec![declaration(5, integer)],
@@ -167,6 +171,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3).unwrap(),
                     parameters: vec![declaration(6, integer)],
@@ -179,6 +184,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -59,6 +59,7 @@ fn view_transfer_module() -> TerminalModule {
         structural_arguments[0].place = destination;
     }
     let successor = |edge, source| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: join,
         arguments: Vec::new(),
@@ -71,6 +72,7 @@ fn view_transfer_module() -> TerminalModule {
     };
     caller.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             id: caller.entry,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

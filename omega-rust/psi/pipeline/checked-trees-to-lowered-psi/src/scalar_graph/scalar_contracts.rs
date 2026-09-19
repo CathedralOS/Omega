@@ -7,9 +7,12 @@ use super::{
     ClosedScalarValueContractPlan, IntegerValue, LoweringError, Proposition, ScalarTerm,
     ValueDeclaration, unsupported,
 };
+use crate::emission::scalar_types::terminal_scalar_type;
 #[cfg(test)]
 use crate::proofs::contract_predicates::canonical_equality;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
+use crate::terminal_identities::{allocate_dense, value_id};
+use checked_trees::CheckedStructuralScalarParameterPlan;
 
 mod namespace;
 mod result_range;
@@ -58,12 +61,13 @@ pub(crate) fn covered_requires(
 pub(crate) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],
     namespace: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
 ) -> Result<Option<Proposition>, LoweringError> {
     let mut combined = None;
     for clause in clauses {
         let proposition = match clause {
             Some(ClosedScalarContractValue::Predicate(predicate)) => {
-                proposition(predicate, namespace)?
+                proposition(predicate, namespace, erased)?
             }
             // The checked selection gate established builtin reflexivity.
             Some(ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_)) => {
@@ -86,28 +90,57 @@ pub(crate) fn clauses(
     Ok(combined)
 }
 
+/// Allocate terminal value declarations for a checked plan's proof-only erased
+/// scalar formals, in authored order. Callers pass the same `next_value`
+/// counter that allocated the dense scalar parameters so erased identities
+/// stay dense right after them.
+pub(crate) fn erased_formal_declarations(
+    erased: &[CheckedStructuralScalarParameterPlan],
+    next_value: &mut u64,
+) -> Result<Vec<ValueDeclaration>, LoweringError> {
+    erased
+        .iter()
+        .map(|parameter| {
+            Ok(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(allocate_dense(next_value)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect()
+}
+
 /// Preserve integer contract relations as propositions, not executable Boolean
 /// comparisons equated with true. Call composition can then cite the exact
 /// relation in ordinary fixed-integer proof rules.
 pub(crate) fn proposition(
     predicate: &CheckedBooleanExpression,
     namespace: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
     self::namespace::validate(predicate)?;
-    crate::proofs::contract_predicates::proposition(predicate, &ScalarContractTerms { namespace })
+    crate::proofs::contract_predicates::proposition(
+        predicate,
+        &ScalarContractTerms { namespace, erased },
+    )
 }
 
 struct ScalarContractTerms<'namespace> {
     namespace: &'namespace [ValueDeclaration],
+    erased: &'namespace [ValueDeclaration],
 }
 
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::crash_routes::checked_scalar_term(expression, self.namespace)
+        crate::proofs::crash_routes::checked_scalar_term(expression, self.namespace, self.erased)
     }
 
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::crash_routes::checked_boolean_scalar_term(expression, self.namespace)
+        crate::proofs::crash_routes::checked_boolean_scalar_term(
+            expression,
+            self.namespace,
+            self.erased,
+        )
     }
 
     fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {

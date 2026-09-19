@@ -237,6 +237,7 @@ pub(crate) fn lower_inline_call(
         call_ordinal,
         result_type,
         input_types,
+        bindings,
         arguments,
         Vec::new(),
         ScalarCallCrashScope::CallerValues,
@@ -434,6 +435,7 @@ impl Expansion<'_> {
             call_ordinal,
             result_type,
             call_types,
+            site.bindings,
             parameters_for_actuals(call_types, input_types.len()),
             structural_arguments,
             ScalarCallCrashScope::Arguments,
@@ -462,6 +464,7 @@ impl Expansion<'_> {
                     let constructor = self.push(LoweredScalarBranchState {
                         structural_parameters: Vec::new(),
                         parameter_types: leaf_types.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarArray(
                             LoweredScalarArrayConstruction {
@@ -474,6 +477,7 @@ impl Expansion<'_> {
                             trivial_affine_discards: Vec::new(),
                             target: continuation,
                             arguments: super::parameters(prefix),
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });
@@ -495,6 +499,7 @@ impl Expansion<'_> {
                     }
                     let constructor = self.push(LoweredScalarBranchState {
                         parameter_types: field_types,
+                        erased_formal_types: Vec::new(),
                         structural_parameters: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(
@@ -510,6 +515,7 @@ impl Expansion<'_> {
                             trivial_affine_discards: Vec::new(),
                             target: continuation,
                             arguments: super::parameters(prefix),
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });

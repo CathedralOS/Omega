@@ -75,6 +75,7 @@ fn unit_call(ordinal: u64, callee: u64, places: &[u64]) -> Operation {
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: machine_id(callee),
             arguments: Vec::new(),
             structural_arguments: borrowed_arguments(places),
@@ -248,6 +249,7 @@ fn structural_scalar_helpers_forward_bytes_and_restore_the_caller() {
         id: operation_id(20),
         result: OperationResult::Scalar(result),
         kind: OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: borrowed_arguments(&[5, 6]),
@@ -330,6 +332,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
                     scalar_type: ScalarType::Boolean,
                 }),
                 kind: OperationKind::Call {
+                    erased_arguments: Vec::new(),
                     callee: machine_id(4),
                     arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -345,6 +348,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
                     scalar_type: ScalarType::Boolean,
                 }),
                 kind: OperationKind::CallStructuralScalar {
+                    erased_arguments: Vec::new(),
                     callee: machine_id(4),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),

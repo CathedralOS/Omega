@@ -441,6 +441,33 @@ pub(crate) fn lower_scalar_expression(
                         .arithmetic_domain_for_type_reference(parameters[position].type_reference),
                 ));
             }
+            // An erased formal has no runtime scalar position; it still names
+            // a proof-only operand in the machine's erased roster so callers
+            // can forward it as an erased actual.
+            if let Some(authored) = parameter_position(program, path, authored_parameters) {
+                let parameter = &authored_parameters[authored];
+                if parameter.relevance.is_erased()
+                    && let Some(primitive_type) =
+                        program.primitive_type_reference(parameter.type_reference)
+                {
+                    let position = authored_parameters[..authored]
+                        .iter()
+                        .filter(|parameter| {
+                            parameter.relevance.is_erased()
+                                && program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_some()
+                        })
+                        .count();
+                    return Some((
+                        CheckedScalarExpression::ErasedParameter {
+                            position,
+                            primitive_type,
+                        },
+                        program.arithmetic_domain_for_type_reference(parameter.type_reference),
+                    ));
+                }
+            }
             let local_position = local_position(program, expression, path, locals)?;
             let local = &locals[local_position];
             if local.is_mutable {

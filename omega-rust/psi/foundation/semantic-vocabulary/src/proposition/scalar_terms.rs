@@ -1227,6 +1227,79 @@ impl ScalarTerm {
         }
     }
 
+    /// Visits every `ValueId` carried by `Value` leaves. Returning `false`
+    /// from `visit` short-circuits the traversal and propagates `false`.
+    pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId) -> bool) -> bool {
+        let mut operands = vec![self];
+        while let Some(term) = operands.pop() {
+            match term {
+                Self::Value { id, .. } => {
+                    if !visit(*id) {
+                        return false;
+                    }
+                }
+                Self::BooleanNot { operand }
+                | Self::IntegerBitwiseNot { operand, .. }
+                | Self::IntegerWiden { operand, .. }
+                | Self::IntegerExactCast { operand, .. } => operands.push(operand),
+                Self::BooleanEqual { left, right, .. }
+                | Self::IntegerEqual { left, right, .. }
+                | Self::IntegerLessThan { left, right, .. }
+                | Self::IntegerLessOrEqual { left, right, .. }
+                | Self::IntegerBitwiseAnd { left, right, .. }
+                | Self::IntegerBitwiseOr { left, right, .. }
+                | Self::IntegerBitwiseXor { left, right, .. }
+                | Self::WrappingIntegerShiftLeft {
+                    value: left,
+                    count: right,
+                    ..
+                }
+                | Self::WrappingIntegerShiftRight {
+                    value: left,
+                    count: right,
+                    ..
+                }
+                | Self::ExactIntegerShiftLeft {
+                    value: left,
+                    count: right,
+                    ..
+                }
+                | Self::ExactIntegerShiftRight {
+                    value: left,
+                    count: right,
+                    ..
+                }
+                | Self::ExactIntegerAdd { left, right, .. }
+                | Self::ExactIntegerSubtract { left, right, .. }
+                | Self::ExactIntegerMultiply { left, right, .. }
+                | Self::ExactIntegerDivide { left, right, .. }
+                | Self::ExactIntegerRemainder { left, right, .. }
+                | Self::WrappingIntegerDivide { left, right, .. }
+                | Self::WrappingIntegerRemainder { left, right, .. }
+                | Self::SaturatingIntegerDivide { left, right, .. }
+                | Self::SaturatingIntegerRemainder { left, right, .. }
+                | Self::WrappingIntegerAdd { left, right, .. }
+                | Self::SaturatingIntegerAdd { left, right, .. }
+                | Self::WrappingIntegerSubtract { left, right, .. }
+                | Self::SaturatingIntegerSubtract { left, right, .. }
+                | Self::WrappingIntegerMultiply { left, right, .. }
+                | Self::SaturatingIntegerMultiply { left, right, .. } => {
+                    operands.push(left);
+                    operands.push(right);
+                }
+                Self::BooleanField { .. }
+                | Self::IntegerField { .. }
+                | Self::Boolean(_)
+                | Self::Integer { .. } => {}
+            }
+        }
+        true
+    }
+
+    pub fn any_value_id(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+        !self.visit_value_ids(|id| !predicate(id))
+    }
+
     pub fn validate(&self) -> Result<(), PropositionError> {
         match self {
             Self::Value { .. }

@@ -223,6 +223,7 @@ pub(super) fn verified_byte_operation(
         })
         .collect();
     let successor = |edge, block| SuccessorEdge {
+        erased_arguments: Vec::new(),
         edge: id(edge, EdgeId::new),
         target: id(block, BlockId::new),
         arguments: Vec::new(),
@@ -232,6 +233,7 @@ pub(super) fn verified_byte_operation(
     machine.entry = id(1, BlockId::new);
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -269,6 +271,7 @@ pub(super) fn verified_byte_operation(
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: id(2, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -295,6 +298,7 @@ pub(super) fn verified_byte_operation(
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             id: id(3, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

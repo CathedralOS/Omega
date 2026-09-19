@@ -282,6 +282,7 @@ fn byte_field_presentation_does_not_widen_scalar_result_calls() {
     };
     module.machines[0].blocks[0].operations[0].result = OperationResult::Scalar(result);
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
+        erased_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: Vec::new(),
         structural_arguments,
@@ -335,6 +336,7 @@ fn ordinary_buffer_module() -> TerminalModule {
         })
         .collect();
     callee.contract = MachineContract {
+        erased_scalar_formals: Vec::new(),
         id: contract_id(2),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -351,6 +353,7 @@ fn ordinary_buffer_module() -> TerminalModule {
         trivial_affine_discards: Vec::new(),
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
+        erased_arguments: Vec::new(),
         callee: callee.id,
         arguments: Vec::new(),
         structural_arguments,

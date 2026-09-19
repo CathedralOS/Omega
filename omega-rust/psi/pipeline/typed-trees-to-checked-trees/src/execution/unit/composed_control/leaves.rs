@@ -95,6 +95,8 @@ pub(super) fn build(
         state: state.symbol,
         structural_parameters: structural_parameters.to_vec(),
         scalar_parameters: Vec::new(),
+        erased_scalar_parameters: Vec::new(),
+        requires: Vec::new(),
         entry_claims: entry_claims.to_vec(),
         bindings: Vec::new(),
         binding_initializers: Vec::new(),

@@ -357,6 +357,7 @@ impl Expansion<'_> {
         let observation = self.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
+            erased_formal_types: Vec::new(),
             bindings: vec![LoweredScalarBinding::Expression(
                 LoweredDirectExpression::Boolean {
                     expression: Box::new(
@@ -372,6 +373,7 @@ impl Expansion<'_> {
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,
                 arguments: outgoing,
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: if slot.multiplicity == StructuralMultiplicity::Affine {
                     vec![slot.place]
@@ -383,6 +385,7 @@ impl Expansion<'_> {
         let constructor = self.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(Construction {
                 place: slot.place,
@@ -394,6 +397,7 @@ impl Expansion<'_> {
             terminator: LoweredScalarBranchTerminator::Jump {
                 target: observation,
                 arguments: parameters(&completed_types),
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },

@@ -104,6 +104,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
             entry,
             blocks: vec![
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -111,6 +112,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_041).unwrap(),
                             target: when_true,
@@ -118,6 +120,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_042).unwrap(),
                             target: when_false,
@@ -127,6 +130,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
@@ -170,6 +174,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                     },
                 },
                 Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),
@@ -214,6 +219,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                 },
             ],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(5_051).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

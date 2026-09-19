@@ -27,8 +27,15 @@ pub(super) struct MachineSignature {
     pub source: SymbolHandle,
     pub parameters: Vec<StructuralParameterDeclaration>,
     pub scalar_parameters: Vec<ValueDeclaration>,
+    /// Proof-only erased scalar formals in authored order.
+    pub erased_scalar_parameters: Vec<ValueDeclaration>,
     pub predicate_parameters: Vec<StructuralParameterDeclaration>,
     pub claims: LoweredUnitClaims,
+    /// Every `requires` row the emitted contract carries, in order: closed
+    /// authored clauses merged into one proposition, then runtime
+    /// requirements. Call sites size their obligation roster from this exact
+    /// slice.
+    pub requires: Vec<Proposition>,
     pub runtime_requirements: Vec<Proposition>,
 }
 
@@ -37,7 +44,9 @@ impl MachineSignature {
         ordinary_calls::Target {
             parameters: &self.parameters,
             scalar_parameters: &self.scalar_parameters,
+            erased_scalar_parameters: &self.erased_scalar_parameters,
             predicate_parameters: &self.predicate_parameters,
+            requires: &self.requires,
             runtime_requirements: &self.runtime_requirements,
         }
     }
@@ -95,6 +104,17 @@ pub(super) fn lower(
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        let erased_scalar_parameters =
+            lower_unit_scalar_parameter_types(plan.erased_scalar_parameters)?
+                .into_iter()
+                .map(|scalar_type| {
+                    Ok(ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: value_id(allocate_dense(next_value)?),
+                        scalar_type,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims =
             lower_unit_entry_claims(plan.machine, plan.state, plan.entry_claims, &parameters)?;
@@ -102,8 +122,10 @@ pub(super) fn lower(
             source: plan.machine,
             parameters,
             scalar_parameters,
+            erased_scalar_parameters,
             predicate_parameters: Vec::new(),
             claims,
+            requires: Vec::new(),
             runtime_requirements: Vec::new(),
         });
     }
@@ -145,6 +167,7 @@ pub(super) fn lower(
                     lower_structural_runtime_requirement(
                         requirement,
                         &signature.scalar_parameters,
+                        &signature.erased_scalar_parameters,
                         &signature.predicate_parameters,
                         structural_types,
                     )
@@ -169,6 +192,29 @@ pub(super) fn lower(
                 .map(|(_, requirement)| requirement)
                 .collect();
         }
+        // Publish closed authored `requires` clauses as one merged
+        // proposition ahead of the runtime requirements. A clause the closed
+        // lane never retained keeps the historical runtime-only contract
+        // rather than a partial roster drifting from the checked plan.
+        if contract
+            .closed_scalar_values
+            .requires()
+            .iter()
+            .all(Option::is_some)
+        {
+            signature.requires = crate::scalar_graph::scalar_contracts::clauses(
+                &crate::scalar_graph::scalar_contracts::covered_requires(
+                    &contract.closed_scalar_values,
+                )?,
+                &signature.scalar_parameters,
+                &signature.erased_scalar_parameters,
+            )?
+            .into_iter()
+            .collect();
+        }
+        signature
+            .requires
+            .extend(signature.runtime_requirements.iter().cloned());
     }
     Ok(signatures)
 }

@@ -81,6 +81,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -109,6 +110,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(439).unwrap(),
                 crash_routes: Vec::new(),
                 requires: vec![goal.clone()],
@@ -224,6 +226,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -254,6 +257,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(461).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -362,6 +366,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -400,6 +405,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: ContractId::new(482).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

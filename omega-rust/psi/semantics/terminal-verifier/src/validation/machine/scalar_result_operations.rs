@@ -103,6 +103,7 @@ pub(super) fn register_scalar_result_operation(
         OperationKind::Call {
             callee,
             arguments,
+            erased_arguments,
             requirement_obligations,
             crash_continuations,
         } => {
@@ -126,7 +127,7 @@ pub(super) fn register_scalar_result_operation(
                     operation.id,
                 ));
             }
-            let substitutions = callee
+            let mut substitutions = callee
                 .parameters
                 .iter()
                 .zip(&arguments)
@@ -137,6 +138,14 @@ pub(super) fn register_scalar_result_operation(
                     )
                 })
                 .collect::<BTreeMap<_, _>>();
+            for (formal, argument) in callee
+                .contract
+                .erased_scalar_formals
+                .iter()
+                .zip(erased_arguments.iter())
+            {
+                substitutions.insert(formal.id, argument.clone());
+            }
             let expected_crash_continuations =
                 substitute_crash_routes(&callee.contract.crash_routes, &substitutions);
             if !super::super::crash::crash_routes_match(
@@ -197,6 +206,19 @@ pub(super) fn register_scalar_result_operation(
                     actual: requirement_obligations.len(),
                 });
             }
+            if erased_arguments.len() != callee.contract.erased_scalar_formals.len() {
+                return Err(ModuleError::ErasedCallArgumentArityMismatch {
+                    operation: operation.id,
+                    expected: callee.contract.erased_scalar_formals.len(),
+                    actual: erased_arguments.len(),
+                });
+            }
+            crate::validation::validate_erased_argument_terms(
+                machine,
+                operation.id,
+                &erased_arguments,
+            )?;
+
             for obligation in requirement_obligations {
                 insert_unique(
                     &mut registry.obligations,

@@ -69,6 +69,7 @@ fn discarded_owned_block_byte_view_cannot_be_observed_in_a_successor() {
     let mut module = block_view(StructuralAccess::Owned, StructuralMultiplicity::Affine);
     let machine = &mut module.machines[0];
     let continuation = Block {
+        erased_scalar_formals: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -82,6 +83,7 @@ fn discarded_owned_block_byte_view_cannot_be_observed_in_a_successor() {
         edge: id(2, EdgeId::new),
         target: continuation.id,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: vec![id(2, PlaceId::new)],
         residual_affine_discards: Vec::new(),

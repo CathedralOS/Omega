@@ -737,6 +737,7 @@ fn exact_shared_cohort_observation(
     let OperationKind::CallUnit {
         callee,
         arguments,
+        erased_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -745,7 +746,10 @@ fn exact_shared_cohort_observation(
     else {
         return false;
     };
-    if !arguments.is_empty() || !matches!(structural_arguments.len(), 2 | 3) {
+    if !arguments.is_empty()
+        || !erased_arguments.is_empty()
+        || !matches!(structural_arguments.len(), 2 | 3)
+    {
         return false;
     }
     let Some(observer) = machines.get(callee) else {
@@ -1006,6 +1010,28 @@ fn validate_boolean_structural_field(
     )
 }
 
+/// Every ScalarTerm in an erased-argument lane must validate, and each ValueId
+/// it carries must already be admitted in the caller's machine scope (runtime
+/// values or the caller's own erased formals). Erased actuals never introduce
+/// values the caller does not already own.
+pub(crate) fn validate_erased_argument_terms(
+    machine: &TerminalMachine,
+    operation_id: OperationId,
+    erased_arguments: &[semantic_vocabulary::ScalarTerm],
+) -> Result<(), ModuleError> {
+    let admitted: std::collections::BTreeSet<ValueId> =
+        machine_value_types(machine).map(|(id, _)| id).collect();
+    for term in erased_arguments {
+        term.validate().map_err(ModuleError::MalformedProposition)?;
+        term.visit_value_ids(|value| admitted.contains(&value))
+            .then_some(())
+            .ok_or(ModuleError::ErasedCallArgumentUnknownValue {
+                operation: operation_id,
+            })?;
+    }
+    Ok(())
+}
+
 pub(crate) fn machine_value_types(
     machine: &TerminalMachine,
 ) -> impl Iterator<Item = (ValueId, ScalarType)> + '_ {
@@ -1013,11 +1039,18 @@ pub(crate) fn machine_value_types(
         .parameters
         .iter()
         .chain(machine.result.scalar_ref())
+        .chain(machine.contract.erased_scalar_formals.iter())
         .chain(
             machine
                 .blocks
                 .iter()
                 .flat_map(|block| block.parameters.iter()),
+        )
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.erased_scalar_formals.iter()),
         )
         .chain(machine.blocks.iter().flat_map(|block| {
             block

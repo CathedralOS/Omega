@@ -66,58 +66,69 @@ pub(super) fn append_arrival_obligations(
     {
         return;
     }
-    let mut append_edge =
-        |edge: EdgeId, target: BlockId, arguments: &[ValueId], selected_axioms: &[Proposition]| {
-            for invariant in module
-                .scalar_block_invariants
+    let mut append_edge = |edge: EdgeId,
+                           target: BlockId,
+                           arguments: &[ValueId],
+                           erased_arguments: &[ScalarTerm],
+                           selected_axioms: &[Proposition]| {
+        for invariant in module
+            .scalar_block_invariants
+            .iter()
+            .filter(|invariant| invariant.machine == machine.id && invariant.header == target)
+        {
+            let header = machine
+                .blocks
                 .iter()
-                .filter(|invariant| invariant.machine == machine.id && invariant.header == target)
-            {
-                let header = machine
-                    .blocks
+                .find(|block| block.id == target)
+                .expect("validated invariant header exists");
+            let arrival = invariant
+                .arrivals
+                .iter()
+                .find(|arrival| arrival.edge == edge)
+                .expect("validated invariant retains every actual arrival");
+            // Simultaneous substitution is essential for crossed or repeated
+            // arguments: replacement terms remain in the predecessor scope.
+            let mut substitutions = header
+                .parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.id, value_term(*argument)))
+                .collect::<BTreeMap<_, _>>();
+            substitutions.extend(
+                header
+                    .erased_scalar_formals
                     .iter()
-                    .find(|block| block.id == target)
-                    .expect("validated invariant header exists");
-                let arrival = invariant
-                    .arrivals
-                    .iter()
-                    .find(|arrival| arrival.edge == edge)
-                    .expect("validated invariant retains every actual arrival");
-                // Simultaneous substitution is essential for crossed or repeated
-                // arguments: replacement terms remain in the predecessor scope.
-                let substitutions = header
-                    .parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| (parameter.id, value_term(*argument)))
-                    .collect::<BTreeMap<_, _>>();
-                let proposition = super::super::substitution::substitute_proposition_values(
-                    &invariant.predicate,
-                    &substitutions,
-                );
-                obligations.push(ReconstructedOperationObligation {
-                    owner: ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                        machine: machine.id,
-                        header: target,
-                        edge,
-                    },
-                    obligation: Obligation {
-                        id: arrival.obligation,
-                        proposition,
-                        class: ObligationClass::Derivable,
-                    },
-                    semantic_axioms: selected_axioms.to_vec(),
-                    canonical_certificate: true,
-                });
-            }
-        };
+                    .zip(erased_arguments)
+                    .map(|(formal, argument)| (formal.id, argument.clone())),
+            );
+            let proposition = super::super::substitution::substitute_proposition_values(
+                &invariant.predicate,
+                &substitutions,
+            );
+            obligations.push(ReconstructedOperationObligation {
+                owner: ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                    machine: machine.id,
+                    header: target,
+                    edge,
+                },
+                obligation: Obligation {
+                    id: arrival.obligation,
+                    proposition,
+                    class: ObligationClass::Derivable,
+                },
+                semantic_axioms: selected_axioms.to_vec(),
+                canonical_certificate: true,
+            });
+        }
+    };
     match terminator {
         Terminator::Jump {
             edge,
             target,
             arguments,
+            erased_arguments,
             ..
-        } => append_edge(*edge, *target, arguments, axioms),
+        } => append_edge(*edge, *target, arguments, erased_arguments, axioms),
         Terminator::Conditional {
             condition,
             when_true,
@@ -139,6 +150,7 @@ pub(super) fn append_arrival_obligations(
                     successor.edge,
                     successor.target,
                     &successor.arguments,
+                    &successor.erased_arguments,
                     &selected_axioms,
                 );
             }

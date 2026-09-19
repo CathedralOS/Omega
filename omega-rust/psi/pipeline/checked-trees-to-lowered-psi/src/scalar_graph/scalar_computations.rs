@@ -413,6 +413,7 @@ impl<'a> Expansion<'a> {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: completed_types.clone(),
+            erased_formal_types: Vec::new(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
                 trivial_affine_discards: Vec::new(),
@@ -422,6 +423,7 @@ impl<'a> Expansion<'a> {
                     .into_iter()
                     .skip(source_types.len())
                     .collect(),
+                erased_arguments: Vec::new(),
             },
         });
         Ok(Some(self.sequence(
@@ -491,11 +493,13 @@ impl<'a> Expansion<'a> {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: input_types.to_vec(),
+            erased_formal_types: Vec::new(),
             bindings: vec![binding],
             terminator: LoweredScalarBranchTerminator::Jump {
                 trivial_affine_discards: Vec::new(),
                 target,
                 arguments,
+                erased_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
             },
         })
@@ -584,6 +588,7 @@ impl<'a> Expansion<'a> {
                     let qualify = self.push(LoweredScalarBranchState {
                         structural_parameters: Vec::new(),
                         parameter_types: operand_types.clone(),
+                        erased_formal_types: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Qualify {
@@ -652,6 +657,7 @@ impl<'a> Expansion<'a> {
                     structural_parameters: Vec::new(),
                     structural_effects: Vec::new(),
                     parameter_types: condition_types,
+                    erased_formal_types: Vec::new(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Conditional {
                         condition: LoweredBooleanReturnExpression::Parameter {
@@ -659,8 +665,10 @@ impl<'a> Expansion<'a> {
                         },
                         when_true_target,
                         when_true_arguments: parameters(input_types),
+                        when_true_erased_arguments: Vec::new(),
                         when_false_target,
                         when_false_arguments: parameters(input_types),
+                        when_false_erased_arguments: Vec::new(),
                     },
                 });
                 self.argument(

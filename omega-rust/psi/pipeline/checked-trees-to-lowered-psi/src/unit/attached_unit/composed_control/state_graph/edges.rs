@@ -85,6 +85,8 @@ pub(super) fn validate_bindings(
             "Unit graph successor target is missing",
         ))?;
     let arguments = checked.statement_table.expression_handles(*arguments);
+    // The authored operand list carries every position, including proof-only
+    // erased formals the retained lanes strip.
     if arguments.len()
         != target
             .structural_parameters
@@ -92,8 +94,10 @@ pub(super) fn validate_bindings(
             .filter(|parameter| !parameter.is_self)
             .count()
             + target.scalar_parameters.len()
+            + target.erased_scalar_parameters.len()
         || edge.transfers.len() != target.structural_parameters.len()
         || edge.scalar_arguments.len() + payloads.len() != target.scalar_parameters.len()
+        || edge.erased_arguments.len() != target.erased_scalar_parameters.len()
     {
         return unsupported("Unit graph successor arity drifted");
     }
@@ -309,6 +313,44 @@ pub(super) fn validate_bindings(
                 )?;
             }
         }
+    }
+    // Proof-only lanes carry the same authored expression custody as the
+    // retained arguments; erased formals never bind a runtime parameter.
+    for ((position, target), transfer) in target
+        .erased_scalar_parameters
+        .iter()
+        .enumerate()
+        .zip(&edge.erased_arguments)
+    {
+        if transfer.target_scalar_parameter_index as usize != position
+            || transfer.argument_ordinal != target.source_position
+            || transfer.primitive_type != target.primitive_type
+            || !matches!(
+                transfer.source,
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+            )
+        {
+            return unsupported("Unit graph erased transfer type or order drifted");
+        }
+        let (binding, _) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(
+                state.state,
+                edge.statement_ordinal,
+                CheckedScalarExpressionRole::TransitionArgument {
+                    argument_ordinal: transfer.argument_ordinal,
+                },
+            )
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph erased successor has no checked source expression",
+            ))?;
+        crate::expression_preparation::source_custody::validate_pure(
+            checked,
+            binding,
+            terminal_scalar_type(target.primitive_type)?,
+        )?;
     }
     Ok(())
 }

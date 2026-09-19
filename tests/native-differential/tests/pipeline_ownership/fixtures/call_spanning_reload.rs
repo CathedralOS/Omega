@@ -97,6 +97,7 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(base + 100).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(base + 100).unwrap(),
             parameters: Vec::new(),
@@ -107,6 +108,7 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(base + 300).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -141,6 +143,7 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee,
             arguments,
             structural_arguments: Vec::new(),
@@ -226,6 +229,7 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(CALL_SPANNING_RELOAD_ENTRY).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALL_SPANNING_RELOAD_ENTRY).unwrap(),
             parameters: Vec::new(),
@@ -236,6 +240,7 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(CALL_SPANNING_RELOAD_CONTRACT).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

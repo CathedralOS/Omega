@@ -21,9 +21,9 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             scalar(left)?;
             scalar(right)
         }
-        CheckedBooleanExpression::Parameter { .. } | CheckedBooleanExpression::Constant(_) => {
-            Ok(())
-        }
+        CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
+        | CheckedBooleanExpression::Constant(_) => Ok(()),
         CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
@@ -54,6 +54,7 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
                 "scalar contract operand contains body-local or mutable storage",
             ))
         }
+        CheckedScalarExpression::ErasedParameter { .. } => Ok(()),
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar(left)?;
             scalar(right)

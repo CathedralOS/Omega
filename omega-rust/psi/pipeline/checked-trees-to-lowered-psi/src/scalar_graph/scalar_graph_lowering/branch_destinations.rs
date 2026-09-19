@@ -56,7 +56,14 @@ pub(super) fn lower_destination(
     computations: &mut computations::Expansion<'_>,
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
-) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
+) -> Result<
+    (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+    ),
+    LoweringError,
+> {
     match destination {
         CheckedScalarBranchDestination::Crash { statement_ordinal } => {
             let crash = lower_checked_crash_exit(
@@ -70,10 +77,15 @@ pub(super) fn lower_destination(
                 structural_parameters: Vec::new(),
                 structural_effects: Vec::new(),
                 parameter_types: source_value_types.to_vec(),
+                erased_formal_types: Vec::new(),
                 bindings: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Crash(crash),
             });
-            Ok((target, computations::parameters(source_value_types)))
+            Ok((
+                target,
+                computations::parameters(source_value_types),
+                Vec::new(),
+            ))
         }
         CheckedScalarBranchDestination::Jump(successor) => lower_scalar_graph_successor(
             checked,
@@ -119,7 +131,11 @@ pub(super) fn lower_destination(
                 result_type,
                 target,
             )? {
-                return Ok((entry, computations::parameters(source_value_types)));
+                return Ok((
+                    entry,
+                    computations::parameters(source_value_types),
+                    Vec::new(),
+                ));
             }
             let expression =
                 scalar_bindings.expression_at(checked, source_state, *statement_ordinal, role)?;
@@ -129,7 +145,7 @@ pub(super) fn lower_destination(
                 );
             }
             validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
-            Ok((target, vec![expression]))
+            Ok((target, vec![expression], Vec::new()))
         }
     }
 }

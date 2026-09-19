@@ -302,6 +302,7 @@ fn jump(raw: u64, target: u64) -> Terminator {
         edge: edge_id(raw),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -324,6 +325,7 @@ fn diamond_module() -> TerminalModule {
             edge: edge_id(2),
             target: block_id(2),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -331,6 +333,7 @@ fn diamond_module() -> TerminalModule {
             edge: edge_id(3),
             target: block_id(3),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -341,6 +344,7 @@ fn diamond_module() -> TerminalModule {
         (4, terminal, tail),
     ] {
         machine.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
             id: block_id(raw),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -399,6 +403,7 @@ fn primitive_snapshot_mutable_call_invalidates_reaching_store_not_captured_value
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![value_id(2)],
             structural_arguments: vec![StructuralArgument {
@@ -477,6 +482,7 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
             edge: edge_id(5),
             target: block_id(3),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -484,6 +490,7 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
             edge: edge_id(6),
             target: block_id(4),
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },

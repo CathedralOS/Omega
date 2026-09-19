@@ -914,18 +914,6 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "wire/wire_compatibility_migration_same_named_eras",
     "wire/wire_compatibility_migration_retired_identity_fresh",
     "wire/wire_codec_qualified_schema_calls",
-    // Occurrence-level `[erased]` on a signature parameter whose only use is
-    // a `requires` clause: the checked calling plan strips the position and
-    // Terminal lowering accepts the stripped signature (its two RUN siblings
-    // in layouts_and_pending run natively), but a Terminal contract
-    // proposition has no proof-only value for the erased binding, so this
-    // stays Check (PROOF-RELEVANCE-MIGRATION).
-    "relevance/erased_parameter_proof_only",
-    // An erased machine parameter forwarded into an erased state parameter
-    // through a named transition: checked semantics treats the erased-position
-    // argument as that binding's initializer; the erased state parameter has
-    // no Terminal contract term yet, so this stays Check.
-    "relevance/erased_parameter_named_transition_forward",
     // A statement call to a PROOF machine is proof computation, so an erased
     // local may be its receiver; proof machines emit no runtime code, so this
     // stays Check.

@@ -41,6 +41,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         projected_qualifications: Vec::new(),
     }];
     let successor = |edge, block| SuccessorEdge {
+        erased_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(block),
@@ -52,6 +53,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
     // verification still requires the entry length and true edge to dominate it.
     machine.blocks = vec![
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -78,6 +80,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -115,6 +118,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
             },
         },
         Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),

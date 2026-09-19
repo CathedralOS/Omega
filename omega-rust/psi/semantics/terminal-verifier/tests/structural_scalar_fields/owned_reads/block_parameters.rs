@@ -49,6 +49,7 @@ fn block_reader(scalar_type: ScalarType, multiplicity: StructuralMultiplicity) -
         edge: id::<EdgeId>(3),
         target: body.id,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: machine.structural_parameters[0].place,
             path: Vec::new(),
@@ -404,6 +405,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
     let header = machine.blocks[1].id;
     let owned = machine.blocks[1].structural_parameters[0].place;
     let exit = Block {
+        erased_scalar_formals: Vec::new(),
         id: id::<BlockId>(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -426,6 +428,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
             edge: id::<EdgeId>(5),
             target: header,
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: owned,
                 path: Vec::new(),
@@ -437,6 +440,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
             edge: id::<EdgeId>(6),
             target: exit.id,
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -483,6 +487,7 @@ fn ordinary_calls_consume_the_block_owner_without_invalidating_prior_scalar_snap
         id: id::<OperationId>(5),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: consumer.id,
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -595,6 +600,7 @@ fn owned_block_field_reads_reject_after_a_selected_discard() {
             edge: id::<EdgeId>(4),
             target: continuation.id,
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: vec![place],
             residual_affine_discards: Vec::new(),
@@ -644,6 +650,7 @@ fn owned_block_field_reads_reject_the_old_descriptor_after_successor_transfer() 
             edge: id::<EdgeId>(4),
             target: continuation.id,
             arguments: Vec::new(),
+            erased_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: previous_place,
                 path: Vec::new(),

@@ -89,6 +89,85 @@ pub fn structural_state_contracts_are_parameter_qualifications(
     actual == expected
 }
 
+/// Split a state's authored `requires` contracts into the membership rows that
+/// restate parameter domain qualifications and the scalar expression rows a
+/// proof lane may carry. Membership rows must still match the exact declared
+/// qualifications; every other contract shape remains out of scope. The
+/// returned expressions name authored `requires` facts only — the caller owns
+/// their closed lowering.
+pub fn structural_state_contract_scalar_predicates(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
+    let mut expected = Vec::new();
+    for parameter in program.state_parameters(state) {
+        let mut reference = parameter.type_reference;
+        if let TypeReferenceNode::Reference { referee, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            reference = *referee;
+        }
+        if program.primitive_type_reference(reference).is_some() {
+            continue;
+        }
+        let Ok(domains) = structural_result_qualifications(program, reference) else {
+            return None;
+        };
+        expected.extend(
+            domains
+                .into_iter()
+                .map(|domain| (parameter.symbol, domain.0)),
+        );
+    }
+    let mut actual = Vec::new();
+    let mut predicates = Vec::new();
+    for contract in program.state_contracts(state) {
+        // Authored rows carry their clause token span; only the synthesized
+        // qualification restatements are zero-token. Both are admissible —
+        // authored memberships must restate the declared qualifications
+        // exactly, and authored expressions become scalar predicates.
+        if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+            return None;
+        }
+        let [fact] = program.proof_facts.span_or_empty(contract.facts) else {
+            return None;
+        };
+        match fact {
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                let ExpressionNode::Name(path) =
+                    program.expression_table.expression(membership.value)
+                else {
+                    return None;
+                };
+                if path.head_symbol != path.symbol
+                    || program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        != 1
+                {
+                    return None;
+                }
+                let Some(domain) = program
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == membership.domain_symbol)
+                else {
+                    return None;
+                };
+                actual.push((path.symbol, domain.semantic_id.0));
+            }
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                predicates.push(*expression);
+            }
+            typed_trees::domain::ProofFact::Proposition(_) => return None,
+        }
+    }
+    expected.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
+    actual.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
+    (actual == expected).then_some(predicates)
+}
+
 /// Exact whole-result qualification row, excluding reference presentation.
 pub fn structural_result_qualifications(
     program: &TypedTrees,

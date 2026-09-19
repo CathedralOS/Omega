@@ -211,6 +211,7 @@ pub(super) fn lower(
             &[],
             &[],
             &[],
+            &[],
             &mut next_value,
             &mut next_block,
             &mut next_operation,
@@ -312,6 +313,7 @@ pub(super) fn lower(
         structural_parameters: Vec::new(),
         id: caller_block,
         parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
         operations: caller_operations,
         terminator: Terminator::Conditional {
             condition,
@@ -485,6 +487,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     })
 }

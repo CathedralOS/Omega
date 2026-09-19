@@ -65,6 +65,7 @@ fn unit_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: id::<BlockId>(1),
             blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(1),
                 parameters: Vec::new(),
@@ -75,6 +76,7 @@ fn unit_module() -> TerminalModule {
                 },
             }],
             contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
                 id: id::<ContractId>(1),
                 requires: Vec::new(),
                 ensures: Vec::new(),
@@ -230,6 +232,7 @@ fn structural_block_module() -> TerminalModule {
         edge: id(1),
         target: id(2),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: vec![borrowed_argument(2), borrowed_argument(1)],
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -238,10 +241,12 @@ fn structural_block_module() -> TerminalModule {
         edge: id(edge),
         target: id(3),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         structural_arguments: places.into_iter().map(borrowed_argument).collect(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(2),
         parameters: Vec::new(),
         structural_parameters: vec![borrowed_parameter(3, 0), borrowed_parameter(4, 1)],
@@ -253,6 +258,7 @@ fn structural_block_module() -> TerminalModule {
         },
     });
     machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
         id: id(3),
         parameters: Vec::new(),
         structural_parameters: vec![borrowed_parameter(5, 0), borrowed_parameter(6, 1)],
@@ -404,6 +410,7 @@ fn unit_byte_field_module() -> TerminalModule {
         id: id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
             callee: callee.id,
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

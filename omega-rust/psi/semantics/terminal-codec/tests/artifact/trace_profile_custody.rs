@@ -689,6 +689,7 @@ fn custody_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block,
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
@@ -752,6 +753,7 @@ fn custody_module() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(13),
                     crash_routes: caller_routes,
                     requires: Vec::new(),
@@ -776,6 +778,7 @@ fn custody_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: crash_block,
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: crash_block,
                     parameters: Vec::new(),
@@ -788,6 +791,7 @@ fn custody_module() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(23),
                     crash_routes: vec![CrashRouteBucket {
                         cause: CrashCause::Trap,
@@ -815,6 +819,7 @@ fn custody_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(32),
                 blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(32),
                     parameters: Vec::new(),
@@ -827,6 +832,7 @@ fn custody_module() -> TerminalModule {
                     },
                 }],
                 contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
                     id: contract_id(33),
                     crash_routes: vec![CrashRouteBucket {
                         cause: CrashCause::Abort,

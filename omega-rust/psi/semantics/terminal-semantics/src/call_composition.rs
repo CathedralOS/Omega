@@ -505,6 +505,7 @@ mod tests {
 
     fn scalar_call() -> OperationKind {
         OperationKind::Call {
+            erased_arguments: Vec::new(),
             callee: MachineId::new(1).unwrap(),
             arguments: vec![ValueId::new(1).unwrap()],
             requirement_obligations: Vec::new(),
@@ -514,6 +515,7 @@ mod tests {
 
     fn structural_scalar_call() -> OperationKind {
         OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
             callee: MachineId::new(2).unwrap(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

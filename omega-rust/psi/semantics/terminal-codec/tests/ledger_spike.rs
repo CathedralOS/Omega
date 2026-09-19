@@ -173,6 +173,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(10),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(10),
             parameters: Vec::new(),
@@ -181,6 +182,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                 id: operation_id(10),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    erased_arguments: Vec::new(),
                     arguments: Vec::new(),
                     callee: machine_id(20),
                     structural_arguments: vec![StructuralArgument {
@@ -202,6 +204,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(10),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -237,6 +240,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(20),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
@@ -264,6 +268,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(20),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -379,6 +384,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(10),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(10),
             parameters: Vec::new(),
@@ -422,6 +428,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -454,6 +461,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(20),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
@@ -469,6 +477,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -494,6 +503,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(30),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(30),
             parameters: Vec::new(),
@@ -504,6 +514,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(3),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -619,6 +630,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         entry: block_id(10),
         blocks: vec![
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(10),
                 parameters: Vec::new(),
@@ -688,6 +700,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                         17,
                         value(27),
                         OperationKind::Call {
+                            erased_arguments: Vec::new(),
                             callee: machine_id(2),
                             arguments: vec![value_id(10), value_id(11)],
                             requirement_obligations: vec![obligation_id(105), obligation_id(106)],
@@ -702,6 +715,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                 },
             },
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(11),
                 parameters: Vec::new(),
@@ -711,11 +725,13 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                     edge: edge_id(102),
                     target: block_id(13),
                     arguments: vec![value_id(20)],
+                    erased_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(12),
                 parameters: Vec::new(),
@@ -725,11 +741,13 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                     edge: edge_id(103),
                     target: block_id(13),
                     arguments: vec![value_id(if asymmetric { 21 } else { 20 })],
+                    erased_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
             Block {
+                erased_scalar_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(13),
                 parameters: vec![value(30)],
@@ -950,6 +968,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
             },
         ],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -975,6 +994,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(20),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
@@ -986,6 +1006,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: Vec::new(),
             requires: callee_requires,
@@ -1042,6 +1063,7 @@ fn successor(edge: u64, target: u64) -> SuccessorEdge {
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),
+        erased_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
 }

@@ -48,6 +48,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(CALLER_BASE).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALLER_BASE).unwrap(),
             parameters: Vec::new(),
@@ -65,6 +66,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
                     id: OperationId::new(CALLER_BASE + 2).unwrap(),
                     result: OperationResult::Scalar(value(CALLER_BASE + 2)),
                     kind: OperationKind::Call {
+                        erased_arguments: Vec::new(),
                         callee: MachineId::new(CALLEE).unwrap(),
                         arguments: vec![argument; ARGUMENTS as usize],
                         requirement_obligations: Vec::new(),
@@ -79,6 +81,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(CALLER_BASE + 5).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -105,6 +108,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(CALLEE_BASE).unwrap(),
         blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALLEE_BASE).unwrap(),
             parameters: Vec::new(),
@@ -116,6 +120,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
             },
         }],
         contract: MachineContract {
+            erased_scalar_formals: Vec::new(),
             id: ContractId::new(CALLEE_BASE + 2).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),

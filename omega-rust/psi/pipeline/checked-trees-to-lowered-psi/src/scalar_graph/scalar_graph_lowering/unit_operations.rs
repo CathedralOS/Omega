@@ -54,12 +54,16 @@ pub(super) fn prepare(
         target_contract_report_fingerprint,
         service_reach,
         scalar_arguments,
+        erased_scalar_arguments,
         structural_arguments,
         claim_transfers,
     } = operation
     else {
         return unsupported("scalar graph requires an ordinary Unit operation");
     };
+    if !erased_scalar_arguments.is_empty() {
+        return unsupported("scalar graph Unit call has no erased argument lane");
+    }
     let body = UnitBody::find(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
     let target = body.entry()?;
     if body.result()? != checked_trees::CheckedControlResultPlan::Unit

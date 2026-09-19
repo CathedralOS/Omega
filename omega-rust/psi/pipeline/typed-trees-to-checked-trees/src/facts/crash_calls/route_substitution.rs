@@ -392,6 +392,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
             boolean_evidence_is_crash_lane_lowerable(expression)
         }
         CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
@@ -418,6 +419,7 @@ fn boolean_evidence_is_crash_lane_lowerable(
         }
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
@@ -484,6 +486,9 @@ pub(crate) fn substitute_checked_boolean_expression(
             };
             *expression
         }
+        // Erased formals index the contract's proof-only roster, not the
+        // runtime argument lane; no caller actual reaches this substitution.
+        CheckedBooleanExpression::ErasedParameter { .. } => return None,
         // A callee contract is parameter-relative. A local can appear only
         // after composing a private body summary; it cannot be rebound by the
         // outer call and therefore deliberately loses portable structure.
@@ -644,6 +649,7 @@ fn substitute_checked_scalar_expression(
             (crate::values::scalar_expression_type(&substituted) == Some(*primitive_type))
                 .then_some(substituted)?
         }
+        CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }

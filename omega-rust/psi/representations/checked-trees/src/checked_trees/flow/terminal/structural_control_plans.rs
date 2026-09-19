@@ -217,6 +217,9 @@ pub struct CheckedStructuralControlSuccessorPlan {
     pub target_state: SymbolHandle,
     pub transfers: Vec<CheckedStructuralControlTransferPlan>,
     pub scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
+    /// Proof-only erased actuals pairing the target's erased formals with the
+    /// retained scalar expressions recorded at the transition.
+    pub erased_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 

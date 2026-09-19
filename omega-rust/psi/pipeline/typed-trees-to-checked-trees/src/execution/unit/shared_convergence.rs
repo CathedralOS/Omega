@@ -177,6 +177,7 @@ fn shared_boolean_runtime_inputs(
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
         checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
         | checked_trees::CheckedBooleanExpression::Local { .. }
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,
     }
@@ -284,6 +285,7 @@ fn shared_integer_runtime_inputs(
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerBinary { .. }
         | CheckedScalarExpression::IntegerBitwiseNot { .. }
