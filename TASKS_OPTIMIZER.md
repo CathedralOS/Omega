@@ -172,12 +172,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection.
-  - Boundary settlements. `derivation/evidence.rs` matches three hosted
-    builtins by exact execution and realization pair (`HostedExitProcessI32`,
-    `HostedWriteByteI32`, `HostedReadByte`), the admitted-provider settlement,
-    and the normalized foreign call. Any other builtin, and any occurrence
-    carrying neither an installed settlement nor a foreign call, yields no
-    evidence.
+  - Boundary settlements. `derivation/evidence.rs` joins each installed
+    settlement's closed `(CompilerBuiltinExecution, BoundaryRealization)`
+    pair against `HOSTED_BUILTIN_SETTLEMENTS` in `derivation/children.rs`
+    (`HostedExitProcessI32`, `HostedWriteByteI32`, `HostedReadByte`), where
+    one row declares the builtin's supported targets, admitted
+    scalar-argument forms, and result custody for the shared
+    `derive_hosted_builtin_child` span join — then the admitted-provider
+    settlement, then the normalized foreign call. A fourth hosted builtin
+    is one catalog row, not a new derivation. Any other builtin, and any
+    occurrence carrying neither an installed settlement nor a foreign call,
+    yields no evidence.
   - Privileged port effects. Every retained effect must be consumed by an
     exact `MetadataOnlyPort` settlement join; one unowned effect drops the
     artifact's evidence.
@@ -196,19 +201,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   templates, and their catalogs and compatibility fixtures are retired. Do not
   restore them to recover arithmetic, crash, cleanup or borrowed-call coverage;
   extend ordinary graph operations and their receiving checks instead.
-
-  Flag: the settlement side grows one derivation per hosted builtin.
-  `derivation/children.rs` holds `derive_exit_group_child` (153 lines),
-  `derive_write_byte_child` (123) and `derive_read_byte_child` (164), each
-  selected by matching one `(CompilerBuiltinExecution, BoundaryRealization)`
-  pair and each re-spelling its own supported-target list and empty-roster
-  checks; `BoundaryTraitSettlementRole` carries `CompilerBuiltin`,
-  `CompilerBuiltinRuntimeScalar` and `CompilerBuiltinStructural`, which differ
-  only in argument and result shape. The general mechanism is one
-  settlement-span derivation driven by the emitted settlement record's
-  declared argument and result shapes and a target-applicability fact on the
-  builtin, so that a fourth hosted builtin is a catalog row rather than a match
-  arm, a role variant and a function.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
