@@ -6,9 +6,9 @@ This is the canonical encoding contract, not yet a complete byte-level decoder
 specification. The [documentation index](../../README.md) lists operation subjects.
 [Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
 define semantics; the tables below give the physical layout of every operation,
-terminator, scalar-term, proposition, and proof-node form the codec accepts.
-Machine-table, catalog, and ledger rows still owe physical tables under PSIIR
-on the [execution board](../../../TASKS.md).
+terminator, scalar-term, proposition, and proof-node form the codec accepts,
+plus the catalog, scalar-block-invariant, machine, and ledger rows a receiver
+rederives on decode.
 
 ## Canonical form
 
@@ -33,16 +33,24 @@ its logical result and obligations; an encoded proof cannot select them.
 
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
-qualification catalog follows the entry identity: counted domain definitions,
-counted normalized sets, then counted qualification-change edges. Definitions bind their
-local and semantic identities, canonical theory identity and scalar carrier.
+qualification catalog follows the entry identity as four counted tables:
+
+| Catalog table | Row fields |
+| --- | --- |
+| domain definitions | domain id + semantic domain id + canonical identity string + scalar carrier type |
+| normalized sets | `u64` set identity + counted domain identities |
+| qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
+| float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
+
+Definitions bind their local and semantic identities, canonical theory
+identity, and scalar carrier, and are strictly ordered by domain identity.
 Sets are nonempty, contain strictly ordered unique domain identities, and have
-unique nonzero identities; duplicate sets reject. Qualification-change rows retain
-machine, edge, argument ordinal, source and destination identities, ordered
-strictly by `(machine, edge, argument ordinal)`. All these bytes participate in
-semantic identity. Canonical encoding does not itself authorize membership:
-verification checks the exact arrival and strict same-carrier addition or
-subset erasure under the
+unique nonzero identities; duplicate sets reject. Qualification-change rows are
+ordered strictly by `(machine, edge, argument ordinal)`; float entry ranges by
+`(machine, parameter)`, with both bounds carrying the same IEEE format. All
+these bytes participate in semantic identity. Canonical encoding does not
+itself authorize membership: verification checks the exact arrival and strict
+same-carrier addition or subset erasure under the
 [scalar qualification rules](calls_and_outcomes.md#scalar-qualifications).
 
 IEEE scalar comparison uses operation tag 65, followed by a one-byte relation
@@ -67,15 +75,20 @@ result type, multiplicity, and producer remain in the ordinary operation result.
 Retired literal tag 51 and scalar-only tag 67 reject; their payloads are not
 reinterpreted as the current operand roster.
 
-The semantic scalar-block-invariant roster precedes the machine table. Rows
-are strictly ordered by `(machine, header)` and encode those identities, one
-canonical scalar proposition, and a counted arrival list. Arrivals are strictly
-ordered by edge identity and retain the edge and obligation identities. Every
-actual header arrival must occur exactly once. Predicate and roster participate
-in semantic identity; their certificates remain replaceable flat proof evidence.
-The reconstructed ledger owner retains machine, header, and edge independently
-of evidence. The block-predicate representation replaces the former dedicated
-range row; old bytes are rejected rather than reinterpreted.
+The semantic scalar-block-invariant roster precedes the machine table.
+
+| Scalar block invariant row | Fields |
+| --- | --- |
+| invariant | machine id + header block id + one canonical scalar proposition + counted arrivals |
+| arrival | edge id + obligation id |
+
+Rows are strictly ordered by `(machine, header)` and arrivals strictly by edge
+identity. Every actual header arrival must occur exactly once. Predicate and
+roster participate in semantic identity; their certificates remain replaceable
+flat proof evidence. The reconstructed ledger owner retains machine, header,
+and edge independently of evidence. The block-predicate representation
+replaces the former dedicated range row; old bytes are rejected rather than
+reinterpreted.
 
 Closed reach applications retain an ordered telescope and finite dependency.
 A selected generic callback with emitted applications keeps its original schema
@@ -137,6 +150,16 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | residual discard | place id + structural path + structural type id |
 | affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural type id + machine id + optional identity + obligation id list |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
+
+Admission kinds are shared by proof-bundle admission routes and obligation
+classes:
+
+<!-- admission-kind-tags -->
+| Tag | Admission kind |
+| --- | --- |
+| 1 | ForeignBoundaryGuarantee |
+| 2 | ProviderFact |
+| 3 | CheckedAssemblyClaim |
 
 ## Scalar terms
 
@@ -366,6 +389,131 @@ noncanonical. Each residual retains place, ordered structural path, and exact
 subtree type; ownership validation reconstructs the complement rather than
 trusting this list.
 
+## Machine rows
+
+Module bytes are `PSITERM\0` + `u16` format marker 101 + `u16` vocabulary
+marker 107 + the entry machine id, followed by the module's counted tables in
+declaration order and ending with the machine roster. The roster is strictly
+ordered by machine id. A machine row is its machine id followed, in order, by
+an optional attachment structural type identity, counted parameter value
+declarations, counted structural parameters, a ranked-cycle byte, a machine
+result row, counted structural place declarations, counted entry claims, the
+declared service reach and published service ceiling, a closed reach
+application, counted content entry claims, counted content identity
+reshuffles, counted content partition compositions, the entry block id,
+counted block rows, and the machine contract.
+
+| Machine row part | Fields |
+| --- | --- |
+| structural place declaration | place id + structural place kind |
+| entry claim | claim id + input place id + structural path; strictly ordered by claim id |
+| service ceiling | counted service ids; the published ceiling is strictly ordered |
+| structural result declaration | place id + structural type id + structural multiplicity + counted domain identities + counted projected qualifications + counted reference result sources |
+| reference result source | result structural path + source structural argument; strictly ordered by result path |
+| machine contract | contract id + crash routes + counted erased scalar formal declarations + counted requires propositions + counted ensures clauses + counted outcome-specific ensures |
+| ensures clause | obligation id + proposition |
+| outcome-specific ensure | result type id + result case id + `u32` outcome position + obligation id + proposition + outcome evidence |
+| outcome evidence | `u8`: 0 absent; 1 + evidence term id + output field string |
+| content entry claim | claim id + content structural place + counted claim content projections |
+| content identity reshuffle | claim id + input content structural place + output content structural place + counted claim content projections |
+| claim content projection | domain id + `u64` projection report fingerprint + content algebra |
+| content conservation | content algebra + content term + content term |
+| place substitution | source content structural place + target content structural place |
+| content partition composition | producer operation id + `u64` source report fingerprint + counted source place declarations + source content conservation + counted input claim ids + counted place substitutions + derived content conservation; place kind 8 rejects inside the source places |
+
+The ranked-cycle byte is 0 when the machine retains no ranking; otherwise a
+ranked-SCC row follows:
+
+<!-- ranked-scc-tags -->
+| Tag | Ranked SCC | Fields after the tag |
+| --- | --- | --- |
+| 2 | Natural | counted natural cycle components |
+
+A natural cycle component is its rank integer type, counted block ranks (block
+id + rank value id), and counted rank edges. A rank edge is its edge id,
+source and target block ids, successor rank value id, and rank comparison:
+
+<!-- rank-comparison-tags -->
+| Tag | Rank comparison | Fields after the tag |
+| --- | --- | --- |
+| 1 | Preserving | — |
+| 2 | Strict | — |
+
+<!-- machine-result-tags -->
+| Tag | Machine result | Fields after the tag |
+| --- | --- | --- |
+| 0 | Unit | — |
+| 1 | Scalar | value declaration |
+| 2 | Structural | structural result declaration |
+
+<!-- place-kind-tags -->
+| Tag | Structural place kind | Fields after the tag |
+| --- | --- | --- |
+| 1 | Parameter | `u32` position + `bool` self flag |
+| 2 | Result | — |
+| 3 | TrivialAffineLocal | `u32` declaration ordinal + structural type id; no construction element |
+| 4 | ByteSequenceLiteral | `u32` declaration ordinal + structural type id |
+| 5 | ProviderAttachment | attachment structural type id + field id + boundary machine id |
+| 6 | OperationResult | producer operation id + structural type id |
+| 7 | TrivialAffineLocal | `u32` declaration ordinal + structural type id + root structural type id + `u64` construction index |
+| 8 | BlockParameter | block id + `u32` position |
+
+Content rows share these closed `u8` spaces. A content structural place is
+its version byte + root place id + counted segments.
+
+<!-- content-place-version-tags -->
+| Tag | Content place version | Fields after the tag |
+| --- | --- | --- |
+| 1 | Entry | — |
+| 2 | Current | — |
+
+<!-- content-place-segment-tags -->
+| Tag | Content place segment | Fields after the tag |
+| --- | --- | --- |
+| 1 | Field | field name string |
+| 2 | FixedIndex | `u64` index |
+| 3 | Case | case name string |
+
+<!-- content-algebra-kind-tags -->
+| Tag | Content algebra | Fields after the tag |
+| --- | --- | --- |
+| 1 | IntervalSet | parameter string |
+| 2 | CountedQuantity | parameter string |
+
+<!-- content-term-tags -->
+| Tag | Content term | Fields after the tag |
+| --- | --- | --- |
+| 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
+| 2 | Separate | counted content terms; nesting deeper than 256 rejects |
+
+A closed reach application is a `bool` presence flag; when present it carries
+the template identity string, the 32-byte template commitment, the 32-byte
+specialization commitment, a counted telescope, the fixed service ceiling, a
+counted `u32` dependency binder list, and counted call rows. A call row is an
+operation id, a `u32` binder, and a `bool` application presence flag followed,
+when present, by the call application.
+
+| Closed reach row | Fields |
+| --- | --- |
+| machine binding | `bool` nominal-requirement presence + requirement string when present + upper-bound service ceiling + selected identity string + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity string and 32-byte schema template commitment when present |
+| call application | callee machine id + 32-byte specialization commitment + counted reach arguments |
+
+<!-- reach-parameter-tags -->
+| Tag | Telescope parameter | Fields after the tag |
+| --- | --- | --- |
+| 0 | Type | argument string |
+| 1 | Const | argument string |
+| 2 | Proposition | argument string |
+| 3 | Machine | machine binding |
+
+<!-- reach-argument-tags -->
+| Tag | Reach argument | Fields after the tag |
+| --- | --- | --- |
+| 0 | Type | identity string |
+| 1 | Const | identity string |
+| 2 | Proposition | identity string |
+| 3 | Machine | identity string + 32-byte contract commitment |
+
 ## Proof bundle
 
 A proof bundle is `PSIPRF\0\0` + `u16` format marker 33 + counted obligation
@@ -377,8 +525,7 @@ program fingerprint + the bundle bytes.
 An obligation evidence row is an obligation id + a `u8` route tag: 1
 KernelDerived + `u8` primitive judgment; 2 CertificateDerived + evidence
 identity + `u16` proof-system marker + proof node; 3 Admitted + admission
-site id + `u8` admission kind (1 ForeignBoundaryGuarantee, 2 ProviderFact, 3
-CheckedAssemblyClaim) + authority identity + evidence identity + profile
+site id + admission kind + authority identity + evidence identity + profile
 decision id. A component certificate is a certificate identity + ranking
 relation id + well-foundedness evidence route + counted edges (obligation id
 + evidence route). An evidence producer is a producer id + term id +
@@ -420,12 +567,44 @@ rejects nesting deeper than 256.
 | 22 | PredicateDenotation | 1 | — |
 | 23 | ValueEqualityTransport | 1 + counted | — |
 
+## Obligation ledger
+
+The replay ledger binds the exact semantic subject and reconstruction trust
+graph and deliberately excludes proof routes: different valid certificates may
+discharge the same reconstructed question. Its bytes are `PSIOBLG\0` + `u16`
+format marker 3 + `u16` vocabulary marker + the 32-byte semantic-module
+fingerprint + the 32-byte trust graph identity + counted obligation rows.
+Decoding rejects trailing bytes, duplicate obligation identities, and
+duplicate owners, and the rows must re-encode byte-for-byte; a decoded ledger
+is then compared against local obligation reconstruction rather than trusted
+on arrival.
+
+An obligation row is its owner, obligation id, class, conclusion proposition,
+counted requirement propositions, counted semantic-axiom propositions, and a
+`bool` canonical-certificate flag.
+
+<!-- ledger-owner-tags -->
+| Tag | Obligation owner | Fields after the tag |
+| --- | --- | --- |
+| 1 | Operation | machine id + operation id |
+| 2 | CallRequires | machine id + operation id + `u32` requirement position |
+| 3 | NominalCleanupRequires | machine id + edge id + `u32` cleanup position + `u32` requirement position |
+| 4 | ContractEnsures | machine id + contract id + `u32` clause position |
+| 5 | ScalarBlockInvariant | machine id + header block id + edge id |
+
+<!-- obligation-class-tags -->
+| Tag | Obligation class | Fields after the tag |
+| --- | --- | --- |
+| 1 | Derivable | — |
+| 2 | AdmissionAuthorized | admission site id + admission kind + authority evidence identity |
+
 ## Section identities
 
 | Section | Identity and role |
 | --- | --- |
 | Semantic module | Domain-separated commitment to exact canonical bytes; excludes replaceable proof, installation, and debug evidence. |
 | Proof bundle | Independently identified evidence, published only when requested in `<artifact>.proof`, binding the semantic artifact and exact proof profile/dependencies. The current bounded `PSIPRF\0\0` encoding is not the complete general sidecar schema. |
+| Obligation ledger | Independently identified reconstructed-obligation binding to the semantic subject and trust graph; proof routes stay replaceable evidence. |
 | Optimization execution | Selection/output semantic provenance is rejoined at decoding. Internal proof identities and portable preservation evidence remain distinct; absent PCC does not waive transformation checking. |
 | Installation | Separate `PSIINST\0` bytes and identity, retaining realization evidence without granting admission. |
 | Debug map | Replaceable presentation metadata bound to the exact semantic subject, never program meaning. |
