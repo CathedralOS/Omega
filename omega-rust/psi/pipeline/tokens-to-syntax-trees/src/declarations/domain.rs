@@ -346,10 +346,8 @@ fn parse_authored_route<'tokens, 'source>(
         }
         input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     }
-    if route.len() < 2 {
-        return Err(
-            input.error_here("domain establishment routes must name an exact `Trait::requirement`")
-        );
-    }
+    // A free machine may have a one-segment path. Resolution, not the path's
+    // length, distinguishes an exact machine from a trait requirement and
+    // rejects ambiguous or ineligible declarations.
     Ok((route, input))
 }
