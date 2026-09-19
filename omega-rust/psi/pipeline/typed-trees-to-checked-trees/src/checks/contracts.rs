@@ -29,7 +29,9 @@ pub(crate) use evidence::{
     exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
 use exits::{CyclicHeaderInvariants, check_exit_ensures};
-pub(crate) use exits::{is_readable_mutable_reference, result_domain_type, value_provable_domain};
+pub(crate) use exits::{
+    is_readable_mutable_reference, result_domain_type, scalar_result_domains, value_provable_domain,
+};
 use writes::check_domain_field_writes;
 
 pub(super) fn check_flow_call_contracts(
@@ -94,6 +96,12 @@ pub(super) fn check_flow_call_contracts(
             if caller_is_proof && is_proof_machine(call_flow.target_symbol) {
                 continue;
             }
+            exits::check_scalar_tail_result_domains(
+                program,
+                state_flow,
+                call_flow,
+                &mut diagnostics,
+            );
             dynamic_erased_lane::check_dynamic_erased_formal_lane(
                 program,
                 facts,
@@ -113,6 +121,7 @@ pub(super) fn check_flow_call_contracts(
             );
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
+            exits::check_scalar_result_domains(program, facts, exit_flow, &mut diagnostics);
             check_exit_ensures(
                 program,
                 facts,

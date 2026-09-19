@@ -332,6 +332,8 @@ pub(super) struct Engine<'program> {
     /// Exact numeric projections installed by the owning strict query after
     /// checking their builtin meaning and source custody.
     strict_projections: Vec<(ExpressionHandle, Polynomial)>,
+    /// Declaration-owned reserved self occurrences, isolated per scoped roster.
+    strict_domain_self: Vec<(ExpressionHandle, Polynomial)>,
     /// A formation query has exact symbol bindings and admits only total
     /// mathematical arithmetic. It must not inherit the legacy proof
     /// machine adapter's interpretation of arbitrary executable operators.
@@ -397,6 +399,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_projections: Vec::new(),
+            strict_domain_self: Vec::new(),
             proof_integer_formation: false,
             integer_embedding_policy:
                 crate::proof_contracts::proof_embeddings::machine_contains_integer_embedding(
@@ -483,8 +486,10 @@ impl<'program> Engine<'program> {
             return false;
         }
         self.strict_projections.clear();
+        self.strict_domain_self.clear();
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
         let mut projections = Vec::new();
+        let mut domain_self = Vec::new();
         let mut result = None;
         for binding in bindings {
             let polynomial = match &binding.value {
@@ -492,6 +497,7 @@ impl<'program> Engine<'program> {
                     self.declare_atom(identity, *unsigned);
                     Polynomial::atom(identity.clone())
                 }
+                ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
                 ScopedArithmeticValue::Term(term) => {
                     if !self.install_scoped_bindings(&term.bindings) {
                         return false;
@@ -529,13 +535,53 @@ impl<'program> Engine<'program> {
                 ScopedArithmeticBinder::Projection(expression) => {
                     projections.push((expression, polynomial));
                 }
+                ScopedArithmeticBinder::DomainSelf(expression) => {
+                    if !self
+                        .program
+                        .expression_table
+                        .expression_is_valid(expression)
+                    {
+                        return false;
+                    }
+                    let ExpressionNode::Name(path) =
+                        self.program.expression_table.expression(expression)
+                    else {
+                        return false;
+                    };
+                    if path.symbol.is_valid()
+                        || path.head_symbol.is_valid()
+                        || self
+                            .program
+                            .expression_table
+                            .name_path_member_symbols(path.member_symbols)
+                            .iter()
+                            .any(|symbol| symbol.is_valid())
+                        || !matches!(
+                            self.program.expression_table.name_path_members(path.members),
+                            [member] if member.as_str() == "self"
+                        )
+                    {
+                        return false;
+                    }
+                    if let Some((_, existing)) = domain_self
+                        .iter()
+                        .find(|(candidate, _)| *candidate == expression)
+                    {
+                        if *existing != polynomial {
+                            return false;
+                        }
+                    } else {
+                        domain_self.push((expression, polynomial));
+                    }
+                }
             }
         }
         self.strict_symbol_bindings = Some(symbols);
         self.strict_result_binding = result;
-        // Nested terms installed their own projection tables. Publish only
-        // this roster, including when it has no projections at all.
+        // Nested terms installed their own occurrence tables. Publish only
+        // this roster, including when it has no occurrence bindings at all.
         self.strict_projections.clear();
+        self.strict_domain_self = domain_self;
         for (expression, polynomial) in projections {
             if !self.bind_strict_projection(expression, polynomial) {
                 return false;
@@ -750,6 +796,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_projections: Vec::new(),
+            strict_domain_self: Vec::new(),
             proof_integer_formation: true,
             integer_embedding_policy: true,
             unsigned_atoms: Vec::new(),
@@ -1362,6 +1409,13 @@ impl<'program> Engine<'program> {
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
                 if let Some(bindings) = &self.strict_symbol_bindings {
+                    if let Some((_, value)) = self
+                        .strict_domain_self
+                        .iter()
+                        .find(|(candidate, _)| *candidate == expression)
+                    {
+                        return Some(value.clone());
+                    }
                     let [member] = self
                         .program
                         .expression_table

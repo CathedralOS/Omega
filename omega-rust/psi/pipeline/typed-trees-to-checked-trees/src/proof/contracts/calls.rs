@@ -226,7 +226,24 @@ pub(crate) fn build_contract_exit_facts(
                     }
                 });
 
-            if ensures.is_empty() && !return_field_obligations && !referent_field_obligations {
+            // A scalar result qualification is also an exit obligation, not
+            // evidence supplied by its annotation. Capture its live context
+            // even when the machine has no explicit postcondition.
+            let scalar_result_obligations =
+                program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| {
+                        !crate::checks::contracts::scalar_result_domains(program, entry.return_type)
+                            .is_empty()
+                    })
+                    || !crate::checks::contracts::scalar_result_domains(program, state.return_type)
+                        .is_empty();
+            if ensures.is_empty()
+                && !return_field_obligations
+                && !referent_field_obligations
+                && !scalar_result_obligations
+            {
                 continue;
             }
 

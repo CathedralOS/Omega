@@ -359,9 +359,9 @@ fn string_literal_grants_domain(
 /// is a VALUE CALL (`self.direction_command(direction)`) is satisfied when the
 /// callee's DECLARED return type carries a domain implying `D`. This is the same
 /// trust basis as a declared param domain at a call site (the signature's domain
-/// is trusted at use sites; the callee's return body is enforced separately, the
-/// deferred returns-domain check) -- and the call-argument analog of the field
-/// write that already trusts a declared return domain (checks/contracts/writes.rs
+/// is trusted at use sites; scalar result domains are enforced independently at
+/// ordinary exits in exits/result_domains.rs) -- and the call-argument analog
+/// of the field write that trusts a declared return domain (checks/contracts/writes.rs
 /// `value_call_return_domain_implies`). The subject must be the call expression
 /// itself (an expression-rooted place with no field/index segments).
 fn value_call_return_domain_grants(

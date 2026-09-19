@@ -15,6 +15,7 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 
+mod domain_self;
 mod projections;
 
 /// `descend(n, previous)`: `requires n <= previous`, the backedge
@@ -303,5 +304,44 @@ fn a_wrong_step_is_not_proven_and_an_unbound_name_stands_down() {
             &countdown.term(countdown.guarantee, countdown.atoms("invocation"))
         ),
         StrictArithmeticImplicationJudgment::Unknown
+    );
+}
+
+#[test]
+fn denied_partly_read_conjunction_cannot_create_a_contradiction() {
+    let mut countdown = Countdown::new();
+    let false_expression = countdown
+        .program
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    let conjunction = countdown
+        .program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: countdown.guard,
+            operator: BinaryOperator::And,
+            right: false_expression,
+        }));
+    let bindings = countdown.atoms("header");
+    let positive = countdown.holds(countdown.term(countdown.guard, bindings.clone()));
+    let denied = ScopedArithmeticHypothesis {
+        proposition: countdown.term(conjunction, bindings.clone()),
+        holds: false,
+    };
+    // n > 0 and !(n > 0 && false) are consistent. Dropping the unread false
+    // conjunct before negation would invent n <= 0 and then prove false.
+    assert_eq!(
+        countdown.judge(
+            &[positive, denied],
+            &countdown.term(false_expression, Vec::new())
+        ),
+        StrictArithmeticImplicationJudgment::Unknown,
+    );
+    // Asserted conjunctions may still contribute readable conjuncts. This
+    // weakening must not be rejected by the denied-proposition shape guard.
+    let asserted = countdown.holds(countdown.term(conjunction, bindings.clone()));
+    assert_eq!(
+        countdown.judge(&[asserted], &countdown.term(countdown.guard, bindings)),
+        StrictArithmeticImplicationJudgment::Proven,
     );
 }

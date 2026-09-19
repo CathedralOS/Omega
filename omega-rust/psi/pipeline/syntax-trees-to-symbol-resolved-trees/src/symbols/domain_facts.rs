@@ -68,7 +68,21 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     let mut proof_fact_scopes = program
         .domain_definitions
         .iter()
-        .map(|domain| (domain.facts, Vec::new(), Some(domain.type_parameters)))
+        .map(|domain| {
+            // Predicate operands use the same declaration-local telescope as
+            // membership arguments. Reserved `self` denotes the classified
+            // value, not an index binder or a surrounding declaration.
+            let local_symbols = program
+                .tables
+                .declarations
+                .data_type_parameters
+                .span_or_empty(domain.type_parameters)
+                .iter()
+                .filter(|parameter| parameter.name.as_str() != "self")
+                .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
+                .collect();
+            (domain.facts, local_symbols, Some(domain.type_parameters))
+        })
         .collect::<Vec<_>>();
     proof_fact_scopes.extend(
         program
@@ -217,8 +231,9 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     update_data_membership_zero_gates(program);
 }
 
-/// Data DEFAULT-DOMAIN facts are declaration scope, not machine-body scope.
-/// Stamp their field and static-parameter references here, while the exact
+/// Domain predicates and data DEFAULT-DOMAIN facts use declaration scope,
+/// not machine-body scope. Stamp their field and static-parameter references
+/// here, while the exact
 /// owning declarations are available, so later proof and package passes never
 /// recover authority-bearing identities from authored spelling.
 fn assign_data_fact_local_symbols(
