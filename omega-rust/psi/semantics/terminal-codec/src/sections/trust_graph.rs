@@ -28,6 +28,14 @@ static CURRENT_TRUST_GRAPH: OnceLock<Result<ValidatedTerminalTrustGraph, TrustGr
     OnceLock::new();
 
 const CODEC_SOURCE: &[u8] = include_bytes!("../lib.rs");
+// build.rs folds every Rust source under src/ into this closure, so the
+// canonical-bytes and decoder commitments change when any codec production
+// source changes; no file can join the codec surface unobserved. The named
+// sources below stay bound as the load-bearing entry points.
+const CODEC_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/psi-terminal-codec-source-closure.bin"
+));
 const MACHINE_WIRE_SOURCE: &[u8] = include_bytes!("semantic_module/machine_wire.rs");
 const BLOCK_WIRE_SOURCE: &[u8] = include_bytes!("semantic_module/block_wire.rs");
 const REACH_APPLICATION_WIRE_SOURCE: &[u8] =
@@ -43,7 +51,7 @@ const VERIFIER_LIB_SOURCE: &[u8] = include_bytes!("../../../terminal-verifier/sr
 const VERIFIER_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../../terminal-verifier/src/validation.rs");
 const VERIFIER_SOURCE: &[u8] = include_bytes!("../../../terminal-verifier/src/verification.rs");
-const VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE: &[u8] = include_bytes!("../../build.rs");
+const SOURCE_CLOSURE_BUILD_SOURCE: &[u8] = include_bytes!("../../build.rs");
 const VERIFIER_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/psi-terminal-verifier-source-closure.bin"
@@ -464,61 +472,76 @@ fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::
 #[cfg(test)]
 mod tests {
     use super::{
-        CURRENT_ENTRY, OperationSemanticCustody, OperationSemanticRow, OperationSemanticTag,
-        RECONSTRUCTION_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+        CODEC_SOURCE_CLOSURE, CURRENT_ENTRY, OperationSemanticCustody, OperationSemanticRow,
+        OperationSemanticTag, RECONSTRUCTION_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
         TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SEMANTICS_SOURCE, TrustAcceptingPolicy,
         TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
         VERIFIER_SOURCE, VERIFIER_VALIDATION_SOURCE, current_terminal_trust_graph, dependencies,
         validate_terminal_trust_graph,
     };
+    use std::path::Path;
 
-    #[test]
-    fn representation_source_closure_retains_every_concept_file_exactly() {
-        use std::path::Path;
-
-        fn collect(root: &Path, directory: &Path, rows: &mut Vec<(String, Vec<u8>)>) {
-            for entry in std::fs::read_dir(directory).unwrap() {
-                let path = entry.unwrap().path();
-                if path.is_dir() {
-                    collect(root, &path, rows);
-                } else if path.extension().is_some_and(|extension| extension == "rs") {
-                    rows.push((
-                        path.strip_prefix(root)
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .replace('\\', "/"),
-                        std::fs::read(path).unwrap(),
-                    ));
-                }
+    fn collect_sources(root: &Path, directory: &Path, rows: &mut Vec<(String, Vec<u8>)>) {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                collect_sources(root, &path, rows);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                rows.push((
+                    path.strip_prefix(root)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .replace('\\', "/"),
+                    std::fs::read(path).unwrap(),
+                ));
             }
         }
+    }
 
-        fn field<'bytes>(bytes: &mut &'bytes [u8]) -> &'bytes [u8] {
-            let (length, remaining) = bytes.split_at(8);
-            let length = usize::try_from(u64::from_le_bytes(length.try_into().unwrap())).unwrap();
-            let (value, remaining) = remaining.split_at(length);
-            *bytes = remaining;
-            value
-        }
+    fn closure_field<'bytes>(bytes: &mut &'bytes [u8]) -> &'bytes [u8] {
+        let (length, remaining) = bytes.split_at(8);
+        let length = usize::try_from(u64::from_le_bytes(length.try_into().unwrap())).unwrap();
+        let (value, remaining) = remaining.split_at(length);
+        *bytes = remaining;
+        value
+    }
 
-        let root =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../representations/terminal-psi/src");
+    // A generated source closure commits to every Rust source under its root:
+    // adding or editing one must change the closure bytes an implementation
+    // commitment digests, so no production source can change unobserved.
+    fn assert_source_closure_covers_tree(root: &Path, closure: &[u8], domain: &[u8]) {
         let mut expected = Vec::new();
-        collect(&root, &root, &mut expected);
+        collect_sources(root, root, &mut expected);
         expected.sort_by(|left, right| left.0.cmp(&right.0));
-        let mut remaining = TERMINAL_REPRESENTATION_SOURCE_CLOSURE
-            .strip_prefix(b"PSI-TERMINAL-REPRESENTATION-SOURCE-CLOSURE-v1\0")
-            .unwrap();
+        let mut remaining = closure.strip_prefix(domain).unwrap();
         for (path, bytes) in expected {
-            assert_eq!(field(&mut remaining), path.as_bytes());
+            assert_eq!(closure_field(&mut remaining), path.as_bytes());
             assert_eq!(
-                field(&mut remaining),
+                closure_field(&mut remaining),
                 bytes,
                 "source omitted or stale: {path}"
             );
         }
         assert!(remaining.is_empty(), "unexpected source rows");
+    }
+
+    #[test]
+    fn representation_source_closure_retains_every_concept_file_exactly() {
+        assert_source_closure_covers_tree(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../representations/terminal-psi/src"),
+            TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
+            b"PSI-TERMINAL-REPRESENTATION-SOURCE-CLOSURE-v1\0",
+        );
+    }
+
+    #[test]
+    fn codec_source_closure_retains_every_source_exactly() {
+        assert_source_closure_covers_tree(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            CODEC_SOURCE_CLOSURE,
+            b"PSI-TERMINAL-CODEC-SOURCE-CLOSURE-v1\0",
+        );
     }
 
     #[test]
@@ -835,6 +858,7 @@ mod tests {
     #[test]
     fn canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation() {
         let sources = [
+            ("terminal-codec/source-closure", CODEC_SOURCE_CLOSURE),
             ("terminal-codec/lib.rs", super::CODEC_SOURCE),
             ("terminal-codec/machine_wire.rs", super::MACHINE_WIRE_SOURCE),
             ("terminal-codec/block_wire.rs", super::BLOCK_WIRE_SOURCE),
@@ -880,7 +904,14 @@ mod tests {
                 )
             };
             assert_eq!(node.digest(), digest(&sources));
-            for index in [4, 5] {
+            let mut without_closure = sources.to_vec();
+            without_closure.remove(0);
+            assert_ne!(
+                node.digest(),
+                digest(&without_closure),
+                "dropping the codec source closure must change the commitment"
+            );
+            for index in [5, 6] {
                 let mut substituted = sources;
                 substituted[index].1 = b"different implementation";
                 assert_ne!(node.digest(), digest(&substituted), "{}", sources[index].0);

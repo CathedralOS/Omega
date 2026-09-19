@@ -1948,16 +1948,15 @@ Owners include
   certificates (`fact:boolean-polarity-implications`,
   `fact:branch-condition-transport`), every other row is `ExplicitlyTrusted`,
   and the codec's trust-graph descriptor still names the Rust decoder and
-  verifier as trusted judgments.
+  verifier as trusted judgments. The codec implementation surface is
+  inventoried like the verifier and representation closures:
+  `terminal-codec/build.rs` folds every Rust source under its `src/` into
+  `terminal-codec/source-closure`, bound to the canonical-bytes root and the
+  decoder node so an unbound codec source cannot change unobserved
+  (`sections::trust_graph::tests::codec_source_closure_retains_every_source_exactly`).
 
   Remaining work:
 
-  - Close the codec's implementation-source inventory. Unlike the verifier and
-    representation closures, `terminal-codec/src/sections/trust_graph/current.rs`
-    binds hand-picked codec files to its decoder and canonical-byte roots.
-    Make omitted production codec sources mechanically detectable; changing any
-    such source must change the relevant implementation commitment. Keep this
-    distinct from proving those implementations sound.
   - Move proof search out of verification. The verifier still searches, for
     example 4096 steps in
     `terminal-verifier/src/validation/crash/entry_requirements.rs`; the
