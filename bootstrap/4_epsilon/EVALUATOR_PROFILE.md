@@ -201,9 +201,16 @@ envelope, canonical observation grammar, and EEOUT refusal frame bound to a
 canonical receipt, still within the evaluator's current construct coverage.
 That document also carries each lower-chain refusal status to the outer
 `Incomplete` at the edge boundary; the envelope classifies every named
-refusal path, so no evaluator-internal budget layer was needed. Still open
-under EPSILON-EVALUATOR: witnessed checking/runtime conformance
-gaps, complete D
-composition, and independent `RunEpsilon` refinement — section 11's final
-acceptance still requires executing every Epsilon construct for the exact D
-source.
+refusal path, so no evaluator-internal budget layer was needed. The last two
+legs are now exercised gates on that unchanged canonical composition:
+[`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md)
+checks and executes the whole 509,267-byte D closure — all eight manifested
+members — through the canonical edge, including D's own
+`OmegaScalarCompiler::compile` publishing the exact emitted Alpha tape
+(8e63b21300), and
+[`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md)
+refines `RunEpsilon` over the exact D closure member sources byte-for-byte
+with discriminating member mutations spanning every member (fc23c46e4f).
+What remains under EPSILON-EVALUATOR is the standing conformance clause:
+witnessed checking/runtime defects are corrected when a D slice or contract
+control witnesses one, and none is recorded.

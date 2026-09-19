@@ -61,11 +61,12 @@ it decomposes an existing item. Items added before 2026-09-14 are untagged.
 
 ## Dependencies
 
-P1–P5 below are task-group labels, not owner-question numbers or a mandatory
-serial schedule. P1 is the Gamma checker's proof that the entire selected
-evaluator Beta source encodes to its exact persisted Alpha tape; it is not a
-proof that the evaluator implements Gamma. An empty `OWNER_QUESTIONS.md` means
-there is no unanswered owner decision, not that these implementation tasks pass.
+The `P`-numbered groups below are task-group labels, not owner-question
+numbers or a mandatory serial schedule. P1 is the Gamma checker's proof that
+the entire selected evaluator Beta source encodes to its exact persisted
+Alpha tape; it is not a proof that the evaluator implements Gamma. An empty
+`OWNER_QUESTIONS.md` means there is no unanswered owner decision, not that
+these implementation tasks pass.
 Skip a task-local pause or blocker and continue independent work on this board.
 Proof work can advance against existing exact artifacts before Omega is complete.
 Runnable lower-rung development can also proceed under disclosed trust assumptions;
@@ -216,7 +217,7 @@ prerequisite to every lower-rung milestone.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.
-  Complete D execution belongs to P3/P4; its absence does not justify extra
+  Complete D execution belongs to P4; its absence does not justify extra
   Delta mechanisms after these obligations close. These obligations do not
   block independent bootstrap work.
 
@@ -232,59 +233,6 @@ prerequisite to every lower-rung milestone.
   worst-shape study per admitted extent settles containment, or the gap is
   the [owner-escalation](bootstrap/MINIMIZATION.md#owner-escalation) finding
   that a private bound cannot receive an explicit fail-closed profile.
-
-## P3 - Delta to Epsilon
-
-- **EPSILON-EVALUATOR.** Complete the closure selected by
-  `bootstrap/4_epsilon/epsilon_compiler.delta.sources` against the
-  [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md). Justify retained
-  features by the Epsilon-written D source and use concrete existing D slices
-  for intermediate acceptance. An unspecified missing construct does not
-  authorize another implementation layer or a speculative language facility
-  while D is incomplete.
-
-  Every grammar-level execution form executes in the staging evaluator,
-  checking covers every closed rejection reason, and the
-  [evaluator edge profile](bootstrap/4_epsilon/EVALUATOR_PROFILE.md) derives
-  one resource/request/observation profile with exact/adjacent refusals and
-  the large-sparse and repeated-update array workloads over the private
-  diagnostic adapter. The canonical
-  [section 11](bootstrap/4_epsilon/LANGUAGE.md#11-evaluator-application-and-observation-boundary)
-  envelope now exists beside it
-  ([EVALUATOR_ENTRY.md](bootstrap/4_epsilon/EVALUATOR_ENTRY.md), 96e270b6fb):
-  `tests/epsilon/evaluator-entry/` reconstructs the canonical evaluator
-  receipt over the packed closure plus the bound `evaluator_entry.delta`
-  main, consumes the versioned EREQ envelope, and publishes canonical
-  Exit/Trap/Reject observations or EEOUT refusal frames. The edge carries
-  every lower-chain refusal to the
-  [section 10](bootstrap/4_epsilon/LANGUAGE.md#10-resource-classification)
-  outer `Incomplete` — no evaluator-internal budget was needed
-  (158a0e41b8) — and the formerly pending status-252 pin is an executed
-  evaluator-edge witness (e0127683a1). `tests/epsilon/refinement/` holds an
-  independent contract-derived CheckEpsilon/RunEpsilon model driving the
-  edge through source, stdin, profile and observation mutations
-  (71c2bbdc22), and `tests/epsilon/d-composition/` checks and executes the
-  whole 509,267-byte D closure through the canonical edge — including D's
-  own `compile` emitting the exact Alpha tape for an Omega source — and
-  records the allocation split the retired flag asked for: checking the
-  whole closure consumes 9.56% of the pair arena, so the earlier 80.05%
-  whole-customer reading was execution-dominated and no complete-D leg
-  approaches the boundary (8e63b21300).
-
-  Remaining work:
-
-  - Independent `RunEpsilon` refinement over the exact D source, per
-    [section 12](bootstrap/4_epsilon/LANGUAGE.md#12-conformance-and-change-control):
-    the refinement gate reconstructs the contract and agrees with the edge
-    on its corpus, but D itself is not in that corpus — the d-composition
-    README names it the last leg of section-11 acceptance.
-  - Fix checking/runtime conformance defects when a D slice or contract
-    control witnesses one; none is recorded now.
-
-  Acceptance depends on complete D: that exact source executes through the
-  selected lower chain and refines `RunEpsilon`, with no Epsilon-owned Alpha
-  backend or hidden host implementation. Sparse diagnostic success is not
-  final-profile admission; do not restore the retired Epsilon Alpha backend.
 
 ## P4 - Epsilon to Omega and self-hosting
 
@@ -307,7 +255,7 @@ prerequisite to every lower-rung milestone.
   execution as the outer acceptance check.
   Acceptance: interpreted D compiles the exact Omega C closure for its ordinary
   `alpha_bootstrap` target and produces `omega0_compiler_bytecode.tape`.
-  Depends on P3 and the product-source work in `TASKS.md`.
+  Depends on the product-source work in `TASKS.md`.
   Rust Alpha emission is not a dependency: the reference compiler may report
   that selected operation as not implemented, per the
   [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain).
