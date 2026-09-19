@@ -264,6 +264,11 @@ fn build_structural_runtime_requirements(
             .into_iter()
             .collect::<Option<Vec<_>>>()?,
     );
+    requirements.extend(
+        crate::facts::where_requirements::machine_entry_where_requirements(
+            program, machine, operators,
+        ),
+    );
     Some(requirements)
 }
 
