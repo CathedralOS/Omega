@@ -2,6 +2,79 @@ use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_
 use crate::lower_typed_trees;
 
 #[test]
+fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
+    for (argument, expected) in [
+        ("metadata", vec!["self.value"]),
+        (
+            "create_metadata(&mut self.audit)",
+            vec!["self.audit", "self.value"],
+        ),
+    ] {
+        let source = format!(
+            "data Token {{ code: u64; }}
+             data Main {{ value: u64; audit: u64; untouched: u64; }}
+             boundary trait Device {{
+                 machine reference(value: &mut u64, metadata: Token) -> &mut u64;
+                 machine write(value: &mut u64);
+             }}
+             machine create_metadata(audit: &mut u64) -> Token {{
+                 audit = 1;
+                 Token {{ code: 2 }}
+             }}
+             machine Main::inspect(&mut self, metadata: Token)
+             reaches Device
+             requires self.untouched == 7;
+             ensures self.untouched == 7;
+             {{
+                 let alias: &mut u64 = Device::reference(&mut self.value, {argument});
+                 Device::write(alias);
+             }}"
+        );
+        let syntax =
+            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::inspect")
+            .expect("caller");
+        let frame = validation::CallFrameResolver::new(&typed)
+            .expect("resolver")
+            .inferred_state_write_frame(machine, &typed.machine_states(machine)[0]);
+        assert_eq!(
+            frame.complete_paths(),
+            Some(
+                expected
+                    .iter()
+                    .map(|path| (*path).to_owned())
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{argument}: value shape does not erase initializer writes",
+        );
+        lower_typed_trees(typed).unwrap_or_else(|errors| {
+            panic!("{argument}: disjoint field fact must survive: {errors:#?}")
+        });
+        for written in expected {
+            let invalid = source.replace("self.untouched", written);
+            let syntax = parse_syntax_trees(&Lexer::new(&invalid).tokenize().expect("tokenize"))
+                .expect("parse negative control");
+            let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+            let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+            let errors = lower_typed_trees(typed)
+                .expect_err("a boundary or argument write invalidates its old field fact");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("cannot prove ensures")),
+                "{argument}, {written}: {errors:#?}",
+            );
+        }
+    }
+}
+
+#[test]
 fn indexed_method_receiver_reaches_checked_trees() {
     let source = r#"
         data Cell { value: u64; }
