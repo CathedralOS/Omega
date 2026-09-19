@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 #[path = "exact_native_coverage/fixture_constants.rs"]
 mod fixture_constants;
 
-pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 797;
+pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 798;
 pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 31;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
