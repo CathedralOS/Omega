@@ -30,7 +30,9 @@ fn native_for_target_maps_each_declared_pair_to_its_policy() {
 #[test]
 fn native_for_target_resolves_a_policy_for_every_profile_target() {
     for profile in target::TargetProfile::ALL {
-        let native = profile.native_target();
+        let Some(native) = profile.native_realization() else {
+            continue;
+        };
         assert_eq!(
             CallingPolicy::native_for_target(native).architecture(),
             native.architecture
@@ -79,7 +81,9 @@ fn native_syscall_for_target_maps_each_supported_target_to_its_row() {
 #[test]
 fn native_syscall_for_target_resolves_for_every_profile_target() {
     for profile in target::TargetProfile::ALL {
-        let native = profile.native_target();
+        let Some(native) = profile.native_realization() else {
+            continue;
+        };
         if let Some(policy) = CallingPolicy::native_syscall_for_target(native) {
             assert_eq!(policy.architecture(), native.architecture);
         }

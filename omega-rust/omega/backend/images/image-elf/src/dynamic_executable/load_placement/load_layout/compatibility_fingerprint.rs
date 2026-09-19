@@ -80,6 +80,9 @@ const fn target_tag(target: TargetProfile) -> u8 {
         TargetProfile::UefiX64 => 5,
         TargetProfile::CrossPlatformCli => 6,
         TargetProfile::LocalUnchecked => 7,
+        // Recognized but never ELF-realized: the tag reserves the profile
+        // identity in the fingerprint vocabulary without an emission path.
+        TargetProfile::AlphaBootstrap => 8,
     }
 }
 

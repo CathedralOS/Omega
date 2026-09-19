@@ -86,6 +86,13 @@ pub enum TargetProfile {
     UefiX64,
     CrossPlatformCli,
     LocalUnchecked,
+    /// The bootstrap Alpha target. Recognition makes its profile and slot
+    /// identities ordinary target-catalog facts while realization stays
+    /// with the bootstrap chain's own compilers: an inactive
+    /// `alpha_bootstrap` root binding must not demand a backend this
+    /// compiler does not have, and selecting the profile reports not
+    /// implemented rather than a checked result or a fallback artifact.
+    AlphaBootstrap,
 }
 
 /// Stable, domain-separated identity of one deployment profile.
@@ -247,7 +254,7 @@ impl TargetProfile {
     /// Consumers that retain profile-indexed evidence must use this catalog
     /// rather than maintaining a parallel list that can drift from the
     /// compiler's accepted source-visible cases.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::LinuxArm64,
         Self::LinuxX64,
         Self::MacosArm64,
@@ -255,6 +262,7 @@ impl TargetProfile {
         Self::UefiX64,
         Self::CrossPlatformCli,
         Self::LocalUnchecked,
+        Self::AlphaBootstrap,
     ];
 
     pub const fn identity(self) -> TargetProfileIdentity {
@@ -266,6 +274,7 @@ impl TargetProfile {
             Self::UefiX64 => "omega.target-profile.v1:uefi_x86_64",
             Self::CrossPlatformCli => "omega.target-profile.v1:cross_platform_cli",
             Self::LocalUnchecked => "omega.target-profile.v1:local_unchecked",
+            Self::AlphaBootstrap => "omega.target-profile.v1:alpha_bootstrap",
         })
     }
 
@@ -305,7 +314,7 @@ impl TargetProfile {
                     || profile.legacy_cli_alias() == Some(target_name)
             })
             .ok_or_else(|| Diagnostic::error(format!(
-                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, windows_x86_64, uefi_x86_64, cross_platform_cli, or local_unchecked"
+                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, windows_x86_64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
             )))
     }
 
@@ -337,6 +346,7 @@ impl TargetProfile {
             Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
+            Self::AlphaBootstrap => "alpha_bootstrap",
         }
     }
 
@@ -345,9 +355,11 @@ impl TargetProfile {
             Self::LinuxX64 => Some("linux_x64"),
             Self::WindowsX64 => Some("windows_x64"),
             Self::UefiX64 => Some("uefi_x64"),
-            Self::LinuxArm64 | Self::MacosArm64 | Self::CrossPlatformCli | Self::LocalUnchecked => {
-                None
-            }
+            Self::LinuxArm64
+            | Self::MacosArm64
+            | Self::CrossPlatformCli
+            | Self::LocalUnchecked
+            | Self::AlphaBootstrap => None,
         }
     }
 
@@ -363,6 +375,7 @@ impl TargetProfile {
             Self::UefiX64 => "UefiX86_64",
             Self::CrossPlatformCli => "CrossPlatformCli",
             Self::LocalUnchecked => "LocalUnchecked",
+            Self::AlphaBootstrap => "AlphaBootstrap",
         }
     }
 
@@ -375,6 +388,7 @@ impl TargetProfile {
             "UefiX86_64" => Some(Self::UefiX64),
             "CrossPlatformCli" => Some(Self::CrossPlatformCli),
             "LocalUnchecked" => Some(Self::LocalUnchecked),
+            "AlphaBootstrap" => Some(Self::AlphaBootstrap),
             _ => None,
         }
     }
@@ -388,6 +402,18 @@ impl TargetProfile {
             Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
+            Self::AlphaBootstrap => "alpha_bootstrap",
+        }
+    }
+
+    /// The Rust compiler's native realization for this profile when it has
+    /// one. Recognition is not implementation: profiles realized outside
+    /// this compiler, like `alpha_bootstrap`, return `None`, while
+    /// `native_target()` stays total over natively realized profiles.
+    pub fn native_realization(self) -> Option<NativeTarget> {
+        match self {
+            Self::AlphaBootstrap => None,
+            profile => Some(profile.native_target()),
         }
     }
 
@@ -399,6 +425,13 @@ impl TargetProfile {
             Self::WindowsX64 => NativeTarget::windows_x64(),
             Self::UefiX64 => NativeTarget::uefi_x64(),
             Self::CrossPlatformCli | Self::LocalUnchecked => NativeTarget::host(),
+            // Alpha has no `NativeTarget`: no architecture/object-format
+            // pair describes the bootstrap target, and selection rejects it
+            // through `NativeTarget::from_omega_target_name` before any
+            // caller reaches native planning.
+            Self::AlphaBootstrap => {
+                unreachable!("alpha_bootstrap has no Rust native realization")
+            }
         }
     }
 
@@ -559,8 +592,17 @@ impl NativeTarget {
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         match target_name {
             None => Ok(Self::host()),
-            Some(target_name) => TargetProfile::from_omega_target_name(Some(target_name))
-                .map(TargetProfile::native_target),
+            Some(target_name) => match TargetProfile::from_omega_target_name(Some(target_name))? {
+                // A recognized profile is not an implemented one: profile
+                // identity is a target-catalog fact, while this function is
+                // where a demanded operation acquires a native realization.
+                // `alpha_bootstrap` has none, so selecting it reports not
+                // implemented instead of an unknown-name or a host fallback.
+                TargetProfile::AlphaBootstrap => Err(Diagnostic::error(format!(
+                    "native realization for target profile `{target_name}` is not implemented"
+                ))),
+                profile => Ok(profile.native_target()),
+            },
         }
     }
 
@@ -640,8 +682,8 @@ fn host_object_format() -> ObjectFormat {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntryVisibleParameters,
-        TargetProfile, TargetRequiredRootSlotDeclaration,
+        NativeTarget, ProgramEntryPhysicalContractPackage, ProgramEntrySchema,
+        ProgramEntryVisibleParameters, TargetProfile, TargetRequiredRootSlotDeclaration,
     };
 
     #[test]
@@ -766,15 +808,7 @@ mod tests {
 
     #[test]
     fn required_root_catalog_is_complete_ordered_and_target_owned() {
-        for profile in [
-            TargetProfile::LinuxArm64,
-            TargetProfile::LinuxX64,
-            TargetProfile::MacosArm64,
-            TargetProfile::WindowsX64,
-            TargetProfile::UefiX64,
-            TargetProfile::CrossPlatformCli,
-            TargetProfile::LocalUnchecked,
-        ] {
+        for profile in TargetProfile::ALL {
             let slots = profile.required_root_slots().collect::<Vec<_>>();
             assert_eq!(slots.len(), 1);
             let TargetRequiredRootSlotDeclaration::ProgramEntry(slot) = slots[0];
@@ -790,15 +824,7 @@ mod tests {
 
     #[test]
     fn build_target_cases_round_trip_every_exact_profile() {
-        for profile in [
-            TargetProfile::LinuxArm64,
-            TargetProfile::LinuxX64,
-            TargetProfile::MacosArm64,
-            TargetProfile::WindowsX64,
-            TargetProfile::UefiX64,
-            TargetProfile::CrossPlatformCli,
-            TargetProfile::LocalUnchecked,
-        ] {
+        for profile in TargetProfile::ALL {
             assert_eq!(
                 TargetProfile::from_build_case_name(profile.build_case_name()),
                 Some(profile)
@@ -806,5 +832,77 @@ mod tests {
         }
         assert_eq!(TargetProfile::from_build_case_name("Host"), None);
         assert_eq!(TargetProfile::from_build_case_name("WindowsX64"), None);
+    }
+
+    #[test]
+    fn alpha_bootstrap_is_an_ordinary_recognized_profile() {
+        let profile = TargetProfile::AlphaBootstrap;
+
+        assert_eq!(
+            TargetProfile::from_root_slot_owner("alpha_bootstrap").unwrap(),
+            profile
+        );
+        assert_eq!(
+            TargetProfile::from_omega_target_name(Some("alpha_bootstrap")).unwrap(),
+            profile
+        );
+        assert_eq!(
+            TargetProfile::from_canonical_target_name("alpha_bootstrap").unwrap(),
+            profile
+        );
+        assert_eq!(profile.target_name(), "alpha_bootstrap");
+        assert_eq!(profile.root_slot_owner_name(), "alpha_bootstrap");
+        assert_eq!(
+            profile.identity().as_str(),
+            "omega.target-profile.v1:alpha_bootstrap"
+        );
+        assert_eq!(profile.build_case_name(), "AlphaBootstrap");
+
+        // The slot schema comes from the same catch-all row the hosted
+        // compatibility profiles use: the source binding supplies only the
+        // machine, and no toolchain physical-contract package applies.
+        let slot = profile.program_entry_slot();
+        assert_eq!(slot.owner, profile);
+        assert_eq!(slot.slot_name, "ProgramEntry");
+        assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
+        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert_eq!(slot.physical_contract_package, None);
+        assert_eq!(
+            slot.semantic_arrival_requirement,
+            "ProgramStorageEntry::enter"
+        );
+        assert_eq!(
+            profile
+                .required_root_slot("ProgramEntry")
+                .map(|slot| slot.slot_name()),
+            Some("ProgramEntry")
+        );
+    }
+
+    #[test]
+    fn alpha_bootstrap_selection_reports_not_implemented() {
+        let diagnostic = NativeTarget::from_omega_target_name(Some("alpha_bootstrap")).unwrap_err();
+        assert_eq!(
+            diagnostic.to_string(),
+            "error: native realization for target profile `alpha_bootstrap` is not implemented"
+        );
+
+        // Unknown owners and misspellings still reject rather than silently
+        // becoming an inactive recognized profile.
+        for unknown in [
+            "alpha",
+            "alpha-bootstrap",
+            "alpha_bootstrap_",
+            "alpha_bootstrap::ProgramEntry",
+        ] {
+            assert!(
+                TargetProfile::from_root_slot_owner(unknown).is_err(),
+                "{unknown} must stay an unknown target profile"
+            );
+            assert!(
+                TargetProfile::from_omega_target_name(Some(unknown)).is_err(),
+                "{unknown} must stay an unknown target profile"
+            );
+        }
     }
 }
