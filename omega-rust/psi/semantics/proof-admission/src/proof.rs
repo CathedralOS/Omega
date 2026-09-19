@@ -288,8 +288,8 @@ fn accept_certificate_on_current_thread(
 /// premise/conclusion relation, so the only outcomes here are the
 /// kernel's own: `Judged` when the denotation covers the certificate and
 /// `check_type` accepts the elaborated judgment, `Refused` when the
-/// certificate uses a construction the denotation cannot cross — the
-/// citation-level `Equal`↔`IntegerMathEqual` denotation-shape change. Any
+/// certificate uses a construction the denotation cannot cross —
+/// currently none of the families the bounded checker decides. Any
 /// other error is a disagreement between the two checkers — a kernel
 /// rejection, an elaboration bound, or a structural check the denotation
 /// re-derives differently — and rejects the certificate rather than

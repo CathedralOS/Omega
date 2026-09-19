@@ -65,6 +65,19 @@ impl ClosedIntegerEvaluator {
         Ok(Some(left.cmp(&right)))
     }
 
+    /// The exact value of a closed term — `None` for an open `MathValue`
+    /// leaf or an undefined negative shift count, an error only for a
+    /// resource refusal. Same preflight, evaluation and budget as
+    /// `compare`: the denotation interner keys constants by this value
+    /// instead of running a second evaluator with its own rules.
+    pub fn evaluate_closed(
+        &mut self,
+        term: &IntegerMathTerm,
+    ) -> Result<Option<BigInt>, ClosedIntegerEvaluationError> {
+        self.check_term_size(term)?;
+        self.evaluate(term)
+    }
+
     fn check_term_size(
         &mut self,
         term: &IntegerMathTerm,

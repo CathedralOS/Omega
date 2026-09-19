@@ -1369,13 +1369,21 @@ Owners include
 
   - Give the bounded arithmetic families kernel meaning, so each is a
     certificate producer whose output the kernel checks or an explicitly
-    justified checked rule (see Flag). State integer carriers, order and
-    arithmetic as kernel declarations, with the rules as checked theorems or
-    citations of one fixed roster of named assumptions with exact statements.
-    The one `Unsupported` crossing left in
-    `mathematical_core/bounded_denotation.rs`, citation-level
-    `Equal`↔`IntegerMathEqual`, exists because an `Id` and an opaque atom are
-    different types; it closes with this.
+    justified checked rule (see Flag). Integer carrier, order and equality
+    declarations are landed in `mathematical_core/bounded_denotation.rs`:
+    `Int`, `IntLt`/`IntLe` and `Int`-valued term constants are interned
+    assumptions with exact statements — closed mathematical terms intern
+    by the shared evaluator's exact value — and the order/equality rules
+    cite one fixed roster (`eq_le`, `lt_le`, `le_trans`/`lt_trans`/
+    `lt_le_trans`/`le_lt_trans`, `lt`/`le_subst_left`/`_right`) while
+    `Id` symmetry/transitivity, the `Equal`↔`IntegerMathEqual` citation
+    crossing and single-equation `ValueEqualityTransport` over `Int` are
+    `J`-re-decided, not assumed. Still to do: the remaining `rule_axiom`
+    families (discreteness, subtract-order, the bound-witness rules,
+    `ContentConservation` transitivity, transport inside non-`Int`
+    propositions) and open arithmetic — non-closed `IntegerMathTerm`
+    equations still name opaque `Int` constants, so `x + 0 = x` assumes
+    its conclusion.
   - Check indexed-scheme applications produced from source declarations, per
     [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
     exact parameters, indices, payloads, case constraints and recursive uses.
@@ -1409,18 +1417,16 @@ Owners include
   success flags. Structural round trips do not establish meaning, and no
   verified-profile claim precedes these controls.
 
-  Flag: the bounded denotation reaches `Judged` on the arithmetic families by
-  assuming each conclusion. `bounded_denotation.rs` denotes every non-`Equal`
-  atom as an opaque `Type 0` assumption (`atom`), every non-reflexive
-  primitive leaf as a decision assumption (`decision`), and every integer
-  order, bound-witness, denotation-conversion and
-  `IntegerMath*`/`ContentConservation` transitivity rule as a per-instance
-  assumption `Π(premises). conclusion` (`rule_axiom`). The Rust relation check
-  that admits an instance is the one the bounded checker already ran, so the
-  kernel cannot disagree with the rule labels there, and the assumption's
-  statement carries no arithmetic a receiver could audit. The general
-  mechanism is the first bullet; until it lands, `Judged` on those families
-  is not independent evidence.
+  Flag: the bounded denotation still reaches `Judged` on part of the
+  arithmetic families by assuming each conclusion. `bounded_denotation.rs`
+  denotes the integer order and equality rules through a fixed roster of
+  named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
+  transitivity on the denoted crossing, and interns closed mathematical
+  terms by exact evaluated value — but discreteness, subtract-order, the
+  bound-witness rules, `ContentConservation` transitivity and transport
+  outside the `Int` vocabulary remain per-instance `rule_axiom`s whose
+  statements carry no arithmetic a receiver could audit, and open
+  arithmetic has no law roster at all.
 
   PCC-CANONICAL-SEMANTIC-LEDGER owns the soundness status of trusted checker
   rows and PROOF-CERTIFICATION-BRIDGE owns loop correspondence. Reopen W only

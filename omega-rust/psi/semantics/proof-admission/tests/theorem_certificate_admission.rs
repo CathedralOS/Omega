@@ -9,9 +9,11 @@
 //! hands that obligation, roster and decoded certificate to
 //! `verify_obligation`, which is what these tests call directly: the
 //! admission re-decides the certificate with the bounded rules *and*
-//! denotes it into the core's judgment `[h : Id U a b] ⊢ t : Id U b a`,
-//! which the kernel checks. The accepted fact records the kernel's
-//! decision and the judgment's measurements.
+//! denotes it into the core's judgment — `a == b` and `b == a` share
+//! the canonical `Id Int m_a m_b` denotation, so the judgment is
+//! `[h : Id Int m_a m_b] ⊢ h : Id Int m_a m_b`, which the kernel
+//! checks. The accepted fact records the kernel's decision and the
+//! judgment's measurements.
 //!
 //! The invalid controls are the four the board names: a wrong goal, a
 //! wrong proof, a forged closure and a missing dependency each reject —
@@ -125,9 +127,9 @@ fn admit(
 fn the_symmetry_theorem_obligation_is_judged_by_the_kernel_at_admission() {
     let decision = admit(equal(2, 1), &[equal(1, 2)], symmetry_certificate())
         .expect("the shipped symmetry certificate discharges the ensures obligation");
-    // Three declarations — the `u64` carrier and the two parameters — all
-    // of which the judgment's closure commits to; one bound premise; 149
-    // arena slots once the kernel has checked the judgment, the
+    // Three declarations — `Int` and the two mathematical endpoints —
+    // all of which the judgment's closure commits to; one bound premise;
+    // 34 arena slots once the kernel has checked the judgment, the
     // elaborated terms plus the checker's own working terms.
     assert_eq!(
         decision,
@@ -135,7 +137,7 @@ fn the_symmetry_theorem_obligation_is_judged_by_the_kernel_at_admission() {
             declarations: 3,
             assumption_closure: 3,
             context_depth: 1,
-            arena_slots: 149,
+            arena_slots: 34,
         })
     );
 }
@@ -210,10 +212,10 @@ fn the_kernel_rejects_a_forged_claim_over_the_same_elaborated_judgment() {
         ]
     );
 
-    // Wrong goal at the kernel: claim the premise's own orientation
-    // `Id U a b` for the symmetry term. The term's type is `Id U b a`,
-    // and `a` never converts to `b` — they are distinct assumption
-    // constants of the carrier.
+    // Wrong goal at the kernel: the honest evidence is the cited
+    // premise variable `h : Id Int m_a m_b`; claiming the non-canonical
+    // orientation `Id Int m_b m_a` — a different denoted type, however
+    // propositionally equivalent — mismatches in the kernel.
     let Term::Id { ty, left, right } = denoted.arena.get(denoted.certificate.expected) else {
         panic!("the goal denotes to an identity");
     };
@@ -233,10 +235,22 @@ fn the_kernel_rejects_a_forged_claim_over_the_same_elaborated_judgment() {
         Err(CoreError::TypeMismatch { .. })
     ));
 
-    // Wrong proof at the kernel: the bare premise variable `h : Id U a b`
-    // offered for the goal `Id U b a`.
+    // Wrong proof at the kernel: `refl Int m_a` inhabits
+    // `Id Int m_a m_a`, offered for the goal `Id Int m_a m_b` — the
+    // endpoints never convert, so the kernel rejects the term.
+    let Term::Id {
+        ty: carrier,
+        left: endpoint,
+        ..
+    } = denoted.arena.get(denoted.certificate.expected)
+    else {
+        panic!("the goal denotes to an identity");
+    };
     let mut forged = denoted.certificate.clone();
-    forged.term = denoted.arena.insert(Term::Variable(0));
+    forged.term = denoted.arena.insert(Term::Refl {
+        ty: carrier,
+        value: endpoint,
+    });
     assert!(matches!(
         verify_mathematical_certificate(
             &mut denoted.arena,
@@ -270,14 +284,14 @@ fn the_kernel_rejects_a_forged_claim_over_the_same_elaborated_judgment() {
 }
 
 #[test]
-fn an_uncrossable_denotation_is_refused_and_the_bounded_rules_decide_alone() {
+fn the_equal_integer_math_citation_crossing_is_judged_by_the_kernel() {
     // The bounded citation matcher accepts `a == b` cited where its lifted
     // `IntegerMathEqual` form is the goal: one normalized relation under
-    // the bounded rules. The denotation cannot cross it — `Id U a b` and
-    // the mathematical-integer atom are different types — so the
-    // acceptance says `Refused` instead of pretending the kernel judged it.
+    // the bounded rules. Both sides denote the same `Id Int m_a m_b` now
+    // — the `Id`-versus-atom shape crossing is closed — so the kernel
+    // judges the citation's own variable as evidence.
     let goal = lift_fixed_integer_relation(&equal(1, 2)).expect("the fixed equality lifts");
     let decision = admit(goal.clone(), &[equal(1, 2)], cite(0, goal))
         .expect("the bounded rules accept the normalized citation");
-    assert!(matches!(decision, MathematicalCoreDecision::Refused(_)));
+    assert!(matches!(decision, MathematicalCoreDecision::Judged(_)));
 }
