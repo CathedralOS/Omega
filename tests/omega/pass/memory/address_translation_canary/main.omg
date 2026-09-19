@@ -53,8 +53,16 @@
 // `cathedral_install_and_teardown` drives the package against the exact
 // pending mapping's recorded geometry: install through the walk, the
 // activation receipt, leaf clear plus local invalidate, the release
-// receipt, and the cross-core shootdown discharge. Interpreting stored
-// table memory is still the undeclared placed-access surface
+// receipt, and the cross-core shootdown discharge. The package now also
+// carries the second level of mapping authority: `install_huge`/
+// `remove_huge` store and clear the terminal one level up, so a depth-2
+// leaf maps the whole 2MiB span with no `pt` table -- granularity is the
+// provider's install policy, and the authority's `Pending`/`Installed`/
+// shootdown cycle is unchanged (`cathedral_huge_install_and_teardown`).
+// The receipt crossings stay one-shot: replaying `activate` on an
+// `Installed` carrier rejects
+// (`tests/omega/fail/core/translation_double_activation`). Interpreting
+// stored table memory is still the undeclared placed-access surface
 // (wiki/spec/resources/placed_access.md), so the hardware crossings remain
 // boundary requirements; demand-grown intermediate tables and multi-page
 // installation are the package's next edges.
@@ -357,6 +365,47 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     tables.install(hardware, pending.source_base, pending.destination_base);
     let installed: Mapping in Installed = authority.activate(pending);
     tables.remove(hardware, installed.destination_base);
+    let unmapped: Unmapped = authority.unmap(installed);
+    let owed: Shootdown in Owed = unmapped.shootdown;
+    owed.discharge();
+    let released_destination: Extent in Granted = unmapped.destination;
+    let released_source: Extent in Granted = unmapped.source;
+    Reclaimed { destination: released_destination, source: released_source }
+}
+
+// The same provider flow at the second level of authority: a 2MiB leaf
+// stored at depth 2. The mapping contract is granularity-agnostic -- the
+// carrier records only ranges -- so the identical Pending -> Installed ->
+// teardown sequence runs with the package's `install_huge`/`remove_huge`
+// where the four-level driver used `install`/`remove`.
+machine cathedral_huge_install_and_teardown(
+    authority: &TranslationAuthority,
+    hardware: &TranslationHardware,
+    tables: &mut CathedralPageTables,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Reclaimed
+requires
+    source.length == destination.length
+reaches TranslationAuthority + TranslationHardware + MachineControl
+{
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 12 },
+            TranslationActivationFact { identity: 13 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 14 },
+            TranslationCompletionFact { identity: 15 }
+        ],
+    };
+    let pending: Mapping in Pending =
+        authority.map(source, destination, install, release);
+    tables.install_huge(hardware, pending.source_base, pending.destination_base);
+    let installed: Mapping in Installed = authority.activate(pending);
+    tables.remove_huge(hardware, installed.destination_base);
     let unmapped: Unmapped = authority.unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();

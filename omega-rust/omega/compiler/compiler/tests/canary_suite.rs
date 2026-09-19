@@ -1291,6 +1291,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/translation_borrowed_source_reclaim",
     "core/translation_borrowed_unmap_before_activation",
     "core/translation_borrowed_mapping_construction",
+    "core/translation_double_activation",
     "constants/const_free_floating_rejected",
     "constants/const_shadows_case",
     "comptime/effectful_const_array_length",
