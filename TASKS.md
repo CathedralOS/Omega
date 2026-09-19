@@ -782,7 +782,11 @@ Owners include
   - Replace `program_entry_physical/exact_uefi.rs`'s duplicated physical-policy
     recipe with source-derived plan/evidence replay. Preserve exact accepted
     package/contract identity and arrival assumptions; a source digest does not
-    establish plan correctness.
+    establish plan correctness. Landed at `db3dfb4302`: consumers now replay
+    each retained plan through `replayed_uefi_x64_physical_calling_plan`
+    against `UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT` instead of re-deriving
+    the recipe; the recipe materialization remains only for contract fixtures
+    below the build layer and self-checks against that commitment.
   - Connect the authored bootstrap, semantic child emission and physical shell
     through `compiler/native-realization`. The
     `optimized_semantic_wrapper_object/` staging entrance still has no callers;
