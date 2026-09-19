@@ -14,7 +14,7 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
     boundaries: &[CheckedBoundaryMachinePlan],
     binding_facts: &checked_trees::DynamicConformanceBindingFacts,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
-) -> Option<()> {
+) {
     for machine in program.machines() {
         if !machine.attached_data_symbol.is_valid() {
             continue;
@@ -113,7 +113,6 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
             }
         }
     }
-    Some(())
 }
 
 fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(

@@ -7,14 +7,14 @@ use super::{
     SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::ShapeCollector;
-use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_transactions::inbound_call_site_counts;
+use crate::execution::terminal_unit::dynamic_scalar_calls::descriptor_transfers::inbound_call_site_counts;
 
 pub(super) fn promote_two_predecessor_dynamic_scalar_joins(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
-) -> Option<()> {
+) {
     let inbound_counts = inbound_call_site_counts(program, facts);
     let mut consumed = Vec::new();
     let mut joined = Vec::new();
@@ -86,7 +86,6 @@ pub(super) fn promote_two_predecessor_dynamic_scalar_joins(
         )
     });
     plans.joined_scalar_calls = joined;
-    Some(())
 }
 
 pub(super) fn promote_two_predecessor_dynamic_unit_joins(
@@ -94,7 +93,7 @@ pub(super) fn promote_two_predecessor_dynamic_unit_joins(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
-) -> Option<()> {
+) {
     let inbound_counts = inbound_call_site_counts(program, facts);
     let mut consumed = Vec::new();
     let mut joined = Vec::new();
@@ -166,7 +165,6 @@ pub(super) fn promote_two_predecessor_dynamic_unit_joins(
         )
     });
     plans.joined_unit_calls = joined;
-    Some(())
 }
 
 fn joined_scalar_branches_match(

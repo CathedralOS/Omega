@@ -4,6 +4,7 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
 mod finite_family;
 mod mutating_realizations_and_effects;
+mod plan_isolation;
 mod rebound_dynamic_custody;
 
 use crate::tests::{LoweringError, checked_source, lower_machine};
