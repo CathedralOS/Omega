@@ -431,184 +431,241 @@ fn consumer_own_definitions_are_safe() {
     }
 }
 
-/// The shared scaled displacement bound table: each consumer form admits a
+/// The scaled displacement bound table, per architecture: AArch64 admits a
 /// combined offset only as a multiple of its width no larger than
-/// `width * 4095`, the AArch64 bound both encoders share.
+/// `width * 4095`; x86-64's disp32 admits every nonnegative byte offset
+/// through `i32::MAX`. Each case lists `(aarch64, x86_64)` expectations.
 #[test]
 fn combined_offset_admission_table() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let load64 = keys(&environment).load64.unwrap();
+    let load64 = |environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+        keys(environment).load64.unwrap()
+    };
+    type Expected = (Result<u32, AddressFoldError>, Result<u32, AddressFoldError>);
     let cases: &[(
         u32,
         u32,
         SelectedInstructionKind,
-        register_model::RegisterConstraintKey,
-        Result<u32, AddressFoldError>,
+        fn(
+            &register_environment::ValidatedTargetRegisterEnvironment,
+        ) -> register_model::RegisterConstraintKey,
+        Expected,
     )] = &[
-        // Load64 admits combined <= 32760 in multiples of eight.
+        // Load64 admits combined <= 32760 in multiples of eight on AArch64;
+        // x86-64's disp32 admits the same sum without scaling.
         (
             8,
             16,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             load64,
-            Ok(24),
+            (Ok(24), Ok(24)),
         ),
         (
             8,
             32752,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             load64,
-            Ok(32760),
+            (Ok(32760), Ok(32760)),
         ),
         (
             8,
             32760,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             load64,
-            Err(AddressFoldError::UnsupportedOffset),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(32768)),
         ),
-        // An unaligned sum cannot encode the scaled immediate.
+        // An unaligned sum cannot encode the scaled immediate, but encodes as
+        // a byte-exact disp32.
         (
             8,
             20,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             load64,
-            Err(AddressFoldError::UnsupportedOffset),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(28)),
         ),
         (
             4,
             8,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             load64,
-            Err(AddressFoldError::UnsupportedOffset),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(12)),
         ),
-        // Load8 scales by one.
+        // Load8 scales by one; disp32 admits the byte offset regardless.
         (
             0,
             4095,
             SelectedInstructionKind::Load8 { byte_offset: 0 },
-            keys(&environment).load8.unwrap(),
-            Ok(4095),
+            |environment| keys(environment).load8.unwrap(),
+            (Ok(4095), Ok(4095)),
         ),
         (
             1,
             4095,
             SelectedInstructionKind::Load8 { byte_offset: 0 },
-            keys(&environment).load8.unwrap(),
-            Err(AddressFoldError::UnsupportedOffset),
+            |environment| keys(environment).load8.unwrap(),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(4096)),
         ),
-        // Load16 and Load32 scale by their widths.
+        // A combined offset past disp32's positive half refuses everywhere.
+        (
+            8,
+            i32::MAX as u32,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            |environment| keys(environment).load8.unwrap(),
+            (
+                Err(AddressFoldError::UnsupportedOffset),
+                Err(AddressFoldError::UnsupportedOffset),
+            ),
+        ),
+        // Load16 and Load32 scale by their widths on AArch64 only.
         (
             2,
             8188,
             SelectedInstructionKind::Load16 { byte_offset: 0 },
-            keys(&environment).load16.unwrap(),
-            Ok(8190),
+            |environment| keys(environment).load16.unwrap(),
+            (Ok(8190), Ok(8190)),
         ),
         (
             4,
             8188,
             SelectedInstructionKind::Load16 { byte_offset: 0 },
-            keys(&environment).load16.unwrap(),
-            Err(AddressFoldError::UnsupportedOffset),
+            |environment| keys(environment).load16.unwrap(),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(8192)),
         ),
         (
             4,
             16376,
             SelectedInstructionKind::Load32 { byte_offset: 0 },
-            keys(&environment).load32.unwrap(),
-            Ok(16380),
+            |environment| keys(environment).load32.unwrap(),
+            (Ok(16380), Ok(16380)),
         ),
         (
             8,
             16376,
             SelectedInstructionKind::Load32 { byte_offset: 0 },
-            keys(&environment).load32.unwrap(),
-            Err(AddressFoldError::UnsupportedOffset),
+            |environment| keys(environment).load32.unwrap(),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(16384)),
         ),
-        // A chained projection shares the unscaled twelve-bit bound.
+        // A chained projection shares the unscaled twelve-bit bound on
+        // AArch64; disp32 admits it byte-exact.
         (
             8,
             4087,
             SelectedInstructionKind::AddressOffset { byte_offset: 0 },
-            keys(&environment).address_offset.unwrap(),
-            Ok(4095),
+            |environment| keys(environment).address_offset.unwrap(),
+            (Ok(4095), Ok(4095)),
         ),
         (
             8,
             4088,
             SelectedInstructionKind::AddressOffset { byte_offset: 0 },
-            keys(&environment).address_offset.unwrap(),
-            Err(AddressFoldError::UnsupportedOffset),
+            |environment| keys(environment).address_offset.unwrap(),
+            (Err(AddressFoldError::UnsupportedOffset), Ok(4096)),
         ),
     ];
-    for (producer_offset, consumer_offset, kind, key, expected) in cases {
-        let source = fixture(
-            target,
-            *producer_offset,
-            kind_with_offset(*kind, *consumer_offset),
-            *key,
-            &[POINTER, OUTPUT],
-        );
-        let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget());
-        match expected {
-            Ok(combined) => {
-                let rewritten =
-                    &result.as_ref().unwrap().transformed().functions[0].blocks[0].instructions[1];
-                let offset = match rewritten.kind {
-                    SelectedInstructionKind::Load8 { byte_offset }
-                    | SelectedInstructionKind::Load16 { byte_offset }
-                    | SelectedInstructionKind::Load32 { byte_offset }
-                    | SelectedInstructionKind::Load64 { byte_offset }
-                    | SelectedInstructionKind::AddressOffset { byte_offset } => byte_offset,
-                    _ => panic!("unexpected folded kind"),
-                };
-                assert_eq!(offset, *combined, "{kind:?} {consumer_offset}");
+    for target in [NativeTarget::linux_arm64(), NativeTarget::linux_x64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for (producer_offset, consumer_offset, kind, key, (aarch64, x64)) in cases {
+            let expected = match target.architecture {
+                target::Architecture::Aarch64 => aarch64,
+                target::Architecture::X86_64 => x64,
+            };
+            let source = fixture(
+                target,
+                *producer_offset,
+                kind_with_offset(*kind, *consumer_offset),
+                key(&environment),
+                &[POINTER, OUTPUT],
+            );
+            let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget());
+            match expected {
+                Ok(combined) => {
+                    let rewritten = &result.as_ref().unwrap().transformed().functions[0].blocks[0]
+                        .instructions[1];
+                    let offset = match rewritten.kind {
+                        SelectedInstructionKind::Load8 { byte_offset }
+                        | SelectedInstructionKind::Load16 { byte_offset }
+                        | SelectedInstructionKind::Load32 { byte_offset }
+                        | SelectedInstructionKind::Load64 { byte_offset }
+                        | SelectedInstructionKind::AddressOffset { byte_offset } => byte_offset,
+                        _ => panic!("unexpected folded kind"),
+                    };
+                    assert_eq!(offset, *combined, "{kind:?} {consumer_offset}");
+                }
+                Err(error) => {
+                    assert_eq!(result.unwrap_err(), *error, "{kind:?} {consumer_offset}")
+                }
             }
-            Err(error) => assert_eq!(result.unwrap_err(), *error, "{kind:?} {consumer_offset}"),
         }
     }
 }
 
-/// Store widths admit their own scaled bound; a width outside the byte
+/// Store widths admit their architecture's bound; a width outside the byte
 /// forms is malformed and refuses before the bound table applies.
 #[test]
 fn store_width_bound_table() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for (byte_size, producer, consumer, expected) in [
-        (1u8, 8u32, 4087u32, Ok(4095u32)),
-        (1, 8, 4088, Err(AddressFoldError::UnsupportedOffset)),
-        (2, 8, 8182, Ok(8190)),
-        // An unaligned sum cannot encode the scaled immediate.
-        (2, 9, 8182, Err(AddressFoldError::UnsupportedOffset)),
-        (2, 8, 8184, Err(AddressFoldError::UnsupportedOffset)),
-        (4, 8, 16372, Ok(16380)),
-        (8, 16, 32744, Ok(32760)),
-        (8, 16, 32752, Err(AddressFoldError::UnsupportedOffset)),
-    ] {
-        let source = store_fixture(target, producer, consumer, byte_size, VALUE);
-        let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget());
-        match expected {
-            Ok(combined) => assert_eq!(
-                result.unwrap().transformed().functions[0].blocks[0].instructions[1].kind,
-                SelectedInstructionKind::Store {
-                    byte_offset: combined,
-                    byte_size
-                },
-                "size {byte_size}"
+    for target in [NativeTarget::linux_arm64(), NativeTarget::linux_x64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for (byte_size, producer, consumer, aarch64, x64) in [
+            (1u8, 8u32, 4087u32, Ok(4095u32), Ok(4095u32)),
+            (
+                1,
+                8,
+                4088,
+                Err(AddressFoldError::UnsupportedOffset),
+                Ok(4096),
             ),
-            Err(error) => assert_eq!(result.unwrap_err(), error, "size {byte_size}"),
+            (2, 8, 8182, Ok(8190), Ok(8190)),
+            // An unaligned sum cannot encode the scaled immediate; disp32 is
+            // byte-exact.
+            (
+                2,
+                9,
+                8182,
+                Err(AddressFoldError::UnsupportedOffset),
+                Ok(8191),
+            ),
+            (
+                2,
+                8,
+                8184,
+                Err(AddressFoldError::UnsupportedOffset),
+                Ok(8192),
+            ),
+            (4, 8, 16372, Ok(16380), Ok(16380)),
+            (8, 16, 32744, Ok(32760), Ok(32760)),
+            (
+                8,
+                16,
+                32752,
+                Err(AddressFoldError::UnsupportedOffset),
+                Ok(32768),
+            ),
+        ] {
+            let expected = match target.architecture {
+                target::Architecture::Aarch64 => aarch64,
+                target::Architecture::X86_64 => x64,
+            };
+            let source = store_fixture(target, producer, consumer, byte_size, VALUE);
+            let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget());
+            match expected {
+                Ok(combined) => assert_eq!(
+                    result.unwrap().transformed().functions[0].blocks[0].instructions[1].kind,
+                    SelectedInstructionKind::Store {
+                        byte_offset: combined,
+                        byte_size
+                    },
+                    "size {byte_size}"
+                ),
+                Err(error) => assert_eq!(result.unwrap_err(), error, "size {byte_size}"),
+            }
         }
-    }
-    for byte_size in [0u8, 3, 16, 255] {
-        let source = store_fixture(target, 8, 0, byte_size, VALUE);
-        assert_eq!(
-            fold_selected_address(&source, 0, CONSUMER, &environment, budget()).unwrap_err(),
-            AddressFoldError::UnsupportedInstruction,
-            "size {byte_size}"
-        );
+        for byte_size in [0u8, 3, 16, 255] {
+            let source = store_fixture(target, 8, 0, byte_size, VALUE);
+            assert_eq!(
+                fold_selected_address(&source, 0, CONSUMER, &environment, budget()).unwrap_err(),
+                AddressFoldError::UnsupportedInstruction,
+                "size {byte_size}"
+            );
+        }
     }
 }
 
