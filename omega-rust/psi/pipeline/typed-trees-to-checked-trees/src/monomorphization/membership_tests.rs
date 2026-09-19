@@ -1,6 +1,6 @@
 use super::{HandleSpan, ProofFact, TypeConstraintNode, TypeReferenceNode, TypedTrees};
 use crate::monomorphization::contract_fact_text;
-use crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses;
+use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
 use crate::refresh_closed_domain_instance_identities;
 
 fn typed(source: &str) -> TypedTrees {
@@ -27,9 +27,9 @@ fn parameter_membership_instances_follow_single_and_multiple_specialization() {
              machine run(value: i64 in Coordinate<7>) -> i64 in Coordinate<7> {{ relay<7>(value) }}
              {second}"
         ));
-        monomorphize_generic_machine_value_calls_with_nominal_uses(
+        monomorphize_generic_machine_value_calls_with_selections(
             &mut program,
-            &mut Vec::new(),
+            &mut Default::default(),
             true,
         )
         .expect("closed specializations");

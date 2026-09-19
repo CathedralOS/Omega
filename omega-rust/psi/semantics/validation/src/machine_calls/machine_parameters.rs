@@ -26,6 +26,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
 struct MachineSuspensionRow {
@@ -57,6 +58,79 @@ pub struct ValidatedNominalMachineUse {
     pub canonical_requirement_overload: String,
 }
 
+/// One `Type` generic-parameter substitution MP2b's callable-shape
+/// refinement derived while admitting a static machine argument. The
+/// nominal satisfaction path replays this judgment through contract
+/// envelopes, but a structural selection leaves no such row; this binding
+/// is the only retained record of what the call instantiated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedRequirementCallTypeBinding {
+    /// The callee's generic `Type` parameter.
+    pub parameter: SymbolHandle,
+    /// The actual type the selected callable's shape bound to it.
+    pub actual: TypeReferenceHandle,
+}
+
+/// One admitted `machine`-binder selection at a generic call edge, keyed by
+/// the same telescope ordinal nominal use rows retain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedRequirementCallMachineSelection {
+    /// Telescope ordinal of the callee's `machine` parameter the argument
+    /// was admitted against.
+    pub static_machine_ordinal: u32,
+    /// The `machine` parameter's symbol; its retained contract view names
+    /// the requirement this selection satisfies (`Target`).
+    pub parameter: SymbolHandle,
+    /// The concrete machine owning the selected entry state. Invalid when
+    /// `selected` forwards an in-scope `machine` binder.
+    pub selected_machine: SymbolHandle,
+    /// The admitted selection: the selected concrete machine's resolved
+    /// entry state, or the forwarded binder's own parameter symbol.
+    pub selected: SymbolHandle,
+}
+
+/// The specialization MP2b derived at one generic call's admitted static
+/// machine selections, which the nominal path used to drop: the
+/// substitution over the callee's generic `Type` parameters plus the exact
+/// provider evidence — which concrete machine entry, or forwarded in-scope
+/// binder, each `machine` parameter bound. A call that names no static
+/// machine argument emits no row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRequirementCallSpecialization {
+    /// Exact authored call site, keyed identically to nominal use rows.
+    pub site: ValidatedNominalMachineUseSite,
+    /// The generic callee the call named: a requirement signature, a machine
+    /// parameter contract's call target, or a generic machine's entry state.
+    pub registration_operation: SymbolHandle,
+    /// Derived `Type` substitutions, in derivation order.
+    pub type_bindings: Vec<ValidatedRequirementCallTypeBinding>,
+    /// One row per admitted static machine argument, in telescope order.
+    pub machine_selections: Vec<ValidatedRequirementCallMachineSelection>,
+}
+
+/// The complete static-machine selection evidence one validation pass
+/// retained: nominal satisfaction rows plus the specializations generic
+/// calls derived at their `machine` arguments.
+#[derive(Debug, Default)]
+pub struct ValidatedStaticMachineSelections {
+    /// ENT4: exact nominal satisfaction selected for each admitted static
+    /// machine argument.
+    pub nominal_uses: Vec<ValidatedNominalMachineUse>,
+    /// The specialization each call's admitted static machine arguments
+    /// derived over the callee's generic parameters.
+    pub requirement_call_specializations: Vec<ValidatedRequirementCallSpecialization>,
+}
+
+impl ValidatedStaticMachineSelections {
+    /// Fold another pass's retained selections into this one; deduplication
+    /// by call site happens when the checked facts are assembled.
+    pub fn extend(&mut self, other: Self) {
+        self.nominal_uses.extend(other.nominal_uses);
+        self.requirement_call_specializations
+            .extend(other.requirement_call_specializations);
+    }
+}
+
 fn project_operational_rows(
     operational: &flow_effects::OperationalPlan,
 ) -> (Vec<MachineSuspensionRow>, Vec<MachineBlockingRow>) {
@@ -83,13 +157,17 @@ pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_static_machine_arguments_with_facts(program, diagnostics, &mut Vec::new());
+    validate_static_machine_arguments_with_facts(
+        program,
+        diagnostics,
+        &mut ValidatedStaticMachineSelections::default(),
+    );
 }
 
 fn validate_static_machine_arguments_with_facts(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
-    nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
+    selections: &mut ValidatedStaticMachineSelections,
 ) {
     let (service_reaches, suspensions, blockings) = {
         let operational = crate::infer_operational_may(program);
@@ -118,7 +196,8 @@ fn validate_static_machine_arguments_with_facts(
                 call.target.as_str(),
                 &call.machine_arguments,
                 diagnostics,
-                nominal_uses,
+                &mut selections.nominal_uses,
+                &mut selections.requirement_call_specializations,
             );
         }
     }
@@ -146,7 +225,8 @@ fn validate_static_machine_arguments_with_facts(
                         call.target.as_str(),
                         &call.machine_arguments,
                         diagnostics,
-                        nominal_uses,
+                        &mut selections.nominal_uses,
+                        &mut selections.requirement_call_specializations,
                     );
                 }
             }
@@ -162,12 +242,12 @@ pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Ve
 
 pub fn validate_static_machine_selections_with_facts(
     program: &TypedTrees,
-) -> Result<Vec<ValidatedNominalMachineUse>, Vec<Diagnostic>> {
+) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut nominal_uses = Vec::new();
-    validate_static_machine_arguments_with_facts(program, &mut diagnostics, &mut nominal_uses);
+    let mut selections = ValidatedStaticMachineSelections::default();
+    validate_static_machine_arguments_with_facts(program, &mut diagnostics, &mut selections);
     if diagnostics.is_empty() {
-        Ok(nominal_uses)
+        Ok(selections)
     } else {
         Err(diagnostics)
     }
@@ -185,6 +265,7 @@ fn validate_call_selection(
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
+    specializations: &mut Vec<ValidatedRequirementCallSpecialization>,
 ) {
     if matches!(
         target_name,
@@ -288,6 +369,7 @@ fn validate_call_selection(
     }
 
     let mut bindings = Vec::new();
+    let mut machine_selections = Vec::new();
 
     for (static_machine_ordinal, ((parameter, requirement), selected)) in
         requirements.into_iter().zip(machine_arguments).enumerate()
@@ -346,6 +428,20 @@ fn validate_call_selection(
             &mut bindings,
             diagnostics,
         );
+        // Retain which selection this binder admitted even when no nominal
+        // satisfaction row exists: a structural contract's bindings are
+        // otherwise discarded here and `build_call_operation` can never
+        // recover what `Target` (or `T`, `Arguments`) instantiated to.
+        let (selected_machine, selection_symbol) = machine_and_state(program, selected.symbol)
+            .map(|(machine, state)| (machine.symbol, state.symbol))
+            .unwrap_or((SymbolHandle::invalid(), selected.symbol));
+        machine_selections.push(ValidatedRequirementCallMachineSelection {
+            static_machine_ordinal: u32::try_from(static_machine_ordinal)
+                .expect("static machine argument ordinal overflow"),
+            parameter: parameter.symbol,
+            selected_machine,
+            selected: selection_symbol,
+        });
         if let Some(selection) = nominal_selection {
             nominal_uses.push(ValidatedNominalMachineUse {
                 site,
@@ -359,6 +455,26 @@ fn validate_call_selection(
                 canonical_requirement_overload: selection.canonical_requirement_overload,
             });
         }
+    }
+
+    // Retain the call-edge specialization this admission derived. MP4
+    // consumes the static argument syntax and the nominal rows only cover
+    // `Nominal` contracts, so a structural requirement call like
+    // `runtime.start<Worker::run>(token)` otherwise loses `T`, `Arguments`,
+    // and `Target` before checked call planning can see them.
+    if !machine_selections.is_empty() {
+        specializations.push(ValidatedRequirementCallSpecialization {
+            site,
+            registration_operation: target_symbol,
+            type_bindings: bindings
+                .iter()
+                .map(|binding| ValidatedRequirementCallTypeBinding {
+                    parameter: binding.symbol,
+                    actual: binding.actual,
+                })
+                .collect(),
+            machine_selections,
+        });
     }
 }
 

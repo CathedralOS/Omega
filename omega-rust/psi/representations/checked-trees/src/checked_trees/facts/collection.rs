@@ -1,8 +1,9 @@
 use crate::{
     BlockingFacts, BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
     DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, MachineContractPlans,
-    MutationFacts, NominalMachineUseFacts, ProofFacts, QualificationFacts, ServiceReachFacts,
-    SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
+    MutationFacts, NominalMachineUseFacts, ProofFacts, QualificationFacts,
+    RequirementCallSpecializationFacts, ServiceReachFacts, SuspensionFacts,
+    SynchronousInvocationFacts, TerminationFacts,
 };
 
 use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedViewInput};
@@ -20,6 +21,12 @@ pub struct CheckFacts {
     /// ENT4: exact nominal machine satisfaction selected for each admitted
     /// static machine argument, before specialization consumes its syntax.
     pub nominal_machine_uses: NominalMachineUseFacts,
+    /// The specialization each generic call's admitted static machine
+    /// arguments derived: `Type` substitutions plus each `machine` binder's
+    /// selected provider entry. A structural contract emits no nominal use
+    /// row, so this is the only checked record of what such a call
+    /// instantiated.
+    pub requirement_call_specializations: RequirementCallSpecializationFacts,
     pub operators: CheckedOperatorFacts,
     pub capabilities: flow_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,

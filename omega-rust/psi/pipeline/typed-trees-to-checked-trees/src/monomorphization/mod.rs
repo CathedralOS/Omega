@@ -184,9 +184,9 @@ struct SpecializationKey {
 /// there is interim evidence, not a rejected program. Only the checking pass
 /// that emits the program may reject an incomplete concrete selection, and
 /// only once no pending endpoint fold can still supply the missing binding.
-pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
+pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
     program: &mut TypedTrees,
-    nominal_uses: &mut Vec<validation::ValidatedNominalMachineUse>,
+    retained: &mut validation::ValidatedStaticMachineSelections,
     enforce_complete_concrete_selections: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     loop {
@@ -316,7 +316,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             return Ok(());
         }
         refresh_closed_domain_instance_identities(program).map_err(|error| vec![error])?;
-        nominal_uses.extend(validation::validate_static_machine_selections_with_facts(
+        retained.extend(validation::validate_static_machine_selections_with_facts(
             program,
         )?);
     }

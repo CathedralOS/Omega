@@ -4,8 +4,10 @@
 //! blocking, suspension and invocation facts, `dynamic_conformance.rs`
 //! dynamic conformance facts, `contract_plan_facts.rs` contract plans and
 //! mutation facts, `crash_plan_facts.rs` crash capsules, buckets and sites,
-//! `canonical_encoding.rs` canonical contract and expression encodings and
-//! `qualification_facts.rs` qualification and service reach facts.
+//! `canonical_encoding.rs` canonical contract and expression encodings,
+//! `requirement_call_specializations.rs` the specializations generic calls
+//! derived at their static machine arguments, and `qualification_facts.rs`
+//! qualification and service reach facts.
 
 mod canonical_encoding;
 pub(crate) mod capabilities;
@@ -23,6 +25,7 @@ pub(crate) mod operator_crashes;
 mod placed_views_and_uses;
 pub(crate) mod qualification_evidence;
 mod qualification_facts;
+mod requirement_call_specializations;
 pub(crate) mod review_sources;
 #[cfg(test)]
 mod scalar_contract_tests;
@@ -63,6 +66,7 @@ use crate::facts::placed_views_and_uses::{
     build_checked_placed_view_inputs, build_nominal_machine_use_facts,
 };
 use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
+use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
 use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
 use crate::operators::{
     bind_boundary_operator_application_demands, build_operator_facts,
@@ -117,7 +121,7 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     validation_facts: &validation::ProgramValidationFacts,
-    nominal_machine_uses: Vec<validation::ValidatedNominalMachineUse>,
+    static_machine_selections: validation::ValidatedStaticMachineSelections,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<CheckFacts, Vec<diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
@@ -259,8 +263,16 @@ pub(crate) fn build_check_facts(
     )?;
     proof.contract_entailment_assumption_discharges =
         crate::proof::build_contract_entailment_assumption_discharges(program, &contract_plans)?;
-    let nominal_machine_uses =
-        build_nominal_machine_use_facts(program, nominal_machine_uses, &contract_plans)?;
+    let nominal_machine_uses = build_nominal_machine_use_facts(
+        program,
+        static_machine_selections.nominal_uses,
+        &contract_plans,
+    )?;
+    // A structural machine-parameter contract emits no nominal use row, so
+    // the specialization MP2b derived at its call edge survives only here.
+    let requirement_call_specializations = build_requirement_call_specialization_facts(
+        static_machine_selections.requirement_call_specializations,
+    )?;
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
@@ -332,6 +344,7 @@ pub(crate) fn build_check_facts(
         domains,
         dynamic_conformances,
         nominal_machine_uses,
+        requirement_call_specializations,
         operators,
         capabilities,
         flow,
