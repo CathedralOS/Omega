@@ -1,4 +1,4 @@
-use super::super::Path;
+use super::super::{PackagePolicyRowKind, Path};
 use super::{
     CompileResolvedPackageReviewsError, PURE, PackageChangeError, TARGET, Tree, assert_round_trip,
     fs, package, propose, resolve, review, review_package_change, source,
@@ -130,7 +130,10 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
         .find(|package| package.key() == root)
         .unwrap()
         .rows();
-    assert!(rows.is_empty());
+    // Generated-source replay adds no consent beyond the admitted build's
+    // retained restricted request row.
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].kind(), PackagePolicyRowKind::RestrictedBuildRequest);
     assert!(
         checked
             .reviews()
@@ -141,12 +144,12 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
             .unwrap()
             .contains("Generated")
     );
-    assert!(
-        proposed
-            .baselines()
+    assert!(proposed.baselines().iter().all(|acceptance| {
+        acceptance
+            .rows()
             .iter()
-            .all(|acceptance| acceptance.rows().is_empty())
-    );
+            .all(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+    }));
     let root_review = checked.reviews().review(root).unwrap();
     let observation = root_review.build_observation_summary().unwrap();
     let expected_log = b"generated package data\n";
