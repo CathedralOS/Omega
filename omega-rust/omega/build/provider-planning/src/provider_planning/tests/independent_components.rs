@@ -11,18 +11,18 @@
 use std::collections::BTreeSet;
 
 use crate::provider_planning::{
-    ProviderBinding, ProviderPlanDerivation, TypedTrees, derive_satisfies_plans,
-    select_derived_provider_plans, selected_provider_plan_facts,
-    selected_provider_plan_facts_with_independent_components,
+    derive_satisfies_plans, select_derived_provider_plans, selected_provider_plan_facts,
+    selected_provider_plan_facts_with_independent_components, ProviderBinding,
+    ProviderPlanDerivation, TypedTrees,
 };
 use crate::{CompositionMode, SelectedProviderPlanWithProvenance};
 use component_description::{
-    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescriptionFacts,
-    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
-    encode_component_description, verify_component,
+    describe_component_facts, encode_component_description, verify_component, AdmissionProfile,
+    ComponentDescriptionFacts, ComponentVerificationRequest, VerifiedComponent,
+    COMPONENT_DESCRIPTION_SCHEMA_V2,
 };
-use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
+use effects::SelectedProviderPlanFacts;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
     StructuralTypeId,
@@ -313,7 +313,8 @@ fn provider_module(
 /// A provider component whose root entry calls an installation-bound
 /// boundary (`reaches <= Bound`). The verified module retains the declared
 /// dependency row instead of a resolved service row, so the description
-/// exports the dependency's conservative bound inside its service ceiling.
+/// publishes the dependency's conservative bound as a service-bound roster
+/// entry beside the (here empty) concrete reach's ceiling rows.
 fn bounded_provider_module(
     requirement_identity: &str,
     provider_identity: &str,
@@ -387,7 +388,7 @@ fn verified_component(module: &TerminalModule) -> VerifiedComponent {
     .expect("component description");
     let request = ComponentVerificationRequest {
         expected_subject: terminal_codec::terminal_psi_identity(module).expect("module identity"),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
         accepted_assumptions: BTreeSet::new(),
         admission_profile: AdmissionProfile::default(),
     };
@@ -422,7 +423,7 @@ fn independent_selection_rejects_a_component_exporting_an_unresolved_row() {
 
     let rejected = selection
         .close(std::slice::from_ref(&component))
-        .expect_err("a component exporting an unresolved installation-bound row is a conservative bound, not a resolved realization");
+        .expect_err("a component retaining an unresolved installation-bound row is a bound installation still owes, not a resolved realization");
     let messages = message_texts(&rejected);
     assert!(
         messages.iter().any(|message| {

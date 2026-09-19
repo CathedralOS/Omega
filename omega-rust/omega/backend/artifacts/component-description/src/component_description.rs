@@ -35,7 +35,12 @@ const REQUIREMENT_CONTRACT_DOMAIN: &[u8] = b"omega-component-requirement-v1";
 const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
 
 /// Current and only published description schema.
-pub const COMPONENT_DESCRIPTION_SCHEMA_V1: u32 = 1;
+///
+/// V2 publishes each retained installation-bound reach row as its own
+/// service-bound roster entry beside the concrete reach's ceiling rows;
+/// under V1 every dependency's upper bound was unioned into the one
+/// `service_ceiling`, so a bound could stand in for resolved reach.
+pub const COMPONENT_DESCRIPTION_SCHEMA_V2: u32 = 2;
 
 /// Hard bound on one encoded description, including the embedded artifact.
 pub const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
@@ -192,7 +197,9 @@ pub enum OutgoingAuthorityClass {
     BoundaryRequirement,
     /// An immediate port-space write naming its exact service identity.
     PortSpaceWrite,
-    /// The published service ceiling of the selected entry's reach.
+    /// One service of the selected entry's concrete published reach. Bounds
+    /// installation still owes are never folded in here: each retained
+    /// `reaches <= Bound` row publishes separately in `service_bounds`.
     ServiceCeiling,
 }
 
@@ -238,6 +245,23 @@ pub struct OutgoingAuthority {
     pub class: OutgoingAuthorityClass,
     pub identity: String,
     pub evidence: OutgoingEvidence,
+}
+
+/// One retained installation-bound reach row, published as its own roster
+/// entry beside the concrete reach's `ServiceCeiling` rows.
+///
+/// An unresolved `reaches <= Bound` requirement is still installation's to
+/// resolve; its bound is the declared conservative ceiling on whichever
+/// provider installation later selects, not reach this component's own
+/// closure already publishes. Unioning the bound into the concrete ceiling
+/// would let a bound stand in for resolved reach, so the two publish as
+/// distinct fields.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct InstallationServiceBound {
+    /// Canonical identity of the unresolved installation-bound requirement.
+    pub requirement_identity: String,
+    /// The row's declared conservative upper bound, in canonical order.
+    pub bound: Vec<ServiceId>,
 }
 
 /// Ownership, custody, and capability constraints the component carries.
@@ -392,6 +416,10 @@ pub struct ComponentDescription {
     pub entries: Vec<ComponentEntry>,
     /// Every authority path leaving the component closure.
     pub outgoing: Vec<OutgoingAuthority>,
+    /// Every retained installation-bound reach row, each with its declared
+    /// conservative bound — published distinctly from the concrete reach
+    /// the `ServiceCeiling` outgoing rows carry.
+    pub service_bounds: Vec<InstallationServiceBound>,
     /// Every custody constraint the component carries.
     pub custody: Vec<CustodyConstraint>,
     /// The retained selected-provider roster.
@@ -546,8 +574,14 @@ pub(crate) struct DerivedInventory {
     pub(crate) custody: Vec<CustodyConstraint>,
     /// Exact port-space writes as `(service, port, value)`.
     pub(crate) port_writes: BTreeSet<(ServiceId, u16, u8)>,
-    /// Exact published service ceiling of the selected entry reach.
-    pub(crate) service_ceiling: BTreeSet<ServiceId>,
+    /// The selected entry's concrete published reach: services the
+    /// component's own closed execution reaches. Retained installation-bound
+    /// rows never fold into this set.
+    pub(crate) concrete_service_reach: BTreeSet<ServiceId>,
+    /// Retained installation-bound reach rows, each with its declared
+    /// conservative bound — the same split the module's
+    /// `root_service_reach` carries.
+    pub(crate) service_bounds: Vec<InstallationServiceBound>,
 }
 
 /// Re-derive the complete module-evident inventory of a decoded artifact.
@@ -797,11 +831,28 @@ pub(crate) fn derive_component_inventory(
         });
     }
 
-    let mut service_ceiling = BTreeSet::new();
-    service_ceiling.extend(module.root_service_reach.concrete.iter().copied());
-    for dependency in &module.root_service_reach.installation_dependencies {
-        service_ceiling.extend(dependency.upper_bound.iter().copied());
-    }
+    let concrete_service_reach: BTreeSet<ServiceId> =
+        module.root_service_reach.concrete.iter().copied().collect();
+    // Each retained installation-bound row publishes its declared bound as
+    // its own roster entry; the bound is never unioned into the concrete
+    // reach's ceiling, so a consumer can always tell "the component reaches
+    // this service" apart from "installation still owes this bound".
+    let mut service_bounds: Vec<InstallationServiceBound> = module
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .map(|dependency| {
+            let mut bound = dependency.upper_bound.clone();
+            bound.sort();
+            bound.dedup();
+            InstallationServiceBound {
+                requirement_identity: dependency.requirement_identity.clone(),
+                bound,
+            }
+        })
+        .collect();
+    service_bounds.sort();
+    service_bounds.dedup();
 
     let mut exports = vec![ExportSurface {
         identity: format!("export:canonical:{}", module.entry.get()),
@@ -834,7 +885,8 @@ pub(crate) fn derive_component_inventory(
         exports,
         custody,
         port_writes,
-        service_ceiling,
+        concrete_service_reach,
+        service_bounds,
     })
 }
 
@@ -956,7 +1008,7 @@ pub fn describe_component_facts(
         });
     }
 
-    for service in &inventory.service_ceiling {
+    for service in &inventory.concrete_service_reach {
         outgoing.push(OutgoingAuthority {
             class: OutgoingAuthorityClass::ServiceCeiling,
             identity: format!("service-ceiling:{}", service.get()),
@@ -1023,13 +1075,14 @@ pub fn describe_component_facts(
     obligations.dedup();
 
     Ok(ComponentDescription {
-        schema: COMPONENT_DESCRIPTION_SCHEMA_V1,
+        schema: COMPONENT_DESCRIPTION_SCHEMA_V2,
         frontier: DescriptionFrontier::TerminalArtifactClosure,
         artifact_bytes,
         imports,
         exports: inventory.exports,
         entries: inventory.entries,
         outgoing,
+        service_bounds: inventory.service_bounds,
         custody: inventory.custody,
         providers,
         provider_closure_digest: *selected.identity_digest().as_bytes(),
@@ -1188,6 +1241,19 @@ pub fn encode_component_description(description: &ComponentDescription) -> Vec<u
                 });
                 out.extend_from_slice(&digest);
             }
+        }
+    }
+
+    let mut service_bounds = description.service_bounds.clone();
+    service_bounds.sort();
+    push_u32(&mut out, service_bounds.len() as u32);
+    for row in &service_bounds {
+        push_identity(&mut out, &row.requirement_identity);
+        let mut bound = row.bound.clone();
+        bound.sort();
+        push_u32(&mut out, bound.len() as u32);
+        for service in &bound {
+            push_u64(&mut out, service.get());
         }
     }
 
@@ -1351,6 +1417,36 @@ pub fn decode_component_description(
         });
     }
 
+    let mut service_bounds = Vec::new();
+    let mut last_bound: Option<(String, Vec<ServiceId>)> = None;
+    for _ in 0..reader.roster_len("service bound")? {
+        let requirement_identity = reader.identity()?;
+        let mut bound = Vec::new();
+        let mut last_service: Option<ServiceId> = None;
+        for _ in 0..reader.roster_len("service bound services")? {
+            let service = ServiceId::new(reader.u64()?)
+                .ok_or(DescriptionDecodeRejection::Corrupt("zero service identity"))?;
+            if last_service >= Some(service) {
+                return Err(DescriptionDecodeRejection::NonCanonicalOrder(
+                    "service bound services",
+                ));
+            }
+            last_service = Some(service);
+            bound.push(service);
+        }
+        let key = (requirement_identity.clone(), bound.clone());
+        if last_bound.as_ref() >= Some(&key) {
+            return Err(DescriptionDecodeRejection::NonCanonicalOrder(
+                "service bound",
+            ));
+        }
+        last_bound = Some(key);
+        service_bounds.push(InstallationServiceBound {
+            requirement_identity,
+            bound,
+        });
+    }
+
     let mut custody = Vec::new();
     let mut last_custody: Option<(u8, String)> = None;
     for _ in 0..reader.roster_len("custody")? {
@@ -1461,6 +1557,7 @@ pub fn decode_component_description(
         exports,
         entries,
         outgoing,
+        service_bounds,
         custody,
         providers,
         provider_closure_digest,
