@@ -1,21 +1,18 @@
-//! Shared call emission and final module assembly for composed control.
+//! Shared call emission for composed control.
 use super::super::super::{
     BlockId, ClaimId, LoweredSourceCallOccurrence, PermissionClaimIdentity,
     StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::super::{
     Block, BoundaryMachineResult, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    CompletionReceipt, LoweredPsi, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
+    CompletionReceipt, Operation, OperationKind, OperationResult, PlaceId,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-    allocate_dense, edge_id, finalize_operation_proofs, lookup_claim_id, lookup_machine_id,
-    lookup_type_id, lower_checked_crash_route_buckets, lower_structural_arguments,
-    lower_structural_path, machine_id, place_id, terminal_scalar_type, unsupported,
-    validate_transfer_shape,
+    Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, lookup_machine_id,
+    lookup_type_id, lower_structural_arguments, lower_structural_path, place_id,
+    terminal_scalar_type, unsupported, validate_transfer_shape,
 };
 use super::{
-    CheckedTrees, LoweringError, SourceMappedLowered, catalogs, internal_calls, literal_arguments,
-    state_graph,
+    CheckedTrees, LoweringError, catalogs, internal_calls, literal_arguments, state_graph,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -771,86 +768,4 @@ pub(super) fn emit_boundary_call_operation(
         },
     });
     Ok(())
-}
-
-pub(super) fn finish_module(
-    source_root: symbols::SymbolHandle,
-    mut machines: Vec<TerminalMachine>,
-    mut catalogs: catalogs::ComposedCatalogs,
-    mut source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-) -> Result<SourceMappedLowered, LoweringError> {
-    let mut source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
-    if !source_machine_ids
-        .iter()
-        .any(|(source, _)| *source == source_root)
-    {
-        source_machine_ids.push((source_root, machine_id(1)));
-    }
-    for machine in &mut machines {
-        machine.blocks.sort_by_key(|block| block.id);
-    }
-    let root = machines.first_mut().ok_or(LoweringError::Unsupported(
-        "composed Unit emission produced no entry machine",
-    ))?;
-    root.contract.crash_routes =
-        lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &root.parameters)?;
-    let entry = machines
-        .first()
-        .map(|machine| machine.id)
-        .ok_or(LoweringError::Unsupported(
-            "composed Unit emission produced no entry machine",
-        ))?;
-    if let Some(mut lowered) = catalogs.shared_units.take() {
-        if lowered.semantic_module.entry != entry {
-            return unsupported("shared Unit module lost its reserved composed entry");
-        }
-        machines.append(&mut lowered.semantic_module.machines);
-        lowered.semantic_module.machines = machines;
-        source_call_occurrences.append(&mut lowered.source_call_occurrences);
-        lowered.source_call_occurrences = source_call_occurrences;
-        finalize_operation_proofs(&mut lowered)?;
-        return SourceMappedLowered::new(lowered, source_machine_ids);
-    }
-    let mut lowered = LoweredPsi {
-        semantic_module: TerminalModule {
-            scalar_qualifications: Default::default(),
-            scalar_block_invariants: Vec::new(),
-            operation_crash_contracts: Vec::new(),
-            vocabulary_marker: VocabularyMarker::CURRENT,
-            entry,
-            structural_types: catalogs.structural_types.into_owned(),
-            structural_domains: Vec::new(),
-            services: catalogs.services.into_owned(),
-            root_service_reach: catalogs.root_service_reach.into_owned(),
-            placed_view_inputs: Vec::new(),
-            reborrow_root_handoffs: Vec::new(),
-            reborrow_restored_call_uses: Vec::new(),
-            boundary_machines: catalogs.boundary_machines.into_owned(),
-            provider_candidates: Vec::new(),
-            float_meaning_projections: Vec::new(),
-            float_meaning_equalities: Vec::new(),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            evidence_terms: Vec::new(),
-            evidence_contract_lanes: Vec::new(),
-            proof_output_calls: Vec::new(),
-            proof_recursive_components: Vec::new(),
-            closed_conformance_applications: Vec::new(),
-            dynamic_dispatch: Default::default(),
-            suspension_call_plan_count: 0,
-            suspension_call_sites: Vec::new(),
-            suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
-            machines,
-        },
-        proof_bundle: ProofBundle::default(),
-        debug_map: None,
-        source_call_occurrences,
-        selected_ieee_float_fma_occurrences: Vec::new(),
-        selected_ieee_float_comparison_occurrences: Vec::new(),
-        selected_integer_comparison_occurrences: Vec::new(),
-    };
-    catalogs.scalar_calls.append_to(&mut lowered)?;
-    finalize_operation_proofs(&mut lowered)?;
-    SourceMappedLowered::new(lowered, source_machine_ids)
 }

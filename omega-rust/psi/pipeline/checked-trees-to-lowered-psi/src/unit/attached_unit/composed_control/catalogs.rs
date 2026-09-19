@@ -13,7 +13,7 @@ use super::super::{
     lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
     lower_unit_parameters, terminal_scalar_type, unsupported,
 };
-use super::{CheckedTrees, LoweringError, admission, internal_calls, scalar_calls};
+use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
 use crate::unit::attached_unit::bodies::UnitBody;
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
@@ -129,23 +129,6 @@ pub(crate) struct LoweredComposedBoundary {
         Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
     pub(crate) scalar_parameters: Vec<ScalarType>,
     pub(crate) result: BoundaryMachineResult,
-}
-
-pub(super) fn lower_composed_catalogs(
-    checked: &CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-    admitted: &admission::AdmittedComposedUnit<'_>,
-) -> Result<ComposedCatalogs<'static>, LoweringError> {
-    lower_catalogs(
-        checked,
-        plan.machine,
-        plan.attachment_type_identity.as_deref(),
-        plan.contract_service_reach,
-        plan.service_reach,
-        &plan.states,
-        &admitted.boundaries,
-        &admitted.internal_targets,
-    )
 }
 
 pub(crate) fn lower_dynamic_catalogs(

@@ -1,6 +1,5 @@
 //! Atomic multi-state Unit control plans.
 mod assembly;
-mod closed_sum;
 mod custody;
 mod dynamic_join;
 mod dynamic_result;

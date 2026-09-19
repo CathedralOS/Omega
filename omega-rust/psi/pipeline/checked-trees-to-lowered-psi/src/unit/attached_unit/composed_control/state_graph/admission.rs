@@ -24,8 +24,8 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
     };
     machine.lifetime_parameters.is_empty()
         && checked.machine_type_parameters(machine).is_empty()
-        // Legacy compile-known receiver observations can erase their runtime
-        // receiver. Their existing emitter must still validate that erasure.
+        // A persistent receiver remains part of every state's invocation
+        // custody, even when its body only calls a compile-selected service.
         && checked.machine_states(machine).iter().all(|source| {
             !checked.state_parameters(source).iter().any(|parameter| parameter.is_self)
                 || plan.states.iter().find(|state| state.state == source.symbol)

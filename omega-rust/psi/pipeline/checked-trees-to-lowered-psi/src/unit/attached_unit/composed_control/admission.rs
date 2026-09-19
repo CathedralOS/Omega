@@ -10,15 +10,6 @@ use super::super::{
 use super::{CheckedTrees, LoweringError, internal_calls};
 use crate::unit::attached_unit::bodies::UnitBody;
 
-pub(in crate::unit::attached_unit) struct AdmittedComposedUnit<'a> {
-    pub(in crate::unit::attached_unit) entry:
-        &'a checked_trees::CheckedComposedUnitControlStatePlan,
-    pub(in crate::unit::attached_unit) leaves:
-        Vec<&'a checked_trees::CheckedComposedUnitControlStatePlan>,
-    pub(in crate::unit::attached_unit) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-    pub(in crate::unit::attached_unit) internal_targets: Vec<(UnitBody<'a>, String)>,
-}
-
 pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
@@ -500,7 +491,6 @@ pub(super) fn retain_call_boundary<'a>(
     let expected_result = match operation {
         CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
             result,
-            discard_result_on_return,
             structural_arguments,
             completion_receipts,
             ..
@@ -526,17 +516,8 @@ pub(super) fn retain_call_boundary<'a>(
                 )
             });
             if cleanup_disposed {
-                // Argument and receiver custody was already proven by the
-                // source-custody validation and exact flow-call retention
-                // above; only the binding ordinal must stay exact here.
-                if result.binding_ordinal as usize != state.operations.iter().filter(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        coordinate: previous, ..
-                    } if previous.statement_index < coordinate.statement_index)
-                }).count()
-                    || !completion_receipts.is_empty()
-                {
-                    return unsupported("composed Unit discarded result kept ordinal or receipt custody");
+                if !completion_receipts.is_empty() {
+                    return unsupported("composed Unit discarded result kept receipt custody");
                 }
                 return retain_exact_unit_boundary(
                     checked,
@@ -549,21 +530,19 @@ pub(super) fn retain_call_boundary<'a>(
                     target.result.clone(),
                 );
             }
-            if (!*discard_result_on_return
-                && !matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } if subject.type_identity == result.type_identity && subject.source == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal })))
-                || result.binding_ordinal as usize != state.operations.iter().filter(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        coordinate: previous, ..
-                    } if previous.statement_index < coordinate.statement_index)
-                }).count()
-                || !structural_arguments.is_empty()
+            // The graph validates the shared result namespace and each
+            // edge's ownership disposition. Target retention must not infer
+            // either from the number of boundary calls or the terminator shape.
+            if !structural_arguments.is_empty()
                 || !completion_receipts.is_empty()
                 || result.multiplicity != Multiplicity::Affine
                 || !matches!(&target.result, CheckedBoundaryMachineResultPlan::Structural {
                     type_identity, multiplicity: Multiplicity::Affine, qualifications,
                 } if type_identity == &result.type_identity && qualifications.is_empty())
             {
-                return unsupported("composed Unit local result escaped claim-free affine return custody");
+                return unsupported(
+                    "composed Unit local result escaped claim-free affine return custody",
+                );
             }
             target.result.clone()
         }

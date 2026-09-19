@@ -3871,11 +3871,15 @@ Owners include
   cover their semantics. `checked_trees/flow/terminal/*_plans.rs` still has
   whole-machine shapes such as `CheckedPayloadlessGuardedCallReturnMachinePlan`.
   `machine_lowering/machine_dispatch.rs` rejects simultaneous scalar and Unit
-  dynamic joins; `composed_control/routing.rs` still has a closed-sum route
-  beside the shared graph. Preserve compile-known receiver attachment authority
-  and claim transport when consolidating that route. `composed_unit_claims.rs`
+  dynamic joins. Preserve compile-known receiver attachment authority
+  and claim transport when consolidating those routes. `composed_unit_claims.rs`
   pins shared linear custody across exclusive arms, sequential settlements,
   and corrupted receipt/fact rejection.
+  Ordinary case dispatch still restricts affine cleanup to its subject:
+  `state_graph/closed_sum.rs` and lowerer `state_graph/cases.rs` reject a
+  preceding unrelated owned local, and case-edge emission skips its disposal.
+  Apply the existing per-edge remainder accounting; an unused record before
+  a boundary-returned sum match must compile, and omitted cleanup must reject.
   A failed source/custody rejoin must never fall back to a weaker recognizer.
   Acceptance: one caller combines those ordinary operations, with reordered
   state declarations and inserted computations, while forged edge bindings,
