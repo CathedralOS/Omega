@@ -147,3 +147,20 @@ machine Main::main(&mut self) reaches Console {
     state passed(&mut self) { self.console.exit_process(70); }
     state failed(&mut self) { self.console.exit_process(71); }
 }
+
+// A parameter retains its declared arithmetic policy during closed execution.
+// Erasing the completed payload to u64 makes the endpoint's carrier explicit.
+machine wrapping_endpoint(value: u8 in Wrapping) -> u64 { (value + 2) as u64 }
+machine saturating_endpoint(value: u8 in Saturating) -> u64 { (value + 2) as u64 }
+machine wrapping_policy_bound(value: u64[0..=wrapping_endpoint(255)]) -> u64 {
+    upper_bound(value)
+}
+machine saturating_policy_bound(value: u64[0..=saturating_endpoint(255)]) -> u64 {
+    upper_bound(value)
+}
+machine composed_wrapping_policy_bound(value: u64[0..=wrapping_endpoint(255) + 256]) -> u64 {
+    upper_bound(value)
+}
+machine match_wrapping_policy_bound(value: u64[0..=wrapping_endpoint((match true { true -> 254, false -> 0 }) + 1)]) -> u64 {
+    upper_bound(value)
+}

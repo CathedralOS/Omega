@@ -1,19 +1,18 @@
 //! Closed integer positions establish every range and domain before snapshots
 //! erase types.
 //!
-//! A range refines values of the same integer carrier; an arithmetic policy
-//! is not interchangeable with that refinement and stays rejected. A declared,
-//! argument-free integer domain is also a refinement of the same carrier: its
-//! membership for the concrete value is proved through the shared domain-fact
-//! evaluator before invocation or folding, so the callee's ordinary body
-//! checking keeps its qualification while the endpoint route never strips it
-//! to the bare carrier. Parameterized domains and compiler-owned domain
-//! subjects have no closed-value proof here and remain outside this route.
-//! Only such shells over an exact builtin leaf enter. Bounds retain their
-//! original source selections, while their values read the completed working
-//! substitutions.
+//! A range refines values of the same integer carrier. Parameter positions may
+//! also retain one Wrapping or Saturating policy: anonymous arguments still
+//! land exactly before invocation, and the original callee signature supplies
+//! the interpreter's arithmetic meaning. Result positions reject these policies
+//! because the surrounding closed scalar evaluator does not carry policy-bearing
+//! results; explicit erasure in the callee must precede publication.
+//! A declared, argument-free integer domain requires concrete membership through
+//! the shared domain-fact evaluator before invocation or folding. Parameterized
+//! domains and compiler-owned domain subjects remain outside this route. Bounds
+//! retain original source selections while values read completed substitutions.
 
-use numerics::bignum::BigInt;
+use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use typed_trees::{
     TypedTrees,
     types::{
@@ -26,11 +25,17 @@ use crate::BuildTimeAdmissionPlan;
 
 /// A callee parameter, or an argument-position call result, is either an
 /// integer position or a bare Boolean. The range bound itself never takes
-/// this shape: `range_endpoints` prepares its result as an `IntegerPosition`
-/// so a Boolean-returning call cannot become a range endpoint.
+/// this shape: the shared endpoint evaluator requires its completed result
+/// to be an exact integer, so a Boolean call cannot become a range endpoint.
 pub(super) enum ScalarPosition {
     Integer(IntegerPosition),
     Boolean,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PositionRole {
+    Parameter,
+    Result,
 }
 
 impl ScalarPosition {
@@ -39,6 +44,7 @@ impl ScalarPosition {
         original: &TypedTrees,
         reference: TypeReferenceHandle,
         authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+        role: PositionRole,
     ) -> Result<Self, String> {
         // A qualified Boolean (`bool in Domain`) has no closed proof route
         // here; only the bare builtin leaf is a Boolean position.
@@ -51,24 +57,44 @@ impl ScalarPosition {
         {
             return Ok(Self::Boolean);
         }
-        IntegerPosition::prepare(program, original, reference, authority).map(Self::Integer)
+        IntegerPosition::prepare_for_role(program, original, reference, authority, role)
+            .map(Self::Integer)
     }
 }
 
 pub(super) struct IntegerPosition {
     pub(super) primitive: PrimitiveType,
+    pub(super) policy: ArithmeticDomain,
     ranges: Vec<(BigInt, BigInt)>,
     /// Declared domain symbols with their diagnostic spellings.
     domains: Vec<(symbols::SymbolHandle, String)>,
 }
 
 impl IntegerPosition {
+    #[cfg(test)]
     pub(super) fn prepare(
+        program: &TypedTrees,
+        original: &TypedTrees,
+        reference: TypeReferenceHandle,
+        authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    ) -> Result<Self, String> {
+        Self::prepare_for_role(
+            program,
+            original,
+            reference,
+            authority,
+            PositionRole::Result,
+        )
+    }
+
+    fn prepare_for_role(
         program: &TypedTrees,
         original: &TypedTrees,
         mut reference: TypeReferenceHandle,
         authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+        role: PositionRole,
     ) -> Result<Self, String> {
+        let mut policy = None;
         let mut ranges = Vec::new();
         let mut domains = Vec::new();
         let mut visited = Vec::new();
@@ -133,6 +159,19 @@ impl IntegerPosition {
                     {
                         domains.push((domain.symbol, domain.name.as_str().to_owned()));
                     }
+                    TypeConstraintNode::ArithmeticDomain(domain)
+                        if role == PositionRole::Parameter
+                            && matches!(
+                                domain,
+                                ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+                            ) =>
+                    {
+                        if policy.replace(*domain).is_some() {
+                            return Err(
+                                "range endpoint parameter has multiple arithmetic policies".into(),
+                            );
+                        }
+                    }
                     _ => {
                         return Err(
                             "range endpoint integer types admit only range refinements and declared integer domains"
@@ -151,6 +190,7 @@ impl IntegerPosition {
             .ok_or("range endpoint position requires an exact builtin integer carrier")?;
         Ok(Self {
             primitive,
+            policy: policy.unwrap_or(ArithmeticDomain::Exact),
             ranges,
             domains,
         })

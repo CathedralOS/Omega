@@ -179,6 +179,18 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         ("constrained_result", vec![BuildTimeValue::Int(0)], 256),
         ("constrained_composition", vec![BuildTimeValue::Int(0)], 256),
         ("constrained_wide", vec![BuildTimeValue::Int(0)], -1),
+        ("wrapping_policy_bound", vec![BuildTimeValue::Int(0)], 1),
+        ("saturating_policy_bound", vec![BuildTimeValue::Int(0)], 255),
+        (
+            "match_wrapping_policy_bound",
+            vec![BuildTimeValue::Int(0)],
+            1,
+        ),
+        (
+            "composed_wrapping_policy_bound",
+            vec![BuildTimeValue::Int(0)],
+            257,
+        ),
         ("field_bound", vec![], 256),
         ("generic_field_bound", vec![], 256),
         ("generic_named_bound", vec![], 256),
@@ -266,6 +278,35 @@ fn declared_range_inference_returns_the_selected_endpoint() {
             "{name}"
         );
     }
+}
+
+#[test]
+fn declared_range_policy_arguments_preserve_initial_landing_obligations() {
+    let scratch = unique_no_output_build_dir();
+    fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("main.omg");
+    for policy in ["Wrapping", "Saturating"] {
+        for argument in ["256", "-1", "1 / 2"] {
+            fs::write(
+                &path,
+                format!(
+                    "machine endpoint(ignored: u8 in {policy}) -> u64 {{ 256 }}
+                     machine bounded(value: u64[0..=endpoint({argument})]) -> u64 {{ value }}"
+                ),
+            )
+            .unwrap();
+            let diagnostics =
+                compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None))
+                    .expect_err("an arithmetic policy cannot repair an invalid initial value");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot land exactly")),
+                "{policy} argument {argument}: {diagnostics:?}",
+            );
+        }
+    }
+    fs::remove_dir_all(scratch).unwrap();
 }
 
 #[test]

@@ -284,6 +284,7 @@ fn evaluate_expression(
         mut warnings,
         matches,
         call_shapes,
+        ..
     } = validate_shapes(program, context, expression, destination, calls)?;
     let mut selected_arms = Vec::new();
     while let Some(step) = pending.pop() {
@@ -567,6 +568,7 @@ fn evaluate_expression(
 // arithmetic. Landed operations are never executed by this pass, so a skipped
 // divide, overflow or shift still follows the selective expression schedule.
 struct ValidatedShapes {
+    result: Shape,
     warnings: Vec<Diagnostic>,
     matches: Vec<match_dispatch::MatchPlan>,
     call_shapes: Vec<(ExpressionHandle, Shape)>,
@@ -829,6 +831,7 @@ fn validate_shapes(
         _ => return Err("constant expression differs from its destination carrier".into()),
     }
     Ok(ValidatedShapes {
+        result: shapes[0],
         warnings,
         matches,
         call_shapes,
@@ -1054,6 +1057,29 @@ pub(crate) fn validate_closed_scalar(
         Some(calls),
     )?
     .warnings)
+}
+
+/// A policy-qualified destination may land an anonymous value, but cannot
+/// implicitly change an already-landed caller policy. Use the completed shape
+/// judgment so Match and surrounding arithmetic follow the ordinary evaluator.
+pub(crate) fn validate_closed_anonymous_scalar(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<Vec<Diagnostic>, String> {
+    match_dispatch::validate_graph(program, expression)?;
+    let validated = validate_shapes(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        Some(destination),
+        Some(calls),
+    )?;
+    if !matches!(validated.result, Shape::Anonymous(_)) {
+        return Err("policy-qualified endpoint parameters require anonymous initial values; landed caller policies cannot change implicitly".into());
+    }
+    Ok(validated.warnings)
 }
 
 pub(crate) fn evaluate_closed_scalar(

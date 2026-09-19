@@ -3384,13 +3384,17 @@ Owners include
     equations on machine applications combined with existing argument/result inference.
     An open endpoint binds as one whole expression (`0..=N` may bind
     `Limit + 1`); solving `N * 2 == 256` stays outside.
-  - Endpoint invocation admission for nominal/policy-qualified parameters,
+  - Endpoint invocation admission for nominal parameters, already-landed policy
+    arguments, Trapping parameters and policy-qualified results,
     trait-operator owners (owner-sensitive typed operations), and applications
     that need inference or carry type/machine/evidence binders. Extend the
     existing whole-expression scalar evaluator and shared admission plan;
     retain exact computed-result types and original selection custody. Do not
     add an arithmetic evaluator, infer layout from flow bounds, or use the i64
     compatibility interval in `validation` as type identity.
+    A range combined with Wrapping/Saturating also still hits ordinary
+    declaration checking in `validation/src/proof_contracts/arithmetic_domains/range_constraints.rs`;
+    endpoint admission alone cannot remove that storage/proof boundary.
   - Runtime `Value` binders in data equations, which reject today as not
     statically recoverable. They depend on RUNTIME-VALUE-GENERICS; static
     matching proceeds first.
