@@ -230,7 +230,36 @@ pub(crate) fn validate_scalar_initializer(
 pub(crate) fn validate_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
+    // An unused private declaration never acquires a use-site proof obligation.
+    // Its constrained destination is still mandatory; failure to encode a
+    // public/index value must not swallow a false declaration-site predicate.
+    if let syntax_trees::types::TypeReferenceNode::Constrained { constraints, .. } = syntax
+        .type_references
+        .type_reference(definition.type_reference)
+        && syntax
+            .type_references
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| {
+                matches!(
+                    constraint,
+                    syntax_trees::types::TypeConstraintNode::Domain(_)
+                )
+            })
+    {
+        crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
+            syntax, definition, selection,
+        )
+        .map_err(|reason| {
+            Diagnostic::error(format!(
+                "constrained const `{}` is invalid: {reason}",
+                semantic_const_name(definition)
+            ))
+            .with_source_span(definition.name.source_span())
+        })?;
+    }
     validate_scalar_initializer(syntax, definition).map_err(|reason| {
         Diagnostic::error(format!(
             "scalar constant `{}` is invalid: {reason}",

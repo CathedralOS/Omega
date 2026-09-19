@@ -591,3 +591,77 @@ fn package_qualification_does_not_relax_exact_import_source_validation() {
         None
     );
 }
+
+fn generic_domain_table() -> (SymbolTable, SymbolHandle, SymbolHandle) {
+    let mut sources = SourceMap::default();
+    for name in ["main.omg", "local.omg", "bounds.omg"] {
+        sources.add(PathBuf::from(name), "Below".to_owned());
+    }
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let mut declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Below",
+                    source_span: reference(1),
+                },
+            ),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Below",
+                    source_span: reference(2),
+                },
+            ),
+        ],
+    ));
+    declarations.next().expect("builtin carrier");
+    let local = declarations.next().expect("local generic family");
+    let foreign = declarations.next().expect("foreign generic family");
+    let mut symbols = builder.finish();
+    register_module(&mut symbols, 2, &["bounds"]);
+    (symbols, local, foreign)
+}
+
+#[test]
+fn qualified_generic_domain_does_not_select_a_root_or_module_local_leaf() {
+    for module_local in [false, true] {
+        let (mut symbols, local, foreign) = generic_domain_table();
+        if module_local {
+            register_module(&mut symbols, 1, &["local"]);
+        }
+        assert!(symbols.domain_name_reaches(foreign, "bounds::Below", reference(1)));
+        assert!(
+            !symbols.domain_name_reaches(local, "bounds::Below", reference(1)),
+            "the foreign module qualifier must not reach a same-leaf generic family"
+        );
+        assert!(
+            symbols.domain_name_reaches(local, "u64::Below", reference(1)),
+            "a builtin carrier qualifier still reaches the local generic family"
+        );
+        assert!(symbols.domain_name_reaches(local, "Below", reference(1)));
+        assert_eq!(
+            domain_reference(&symbols, 1, "bounds::Below"),
+            Some(foreign)
+        );
+    }
+}
+
+#[test]
+fn generic_domain_leaf_exposure_keeps_exact_narrow_imports() {
+    let (mut symbols, local, foreign) = generic_domain_table();
+    register_module(&mut symbols, 1, &["local"]);
+    assert!(!symbols.domain_name_reaches(foreign, "Below", reference(0)));
+    symbols.register_source_import(SourceId(0), "bounds::Below");
+    assert!(symbols.domain_name_reaches(foreign, "Below", reference(0)));
+    assert!(!symbols.domain_name_reaches(local, "Below", reference(0)));
+    assert!(symbols.domain_name_reaches(foreign, "bounds::Below", reference(0)));
+    assert!(
+        !symbols.domain_name_reaches(local, "bounds::Below", reference(0)),
+        "a narrow import retains the selected owner"
+    );
+}

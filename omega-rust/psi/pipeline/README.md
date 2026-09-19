@@ -441,8 +441,21 @@ have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-indexed domain constraints, operator homes and qualified case membership in
-declared-domain proof facts still need end-to-end selection coverage.
+remaining indexed domain constraints, operator homes and qualified case membership
+in declared-domain proof facts still need end-to-end selection coverage.
+
+Closed integer-indexed constraints on scalar constants replay nested declared
+domain memberships in each fact author's import context. Forwarded indices keep
+their caller telescope until carrier and range checking; they are not anonymous
+integers that may be rebound at another width. Private unused declarations owe
+the same domain proof as public declarations, independently of optional public
+value encoding. `module_machine_indices::indexed_domains` covers source-free
+Terminal execution and false, mismatched, private, file-local, transitive,
+ambiguous-import and cyclic controls.
+The shared symbol selector distinguishes a generic family's carrier qualifier
+from a foreign module qualifier. Distinct same-leaf domain predicates still hit
+the validation owner's leaf-name-based duplicate check; this is a remaining
+selection-to-checking dependency, not a language ambiguity.
 
 Module-owned constants with foreign nominal and closed generic value types
 retain separate declaration, carrier and initializer owners. Name expressions

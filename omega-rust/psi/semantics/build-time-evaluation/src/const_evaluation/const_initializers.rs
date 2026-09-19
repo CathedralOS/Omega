@@ -218,6 +218,18 @@ pub(crate) fn evaluate(
                 placeholders.insert(leaf.expression, placeholder);
             }
             definition.value = materialize_value(&mut probe, definition.value, &placeholders)?;
+            // A provisional zero is only a carrier/layout stand-in, not a
+            // witness of the authored destination's domains. Keep the real
+            // constraints on `declarations` and the returned syntax; complete
+            // resolution checks them after the actual value is materialized.
+            // Dependency readiness and origin replay forbid observing this
+            // unqualified stand-in as a selected constant value.
+            while let TypeReferenceNode::Constrained { base_type, .. } = probe
+                .type_references
+                .type_reference(definition.type_reference)
+            {
+                definition.type_reference = *base_type;
+            }
             definition.normalization = None;
             probe
                 .items

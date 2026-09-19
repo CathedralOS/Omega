@@ -251,6 +251,29 @@ impl SymbolTable {
         }
         let domain_name = self.name(domain);
         let domain_module = self.symbol_module(domain);
+        // Generic families have leaf-only declaration names. A qualified
+        // reference may abbreviate their carrier, but a module prefix is not
+        // a carrier: `bounds::Below` must not also select a root `Below`.
+        // Keep ordinary role-aware lookup here so all domain candidate pools
+        // apply the same rule before deciding ambiguity or local precedence.
+        if !domain_name.contains("::")
+            && let Some((carrier, leaf)) = authored.rsplit_once("::")
+            && (leaf != domain_name
+                || self
+                    .find_top_level_by_name_and_kinds_from_source(
+                        carrier,
+                        &[
+                            SymbolKind::BuiltinType,
+                            SymbolKind::Data,
+                            SymbolKind::Machine,
+                            SymbolKind::Trait,
+                        ],
+                        reference,
+                    )
+                    .is_none())
+        {
+            return false;
+        }
         if !domain_module.is_valid() {
             return same_semantic_name(domain_name, authored);
         }

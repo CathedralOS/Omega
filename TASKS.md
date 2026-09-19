@@ -3112,12 +3112,25 @@ Owners include
   open-template indices, trait defaults, operator homes and qualified case
   membership in domain facts pass normalization and resolution
   (`tests/module_namespace_residuals.rs` in that crate). The remaining
-  indexed-domain/operator/case-fact forms mostly assert only resolution success;
+  operator/case-fact forms mostly assert only resolution success;
   their selected declarations still need following through typing, checking
   and Terminal.
 
   Remaining work:
 
+  - Finish the same-leaf indexed-domain owner collision: the qualified `bounds::Below<8>`
+    customer beside a root `Below` with a different predicate reaches
+    `validation/src/proof_contracts/domains.rs::validate_repeated_normalized_domain_identities`,
+    which compares leaf `name` rather than exact declaration ownership.
+    `cargo nextest run -p compiler --test module_machine_indices -E 'test(indexed_domains)'`
+    retains that first failure and the independently replayed nested-membership
+    control (macOS ARM64, base `29ca2fd46e`). Finish owner-aware duplicate
+    validation, then require the same-leaf customer's full Terminal result.
+    The validation crate has an active **WRITE-ONLY-BORROW** assignment;
+    coordinate that path before editing. Generic carrier-qualified `T::Domain`
+    also remains unresolved in `Holder<T>` and its closed instance with or
+    without the qualified-selector repair; bare generic-family coverage does
+    not establish this spelling.
   - Carry exact lexical/package selection for remaining generic type-scoped
     constant attachment heads, indexed domain constraints, operator homes and
     declared-domain case facts through typed and checked trees and Terminal
