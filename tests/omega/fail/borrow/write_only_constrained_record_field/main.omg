@@ -1,8 +1,8 @@
-// FAIL canary: the admitted qualified leaves are the closed literal-ranged
-// integer and the arithmetic-policy-only integer — neither a declared domain
-// nor a named constraint on the leaf is a behaviour tag. `[u8; 8] in Utf8`
-// is a membership predicate the write-only place cannot establish, so a
-// domain-qualified leaf stays outside the projection envelope.
+// FAIL canary: a whole-leaf store into a plain declared domain leaf
+// (`[u8; 8] in Utf8`) is admitted because the ordinary write-side domain
+// check discharges membership on the stored value. A partial write cannot
+// re-establish whole-value membership, so an element store into the
+// domain-qualified carrier stays outside the projection envelope.
 
 domain [u8; 8]::Utf8
 requires
@@ -12,8 +12,8 @@ data Limited {
     label: [u8; 8] in Utf8;
 }
 
-machine replace(limited: &write Limited, next: [u8; 8] in Utf8) {
-    limited.label = next;
+machine replace(limited: &write Limited) {
+    limited.label[0] = 120;
 }
 
 data Main {

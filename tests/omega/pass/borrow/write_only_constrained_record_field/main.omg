@@ -1,10 +1,19 @@
-// PASS canary: a closed literal-ranged integer field or an
-// arithmetic-policy-only integer field of a plain record is a
-// content-independent write-only place. The ranged store still proves the
-// declared range through the ordinary bounded-assignment obligation — the
-// same evidence a `&mut` store already supplies — while `in <policy>` is a
-// behaviour tag on the carrier's operations, not a membership predicate, so
-// every carrier value is already a member and the store owes no range proof.
+// PASS canary: a closed literal-ranged integer field, an
+// arithmetic-policy-only integer field, or a plain domain-qualified carrier
+// field of a plain record is a content-independent write-only place. The
+// ranged store still proves the declared range through the ordinary
+// bounded-assignment obligation — the same evidence a `&mut` store already
+// supplies — while `in <policy>` is a behaviour tag on the carrier's
+// operations, not a membership predicate, so every carrier value is already
+// a member and the store owes no range proof. A plain declared domain
+// (`[u8; 8] in Utf8`) is a membership predicate on the whole incoming value:
+// whole-leaf replacement displaces the complete carrier footprint, and the
+// ordinary write-side domain check discharges `in Utf8` against the stored
+// value exactly as it does for a `&mut` target.
+
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
 
 data Limited {
     value: u8 [0..=10];
@@ -16,9 +25,14 @@ data Policy {
     count: u32 in Wrapping;
 }
 
+data Tagged {
+    label: [u8; 8] in Utf8;
+}
+
 data Outer {
     inner: Limited;
     policy: Policy;
+    tagged: Tagged;
 }
 
 machine replace(limited: &write Limited, depth: u8 [0..=10]) {
@@ -26,10 +40,20 @@ machine replace(limited: &write Limited, depth: u8 [0..=10]) {
     limited.next = 4;
 }
 
-machine fill(outer: &write Outer, depth: u8 [0..=10], damage: i32 in Wrapping) {
+machine rename(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+    tagged.label = label;
+}
+
+machine fill(
+    outer: &write Outer,
+    depth: u8 [0..=10],
+    damage: i32 in Wrapping,
+    label: [u8; 8] in Utf8
+) {
     outer.inner.value = depth;
     outer.policy.damage = damage;
     outer.policy.count = 4;
+    outer.tagged.label = label;
 }
 
 machine forward(limited: &write Limited, depth: u8 [0..=10]) {

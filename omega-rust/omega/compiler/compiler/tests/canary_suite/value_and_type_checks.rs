@@ -72,19 +72,20 @@ fn write_only_record_field_observation_is_rejected() {
 fn write_only_constrained_record_field_is_accepted() {
     let canary = pass_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD);
     check_canary(&canary).expect(
-        "stores into closed literal-ranged or arithmetic-policy-only record fields should be checked",
+        "stores into closed literal-ranged, arithmetic-policy-only, or plain domain-qualified record fields should be checked",
     );
 }
 
 #[test]
 fn write_only_constrained_record_field_is_rejected() {
-    // The admitted slice is qualified INTEGER leaves only: a closed literal
-    // range proven at the store, or an arithmetic-policy behaviour tag. A
-    // declared domain on the leaf is a membership predicate the write-only
-    // place cannot establish, so it stays outside the projection envelope.
+    // A plain declared domain leaf is admitted for whole-leaf replacement —
+    // the write-side domain check discharges membership on the stored value.
+    // A partial write cannot re-establish whole-value membership, so an
+    // element store into the domain-qualified carrier stays outside the
+    // projection envelope.
     let canary = fail_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD);
-    let diagnostics =
-        check_canary(&canary).expect_err("a domain-qualified leaf must remain outside this rung");
+    let diagnostics = check_canary(&canary)
+        .expect_err("a partial write into a domain-qualified leaf must remain outside this rung");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -92,7 +93,7 @@ fn write_only_constrained_record_field_is_rejected() {
         .join("\n");
     assert!(
         combined.contains("unsupported write-only projection")
-            && combined.contains("named and domain qualification"),
+            && combined.contains("element and range stores into a domain-qualified carrier"),
         "expected directed constrained-field diagnostic, got:\n{combined}"
     );
 }

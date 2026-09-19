@@ -256,7 +256,7 @@ fn non_discardable_record_leaf_write_remains_rejected() {
     assert!(
         rendered.contains("unsupported write-only projection")
             && rendered.contains(
-                "leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, or an integer primitive carrying only an arithmetic-policy constraint, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
+                "leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
             ),
         "unexpected diagnostic: {rendered}"
     );
@@ -451,9 +451,37 @@ fn float_policy_record_field_remains_rejected() {
 }
 
 #[test]
-fn domain_qualified_record_field_remains_rejected() {
-    // A declared domain on the leaf (`[u8; 8] in Utf8`) is a membership
-    // predicate the write-only place cannot establish — still fenced.
+fn domain_qualified_record_field_is_writable() {
+    // A plain declared domain on the leaf (`[u8; 8] in Utf8`) is a membership
+    // predicate on the whole incoming value. Whole-leaf replacement displaces
+    // the complete carrier footprint, and the ordinary write-side domain
+    // check re-derives `in Utf8` from the field declaration and discharges it
+    // against the stored value — the same obligation a `&mut` store owes.
+    lower_typed_trees(typed(
+        r#"
+            domain [u8; 8]::Utf8
+            requires
+                valid_utf8(self);
+
+            data Limited { label: [u8; 8] in Utf8; }
+            data Outer { inner: Limited; }
+
+            machine replace(limited: &write Limited, next: [u8; 8] in Utf8) {
+                limited.label = next;
+            }
+
+            machine forward(outer: &write Outer, next: [u8; 8] in Utf8) {
+                outer.inner.label = next;
+            }
+        "#,
+    ))
+    .expect("a store of a domain-proven value into a plain domain leaf should lower");
+}
+
+#[test]
+fn domain_qualified_record_field_unproven_value_remains_rejected() {
+    // Admission keeps every value-level obligation: a value that does not
+    // already carry the declared domain still fails the write-side check.
     let rendered = rendered_rejection(
         r#"
             domain [u8; 8]::Utf8
@@ -462,14 +490,39 @@ fn domain_qualified_record_field_remains_rejected() {
 
             data Limited { label: [u8; 8] in Utf8; }
 
-            machine replace(limited: &write Limited, next: [u8; 8] in Utf8) {
+            machine replace(limited: &write Limited, next: [u8; 8]) {
                 limited.label = next;
             }
         "#,
     );
     assert!(
+        rendered.contains("cannot prove the value assigned to `limited.label`")
+            && rendered.contains("requires every write to be established in that domain"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn domain_qualified_record_field_element_remains_rejected() {
+    // An element store cannot re-establish whole-value domain membership, so
+    // a partial write into a domain-qualified carrier stays outside the
+    // envelope even though a whole-leaf store is admitted.
+    let rendered = rendered_rejection(
+        r#"
+            domain [u8; 8]::Utf8
+            requires
+                valid_utf8(self);
+
+            data Limited { label: [u8; 8] in Utf8; }
+
+            machine replace(limited: &write Limited) {
+                limited.label[0] = 120;
+            }
+        "#,
+    );
+    assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("named and domain qualification"),
+            && rendered.contains("element and range stores into a domain-qualified carrier"),
         "unexpected diagnostic: {rendered}"
     );
 }
