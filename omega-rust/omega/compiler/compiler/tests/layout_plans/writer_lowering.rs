@@ -1872,3 +1872,329 @@ machine Main::main(&mut self) { }
         }
     });
 }
+
+#[test]
+fn nested_array_symbolic_materialization_realizes_on_both_linux_isas() {
+    // Nested literal arrays under the general recursive rule, end to end:
+    // `matrix: [[Choice; 2]; 2]` occupies exactly the extent `[Choice; 4]`
+    // would, so the recursive projection retains one packed row — element
+    // count 4, the innermost element's stride — and the symbolic path spells
+    // the flat leaf index `matrix[k]` where `k = outer * 2 + inner`. The
+    // same flattening carries `rows: [[Neighbor; 1]; 2]`'s record element:
+    // count 2 at Neighbor's stride, the element's own leaf report retained
+    // once for every packed index.
+    let main_path = write_program(
+        "nested-array-symbolic-field",
+        r#"
+data Choice [copy] {
+    case #1 Empty;
+    case #2 Run(#3 callback: u64, #4 clock: u64);
+}
+data Neighbor [copy] {
+    #1 choice: Choice;
+    #2 pad: u64;
+}
+data OnlyMatrix [copy] {
+    #1 header: u64;
+    #2 matrix: [[Choice; 2]; 2];
+}
+data Outer [copy] {
+    #1 header: u64;
+    #2 matrix: [[Choice; 2]; 2];
+    #3 rows: [[Neighbor; 1]; 2];
+    #4 route: Choice;
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a nested-array record should check");
+    let plan = build_layout_plan(&checked, NativeTarget::linux_x64(), &[])
+        .expect("the nested-array record should lay out");
+    let arm_plan = build_layout_plan(&checked, NativeTarget::linux_arm64(), &[])
+        .expect("the nested-array record should lay out for linux_arm64");
+    // The packed row is the recursive owner's shape alone: both standalone
+    // owners keep their single literal element hop and refuse a field whose
+    // element resolves only after a second array level.
+    let only_matrix = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "OnlyMatrix")
+        .expect("the scalar-and-nested-array record");
+    let direct_error = layout::project_conventional_record_with_sum_materialization_layout(
+        &checked,
+        &plan,
+        only_matrix.symbol,
+    )
+    .expect_err("the direct-sum owner must refuse a nested literal array");
+    assert!(
+        direct_error
+            .message
+            .contains("reaches a sum through an array deeper than one literal element hop"),
+        "{direct_error:?}"
+    );
+    let array_error = layout::project_conventional_record_with_sum_arrays_materialization_layout(
+        &checked,
+        &plan,
+        only_matrix.symbol,
+    )
+    .expect_err("the sum-array owner must refuse a nested literal array");
+    assert!(
+        array_error
+            .message
+            .contains("reaches a sum through an array deeper than one literal element hop"),
+        "{array_error:?}"
+    );
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .expect("the outer record");
+    let paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            owner.symbol,
+        )
+        .expect("a record reaching sums through nested literal arrays should project");
+    let arm_paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &arm_plan,
+            owner.symbol,
+        )
+        .expect("the same recursive projection closes on linux_arm64");
+    assert_eq!(
+        paths, arm_paths,
+        "both Linux ISAs retain the same recursive path geometry"
+    );
+    assert_eq!(
+        paths
+            .outer_layout()
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("matrix", LayoutPlacementReport::At { offset: 8 }),
+            ("rows", LayoutPlacementReport::At { offset: 104 }),
+            ("route", LayoutPlacementReport::At { offset: 168 }),
+        ]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts,
+        child_sum_array_layouts,
+        child_record_array_layouts,
+        ..
+    } = &paths
+    else {
+        panic!("the outer record is a leaf level: no deeper record paths");
+    };
+    // `matrix` packs `2 * 2 = 4` elements at the innermost Choice stride (24)
+    // spanning 8..104; `rows` packs `2 * 1 = 2` Neighbor elements at stride
+    // 32 spanning 104..168; the level's own direct sum `route` sits at 168.
+    assert_eq!(
+        child_sum_layouts
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        vec![("route", Some(4))]
+    );
+    assert_eq!(
+        child_sum_array_layouts
+            .iter()
+            .map(|row| {
+                (
+                    row.field.as_str(),
+                    row.member_identity,
+                    row.element_count,
+                    row.element_stride,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("matrix", Some(2), 4, 24)]
+    );
+    assert_eq!(
+        child_record_array_layouts
+            .iter()
+            .map(|row| {
+                (
+                    row.field.as_str(),
+                    row.member_identity,
+                    row.element_count,
+                    row.element_stride,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("rows", Some(3), 2, 32)]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts: element_sums,
+        ..
+    } = &child_record_array_layouts[0].inner
+    else {
+        panic!("the record-array element record is a leaf level");
+    };
+    assert_eq!(
+        element_sums
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        vec![("choice", Some(1))]
+    );
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
+        .expect("the recursive report folds the packed nested-array carriers");
+
+    let header_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let matrix_one_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0xbeef).expect("normalized data identity"),
+    );
+    let matrix_three_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x0bad).expect("normalized data identity"),
+    );
+    let row_zero_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x7ea7).expect("normalized data identity"),
+    );
+    let row_one_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let route_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x77ee).expect("normalized entry identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new_numbered("header", 1, 64, header_target)
+            .expect("numbered scalar field"),
+        // `matrix[1]` is source element `[0][1]`; `matrix[3]` is `[1][1]`.
+        SymbolicFieldValue::new_indexed_numbered("matrix", 2, 1, 64, matrix_one_target)
+            .expect("indexed packed sum-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("Run", 2)
+                    .with_inner_segment(SymbolicFieldPathSegment::new_numbered("clock", 4)),
+            ),
+        SymbolicFieldValue::new_indexed_numbered("matrix", 2, 3, 64, matrix_three_target)
+            .expect("indexed packed sum-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("Run", 2)
+                    .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+            ),
+        SymbolicFieldValue::new_indexed_numbered("rows", 3, 0, 64, row_zero_target)
+            .expect("indexed packed record-array field")
+            .with_inner_segment(SymbolicFieldPathSegment::new_numbered("pad", 2)),
+        SymbolicFieldValue::new_indexed_numbered("rows", 3, 1, 64, row_one_target)
+            .expect("indexed packed record-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("choice", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+                ),
+            ),
+        SymbolicFieldValue::new_numbered("route", 4, 64, route_target)
+            .expect("numbered direct sum field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("Run", 2)
+                    .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+            ),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("nested literal arrays fold into the packed hop vocabulary");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved nested-array paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    // `matrix` spans 8..104 at a 24-byte stride, so `matrix[1].Run.clock`
+    // composes `8 + 1*24 + 16 = 48` and `matrix[3].Run.callback` composes
+    // `8 + 3*24 + 8 = 88`; `rows` spans 104..168 at a 32-byte stride with
+    // `choice` at 0 and `pad` at 24 inside each element.
+    assert_eq!(
+        writes,
+        [
+            ("header", 0),
+            ("matrix[1].Run.clock", 48),
+            ("matrix[3].Run.callback", 88),
+            ("rows[0].pad", 128),
+            ("rows[1].choice.Run.callback", 144),
+            ("route.Run.callback", 176),
+        ]
+    );
+
+    // The flat packed index keeps the row's exact bound: index 4 names a
+    // fifth packed element the `[[Choice; 2]; 2]` field does not carry.
+    let out_of_range = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &[
+            SymbolicFieldValue::new_indexed_numbered("matrix", 2, 4, 64, matrix_three_target)
+                .expect("indexed packed sum-array field")
+                .with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+                ),
+        ],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect_err("a packed index past the hop product must reject");
+    assert!(
+        out_of_range
+            .0
+            .contains("element index 4 is outside its 4 element placements"),
+        "{out_of_range:?}"
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the nested-array boundary writes derive a writer");
+    let mut expected = vec![0xa5_u8; 192];
+    expected[0..8].copy_from_slice(&0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    expected[48..56].copy_from_slice(&0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    expected[88..96].copy_from_slice(&0x0bad_f00d_c001_d00d_u64.to_le_bytes());
+    expected[128..136].copy_from_slice(&0x7ea7_a55a_5aa5_a5a5_u64.to_le_bytes());
+    expected[144..152].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    expected[176..184].copy_from_slice(&0xcafe_babe_face_feed_u64.to_le_bytes());
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &expected, |resolved| {
+        if resolved == row_one_target {
+            0x1122_3344_5566_7788
+        } else if resolved == matrix_one_target {
+            0xdead_beef_cafe_f00d
+        } else if resolved == matrix_three_target {
+            0x0bad_f00d_c001_d00d
+        } else if resolved == row_zero_target {
+            0x7ea7_a55a_5aa5_a5a5
+        } else if resolved == route_target {
+            0xcafe_babe_face_feed
+        } else {
+            assert_eq!(resolved, header_target);
+            0x99aa_bbcc_ddee_ff00
+        }
+    });
+}

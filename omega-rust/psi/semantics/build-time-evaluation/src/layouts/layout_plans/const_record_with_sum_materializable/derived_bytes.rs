@@ -5,7 +5,8 @@ use crate::layouts::layout_plans::const_materializable::{
 };
 use crate::layouts::layout_plans::const_record_with_nested_sum_materializable::SumReachability;
 use crate::layouts::layout_plans::const_record_with_sum_materializable::outer_layouts::{
-    exact_named_data, field_occurrence_matches, validate_outer_layout, validate_outer_record_owner,
+    exact_named_data, field_occurrence_matches, flatten_literal_array_elements,
+    validate_outer_layout, validate_outer_record_owner,
 };
 use crate::layouts::layout_plans::const_record_with_sum_materializable::{
     ValidatedConstRecordSumArrayElementMaterialization,
@@ -54,16 +55,18 @@ pub(crate) struct PreparedSumArrayField {
     pub(crate) repeated: RepeatedFieldInfo,
 }
 
-/// Validate one direct `[S; N]` field's compact row and every literal
-/// element's selected case against the retained element layout, staging the
-/// field's complete repeated bytes once. The same preparation runs wherever
-/// the field sits — the standalone sum-array rung or a record level inside
-/// the recursive record/sum report.
+/// Validate one direct fixed-array-of-sums field's compact row and every
+/// literal element's selected case against the retained element layout,
+/// staging the field's complete repeated bytes once. `element_hops` carries
+/// every consecutive literal arity, outermost first — `[[S; 2]; 3]` spells
+/// `[3, 2]` and stages six packed elements. The same preparation runs
+/// wherever the field sits — the standalone sum-array rung or a record level
+/// inside the recursive record/sum report.
 pub(crate) fn prepare_sum_array_field(
     typed: &TypedTrees,
     array_field: &typed_trees::data::DataField,
     sum_data: &DataDefinition,
-    element_count: usize,
+    element_hops: &[usize],
     array_layout: &ConventionalSumArrayFieldLayoutReport,
     array_value: &BuildTimeValue,
     byte_order: ByteOrder,
@@ -79,6 +82,14 @@ pub(crate) fn prepare_sum_array_field(
             array_field.name
         )));
     }
+    let element_count = element_hops
+        .iter()
+        .try_fold(1usize, |count, hop| count.checked_mul(*hop))
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "ConstMaterializable sum-array count exceeds canonical report width".into(),
+            )
+        })?;
     let element_count_u64 = u64::try_from(element_count).map_err(|_| {
         MaterializationDiagnostic(
             "ConstMaterializable sum-array count exceeds canonical report width".into(),
@@ -92,19 +103,8 @@ pub(crate) fn prepare_sum_array_field(
             array_field.name
         )));
     }
-    let BuildTimeValue::Array(element_values) = array_value else {
-        return Err(MaterializationDiagnostic(format!(
-            "value.{} is not a fixed array",
-            array_field.name
-        )));
-    };
-    if element_values.len() != element_count {
-        return Err(MaterializationDiagnostic(format!(
-            "value.{} has {} elements, expected {element_count}",
-            array_field.name,
-            element_values.len()
-        )));
-    }
+    let element_values =
+        flatten_literal_array_elements(array_field.name.as_str(), element_hops, array_value)?;
     let mut elements = Vec::new();
     elements.try_reserve_exact(element_count).map_err(|_| {
         MaterializationDiagnostic(
@@ -132,7 +132,7 @@ pub(crate) fn prepare_sum_array_field(
                 "ConstMaterializable sum-array staged bytes exceed compiler resources".into(),
             )
         })?;
-    for (index, element_value) in element_values.iter().enumerate() {
+    for (index, element_value) in element_values.into_iter().enumerate() {
         let nested_sum = validate_const_materializable_conventional_sum(
             typed,
             sum_data.name.as_str(),
@@ -678,7 +678,7 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
             typed,
             array_field,
             sum_data,
-            element_count,
+            std::slice::from_ref(&element_count),
             array_layout,
             array_value,
             byte_order,

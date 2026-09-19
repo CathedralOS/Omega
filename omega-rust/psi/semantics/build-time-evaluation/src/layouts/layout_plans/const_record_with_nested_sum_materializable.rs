@@ -23,9 +23,10 @@ use super::const_materializable::{
 };
 use super::const_record_with_sum_materializable::{
     EncodedOuterField, PreparedSumArrayField, exact_named_data, field_occurrence_matches,
-    hash_compact_sum_array_occurrence, nested_sum_fields_match, prepare_sum_array_field,
-    sum_array_fields_match, sum_array_layout_sets_match_for_replay, validate_outer_layout,
-    validate_outer_record_owner, validate_supplied_nested_rows_against_retained,
+    flatten_literal_array_elements, hash_compact_sum_array_occurrence, nested_sum_fields_match,
+    prepare_sum_array_field, sum_array_fields_match, sum_array_layout_sets_match_for_replay,
+    validate_outer_layout, validate_outer_record_owner,
+    validate_supplied_nested_rows_against_retained,
 };
 use super::{
     BuildTimeValue, RepeatedFieldInfo, encode_typed_owned_value, exact_struct_fields,
