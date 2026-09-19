@@ -1,15 +1,24 @@
-// PASS canary: a closed literal-ranged integer field of a plain record is a
-// content-independent write-only place. The store still proves the declared
-// range through the ordinary bounded-assignment obligation — the same
-// evidence a `&mut` store already supplies.
+// PASS canary: a closed literal-ranged integer field or an
+// arithmetic-policy-only integer field of a plain record is a
+// content-independent write-only place. The ranged store still proves the
+// declared range through the ordinary bounded-assignment obligation — the
+// same evidence a `&mut` store already supplies — while `in <policy>` is a
+// behaviour tag on the carrier's operations, not a membership predicate, so
+// every carrier value is already a member and the store owes no range proof.
 
 data Limited {
     value: u8 [0..=10];
     next: u8 [0..=10];
 }
 
+data Policy {
+    damage: i32 in Wrapping;
+    count: u32 in Wrapping;
+}
+
 data Outer {
     inner: Limited;
+    policy: Policy;
 }
 
 machine replace(limited: &write Limited, depth: u8 [0..=10]) {
@@ -17,8 +26,10 @@ machine replace(limited: &write Limited, depth: u8 [0..=10]) {
     limited.next = 4;
 }
 
-machine fill(outer: &write Outer, depth: u8 [0..=10]) {
+machine fill(outer: &write Outer, depth: u8 [0..=10], damage: i32 in Wrapping) {
     outer.inner.value = depth;
+    outer.policy.damage = damage;
+    outer.policy.count = 4;
 }
 
 machine forward(limited: &write Limited, depth: u8 [0..=10]) {

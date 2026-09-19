@@ -118,7 +118,7 @@ fn ineligible_record_leaves_remain_outside_whole_replacement() {
                     holder.leaf = replacement;
                 }
             "#,
-            "qualified",
+            "named and domain qualification",
         ),
         (
             "erased",

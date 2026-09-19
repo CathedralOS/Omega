@@ -1,14 +1,19 @@
-// FAIL canary: only an exact integer primitive whose constraints are closed
-// literal ranges is an admissible write-only record-field leaf. An
-// arithmetic-policy qualified field is still outside that slice: `&write`
-// cannot attest a policy-qualified leaf's replacement content.
+// FAIL canary: the admitted qualified leaves are the closed literal-ranged
+// integer and the arithmetic-policy-only integer — neither a declared domain
+// nor a named constraint on the leaf is a behaviour tag. `[u8; 8] in Utf8`
+// is a membership predicate the write-only place cannot establish, so a
+// domain-qualified leaf stays outside the projection envelope.
+
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
 
 data Limited {
-    value: u32 in Wrapping;
+    label: [u8; 8] in Utf8;
 }
 
-machine replace(limited: &write Limited, next: u32 in Wrapping) {
-    limited.value = next;
+machine replace(limited: &write Limited, next: [u8; 8] in Utf8) {
+    limited.label = next;
 }
 
 data Main {
