@@ -25,7 +25,7 @@
 //!           44  symbols, relocations, then raw text and data verbatim
 //!
 //!   OMGTRO   0  magic b"OMGTRO\0\0"
-//!            8  u32 version = 1
+//!            8  u32 version = 2
 //!           12  32-byte RelocationFreeObjectPlanIdentity
 //!           44  body
 //! ```
@@ -57,7 +57,7 @@
 //! and in the machine-code representation's text-section identity. A shared
 //! `to_tag()` on the enums is the obvious
 //! cleanup and would be wrong. These are three independently versioned wire
-//! formats - OMGOBJ v6, OMGTRO v1, and the v3 text-section hash schema - so one
+//! formats - OMGOBJ v6, OMGTRO v2, and the v3 text-section hash schema - so one
 //! shared table means a change made for one format silently changes the other
 //! two, and silently reinterprets every text-section identity already hashed and
 //! stored. The duplication is the version boundary. Worth knowing before you
@@ -102,7 +102,10 @@
 //! `object_container_version_covers_semantic_edge_relocation_origins`: version 6
 //! is the one that added the `SemanticEdge` origin, so an older reader cannot
 //! mistake tag 4 for something it knows. Do not bump it without leaving the same
-//! kind of trace.
+//! kind of trace. OMGTRO version 2 has its own trace beside the constant:
+//! it is the version that added the normalized-foreign import plan
+//! (`normalized_imports` plus `unresolved_normalized_foreign_calls`), and the
+//! test `omgtro_version_2_covers_normalized_foreign_imports` pins it.
 
 mod artifact_custody;
 mod fragment_container;
@@ -130,10 +133,12 @@ pub use fragment_container::{
 /// The relocation-free lane's text-section input is machine-code
 /// representation data, re-exported here for existing consumers.
 pub use machine_code::{
-    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, PlacedBlockSpan,
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
+    NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState, PlacedBlockSpan,
     PlacedFunctionFragment, PlacedInstructionSpan, PlacedInternalMachineCallResolution,
-    RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
-    TextSectionRelocationRequirements, relocation_free_text_section_identity,
+    PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
+    TextSectionPlacementPolicy, TextSectionRelocationRequirements,
+    relocation_free_text_section_identity,
 };
 pub use names::{
     entry_symbol_name, normalized_foreign_import_symbol_name, object_entry_symbol_name,
@@ -163,10 +168,12 @@ pub use relocation_free_object::text_section::{
 };
 pub use relocation_free_object::{
     ObjectLocalSymbolId, RelocationFreeFunctionSymbol, RelocationFreeObjectContainer,
-    RelocationFreeObjectDecodeError, RelocationFreeObjectError, RelocationFreeObjectPlan,
+    RelocationFreeObjectDecodeError, RelocationFreeObjectError,
+    RelocationFreeObjectNormalizedImport, RelocationFreeObjectPlan,
     RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
     RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
-    RelocationFreeObjectTextSection, canonical_private_machine_symbol_name,
+    RelocationFreeObjectTextSection, RelocationFreeObjectUnresolvedForeignCall,
+    canonical_normalized_foreign_import_symbol_name, canonical_private_machine_symbol_name,
     decode_relocation_free_object, encode_relocation_free_object, validate_relocation_free_object,
 };
 pub use target_matrix::{ObjectTargetPolicy, object_target_policy};

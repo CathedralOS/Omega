@@ -1,13 +1,17 @@
 //! Canonical object-local symbols and section assembly from current placed text.
 
+use std::collections::BTreeMap;
+
 use crate::{
     ObjectLocalSymbolId, RelocationFreeFunctionSymbol, RelocationFreeObjectError,
-    RelocationFreeObjectFromTextError, RelocationFreeObjectPlan,
-    RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
-    RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
-    RelocationFreeObjectTextSection, canonical_private_machine_symbol_name, object_target_policy,
-    validate_relocation_free_object,
+    RelocationFreeObjectFromTextError, RelocationFreeObjectNormalizedImport,
+    RelocationFreeObjectPlan, RelocationFreeObjectRelocationRequirements,
+    RelocationFreeObjectSymbolLinkage, RelocationFreeObjectSymbolPolicy,
+    RelocationFreeObjectSymbolRole, RelocationFreeObjectTextSection,
+    RelocationFreeObjectUnresolvedForeignCall, canonical_normalized_foreign_import_symbol_name,
+    canonical_private_machine_symbol_name, object_target_policy, validate_relocation_free_object,
 };
+use machine_code::TextSectionRelocationRequirements;
 use optimization_core::{OptimizationSelectionIdentity, RelocationFreeObjectPlanIdentity};
 pub fn construct_relocation_free_object_from_text(
     text: &machine_code::RelocationFreeTextSectionPlacement,
@@ -64,6 +68,54 @@ fn assemble_object(
     text_name: String,
     selections: OptimizationSelectionIdentity,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectFromTextError> {
+    // Object construction owns the import plan: the distinct roster
+    // coordinates the unresolved calls name become declared import symbols in
+    // canonical sorted order, continuing the function symbol id sequence, and
+    // every source row is bound to its declared symbol. The raw foreign
+    // locator never enters the plan.
+    let mut normalized_imports = Vec::new();
+    let mut import_symbols = BTreeMap::new();
+    for (boundary, ordinal) in text
+        .unresolved_normalized_foreign_calls
+        .iter()
+        .map(|call| (call.boundary, call.ordinal))
+        .collect::<std::collections::BTreeSet<_>>()
+    {
+        let symbol = ObjectLocalSymbolId::new(
+            u64::try_from(symbols.len())
+                .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?
+                .checked_add(
+                    u64::try_from(normalized_imports.len())
+                        .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
+                )
+                .and_then(|base| base.checked_add(1))
+                .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?,
+        )
+        .ok_or(RelocationFreeObjectFromTextError::LengthOverflow)?;
+        import_symbols.insert((boundary, ordinal), symbol);
+        normalized_imports.push(RelocationFreeObjectNormalizedImport {
+            symbol,
+            boundary,
+            ordinal,
+            name: canonical_normalized_foreign_import_symbol_name(boundary, ordinal),
+        });
+    }
+    let unresolved_normalized_foreign_calls = text
+        .unresolved_normalized_foreign_calls
+        .iter()
+        .map(|resolution| RelocationFreeObjectUnresolvedForeignCall {
+            symbol: import_symbols[&(resolution.boundary, resolution.ordinal)],
+            resolution: *resolution,
+        })
+        .collect::<Vec<_>>();
+    let relocation_requirements = match text.relocation_requirements {
+        TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => {
+            RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        }
+        TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => {
+            RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
+        }
+    };
     let mut object = RelocationFreeObjectPlan {
         identity: RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"pending"),
         source_text_section: text.identity,
@@ -82,9 +134,11 @@ fn assemble_object(
         symbols,
         semantic_entry: text.semantic_entry,
         semantic_entry_symbol,
-        relocation_record_count: 0,
-        relocation_requirements:
-            RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+        normalized_imports,
+        relocation_record_count: u64::try_from(unresolved_normalized_foreign_calls.len())
+            .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
+        unresolved_normalized_foreign_calls,
+        relocation_requirements,
     };
     object.identity = object
         .recomputed_identity()
@@ -98,9 +152,9 @@ fn assemble_object(
 mod tests {
     use super::construct_relocation_free_object_from_text;
     use crate::{
-        PlacedFunctionFragment, RelocationFreeObjectError, RelocationFreeObjectFromTextError,
-        RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
-        TextSectionRelocationRequirements,
+        ObjectLocalSymbolId, PlacedFunctionFragment, RelocationFreeObjectError,
+        RelocationFreeObjectFromTextError, RelocationFreeTextSectionPlacement,
+        TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
     use optimization_core::{
         FunctionFragmentEmissionIdentity, OptimizationSelectionIdentity,
@@ -173,6 +227,107 @@ mod tests {
                 ))
             );
         }
+    }
+
+    #[test]
+    fn construction_declares_sorted_imports_and_binds_unresolved_fields() {
+        let machine = MachineId::new(7).unwrap();
+        let boundary = semantic_vocabulary::BoundaryMachineId::new(3).unwrap();
+        let mut text = text_with_target(NativeTarget::linux_x64());
+        text.byte_count = 10;
+        text.bytes = vec![0xe8, 0, 0, 0, 0, 0xe8, 0, 0, 0, 0];
+        text.functions[0].byte_count = 10;
+        text.unresolved_normalized_foreign_calls = vec![
+            machine_code::PlacedNormalizedForeignCallResolution {
+                kind: machine_code::NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+                state: machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
+                caller: machine,
+                block: selected_instructions::SelectedBlockId(0),
+                instruction: selected_instructions::SelectedInstructionId(0),
+                operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                boundary,
+                ordinal: 2,
+                call_function_offset: 0,
+                call_section_offset: 0,
+                call_byte_count: 5,
+                opcode_function_offset: 0,
+                opcode_section_offset: 0,
+                field_function_offset: 1,
+                field_section_offset: 1,
+                next_instruction_function_offset: 5,
+                next_instruction_section_offset: 5,
+                field_byte_width: 4,
+                addend: 0,
+            },
+            machine_code::PlacedNormalizedForeignCallResolution {
+                kind: machine_code::NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+                state: machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
+                caller: machine,
+                block: selected_instructions::SelectedBlockId(0),
+                instruction: selected_instructions::SelectedInstructionId(1),
+                operation: semantic_vocabulary::OperationId::new(12).unwrap(),
+                boundary,
+                ordinal: 1,
+                call_function_offset: 5,
+                call_section_offset: 5,
+                call_byte_count: 5,
+                opcode_function_offset: 5,
+                opcode_section_offset: 5,
+                field_function_offset: 6,
+                field_section_offset: 6,
+                next_instruction_function_offset: 10,
+                next_instruction_section_offset: 10,
+                field_byte_width: 4,
+                addend: 0,
+            },
+        ];
+        text.relocation_requirements =
+            TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1;
+
+        let object = construct_relocation_free_object_from_text(
+            &text,
+            OptimizationSelectionIdentity::from_bytes([6; 32]),
+        )
+        .expect("unresolved import fields construct an import plan");
+        assert_eq!(
+            object.relocation_requirements,
+            crate::RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
+        );
+        assert_eq!(object.relocation_record_count, 2);
+        // The import table deduplicates coordinates into canonical sorted
+        // order and continues the function symbol id sequence.
+        assert_eq!(
+            object
+                .normalized_imports
+                .iter()
+                .map(|import| (import.symbol.get(), import.boundary, import.ordinal))
+                .collect::<Vec<_>>(),
+            vec![
+                (ObjectLocalSymbolId::new(2).unwrap().get(), boundary, 1),
+                (ObjectLocalSymbolId::new(3).unwrap().get(), boundary, 2),
+            ]
+        );
+        assert_eq!(
+            object
+                .unresolved_normalized_foreign_calls
+                .iter()
+                .map(|field| (field.symbol.get(), field.resolution.ordinal))
+                .collect::<Vec<_>>(),
+            vec![(3, 2), (2, 1)]
+        );
+        assert_eq!(
+            crate::validate_relocation_free_object_from_text(
+                &text,
+                OptimizationSelectionIdentity::from_bytes([6; 32]),
+                &object,
+            ),
+            Ok(())
+        );
+        let container = crate::encode_relocation_free_object(&object).unwrap();
+        assert_eq!(
+            crate::decode_relocation_free_object(&container.bytes),
+            Ok(object)
+        );
     }
 
     #[test]

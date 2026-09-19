@@ -25,6 +25,11 @@ pub(crate) fn compose_object(
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     OptimizedProgramStorageSemanticWrapperObjectError,
 > {
+    // The wrapper object format has no relocation records: a child still
+    // carrying unresolved foreign import fields cannot be composed into it.
+    if child.relocation_record_count != 0 {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::SourceObjectMismatch);
+    }
     let wrapper_byte_count = u64::try_from(encoding.template().bytes().len())
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?;
     if wrapper_byte_count != X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT as u64 {
