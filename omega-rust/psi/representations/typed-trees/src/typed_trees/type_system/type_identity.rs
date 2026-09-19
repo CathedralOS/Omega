@@ -246,8 +246,16 @@ impl TypedTrees {
         machine: &crate::machine::Machine,
     ) -> Option<NormalizedNamedCallableIdentity> {
         let entry = self.machine_states(machine).first()?;
+        // Module ownership lives on the exact symbol, not the authored
+        // machine spelling. Module-free and source-free semantic fixtures
+        // retain their existing declaration path.
+        let module_path = self
+            .symbols
+            .symbol_module(machine.symbol)
+            .is_valid()
+            .then(|| self.symbols.display_path(machine.symbol, "::"));
         Some(self.normalized_named_callable_identity(
-            machine.name.as_str(),
+            module_path.as_deref().unwrap_or(machine.name.as_str()),
             machine.symbol,
             self.machine_type_parameters(machine),
             self.state_parameters(entry),

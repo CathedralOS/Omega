@@ -1357,6 +1357,9 @@ fn named_machine_identity_normalizes_binders_and_collapses_predicate_only_result
         saturating_result,
     );
 
+    // These source-free fixtures deliberately use unattached symbol handles.
+    // Their supplied declaration path remains meaningful without a module.
+    assert!(!program.symbols.symbol_module(unqualified.symbol).is_valid());
     let unqualified_identity = program
         .normalized_machine_overload_identity(&unqualified)
         .expect("machine has an entry");
