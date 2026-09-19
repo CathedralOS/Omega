@@ -2459,20 +2459,29 @@ Owners include
   producer row, and an interpreted `Customer::run` entry forwards the
   host-installed live registration to the provider boundary on `unregister`.
 
+  A claimed linear boundary result now crosses provider to program:
+  `Registrar::register(registration) -> Registration in Registration::Live`
+  runs in a Unit statement sequence, the returned registration lands on the
+  caller's claim frontier under the result place, and a following
+  `Registrar::unregister(registered)` settles that exact occurrence —
+  pinned by `interpreted_register_unregister_round_trip_drives_the_ledger`,
+  which observes both boundary effects in order through the checked,
+  lowered, verified, codec and interpreted chain.
+
   Remaining work:
 
   - An authored registrar customer under the linked contract: success yields
     the linear registration holding the exact live-registration capacity
     occurrence, failure returns that capacity with no root, and unregister
     consumes the registration. Use ordinary linear custody; add no
-    registration-specific checker rule. Two grammar seams block the full
-    program today: a boundary requirement returning a `linear` structural
-    result is inadmissible in a Unit statement sequence (affine structural
-    results bind; linear ones stop at `call operation`), so the authority
-    `register`/`unregister` return cannot cross provider to program; and a
-    routed domain cannot authorize a case payload (`Registered(registration:
-    Registration in Live)` fails `cannot prove requires contract`), so the
-    observed-rejection sum cannot yet be written.
+    registration-specific checker rule. One grammar seam still blocks the
+    full program: a routed domain cannot authorize a case payload
+    (`Registered(registration: Registration in Live)` fails `cannot prove
+    requires contract`), so the observed-rejection sum cannot yet be written.
+    The installed-provider interpreter path also still gates boundary
+    results to claim-free affine shapes (`supported_result` in
+    terminal-interpreter `call_operations.rs`); the uninstalled effect path
+    admits the claimed linear result.
   - Omega: join that boundary outcome to the ledger, so root admission, lease
     acquisition, quiescence and lease release follow the program's operations
     and not a Rust caller's sequence.
