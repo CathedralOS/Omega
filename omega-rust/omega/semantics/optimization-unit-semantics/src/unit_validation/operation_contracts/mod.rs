@@ -16,6 +16,7 @@ use crate::StructuralTypeId;
 use crate::dominators;
 
 mod affine_calls;
+mod atomic_coherence;
 mod boundaries;
 mod claim_transfers;
 mod node_contracts;
@@ -51,6 +52,7 @@ pub(crate) fn validate_values_and_bindings(
     let definitions = values::collect_value_definitions(function)?;
     let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
     for block in &function.blocks {
+        atomic_coherence::validate_block_atomic_coherence(function, block)?;
         for (node_index, node) in block.nodes.iter().enumerate() {
             values::validate_node_uses(
                 function,

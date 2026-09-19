@@ -5,7 +5,9 @@
 
 use super::super::{encode_abstract_result, encode_structural_operation_result};
 use super::{AbstractOperation, CanonicalBytes};
-use abstract_operations::{AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite};
+use abstract_operations::{
+    AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicReadsFrom,
+};
 use language_core::atomic::{
     AtomicCompareExchangeOutcomeIdentity, AtomicObservingCompareExchangeOperation,
     AtomicObservingCompareExchangeResultShape, MemoryOrdering,
@@ -15,6 +17,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     let AbstractOperation::AtomicEvent {
         psi_operation,
         event,
+        reads_from,
     } = operation
     else {
         unreachable!("operation family routing admitted a non-atomic operation")
@@ -132,6 +135,16 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 AbstractAtomicFenceOrdering::Publish => 2,
                 AbstractAtomicFenceOrdering::ReceivePublish => 3,
             });
+        }
+    }
+    // The retained reads-from edge is coherence evidence like the retained
+    // ordering: identity changes when the claimed edge changes.
+    match reads_from {
+        None => bytes.u8(1),
+        Some(AtomicReadsFrom::InitialResidency) => bytes.u8(2),
+        Some(AtomicReadsFrom::Write { operation }) => {
+            bytes.u8(3);
+            bytes.id(*operation);
         }
     }
 }

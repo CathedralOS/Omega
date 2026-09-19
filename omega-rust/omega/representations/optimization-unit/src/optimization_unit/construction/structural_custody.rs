@@ -227,6 +227,7 @@ pub(super) fn collect_operation_structural_places(
         AbstractOperation::AtomicEvent {
             psi_operation,
             event: abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
+            ..
         } => structural_places.push(StructuralPlaceDeclaration {
             id: outcome.place,
             kind: StructuralPlaceKind::OperationResult {

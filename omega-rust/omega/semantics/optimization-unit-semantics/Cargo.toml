@@ -20,6 +20,7 @@ terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 
 [dev-dependencies]
+language-core = { path = "../../../psi/foundation/language-core" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
