@@ -1,0 +1,87 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-19T15:38:36Z",
+  "subject": {
+    "name": "cli_mvp",
+    "root": "samples/cli/basics/cli_mvp/main.omg",
+    "source_revision": "87d8b22713ff5e46e535a4b1c62a8b6710d0d1ab"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        375859.77691100014,
+        372493.013886,
+        376216.9864489997
+      ],
+      "median_ms": 375859.77691100014,
+      "min_ms": 372493.013886,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 43.832,
+        "compile: sources -> requested product": 375531.272,
+        "publish: native artifact -> executable": 627.632,
+        "total elapsed": 376202.97
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 237670400,
+      "run_max_rss": 11284480
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        1.7586300000402844,
+        1.422442000148294,
+        1.3713970001845155,
+        1.6267969995169551,
+        1.2594589998116135
+      ],
+      "median_ms": 1.422442000148294,
+      "min_ms": 1.2594589998116135,
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "exit_code_expected": 0,
+      "stdin": "devnull",
+      "exit_code_match": true
+    }
+  },
+  "notes": []
+}

@@ -793,4 +793,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   repository gate.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
-  runtime benchmarks keyed by exact rule selection and target.
+  runtime benchmarks keyed by exact rule selection and target. The format
+  and first row landed: `omega-benchmark-record/1` in
+  [tools/benchmark](tools/benchmark/README.md) (stdlib-only `benchmark.py
+  prepare`/`measure`/`validate`; `prepare` settles the package-review gate
+  by accepting the generated review and publishing the host-local
+  `omega.lock`), pinned by `tools/tests/test_benchmark.py`, with
+  `records/cli_mvp__linux_x86_64__default.json` measured at
+  87d8b22713 on a Linux x86-64 host (dev-profile `omega`, 3 compile +
+  5 run samples, exit 0). Remaining: rows for further subjects and
+  nonempty selections through the same `measure` command, and the
+  windows_x86_64, macos_arm64, linux_arm64, and uefi_x86_64 legs on
+  matching hosts — unavailable on this host and recorded as such in
+  [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md).
