@@ -1896,3 +1896,164 @@ fn standalone_snapshot_without_a_capture_request_rejects() {
         "unexpected diagnostics: {messages}"
     );
 }
+
+#[test]
+fn ordinary_compilation_reads_only_the_requested_standalone_inventory() {
+    let project = Project::new("ordinary-scoped-input");
+    project.write(
+        "main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    project.write("template.txt", "OK");
+    project.write("undeclared.txt", "not an input");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("ordinary-scoped-input");
+    let path: BuildPath = builder.source.resolve("template.txt");
+    let descriptor: i32 = builder.source.open(path, 0);
+    let mut bytes: [u8; 2];
+    let count: i64 = builder.source.read(descriptor, &mut bytes, 2);
+    let closed: i32 = builder.source.close(descriptor);
+    transition count == 2 {
+        true -> verify(builder, bytes)
+        _ -> rejected()
+    }
+    state verify(builder: &mut Build, bytes: [u8; 2]) {
+        transition bytes[0] == 79 {
+            true -> probe(builder)
+            _ -> rejected()
+        }
+    }
+    state probe(builder: &mut Build) {
+        let path: BuildPath = builder.source.resolve("undeclared.txt");
+        let descriptor: i32 = builder.source.open(path, 0);
+        transition descriptor < 0 {
+            true -> admitted(builder)
+            _ -> rejected()
+        }
+    }
+    state admitted(builder: &mut Build) {
+        builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+        builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+        builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+        builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    }
+    state rejected() {}
+}
+"#,
+    );
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping native scoped-input execution: no supported host profile");
+        return;
+    };
+    let publication = Project::new("ordinary-scoped-input-publication");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: project.main(),
+            target_name: Some(host.target_name().to_owned()),
+            build_dir: Some(publication.root.join("staging")),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+        .with_build_snapshot(build_evaluation::BuildSnapshotRequest::scoped(
+            std::iter::empty::<Vec<u8>>(),
+            scoped_capture_request(&[
+                (b"build.omg", BuildSourceCaptureObligation::Required),
+                (b"main.omg", BuildSourceCaptureObligation::Required),
+                (b"template.txt", BuildSourceCaptureObligation::Required),
+            ]),
+        )),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report);
+    set_canonical_source_tree_permissions(&project.root, false);
+    let report = result.unwrap_or_else(|diagnostics| {
+        panic!(
+            "scoped native compilation: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    });
+    let published = report
+        .publish_retained_native_artifact(&publication.root.join("product"))
+        .expect("publish the scoped-input program");
+    let executable = published.checked_native_executable_path().unwrap();
+    assert!(
+        std::process::Command::new(executable)
+            .status()
+            .unwrap()
+            .success()
+    );
+}
+
+#[test]
+fn ordinary_compilation_keeps_snapshot_requirements_target_local() {
+    let project = Project::new("ordinary-target-inputs");
+    project.write(
+        "main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("ordinary-target-inputs");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    let publication = Project::new("ordinary-target-inputs-publication");
+    let inventory = scoped_capture_request(&[
+        (b"build.omg", BuildSourceCaptureObligation::Required),
+        (b"main.omg", BuildSourceCaptureObligation::Required),
+    ]);
+    let valid = build_evaluation::BuildSnapshotRequest::scoped(
+        std::iter::empty::<Vec<u8>>(),
+        inventory.clone(),
+    );
+    let missing_source = build_evaluation::BuildSnapshotRequest::scoped(
+        std::iter::empty::<Vec<u8>>(),
+        scoped_capture_request(&[(b"build.omg", BuildSourceCaptureObligation::Required)]),
+    );
+    let missing_output =
+        build_evaluation::BuildSnapshotRequest::scoped([b"required.txt".to_vec()], inventory);
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: project.main(),
+            target_name: None,
+            build_dir: None,
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+        .with_target_configurations(vec![
+            compiler::TargetCompileConfiguration::new(target::TargetProfile::WindowsX64)
+                .with_build_dir(publication.root.join("windows"))
+                .with_build_snapshot(missing_source),
+            compiler::TargetCompileConfiguration::new(target::TargetProfile::LinuxX64)
+                .with_build_dir(publication.root.join("linux"))
+                .with_build_snapshot(valid),
+            compiler::TargetCompileConfiguration::new(target::TargetProfile::MacosArm64)
+                .with_build_dir(publication.root.join("macos"))
+                .with_build_snapshot(missing_output),
+        ]),
+    );
+    set_canonical_source_tree_permissions(&project.root, false);
+    let outcomes = result.expect("well-formed request retains each target's outcome");
+    assert_eq!(outcomes.outcomes().len(), 3);
+    for outcome in outcomes.outcomes() {
+        match outcome.target_profile().unwrap() {
+            target::TargetProfile::LinuxX64 => assert!(outcome.succeeded(), "{outcome:?}"),
+            target::TargetProfile::WindowsX64 => assert!(
+                diagnostic_messages(outcome.diagnostics().expect("omitted source rejects"))
+                    .contains("scoped source inventory omits required source member"),
+                "{outcome:?}",
+            ),
+            target::TargetProfile::MacosArm64 => assert!(
+                diagnostic_messages(outcome.diagnostics().expect("missing output rejects"))
+                    .contains("required.txt"),
+                "{outcome:?}",
+            ),
+            other => panic!("unexpected target {other:?}"),
+        }
+    }
+}

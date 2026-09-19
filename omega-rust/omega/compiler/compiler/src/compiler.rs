@@ -44,6 +44,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                     options.build_dir(),
                     target.package_inputs(),
                     &target.configuration.optimization_rollback,
+                    target.configuration.build_snapshot.as_ref(),
                 )?;
                 let admission =
                     admit_checked_compilation(&checked, target.accepted_trust_admissions())?;

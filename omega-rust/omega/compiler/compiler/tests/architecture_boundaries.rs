@@ -371,7 +371,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     );
     assert!(
         compact_driver.contains(
-            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
+            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,target.configuration.build_snapshot.as_ref(),)?"
         ),
         "checked and Terminal children must continue from the prepared source"
     );

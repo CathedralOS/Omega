@@ -585,13 +585,18 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   required-output settlement, private-staging cleanup, and audit reporting
   already have implementations and integration tests. Remaining:
 
-  - Bind standalone builds to an explicit caller-authorized source inventory,
-    and support named immutable extra inputs assigned to exact dependency
-    occurrences. `PreparedCheckedSource::check` currently binds a snapshot
-    only when package inputs carry canonical Source metadata;
-    `BuildSnapshotRequest` carries an output roster, not a capture request or
-    named-input map. Do not silently capture the whole working directory,
-    widen a dependency's inputs, or substitute the live-host filesystem.
+  - Finish named immutable extra-input consumption at exact dependency
+    occurrences. `BuildSnapshotRequest` already carries scoped capture and
+    occurrence-keyed input maps; ordinary `CompileRequest::with_build_snapshot`
+    and per-target configurations now carry that request through production.
+    `build_snapshot_outputs::ordinary_compilation_reads_only_the_requested_standalone_inventory`
+    witnesses a declared template read and denied undeclared sibling through
+    native publication and macOS ARM64 exit 0. The target-local control keeps
+    missing source/output failures separate from a successful sibling.
+    Named dependency-input delivery and CLI caller-inventory authoring remain;
+    do not capture the whole working directory, widen another occurrence's
+    inputs, or substitute the live-host filesystem. Snapshot intent supplies
+    no output sponsorship or committed companion-output set.
   - Carry sealed completed artifacts through compiler result construction and
     final publication for artifact-only builds and executable companions.
     The current `build_snapshot_outputs` and CLI audit tests inspect checked
