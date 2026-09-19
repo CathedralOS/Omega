@@ -113,6 +113,11 @@ pub struct PackagePolicyPackageChange {
     pub(super) candidate_resolution: Option<ImmutableSourceResolution>,
     pub(super) baseline_path: Option<PackagePolicyDependencyPath>,
     pub(super) candidate_path: Option<PackagePolicyDependencyPath>,
+    /// The candidate's normalized restricted build-host requests — what this
+    /// package's build machine asks of the host before it may run. They are
+    /// admission intent surfaced beside, never inside, this package's
+    /// product-authority rows; accepting the rows does not accept host reach.
+    pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
     pub(super) source_changed: bool,
     pub(super) source_association_changed: bool,
     pub(super) audit_recommended: bool,
@@ -140,6 +145,13 @@ impl PackagePolicyPackageChange {
     }
     pub const fn source_association_changed(&self) -> bool {
         self.source_association_changed
+    }
+    /// The candidate's restricted build-host requests in issue order
+    /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). Empty
+    /// when the package has no build machine or its build asks nothing of
+    /// the host.
+    pub fn restricted_build_requests(&self) -> &[build_evaluation::RestrictedBuildRequest] {
+        &self.restricted_build_requests
     }
     pub const fn audit_recommended(&self) -> bool {
         self.audit_recommended

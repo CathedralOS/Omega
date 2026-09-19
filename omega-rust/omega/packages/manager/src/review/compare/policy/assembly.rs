@@ -105,6 +105,9 @@ pub(super) fn packages(
             candidate_resolution: new.map(|value| value.resolution().clone()),
             baseline_path,
             candidate_path,
+            restricted_build_requests: review.map_or_else(Vec::new, |review| {
+                review.restricted_build_requests().to_vec()
+            }),
             source_changed,
             source_association_changed,
             audit_recommended,
