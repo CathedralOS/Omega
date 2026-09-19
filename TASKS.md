@@ -57,31 +57,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   graph. The submodule's TASKS owns port work; this item owns integration and
   compiler blockers exposed by that application.
 
-  The tracked app `7a272a896c85` still declares `console: Console` and pins std
-  to `a91d878cb9252647d977c45787969b16e6ef937a`. Update the app to the settled
-  [service contract](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge):
-  `Service<Console>`, with intrinsic binding establishment, not `in Bound`.
-  Publish application changes in its own repository before updating the gitlink;
-  private-repository access is required. Complete ordinary package update/review
-  for the exact checkout and selected target. Do not delete acceptance or restore
-  a stale checkout-specific lock to bypass review.
+  The tracked app `420cabe83985` uses intrinsic `Service<Console>` and pins std
+  to `87d8b22713ff5e46e535a4b1c62a8b6710d0d1ab`. With that Omega revision's
+  release compiler on macOS ARM64, Python 3.13 and `RUST_MIN_STACK=67108864`,
+  the native acceptance exits 0 and prints `Squalr geometry: PASS` (66.602 s).
+  All 12 geometry checks and the 17-package/37-edge workspace remain intact.
+  The lock was rebuilt through ordinary update/review after its old policy
+  schema rejected; checkout relocation still requires fresh local-source review.
+  Windows execution remains untested; the supplied-byte scanner is not ported.
 
   Keep one integration owner and work from the actual application command:
 
-  1. Reconcile the app's source/std pin and package acceptance, preserving its
-     geometry and package graph. Recheck publication access rather than treating
-     a previous session's 403 as a permanent compiler blocker.
-  2. Run the native acceptance below and assign only the failure it now exposes.
-     A source-only probe at `76478cbd6e` retained the composed entry and geometry
-     bodies; the old missing-Unit-plan diagnosis is not a current native result.
-     **ENTRY-CONTENT-ROOTS** owns service establishment and the hosted entry bridge
-     in `native-realization`, `program-entry-plan`, and `external-roots`.
-     Its existing `canary_suite::entry_and_abi::hosted_receiver*` controls still
-     author `Service<Console> in Bound`; passing them does not establish the
-     intrinsic-only source contract. Fix that shared path, not an app-specific
-     eligibility exception. **MATCH-SELECTIVE-LOWERING** and
-     **STATE-LOCAL-VALUE-FRONTIER** own newly witnessed operation joins.
-  3. After geometry runs, drive the submodule's supplied-byte scan and repeated
+  1. Preserve the working geometry command as the compiler integration control,
+     and run it on Windows after ordinary target-specific package review.
+     Publish application changes in its own repository before updating the
+     gitlink; private-repository access is required. Assign only newly witnessed
+     compiler failures to their existing semantic/realization owners.
+  2. Drive the submodule's supplied-byte scan and repeated
      filtering through the real growable/partitioned storage and result path.
      Keep build-only packages explicitly unported; no fixed-capacity substitute,
      Rust FFI scanner, package flattening, or isolated-helper milestone replaces
