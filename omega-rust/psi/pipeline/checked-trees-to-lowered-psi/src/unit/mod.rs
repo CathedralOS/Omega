@@ -11,13 +11,12 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedIntegerComparisonKind,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
@@ -64,9 +63,7 @@ use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::expression_preparation::prepare_expression::{
-    lower_checked_scalar_expression, lower_checked_scalar_expression_at,
-};
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{

@@ -45,10 +45,8 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
 
 /// A state's entry claims are established at every admission of that state,
 /// so a claim carried across an edge keeps the machine parameter's place
-/// instead of becoming a fresh block parameter. The restricted three-state
-/// conditional route still owns its exact slice; every other claim-bearing
-/// shape reaches this emitter only when its successor transport resolves each
-/// claim onto an entry parameter place.
+/// instead of becoming a fresh block parameter. Successor transport must
+/// resolve each claim onto an entry parameter place regardless of topology.
 fn claim_transport_supported(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -59,14 +57,6 @@ fn claim_transport_supported(
         .all(|state| state.entry_claims.is_empty())
     {
         return true;
-    }
-    if plan.states.len() == 3
-        && matches!(
-            plan.states[0].terminator,
-            CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
-        )
-    {
-        return false;
     }
     claims::resolve(checked, plan).is_ok()
 }
@@ -466,8 +456,28 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         return unsupported("free Unit graph cannot retain provider attachment requirements");
     }
     for (boundary, _) in &boundaries {
-        if boundary.attachment_type_identity.is_some()
-            || !boundary.domain_requirements.is_empty()
+        if boundary
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+            != boundary.attachment_type_identity.is_some()
+        {
+            return unsupported("Unit graph boundary attachment disagrees with its receiver");
+        }
+        if let Some(attachment) = &boundary.attachment_type_identity
+            && (!matches!(boundary.structural_parameters.as_slice(), [parameter]
+                if parameter.is_self
+                    && parameter.type_identity == *attachment
+                    && parameter.multiplicity == Multiplicity::Linear
+                    && parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                    && parameter.qualifications.is_empty())
+                || !boundary.result.is_unit())
+        {
+            return unsupported(
+                "Unit graph attached boundary requires exact linear receiver custody",
+            );
+        }
+        if !boundary.domain_requirements.is_empty()
             || !(boundary.result.is_unit()
                 || matches!(&boundary.result,
                 CheckedBoundaryMachineResultPlan::Structural { multiplicity: Multiplicity::Affine, qualifications, .. }

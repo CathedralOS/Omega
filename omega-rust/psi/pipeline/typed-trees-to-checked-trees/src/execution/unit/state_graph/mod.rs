@@ -382,10 +382,8 @@ pub(super) fn build_traced(
             match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
-                    completion_receipts,
                     ..
-                } if completion_receipts.is_empty()
-                    && structural_arguments.iter().all(|argument| {
+                } if structural_arguments.iter().all(|argument| {
                         whole_shared_argument(argument)
                             // A borrowed view may project from a parameter,
                             // including the persistent receiver, without
@@ -396,6 +394,13 @@ pub(super) fn build_traced(
                                     CheckedStructuralAccess::SharedBorrow
                                         | CheckedStructuralAccess::MutableBorrow
                                 ))
+                            // The ordinary call sequencer has already joined
+                            // owned arguments to their exact Consume events
+                            // and completion receipts. Graph topology does not
+                            // change that operation's custody.
+                            || (argument.source_parameter_index().is_some()
+                                && argument.path.is_empty()
+                                && argument.access == CheckedStructuralAccess::Owned)
                     }) => {}
                 CheckedUnitEffectOperationPlan::CallUnit {
                     structural_arguments,

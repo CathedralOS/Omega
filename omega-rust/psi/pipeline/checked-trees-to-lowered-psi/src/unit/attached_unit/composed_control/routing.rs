@@ -2,10 +2,7 @@
 
 use super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::finalize_operation_proofs;
-use super::{
-    CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, closed_sum, emission,
-    state_graph,
-};
+use super::{CheckedTrees, LoweringError, SourceMappedLowered, closed_sum, state_graph};
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
@@ -22,7 +19,5 @@ pub(super) fn lower(
     ) {
         return closed_sum::lower(checked, plan);
     }
-    let admitted = admission::admit_composed_unit_control(checked, plan)?;
-    let catalogs = catalogs::lower_composed_catalogs(checked, plan, &admitted)?;
-    emission::emit_composed_unit_control(checked, plan, admitted, catalogs)
+    super::super::unsupported("composed Unit control has unsupported graph custody")
 }

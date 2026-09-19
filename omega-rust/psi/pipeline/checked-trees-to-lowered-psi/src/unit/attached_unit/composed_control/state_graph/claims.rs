@@ -36,6 +36,100 @@ pub(super) struct ClaimTransport {
     pub(super) aliased: Vec<BTreeMap<u32, u32>>,
 }
 
+/// Rejoin receipts before state-local claim identities are aliased to one
+/// Terminal claim. A receipt naming an earlier state's alias is not evidence
+/// that this call consumed the current state's claim.
+pub(super) fn validate_boundary_consumption(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    target: symbols::SymbolHandle,
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    receipts: &[checked_trees::CheckedUnitClaimTransferPlan],
+) -> Result<(), LoweringError> {
+    let events = &checked.facts.flow.ownership;
+    let call_source = PermissionEventSource::Call {
+        statement_index: coordinate.statement_index as usize,
+        call_ordinal: coordinate.call_ordinal as usize,
+        target_symbol: target,
+    };
+    let consumption = events
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| {
+            event.machine_symbol == machine
+                && event.state_symbol == state.state
+                && event.source == call_source
+                && event.kind == PermissionEventKind::Consume
+                && event.access == PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Linear
+                && event.obligation_live
+        })
+        .collect::<Vec<_>>();
+    let expected = arguments
+        .iter()
+        .enumerate()
+        .flat_map(|(argument_index, argument)| {
+            state.entry_claims.iter().filter_map(move |claim| {
+                (argument.access == checked_trees::CheckedStructuralAccess::Owned
+                    && argument.source_parameter_index() == Some(claim.parameter_index)
+                    && argument.path == claim.path)
+                    .then_some((argument_index, claim))
+            })
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != expected.len() || consumption.len() != expected.len() {
+        return unsupported(
+            "Unit graph boundary receipt roster disagrees with checked consumption",
+        );
+    }
+    for (argument_index, claim) in expected {
+        let parameter = state
+            .structural_parameters
+            .get(claim.parameter_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph consumed claim parameter is absent",
+            ))?;
+        let source_parameter = checked
+            .state_parameters(source)
+            .get(parameter.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph consumed claim source is absent",
+            ))?;
+        if receipts
+            .iter()
+            .filter(|receipt| {
+                receipt.claim_identity == claim.claim_identity
+                    && receipt.argument_index as usize == argument_index
+            })
+            .count()
+            != 1
+            || consumption
+                .iter()
+                .filter(|event| {
+                    event.claim_identity == claim.claim_identity
+                        && event.root == facts::PlaceRoot::Symbol(source_parameter.symbol)
+                        && events.segments.span_or_empty(event.segments).len()
+                            == event.segments.len()
+                        && validation::structural_claim_path(
+                            &checked.typed,
+                            source_parameter.type_reference,
+                            events.segments.span_or_empty(event.segments),
+                        )
+                        .is_ok_and(|path| path == claim.path)
+                })
+                .count()
+                != 1
+        {
+            return unsupported("Unit graph boundary receipt lost its exact consumed claim");
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn resolve(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,

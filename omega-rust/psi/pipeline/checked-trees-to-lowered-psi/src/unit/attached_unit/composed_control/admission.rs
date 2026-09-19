@@ -1,15 +1,13 @@
 //! Fail-closed rejoin of the composed carrier to checked flow and contracts.
 use super::super::super::{
-    CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, CheckedScalarBindingValue,
-    CheckedUnitStructuralTypeShape, IntegerValue, PrimitiveType,
+    CheckedComposedUnitControlTerminatorPlan, CheckedUnitStructuralTypeShape,
 };
 use super::super::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, ScalarType,
-    lower_checked_scalar_expression, retain_exact_unit_boundary, unique_unit_boundary, unsupported,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, Multiplicity, retain_exact_unit_boundary, unique_unit_boundary,
+    unsupported,
 };
-use super::{CheckedTrees, LoweringError, custody, internal_calls};
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use super::{CheckedTrees, LoweringError, internal_calls};
 use crate::unit::attached_unit::bodies::UnitBody;
 
 pub(in crate::unit::attached_unit) struct AdmittedComposedUnit<'a> {
@@ -19,138 +17,6 @@ pub(in crate::unit::attached_unit) struct AdmittedComposedUnit<'a> {
         Vec<&'a checked_trees::CheckedComposedUnitControlStatePlan>,
     pub(in crate::unit::attached_unit) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
     pub(in crate::unit::attached_unit) internal_targets: Vec<(UnitBody<'a>, String)>,
-    pub(super) custody: custody::ComposedCustody,
-}
-
-pub(in crate::unit::attached_unit) fn admit_composed_unit_control<'a>(
-    checked: &'a CheckedTrees,
-    plan: &'a checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<AdmittedComposedUnit<'a>, LoweringError> {
-    let [entry, when_true, when_false] = plan.states.as_slice() else {
-        return unsupported("composed Unit control requires exactly three states");
-    };
-    if !plan.body_qualifications.is_empty() || !entry.operations.is_empty() {
-        return unsupported("composed Unit entry is outside the exact scalar-control slice");
-    }
-    let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        guard,
-        when_true: true_edge,
-        when_false: false_edge,
-    } = &entry.terminator
-    else {
-        return unsupported("composed Unit entry is not the exact Boolean conditional");
-    };
-    let transition_ordinal = validate_bindings(checked, entry)?;
-    validate_guard(guard, &entry.scalar_parameters, &entry.bindings)?;
-    if checked.facts.values.scalar_expressions.expression_at(
-        entry.state,
-        transition_ordinal,
-        CheckedScalarExpressionRole::Guard,
-    ) != Some(guard)
-    {
-        return unsupported("composed Unit guard drifted from checked scalar facts");
-    }
-    if true_edge.statement_ordinal != transition_ordinal
-        || false_edge.statement_ordinal
-            != transition_ordinal
-                .checked_add(1)
-                .ok_or(LoweringError::Unsupported(
-                    "composed Unit transition coordinate overflowed",
-                ))?
-        || true_edge.target_state != when_true.state
-        || false_edge.target_state != when_false.state
-    {
-        return unsupported("composed Unit successors drifted from the checked state graph");
-    }
-    validate_leaf(when_true)?;
-    validate_leaf(when_false)?;
-    let custody = custody::admit(
-        checked,
-        plan,
-        entry,
-        [when_true, when_false],
-        [true_edge, false_edge],
-    )?;
-    if entry.state == when_true.state
-        || entry.state == when_false.state
-        || when_true.state == when_false.state
-    {
-        return unsupported("composed Unit control contains duplicate states");
-    }
-    validate_contract(checked, plan)?;
-
-    let attachment = exact_attachment(checked, plan)?;
-
-    let (boundaries, internal_targets) = admit_call_targets(
-        checked,
-        plan.machine,
-        &[when_true, when_false],
-        custody,
-        attachment,
-        &plan.provider_attachment_requirements,
-    )?;
-    Ok(AdmittedComposedUnit {
-        entry,
-        leaves: vec![when_true, when_false],
-        boundaries,
-        internal_targets,
-        custody,
-    })
-}
-
-fn validate_bindings(
-    checked: &CheckedTrees,
-    entry: &checked_trees::CheckedComposedUnitControlStatePlan,
-) -> Result<u32, LoweringError> {
-    match (
-        entry.bindings.as_slice(),
-        entry.binding_initializers.as_slice(),
-    ) {
-        ([], []) => Ok(0),
-        ([binding], [retained_initializer])
-            if entry.scalar_parameters.is_empty()
-                && binding.statement_ordinal == 0
-                && binding.primitive_type == PrimitiveType::U64
-                && binding.destination
-                    == checked_trees::CheckedScalarBindingDestination::Immutable
-                && binding.value == CheckedScalarBindingValue::Expression =>
-        {
-            let fact_initializer = checked
-                .facts
-                .values
-                .scalar_expressions
-                .expression_at(
-                    entry.state,
-                    0,
-                    CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "composed Unit local initializer lost its checked scalar fact",
-                ))?;
-            if retained_initializer != fact_initializer {
-                return unsupported(
-                    "composed Unit local initializer drifted between checked carriers",
-                );
-            }
-            let initializer = lower_checked_scalar_expression(retained_initializer)?;
-            if !matches!(
-                initializer,
-                LoweredDirectExpression::IntegerLiteral {
-                    scalar_type: ScalarType::Integer(integer),
-                    value: IntegerValue::Unsigned(_),
-                } if integer == semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                ).expect("u64 is valid")
-            ) {
-                return unsupported(
-                    "composed Unit local initializer escaped the exact closed u64 lane",
-                );
-            }
-            Ok(1)
-        }
-        _ => unsupported("composed Unit local bindings escaped the exact one-binding lane"),
-    }
 }
 
 pub(crate) fn admit_dynamic_continuation<'a>(
@@ -266,7 +132,6 @@ pub(crate) fn admit_dynamic_continuation<'a>(
         checked,
         plan.caller_machine,
         &[when_true, when_false],
-        custody::ComposedCustody::Empty,
         Some(attachment),
         &continuation.provider_attachment_requirements,
     )
@@ -431,7 +296,6 @@ pub(super) fn admit_call_targets<'a>(
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
-    custody: custody::ComposedCustody,
     attachment: Option<&checked_trees::CheckedUnitStructuralTypePlan>,
     provider_attachment_requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
 ) -> Result<
@@ -443,7 +307,7 @@ pub(super) fn admit_call_targets<'a>(
 > {
     let (boundaries, internal_targets) = retain_call_targets(checked, machine, call_states)?;
     for (boundary, _) in &boundaries {
-        custody::validate_boundary(custody, boundary)?;
+        validate_claim_free_boundary(boundary)?;
     }
     // Only signature-directed boundary calls are provider obligations; a
     // boundary-declaration call (`target_machine != target_state`) settles
@@ -486,6 +350,25 @@ pub(super) fn admit_call_targets<'a>(
         return unsupported("free composed Unit cannot retain provider attachment requirements");
     }
     Ok((boundaries, internal_targets))
+}
+
+pub(super) fn validate_claim_free_boundary(
+    boundary: &CheckedBoundaryMachinePlan,
+) -> Result<(), LoweringError> {
+    if boundary.attachment_type_identity.is_some()
+        || !boundary.structural_parameters.is_empty()
+        || !boundary.domain_requirements.is_empty()
+        || !(boundary.result.is_unit()
+            || matches!(&boundary.result,
+                CheckedBoundaryMachineResultPlan::Structural {
+                    multiplicity: Multiplicity::Affine, qualifications, ..
+                } if qualifications.is_empty()))
+    {
+        return unsupported(
+            "composed Unit boundary escaped claim-free Unit or affine result custody",
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn retain_call_targets<'a>(
@@ -557,55 +440,6 @@ pub(super) fn retain_call_targets<'a>(
         }
     }
     Ok((boundaries, internal_targets))
-}
-
-pub(super) fn validate_guard(
-    guard: &CheckedScalarExpression,
-    parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
-    bindings: &[checked_trees::CheckedScalarBinding],
-) -> Result<(), LoweringError> {
-    let CheckedScalarExpression::Boolean(boolean) = guard else {
-        return unsupported("composed Unit guard is not Boolean");
-    };
-    let admitted = match (parameters, bindings, boolean.as_ref()) {
-        ([parameter], [], CheckedBooleanExpression::Parameter { position: 0 }) => {
-            parameter.source_position == 0 && parameter.primitive_type == PrimitiveType::Bool
-        }
-        ([], [], CheckedBooleanExpression::Constant(_)) => true,
-        ([], [], CheckedBooleanExpression::IntegerComparison { left, right, .. }) => {
-            matches!(
-                left.as_ref(),
-                CheckedScalarExpression::IntegerLiteral { .. }
-            ) && matches!(
-                right.as_ref(),
-                CheckedScalarExpression::IntegerLiteral { .. }
-            )
-        }
-        ([], [binding], CheckedBooleanExpression::IntegerComparison { left, right, .. })
-            if binding.statement_ordinal == 0
-                && binding.primitive_type == PrimitiveType::U64
-                && binding.destination
-                    == checked_trees::CheckedScalarBindingDestination::Immutable
-                && binding.value == CheckedScalarBindingValue::Expression =>
-        {
-            local_and_literal(left, right) || local_and_literal(right, left)
-        }
-        _ => false,
-    };
-    if !admitted {
-        return unsupported("composed Unit guard escaped the exact admitted expression family");
-    }
-    Ok(())
-}
-
-fn local_and_literal(local: &CheckedScalarExpression, literal: &CheckedScalarExpression) -> bool {
-    matches!(
-        local,
-        CheckedScalarExpression::Local {
-            position: 0,
-            primitive_type: PrimitiveType::U64,
-        }
-    ) && matches!(literal, CheckedScalarExpression::IntegerLiteral { .. })
 }
 
 pub(super) fn validate_contract(

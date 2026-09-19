@@ -12,9 +12,7 @@ use super::super::{
     place_id, retain_exact_unit_boundary, terminal_scalar_type, unique_unit_boundary, unsupported,
     value_id,
 };
-use super::{
-    CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, custody, emission,
-};
+use super::{CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, emission};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 
 pub(super) fn lower(
@@ -128,7 +126,7 @@ fn admit<'a>(
     let (mut leaf_boundaries, internal_targets) =
         admission::retain_call_targets(checked, plan.machine, &leaves)?;
     for (boundary, _) in &leaf_boundaries {
-        custody::validate_boundary(custody::ComposedCustody::Empty, boundary)?;
+        admission::validate_claim_free_boundary(boundary)?;
     }
     boundaries.append(&mut leaf_boundaries);
     for case in cases {
@@ -197,7 +195,6 @@ fn admit<'a>(
         leaves: vec![first_leaf, second_leaf],
         boundaries,
         internal_targets,
-        custody: custody::ComposedCustody::Empty,
     })
 }
 

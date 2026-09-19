@@ -4,7 +4,6 @@ mod admission;
 pub(super) mod callable;
 mod catalogs;
 mod closed_sum;
-mod custody;
 pub(super) mod dynamic_result;
 mod emission;
 mod internal_calls;
