@@ -93,7 +93,17 @@ fn hosted_byte_physical_children_retain_target_operand_and_emission_custody() {
                                     native::NativeSelectedProviderPlanDigest::from_digest([11; 32])
                             }
                             _ => {
-                                let native::BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar { scalar_argument, .. } = &mut parent.role else {
+                                let native::BoundaryTraitSettlementRole::CompilerBuiltin {
+                                    scalar_argument,
+                                    ..
+                                } = &mut parent.role
+                                else {
+                                    panic!("write retains its runtime scalar argument")
+                                };
+                                let Some(native::CompilerBuiltinScalarArgument::RuntimeScalar(
+                                    scalar_argument,
+                                )) = scalar_argument
+                                else {
                                     panic!("write retains its runtime scalar argument")
                                 };
                                 let machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary {

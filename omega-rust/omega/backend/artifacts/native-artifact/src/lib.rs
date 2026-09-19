@@ -25,10 +25,11 @@ pub use native_artifact::{
 };
 pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-    NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
-    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts,
-    NativePhysicalOccurrence, NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
+    CompilerBuiltinResult, CompilerBuiltinScalarArgument, NativeByteSpan,
+    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+    NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalOccurrence,
+    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
     NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
     PhysicalChildParent, PhysicalRelocationDisposition,
     ValidatedOptimizedNativePhysicalEvidenceScope,

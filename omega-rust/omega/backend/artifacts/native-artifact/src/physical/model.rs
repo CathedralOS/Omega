@@ -189,28 +189,42 @@ pub struct BoundaryTraitSettlement {
     identity: [u8; 32],
 }
 
+/// Scalar-argument custody one hosted builtin settlement retained. The two
+/// shapes cover the argument rosters the settlement record can fill: a
+/// compile-time scalar row or one emitted runtime scalar source record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompilerBuiltinScalarArgument {
+    /// One compile-time scalar argument: the exact value, type, immediate,
+    /// and ABI destination the settlement declared.
+    Immediate(BoundaryScalarArgument),
+    /// One runtime scalar argument retained by its emitted source record.
+    RuntimeScalar(machine_code::ForeignCallScalarArgumentRecord),
+}
+
+/// Result custody one hosted builtin settlement retained.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompilerBuiltinResult {
+    /// The builtin settles with a unit result and retains no result record.
+    Unit,
+    /// The builtin writes one exact structural result into its caller home.
+    Structural(machine_code::BoundaryStructuralResultRecord),
+}
+
 /// Complete role-specific D41 custody. Installed provider authority and the
 /// consuming lowerer's builtin catalog remain disjoint and cannot substitute
 /// for one another.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryTraitSettlementRole {
+    /// One hosted builtin settlement bound by its declared scalar-argument and
+    /// result shapes. A further hosted builtin needs no new role variant: the
+    /// custody kinds below already cover the argument and result shapes the
+    /// settlement record can carry.
     CompilerBuiltin {
         catalog: NativeCompilerBuiltinCatalogIdentity,
         execution: target_operations::CompilerBuiltinExecution,
         realization: BoundaryRealization,
-        scalar_argument: BoundaryScalarArgument,
-    },
-    CompilerBuiltinRuntimeScalar {
-        catalog: NativeCompilerBuiltinCatalogIdentity,
-        execution: target_operations::CompilerBuiltinExecution,
-        realization: BoundaryRealization,
-        scalar_argument: machine_code::ForeignCallScalarArgumentRecord,
-    },
-    CompilerBuiltinStructural {
-        catalog: NativeCompilerBuiltinCatalogIdentity,
-        execution: target_operations::CompilerBuiltinExecution,
-        realization: BoundaryRealization,
-        result: machine_code::BoundaryStructuralResultRecord,
+        scalar_argument: Option<CompilerBuiltinScalarArgument>,
+        result: CompilerBuiltinResult,
     },
     AdmittedProvider {
         execution: ProviderExecutionBinding,
@@ -236,12 +250,6 @@ impl BoundaryTraitSettlementRole {
     pub const fn execution(&self) -> BoundaryExecutionBinding {
         match self {
             Self::CompilerBuiltin { execution, .. } => {
-                BoundaryExecutionBinding::CompilerBuiltin(*execution)
-            }
-            Self::CompilerBuiltinRuntimeScalar { execution, .. } => {
-                BoundaryExecutionBinding::CompilerBuiltin(*execution)
-            }
-            Self::CompilerBuiltinStructural { execution, .. } => {
                 BoundaryExecutionBinding::CompilerBuiltin(*execution)
             }
             Self::AdmittedProvider { execution, .. } => {
