@@ -1,0 +1,7 @@
+// Darwin floating-control-state canary: the hosted macOS target selects its exact entry.
+
+machine build(builder: &mut Build) {
+    builder.application("foreign-control-state-restore");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

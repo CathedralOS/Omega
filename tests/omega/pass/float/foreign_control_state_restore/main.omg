@@ -8,7 +8,7 @@
 
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32;

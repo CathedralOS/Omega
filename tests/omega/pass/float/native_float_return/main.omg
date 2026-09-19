@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // exit 4. A miscompiled float return (wrong bits in d0 or a missing fmov) stores
 // garbage -> round_nearest yields something else -> exit 1.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 boundary trait Math {
     machine round_nearest(value: f64) -> i64;

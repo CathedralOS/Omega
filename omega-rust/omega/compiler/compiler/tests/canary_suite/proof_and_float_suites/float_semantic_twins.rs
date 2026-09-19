@@ -115,13 +115,20 @@ fn build_runtime_float_semantics_twins_agree() {
     fs::create_dir_all(&source_dir).expect("semantic-edge cross-target source directory");
     fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
         .expect("copy semantic-edge twin canary");
+    let standard_library = crate::repo_root()
+        .join("source/library/std")
+        .to_string_lossy()
+        .replace('\\', "/");
     fs::write(
         source_dir.join("build.omg"),
-        "\
-         machine build(builder: &mut Build) {\n\
-             builder.application(\"float-semantic-edge-twins\");\n\
-             builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
-         }\n",
+        format!(
+            "\
+             machine build(builder: &mut Build) {{\n\
+                 builder.application(\"float-semantic-edge-twins\");\n\
+                 builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n\
+                 builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
+             }}\n"
+        ),
     )
     .expect("write semantic-edge build source");
     compile(CanaryCompileSpec {
@@ -189,13 +196,20 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
     fs::create_dir_all(&source_dir).expect("Linux AArch64 semantic-edge source directory");
     fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
         .expect("copy Linux AArch64 semantic-edge twin canary");
+    let standard_library = crate::repo_root()
+        .join("source/library/std")
+        .to_string_lossy()
+        .replace('\\', "/");
     fs::write(
         source_dir.join("build.omg"),
-        "\
-         machine build(builder: &mut Build) {\n\
-             builder.application(\"linux-arm64-float-semantic-edge-twin\");\n\
-             builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
-         }\n",
+        format!(
+            "\
+             machine build(builder: &mut Build) {{\n\
+                 builder.application(\"linux-arm64-float-semantic-edge-twin\");\n\
+                 builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n\
+                 builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
+             }}\n"
+        ),
     )
     .expect("write Linux AArch64 semantic-edge build source");
     let main_path = source_dir.join("main.omg");

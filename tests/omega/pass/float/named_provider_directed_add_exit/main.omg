@@ -4,7 +4,7 @@
 // meanings from an accidental nearest-even or leaked ambient mode.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

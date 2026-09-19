@@ -4,7 +4,7 @@
 // division-by-zero, invalid, and propagated-nonfinite behavior separately.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // of the direct computation 3.0 + 0.7 is 4 -> exit 4; a miscompiled float arg
 // (garbage in v0) rounds to something else -> exit 1.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 boundary trait Math {
     machine round_nearest(value: f64) -> i64;

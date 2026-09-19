@@ -3,7 +3,7 @@
 // nearest-even after each local floating-control-state envelope.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
