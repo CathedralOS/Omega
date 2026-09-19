@@ -225,7 +225,6 @@ pub(super) fn call(
         || !claim_transfers.is_empty()
         || !returned_claim_transfers.is_empty()
         || !requirement_obligations.is_empty()
-        || !crash_continuations.is_empty()
         || !selected_evidence.is_empty()
         || arguments.len() != callee_function.parameters.len()
         || structural_arguments.len() != callee_function.structural_parameters.len()
