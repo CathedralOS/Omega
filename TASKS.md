@@ -4237,10 +4237,14 @@ Owners include
 
   Remaining work:
 
-  - The contracted provider operation the placement lifecycle names. Nothing
-    performs the write-to-execute transition, the target cache and ordering
-    work, or instruction-fetch visibility; `InstallationReceipt` only records
-    what a provider would have reported.
+  - The contracted provider operation the placement lifecycle names.
+    `InstallAuthority` now names the provider-canonical `InstallationFactDigest`
+    set the operation must establish and `install_validated` rejects a receipt
+    that omits or renames a demanded fact (an established superset installs),
+    returning every input — the same required-facts gate retirement already
+    used. Still open: no provider performs the write-to-execute transition,
+    the target cache and ordering work, or instruction-fetch visibility, so
+    `InstallationReceipt` still only records what a provider would report.
   - Physical invocation, and the entry references it hands out. `InstalledCode`
     exposes identity, geometry and `selected_entry_target` reporting; the
     [control-flow integrity](wiki/spec/build/executable_installation.md#control-flow-integrity)
@@ -4269,17 +4273,14 @@ Owners include
   **COMPONENT-SUBSTRATE** owns the verified component closure above this; this
   item owns generic executable custody.
 
-  Flag: installation accepts caller assertions where retirement demands facts.
-  `retire_installed` requires `authority.required_facts` to be a subset of the
-  receipt's `established_facts` — provider-canonical `RetirementFactDigest`
-  values the authority names in advance — while `install_validated` admits the
-  receipt on two booleans the caller sets, `visibility_complete` and `wx`, with
-  no required-facts set at all. The spec has installation validate W^X, cache
-  order and instruction-fetch visibility through one contracted provider
-  operation, so those claims are currently producer assertions the model
-  records rather than checks. The general mechanism is already on the
-  retirement side: an authority naming the required provider-canonical facts
-  and a receipt that must establish them.
+  Flag resolved 2026-09-19 on `devin/w9-wire-install-facts` (crate tests 66/66
+  pass via `cargo nextest run -p executable-installation`, Linux x86-64):
+  `install_validated` now applies the retirement mechanism — `InstallAuthority`
+  carries `required_facts` (provider-canonical `InstallationFactDigest`
+  values, domain `omega.installation-fact.sha256.v1`) and the receipt's
+  `established_facts` must cover them, else the transition rejects and returns
+  every input. Next acceptance: a provider operation that actually establishes
+  those facts, and physical invocation into installed code.
 
 ## Omega-written compiler (after Rust completion)
 

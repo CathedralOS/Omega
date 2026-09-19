@@ -3,8 +3,8 @@ use super::{
     AdmissionReceiptId, Architecture, Artifact, ArtifactAdmissionEvidence, ArtifactEntry,
     ArtifactId, ArtifactRelocationKind, CodePlacement, CodePlacementAuthority, CodePlacementId,
     DecodedArtifactRelocation, EntrySetId, FinalValidationCertificate, FinalValidationId,
-    InstallAuthority, InstallationAudience, InstallationReceipt, InstallationScopeId,
-    InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    InstallAuthority, InstallationAudience, InstallationFactDigest, InstallationReceipt,
+    InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt, MaterializationReceipt,
     PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget, RetirementAuthority,
     RetirementFactDigest, RetirementReceipt, UninstallOutcome, ValidatedPlacement, WxEnforcement,
@@ -1485,6 +1485,57 @@ fn installed_realization_rejects_every_one_field_substitution() {
         .expect_err("an unsupported execute transition must reject");
     assert!(error.diagnostic().0.contains("does not support"));
     let (_validated, _authority, _receipt) = (*error).into_parts();
+
+    // The install gate replays the authority's demanded provider-canonical
+    // facts the same way retirement does: a receipt that omits or renames a
+    // demanded installation fact rejects and returns every linear input,
+    // while an established superset of the demanded facts still installs.
+    let install_fact_a =
+        InstallationFactDigest::from_canonical_bytes(b"provider.cache-order.complete.v1");
+    let install_fact_b = InstallationFactDigest::from_canonical_bytes(
+        b"provider.instruction-fetch-visibility.complete.v1",
+    );
+    let install_fact_c =
+        InstallationFactDigest::from_canonical_bytes(b"provider.audience-admission.complete.v1");
+    let validated = spec_validated(&spec);
+    let authority = InstallAuthority::from_admitted_provider(&validated)
+        .with_required_facts([install_fact_a, install_fact_b]);
+    let receipt = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    )
+    .with_established_facts([install_fact_a]);
+    let error = install_validated(validated, authority, receipt)
+        .expect_err("an install receipt missing a demanded fact must reject");
+    assert!(error.diagnostic().0.contains("required completion facts"));
+    let (validated, _authority, _receipt) = (*error).into_parts();
+    let authority =
+        InstallAuthority::from_admitted_provider(&validated).with_required_facts([install_fact_a]);
+    let renamed_receipt = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    )
+    .with_established_facts([install_fact_c]);
+    let error = install_validated(validated, authority, renamed_receipt)
+        .expect_err("a receipt renaming the demanded fact must reject");
+    assert!(error.diagnostic().0.contains("required completion facts"));
+    let (validated, _authority, _receipt) = (*error).into_parts();
+    let authority =
+        InstallAuthority::from_admitted_provider(&validated).with_required_facts([install_fact_a]);
+    let superset_receipt = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    )
+    .with_established_facts([install_fact_a, install_fact_b]);
+    let installed = install_validated(validated, authority, superset_receipt)
+        .expect("a receipt establishing a superset of the demanded facts installs");
+    assert_eq!(installed.identity(), realize(&spec).identity());
 
     // The retirement gate replays both records against the exact installed
     // evidence and requires the quiescence, execute-removal, write-restore,
