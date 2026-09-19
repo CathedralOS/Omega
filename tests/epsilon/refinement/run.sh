@@ -3,9 +3,17 @@ set -eu
 
 # Direct RunEpsilon refinement: the canonical evaluator edge checked against
 # the test-owned independent model under source, stdin, profile, and
-# observation mutations.
+# observation mutations — over both the synthetic corpus and the exact D
+# closure member sources (the same programs tests/epsilon/d-composition/
+# carries over the canonical edge).
 #
-#   sh tests/epsilon/refinement/run.sh
+#   sh tests/epsilon/refinement/run.sh                      # corpus + all D customers
+#   sh tests/epsilon/refinement/run.sh 'Omega D lexer'      # corpus + that customer
+#   sh tests/epsilon/refinement/run.sh --skip-members       # synthetic corpus only
+#   sh tests/epsilon/refinement/run.sh --skip-corpus 'Omega D lexer'
+#
+# The D-member leg inherits the d-composition watchdog shape:
+# OMEGA_REFINE_D_SECONDS overrides the 14,400-second per-invocation bound.
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
@@ -37,4 +45,4 @@ require_epsilon_evaluator_entry_identity
 cp "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/evaluator_entry.delta}" \
     "$REFINE_TMP/evaluator_entry.delta"
 
-python3 -B "$GATE_DIR/gate.py" "$REFINE_TMP"
+python3 -B "$GATE_DIR/gate.py" "$REFINE_TMP" "$@"
