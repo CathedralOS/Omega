@@ -38,7 +38,7 @@ fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
     );
     let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
     assert!(matches!(
-        super::structural_byte_length(&program, parameters, length),
+        super::structural_sequence_length(&program, parameters, length),
         Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
             parameter_position: 0, path,
         }) if path == [CheckedStructuralPredicatePathSegment::Field("text".into())]
@@ -57,7 +57,7 @@ fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
             panic!("selected member");
         };
         member.member_symbol = foreign.symbol;
-        assert!(super::structural_byte_length(&invalid, parameters, length).is_none());
+        assert!(super::structural_sequence_length(&invalid, parameters, length).is_none());
     }
     let mut wrong_spelling = program.clone();
     let ExpressionNode::Member(member) = wrong_spelling.expression_table.expression_mut(length)
@@ -65,7 +65,7 @@ fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
         panic!("length member");
     };
     member.member = "capacity".into();
-    assert!(super::structural_byte_length(&wrong_spelling, parameters, length).is_none());
+    assert!(super::structural_sequence_length(&wrong_spelling, parameters, length).is_none());
 }
 
 #[test]
@@ -77,13 +77,13 @@ fn byte_length_keeps_whole_views_distinct_from_field_carriers() {
         let parameters =
             program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
         assert!(matches!(
-            super::structural_byte_length(&program, parameters, length),
+            super::structural_sequence_length(&program, parameters, length),
             Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
                 parameter_position: 0, path,
             }) if path.is_empty()
         ));
     }
-    for field_type in ["[u8; 16]", "u64", "NamedLength"] {
+    for field_type in ["u64", "NamedLength"] {
         let (program, length) = byte_length_fixture(&format!(
             "data NamedLength {{ len: u64; }}
              data Input {{ text: {field_type}; }}
@@ -92,9 +92,40 @@ fn byte_length_keeps_whole_views_distinct_from_field_carriers() {
         let parameters =
             program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
         assert!(
-            super::structural_byte_length(&program, parameters, length).is_none(),
-            "raw arrays, nonbytes and nominal len fields are not bounded byte carriers"
+            super::structural_sequence_length(&program, parameters, length).is_none(),
+            "nonsequences and nominal len fields are not builtin sequence lengths"
         );
+    }
+}
+
+#[test]
+fn fixed_array_length_retains_static_extent_through_exact_projections() {
+    for source in [
+        "data Input { bytes: [u8; 32]; }
+         machine Input::measure(&mut self) -> u64 requires self.bytes.len == 0 { 0 }",
+        "data Inner { bytes: [u16; 32]; }
+         data Input { inner: Inner; }
+         machine measure(input: &Input) -> u64 requires input.inner.bytes.len == 0 { 0 }",
+        "machine measure(input: &[u8; 32]) -> u64 requires input.len == 0 { 0 }",
+        "machine measure(input: [u8; 32]) -> u64 requires input.len == 0 { 0 }",
+    ] {
+        let (program, length) = byte_length_fixture(source);
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        assert!(matches!(
+            super::structural_sequence_length(&program, parameters, length),
+            Some(checked_trees::CheckedScalarExpression::IntegerLiteral { literal })
+                if literal.value_u64() == Some(32)
+                    && literal.landing().is_some_and(|landing|
+                        landing.landed_type == numerics::literals::LandedIntegerType::U64
+                            && landing.domain == numerics::arithmetic::ArithmeticDomain::Exact)
+        ));
+        let mut invalid = program.clone();
+        let ExpressionNode::Member(member) = invalid.expression_table.expression_mut(length) else {
+            panic!("length member");
+        };
+        member.member = "capacity".into();
+        assert!(super::structural_sequence_length(&invalid, parameters, length).is_none());
     }
 }
 

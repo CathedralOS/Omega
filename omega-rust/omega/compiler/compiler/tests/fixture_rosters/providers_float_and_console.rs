@@ -58,6 +58,7 @@ pub(crate) const RUNTIME_PROCESS_EXIT_I32_STATUS_ORDERED: &str =
 pub(crate) const RUNTIME_CONSOLE_BYTE_READ_RETURN: &str = "host/runtime_console_byte_read_return";
 pub(crate) const RUNTIME_CONSOLE_BYTE_BRANCH_RETURN: &str =
     "host/runtime_console_byte_branch_return";
+pub(crate) const RUNTIME_UNUSED_CASE_PAYLOAD_EXIT: &str = "host/runtime_unused_case_payload_exit";
 pub(crate) const RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT: &str =
     "host/runtime_console_byte_inspection_exit";
 pub(crate) const RUNTIME_CONSOLE_BYTE_ECHO_EXIT: &str = "host/runtime_console_byte_echo_exit";
@@ -151,6 +152,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_PROCESS_EXIT_I32_STATUS_ORDERED,
     RUNTIME_CONSOLE_BYTE_READ_RETURN,
     RUNTIME_CONSOLE_BYTE_BRANCH_RETURN,
+    RUNTIME_UNUSED_CASE_PAYLOAD_EXIT,
     RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT,
     RUNTIME_CONSOLE_BYTE_ECHO_EXIT,
     RUNTIME_IMPORT_CALL_ARGUMENT_EXIT,

@@ -1,0 +1,21 @@
+use omega::language::core::service;
+use omega_language_std::console;
+
+data Main {
+    console: Service<Console>;
+    buffer: [u8; 32];
+}
+
+machine Main::main(&mut self)
+reaches Console
+{
+    let observed: ByteRead = block self.console.read_byte();
+    transition observed {
+        ByteRead::Byte { value } -> finish()
+        ByteRead::Eof -> finish()
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(self.buffer.len as i32);
+    }
+}

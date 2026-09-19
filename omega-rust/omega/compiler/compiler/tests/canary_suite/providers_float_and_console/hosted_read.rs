@@ -5,6 +5,54 @@ use crate::{
 };
 use std::fs;
 use std::process::Command;
+
+#[test]
+fn hosted_read_unused_payload_retains_static_array_extent() {
+    if !cfg!(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )) {
+        eprintln!("SKIP: hosted byte input requires a matching Linux or macOS ARM64 host");
+        return;
+    }
+    use std::io::Seek;
+    use std::process::Stdio;
+    let canary = pass_canary(fixture_roster::RUNTIME_UNUSED_CASE_PAYLOAD_EXIT);
+    let scratch = std::env::temp_dir().join(format!("omega-unused-read-{}", std::process::id()));
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("unused payload and static array extent publish a native executable");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("checked publication receipt");
+    for input in [b"".as_slice(), &[0, 255], &[255, 0]] {
+        let input_path = scratch.join("input.bin");
+        fs::write(&input_path, input).expect("write exact input bytes");
+        let mut supplied = fs::File::open(&input_path).expect("open input");
+        let output = Command::new(executable)
+            .stdin(Stdio::from(
+                supplied.try_clone().expect("shared input cursor"),
+            ))
+            .output()
+            .expect("unused payload execution");
+        assert_eq!(
+            output.status.code(),
+            Some(32),
+            "input {input:?}: {output:?}"
+        );
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+        assert_eq!(
+            supplied.stream_position().expect("input position"),
+            input.len().min(1) as u64,
+            "ignoring a payload must not erase or repeat the read"
+        );
+    }
+    fs::remove_dir_all(scratch).expect("remove completed unused payload output");
+}
+
 #[test]
 fn hosted_read_returning_branches_replay_distinct_result_homes() {
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_BRANCH_RETURN);

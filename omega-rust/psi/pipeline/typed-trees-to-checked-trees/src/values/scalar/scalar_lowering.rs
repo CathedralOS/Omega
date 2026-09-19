@@ -314,7 +314,7 @@ pub(crate) fn lower_scalar_expression(
         );
     }
     if let Some(length) =
-        structural_fields::structural_byte_length(program, authored_parameters, expression)
+        structural_fields::structural_sequence_length(program, authored_parameters, expression)
     {
         return Some((length, ArithmeticDomain::Exact));
     }

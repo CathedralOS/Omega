@@ -258,6 +258,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   facts before classifying the failure as a control-builder gap. Preserve
   diagnostics, but another diagnostic-only milestone is not corpus progress.
 
+  The unchanged `text/runtime_stdin_command_branch_exit` now reaches the owned
+  `Command` result-to-field assignment in `parsed_input`; its first remaining
+  plan omission is `statement sequence: assignment: call source result type`.
+  `execution/unit/control/statement_sequence.rs` in `typed-trees-to-checked-trees`
+  still accepts only primitive call results there. **STATE-LOCAL-VALUE-FRONTIER**
+  owns structural result storage; preserve the reader's algorithm while adding
+  that operation and its independent lowering checks. Resume on macOS ARM64 with
+  `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(runtime_stdin_command_branch_exit_canary_runs)'`.
+  The byte-read regression `hosted_read_unused_payload_retains_static_array_extent`
+  covers unused scalar case bindings and raw-array lengths separately; it does
+  not establish command-reader completion.
+
   Route verified failures to existing owners:
 
   - Ordinary statements, indexed/aggregate values and stored origins:
