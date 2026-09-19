@@ -797,6 +797,11 @@ fn normalized_source(
 /// is that one leaf — a partial leaf move would strand sibling custody under
 /// a consumed place. A reference-typed carrier is the loan itself, so forming
 /// `&mut *r` keeps the ordinary child-loan lane instead of consuming `r`.
+/// The move lane exists to seat an owned ingress leaf beneath a bare result,
+/// an origin `formal_origin` admits for owned machine parameters alone. A
+/// local or block-parameter carrier keeps the ordinary child-loan lane:
+/// `&mut *record.field` reborrows through the live leaf and leaves the
+/// carrier affine-owned for its own edge cleanup.
 pub(super) fn establishment_moves_leaf(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -806,6 +811,12 @@ pub(super) fn establishment_moves_leaf(
     let OperationKind::EstablishReference { source } = &operation.kind else {
         return None;
     };
+    if !matches!(
+        formal_origin(machine, source),
+        Some(ReferenceOrigin::IngressLeaf(_))
+    ) {
+        return None;
+    }
     let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() else {
         return None;
     };
