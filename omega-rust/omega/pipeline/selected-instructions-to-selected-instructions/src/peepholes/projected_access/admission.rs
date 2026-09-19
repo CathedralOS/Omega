@@ -358,11 +358,11 @@ pub(super) fn rewritten(admitted: &AdmittedPair<'_>) -> SelectedInstruction {
 
 /// The single catalog declaration for `semantic` bound to `constraint`, or
 /// none when the catalog does not declare exactly one such form.
-fn effect_declaration<'catalog>(
-    catalog: &'catalog ValidatedMachineEffectCatalog,
+fn effect_declaration(
+    catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
     constraint: register_model::RegisterConstraintKey,
-) -> Option<&'catalog MachineEffectDeclaration> {
+) -> Option<&MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint
     });
