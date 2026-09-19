@@ -45,11 +45,21 @@ pub(super) fn validate(
             selected_by: retained.selected_by.clone(),
         })
         .collect();
-    let (replayed, _) = provider_planning::selected_provider_plan_facts(
-        &compilation.typed,
-        compilation.custody.evaluated_via_bindings(),
-        selected,
+    // The component-closure join replays against the same components
+    // settlement admitted: custody retains the attached descriptions, and
+    // re-verifying them under the build's admission profile reproduces the
+    // verified set rather than trusting the retained join outcome.
+    let independent_components = build_evaluation::verify_independent_component_descriptions(
+        compilation.custody.independent_component_descriptions(),
+        |_| None,
     )?;
+    let (replayed, _) =
+        provider_planning::selected_provider_plan_facts_with_independent_components(
+            &compilation.typed,
+            compilation.custody.evaluated_via_bindings(),
+            selected,
+            &independent_components,
+        )?;
     if replayed.plans() != plans {
         return Err(rejected(
             "selected semantic plans differ from exact typed replay",

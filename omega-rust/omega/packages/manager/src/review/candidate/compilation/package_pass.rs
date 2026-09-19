@@ -127,7 +127,21 @@ pub(super) fn compile_dependency_closure(
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut review_positions: Vec<Option<usize>> = vec![None; closure.graph().packages().len()];
     let mut checked_root = None;
+    // Each dependency's own checked compilation is retained as a component
+    // candidate: a later consumer's `Independent` selection can only settle
+    // against the description published from that compilation, and the
+    // component-closure fence refuses any substitute. Cloning shares the
+    // sealed program storage, so the same dependency can serve more than one
+    // independent consumer.
+    let mut component_candidates: BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        (std::path::PathBuf, compiler::CheckedCompilation),
+    > = BTreeMap::new();
     let mut retained_obligation_ledger_total = 0usize;
+    // Sponsored build evaluations that ran inside a compile the
+    // component-closure fence rejected: real session consumption no retained
+    // review reports, reconciled beside the reviews at the session's end.
+    let mut discarded_build_usages = Vec::<build_evaluation::BuildEvaluationUsage>::new();
     let mut retained_policy_canonical_total = 0usize;
     let mut target_entry_candidates = Vec::<SemanticBindingReviewCandidate>::new();
     for key in dependency_first_package_order(closure) {
@@ -272,6 +286,14 @@ pub(super) fn compile_dependency_closure(
         .unwrap_or_else(|| {
             build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
         });
+        // Every package compiles as the root of its own component view, so
+        // any of them — not only the graph root — may author `Independent`
+        // selections over dependencies this loop already compiled. The
+        // discovery output carries those selections out of a compile the
+        // component-closure fence rejects; `unanswered_inputs` keeps the
+        // request's graph so the retried compile can attach the published
+        // descriptions without rebuilding it.
+        let unanswered_inputs = inputs.clone();
         let request = CheckedCompileRequest {
             build_execution_profile: execution_profile,
             build_dir: Some(
@@ -280,7 +302,7 @@ pub(super) fn compile_dependency_closure(
             package_inputs: Some(inputs),
             filesystem_sponsor: Some(filesystem_sponsor.clone()),
             evaluation_sponsor: Some(evaluation_sponsor.clone()),
-            build_snapshot: Some(build_snapshot),
+            build_snapshot: Some(build_snapshot.clone()),
             ..CheckedCompileRequest::new(entry, Some(target))
         };
         let position = closure
@@ -298,9 +320,11 @@ pub(super) fn compile_dependency_closure(
             _ => None,
         };
         let mut retained = None;
+        let mut component_discovery = compiler::IndependentComponentDiscovery::default();
         let checked = {
             let mut request = request;
             request.prepared_source_output = Some(&mut retained);
+            request.independent_component_discovery_output = Some(&mut component_discovery);
             match prepared {
                 Some(prepared) => prepared.compile_to_checked(request),
                 None => {
@@ -309,17 +333,58 @@ pub(super) fn compile_dependency_closure(
                 }
             }
         };
+        let checked = match checked {
+            Ok(checked) => checked,
+            Err(diagnostics) => {
+                // The rejected attempt still consumed its sponsored build
+                // evaluation; the session accounting counts that consumption
+                // against the sponsor rather than losing it with the verdict.
+                if let Some(usage) = component_discovery.evaluation_usage {
+                    discarded_build_usages.push(usage);
+                }
+                let Some(inputs) = publish_independent_component_descriptions(
+                    &key,
+                    unanswered_inputs,
+                    &component_discovery.selections,
+                    &component_candidates,
+                )?
+                else {
+                    return Err(CompileResolvedPackageReviewsError::Compilation {
+                        package: key.clone(),
+                        diagnostics,
+                    });
+                };
+                // The descriptions a settled compile attached stay attached:
+                // only a compile whose fence rejected unanswered selections
+                // reaches here. One retry is the whole protocol — a selection
+                // still unanswered after publication re-rejects at the same
+                // fence, never as a fused edge.
+                let mut request = CheckedCompileRequest {
+                    build_execution_profile: execution_profile,
+                    build_dir: Some(
+                        package_build_root(build_session_root, &key, custody.resolution())
+                            .to_owned(),
+                    ),
+                    package_inputs: Some(inputs),
+                    filesystem_sponsor: Some(filesystem_sponsor.clone()),
+                    evaluation_sponsor: Some(evaluation_sponsor.clone()),
+                    build_snapshot: Some(build_snapshot),
+                    ..CheckedCompileRequest::new(entry, Some(target))
+                };
+                request.prepared_source_output = Some(&mut retained);
+                preparation.fresh_preparations += 1;
+                compile_to_checked(request).map_err(|diagnostics| {
+                    CompileResolvedPackageReviewsError::Compilation {
+                        package: key.clone(),
+                        diagnostics,
+                    }
+                })?
+            }
+        };
         preparation.slots[position] = retained.map(|prepared| PreparedPackageSource {
             entry_root: entry.to_path_buf(),
             prepared,
         });
-        let checked =
-            checked.map_err(
-                |diagnostics| CompileResolvedPackageReviewsError::Compilation {
-                    package: key.clone(),
-                    diagnostics,
-                },
-            )?;
         verify_selected_source_custody(&scope, PackageSourceVerificationPhase::AfterCompilation)?;
         checked
             .verify_current_source_consumption()
@@ -463,13 +528,83 @@ pub(super) fn compile_dependency_closure(
             obligations,
             obligation_results,
         });
-        if retained_root_entry.is_some() && &key == closure.graph().root() {
-            checked_root = Some(Box::new(checked));
+        if &key == closure.graph().root() {
+            if retained_root_entry.is_some() {
+                checked_root = Some(Box::new(checked));
+            }
+        } else {
+            component_candidates.insert(key.identity(), (entry.to_path_buf(), checked));
         }
     }
-    verify_build_session_accounting(&reviews, evaluation_sponsor)?;
+    verify_build_session_accounting(&reviews, &discarded_build_usages, evaluation_sponsor)?;
     Ok(CompiledPackageReviews {
         reviews: CompilerIssuedPackageReviewSet { reviews },
         checked_root,
     })
+}
+
+/// Publish the verified component descriptions a rejected compile's
+/// discovered `Independent` selections name, and return the same inputs with
+/// them attached. `Ok(None)` means the rejected compile authored no
+/// answerable selection — its original diagnostics stand. A selection naming
+/// the compiling package itself, or one whose provider carries no package
+/// identity, has no dependency that could answer it. A selection naming a
+/// package the closure never compiled, or whose checked compilation cannot
+/// publish a description, fails the consumer's review directly instead of
+/// retrying into the same fence.
+fn publish_independent_component_descriptions(
+    key: &PackageKey,
+    inputs: package_compilation::PackageCompilationInputs,
+    independent_component_selections: &[compiler::IndependentComponentSelection],
+    component_candidates: &BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        (std::path::PathBuf, compiler::CheckedCompilation),
+    >,
+) -> Result<Option<package_compilation::PackageCompilationInputs>, CompileResolvedPackageReviewsError>
+{
+    let mut described = std::collections::BTreeSet::new();
+    let mut descriptions = Vec::new();
+    for selection in independent_component_selections {
+        let Some(component) = selection.component else {
+            continue;
+        };
+        if component == key.identity() || !described.insert(component) {
+            continue;
+        }
+        let Some((component_entry, component_checked)) = component_candidates.get(&component)
+        else {
+            return Err(CompileResolvedPackageReviewsError::Compilation {
+                package: key.clone(),
+                diagnostics: vec![Diagnostic::error(format!(
+                    "an independent provider selection names dependency package `{}`, which this closure never compiled",
+                    inputs.package_name(component).unwrap_or("<unnamed>"),
+                ))],
+            });
+        };
+        descriptions.push(
+            compiler::published_independent_component_description(
+                component_entry.clone(),
+                component_checked.clone(),
+                proof_admission::AdmissionProfile::default(),
+            )
+            .map_err(|diagnostics| {
+                CompileResolvedPackageReviewsError::Compilation {
+                    package: key.clone(),
+                    diagnostics,
+                }
+            })?,
+        );
+    }
+    if descriptions.is_empty() {
+        return Ok(None);
+    }
+    inputs
+        .with_independent_component_descriptions(descriptions)
+        .map(Some)
+        .map_err(
+            |errors| CompileResolvedPackageReviewsError::CompilationInputs {
+                package: key.clone(),
+                errors,
+            },
+        )
 }

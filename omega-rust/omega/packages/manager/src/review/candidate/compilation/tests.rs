@@ -670,6 +670,125 @@ fn assert_root_console_permissions(
     );
 }
 
+/// A dependency package compiled as its own component: its build seals the
+/// `Pick` requirement with the fused vtable provider while the checked
+/// `PickProvider` adapter beside it is the realization a consumer may deploy
+/// independently. The component entry's own call puts that adapter in the
+/// module's realization roster, which is what the published description
+/// exports — nothing here asserts a roster.
+const INDEPENDENT_COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+    machine mark(value: i32);
+}
+
+pub data VtablePick { mark: addr; }
+pub machine VtablePick::mark(value: i32)
+satisfies Pick::mark
+via Binding::VtableField(mark);
+
+pub data PickProvider { }
+pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
+
+pub data ComponentEntry { pick: Pick; }
+pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
+    self.pick.mark(7);
+}
+"#;
+
+/// A two-package closure whose application root selects the dependency's
+/// provider with `CompositionMode::Independent`. Without the compile loop
+/// publishing the named component's description itself, the root's checked
+/// compile rejects at the component-closure fence.
+struct IndependentComponentFixture(PathBuf);
+
+impl IndependentComponentFixture {
+    fn new() -> Self {
+        let root = std::env::temp_dir().join(format!(
+            "omega-candidate-independent-component-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+        ));
+        fs::create_dir_all(root.join("pick-component")).unwrap();
+        fs::create_dir_all(root.join("consumer")).unwrap();
+        fs::write(
+            root.join("pick-component/build.omg"),
+            r#"machine build(builder: &mut Build) {
+    builder.package("pick-component");
+    builder.select_provider<Pick, VtablePick>(CompositionMode::Fused);
+    builder.roots.bind(linux_x86_64::ProgramEntry, ComponentEntry::main);
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("pick-component/main.omg"),
+            INDEPENDENT_COMPONENT_SOURCE,
+        )
+        .unwrap();
+        fs::write(
+            root.join("consumer/build.omg"),
+            r#"machine build(builder: &mut Build) {
+    builder.application("independent-consumer");
+    builder.depend_as("pick_component", Source::Path { location: "../pick-component" });
+    builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("consumer/main.omg"),
+            "use pick_component::main;\n\ndata Main { }\nmachine Main::main(&mut self) { }\n",
+        )
+        .unwrap();
+        Self(root)
+    }
+
+    fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
+        let storage = SourceResolverStorage::for_hardened_base(
+            self.0.join("resolved"),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap();
+        resolve_external_local_project_closure(
+            self.0.join("consumer"),
+            ExternalSourceContext::derive(b"candidate-independent-component"),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
+        )
+        .unwrap()
+    }
+}
+
+impl Drop for IndependentComponentFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// The component publication contract's acceptance shape: an ordinary
+/// two-package closure whose root selects `Independent` publishes the
+/// dependency's description from the dependency's own checked compilation and
+/// consumes it, with no description attached from outside the compile loop.
+#[test]
+fn review_publishes_the_named_component_description_for_an_independent_selection() {
+    let fixture = IndependentComponentFixture::new();
+    let closure = fixture.closure();
+    let root = closure.graph().root().clone();
+    let exact = closure.for_exact_target(target::TargetProfile::LinuxX64);
+    let reviews = compile_resolved_package_reviews(
+        &exact,
+        &fixture.0.join("review"),
+        SemanticBindingReview::Discover,
+    )
+    .expect("an Independent selection settles on the component description the loop published");
+    assert_eq!(reviews.reviews().len(), 2);
+    reviews
+        .review(&root)
+        .expect("the consuming root is reviewed");
+}
+
 /// An ordinary package whose boundary trait spells one toolchain-settled
 /// filesystem cohort leaf: `set_len` classifies as content write.
 const SET_LEN_FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {

@@ -576,6 +576,18 @@ impl CheckedCompilation {
         &self.execution.restricted_build_requests
     }
 
+    /// The component descriptions this package compilation attached and
+    /// provider settlement verified for its `Independent` provider
+    /// selections, in package-identity order. Standalone compilations and
+    /// compilations without attached descriptions retain an empty roster.
+    /// Re-verification under the build's admission profile replays the same
+    /// admission settlement performed.
+    pub fn independent_component_descriptions(
+        &self,
+    ) -> &[package_compilation::IndependentComponentDescription] {
+        &self.execution.independent_component_descriptions
+    }
+
     /// Exact compiler-owned coordinates of checked implementation claims that
     /// ordinary validation deliberately left unjudged. Package review rejects
     /// any row until a later-discharge ledger exists.
