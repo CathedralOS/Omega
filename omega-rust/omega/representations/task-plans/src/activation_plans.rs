@@ -269,6 +269,10 @@ pub struct ActivationPlanCandidate {
     pub stack_plan: StackPlan,
     pub may_suspend: bool,
     pub may_block: bool,
+    /// The canonical roster of semantic crossings at which the activation
+    /// can park: one row per crossing identity, in canonical identity order.
+    /// `TaskLifecycleLedger::park` accepts only an identity this roster
+    /// names and retains that row's exact live frontier.
     pub canonical_suspension_crossings: Vec<CanonicalSuspensionCrossing>,
     pub carry_obligations: ActivationCarryObligations,
     pub cancellation_required: bool,
@@ -374,7 +378,24 @@ fn validate_activation_plan_shape(
             "a possible suspension crossing carries a value that forbids suspension".into(),
         ));
     }
+    // One canonical identity owns one roster row, in canonical identity
+    // order: `park` accepts the identity and the ledger retains that row's
+    // frontier, so a duplicate identity would let two different frontiers
+    // answer one crossing, and an unordered roster would let one crossing
+    // set mint several plan identities.
+    let mut previous_crossing = None;
     for crossing in &candidate.canonical_suspension_crossings {
+        if previous_crossing == Some(crossing.identity) {
+            return Err(TaskPlanDiagnostic(
+                "canonical suspension crossings carry a duplicate crossing identity".into(),
+            ));
+        }
+        if previous_crossing.is_some_and(|previous| crossing.identity < previous) {
+            return Err(TaskPlanDiagnostic(
+                "canonical suspension crossings are not in canonical identity order".into(),
+            ));
+        }
+        previous_crossing = Some(crossing.identity);
         let mut places = Vec::new();
         for live in &crossing.live_carry {
             if places.contains(&live.place) {

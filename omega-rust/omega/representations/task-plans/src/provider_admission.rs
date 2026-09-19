@@ -26,14 +26,15 @@
 //! requirement slot, a machine parameter, or a dynamic descriptor — finally
 //! names its concrete checked-body machine. `bind_call_targets` matches each
 //! presented binding to a sealed `UnresolvedCallSite` coordinate, charges
-//! the bound callee's validated subtree into the composed WCSU demand, and
+//! the bound callee's validated subtree into the composed WCSU demand, joins
+//! the subtree's canonical suspension crossings into the plan's roster, and
 //! re-seals the activation plan; a site no binding names stays unresolved,
 //! so the fail-closed lease rule is unchanged.
 
 use crate::stack_leases::{StackLeaseBacking, TaskStorageProvenance, establish_stack_lease};
 use crate::{
-    ActivationInstanceId, CallTargetBinding, ClosedTaskRuntime, LiveCarryDemand,
-    MovedTaskArguments, SettledTaskLifecycle, StackPlan, SuspensionCrossingId,
+    ActivationInstanceId, ActivationPlanCandidate, CallTargetBinding, ClosedTaskRuntime,
+    LiveCarryDemand, MovedTaskArguments, SettledTaskLifecycle, StackPlan, SuspensionCrossingId,
     TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId,
     TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
     TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskSettlementOutcome,
@@ -179,11 +180,15 @@ impl TaskRuntimeAdmission {
     /// partially covered projection still publishes partial and keeps
     /// rejecting a lease — binding never weakens the fail-closed rule.
     ///
-    /// Covering charges the bound callee's stack demand only; the plan's
-    /// canonical suspension-crossing roster is unchanged, so a bound callee
-    /// that may suspend still cannot park at a crossing the roster does not
-    /// name — that suspension-preservation leg stays fail-closed until a
-    /// later leg joins the bound subtree's crossings.
+    /// Covering also joins each bound subtree's canonical suspension
+    /// crossings into the plan's roster — deduplicated by crossing identity
+    /// and failing closed when a presented row conflicts with the retained
+    /// one — so a bound callee that suspends can park at a crossing of its
+    /// own subtree. The joined roster revalidates under the same
+    /// activation-plan rules: a crossing forbidding suspension, disagreeing
+    /// with its live frontier, or exceeding the plan's checked preservation
+    /// envelope rejects, and a non-suspending plan cannot gain crossings at
+    /// all.
     pub fn bind_call_targets(
         plan: &ValidatedActivationPlan,
         bindings: &[CallTargetBinding],
@@ -198,6 +203,7 @@ impl TaskRuntimeAdmission {
         let covered = cover_unresolved_call_sites(projection, bindings)?;
         let mut candidate = plan.candidate().clone();
         candidate.stack_plan = covered.stack_plan();
+        join_bound_subtree_crossings(&mut candidate, bindings)?;
         validate_wcsu_activation_plan(candidate, covered)
     }
 
@@ -476,6 +482,45 @@ impl TaskRuntimeAdmission {
         })?;
         Ok(identity)
     }
+}
+
+/// Join each bound subtree's canonical suspension crossings into the
+/// candidate's roster. An identity the roster already holds must carry the
+/// identical row — a same-identity crossing with different content is a
+/// coordinate conflict and fails closed — while a novel identity joins the
+/// roster. The joined roster lands in canonical identity order, matching
+/// what graph derivation would have published had it resolved the call
+/// itself, so the re-minted plan identity binds one canonical ordering.
+fn join_bound_subtree_crossings(
+    candidate: &mut ActivationPlanCandidate,
+    bindings: &[CallTargetBinding],
+) -> Result<(), TaskPlanDiagnostic> {
+    for crossing in bindings.iter().flat_map(|binding| binding.crossings.iter()) {
+        match candidate
+            .canonical_suspension_crossings
+            .iter()
+            .position(|existing| existing.identity == crossing.identity)
+        {
+            Some(position) if candidate.canonical_suspension_crossings[position] == *crossing => {
+                // A crossing the bound subtree shares with the graph's own
+                // roster — or a covered subtree presented again — dedupes.
+            }
+            Some(_) => {
+                return Err(TaskPlanDiagnostic(format!(
+                    "call target binding joins suspension crossing 0x{:016x} that conflicts \
+                     with the plan's retained canonical row",
+                    crossing.identity.get()
+                )));
+            }
+            None => candidate
+                .canonical_suspension_crossings
+                .push(crossing.clone()),
+        }
+    }
+    candidate
+        .canonical_suspension_crossings
+        .sort_unstable_by_key(|crossing| crossing.identity);
+    Ok(())
 }
 
 /// Bind an untrusted invocation receipt candidate to the exact retained

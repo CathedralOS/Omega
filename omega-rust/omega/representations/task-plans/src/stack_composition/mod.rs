@@ -15,14 +15,17 @@
 //! checked callee edge, merges the bound callee's validated subtree into the
 //! demand's frame evidence, and recomposes — a projection whose roster
 //! empties publishes exact, while a site no binding names stays unresolved
-//! and keeps rejecting.
+//! and keeps rejecting. The binding also carries the bound subtree's
+//! canonical suspension crossings, which `bind_call_targets` joins into the
+//! served plan's roster when it re-seals.
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
 use crate::{
-    AdmittedStackContributionReportId, SameStackContributionAdmissionReceiptId, StackPlan,
-    StackPlanProjectionId, StackRepresentationId, TaskPlanDiagnostic, TaskStackCompositionId,
-    TaskStackFrameId, TaskStackFrameValidationId,
+    AdmittedStackContributionReportId, CanonicalSuspensionCrossing,
+    SameStackContributionAdmissionReceiptId, StackPlan, StackPlanProjectionId,
+    StackRepresentationId, TaskPlanDiagnostic, TaskStackCompositionId, TaskStackFrameId,
+    TaskStackFrameValidationId,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -258,6 +261,14 @@ pub struct UnresolvedCallSite {
 /// charges into the demand exactly as if the graph had resolved the call.
 /// Unresolved sites inside the presented subtree stay unresolved: binding a
 /// target never launders the callee's own partial evidence into exactness.
+///
+/// `crossings` carries the bound subtree's canonical suspension crossings —
+/// the provider-side call-graph derivation's row per checked suspension
+/// crossing reachable inside `subtree`. Covering joins them into the plan's
+/// canonical roster alongside the containment-subtree rows: an identity the
+/// roster already holds must carry the identical row, a conflicting row
+/// fails closed, and a novel identity joins so a bound callee that suspends
+/// can park at a crossing of its own subtree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallTargetBinding {
     /// Frame owning the unresolved call the provider is binding.
@@ -274,6 +285,10 @@ pub struct CallTargetBinding {
     /// The bound callee's complete validated subtree: its root frame and
     /// every frame reachable through its own checked calls.
     pub subtree: Vec<ValidatedTaskStackFrameSummary>,
+    /// The bound subtree's canonical suspension crossings — one row per
+    /// checked suspension crossing reachable inside `subtree`, exactly as
+    /// the provider-side call-graph derivation produced them.
+    pub crossings: Vec<CanonicalSuspensionCrossing>,
 }
 
 /// Compiler-produced local frame facts before whole-graph composition.
@@ -1696,6 +1711,7 @@ mod tests {
             call_ordinal: site.call_ordinal,
             callee: id(callee, TaskStackFrameId::from_normalized_identity),
             subtree,
+            crossings: Vec::new(),
         }
     }
 
