@@ -55,15 +55,18 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   Every grammar-level expression, statement, control, and Console form has a
   staging execution path; there is no private `Unsupported` fallback. This is
   not complete conformance or checked evaluator refinement. Remaining work is
-  contract-derived checking/runtime conformance, resource-contained storage
-  realization, complete D composition, and independently checked refinement.
+  contract-derived checking/runtime conformance and resource-contained storage
+  realization.
   The canonical evaluator boundary and `main` are realized by
   [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): the packed closure plus the bound
   [`evaluator_entry.delta`](../../tests/epsilon/evaluator-entry/evaluator_entry.delta)
   source compiles to the canonical receipt that consumes the EREQ envelope and
   publishes canonical observations or EEOUT refusal frames within the
-  evaluator's current construct coverage. Final section-11 acceptance still
-  requires complete D and `RunEpsilon` refinement.
+  evaluator's current construct coverage. `RunEpsilon` refinement over the
+  exact D closure member sources is exercised by
+  [`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md), and
+  complete-D composition through the same edge by
+  [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md).
   The
   current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.

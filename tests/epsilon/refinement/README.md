@@ -60,6 +60,39 @@ mutations and re-derives every expectation through the model:
   observation, plus truncation and extension, is checked to discriminate:
   the published bytes equal the model's and nothing else.
 
+## D closure members
+
+The gate's second leg refines the model over the **exact D closure member
+sources** — the same eight programs
+[`tests/epsilon/d-composition/`](../d-composition/README.md) checks and
+executes through the canonical edge. [`d_closure.py`](d_closure.py) assembles
+the six whole-member customers from the live, digest-pinned members under
+`bootstrap/5_omega/` plus the pinned customer mains under
+`tests/epsilon/interpreted-omega-experiment/customers/`, then the two
+whole-closure customers from the bound 509,267-byte packed closure and the
+d-composition entry sources (`main.epsilon` reading the sealed
+[`program.omg`](../d-composition/program.omg) stdin, and
+`check_only_main.epsilon`). Member and packed identities restate the bound
+records, so a changed member refuses before any evaluator invocation.
+
+Each customer derives its observation through `model.observation` and the
+canonical edge must publish it byte-for-byte — including the
+complete-closure customer, where the model itself interprets D's own
+`OmegaScalarCompiler::compile` of the sealed Omega source and the edge's
+emitted Alpha tape must equal the model's bytes. Each customer then applies
+its bounded member mutations: one spelling change per D member across the
+set — an `InvalidArrayLength` formation reject plus an invalid-byte reject
+in `representations`, trap discriminations in `lexical_classification`
+(a whitespace arm and a digit bound, each turning the customer's exit into
+an `Assertion` trap), and invalid-byte lexical rejects at packed offsets
+inside `alpha_tape`, `request_and_utf8` (twice), `lexer`, `parser`,
+`scalar_compilation`, and `outcome`.
+The model re-derives every mutated observation; the edge must match, and a
+mutation that leaves the observation unchanged fails the gate rather than
+counting as coverage. A member or mutation whose constructs sit outside the
+model's declared fragment is recorded as `ModelExcluded` in the per-customer
+and summary lines — never assigned a judgment to force agreement.
+
 ## Running
 
 ```sh
@@ -67,10 +100,24 @@ sh tests/epsilon/refinement/run.sh
 ```
 
 The gate needs macOS arm64 or Windows x64 (the bound Gamma tape runs
-natively), `python3`, and a few minutes: the canonical evaluator receipt is
-reconstructed once per run (~4 minutes) and each of the ~120 request
-executions is a full evaluator invocation. The gate prints one summary line
-on success and stops at the first divergence with both sides' bytes.
+natively) and `python3`. The canonical evaluator receipt is reconstructed
+once per run (~5 minutes), the ~120 synthetic-corpus request executions take
+a few minutes, and the D-member leg is the slow part: the edge's per-customer
+times recorded for d-composition are roughly 60, 550, 670, 510, 140, 450,
+3,700, and 3,300 seconds respectively on a loaded host, with each lexical
+member mutation priced at one lex of the packed prefix and each trap or
+formation mutation at one full customer invocation. This is an explicit slow
+gate in the same shape as d-composition, not a routine smoke.
+
+Selecting customers runs only the named D members after the corpus:
+
+```sh
+sh tests/epsilon/refinement/run.sh 'Omega D lexer' 'Omega D numeric-base sums'
+```
+
+`--skip-members` runs only the synthetic corpus; `--skip-corpus` skips it
+(useful for iterating on the D leg). `OMEGA_REFINE_D_SECONDS` overrides the
+14,400-second per-invocation watchdog for the D leg.
 
 The status-252 pair-arena boundary is intentionally not exercised here; it is
 witnessed directly by `tests/epsilon/pair-boundary/`. Resource refusals
