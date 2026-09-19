@@ -22,5 +22,27 @@ data Main {
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine larger(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }
 
+// The same equation also constructs an omitted Length from a supplied
+// Capacity. Its field remains runtime data with that exact qualification.
+data Bytes<const Capacity: u64, Length [copy]> [copy]
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+machine preserve_constructed(value: Bytes<256>) -> Bytes<256, u64[0..=256]> { value }
+
+machine constructed_value(value: u64[0..=256]) -> u64 {
+    let bytes: Bytes<256> = Bytes { length: value };
+    bytes.length
+}
+
+machine constructed_capacity(value: u64[0..=256]) -> u64 {
+    let bytes: Bytes<256> = Bytes { length: value };
+    upper_bound(bytes.length)
+}
+
 machine Main::main(&mut self) {
 }

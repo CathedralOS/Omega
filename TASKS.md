@@ -3386,8 +3386,6 @@ Owners include
     identity, static evaluation/layout and artifact readers. Synthesized
     instances deduplicate by `ClosedArgumentIdentity`; their display name
     stays diagnostic-only.
-  - `tests/omega` canaries for the constructed direction (`Bytes<256>`
-    binding `Length`). Only the `omitted_data_binders.rs` unit tests cover it.
 
   Acceptance: `generics/omitted_data_binder_range_equation` (TinyBytes binds
   omitted Capacity before layout; `u64[0..257]` and `u64[0..=256]` select one
@@ -3415,6 +3413,21 @@ Owners include
   (`declared_range_inference_local_effects_retain_pending_terminal_boundaries`)
   still follow STATE-LOCAL-VALUE-FRONTIER. Do not add generic-specific storage
   plans to resolve that independent lowering boundary.
+
+  The constructed-direction customer in
+  `generics/omitted_data_binder_range_equation` checks and evaluates ordinary
+  `Bytes<256>` field values and the recovered endpoint; explicit conflicting
+  length types and out-of-range initializers reject. Its nested backing array
+  still blocks Terminal execution. On macOS ARM64 at `f6adb89fb3` plus this
+  fixture, `omega inspect-terminal --machine constructed_value
+  tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg`
+  with `RUST_MIN_STACK=67108864` reports no checked scalar control plan.
+  **STATE-LOCAL-VALUE-FRONTIER** owns nested fixed-array record establishment:
+  `execution/unit/mod.rs::scalar_graph_record_shapes` excludes the array,
+  and `scalar_graph/scalar_graph_lowering/structural_values.rs` only establishes
+  complete record fields. Preserve the backing array and connect its ordinary
+  zero initialization before claiming Terminal or native execution; deleting
+  storage or only widening the shape filter cannot deliver this customer.
 
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
