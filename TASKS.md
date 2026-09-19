@@ -3793,10 +3793,18 @@ Owners include
   starts on bounded stack provisioning (316eaa89e5), parks and resumes
   claims only at canonical crossings carrying each live place's
   `LiveCarryDemand` (c1b16cb063, afda8fbe16), and settles `Cancelled` only
-  against a recorded then observed cancellation request (fe9e63735b). Per
-  the [task-plans note](omega-rust/omega/representations/task-plans/README.md),
-  routed source `Task<T>` establishment and a real selected runtime
-  executing the transitions the ledger models remain.
+  against a recorded then observed cancellation request (fe9e63735b).
+  Routed source `Task<T>` establishment exists:
+  `lifecycle_ledger/claim_route.rs` (f9b5bb6ced) mints the exact
+  `provider`/`activation` field pair a `Task<T>` value carries onto every
+  accepted claim, resolves the pair to its live claim on the minting
+  instance only, and drives every value-carrying transition —
+  cancellation request, park/resume, safe-point observation, settlement —
+  through `*_by_route` operations sharing the claim-object checks; foreign
+  instances, fabricated pairs, and settled routes all fail closed, and a
+  burned activation identity never rebinds. Per the [task-plans
+  note](omega-rust/omega/representations/task-plans/README.md), a real
+  selected runtime executing the transitions the ledger models remains.
 
   Acceptance: stack/control custody is never compiler-owned or lost across a
   suspension edge, and missing crossing demand rejects. Exercise concurrent
