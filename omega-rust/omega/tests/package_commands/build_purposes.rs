@@ -256,6 +256,165 @@ fn nested_build_inspection_rejects_a_failed_prerequisite_before_the_consumer() {
     assert_eq!(fixture.accepted_files(), before);
 }
 
+#[test]
+fn nested_build_sample_refresh_produces_a_runnable_native_product() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = nested_build_fixture();
+    let build = fixture.read("root/build.omg").replace(
+        "builder.package(\"cli-project\");",
+        &format!(
+            "builder.application(\"cli-project\");\n    builder.roots.bind({}::ProgramEntry, Main::main);",
+            profile.target_name(),
+        ),
+    );
+    fixture.write("root/build.omg", &build);
+    fixture.write(
+        "root/main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    let before = fixture.accepted_files();
+    let unreviewed = fixture.omega(&["refresh-samples", "."]);
+    assert_status(&unreviewed, 1);
+    assert!(combined(&unreviewed).contains("package acceptance is missing"));
+    assert_eq!(fixture.accepted_files(), before);
+    assert_status(
+        &fixture.omega(&["update", "--target", profile.target_name(), "--offline"]),
+        0,
+    );
+    let before = fixture.accepted_files();
+    let output =
+        fixture.omega_with_env(&["refresh-samples", "."], &[("RUST_MIN_STACK", "2097152")]);
+    assert_status(&output, 0);
+    let text = combined(&output);
+    assert!(
+        text.contains("consumer received generated answer"),
+        "{text}"
+    );
+    assert!(text.contains("1 of 1 samples built"), "{text}");
+    let executable = fixture.path(if profile == target::TargetProfile::WindowsX64 {
+        "root/build/omega-program.exe"
+    } else {
+        "root/build/omega-program"
+    });
+    let run = std::process::Command::new(&executable)
+        .output()
+        .expect("run the refreshed host executable");
+    assert_status(&run, 0);
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/omega.admissions").exists());
+    assert!(!fixture.path("dependency/generated.omg").exists());
+}
+
+#[test]
+fn sample_refresh_requires_a_package_declaration() {
+    let Some(_) = nested_build_target() else {
+        return;
+    };
+    let fixture = Fixture::new();
+    std::fs::remove_file(fixture.path("root/build.omg")).unwrap();
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["refresh-samples", "."]);
+    assert_status(&output, 1);
+    let text = combined(&output);
+    assert!(
+        text.contains("requires a package project with a sibling build.omg"),
+        "{text}"
+    );
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/build/omega-program").exists());
+    assert!(!fixture.path("root/build/omega-program.exe").exists());
+}
+
+fn refresh_application_build(profile: target::TargetProfile) -> String {
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"refresh-app\");\n    builder.roots.bind({}::ProgramEntry, Main::main);\n}}\n",
+        profile.target_name(),
+    )
+}
+
+#[test]
+fn sample_refresh_reports_a_failed_sample_and_builds_its_sibling() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = Fixture::new();
+    for sample in ["good", "bad"] {
+        std::fs::create_dir_all(fixture.path(&format!("root/samples/{sample}"))).unwrap();
+        fixture.write(
+            &format!("root/samples/{sample}/build.omg"),
+            &refresh_application_build(profile),
+        );
+    }
+    fixture.write(
+        "root/samples/good/main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    fixture.write(
+        "root/samples/bad/main.omg",
+        "data Main {}\nmachine Main::main(&mut self) { let value: u64 = false; }\n",
+    );
+    assert_status(
+        &fixture.omega(&[
+            "update",
+            "--project",
+            "samples/good",
+            "--target",
+            profile.target_name(),
+            "--offline",
+        ]),
+        0,
+    );
+    let output = fixture.omega(&["refresh-samples", "samples"]);
+    assert_status(&output, 1);
+    let text = combined(&output);
+    assert!(text.contains("1 of 2 samples built"), "{text}");
+    assert!(text.contains("FAILED") && text.contains("bad"), "{text}");
+    let executable = if profile == target::TargetProfile::WindowsX64 {
+        "omega-program.exe"
+    } else {
+        "omega-program"
+    };
+    let run =
+        std::process::Command::new(fixture.path(&format!("root/samples/good/build/{executable}")))
+            .output()
+            .expect("run the successful sibling sample");
+    assert_status(&run, 0);
+    assert!(
+        !fixture
+            .path(&format!("root/samples/bad/build/{executable}"))
+            .exists()
+    );
+}
+
+#[test]
+fn sample_refresh_rejects_unsettled_trust_without_rewriting_acceptance() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = Fixture::new();
+    fixture.write("root/build.omg", &refresh_application_build(profile));
+    fixture.write(
+        "root/main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    assert_status(
+        &fixture.omega(&["update", "--target", profile.target_name(), "--offline"]),
+        0,
+    );
+    let admissions = format!("{}  accepted fact: stale\n", "1".repeat(64));
+    fixture.write("root/omega.admissions", &admissions);
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["refresh-samples", "."]);
+    assert_status(&output, 1);
+    assert!(combined(&output).contains("project trust admissions are not settled"));
+    assert_eq!(fixture.read("root/omega.admissions"), admissions);
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/build/omega-program").exists());
+    assert!(!fixture.path("root/build/omega-program.exe").exists());
+}
+
 /// A root beside `alpha` and `beta`; the build imports `kit` and the
 /// product source imports `lib`, each resolved only within its own scope.
 fn purposes_fixture(build_edges: &str, product_alias: &str) -> Fixture {

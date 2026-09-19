@@ -475,20 +475,17 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     and reject cycles across both edge kinds. `package-compilation` still
     correctly rejects non-root build edges inside one activation: those belong
     to the dependency's separate compilation, not the caller's imports.
-    `build_purposes::a_build_helper_runs_its_own_build_dependency_before_the_consumer`
-    exercises generator → helper build → consuming build through CLI update,
-    generated source, lock recovery and ordinary `--check` on macOS ARM64.
+    End-to-end coverage in `omega/tests/package_commands/build_purposes.rs`
+    exercises generator → helper build → consumer through CLI update, locked
+    `--check`, non-default-entry terminal inspection, and sample refresh to
+    native execution on macOS ARM64. Inspection grants no native authority;
+    refresh requires ordinary package review and exact trust settlement.
     Cross-profile and dual-purpose nested graphs remain explicit pre-execution
     implementation fences in `review/candidate/compilation/package_pass.rs`.
     Replace the one-review/one-generated-bundle-per-package addressing with
     exact activation purpose/profile/target occurrences before lifting them.
-    Packaged terminal inspection uses the same prerequisite checking and
-    generated-source handoff without trust admission or native publication;
-    its nested-build CLI regression retains a non-default entry and publishes
-    no acceptance record. Sample refresh still rejects nested activations via
-    `PreparedLocalProject::try_into_parts`; route it through prerequisite
-    execution before admitting them. These are implementation
-    gaps, not unresolved language decisions. Windows runtime validation remains.
+    These are implementation gaps, not unresolved language decisions. Windows
+    runtime validation remains.
   - Retain exact purpose/profile/target and accepted authority through
     acquisition, review, lock recovery, generated-source handoff, and checking.
     Extend the existing owners; no second dependency resolver or build executor.

@@ -1,6 +1,5 @@
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
-use omega::compilation::publication;
-use package_manager::operations::LocalProjectPreparationOptions;
+use compiler::CompileOptions;
+use omega::compilation::{CompileProjectRequest, compile_project};
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
@@ -47,57 +46,18 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
                         .parent()
                         .expect("main.omg has a sample directory")
                         .join("build");
-                    let prepared = match package_manager::operations::prepare_local_project(
-                        &main_path,
-                        LocalProjectPreparationOptions {
-                            target: host,
-                            offline: false,
-                        },
-                    ) {
-                        Ok(Some(prepared)) => prepared,
-                        Ok(None) => {
-                            failures.lock().unwrap().push(format!(
-                                "{}: sample project has no sibling build.omg",
-                                main_path.display()
-                            ));
-                            continue;
-                        }
-                        Err(error) => {
-                            failures
-                                .lock()
-                                .unwrap()
-                                .push(format!("{}: {error}", main_path.display()));
-                            continue;
-                        }
-                    };
-                    let (prepared_entry, package_inputs) = match prepared.try_into_parts() {
-                        Ok(parts) => parts,
-                        Err(error) => {
-                            failures
-                                .lock()
-                                .unwrap()
-                                .push(format!("{}: {error}", main_path.display()));
-                            continue;
-                        }
-                    };
                     let options = CompileOptions {
-                        root_path: prepared_entry,
-                        build_dir: Some(build_dir.clone()),
+                        root_path: main_path.clone(),
+                        build_dir: Some(build_dir),
                         target_name: Some(target_name.clone()),
                     };
-                    let request = CompileRequest::new(options)
-                        .with_package_inputs(package_inputs)
-                        .with_requested_product(RequestedCompileProduct::NativeArtifact);
-                    let result = match compile(request)
-                        .and_then(compiler::CompileOutcomes::into_single_report)
-                    {
-                        Ok(report) => publication::publish_native_artifact(report, &build_dir),
-                        Err(diagnostics) => Err(diagnostics
-                            .first()
-                            .map(ToString::to_string)
-                            .unwrap_or_else(|| "unknown compilation error".to_owned())),
-                    };
-                    match result {
+                    // Samples use the ordinary package/build, trust-admission,
+                    // and native-publication route. In particular, acquisition
+                    // alone cannot supply a dependency's generated source, and
+                    // refreshing a sample never accepts trust on its behalf.
+                    let mut request = CompileProjectRequest::new(options);
+                    request.require_package_project = true;
+                    match compile_project(request) {
                         Ok(_) => {
                             built.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         }

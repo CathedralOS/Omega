@@ -26,6 +26,8 @@ pub struct CompileProjectRequest {
     pub timings: bool,
     pub offline: bool,
     pub accept_admissions: bool,
+    /// Reject standalone source after package preparation and transaction recovery.
+    pub require_package_project: bool,
     pub optimization_rollback: OptimizationRollback,
 }
 
@@ -38,6 +40,7 @@ impl CompileProjectRequest {
             timings: false,
             offline: false,
             accept_admissions: false,
+            require_package_project: false,
             optimization_rollback: OptimizationRollback::default(),
         }
     }
@@ -99,6 +102,7 @@ pub fn compile_project(
         timings: collect_timings,
         offline,
         accept_admissions,
+        require_package_project,
         optimization_rollback,
     } = request;
     let mut timings = if collect_timings {
@@ -144,6 +148,14 @@ pub fn compile_project(
             },
         )
         .map_err(CompileProjectError::Preparation)?;
+    // Preparation owns pending-transaction recovery and project discovery.
+    // Batch callers may require a package, but must not bypass that recovery
+    // with an earlier filesystem check for the declaration.
+    if require_package_project && prepared.is_none() {
+        return Err(CompileProjectError::Diagnostics(vec![Diagnostic::error(
+            "compilation requires a package project with a sibling build.omg".to_owned(),
+        )]));
+    }
     let admissions = trust_ledger::read_trust_admissions(&policy_root_path)
         .map_err(CompileProjectError::Diagnostics)?;
     let report = timings.record_result(
