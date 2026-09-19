@@ -34,9 +34,10 @@
 //!   (opaque open terms intern by the term itself). Closed magnitudes in the
 //!   fixed scalar literal vocabulary have shared signed binary definitions;
 //!   larger closed mathematical values retain opaque `Int` constants.
-//!   Open mathematical and unevaluated exact scalar subtraction share a
-//!   function applied to their operands. An already-admitted open mathematical
-//!   subtraction stays opaque if a previously skipped child exceeds evaluation
+//!   Open mathematical and unevaluated exact scalar addition and subtraction
+//!   share their respective functions applied to their operands. An already-
+//!   admitted open mathematical
+//!   arithmetic term stays opaque if a previously skipped child exceeds evaluation
 //!   resources; other open operations also stay opaque. Thus
 //!   evaluated `2 + 0 = 2` remains reflexive without a decision assumption.
 //!   `IntLt` and `IntLe` are the two relation constants `Π(_ : Int). Π(_ : Int).
@@ -96,7 +97,11 @@
 //! checked empty elimination. The checked correlated unsigned subtraction bound
 //! applies fixed self-subtraction and nonstrict right-antitonicity laws to
 //! derive nonnegativity; closed instances use binary order or contradictory
-//! premise elimination. Other witness-bearing bound rules, multiple-equation
+//! premise elimination. Correlated addition upper bounds with an open right addend
+//! apply fixed addition monotonicity and subtraction cancellation; exact SSA
+//! root and maximum equalities use endpoint transport. Closed right addends retain
+//! the instance fallback rather than assuming numeral-operation conversion.
+//! Other witness-bearing bound rules, multiple-equation
 //! or nested transports and denotation-conversion instances outside the
 //! supported `Int` vocabulary denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
@@ -141,6 +146,7 @@ use crate::proof::{
 /// separately to the denoted term.
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
 
+mod addition;
 mod binary_numerals;
 mod subtraction;
 
@@ -670,6 +676,7 @@ struct Denotation {
     /// Shared fixed-width numeral definitions and their fixed arithmetic laws.
     binary_numerals: binary_numerals::BinaryNumerals,
     subtraction: subtraction::Subtraction,
+    addition: addition::Addition,
     /// Canonical mathematical term → `Int`-typed declaration position.
     /// Closed terms intern by exact evaluated value — so a decided
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
@@ -719,6 +726,7 @@ impl Denotation {
             integer_laws: BTreeMap::new(),
             binary_numerals: binary_numerals::BinaryNumerals::default(),
             subtraction: subtraction::Subtraction::default(),
+            addition: addition::Addition::default(),
             math_terms: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
             decisions: HashMap::new(),
@@ -935,8 +943,8 @@ impl Denotation {
     /// The `Int`-typed declaration a mathematical term denotes —
     /// interned by its exact closed value when the shared evaluator has
     /// one, so `add(1, 1)` and `2` name one constant and a decided
-    /// `IntegerMathEqual` on them is `refl`-provable. Open subtraction
-    /// composes child denotations; other open terms intern by source structure.
+    /// `IntegerMathEqual` on them is `refl`-provable. Open addition and subtraction
+    /// compose child denotations; other open terms intern by source structure.
     /// Fixed scalar magnitudes are binary definitions;
     /// larger closed values retain opaque assumptions so this focused
     /// discreteness encoding adds no numeric acceptance limit.
@@ -944,10 +952,11 @@ impl Denotation {
         let key = match ClosedIntegerEvaluator::default().evaluate_closed(term) {
             Ok(Some(value)) => MathTermKey::Closed(value),
             Ok(None) => {
-                // Open subtraction shares the scalar subtraction function.
+                // Open addition and subtraction share their scalar functions.
                 // Retain shallow applications, not cloned source-tree keys
                 // for every nested prefix. Closed values still intern above.
-                if let IntegerMathTerm::Subtract(left, right) = term
+                if let IntegerMathTerm::Subtract(left, right) | IntegerMathTerm::Add(left, right) =
+                    term
                     && ClosedIntegerEvaluator::default()
                         .evaluate_closed(left)
                         .is_ok()
@@ -957,7 +966,11 @@ impl Denotation {
                 {
                     let left = self.math_term(left)?;
                     let right = self.math_term(right)?;
-                    return self.subtract_terms(left, right);
+                    return if matches!(term, IntegerMathTerm::Add(..)) {
+                        self.add_terms(left, right)
+                    } else {
+                        self.subtract_terms(left, right)
+                    };
                 }
                 // Evaluation short-circuits on an open left child. If an
                 // unvisited child would exceed its numeric work budget, keep
@@ -993,7 +1006,7 @@ impl Denotation {
 
     /// Keep one carrier for fixed scalar equations and orders, including
     /// mixed symbolic/compound endpoints. Other open operations remain opaque;
-    /// only exact subtraction gains a compositional denotation in this slice.
+    /// exact addition and subtraction have compositional denotations.
     fn fixed_scalar_term(
         &mut self,
         term: &ScalarTerm,
@@ -1009,10 +1022,15 @@ impl Denotation {
                     source_type: *source_type,
                     value: *id,
                 })?,
-                ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
+                ScalarTerm::ExactIntegerSubtract { left, right, .. }
+                | ScalarTerm::ExactIntegerAdd { left, right, .. } => {
                     let left = self.fixed_scalar_term(left)?;
                     let right = self.fixed_scalar_term(right)?;
-                    self.subtract_terms(left, right)?
+                    if matches!(term, ScalarTerm::ExactIntegerAdd { .. }) {
+                        self.add_terms(left, right)?
+                    } else {
+                        self.subtract_terms(left, right)?
+                    }
                 }
                 _ => {
                     if let Some(&position) = self.scalar_integer_terms.get(term) {
@@ -2432,12 +2450,24 @@ impl<'a> Elaboration<'a> {
                     self.rules.insert(AcceptedProofRule::IntegerAffineBound);
                     return Ok(evidence);
                 }
+                let mut definitions = Vec::with_capacity(cited.len());
+                for &index in &cited {
+                    definitions.push(self.cited_axiom(index)?);
+                }
+                if let Some(evidence) = self.denotation.correlated_add_upper_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &definitions,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
                 let mut premises = Vec::with_capacity(cited.len() + 1);
                 let mut evidence = Vec::with_capacity(cited.len() + 1);
                 premises.push(root_bound.conclusion.clone());
                 evidence.push(root);
-                for index in cited {
-                    let (proposition, variable) = self.cited_axiom(index)?;
+                for (proposition, variable) in definitions {
                     premises.push(proposition);
                     evidence.push(variable);
                 }

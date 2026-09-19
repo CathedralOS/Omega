@@ -48,7 +48,7 @@ pub(super) struct Subtraction {
 }
 
 impl Denotation {
-    fn subtract_operation(&mut self) -> Result<u32, BoundedDenotationError> {
+    pub(super) fn subtract_operation(&mut self) -> Result<u32, BoundedDenotationError> {
         if let Some(position) = self.subtraction.operation {
             return Ok(position);
         }

@@ -1655,9 +1655,10 @@ Owners include
   `terminal-codec`'s `encode_mathematical_certificate` and
   `decode_mathematical_certificate` have no caller outside tests, and the only
   source customers cover scalar `==` symmetry/transitivity, fixed-literal
-  discreteness, subtraction rank decrease and its no-underflow obligation
-  (`compiler/tests/proof_kernel_canaries.rs`, `kernel_discreteness.rs` and
-  `kernel_subtract_order.rs`), not general dependent theorems.
+  discreteness, subtraction rank decrease, its no-underflow obligation and
+  guarded addition bounds (`compiler/tests/proof_kernel_canaries.rs`,
+  `kernel_discreteness.rs`, `kernel_subtract_order.rs` and `kernel_add_bound.rs`),
+  not general dependent theorems.
 
   Remaining work:
 
@@ -1682,12 +1683,16 @@ Owners include
     subtraction witness derives its zero lower bound from fixed self-zero
     and non-strict antitonicity laws. Contradictory closed premises use fixed
     irreflexivity and checked empty elimination. These laws remain explicit
-    assumptions. Mathematical subtraction shares that operation; an already
-    admitted open expression stays opaque if composing a child would introduce
-    a resource refusal. Still to do: the other bound-witness forms, multiple-
-    equation or nested transport, and transport outside the supported `Int`
-    vocabulary. Other open arithmetic still names opaque `Int` constants,
-    so `x + 0 = x` assumes its conclusion.
+    assumptions. Mathematical subtraction shares that operation. Open addition
+    also retains its operands;
+    correlated upper bounds with an open right addend use fixed addition
+    monotonicity and subtraction cancellation, including exact SSA subtraction
+    definitions and maximum-value equalities. An already admitted open expression
+    stays opaque if composing a child would introduce a resource refusal. Still
+    to do: closed endpoint bridges for correlated addition, other bound-witness forms,
+    multiple-equation or nested transport, and transport outside the supported
+    `Int` vocabulary. Other operations remain opaque; unsupported arithmetic
+    derivations, including `x + 0 = x`, still assume their conclusions.
   - Check indexed-scheme applications produced from source declarations, per
     [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
     exact parameters, indices, payloads, case constraints and recursive uses.
@@ -1726,12 +1731,13 @@ Owners include
   denotes the integer order and equality rules through a fixed roster of
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
-  terms by exact evaluated value. Subtraction order and the correlated
-  unsigned subtraction lower bound use fixed arithmetic laws, but other
-  bound-witness forms and remaining multiple-equation, nested or non-`Int`
-  transport instances remain per-instance `rule_axiom`s whose
-  statements carry no arithmetic a receiver could audit, and open
-  arithmetic beyond this subtraction route remains opaque.
+  terms by exact evaluated value. Subtraction order, the correlated
+  unsigned subtraction lower bound and correlated addition upper bounds with
+  open right addends use fixed arithmetic laws. Remaining bound-witness forms and
+  multiple-equation, nested or non-`Int` transport instances still use
+  per-instance `rule_axiom`s. Addition and subtraction retain their operands;
+  other open arithmetic remains opaque. Fixed laws still require exact
+  assumption admission and do not establish arithmetic consistency.
 
   PCC-CANONICAL-SEMANTIC-LEDGER owns the soundness status of trusted checker
   rows and PROOF-CERTIFICATION-BRIDGE owns loop correspondence. Reopen W only
