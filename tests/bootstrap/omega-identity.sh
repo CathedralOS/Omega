@@ -68,7 +68,7 @@ echo "member: a one-byte member change is refused during packing"
 
 for needle in \
   "$OMEGA_COMPILER_MANIFEST_SHA256" "$OMEGA_COMPILER_PACKED_SHA256" \
-  "509,267"
+  "525,334"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/5_omega/README.md" ||
     fail "bootstrap/5_omega/README.md lacks bound record $needle"

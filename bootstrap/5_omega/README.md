@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 14,974 lines / 509,267 bytes with SHA-256
-`5c23b759ee6ef23086ded56dfc3cb2c8a7c071b59e83f41b8828e7506c392cbe`.
+manifest materializes 15,321 lines / 525,334 bytes with SHA-256
+`b507fb785ea450409f3cd1c34f3c451656a124d23ecd912f9e8f8e6e45f41c64`.
 The manifest itself is 1,338 bytes, SHA-256
-`8fbfd7d2dca35bb0a5abcc60f6920cadb61bab3f0e048574629fcb25db8fc573`;
+`e1e334b4647e06b6f9d82fb8d741fb5ae8f5e528b15ac015a395402512163001`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -73,8 +73,12 @@ encoder. It is a diagnostic invocation route over the complete compiler source,
 not the final package/Build/request interface. The compiler checks all admitted
 machine bodies, resolves an explicitly supplied entry, and refuses unsupported
 forms rather than treating them as opaque executable code. Its first result type
-is `u8` with a literal return; general scalar computations and state/call bodies
-remain implementation work.
+is `u8` over literal operands joined by the arithmetic, bitwise, and shift
+binary operators, folded under the default Exact policy — every node must stay
+representable in the carrier, so overflow, underflow, a zero divisor, or a
+shift count at or above the width refuses the source while comparison, logical,
+unary, path, and other non-`u8`-producing forms remain implementation work;
+state/call bodies remain implementation work as well.
 
 The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,
@@ -263,8 +267,11 @@ expressions, and other richer initializers remain implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,
-or canonical range operands. The statement points directly to the shared
-expression node; indexing has no assignment-only syntax representation.
+or canonical range operands, and such a primary may continue through the shared
+binary-operator reducer — including a statement-leading path — with `}`
+terminating the statement only when no expression group is open. The statement
+points directly to the shared expression node; indexing has no assignment-only
+syntax representation.
 
 Each completed machine owns zero or one implicit entry followed by its explicit
 states in source order, matching the canonical parser. Parameters, a return,

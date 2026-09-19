@@ -236,7 +236,7 @@ sealed stdin, this profile, and the complete
 coverage the evaluator currently implements. The last two legs are now
 exercised gates on this unchanged composition:
 [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md)
-checks and executes the whole 509,267-byte D closure — all eight manifested
+checks and executes the whole 525,334-byte D closure — all eight manifested
 members — through this canonical edge, including D's own
 `OmegaScalarCompiler::compile` publishing the exact emitted Alpha tape, and
 records the checking-versus-execution allocation split (8e63b21300), while

@@ -51,8 +51,8 @@ observations are the same exact byte strings the diagnostic gate expects:
 | Omega D request invocation fields | 61,601 | `00 00000000 410a` |
 | Omega D numeric-base sums | 35,992 | `00 00000000 41` |
 | Omega D lexer | 109,611 | `00 00000000 41` |
-| Omega D complete closure | 511,026 | `00 00000000` + emitted tape ([`expected.hex`](expected.hex)) |
-| Omega D complete closure check only | 509,512 | `00 00000000` |
+| Omega D complete closure | 527,093 | `00 00000000` + emitted tape ([`expected.hex`](expected.hex)) |
+| Omega D complete closure check only | 525,579 | `00 00000000` |
 
 On macOS arm64 at the recorded revision, the six whole-member customers each
 produced their exact canonical observation in 61.336, 555.423, 668.186,
@@ -61,7 +61,7 @@ host running concurrent bootstrap work; these are host measurements, not
 bounds.
 
 The seventh customer is the complete-D composition: the whole bound
-509,267-byte packed D closure (`5c23b759…`) plus this gate's own
+525,334-byte packed D closure (`b507fb78…`) plus this gate's own
 [`main.epsilon`](main.epsilon), which reads the sealed stdin section through
 `Console.read_byte`, calls D's actual `OmegaScalarCompiler::compile` on the
 [`program.omg`](program.omg) source (`machine answer() -> u8 { 42 }`,
@@ -118,7 +118,8 @@ execution times.
 
 ## Allocation measurement
 
-The two whole-closure invocations at the recorded revision ran on macOS
+The two whole-closure invocations at the recorded revision — when the packed
+closure was 509,267 bytes (`5c23b759…`) — ran on macOS
 arm64 under LLDB, which read the unchanged evaluator's Gamma heap cursor and
 limit at `h_halt` (the two register words at `x19 + 0x500`, arena start
 268,435,456, 40 bytes per pair, limit 1,879,048,192 bytes), then detached so
@@ -140,9 +141,9 @@ evaluator invocations included an external suspension window of roughly
 eleven minutes inside the wall times above; process CPU was about 24.5 and
 30 minutes respectively on a host running concurrent bootstrap work.
 
-Checking the whole 509,267-byte D closure consumes 9.56% of the pair arena;
-the complete customer's execution adds 1,811,468 pairs for the scalar compile
-of [`program.omg`](program.omg). The earlier whole-customer reading (80.05% in
+Checking that recorded 509,267-byte D closure consumed 9.56% of the pair
+arena; the complete customer's execution added 1,811,468 pairs for the
+scalar compile of [`program.omg`](program.omg). The earlier whole-customer reading (80.05% in
 the [parser comparison](../../bootstrap/omega-parser/README.md#field-identity-comparison))
 was therefore execution-dominated, not a checking phase near the limit; at
 the recorded revision no complete-D checking or single-compile execution

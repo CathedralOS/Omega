@@ -79,7 +79,7 @@ def main():
         expected_tape = bytes.fromhex("13 0b00000000000000 00 00 01 00 2a00000000000000 14")
         if observation != b"\x00\x00\x00\x00\x00C" + expected_tape:
             raise SystemExit(f"Compiler controls failed: {observation[:40].hex()}")
-        print("PASS: 13 compiler invocations, literal bounds, entry selection, refusals and reset")
+        print("PASS: 35 compiler invocations, folded operations, literal bounds, entry selection, refusals and reset")
         observation = observation[:5] + observation[6:]
     expected_prefix = b"\x00" + struct.pack("<i", options.expect_compile)
     if observation[:5] != expected_prefix:

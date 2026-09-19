@@ -56,18 +56,18 @@ MEMBER_RECORDS = [
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     ("lexer.epsilon", 44649,
      "e16e7a42ee0848ff56b06dff4e9900569ae57724a281c0d3bada847717412ba6"),
-    ("parser.epsilon", 349893,
-     "90acce7a3c1d9c42e0467552ea891427ea3e159627f00925525db0e618e8e577"),
+    ("parser.epsilon", 355292,
+     "43ad5d56162ae42aaae9eba707af2d51f2098a3323b56da0e96c94913a79109b"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    ("scalar_compilation.epsilon", 14450,
-     "dca649e32d1b86c53630c6f88af81d24b3a0051fe5420309dc63624e7bd05fe1"),
+    ("scalar_compilation.epsilon", 25118,
+     "e7cd1f2eed74bfaa3b380acff2f297fb2a8587cb06a4f93b6a25c77177d8ca42"),
     ("outcome.epsilon", 11252,
      "77c3848a97ee9f37d6f161b158a74f64d2eaded2d0cd2b6e8ef8d6d62264a545"),
 ]
 
-PACKED_RECORD = (509267,
-                 "5c23b759ee6ef23086ded56dfc3cb2c8a7c071b59e83f41b8828e7506c392cbe")
+PACKED_RECORD = (525334,
+                 "b507fb785ea450409f3cd1c34f3c451656a124d23ecd912f9e8f8e6e45f41c64")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,
@@ -217,8 +217,8 @@ def customers():
         all_members,
         packed + composition_main,
         omega_source,
-        [("scalar_compilation: invalid byte at packed 483765",
-          byte_at(483765, 0x01)),
+        [("scalar_compilation: invalid byte at packed 489164",
+          byte_at(489164, 0x01)),
          ("representations: invalid byte at packed 800",
           byte_at(800, 0x01))]))
     cases.append(Customer(
@@ -227,5 +227,5 @@ def customers():
         packed + check_only_main,
         b"",
         [("parser: invalid byte at packed 103991", byte_at(103991, 0x01)),
-         ("outcome: invalid byte at packed 499280", byte_at(499280, 0x01))]))
+         ("outcome: invalid byte at packed 515347", byte_at(515347, 0x01))]))
     return cases

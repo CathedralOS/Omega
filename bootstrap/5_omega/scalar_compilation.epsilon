@@ -15,6 +15,17 @@ data OmegaScalarCompiler {
     selected_machine: i32;
     machine_values: [i32; 4096];
     machine_labels: [i32; 4096];
+    // Expression folding scratch. eval_order collects one terminal
+    // expression's subtree in preorder (children always carry larger slot
+    // positions than their parent), then a reverse scan folds children
+    // before their consumers; operand_values holds each visited node's
+    // folded u8 value or -2 for an unsupported form.
+    operand_values: [i32; 16384];
+    eval_order: [i32; 16384];
+    eval_count: i32;
+    eval_scan: i32;
+    fold_root: i32;
+    fold_anchor: i32;
     // Canonical outcome tuple for the eventual OCOUT publication
     // (outcome.epsilon). The contract assigns Reject codes 1..12; producers
     // here record the lexical codes 2..9 through the scanner diagnostic
@@ -199,38 +210,271 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         }
     }
 
+    // The terminal expression folds under the machine's default Exact policy:
+    // every node's u8 result must be representable in its declared carrier.
+    // Children always precede their parents in eval_order, so one preorder
+    // collect followed by a reverse scan evaluates every operand before its
+    // consumer without recursion. A node that cannot produce a u8 value
+    // records -2 (unsupported); an unrepresentable or undefined operation
+    // refuses the source.
     state check_expression(index: i32, expression: i32) {
+        self.fold_root = expression;
+        self.fold_anchor = self.diagnostic_offset;
+        self.eval_order[0] = expression;
+        self.eval_count = 1;
+        self.eval_scan = 0;
+        transition true { true -> collect_operand(index) }
+    }
+
+    state collect_operand(index: i32) {
+        transition self.eval_scan < self.eval_count {
+            true -> collect_node(index)
+            _ -> fold_start(index)
+        }
+    }
+
+    state collect_node(index: i32) {
+        let expression: i32 = self.eval_order[self.eval_scan];
+        self.eval_scan = self.eval_scan + 1;
+        transition self.parser.expressions[expression].kind {
+            OmegaExpressionKind::Binary -> collect_binary(index, expression)
+            OmegaExpressionKind::Unary -> collect_unary(index, expression)
+            _ -> collect_operand(index)
+        }
+    }
+
+    // The subtree is bounded by the parser's expression arena, so the collect
+    // worklist can never exceed its capacity; the guard is the bounded form.
+    state collect_binary(index: i32, expression: i32) {
+        transition self.eval_count + 2 <= 16384 {
+            true -> collect_binary_bounded(index, expression)
+            _ -> internal()
+        }
+    }
+
+    state collect_binary_bounded(index: i32, expression: i32) {
+        let row: OmegaBinaryExpressionSyntax = self.parser.binary_expressions[
+            self.parser.expressions[expression].payload0];
+        self.eval_order[self.eval_count] = row.left;
+        self.eval_order[self.eval_count + 1] = row.right;
+        self.eval_count = self.eval_count + 2;
+        transition true { true -> collect_operand(index) }
+    }
+
+    state collect_unary(index: i32, expression: i32) {
+        transition self.eval_count < 16384 {
+            true -> collect_unary_bounded(index, expression)
+            _ -> internal()
+        }
+    }
+
+    state collect_unary_bounded(index: i32, expression: i32) {
+        self.eval_order[self.eval_count] = self.parser.unary_expressions[
+            self.parser.expressions[expression].payload0].operand;
+        self.eval_count = self.eval_count + 1;
+        transition true { true -> collect_operand(index) }
+    }
+
+    state fold_start(index: i32) {
+        self.eval_scan = self.eval_count;
+        transition true { true -> fold_next(index) }
+    }
+
+    state fold_next(index: i32) {
+        transition self.eval_scan > 0 {
+            true -> fold_node(index)
+            _ -> finish_fold(index)
+        }
+    }
+
+    state fold_node(index: i32) {
+        self.eval_scan = self.eval_scan - 1;
+        let expression: i32 = self.eval_order[self.eval_scan];
         transition self.parser.expressions[expression].kind {
             OmegaExpressionKind::Integer -> integer(index,
                 self.parser.expressions[expression].payload0,
                 self.parser.expressions[expression].payload0,
-                self.parser.expressions[expression].payload1, 0)
+                self.parser.expressions[expression].payload1, 0, expression)
+            OmegaExpressionKind::Binary -> fold_binary(index, expression)
+            _ -> mark_unsupported(index, expression)
+        }
+    }
+
+    // sink is the expression handle whose folded value the literal produces.
+    state integer(index: i32, start: i32, cursor: i32, end: i32, value: i32, sink: i32) {
+        transition cursor < end {
+            true -> digit(index, start, cursor, end, value, sink)
+            _ -> store_integer(index, sink, value)
+        }
+    }
+
+    state digit(index: i32, start: i32, cursor: i32, end: i32, value: i32, sink: i32) {
+        self.diagnostic_offset = cursor;
+        let next: i32 = source[cursor] - 48;
+        transition (next >= 0) && (next <= 9) {
+            true -> bounded_digit(index, start, cursor, end, value, next, sink)
             _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
     // start stays the literal's first byte so an out-of-range refusal anchors
     // at the refused literal rather than at the digit that overflows.
-    state integer(index: i32, start: i32, cursor: i32, end: i32, value: i32) {
-        transition cursor < end {
-            true -> digit(index, start, cursor, end, value)
-            _ -> retain(index, value)
-        }
-    }
-
-    state digit(index: i32, start: i32, cursor: i32, end: i32, value: i32) {
-        self.diagnostic_offset = cursor;
-        let next: i32 = source[cursor] - 48;
-        transition (next >= 0) && (next <= 9) {
-            true -> bounded_digit(index, start, cursor, end, value, next)
-            _ -> incomplete(4, self.diagnostic_offset)
-        }
-    }
-
-    state bounded_digit(index: i32, start: i32, cursor: i32, end: i32, value: i32, next: i32) {
+    state bounded_digit(index: i32, start: i32, cursor: i32, end: i32, value: i32, next: i32, sink: i32) {
         transition value <= (255 - next) / 10 {
-            true -> integer(index, start, cursor + 1, end, value * 10 + next)
+            true -> integer(index, start, cursor + 1, end, value * 10 + next, sink)
             _ -> reject(12, 4, start)
+        }
+    }
+
+    state store_integer(index: i32, sink: i32, value: i32) {
+        self.operand_values[sink] = value;
+        transition true { true -> fold_next(index) }
+    }
+
+    state fold_binary(index: i32, expression: i32) {
+        let row: OmegaBinaryExpressionSyntax = self.parser.binary_expressions[
+            self.parser.expressions[expression].payload0];
+        transition (self.operand_values[row.left] >= 0) &&
+            (self.operand_values[row.right] >= 0) {
+            true -> fold_operator(index, expression, row)
+            _ -> mark_unsupported(index, expression)
+        }
+    }
+
+    // The admitted operators produce u8 results: arithmetic, bitwise, and
+    // shift operations. Comparison and logical operators produce Boolean
+    // results this slice does not implement, so they stay unsupported.
+    state fold_operator(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Add -> fold_add(index, expression, row)
+            OmegaBinaryOperatorKind::Subtract -> fold_subtract(index, expression, row)
+            OmegaBinaryOperatorKind::Multiply -> fold_multiply(index, expression, row)
+            OmegaBinaryOperatorKind::Divide -> fold_divide(index, expression, row)
+            OmegaBinaryOperatorKind::Modulo -> fold_modulo(index, expression, row)
+            OmegaBinaryOperatorKind::ShiftLeft -> fold_shift_left(index, expression, row)
+            OmegaBinaryOperatorKind::ShiftRight -> fold_shift_right(index, expression, row)
+            OmegaBinaryOperatorKind::BitwiseAnd -> fold_bitwise_and(index, expression, row)
+            OmegaBinaryOperatorKind::BitwiseOr -> fold_bitwise_or(index, expression, row)
+            OmegaBinaryOperatorKind::BitwiseXor -> fold_bitwise_xor(index, expression, row)
+            _ -> mark_unsupported(index, expression)
+        }
+    }
+
+    state fold_add(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] <=
+            255 - self.operand_values[row.right] {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] + self.operand_values[row.right])
+            _ -> reject(-1, 4, row.operator_start)
+        }
+    }
+
+    state fold_subtract(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] >= self.operand_values[row.right] {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] - self.operand_values[row.right])
+            _ -> reject(-1, 4, row.operator_start)
+        }
+    }
+
+    state fold_multiply(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.right] == 0 {
+            true -> store_folded(index, expression, 0)
+            _ -> fold_multiply_bounded(index, expression, row)
+        }
+    }
+
+    state fold_multiply_bounded(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] <=
+            255 / self.operand_values[row.right] {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] * self.operand_values[row.right])
+            _ -> reject(-1, 4, row.operator_start)
+        }
+    }
+
+    // A zero divisor is an undefined operand under every arithmetic policy,
+    // not a representability failure.
+    state fold_divide(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.right] == 0 {
+            true -> reject(-1, 4, row.operator_start)
+            _ -> store_folded(index, expression,
+                self.operand_values[row.left] / self.operand_values[row.right])
+        }
+    }
+
+    state fold_modulo(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.right] == 0 {
+            true -> reject(-1, 4, row.operator_start)
+            _ -> store_folded(index, expression,
+                self.operand_values[row.left] % self.operand_values[row.right])
+        }
+    }
+
+    // Exact shifts require the count below the 8-bit carrier width; left
+    // shifts also owe their result's representability proof. The count check
+    // runs first so the Epsilon shift never sees a trapping count.
+    state fold_shift_left(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.right] < 8 {
+            true -> fold_shift_left_bounded(index, expression, row)
+            _ -> reject(-1, 4, row.operator_start)
+        }
+    }
+
+    state fold_shift_left_bounded(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] <=
+            255 >> self.operand_values[row.right] {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] << self.operand_values[row.right])
+            _ -> reject(-1, 4, row.operator_start)
+        }
+    }
+
+    state fold_shift_right(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.right] < 8 {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] >> self.operand_values[row.right])
+            _ -> reject(-1, 4, row.operator_start)
+        }
+    }
+
+    // Bitwise operations are total at the carrier width, so their results
+    // always fit u8.
+    state fold_bitwise_and(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition true {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] & self.operand_values[row.right])
+        }
+    }
+
+    state fold_bitwise_or(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition true {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] | self.operand_values[row.right])
+        }
+    }
+
+    state fold_bitwise_xor(index: i32, expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition true {
+            true -> store_folded(index, expression,
+                self.operand_values[row.left] ^ self.operand_values[row.right])
+        }
+    }
+
+    state store_folded(index: i32, expression: i32, value: i32) {
+        self.operand_values[expression] = value;
+        transition true { true -> fold_next(index) }
+    }
+
+    state mark_unsupported(index: i32, expression: i32) {
+        self.operand_values[expression] = -2;
+        transition true { true -> fold_next(index) }
+    }
+
+    state finish_fold(index: i32) {
+        transition self.operand_values[self.fold_root] >= 0 {
+            true -> retain(index, self.operand_values[self.fold_root])
+            _ -> incomplete(4, self.fold_anchor)
         }
     }
 
