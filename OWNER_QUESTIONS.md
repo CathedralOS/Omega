@@ -40,54 +40,7 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **Does build-time authority publish as declared service reach checked
-   against a bound, or stay a fixed compiler-owned facet vocabulary?** (named
-   decision: `build-authority-reach-or-vocabulary`). The general mechanism
-   already exists and already runs on build machines.
-   [Service reach](wiki/spec/language/effects.md) propagates through ordinary
-   calls, inherits through boundary parents, and publishes a normalized row,
-   and `reaches <= Bound` is settled for abstract ceilings
-   (effects.md "Installation-bound requirements"). `admitted_build_program.rs`
-   computes a build machine's inferred transitive service reach through that
-   ordinary plan and then rejects any non-empty result: "build.omg may not
-   reach runtime boundary services; use the compiler-owned Build facets". The
-   policy is `reach == 0` where the language spells `reach <= Bound`, so the
-   computed row is discarded rather than published. Package review collapses
-   the same information: `dangerous_authority_class`
-   (`packages/review/evidence/src/capture/authority.rs`) receives a
-   `ServiceReachDefinition` and returns a class only when the symbol is one of
-   two blessed bindings, so every other reached service classifies as nothing
-   and filesystem use publishes one broad transitional row. Meanwhile
-   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-   already specifies the channel a bubbled primitive would use: a request
-   carrying operation, logical resource scope, bounds, execution profile and
-   target, compared against the consuming project's accepted lock policy and
-   published in `omega.lock`. Build facets bypass it by being the pre-blessed
-   baseline that needs no approval. Options:
-
-   - (a) Build machines declare reach and are checked against a bound like
-     ordinary code. Review publishes rows from the reach structure instead of
-     blessed symbol identity, and an operation outside the baseline becomes a
-     restricted request the lock accepts per package. The facet vocabulary
-     stops being an authority boundary and becomes ordinary library surface.
-   - (b) Build authority stays a fixed compiler-owned vocabulary. Each new
-     build operation is an owner blessing, review keeps its two blessed
-     classes, and the reach computed for build machines stays discarded.
-
-   Motivating customer: a consumer deciding whether to install a package must
-   see what its build does during compilation, which the acceptance contract
-   already requires as checked requests with scope and bounds rather than
-   broad risk labels. Today that answer is "one of five compiler-blessed
-   operations, unreviewed", and the shipped artifact's filesystem use
-   publishes one transitional broad class. The answer also settles what was
-   filed as the constrained filesystem open/query/close chain: that operation
-   requests access zero and cannot read a byte, while the blessed baseline
-   already opens with arbitrary flags and reads contents, so under (a) it
-   needs no blessing at all and under (b) it is one more enumeration step.
-   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and **FILESYSTEM-RELEASE-CONTRACT**
-   both wait on the consequence.
-
-2. **May a provider's selected plan resolve an installation-bound row it
+1. **May a provider's selected plan resolve an installation-bound row it
    owns, or does that wait on receiver-bearing selection?** (named decision:
    `installation-bound-row-nested-resolution`).
    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
