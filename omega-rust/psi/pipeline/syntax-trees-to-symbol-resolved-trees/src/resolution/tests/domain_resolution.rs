@@ -5,6 +5,247 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
+mod semantic_identity_tests {
+    use crate::resolution::{ResolutionRequest, resolve};
+    use language_semantics::SemanticDomainTable;
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source::{DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum};
+    use source_files_to_tokens::Lexer;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+
+    fn add_domain_source(
+        sources: &mut SourceMap,
+        root: &str,
+        filename: &str,
+        text: &str,
+        package_marker: u8,
+        scope: DependencyScope,
+    ) {
+        sources.add_checked_instance(
+            PathBuf::from(root).join(filename),
+            text.to_owned(),
+            PathBuf::from(root),
+            PackageKeyIdentity::from_digest([package_marker; 32]),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            scope,
+        );
+    }
+
+    fn resolve_domain_sources(sources: SourceMap) -> SymbolResolvedTrees {
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        for file in sources.files() {
+            let tokens = Lexer::new(&file.source)
+                .tokenize()
+                .expect("tokenize domain source");
+            let parsed =
+                parse_syntax_trees_with_id(file.source_id, &tokens).expect("parse domain source");
+            syntax.extend_from(&parsed);
+        }
+        resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve owned domain declarations")
+    }
+
+    fn canonical_names(program: &SymbolResolvedTrees) -> Vec<String> {
+        program
+            .domain_definitions
+            .iter()
+            .map(|domain| {
+                program
+                    .semantic_domains
+                    .name(domain.semantic_id)
+                    .expect("retained canonical domain identity")
+                    .to_owned()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn managed_packages_keep_equal_module_and_domain_spellings_distinct() {
+        let mut sources = SourceMap::default();
+        for (root, marker) in [("first", 1), ("second", 2)] {
+            add_domain_source(
+                &mut sources,
+                root,
+                "codec.omg",
+                "module codec; domain [u8; 8]::Utf8;",
+                marker,
+                DependencyScope::Product,
+            );
+        }
+        let program = resolve_domain_sources(sources);
+        assert_eq!(program.domain_definitions.len(), 2);
+        assert_eq!(
+            program.domain_definitions[0].name,
+            program.domain_definitions[1].name
+        );
+        assert_ne!(
+            program.domain_definitions[0].semantic_id,
+            program.domain_definitions[1].semantic_id
+        );
+        let names = canonical_names(&program);
+        assert_ne!(
+            names[0], names[1],
+            "indexed and Terminal readers consume these names"
+        );
+    }
+
+    #[test]
+    fn managed_build_and_product_domains_keep_distinct_checked_identities() {
+        let mut sources = SourceMap::default();
+        for scope in [DependencyScope::Build, DependencyScope::Product] {
+            add_domain_source(
+                &mut sources,
+                "shared",
+                "codec.omg",
+                "module codec; domain [u8; 8]::Utf8;",
+                1,
+                scope,
+            );
+        }
+        let program = resolve_domain_sources(sources);
+        assert_eq!(program.domain_definitions.len(), 2);
+        assert_ne!(
+            program.domain_definitions[0].semantic_id,
+            program.domain_definitions[1].semantic_id
+        );
+        let names = canonical_names(&program);
+        assert_ne!(names[0], names[1]);
+    }
+
+    #[test]
+    fn managed_domain_names_survive_relocation_and_source_order_changes() {
+        let resolve_at = |root: &str, reverse: bool| {
+            let mut sources = SourceMap::default();
+            let mut modules = [("codec", 1), ("policy", 2)];
+            if reverse {
+                modules.reverse();
+            }
+            for (module, marker) in modules {
+                add_domain_source(
+                    &mut sources,
+                    root,
+                    &format!("{module}.omg"),
+                    &format!("module {module}; domain [u8; 8]::Utf8;"),
+                    marker,
+                    DependencyScope::Product,
+                );
+            }
+            let mut names = canonical_names(&resolve_domain_sources(sources));
+            names.sort();
+            names
+        };
+        assert_eq!(
+            resolve_at("checkout/original", false),
+            resolve_at("relocated/project", true)
+        );
+    }
+
+    #[test]
+    fn managed_sibling_sources_share_capacity_specialized_domain_identity() {
+        let mut sources = SourceMap::default();
+        for (filename, capacity) in [("small.omg", 8), ("large.omg", 16)] {
+            add_domain_source(
+                &mut sources,
+                "codec",
+                filename,
+                &format!("module codec; domain [u8; {capacity}]::Utf8;"),
+                1,
+                DependencyScope::Product,
+            );
+        }
+        let program = resolve_domain_sources(sources);
+        assert_eq!(program.domain_definitions.len(), 2);
+        assert_ne!(
+            program.domain_definitions[0].symbol,
+            program.domain_definitions[1].symbol
+        );
+        assert_eq!(
+            program.domain_definitions[0].semantic_id,
+            program.domain_definitions[1].semantic_id
+        );
+    }
+
+    #[test]
+    fn managed_authored_policy_names_do_not_acquire_builtin_identity() {
+        let mut sources = SourceMap::default();
+        add_domain_source(
+            &mut sources,
+            "policies",
+            "main.omg",
+            "domain [u8; 8]::Wrapping; domain [u8; 8]::Saturating; domain [u8; 8]::Trapping;",
+            1,
+            DependencyScope::Product,
+        );
+        let program = resolve_domain_sources(sources);
+        assert_eq!(program.domain_definitions.len(), 3);
+        for (name, builtin) in [
+            ("Wrapping", SemanticDomainTable::WRAPPING),
+            ("Saturating", SemanticDomainTable::SATURATING),
+            ("Trapping", SemanticDomainTable::TRAPPING),
+        ] {
+            assert_eq!(program.semantic_domains.lookup(name), Some(builtin));
+            let authored = program
+                .domain_definitions
+                .iter()
+                .find(|domain| domain.name.as_str().rsplit("::").next() == Some(name))
+                .expect("authored lookalike");
+            assert_ne!(authored.semantic_id, builtin);
+            assert!(authored.semantic_roles.is_empty());
+        }
+    }
+
+    #[test]
+    fn unmanaged_domains_do_not_invent_portable_package_ownership() {
+        let mut sources = SourceMap::default();
+        for root in ["first", "second"] {
+            add_domain_source(
+                &mut sources,
+                root,
+                "codec.omg",
+                "module codec; domain [u8; 8]::Utf8;",
+                0,
+                DependencyScope::Product,
+            );
+        }
+        let program = resolve_domain_sources(sources);
+        assert_eq!(program.domain_definitions.len(), 2);
+        assert_eq!(
+            program.domain_definitions[0].semantic_id, program.domain_definitions[1].semantic_id,
+            "unmanaged collisions remain subject to the independent validation guard"
+        );
+        assert!(!program.symbols.same_symbol_source_package(
+            program.domain_definitions[0].symbol,
+            program.domain_definitions[1].symbol
+        ));
+    }
+
+    #[test]
+    fn mapped_domain_rejects_missing_source_custody() {
+        let tokens = Lexer::new("domain [u8; 8]::Utf8;")
+            .tokenize()
+            .expect("tokenize domain");
+        let syntax =
+            parse_syntax_trees_with_id(source::SourceId(0), &tokens).expect("parse domain");
+        let diagnostics = resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(SourceMap::default())),
+            top_level_bindings: Vec::new(),
+        })
+        .expect_err("a mapped declaration cannot fall back to source-free identity");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.message == "domain declaration is missing its checked source owner"
+        }));
+    }
+}
+
 #[test]
 fn rejects_authored_empty_service_reach_on_external_realization_before_resolved_trees() {
     let source = r#"

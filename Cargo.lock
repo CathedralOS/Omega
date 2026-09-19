@@ -2189,6 +2189,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
  "symbol-resolved-trees",

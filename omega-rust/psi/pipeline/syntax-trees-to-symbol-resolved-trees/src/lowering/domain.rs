@@ -46,14 +46,47 @@ pub(crate) fn lower_domain_definition(
         |lowerer| lower_domain_operators(lowerer, syntax_trees, domain.operators),
     )?;
 
-    // STR4 checked plans, slice 1: mint the normalized semantic identity
-    // ONCE here (declaration order); every downstream layer copies it.
-    // A module-owned domain interns under its complete logical path so a
-    // module declaration and a same-spelled declaration elsewhere never share
-    // semantic identity.
-    let semantic_identity = declared_module_path(syntax_trees, domain.name.source_span().source_id)
-        .map(|module| format!("{module}::{}", domain.name.as_str()))
-        .unwrap_or_else(|| domain.name.as_str().to_owned());
+    // Mint the family identity once. Indexed applications append canonical
+    // arguments to this same key, and Terminal retains it after source erasure.
+    // Package aliases and physical roots are not owners: only the reconciled
+    // package commitment and checked dependency scope distinguish equal paths.
+    let mut semantic_identity =
+        declared_module_path(syntax_trees, domain.name.source_span().source_id)
+            .map(|module| format!("{module}::{}", domain.name.as_str()))
+            .unwrap_or_else(|| domain.name.as_str().to_owned());
+    let owner = lowerer
+        .sources
+        .as_deref()
+        .map(|sources| {
+            sources.file_at(domain.name.source_span()).ok_or_else(|| {
+                Diagnostic::error("domain declaration is missing its checked source owner")
+                    .with_source_span(domain.name.source_span())
+            })
+        })
+        .transpose()?;
+    if let Some(owner) = owner
+        && let Some(package) = owner.package_identity
+    {
+        let scope = match owner.dependency_scope {
+            source::DependencyScope::Product => "product",
+            source::DependencyScope::Build => "build",
+        };
+        let hexadecimal = b"0123456789abcdef";
+        let digest = package
+            .digest()
+            .into_iter()
+            .flat_map(|byte| {
+                [
+                    char::from(hexadecimal[usize::from(byte >> 4)]),
+                    char::from(hexadecimal[usize::from(byte & 15)]),
+                ]
+            })
+            .collect::<String>();
+        semantic_identity = format!("package:{digest}:{scope}::{semantic_identity}");
+    }
+    // Source-free probes model one package. Unmanaged sources have no portable
+    // package commitment yet; keep their legacy key and the independent
+    // cross-owner collision rejection rather than inventing path-based identity.
     let semantic_id = lowerer
         .symbol_resolved_trees
         .semantic_domains

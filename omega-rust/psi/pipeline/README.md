@@ -458,9 +458,19 @@ from a foreign module qualifier. Validation groups repeated normalized domain
 names within their exact declaring module and checked package; different owners
 may supply different predicates while capacity specializations within one owner
 must agree. Distinct owners must also retain distinct semantic IDs, because
-qualification implication uses ID equality. The producer still omits package
-ownership from domain identity, so equal module/domain paths across packages
-remain rejected rather than exchanging their qualifications through an alias.
+qualification implication uses ID equality. The producer keys managed domains
+by the reconciled package commitment, build/product scope and logical path.
+Early indexed-family preparation retains the selected declaration rather than
+rejoining a rendered path; qualification casts share annotation selection and
+carry the selected symbol into their derived result type. Ordinary and indexed
+same-path domains from separate packages retain distinct catalog identities and
+execute through source-free Terminal in `module_machine_indices::indexed_domains`.
+Mutable recasts independently reject exchanging their obligations. Unmanaged
+sources have no portable package commitment, so cross-owner name collisions
+remain rejected; host paths and load-order numbers are not replacement identities.
+Scalar result annotations still need the independent body-proof obligation
+tracked by `SCALAR-DOMAIN-RETURN-PROOF`; distinct identities alone do not prove a
+returned value satisfies its declared predicates.
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
