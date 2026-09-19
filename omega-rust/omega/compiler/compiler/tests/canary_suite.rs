@@ -1441,6 +1441,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "operators/root_operator_duplicate",
     "operators/named_operator_result_overload_duplicate_dispatch",
     "ownership/copy_linear_conflict",
+    "ownership/borrowed_storage_boundary_call",
     "ownership/linear_ambiguous_state_result_mapping",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",

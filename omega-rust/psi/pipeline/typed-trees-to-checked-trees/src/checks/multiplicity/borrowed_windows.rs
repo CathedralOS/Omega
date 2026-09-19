@@ -200,6 +200,8 @@ impl BorrowedStorageWindows {
         moved: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
         control: &checked_trees::FlowControlFacts,
         state_calls: &[checked_trees::FlowCallFact],
+        service_reaches: &checked_trees::ServiceReachFacts,
+        operators: &checked_trees::CheckedOperatorFacts,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.open.is_empty() {
@@ -223,6 +225,33 @@ impl BorrowedStorageWindows {
                     "cannot suspend or block at statement {statement_index} while `{}` is \
                      absent: restore the value moved out of borrowed storage at statement \
                      {} first",
+                    absent.spelling, absent.opened_statement,
+                )));
+            }
+        }
+        if state_calls.iter().any(|call| {
+            call.statement_index == statement_index
+                && !control.is_retired(state.symbol, call)
+                && call_may_enter_boundary(
+                    program,
+                    service_reaches,
+                    control,
+                    operators,
+                    state.symbol,
+                    call,
+                )
+        }) || state_has_boundary_operator(
+            program,
+            control,
+            operators,
+            state.symbol,
+            Some(statement_index),
+        ) {
+            for absent in &self.open {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot make a boundary or service call at statement {statement_index} \
+                     while `{}` is absent: restore the value moved out of borrowed storage \
+                     at statement {} first",
                     absent.spelling, absent.opened_statement,
                 )));
             }
@@ -408,6 +437,106 @@ impl BorrowedStorageWindows {
             })
             .collect()
     }
+}
+
+/// Service reach and boundary invocation are different facts: an opaque
+/// boundary may declare empty reach. Follow the retained exact call topology
+/// through ordinary wrappers as well, rather than treating that empty row (or
+/// an empty write frame, which says nothing about reads) as non-observation.
+/// This query runs only for calls crossing an open window. Its local visited
+/// set closes cycles without inventing a new effect row or expanding paths.
+fn call_may_enter_boundary(
+    program: &typed_trees::TypedTrees,
+    service_reaches: &checked_trees::ServiceReachFacts,
+    control: &checked_trees::FlowControlFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+) -> bool {
+    let empty = language_semantics::ServiceReachRowTable::EMPTY_ROW;
+    // The row-table reader maps unknown IDs to an empty slice. Only the
+    // canonical empty identity establishes absence of service reach.
+    if !call.boundary_edges.is_empty()
+        || call.service_reach.direct != empty
+        || call.service_reach.transitive != empty
+    {
+        return true;
+    }
+    let Some(target) = service_reaches.for_state(state).and_then(|state| {
+        service_reaches.calls_for(state).iter().find(|target| {
+            target.statement_index == call.statement_index
+                && target.call_ordinal == call.call_ordinal
+                && target.target_state == call.target_symbol
+        })
+    }) else {
+        return true;
+    };
+    let mut pending = vec![target];
+    let mut visited = Vec::new();
+    while let Some(call) = pending.pop() {
+        if call.inferred_direct != empty || call.inferred_transitive != empty {
+            return true;
+        }
+        // Compiler-owned builtins have no machine body. Resolve their exact
+        // symbol, not the authored spelling; service-bearing assembly remains
+        // a fence even if its retained reach row were missing that service.
+        if let Some(builtin) = program
+            .symbols
+            .builtin_function_for_symbol(call.target_state)
+        {
+            if builtin.asm_intrinsic_service_name().is_some() {
+                return true;
+            }
+            continue;
+        }
+        let target = call.target_machine;
+        if visited.contains(&target) {
+            continue;
+        }
+        visited.push(target);
+        let Some(machine) = crate::lookup::machine_by_symbol(program, target) else {
+            return true;
+        };
+        if !machine.supply_mode.is_checked_body() || !machine.body_is_present {
+            return true;
+        }
+        let Some(reach) = service_reaches.for_machine(target) else {
+            return true;
+        };
+        for state in service_reaches.states_for(reach) {
+            if state_has_boundary_operator(program, control, operators, state.state, None) {
+                return true;
+            }
+            pending.extend(service_reaches.calls_for(state));
+        }
+    }
+    false
+}
+
+/// Operator invocations are scheduled separately from ordinary calls. Use
+/// those records for both named and spelled operators so skipped operands do
+/// not become calls, and wrappers cannot hide an opaque operator invocation.
+fn state_has_boundary_operator(
+    program: &typed_trees::TypedTrees,
+    control: &checked_trees::FlowControlFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
+    state: SymbolHandle,
+    statement: Option<usize>,
+) -> bool {
+    control.operator_invocations.iter().any(|(_, invocation)| {
+        let (origin, target) = if invocation.named_use.is_valid() {
+            let usage = operators.named_uses.get(invocation.named_use);
+            (usage.origin, usage.selected_operator_symbol)
+        } else {
+            let usage = operators.uses.get(invocation.operator_use);
+            (usage.origin, usage.selected_operator_symbol)
+        };
+        matches!(origin, checked_trees::CheckedValueOrigin::StateStatement {
+            state_symbol, statement_index, ..
+        } if state_symbol == state && statement.is_none_or(|expected| expected == statement_index))
+            && typed_trees::operator::declaration_by_symbol(program, target)
+                .is_some_and(|operator| operator.is_boundary)
+    })
 }
 
 /// The shared diagnostic for a borrowed-storage transfer that cannot open or
