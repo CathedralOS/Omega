@@ -6,8 +6,6 @@ mod dynamic_join;
 mod dynamic_result;
 mod guards;
 mod leaves;
-mod nested_control;
-mod prefixed_control;
 pub(super) mod topology;
 
 #[cfg(test)]

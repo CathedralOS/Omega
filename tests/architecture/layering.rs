@@ -1951,8 +1951,6 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
                 "dynamic_result",
                 "guards",
                 "leaves",
-                "nested_control",
-                "prefixed_control",
                 "topology",
             ][..],
         ),
@@ -1966,9 +1964,8 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
                 "dynamic_result",
                 "emission",
                 "internal_calls",
-                "nested_control",
-                "prefixed_control",
                 "routing",
+                "state_graph",
             ][..],
         ),
     ] {
@@ -2002,7 +1999,7 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
             );
         }
     }
-    for name in ["prefixed_control", "nested_control", "internal_calls"] {
+    for name in ["state_graph", "internal_calls"] {
         let directory = terminal.join("composed_control").join(name);
         let entrance = directory.join("mod.rs");
         let source = std::fs::read_to_string(&entrance)
@@ -2016,22 +2013,20 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
             );
         }
     }
-    let typed_nested = typed.join("composed_control/nested_control");
-    let typed_nested_entrance = typed_nested.join("mod.rs");
-    let typed_nested_source =
-        std::fs::read_to_string(&typed_nested_entrance).unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                typed_nested_entrance.display()
-            )
-        });
-    for rung in ["assembly", "topology"] {
-        assert!(
-            typed_nested_source.contains(&format!("mod {rung};"))
-                && typed_nested.join(format!("{rung}.rs")).is_file(),
-            "typed nested-control entrance must name an existing `{rung}` rung"
-        );
+    for owner in [&typed, &terminal] {
+        for retired in ["nested_control", "prefixed_control"] {
+            let path = owner.join("composed_control").join(retired);
+            assert!(!path.with_extension("rs").exists());
+            // An empty checkout directory is harmless; no route may survive.
+            assert!(!path.join("mod.rs").exists());
+        }
     }
+    let routing = std::fs::read_to_string(terminal.join("composed_control/routing.rs"))
+        .expect("read composed control routing");
+    assert!(
+        !routing.contains("states.len()"),
+        "state count is not a lowering strategy"
+    );
     assert!(typed.join("providers.rs").is_file());
     assert!(terminal.join("claims.rs").is_file());
     assert!(terminal.join("provider_attachments.rs").is_file());
