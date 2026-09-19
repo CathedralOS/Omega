@@ -496,7 +496,11 @@ fn build_checked_machine_with_trace(
     .or_else(|| {
         receiver_aliases::prefix(program, facts, machine, state).map(|aliases| aliases.len())
     });
-    let local_count = if has_scalar_result_local {
+    // The shared statement sequence owns the local correspondence for every
+    // admitted body, including erased borrow carriers that bind no storage.
+    let local_count = if let Some(sequence) = &statement_sequence {
+        sequence.local_count
+    } else if has_scalar_result_local {
         scalar_result_local_count
     } else {
         construction.as_ref().map_or_else(

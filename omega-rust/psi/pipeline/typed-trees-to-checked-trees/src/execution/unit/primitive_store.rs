@@ -242,7 +242,23 @@ pub(super) fn build_primitive_store_at(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    let path = primitive_projection(program, machine, state, assignment.target, &place.segments)?;
+    // An erased borrow carrier names its captured referent's storage:
+    // substitute the checked alias root and prepend its captured projection.
+    // The scalar binding's destination keeps the authored root spelling.
+    let authored_symbol = symbol;
+    let (symbol, segments) = match super::receiver_aliases::aliases(program, facts, machine, state)
+        .unwrap_or_default()
+        .iter()
+        .find(|alias| alias.owner == symbol)
+    {
+        Some(alias) => {
+            let mut segments = alias.segments.clone();
+            segments.extend_from_slice(&place.segments);
+            (alias.root, segments)
+        }
+        None => (symbol, place.segments.clone()),
+    };
+    let path = primitive_projection(program, machine, state, assignment.target, &segments)?;
     let (destination, primitive_type) = if let Some(local) = primitive_local_before(
         program,
         state,
@@ -369,7 +385,7 @@ pub(super) fn build_primitive_store_at(
     if binding.expression != assignment.value
         || binding.destination
             != if path.is_empty() {
-                symbol
+                authored_symbol
             } else {
                 SymbolHandle::invalid()
             }

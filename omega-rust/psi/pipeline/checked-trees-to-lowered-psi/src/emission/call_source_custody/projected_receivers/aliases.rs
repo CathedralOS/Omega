@@ -41,8 +41,11 @@ pub(super) fn parameter_source(
         .iter()
         .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
         .count();
-    let declarations = statements[..prefix]
+    // A carrier can be declared mid-body: the use site bounds the search, not
+    // the leading local-data run.
+    let declarations = statements
         .iter()
+        .take(statement_index)
         .enumerate()
         .filter_map(|(position, statement)| {
             let StatementNode::LocalData(local) = statement else {
@@ -251,7 +254,7 @@ pub(super) fn parameter_source(
     let mut current_use = false;
     for (position, statement) in statements.iter().enumerate().skip(*declaration_index + 1) {
         let (receiver, arguments) = match statement {
-            StatementNode::LocalData(child) if position < prefix => {
+            StatementNode::LocalData(child) => {
                 if !contains_owner(checked, child.initial_value, owner) {
                     continue;
                 }
@@ -288,6 +291,14 @@ pub(super) fn parameter_source(
                     checked.expression_table.expression_handles(call.arguments),
                 )
             }
+            // A store through the erased carrier is a use, not an escape: the
+            // target's root decides whether this statement spends the alias,
+            // while its value may not mention the carrier at all. An
+            // unrelated assignment leaves the alias untouched.
+            StatementNode::Assignment(assignment) => (
+                receiver_root(checked, assignment.target)?,
+                std::slice::from_ref(&assignment.value),
+            ),
             _ => return unsupported("receiver alias suffix contains a write, local, or escape"),
         };
         if arguments
@@ -333,14 +344,25 @@ pub(super) fn parameter_source(
             .ok_or(LoweringError::Unsupported(
                 "receiver alias lifetime overflows",
             ))?;
-    let weakening = FlowInvalidationSource::Statement {
-        statement_index: boundary,
-    };
-    let reason = if boundary == statements.len() {
-        FlowBorrowWeakeningReason::StateExit
-    } else {
-        FlowBorrowWeakeningReason::LastUseExpired
-    };
+    let expiry = (
+        FlowInvalidationSource::Statement {
+            statement_index: boundary,
+        },
+        if boundary == statements.len() {
+            FlowBorrowWeakeningReason::StateExit
+        } else {
+            FlowBorrowWeakeningReason::LastUseExpired
+        },
+    );
+    // A store through the erased carrier retires its loan at the assignment
+    // itself; every other use expires one statement after its last
+    // occurrence.
+    let reassigned = (
+        FlowInvalidationSource::Statement {
+            statement_index: loan.last_use_statement_index,
+        },
+        FlowBorrowWeakeningReason::LocalReassigned,
+    );
     let lifetimes = &checked.facts.flow.borrow_lifetimes;
     let activations = lifetimes
         .activations
@@ -354,9 +376,19 @@ pub(super) fn parameter_source(
         .iter()
         .filter(|row| row.loan == *loan_handle)
         .collect::<Vec<_>>();
-    if !matches!(activations.as_slice(), [row] if row.source == activation)
-        || !matches!(weakenings.as_slice(), [row] if row.source == weakening && row.reason == reason)
+    let [weakening_row] = weakenings.as_slice() else {
+        return unsupported("receiver alias activation or weakening changed");
+    };
+    let (weakening, reason) = if boundary <= statements.len()
+        && (weakening_row.source, &weakening_row.reason) == (expiry.0, &expiry.1)
     {
+        expiry
+    } else if (weakening_row.source, &weakening_row.reason) == (reassigned.0, &reassigned.1) {
+        reassigned
+    } else {
+        return unsupported("receiver alias activation or weakening changed");
+    };
+    if !matches!(activations.as_slice(), [row] if row.source == activation) {
         return unsupported("receiver alias activation or weakening changed");
     }
     if parent_declaration {

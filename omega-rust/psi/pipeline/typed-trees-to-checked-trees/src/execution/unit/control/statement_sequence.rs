@@ -278,6 +278,11 @@ pub(super) fn has_statement_shape(
         .as_ref()
         .map(|(_, count)| *count)
         .unwrap_or(usize::MAX);
+    // An erased borrow carrier is a checked alias, not a storage binding: its
+    // declaration composes through the sequence while each use's planner joins
+    // the captured referent's evidence.
+    let borrow_aliases =
+        super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -322,6 +327,9 @@ pub(super) fn has_statement_shape(
                     .primitive_type_reference(local.type_reference)
                     .is_some()
                     || has_structural_result(program, facts, machine, statement)
+                    || borrow_aliases
+                        .iter()
+                        .any(|alias| alias.owner == local.symbol)
             }
             _ => false,
         })
@@ -388,6 +396,11 @@ pub(in crate::execution::terminal_unit) fn build(
     }
     let mut operations = Vec::new();
     let mut local_count = construction_statement_count;
+    // Erased borrow carriers have no storage binding: the sequence advances
+    // past their declarations while each use's planner joins the captured
+    // referent's checked loan evidence.
+    let borrow_aliases =
+        super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();
     let mut scalar_count = program
         .statement_table
         .statements(state.statement_nodes)
@@ -522,6 +535,12 @@ pub(in crate::execution::terminal_unit) fn build(
                     .expression_is_valid(local.initial_value)
                 {
                     return None;
+                }
+                if borrow_aliases
+                    .iter()
+                    .any(|alias| alias.owner == local.symbol)
+                {
+                    continue;
                 }
                 local_count = local_count.checked_add(1)?;
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
@@ -734,6 +753,15 @@ pub(in crate::execution::terminal_unit) fn build(
             }
             StatementNode::Expression(_)
                 if call_occurrences::tail_call(program, state, index).is_some() =>
+            {
+                None
+            }
+            // A Unit-result call in expression position mid-body composes like
+            // a call statement: its erased result binds nothing, and the
+            // shared call roster below owns its operands and receiver.
+            StatementNode::Expression(_)
+                if call_occurrences::unit_statement_call(program, machine, state, index)
+                    .is_some() =>
             {
                 None
             }

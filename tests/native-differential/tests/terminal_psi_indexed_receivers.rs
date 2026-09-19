@@ -54,6 +54,9 @@ mod reference_carriers;
 #[path = "terminal_psi_indexed_receivers/frontier_pins.rs"]
 mod frontier_pins;
 
+#[path = "terminal_psi_indexed_receivers/held_borrows.rs"]
+mod held_borrows;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }
