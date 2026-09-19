@@ -1,3 +1,13 @@
+machine helper() -> u8 {
+    6 * 7
+}
+
 machine answer() -> u8 {
-    20 + 22
+    transition {
+        _ -> finish()
+    }
+    state finish() {
+        helper();
+        (helper())
+    }
 }

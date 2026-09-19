@@ -18,9 +18,9 @@
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
 OMEGA_COMPILER_MANIFEST_SIZE=1338
-OMEGA_COMPILER_MANIFEST_SHA256=e1e334b4647e06b6f9d82fb8d741fb5ae8f5e528b15ac015a395402512163001
-OMEGA_COMPILER_PACKED_SIZE=525334
-OMEGA_COMPILER_PACKED_SHA256=b507fb785ea450409f3cd1c34f3c451656a124d23ecd912f9e8f8e6e45f41c64
+OMEGA_COMPILER_MANIFEST_SHA256=1b13e19dcd7abbb3af26547c41eee5472689cd3c9e901879c4e2eaf8eb820aa4
+OMEGA_COMPILER_PACKED_SIZE=558065
+OMEGA_COMPILER_PACKED_SHA256=3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950
 
 # require_omega_compiler_identity : the canonical manifest is the bound file
 # and repacking it reproduces exactly the bound D closure. Every

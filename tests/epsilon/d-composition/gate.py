@@ -97,8 +97,8 @@ def main():
     # Whole, unchanged D members. These sizes and digests are records of the
     # same bound members pinned by omega_compiler.epsilon.sources and by the
     # interpreted-omega-experiment gate, not independent identities.
-    REPRESENTATIONS = (members_dir / "representations.epsilon", 31993,
-                       "9b29b3e4c5f410ca65b158f98bd099734e3c57e177ac2f8c89c92a88ccc715ec")
+    REPRESENTATIONS = (members_dir / "representations.epsilon", 32026,
+                       "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee")
     REQUEST_UTF8 = (members_dir / "request_and_utf8.epsilon", 23678,
                     "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5")
     LEXICAL = (members_dir / "lexical_classification.epsilon", 2520,
@@ -129,49 +129,49 @@ def main():
                  (REPRESENTATIONS, LEXICAL,
                   (customers_dir / "omega_lexical/main.epsilon", 1486,
                    "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2")),
-                 35999, "61f5051d6effd0af72a353c1273a3691adce0d625494ca6e9850691c0d6668e5",
+                 36032, "463aeb99dcfccc937b9b3ba55aa05d5d89ddc006757e38c244985a582461814a",
                  b"", b"\x00\x00\x00\x00\x00A")
     add_customer("Omega D Alpha tape buffers",
                  (REPRESENTATIONS, ALPHA_TAPE,
                   (customers_dir / "omega_alpha_tape/main.epsilon", 7274,
                    "a186166b32d38cfafdc02fc47f1ad46f2af7d18ed15b5bb0f18b0caa525bb35d")),
-                 70099, "5f9de2eb32ceff006b9a494c54d8f447a259e32d244e3ee5218b9d2aee27be0c",
+                 70132, "d9b2cf034d21d4575f3ef71f2dc92e8bd18cfaaa55121b9faab7b8c931f13e91",
                  b"", b"\x00\x00\x00\x00\x00ABCDEFGH"
                  b"\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14" + alpha_program)
     add_customer("Omega D request and UTF-8",
                  (REPRESENTATIONS, REQUEST_UTF8,
                   (customers_dir / "omega_request/main.epsilon", 9510,
                    "0f838c478d6497cb4ca92d35f2aeed167b61eca4ab245847fa04da0fc2f7b0b7")),
-                 65181, "f1ff455b84aeb07822da3d703941167e53d57805c5cc14b7288e3eb895433d72",
+                 65214, "7e42622802efb866699579f86d7de6f938989e36cf7db761cea4b6f38dba079f",
                  b"", b"\x00\x00\x00\x00\x00A\n")
     add_customer("Omega D request invocation fields",
                  (REPRESENTATIONS, REQUEST_UTF8,
                   (customers_dir / "omega_request_invocation/main.epsilon", 5930,
                    "b02e8f6f973a55ead1131a28cb939af0d6c31501d38bd7b15cba2cff4e6710bd")),
-                 61601, "3445b9f234f35d79cd47f4359c4c1da2bc0f59032d1321dae692fa913cfafd17",
+                 61634, "01e1585b6f85414393166c08ff45b77982826c5d08281350a30ab5f08ff99c29",
                  b"", b"\x00\x00\x00\x00\x00A\n")
     add_customer("Omega D numeric-base sums",
                  (REPRESENTATIONS, LEXICAL,
                   (customers_dir / "omega_numeric_base/main.epsilon", 1479,
                    "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386")),
-                 35992, "94b755b96b11707ea24e2027e421d486cd2e47dfb57afd545bd1c72a185a536b",
+                 36025, "ec1ad469c5a6d8d3505020f7104f5f8a7590ee27056d2a24270785edaacaa97f",
                  b"", b"\x00\x00\x00\x00\x00A")
     add_customer("Omega D lexer",
                  (REPRESENTATIONS, REQUEST_UTF8, LEXICAL, LEXER,
                   (customers_dir / "omega_lexer/main.epsilon", 6771,
                    "e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06")),
-                 109611, "274db84d81e4e5c37a0abae4e033f54a4c474cb4e123541cdcd7dca76306b5b9",
+                 109644, "95b15745e93609a5c164b5842218782653edc779280ea932a6293fda7deede4f",
                  b"", b"\x00\x00\x00\x00\x00A")
 
-    # The complete-D customer: the whole bound 525,334-byte closure plus this
+    # The complete-D customer: the whole bound 558,065-byte closure plus this
     # gate's own composition main, which feeds the sealed Omega source to D's
     # actual OmegaScalarCompiler::compile and publishes the emitted tape.
     # Checking covers every declared member; execution crosses parser,
     # scalar compilation, and Alpha tape emission. Expected observation is
     # pinned in expected.hex.
     packed = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("packed Omega D closure", packed, 525334,
-                     "b507fb785ea450409f3cd1c34f3c451656a124d23ecd912f9e8f8e6e45f41c64")
+    require_identity("packed Omega D closure", packed, 558065,
+                     "3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950")
     composition_main = (gate / "main.epsilon").read_bytes()
     require_identity("composition main", composition_main, 1759,
                      "4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b")

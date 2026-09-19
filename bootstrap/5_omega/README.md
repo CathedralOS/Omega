@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 15,321 lines / 525,334 bytes with SHA-256
-`b507fb785ea450409f3cd1c34f3c451656a124d23ecd912f9e8f8e6e45f41c64`.
+manifest materializes 16,152 lines / 558,065 bytes with SHA-256
+`3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950`.
 The manifest itself is 1,338 bytes, SHA-256
-`e1e334b4647e06b6f9d82fb8d741fb5ae8f5e528b15ac015a395402512163001`;
+`1b13e19dcd7abbb3af26547c41eee5472689cd3c9e901879c4e2eaf8eb820aa4`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -77,8 +77,18 @@ is `u8` over literal operands joined by the arithmetic, bitwise, and shift
 binary operators, folded under the default Exact policy — every node must stay
 representable in the carrier, so overflow, underflow, a zero divisor, or a
 shift count at or above the width refuses the source while comparison, logical,
-unary, path, and other non-`u8`-producing forms remain implementation work;
-state/call bodies remain implementation work as well.
+unary, path, and other non-`u8`-producing forms remain implementation work.
+Within that scalar slice the same checking pass now covers bounded control
+flow: a state body is a sequence of nullary calls to free machines followed
+by one terminal — a folded `u8` expression, a grouped nullary call whose
+result returns in `r0`, or a transition block targeting authored states of
+the same machine. Subjectless blocks admit exactly one wildcard arm;
+subjectful blocks fold the subject and select the first matching literal or
+wildcard arm, with every arm's target resolved and arity-checked. Calls emit
+the Alpha call opcode with a return edge and transitions emit a direct jump,
+matching the state contract's call-frame versus control-transfer split.
+Richer bodies — receivers, arguments, locals, assignments, parameterized
+states, non-literal guards — stay explicit coverage refusals.
 
 The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,

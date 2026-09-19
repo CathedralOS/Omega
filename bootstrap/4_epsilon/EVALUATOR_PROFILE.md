@@ -204,7 +204,7 @@ That document also carries each lower-chain refusal status to the outer
 refusal path, so no evaluator-internal budget layer was needed. The last two
 legs are now exercised gates on that unchanged canonical composition:
 [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md)
-checks and executes the whole 525,334-byte D closure — all eight manifested
+checks and executes the whole 558,065-byte D closure — all eight manifested
 members — through the canonical edge, including D's own
 `OmegaScalarCompiler::compile` publishing the exact emitted Alpha tape
 (8e63b21300), and
