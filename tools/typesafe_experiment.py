@@ -2,8 +2,11 @@
 
 From the worktree root (python3 on macOS):
   python tools/typesafe_experiment.py --self-test
-  python tools/typesafe_experiment.py --key-file build/typesafe.env.txt
-  python tools/typesafe_experiment.py --key-file build/typesafe.env.txt --cases tools/typesafe_cases.json
+  python tools/typesafe_experiment.py
+  python tools/typesafe_experiment.py --cases tools/typesafe_cases.json
+
+--key-file overrides the shared key-resolution chain from proof_advisor
+(env, build/typesafe.env.txt, ~/.config/typesafe/typesafe.env.txt).
 
 The live command sends one request with twelve questions. Labels stay local.
 Results go to ignored build/. This is a smoke test, not an agent release gate.
@@ -15,11 +18,12 @@ import argparse
 from datetime import datetime, timezone
 import json
 import math
-import os
 from pathlib import Path
 import time
 import urllib.error
 import urllib.request
+
+from proof_advisor import find_key, read_key
 
 
 # Authored examples, not transcripts of actual Omega runs. Each tuple holds
@@ -129,14 +133,12 @@ def main():
     if arguments.self_test:
         self_test()
         return
-    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
     if arguments.key_file:
-        assignments = [line.partition("=")[2].strip().strip("\"'")
-                       for line in arguments.key_file.read_text(encoding="utf-8-sig").splitlines()
-                       if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-        if len(assignments) != 1:
+        key = read_key(arguments.key_file)
+        if not key:
             raise ValueError("Key file must contain exactly one TYPESAFE_API_KEY assignment")
-        key = assignments[0]
+    else:
+        key = find_key(None)
     if not key or any(character.isspace() for character in key):
         raise ValueError("A nonempty TYPESAFE_API_KEY without whitespace is required")
     fixture = None
