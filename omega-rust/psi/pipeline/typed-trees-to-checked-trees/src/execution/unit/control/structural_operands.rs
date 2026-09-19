@@ -386,7 +386,7 @@ pub(in crate::execution::terminal_unit) fn result(
         type_identity,
         multiplicity: Multiplicity::Affine,
         qualifications,
-    } = boundary_result_plan(program, shapes, return_type, &binders)?
+    } = boundary_result_plan(program, shapes, return_type, &binders, &[])?
     else {
         return None;
     };

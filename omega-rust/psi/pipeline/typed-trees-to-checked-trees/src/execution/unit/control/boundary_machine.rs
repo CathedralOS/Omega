@@ -1,6 +1,6 @@
 //! Building boundary machines and their static boundary requirements.
 
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
@@ -22,7 +22,7 @@ pub(crate) fn build_boundary_machine(
         return None;
     };
     let binders = machine_binders(program, machine);
-    let result = boundary_result_plan(program, shapes, state.return_type, &binders)?;
+    let result = boundary_result_plan(program, shapes, state.return_type, &binders, &[])?;
     if !program
         .statement_table
         .statements(state.statement_nodes)
@@ -128,13 +128,29 @@ pub(crate) fn build_static_boundary_requirements(
             // worker while it waits; its envelope is folded into the
             // contract commitment below, exactly as an attached `boundary
             // machine` declaration that blocks is planned above.
-            if (!type_parameters.is_empty() && !callback_telescope)
-                || !signature_contracts_are_exact_parameter_qualifications(program, signature)
+            if !signature_contracts_are_exact_parameter_qualifications(program, signature)
                 || signature.suspends
             {
                 continue;
             }
-            let Some(result) = boundary_result_plan(program, shapes, signature.return_type, &[])
+            // A generic telescope the callback path cannot reach is still
+            // planned when every checked call naming this requirement retains
+            // a specialization resolving the whole telescope: each `Type`
+            // binder's derived actual substitutes the formals below, and each
+            // `machine` binder's selected entry is already-admitted provider
+            // evidence this pass replays rather than re-derives.
+            let substitutions = if type_parameters.is_empty() || callback_telescope {
+                Vec::new()
+            } else {
+                let Some(substitutions) =
+                    specialized_signature_substitutions(program, facts, signature, type_parameters)
+                else {
+                    continue;
+                };
+                substitutions
+            };
+            let Some(result) =
+                boundary_result_plan(program, shapes, signature.return_type, &[], &substitutions)
             else {
                 continue;
             };
@@ -160,6 +176,11 @@ pub(crate) fn build_static_boundary_requirements(
                     break;
                 };
                 abi_position += 1;
+                // A specialization-resolved formal names its derived actual;
+                // compound formals keep their own reference and identity-level
+                // substitution covers the generic arguments inside them.
+                let parameter_type =
+                    substituted_formal_type(program, parameter.type_reference, &substitutions);
                 // `is_mutable` is set by a `mut` binding and by an exclusive
                 // borrow alike. An exclusive borrow is already carried exactly
                 // by the parameter's structural access below. Owned mutable
@@ -167,55 +188,48 @@ pub(crate) fn build_static_boundary_requirements(
                 // other owned mutable carriers remain unsupported.
                 if parameter.is_const
                     || (parameter.is_mutable
-                        && !is_reference(program, parameter.type_reference)
+                        && !is_reference(program, parameter_type)
                         && crate::values::mutable_scalar_parameter_type(program, parameter)
                             .is_none())
                 {
                     supported = false;
                     break;
                 }
-                if let Some(primitive_type) =
-                    program.primitive_type_reference(parameter.type_reference)
-                {
+                if let Some(primitive_type) = program.primitive_type_reference(parameter_type) {
                     scalar_parameters.push(CheckedStructuralScalarParameterPlan {
                         source_position,
                         primitive_type,
                     });
                     continue;
                 }
-                let Some(type_identity) = shapes.add_type(parameter.type_reference, &[], &[])
+                let Some(type_identity) = shapes.add_type(parameter_type, &[], &substitutions)
                 else {
                     supported = false;
                     break;
                 };
                 let Some(qualifications) =
-                    parameter_qualifications(program, shapes, parameter.type_reference, &[])
+                    parameter_qualifications(program, shapes, parameter_type, &[])
                 else {
                     supported = false;
                     break;
                 };
-                if is_reference(program, parameter.type_reference)
-                    && byte_sequence_carrier(program, parameter.type_reference, &[])
+                if is_reference(program, parameter_type)
+                    && byte_sequence_carrier(program, parameter_type, &[])
                         != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
                     && !(qualifications.is_empty()
-                        && shared_plain_affine_referent(program, parameter.type_reference)
-                            .is_some())
+                        && shared_plain_affine_referent(program, parameter_type).is_some())
                 {
                     supported = false;
                     break;
                 }
-                let Some(access) =
-                    structural_access_for_type_reference(program, parameter.type_reference)
+                let Some(access) = structural_access_for_type_reference(program, parameter_type)
                 else {
                     supported = false;
                     break;
                 };
-                let Some(projected_qualifications) = projected_parameter_qualifications(
-                    program,
-                    shapes,
-                    parameter.type_reference,
-                    &[],
-                ) else {
+                let Some(projected_qualifications) =
+                    projected_parameter_qualifications(program, shapes, parameter_type, &[])
+                else {
                     supported = false;
                     break;
                 };
@@ -223,10 +237,7 @@ pub(crate) fn build_static_boundary_requirements(
                     position: source_position,
                     is_self: false,
                     type_identity,
-                    multiplicity: crate::checks::type_multiplicity(
-                        program,
-                        parameter.type_reference,
-                    ),
+                    multiplicity: crate::checks::type_multiplicity(program, parameter_type),
                     access,
                     qualifications,
                     projected_qualifications,
@@ -368,12 +379,124 @@ fn static_boundary_call_targets(
     requirements
 }
 
+/// Substitute a generic requirement's `Type` formals with the actuals its
+/// checked calls admitted. Every flow call that names this requirement must
+/// retain a `requirement_call_specializations` row at its authored site that
+/// resolves the whole telescope: each `Type` binder carries its derived
+/// actual and each `machine` binder's retained selection is a concrete
+/// selected machine — exactly the authored static argument at that ordinal,
+/// mirroring the coverage `build_call_operation` requires before it plans
+/// the call. A forwarded in-scope binder or a missing row leaves the
+/// requirement unplanned. One boundary plan serves every call site, so the
+/// retained `Type` bindings must agree; selections may differ because the
+/// plan records no provider identity.
+fn specialized_signature_substitutions(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    signature: &typed_trees::signature::StateSignature,
+    type_parameters: &[typed_trees::data::TypeParameter],
+) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
+    let mut resolved: Option<Vec<checked_trees::CheckedRequirementCallTypeBinding>> = None;
+    for (_, flow_state) in facts.flow.control.states.iter() {
+        for call in facts.flow.control.calls.span_or_empty(flow_state.calls) {
+            if call.target_symbol != signature.symbol {
+                continue;
+            }
+            let call_site = crate::semantic_calls::find_call_site(
+                program,
+                flow_state.machine_symbol,
+                flow_state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+            let site = match &call_site {
+                crate::semantic_calls::CallSite::Statement(_) => {
+                    let state = crate::semantic_calls::find_state_in_machine(
+                        program,
+                        flow_state.machine_symbol,
+                        flow_state.state_symbol,
+                    )?;
+                    let offset = u32::try_from(call.statement_index).ok()?;
+                    checked_trees::NominalMachineUseSite::Statement(arena::Handle::from_parts(
+                        state
+                            .statement_nodes
+                            .start()
+                            .arena_index()
+                            .checked_add(offset)?,
+                        state.statement_nodes.start().generation(),
+                    ))
+                }
+                crate::semantic_calls::CallSite::Expression { expression, .. } => {
+                    checked_trees::NominalMachineUseSite::Expression(*expression)
+                }
+                crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
+            };
+            let specialization = facts
+                .requirement_call_specializations
+                .for_site(site, signature.symbol)?;
+            // The authored static machine arguments the retained ordinal
+            // indexes: validation filtered the `<>` argument list to
+            // machine-typed members before recording `static_machine_ordinal`.
+            let authored_machine_arguments = match &call_site {
+                crate::semantic_calls::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+                crate::semantic_calls::CallSite::Expression { call, .. } => {
+                    call.machine_arguments.as_ref()
+                }
+                crate::semantic_calls::CallSite::TransitionNamed { .. } => &[],
+            }
+            .iter()
+            .filter(|argument| {
+                matches!(
+                    program.symbols.get(argument.symbol).kind,
+                    symbols::SymbolKind::State | symbols::SymbolKind::MachineParameter
+                )
+            })
+            .collect::<Vec<_>>();
+            if !type_parameters
+                .iter()
+                .all(|parameter| match &parameter.kind {
+                    typed_trees::data::TypeParameterKind::Type => specialization
+                        .type_bindings
+                        .iter()
+                        .any(|binding| binding.parameter == parameter.symbol),
+                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                        specialization.machine_selections.iter().any(|selection| {
+                            selection.parameter == parameter.symbol
+                                && selection.selected_machine.is_valid()
+                                && usize::try_from(selection.static_machine_ordinal)
+                                    .ok()
+                                    .and_then(|ordinal| authored_machine_arguments.get(ordinal))
+                                    .is_some_and(|argument| argument.symbol == selection.selected)
+                        })
+                    }
+                    _ => false,
+                })
+            {
+                return None;
+            }
+            match &resolved {
+                None => resolved = Some(specialization.type_bindings.clone()),
+                Some(existing) if *existing == specialization.type_bindings => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    resolved.map(|type_bindings| {
+        type_bindings
+            .iter()
+            .map(|binding| (binding.parameter, binding.actual))
+            .collect()
+    })
+}
+
 pub(crate) fn boundary_result_plan(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<CheckedBoundaryMachineResultPlan> {
+    let type_reference = substituted_formal_type(program, type_reference, substitutions);
     if is_unit(program, type_reference) {
         return Some(CheckedBoundaryMachineResultPlan::Unit);
     }
@@ -386,7 +509,7 @@ pub(crate) fn boundary_result_plan(
         return None;
     }
     Some(CheckedBoundaryMachineResultPlan::Structural {
-        type_identity: shapes.add_type(type_reference, binders, &[])?,
+        type_identity: shapes.add_type(type_reference, binders, substitutions)?,
         multiplicity: crate::checks::type_multiplicity(program, type_reference),
         qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
     })
