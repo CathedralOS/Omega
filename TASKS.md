@@ -3880,6 +3880,24 @@ Owners include
   runtime indexes and unresolved callee locals stay conservative). A view
   element write retires only that element's facts.
 
+  `flow/state_values/fields.rs` joins each channel from per-edge
+  `EdgeDelivery` records instead of discarding provenance: literals must agree
+  on every predecessor, byte predicates intersect, integer bounds union with
+  the declared carrier standing in for a bound-free edge. A transition edge
+  lacking the field refutes; a call's return edge -- which never captures
+  field rows -- forwards the running `predicate_ceiling`, the co-inductive
+  premise element stores may assume for the carrier when re-seeding its
+  declared classes (`flow/transfers/byte_sequences.rs`). `ValidUtf8` reseeding
+  additionally requires the carrier to prove `AsciiOnly`; a store outside the
+  class retires it. Integer bounds that keep extending across joins widen to
+  the smallest authored integer literal covering the fresh bound rather than
+  the whole carrier range, so a converged loop counter keeps the authored
+  window (`bounds_growth` threshold widening). Guard arms mint
+  `AssignedIntegerBounds` for `place OP literal` conjuncts
+  (`flow/exits/guards.rs`), and `values/bounds.rs` carries the exact/wrapping/
+  saturating divide arm. `omega --check --target linux_x86_64
+  samples/cli/basics/multiplication_table/main.omg` reports no diagnostics.
+
   Customer probe: `omega --check --target linux_x86_64
   samples/cli/games/dungeon_crawler_cli/main.omg`. It reported 55
   diagnostics at b2ea74973c; the call-side proofs now cover every finite
