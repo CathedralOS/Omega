@@ -268,6 +268,7 @@ pub(super) fn swapped_function(
             .to_vec(),
         outgoing_arguments: Vec::new(),
         calls: Vec::new(),
+        normalized_foreign_calls: Vec::new(),
         memory_accesses: memory,
         boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),

@@ -16,6 +16,9 @@ pub(super) fn provenance(
     {
         return FunctionFragmentControlProvenance::DirectInternalCall { callee };
     }
+    if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {
+        return FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal };
+    }
     match &block.terminator {
         SelectedTerminator::Jump {
             instruction: jump,

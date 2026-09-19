@@ -34,6 +34,7 @@ pub(super) fn check(
 ) -> Result<(), TextPlacementError> {
     let fragments = input.fragments();
     let mut resolutions = section.resolved_internal_machine_calls.iter();
+    let mut foreign = section.unresolved_normalized_foreign_calls.iter();
     for (index, (source, placed)) in fragments
         .functions
         .iter()
@@ -122,12 +123,61 @@ pub(super) fn check(
                         candidate,
                     )?);
                 }
+                if let Some(fixup) = source_row.normalized_foreign_call_fixup {
+                    // Every foreign call row is one checked ISA call
+                    // instruction whose import field stays unresolved.
+                    if fixup.opcode_function_offset != source_row.offset
+                        || bytes(
+                            &source.bytes,
+                            source_row.offset,
+                            source_row.bytes.len() as u64,
+                        )? != source_row.bytes
+                        || (fragments.target.architecture == Architecture::X86_64
+                            && source_row.bytes != [0xe8, 0, 0, 0, 0])
+                        || (fragments.target.architecture == Architecture::Aarch64
+                            && source_row.bytes != 0x9400_0000_u32.to_le_bytes())
+                    {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    }
+                    if !matches!(input, TextPlacementInput::InternalCalls(_)) {
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                    }
+                    let FunctionFragmentControlProvenance::NormalizedForeignCall {
+                        boundary,
+                        ordinal,
+                    } = source_row.control
+                    else {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    };
+                    if boundary != fixup.boundary || ordinal != fixup.ordinal {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    }
+                    let Some(operation) = source_row.provenance.operations.last() else {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    };
+                    let candidate = foreign.next().ok_or(TextPlacementError::ArtifactMismatch)?;
+                    calls::check_foreign(
+                        calls::ForeignCall {
+                            caller: source.machine,
+                            block: source_block.block,
+                            instruction: source_row.instruction,
+                            operation: *operation,
+                            offset: source_row.offset,
+                            bytes: &source_row.bytes,
+                            fixup,
+                        },
+                        fragments.target.architecture,
+                        offset,
+                        candidate_bytes,
+                        candidate,
+                    )?;
+                }
             }
         }
         unchanged_bytes(&source.bytes, candidate_bytes, patches)?;
     }
 
-    if resolutions.next().is_some() {
+    if resolutions.next().is_some() || foreign.next().is_some() {
         return Err(TextPlacementError::ArtifactMismatch);
     }
     Ok(())

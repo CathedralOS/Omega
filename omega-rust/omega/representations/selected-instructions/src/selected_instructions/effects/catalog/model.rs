@@ -394,7 +394,16 @@ pub enum MachineBarrier {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineCallEffect {
     NoneV1,
-    DirectInternalNormalReturnV1 { pre_call_stack_alignment: u16 },
+    DirectInternalNormalReturnV1 {
+        pre_call_stack_alignment: u16,
+    },
+    /// Direct call to an evaluated foreign boundary that returns normally.
+    /// The callee is an imported external authority, not an internal machine;
+    /// the locator itself remains in the boundary's provider custody and is
+    /// never a selected-instruction operand or ambient lookup name.
+    DirectExternalNormalReturnV1 {
+        pre_call_stack_alignment: u16,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

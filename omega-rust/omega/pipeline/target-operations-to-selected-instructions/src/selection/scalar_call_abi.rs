@@ -2,6 +2,7 @@
 
 use super::shared::*;
 mod borrowed_argument;
+pub(crate) mod normalized_foreign;
 mod owned_argument;
 use borrowed_argument::validate_borrowed_argument;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};

@@ -1,8 +1,12 @@
 use super::{TextPlacementError, add, bytes};
 use machine_code::{
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState, InternalMachineCallResolutionKind,
-    InternalMachineCallResolutionState, PlacedInternalMachineCallResolution,
+    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
+    FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentNormalizedForeignCallFixupState, InternalMachineCallResolutionKind,
+    InternalMachineCallResolutionState, NormalizedForeignCallResolutionKind,
+    NormalizedForeignCallResolutionState, PlacedInternalMachineCallResolution,
+    PlacedNormalizedForeignCallResolution,
 };
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{MachineId, OperationId};
@@ -98,4 +102,79 @@ pub(super) fn check(
         fixup.patch_function_offset,
         add(fixup.patch_function_offset, 4)?,
     ))
+}
+
+/// One unresolved normalized foreign call. Its `{boundary, ordinal}` pair
+/// names the selected roster row; the import field stays zero here and binds
+/// only at object construction.
+pub(super) struct ForeignCall<'a> {
+    pub caller: MachineId,
+    pub block: SelectedBlockId,
+    pub instruction: SelectedInstructionId,
+    pub operation: OperationId,
+    pub offset: u64,
+    pub bytes: &'a [u8],
+    pub fixup: FunctionFragmentNormalizedForeignCallFixup,
+}
+
+pub(super) fn check_foreign(
+    call: ForeignCall<'_>,
+    architecture: Architecture,
+    section_offset: u64,
+    candidate_bytes: &[u8],
+    row: &PlacedNormalizedForeignCallResolution,
+) -> Result<(), TextPlacementError> {
+    let fixup = call.fixup;
+    if fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        || fixup.addend != 0
+        || fixup.patch_byte_width != 4
+    {
+        return Err(TextPlacementError::SourceShapeMismatch);
+    }
+    let opcode_relative = fixup
+        .opcode_function_offset
+        .checked_sub(call.offset)
+        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+    let patch_relative = fixup
+        .patch_function_offset
+        .checked_sub(call.offset)
+        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+    let field = bytes(candidate_bytes, fixup.patch_function_offset, 4)?;
+    let kind = match (architecture, fixup.kind) {
+        (Architecture::X86_64, FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1) => {
+            if fixup.patch_function_offset != add(fixup.opcode_function_offset, 1)? || fixup.reference_function_offset != add(fixup.opcode_function_offset, 5)? || bytes(call.bytes, opcode_relative, 1)? != [0xe8] || bytes(call.bytes, patch_relative, 4)? != [0, 0, 0, 0] { return Err(TextPlacementError::SourceShapeMismatch); }
+            if bytes(candidate_bytes, fixup.opcode_function_offset, 1)? != [0xe8] || field != [0, 0, 0, 0] { return Err(TextPlacementError::ArtifactMismatch); }
+            NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
+        }
+        (Architecture::Aarch64, FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1) => {
+            if fixup.opcode_function_offset != call.offset || fixup.patch_function_offset != call.offset || fixup.reference_function_offset != call.offset || call.bytes != 0x9400_0000_u32.to_le_bytes() { return Err(TextPlacementError::SourceShapeMismatch); }
+            if field != 0x9400_0000_u32.to_le_bytes() { return Err(TextPlacementError::ArtifactMismatch); }
+            NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
+        }
+        _ => return Err(TextPlacementError::SourceShapeMismatch),
+    };
+    let reference = add(section_offset, fixup.reference_function_offset)?;
+    if row.kind != kind
+        || row.state != NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
+        || row.caller != call.caller
+        || row.block != call.block
+        || row.instruction != call.instruction
+        || row.operation != call.operation
+        || row.boundary != fixup.boundary
+        || row.ordinal != fixup.ordinal
+        || row.call_function_offset != call.offset
+        || row.call_section_offset != add(section_offset, call.offset)?
+        || row.call_byte_count != call.bytes.len() as u64
+        || row.opcode_function_offset != fixup.opcode_function_offset
+        || row.opcode_section_offset != add(section_offset, fixup.opcode_function_offset)?
+        || row.field_function_offset != fixup.patch_function_offset
+        || row.field_section_offset != add(section_offset, fixup.patch_function_offset)?
+        || row.next_instruction_function_offset != fixup.reference_function_offset
+        || row.next_instruction_section_offset != reference
+        || row.field_byte_width != 4
+        || row.addend != 0
+    {
+        return Err(TextPlacementError::ArtifactMismatch);
+    }
+    Ok(())
 }

@@ -52,6 +52,9 @@ pub(super) fn decode_instruction(
         1 if allow_scalar_call => MachineCallEffect::DirectInternalNormalReturnV1 {
             pre_call_stack_alignment: cursor.u16()?,
         },
+        2 if allow_scalar_call => MachineCallEffect::DirectExternalNormalReturnV1 {
+            pre_call_stack_alignment: cursor.u16()?,
+        },
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     if cursor.byte()? != 0 {

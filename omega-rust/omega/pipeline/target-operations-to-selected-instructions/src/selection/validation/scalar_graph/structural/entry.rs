@@ -168,7 +168,8 @@ pub(in crate::selection) fn entry(
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
-            LegalizedScalarInstructionKind::Call(call)=>call.arguments.iter().any(|argument|matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place==place)),_=>false,
+            LegalizedScalarInstructionKind::Call(call)=>call.arguments.iter().any(|argument|matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place==place)),
+            LegalizedScalarInstructionKind::NormalizedForeignCall(call)=>call.structural_arguments.iter().any(|argument|argument.place==place),_=>false,
         }) {continue;}
         // Replay the exact incoming pointer location, not the caller's copy
         // offset or a same-sized inline value. Access remains independently

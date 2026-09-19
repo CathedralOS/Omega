@@ -42,6 +42,7 @@ pub(super) fn validate(
             if candidate.bytes != *bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
+                || candidate.normalized_foreign_call_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -55,6 +56,21 @@ pub(super) fn validate(
                 || candidate.bytes != *bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup != Some(*fixup)
+                || candidate.normalized_foreign_call_fixup.is_some()
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { bytes, fixup, .. },
+        ) => {
+            if !matches!(instruction.kind, SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } if boundary == fixup.boundary && ordinal == fixup.ordinal)
+                || candidate.bytes != *bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
+                || candidate.normalized_foreign_call_fixup != Some(*fixup)
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

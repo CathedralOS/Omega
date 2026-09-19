@@ -44,6 +44,8 @@ pub fn text_section_statistics(
         .map_err(|_| TextPlacementError::StatisticsOverflow)?;
     result.resolved_internal_machine_fixups =
         usize_to_u64(section.resolved_internal_machine_calls.len())?;
+    result.relocation_requirements =
+        usize_to_u64(section.unresolved_normalized_foreign_calls.len())?;
     result.remaining_internal_machine_fixups = result
         .source_internal_machine_fixups
         .checked_sub(result.resolved_internal_machine_fixups)

@@ -195,6 +195,9 @@ fn apply_function(
             if let Some(fixup) = &mut row.internal_machine_fixup {
                 shift_fixup(fixup, row.offset - source_row_offset)?;
             }
+            if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
+                shift_foreign_fixup(fixup, row.offset - source_row_offset)?;
+            }
         }
         block.byte_count = block
             .byte_count
@@ -327,6 +330,25 @@ fn shift_fixup(
     Ok(())
 }
 
+fn shift_foreign_fixup(
+    fixup: &mut machine_code::FunctionFragmentNormalizedForeignCallFixup,
+    shift: u64,
+) -> Result<(), FrameApplicationError> {
+    fixup.opcode_function_offset = fixup
+        .opcode_function_offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    fixup.patch_function_offset = fixup
+        .patch_function_offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    fixup.reference_function_offset = fixup
+        .reference_function_offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    Ok(())
+}
+
 #[cfg(test)]
 #[path = "branch_tests.rs"]
 mod branch_tests;
@@ -386,6 +408,7 @@ mod tests {
                 patch_byte_width: 4,
                 addend: 0,
             }),
+            normalized_foreign_call_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::DirectInternalCall { callee },
         };
@@ -399,6 +422,7 @@ mod tests {
             bytes: vec![0xc3],
             branch: None,
             internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::Return {
                 psi_return_edge: EdgeId::new(1).unwrap(),

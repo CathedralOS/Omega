@@ -46,6 +46,7 @@ pub(super) struct Transport {
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
     pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
     pub calls: Vec<SelectedCallContract>,
+    pub normalized_foreign_calls: Vec<selected_instructions::SelectedNormalizedForeignCall>,
     pub memory: Vec<SelectedMemoryAccess>,
     pub settlements: Vec<SelectedBoundarySettlement>,
 }
@@ -94,30 +95,16 @@ pub(super) fn result(
     )
 }
 
-/// Reconstruct the outgoing pointer from the independently replayed entry copy.
-pub(super) fn call_pointer(
+/// Replay the durable root pointer resolution for `place` and its exact
+/// offset transport. Shared by ordinary borrowed call arguments and
+/// normalized foreign structural arguments; each call family validates its
+/// own custody before reaching this replay.
+pub(super) fn place_pointer(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(replay.invalid());
-    };
-    if call.validate_source(&row.ownership).is_err()
-        || !call.claim_transfers.is_empty()
-        // Origin consistency alone also admits scalar calls with no ownership
-        // event; this borrowed-pointer edge still requires authored transfer.
-        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
-            && !matches!(row.ownership.as_slice(),
-                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-        || row.result.is_some_and(|result| {
-            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
-                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
-        })
-    {
-        return Err(replay.invalid());
-    }
     let incoming = replay
         .transport
         .pointers
@@ -158,6 +145,33 @@ pub(super) fn call_pointer(
         &SelectedInstructionProvenance::default(),
     )?;
     Ok(output)
+}
+
+/// Reconstruct the outgoing pointer from the independently replayed entry copy.
+pub(super) fn call_pointer(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+        return Err(replay.invalid());
+    };
+    if call.validate_source(&row.ownership).is_err()
+        || !call.claim_transfers.is_empty()
+        // Origin consistency alone also admits scalar calls with no ownership
+        // event; this borrowed-pointer edge still requires authored transfer.
+        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
+            && !matches!(row.ownership.as_slice(),
+                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+        || row.result.is_some_and(|result| {
+            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
+                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
+        })
+    {
+        return Err(replay.invalid());
+    }
+    place_pointer(replay, row, place, byte_offset)
 }
 
 pub(super) fn operation(
@@ -302,6 +316,15 @@ pub(super) fn operation(
                         settlement.clone(),
                     ),
             });
+        return Ok(true);
+    }
+    // Evaluated normalized foreign calls replay their own argument transport
+    // and result custody; they never take the internal Call path.
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::NormalizedForeignCall(_)
+    ) {
+        super::normalized_foreign::validate(source, node, environment, replay)?;
         return Ok(true);
     }
     if node.result.is_some() {

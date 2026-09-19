@@ -3,4 +3,5 @@
 //! These forms retain ABI and ownership information without inventing scalar
 //! virtual registers for structural values.
 
+pub mod normalized_foreign;
 pub mod ordinary;

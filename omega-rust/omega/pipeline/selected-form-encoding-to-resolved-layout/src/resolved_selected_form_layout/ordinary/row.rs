@@ -12,6 +12,8 @@ use machine_code::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
+    SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
+    SelectedFormNormalizedForeignCallFixupState,
 };
 
 use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence};
@@ -32,6 +34,7 @@ pub(super) fn resolve(
         Vec<u8>,
         Option<Box<ResolvedBranchEvidence>>,
         Option<SelectedFormInternalMachineFixup>,
+        Option<SelectedFormNormalizedForeignCallFixup>,
     ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
@@ -39,7 +42,7 @@ pub(super) fn resolve(
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
-        ) => Ok((bytes.clone(), None, None)),
+        ) => Ok((bytes.clone(), None, None, None)),
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
@@ -47,6 +50,22 @@ pub(super) fn resolve(
             bytes.clone(),
             None,
             Some(validate_internal_fixup(
+                architecture,
+                instruction,
+                instruction_offset,
+                bytes,
+                *fixup,
+            )?),
+            None,
+        )),
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { bytes, fixup, .. },
+        ) => Ok((
+            bytes.clone(),
+            None,
+            None,
+            Some(validate_foreign_fixup(
                 architecture,
                 instruction,
                 instruction_offset,
@@ -68,7 +87,7 @@ pub(super) fn resolve(
             machine,
             physical,
         )
-        .map(|(bytes, branch)| (bytes, branch, None)),
+        .map(|(bytes, branch)| (bytes, branch, None, None)),
         _ => unexpected(instruction.id),
     }
 }
@@ -112,6 +131,70 @@ fn validate_internal_fixup(
             bytes.get(patch_start..patch_end) == Some(&[0, 0, 0, 0])
         }
         SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => {
+            bytes.get(patch_start..patch_end) == Some(&0x9400_0000_u32.to_le_bytes())
+        }
+    };
+    if !canonical_placeholder {
+        return unexpected(instruction.id);
+    }
+    let row_len = u64::try_from(bytes.len())
+        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let row_end = instruction_offset
+        .checked_add(row_len)
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    if instruction_offset
+        .checked_add(u64::from(fixup.opcode_row_offset))
+        .is_none_or(|offset| offset >= row_end)
+        || instruction_offset
+            .checked_add(u64::from(fixup.reference_row_offset))
+            .is_none_or(|offset| offset > row_end)
+    {
+        return unexpected(instruction.id);
+    }
+    Ok(fixup)
+}
+
+/// The foreign-call field stays unresolved through layout: validate the
+/// `{boundary, ordinal}` roster binding and the canonical zero placeholder,
+/// then carry the row-relative fixup unchanged.
+fn validate_foreign_fixup(
+    architecture: Architecture,
+    instruction: &SelectedInstruction,
+    instruction_offset: u64,
+    bytes: &[u8],
+    fixup: SelectedFormNormalizedForeignCallFixup,
+) -> Result<SelectedFormNormalizedForeignCallFixup, OptimizedResolvedSelectedFormLayoutError> {
+    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind
+    else {
+        return unexpected(instruction.id);
+    };
+    match (architecture, fixup.kind) {
+        (
+            Architecture::X86_64,
+            SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+        ) => {}
+        (
+            Architecture::Aarch64,
+            SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+        ) => {}
+        _ => return unexpected(instruction.id),
+    }
+    if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        || fixup.boundary != boundary
+        || fixup.ordinal != ordinal
+        || fixup.addend != 0
+    {
+        return unexpected(instruction.id);
+    }
+    let patch_start = usize::from(fixup.patch_row_offset);
+    let patch_end = patch_start
+        .checked_add(usize::from(fixup.patch_byte_width))
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let canonical_placeholder = match fixup.kind {
+        SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => {
+            bytes.get(patch_start..patch_end) == Some(&[0, 0, 0, 0])
+        }
+        SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => {
             bytes.get(patch_start..patch_end) == Some(&0x9400_0000_u32.to_le_bytes())
         }
     };

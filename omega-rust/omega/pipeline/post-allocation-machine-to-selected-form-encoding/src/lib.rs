@@ -23,6 +23,7 @@ use machine_code::{
     SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormInternalMachineFixup,
     SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
-    SelectedFormMachineDisposition,
+    SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
+    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;

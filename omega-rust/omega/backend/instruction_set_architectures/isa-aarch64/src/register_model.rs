@@ -20,8 +20,9 @@ mod tests;
 pub use call_keys::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT, AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN,
-    AARCH64_DARWIN_RETURN_UNIT, aarch64_aapcs64_register_call_keys,
-    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_call_keys,
+    AARCH64_DARWIN_RETURN_UNIT, aarch64_aapcs64_normalized_foreign_call_keys,
+    aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
+    aarch64_darwin_normalized_foreign_call_keys, aarch64_darwin_register_call_keys,
     aarch64_darwin_register_unit_call_keys, aarch64_preservation_convention_for_target,
     aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
 };

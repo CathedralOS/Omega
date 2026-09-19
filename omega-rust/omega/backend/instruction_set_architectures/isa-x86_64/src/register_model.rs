@@ -23,9 +23,10 @@ pub use call_keys::{
     X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, x86_64_microsoft_aggregate_call_keys,
-    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_register_call_keys,
-    x86_64_microsoft_register_unit_call_keys, x86_64_preservation_convention_for_target,
-    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
+    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_normalized_foreign_call_keys,
+    x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
+    x86_64_preservation_convention_for_target, x86_64_system_v_aggregate_call_keys,
+    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
     x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 pub use constraint_catalog::{

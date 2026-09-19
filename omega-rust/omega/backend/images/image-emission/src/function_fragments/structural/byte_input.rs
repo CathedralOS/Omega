@@ -407,6 +407,7 @@ mod tests {
             local_storage_slots: vec![],
             outgoing_arguments: vec![],
             calls: vec![],
+            normalized_foreign_calls: Vec::new(),
             memory_accesses: vec![],
             boundary_settlements: vec![],
             entry_block: SelectedBlockId(0),

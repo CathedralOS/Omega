@@ -29,6 +29,11 @@ pub enum TextSectionPlacementPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextSectionRelocationRequirements {
     ProvenNoneForFullyResolvedInternalControlV1,
+    /// The section still carries normalized-foreign-call fields bound only at
+    /// object construction to declared import symbols. Internal control is
+    /// fully resolved; foreign imports remain object relocations, never
+    /// in-section patches.
+    UnresolvedNormalizedForeignImportFieldsV1,
 }
 
 /// One relocation-free, section-relative concatenation of validated function fragments.
@@ -56,6 +61,12 @@ pub struct RelocationFreeTextSectionPlacement {
     /// their source spans, exact coordinates, and resolved target equations
     /// without duplicating executable bytes or introducing object relocations.
     pub resolved_internal_machine_calls: Vec<PlacedInternalMachineCallResolution>,
+    /// Section-relative evidence for every normalized foreign call whose
+    /// import field stays unresolved. Object construction binds each row to
+    /// the declared import symbol for the roster entry the `{boundary,
+    /// ordinal}` pair names; these fields are object relocations, never
+    /// in-section patches.
+    pub unresolved_normalized_foreign_calls: Vec<PlacedNormalizedForeignCallResolution>,
     pub relocation_requirements: TextSectionRelocationRequirements,
 }
 
@@ -128,4 +139,44 @@ pub struct PlacedInternalMachineCallResolution {
     pub field_byte_width: u8,
     pub addend: i64,
     pub displacement: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignCallResolutionKind {
+    X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+    Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignCallResolutionState {
+    /// The field is a canonical zero placeholder awaiting its object-level
+    /// import-symbol relocation.
+    UnresolvedImportFieldV1,
+}
+
+/// Generic, ISA-tagged placement evidence for one normalized foreign call
+/// whose import field object construction still binds. The `{boundary,
+/// ordinal}` pair names the selected roster row owning the evaluated locator;
+/// the raw foreign coordinate never enters the section record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedNormalizedForeignCallResolution {
+    pub kind: NormalizedForeignCallResolutionKind,
+    pub state: NormalizedForeignCallResolutionState,
+    pub caller: MachineId,
+    pub block: SelectedBlockId,
+    pub instruction: SelectedInstructionId,
+    pub operation: OperationId,
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub ordinal: u32,
+    pub call_function_offset: u64,
+    pub call_section_offset: u64,
+    pub call_byte_count: u64,
+    pub opcode_function_offset: u64,
+    pub opcode_section_offset: u64,
+    pub field_function_offset: u64,
+    pub field_section_offset: u64,
+    pub next_instruction_function_offset: u64,
+    pub next_instruction_section_offset: u64,
+    pub field_byte_width: u8,
+    pub addend: i64,
 }

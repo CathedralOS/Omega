@@ -25,5 +25,6 @@ abstract-operations = { path = "../../representations/abstract-operations" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 legalized-operations = { path = "../../representations/legalized-operations" }
 target-operations = { path = "../../representations/target-operations" }
+task-plans = { path = "../../representations/task-plans" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 sha2 = "0.10.9"

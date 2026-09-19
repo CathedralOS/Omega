@@ -84,6 +84,10 @@ pub(super) enum RowRoute {
     /// The row encodes an internal machine call template whose fixup waits
     /// for resolved layout.
     InternalCallTemplate,
+    /// The row encodes a normalized foreign call template whose import field
+    /// stays unresolved until object construction binds it to the declared
+    /// import symbol.
+    NormalizedForeignCallTemplate,
     /// The row owns no bytes; resolved branch layout supplies them: the
     /// control-flow dimension of the row contract.
     DeferredControlFlow,
@@ -121,6 +125,7 @@ pub(super) fn route_of(kind: SelectedInstructionKind) -> RowRoute {
         Kind::CallScalar { .. } | Kind::CallUnit { .. } | Kind::CallAggregate { .. } => {
             RowRoute::InternalCallTemplate
         }
+        Kind::NormalizedForeignCall { .. } => RowRoute::NormalizedForeignCallTemplate,
         Kind::ConditionalBranchNonZero
         | Kind::ConditionalBranchU64LessThan
         | Kind::ConditionalBranchI64LessThan

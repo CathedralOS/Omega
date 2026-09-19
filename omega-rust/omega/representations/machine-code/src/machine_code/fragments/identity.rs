@@ -4,7 +4,8 @@ use super::{
     FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
     FunctionFragmentEmissionPlan, FunctionFragmentInternalMachineFixup,
     FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
-    FunctionFragmentSuccessorProvenance,
+    FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance,
 };
 use optimization_core::FunctionFragmentEmissionIdentity;
 use optimization_unit::{FuelSettlement, PsiProvenance};
@@ -18,7 +19,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v14";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v15";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -57,6 +58,10 @@ pub fn function_fragment_emission_identity(
                 encode_bytes(&mut hasher, &row.bytes);
                 encode_branch(&mut hasher, row.branch.as_deref());
                 encode_optional_internal_machine_fixup(&mut hasher, row.internal_machine_fixup);
+                encode_optional_normalized_foreign_call_fixup(
+                    &mut hasher,
+                    row.normalized_foreign_call_fixup,
+                );
                 encode_instruction_provenance(&mut hasher, &row.provenance);
                 encode_control(&mut hasher, &row.control);
             }
@@ -92,6 +97,32 @@ fn encode_internal_machine_fixup(hasher: &mut Sha256, fixup: FunctionFragmentInt
     hasher.update(fixup.reference_function_offset.to_le_bytes());
     hasher.update([fixup.patch_byte_width]);
     hasher.update(fixup.addend.to_le_bytes());
+}
+
+fn encode_optional_normalized_foreign_call_fixup(
+    hasher: &mut Sha256,
+    fixup: Option<FunctionFragmentNormalizedForeignCallFixup>,
+) {
+    match fixup {
+        None => hasher.update([0]),
+        Some(fixup) => {
+            hasher.update([1]);
+            hasher.update([match fixup.kind {
+                FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
+                FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
+            }]);
+            hasher.update([match fixup.state {
+                FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => 1,
+            }]);
+            hasher.update(fixup.boundary.get().to_le_bytes());
+            hasher.update(fixup.ordinal.to_le_bytes());
+            hasher.update(fixup.opcode_function_offset.to_le_bytes());
+            hasher.update(fixup.patch_function_offset.to_le_bytes());
+            hasher.update(fixup.reference_function_offset.to_le_bytes());
+            hasher.update([fixup.patch_byte_width]);
+            hasher.update(fixup.addend.to_le_bytes());
+        }
+    }
 }
 
 fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
@@ -160,6 +191,11 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
         FunctionFragmentControlProvenance::DirectInternalCall { callee } => {
             hasher.update([3]);
             hasher.update(callee.get().to_le_bytes());
+        }
+        FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal } => {
+            hasher.update([6]);
+            hasher.update(boundary.get().to_le_bytes());
+            hasher.update(ordinal.to_le_bytes());
         }
         FunctionFragmentControlProvenance::ConditionalBranch {
             predicate,

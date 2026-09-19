@@ -55,6 +55,10 @@ fn keys() -> SelectedConstraintKeys {
             family: RegisterConstraintFamily::Call,
             variant: 3,
         }],
+        call_normalized_foreign: vec![RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 3000,
+        }],
         materialize_i64: instruction(0),
         materialize_boolean: instruction(0),
         copy_i64: instruction(1),
@@ -108,7 +112,8 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
             ))
             .then_some(keys.call_scalar[0])
             .or_else(|| {
-                (semantic == MachineSemanticKind::NormalizedForeignCall).then_some(instruction(50))
+                (semantic == MachineSemanticKind::NormalizedForeignCall)
+                    .then(|| keys.call_normalized_foreign[0])
             })
         })
         .expect("test catalog declares every semantic constraint");
@@ -151,12 +156,17 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
             MachineSemanticKind::CallScalar
                 | MachineSemanticKind::CallUnit
                 | MachineSemanticKind::CallAggregate
+                | MachineSemanticKind::NormalizedForeignCall
         ) {
             MachineBarrier::Call
         } else {
             MachineBarrier::None
         },
-        call: if matches!(
+        call: if semantic == MachineSemanticKind::NormalizedForeignCall {
+            MachineCallEffect::DirectExternalNormalReturnV1 {
+                pre_call_stack_alignment: 16,
+            }
+        } else if matches!(
             semantic,
             MachineSemanticKind::CallScalar
                 | MachineSemanticKind::CallUnit
@@ -476,10 +486,13 @@ fn identity_distinguishes_call_arity_order_and_role_boundaries() {
 }
 
 #[test]
-fn identity_distinguishes_aggregate_call_and_return_role_boundaries() {
+fn identity_distinguishes_foreign_call_and_return_role_boundaries() {
     let source = catalog();
     let mut relabeled = source.clone();
-    let call_key = relabeled.selected_keys.call_aggregate.remove(0);
+    // `call_normalized_foreign` sits immediately before `return_aggregate` in
+    // identity order, so this relabel keeps the flat key sequence identical
+    // while moving the key across the call/return roster boundary.
+    let call_key = relabeled.selected_keys.call_normalized_foreign.remove(0);
     relabeled.selected_keys.return_aggregate.insert(0, call_key);
     assert_eq!(
         source.selected_keys.in_identity_order(),

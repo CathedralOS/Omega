@@ -234,6 +234,7 @@ fn fixture(target: NativeTarget) -> ValidatedPredecessorRunRelocation {
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),
             calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
             memory_accesses: Vec::new(),
             boundary_settlements: Vec::new(),
             entry_block: BLOCK_A,

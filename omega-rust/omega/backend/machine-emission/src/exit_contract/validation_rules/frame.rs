@@ -76,7 +76,8 @@ pub(in crate::exit_contract) fn validate_preservation_writes(
     }
     let footprint = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. } => {
+        | SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. }
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. } => {
             Some(footprint)
         }
         SelectedFormEncodingState::DeferredControl { .. } => None,
@@ -114,6 +115,7 @@ pub(in crate::exit_contract) fn validate_internal_call(
         || bytes != &layout.bytes
         || layout.branch.is_some()
         || layout.internal_machine_fixup != Some(*fixup)
+        || layout.normalized_foreign_call_fixup.is_some()
         || footprint.encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
         || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
     {
@@ -121,7 +123,61 @@ pub(in crate::exit_contract) fn validate_internal_call(
             instruction,
         ));
     }
-    let effects_match = match target.architecture {
+    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint);
+    if !effects_match {
+        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
+            instruction,
+        ));
+    }
+    Ok(())
+}
+
+/// A normalized foreign call keeps the internal-call byte and stack shape but
+/// carries its unresolved import field on the foreign fixup channel.
+pub(in crate::exit_contract) fn validate_normalized_foreign_call(
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    instruction: SelectedInstructionId,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+) -> Result<(), WholeFunctionExitContractError> {
+    let SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
+        bytes,
+        footprint,
+        fixup,
+    } = &encoding.state
+    else {
+        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+            instruction,
+        ));
+    };
+    if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
+        || bytes != &layout.bytes
+        || layout.branch.is_some()
+        || layout.internal_machine_fixup.is_some()
+        || layout.normalized_foreign_call_fixup != Some(*fixup)
+        || footprint.encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+        || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+    {
+        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+            instruction,
+        ));
+    }
+    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint);
+    if !effects_match {
+        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
+            instruction,
+        ));
+    }
+    Ok(())
+}
+
+fn call_memory_stack_effects_match(
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    footprint: &machine_code::SelectedFormDecodedFootprint,
+) -> bool {
+    match target.architecture {
         Architecture::X86_64 => {
             footprint.encoded.memory
                 == MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
@@ -138,11 +194,5 @@ pub(in crate::exit_contract) fn validate_internal_call(
             footprint.encoded.memory == MachineEncodedMemoryEffect::NoneV1
                 && footprint.encoded.stack == MachineEncodedStackEffect::UnchangedV1
         }
-    };
-    if !effects_match {
-        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-            instruction,
-        ));
     }
-    Ok(())
 }

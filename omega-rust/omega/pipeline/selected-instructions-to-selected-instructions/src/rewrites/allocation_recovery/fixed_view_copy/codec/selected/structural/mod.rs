@@ -5,6 +5,7 @@ mod call;
 mod calling;
 mod declarations;
 mod function;
+mod normalized_foreign;
 mod projected_qualifications;
 mod provider;
 mod read_result;

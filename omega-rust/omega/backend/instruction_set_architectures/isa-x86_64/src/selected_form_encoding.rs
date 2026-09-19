@@ -25,6 +25,7 @@ mod integer_normalization_tests;
 mod jump;
 pub(crate) mod materialization;
 mod memory;
+mod normalized_foreign_call;
 mod request_validation;
 pub(crate) mod saturating_forms;
 mod scalar_call;
@@ -45,6 +46,7 @@ pub use hosted_write_byte::{
 };
 pub use jump::*;
 pub use memory::*;
+pub use normalized_foreign_call::*;
 pub use scalar_call::*;
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};

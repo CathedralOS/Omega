@@ -227,6 +227,7 @@ fn fixture(target: NativeTarget) -> ValidatedCommutingRelocation {
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),
             calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
             memory_accesses: vec![
                 access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
                 access(LOAD_C, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),

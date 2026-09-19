@@ -68,6 +68,10 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Argument-count-major rows, with one- and two-fragment results per count.
     /// Empty means direct aggregate calls are unsupported in this environment.
     pub call_aggregate: Vec<RegisterConstraintKey>,
+    /// Per-plan normalized foreign call rows, matched against the evaluated
+    /// boundary-entry plan's complete fixed ABI operand views. Empty means
+    /// this environment supplies no foreign call forms.
+    pub call_normalized_foreign: Vec<RegisterConstraintKey>,
     /// Direct returns indexed by fragment count minus one; no hidden pointer ABI.
     pub return_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,

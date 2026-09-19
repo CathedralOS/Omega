@@ -171,6 +171,7 @@ pub(in crate::selection) fn entry(
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place)),
+            LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call.structural_arguments.iter().any(|argument| argument.place == place),
             _ => false,
         });
         // Owned arrivals can transfer into an aggregate without an intervening

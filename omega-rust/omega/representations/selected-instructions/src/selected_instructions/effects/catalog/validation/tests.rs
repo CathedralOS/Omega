@@ -1,10 +1,10 @@
 //! Fail-closed catalog admission for the closed hosted byte-output leaf.
 use super::{
-    MachineAlternativeApplicability, MachineBarrier, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSemanticKind,
-    MachineSizeKnowledge, RegisterInstructionConstraint, RegisterOperandAccess,
-    validate_declaration,
+    MachineAlternativeApplicability, MachineBarrier, MachineEffectCatalogValidationError,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, MachineSizeKnowledge, RegisterInstructionConstraint,
+    RegisterOperandAccess, validate_declaration,
 };
 use crate::{MachineAlternative, MachineAlternativeKey, MachineLatencyKnowledge};
 use register_model::{
@@ -1331,4 +1331,165 @@ fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
     // The two-operand roster must be rejected by the hosted-exit row itself,
     // not waved through by the plain fallthrough row.
     assert!(validate_declaration(&constraint, &declaration).is_err());
+}
+
+#[test]
+fn normalized_foreign_call_declarations_bind_external_call_effects() {
+    let unit = |id| register_model::RegisterUnitId(id);
+    // One per-plan foreign row: two Use arguments and one Def result, every
+    // operand pinned to the exact ABI view the evaluated plan selected.
+    let foreign_row = |variant: u32, arity: u16, result: bool| RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        },
+        operands: (0..arity)
+            .map(|operand| RegisterOperandConstraint {
+                operand,
+                access: RegisterOperandAccess::Use,
+                class: RegisterClassId(0),
+                fixed_view: Some(RegisterViewId(operand)),
+                tied_to: None,
+                early_clobber: false,
+            })
+            .chain(result.then_some(RegisterOperandConstraint {
+                operand: arity,
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: Some(RegisterViewId(arity)),
+                tied_to: None,
+                early_clobber: false,
+            }))
+            .collect(),
+        implicit_uses: vec![unit(4)],
+        implicit_defs: Vec::new(),
+        clobbers: vec![unit(0), unit(1)],
+    };
+    let declaration = |key, encoded: MachineEncodedEffects| MachineEffectDeclaration {
+        semantic: MachineSemanticKind::NormalizedForeignCall,
+        constraint: key,
+        memory: crate::MachineMemoryEffect::NoneV1,
+        trap: crate::MachineTrapBehavior::NeverV1,
+        barrier: MachineBarrier::Call,
+        call: crate::MachineCallEffect::DirectExternalNormalReturnV1 {
+            pre_call_stack_alignment: 16,
+        },
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: MachineSemanticKind::NormalizedForeignCall.into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(5),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    };
+    let encoded = |row: &RegisterInstructionConstraint| {
+        let mut encoded = MachineEncodedEffects::fallthrough_v1(
+            row.operands
+                .iter()
+                .filter(|operand| operand.access == RegisterOperandAccess::Use)
+                .map(|operand| operand.operand)
+                .collect(),
+            row.operands
+                .iter()
+                .filter(|operand| operand.access == RegisterOperandAccess::Def)
+                .map(|operand| operand.operand)
+                .collect(),
+        );
+        encoded.implicit_unit_uses = row.implicit_uses.clone();
+        encoded.implicit_unit_defs = row.implicit_defs.clone();
+        encoded.implicit_unit_clobbers = row.clobbers.clone();
+        encoded.memory = MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+            stack_pointer: RegisterViewId(9),
+            byte_count: 8,
+        };
+        encoded.stack = MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+            stack_pointer: RegisterViewId(9),
+            return_address_byte_count: 8,
+        };
+        encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
+        encoded
+    };
+    let row = foreign_row(3000, 2, true);
+    let source = declaration(row.key, encoded(&row));
+    validate_declaration(&row, &source).unwrap();
+    // The Unit-result row admits the same surfaces with no Def operand.
+    let unit_row = foreign_row(3010, 1, false);
+    validate_declaration(&unit_row, &declaration(unit_row.key, encoded(&unit_row))).unwrap();
+
+    // An internal or absent call effect cannot stand in for the evaluated
+    // foreign boundary's external return contract.
+    for call in [
+        crate::MachineCallEffect::NoneV1,
+        crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+            pre_call_stack_alignment: 16,
+        },
+    ] {
+        let mut changed = source.clone();
+        changed.call = call;
+        assert_eq!(
+            validate_declaration(&row, &changed),
+            Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+                MachineSemanticKind::NormalizedForeignCall
+            )),
+            "{call:?} must reject on a foreign declaration"
+        );
+    }
+    let mut changed = source.clone();
+    changed.barrier = MachineBarrier::None;
+    assert_eq!(
+        validate_declaration(&row, &changed),
+        Err(MachineEffectCatalogValidationError::BarrierMismatch(
+            MachineSemanticKind::NormalizedForeignCall
+        ))
+    );
+    // Every operand must pin its plan-selected ABI view: an allocatable row
+    // cannot launder a foreign placement.
+    let mut unpinned = row.clone();
+    unpinned.operands[0].fixed_view = None;
+    assert_eq!(
+        validate_declaration(&unpinned, &source),
+        Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            MachineSemanticKind::NormalizedForeignCall
+        ))
+    );
+    // A two-result aggregate shape is not a normalized foreign plan row.
+    let mut doubled = row.clone();
+    doubled.operands.push(RegisterOperandConstraint {
+        operand: 3,
+        access: RegisterOperandAccess::Def,
+        class: RegisterClassId(0),
+        fixed_view: Some(RegisterViewId(3)),
+        tied_to: None,
+        early_clobber: false,
+    });
+    assert_eq!(
+        validate_declaration(&doubled, &source),
+        Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            MachineSemanticKind::NormalizedForeignCall
+        ))
+    );
+    // The encoded surface cannot borrow fall-through control or drop the
+    // row's declared clobbers.
+    let mut changed = source.clone();
+    changed.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1;
+    assert_eq!(
+        validate_declaration(&row, &changed),
+        Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            MachineSemanticKind::NormalizedForeignCall
+        ))
+    );
+    let mut changed = source;
+    changed.alternatives[0].encoded.implicit_unit_clobbers.pop();
+    assert_eq!(
+        validate_declaration(&row, &changed),
+        Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            MachineSemanticKind::NormalizedForeignCall
+        ))
+    );
 }

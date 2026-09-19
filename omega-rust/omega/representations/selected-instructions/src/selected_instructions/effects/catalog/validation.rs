@@ -37,6 +37,7 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallUnit
             | MachineSemanticKind::CallAggregate
+            | MachineSemanticKind::NormalizedForeignCall
     ) {
         MachineBarrier::Call
     } else {
@@ -131,6 +132,17 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::CallAggregate,
             _,
         ) => {
+            return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+                semantic,
+            ));
+        }
+        (
+            MachineSemanticKind::NormalizedForeignCall,
+            crate::MachineCallEffect::DirectExternalNormalReturnV1 {
+                pre_call_stack_alignment,
+            },
+        ) if pre_call_stack_alignment.is_power_of_two() => {}
+        (MachineSemanticKind::NormalizedForeignCall, _) => {
             return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 semantic,
             ));
@@ -483,6 +495,43 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
+    if declaration.semantic == MachineSemanticKind::NormalizedForeignCall {
+        let arity = constraint
+            .operands
+            .iter()
+            .take_while(|operand| operand.access == RegisterOperandAccess::Use)
+            .count();
+        let (arguments, results) = constraint.operands.split_at(arity);
+        // A normalized foreign row is a per-plan fixed-view roster: leading
+        // Use arguments and at most one trailing Def result, every operand
+        // pinned to the exact ABI view the evaluated boundary plan selected.
+        if results.len() > 1
+            || constraint
+                .operands
+                .iter()
+                .any(|operand| operand.fixed_view.is_none())
+            || results
+                .iter()
+                .any(|operand| operand.access != RegisterOperandAccess::Def)
+            || !encoded
+                .external_operand_reads
+                .iter()
+                .copied()
+                .eq(arguments.iter().map(|operand| operand.operand))
+            || !encoded
+                .external_operand_writes
+                .iter()
+                .copied()
+                .eq(results.iter().map(|operand| operand.operand))
+            || encoded.implicit_unit_uses != constraint.implicit_uses
+            || encoded.implicit_unit_defs != constraint.implicit_defs
+            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+        {
+            return Err(());
+        }
+    }
     let expected_barrier = match encoded.control {
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1
         | MachineEncodedControlEffect::HostedExitOrTrapV1
@@ -648,6 +697,7 @@ fn validate_encoded_effects(
             MachineSemanticKind::CallScalar
                 | MachineSemanticKind::CallUnit
                 | MachineSemanticKind::CallAggregate
+                | MachineSemanticKind::NormalizedForeignCall
         ) && memory_pointer == stack_pointer
             && memory_bytes == return_address_byte_count
             && return_address_byte_count != 0 => {}

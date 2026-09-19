@@ -19,7 +19,8 @@ use crate::register_model::{
     AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
     AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED, AARCH64_STORE,
     AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
-    aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
+    aarch64_aapcs64_normalized_foreign_call_keys, aarch64_aapcs64_register_call_keys,
+    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_normalized_foreign_call_keys,
     aarch64_darwin_register_call_keys, aarch64_darwin_register_unit_call_keys,
     aarch64_physical_register_model, aarch64_register_aggregate_call_keys,
     aarch64_register_aggregate_return_keys,
@@ -510,6 +511,40 @@ pub fn aarch64_register_constraint_catalog(
         constraints.push(call);
     }
 
+    // Per-plan normalized foreign call rows: one row per (integer bank,
+    // register arity, scalar-result presence). Stack-passed arguments are
+    // outgoing custody, never row operands; every caller-saved register is
+    // clobbered regardless of how many bank registers carry arguments. A row
+    // without a scalar result leaves X0 clobbered, like the unit-call rows.
+    for (keys, call_convention) in [
+        (aarch64_aapcs64_normalized_foreign_call_keys(), aapcs),
+        (aarch64_darwin_normalized_foreign_call_keys(), darwin),
+    ] {
+        for (index, key) in keys.into_iter().enumerate() {
+            let arity = index / 2;
+            let mut operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+                .into_iter()
+                .take(arity)
+                .enumerate()
+                .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
+                .collect::<Vec<_>>();
+            let mut clobbers = call_clobbers(call_convention);
+            if index % 2 == 1 {
+                operands.push(fixed(arity as u16, RegisterOperandAccess::Def, "x0"));
+            } else {
+                clobbers = sorted_units(clobbers.into_iter().chain(x0_units.iter().copied()));
+            }
+            constraints.push(RegisterInstructionConstraint {
+                id: RegisterConstraintId(0),
+                key,
+                operands,
+                implicit_uses: call_uses.clone(),
+                implicit_defs: call_defs.clone(),
+                clobbers,
+            });
+        }
+    }
+
     for (key, syscall_register) in [
         (AARCH64_HOSTED_READ_BYTE, "x8"),
         (AARCH64_DARWIN_HOSTED_READ_BYTE, "x16"),
@@ -795,6 +830,8 @@ pub fn aarch64_register_constraint_catalog(
                 required.extend(aarch64_mixed_aggregate_call_keys(darwin));
                 required.extend(aarch64_register_aggregate_return_keys(darwin));
             }
+            required.extend(aarch64_aapcs64_normalized_foreign_call_keys());
+            required.extend(aarch64_darwin_normalized_foreign_call_keys());
             required.sort_unstable();
             required
         },

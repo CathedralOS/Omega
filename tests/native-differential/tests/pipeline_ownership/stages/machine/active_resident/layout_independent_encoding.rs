@@ -52,6 +52,7 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
         assert!(encoding.rows().iter().all(|row| match &row.state {
             SelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
             SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => false,
+            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. } => false,
             SelectedFormEncodingState::DeferredControl { .. } => true,
         }));
         let fresh_row = encoding

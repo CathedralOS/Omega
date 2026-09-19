@@ -210,6 +210,7 @@ fn fixture(target: NativeTarget) -> ValidatedStoredLoadForwarding {
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),
             calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
             memory_accesses: vec![
                 access(STORE, 1, place, 0, SelectedMemoryAccessRole::WritePlace),
                 access(LOAD, 2, place, 0, SelectedMemoryAccessRole::ReadPlace),

@@ -228,7 +228,7 @@ pub(super) fn decode_call_source(
     }
 }
 
-fn encode_provider_execution(bytes: &mut Vec<u8>, execution: ProviderExecutionBinding) {
+pub(super) fn encode_provider_execution(bytes: &mut Vec<u8>, execution: ProviderExecutionBinding) {
     bytes.extend_from_slice(
         &execution
             .provider_plan_report_identity()
@@ -249,7 +249,7 @@ fn encode_provider_execution(bytes: &mut Vec<u8>, execution: ProviderExecutionBi
     );
 }
 
-fn decode_provider_execution(
+pub(super) fn decode_provider_execution(
     cursor: &mut Cursor<'_>,
 ) -> Result<ProviderExecutionBinding, FixedViewCopyDecodeError> {
     let plan = ProviderPlanReportIdentity::new(cursor.u64()?)

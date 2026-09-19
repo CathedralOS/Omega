@@ -20,6 +20,7 @@ mod byte_output;
 mod control;
 mod ieee_comparison;
 mod literal_compare;
+mod normalized_foreign;
 mod process_exit;
 mod provenance;
 mod register_entry;
@@ -795,6 +796,7 @@ pub(in crate::selection) fn validate_with_environment(
         return Err(invalid());
     }
     if replay.transport.calls != selected.calls
+        || replay.transport.normalized_foreign_calls != selected.normalized_foreign_calls
         || replay.transport.slots != selected.outgoing_arguments
         || replay.transport.local_slots != selected.local_storage_slots
         || replay.transport.memory != selected.memory_accesses

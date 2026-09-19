@@ -74,6 +74,7 @@ pub(super) fn validate_layout(
                     MachineAlternativeFamily::CallScalar
                         | MachineAlternativeFamily::CallUnit
                         | MachineAlternativeFamily::CallAggregate
+                        | MachineAlternativeFamily::NormalizedForeignCall
                 )
             });
         let shadow = if calls && required.abi == FrameAbiPreservationConvention::MicrosoftX64 {

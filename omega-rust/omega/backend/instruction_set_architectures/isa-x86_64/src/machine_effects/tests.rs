@@ -384,6 +384,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                     MachineSemanticKind::CallScalar
                         | MachineSemanticKind::CallUnit
                         | MachineSemanticKind::CallAggregate
+                        | MachineSemanticKind::NormalizedForeignCall
                 ) {
                     MachineBarrier::Call
                 } else if matches!(

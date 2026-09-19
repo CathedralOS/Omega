@@ -165,7 +165,9 @@ pub(super) fn produce(
                     )?;
                 }
             }
-            Control::DirectInternalCall { .. } | Control::None => {}
+            Control::DirectInternalCall { .. }
+            | Control::NormalizedForeignCall { .. }
+            | Control::None => {}
         }
     }
     rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
@@ -284,7 +286,9 @@ pub(super) fn validate(
                     .map(|successor| successor.psi_edge)
                     .collect()
             }
-            Control::DirectInternalCall { .. } | Control::None => Vec::new(),
+            Control::DirectInternalCall { .. }
+            | Control::NormalizedForeignCall { .. }
+            | Control::None => Vec::new(),
         };
         for edge in edges {
             if !rows.iter().any(|row| {
@@ -343,7 +347,9 @@ fn supports(
                             Some(FunctionFragmentBranchEvidence::Conditional(branch)) if u64::try_from(offset).ok() == Some(branch.when_fallthrough_offset)
                         ))
             }
-            Control::None | Control::DirectInternalCall { .. } => false,
+            Control::None
+            | Control::DirectInternalCall { .. }
+            | Control::NormalizedForeignCall { .. } => false,
         },
     }
 }

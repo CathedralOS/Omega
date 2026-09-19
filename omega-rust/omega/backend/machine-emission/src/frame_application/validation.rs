@@ -5,6 +5,7 @@ use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragment,
     FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
     FunctionFragmentFrameApplication, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentNormalizedForeignCallFixup,
 };
 use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -199,6 +200,11 @@ fn validate_function(
                 candidate_row.internal_machine_fixup,
                 shift,
             )?;
+            validate_foreign_fixup(
+                source_row.normalized_foreign_call_fixup,
+                candidate_row.normalized_foreign_call_fixup,
+                shift,
+            )?;
             cursor = advance(cursor, candidate_row.bytes.len())?;
         }
         if candidate_block.byte_count != cursor - block_start {
@@ -217,6 +223,36 @@ fn validate_function(
 fn validate_fixup(
     source: Option<FunctionFragmentInternalMachineFixup>,
     candidate: Option<FunctionFragmentInternalMachineFixup>,
+    shift: u64,
+) -> Result<(), FrameApplicationError> {
+    let Some(mut expected) = source else {
+        return if candidate.is_none() {
+            Ok(())
+        } else {
+            Err(FrameApplicationError::ArtifactMismatch)
+        };
+    };
+    expected.opcode_function_offset = expected
+        .opcode_function_offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    expected.patch_function_offset = expected
+        .patch_function_offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    expected.reference_function_offset = expected
+        .reference_function_offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    if candidate != Some(expected) {
+        return Err(FrameApplicationError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+fn validate_foreign_fixup(
+    source: Option<FunctionFragmentNormalizedForeignCallFixup>,
+    candidate: Option<FunctionFragmentNormalizedForeignCallFixup>,
     shift: u64,
 ) -> Result<(), FrameApplicationError> {
     let Some(mut expected) = source else {

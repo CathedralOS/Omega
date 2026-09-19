@@ -111,6 +111,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         }],
         outgoing_arguments: vec![],
         calls: vec![],
+        normalized_foreign_calls: Vec::new(),
         boundary_settlements: vec![],
         memory_accesses: vec![
             SelectedMemoryAccess {

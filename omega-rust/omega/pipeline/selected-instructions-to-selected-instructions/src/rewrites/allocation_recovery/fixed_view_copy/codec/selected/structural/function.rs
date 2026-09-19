@@ -1,5 +1,5 @@
 //! Complete instruction-keyed metadata for the ordinary function graph.
-use super::{call::*, settlements::*, signature::*};
+use super::{call::*, normalized_foreign::*, settlements::*, signature::*};
 use crate::FixedViewCopyDecodeError;
 use crate::rewrites::allocation_recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, length,
@@ -88,6 +88,10 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     length(bytes, function.calls.len());
     for row in &function.calls {
         encode_call(bytes, row);
+    }
+    length(bytes, function.normalized_foreign_calls.len());
+    for row in &function.normalized_foreign_calls {
+        encode_normalized_foreign_call(bytes, row);
     }
     length(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
@@ -209,6 +213,12 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     }
     let count = cursor.length()?;
     for _ in 0..count {
+        function
+            .normalized_foreign_calls
+            .push(decode_normalized_foreign_call(cursor)?);
+    }
+    let count = cursor.length()?;
+    for _ in 0..count {
         let instruction = SelectedInstructionId(cursor.u32()?);
         let origin = match cursor.byte()? {
             0 => selected_instructions::SelectedMemoryAccessOrigin::Operation(decode_id(
@@ -325,6 +335,7 @@ mod local_slot_tests {
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),
             calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
             memory_accesses: Vec::new(),
             boundary_settlements: Vec::new(),
             entry_block: SelectedBlockId(0),

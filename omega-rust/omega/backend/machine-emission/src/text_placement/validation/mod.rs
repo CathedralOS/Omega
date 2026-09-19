@@ -32,8 +32,7 @@ pub(super) fn check(
         || section.semantic_entry != fragments.entry
         || section.functions.len() != count
         || section.policy != TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1
-        || section.relocation_requirements
-            != TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        || section.relocation_requirements != expected_requirements(fragments)
         || section.section_alignment != alignment
         || section.byte_count != section.bytes.len() as u64
     {
@@ -59,4 +58,23 @@ pub(super) fn check(
         return Err(TextPlacementError::ArtifactMismatch);
     }
     functions::check(input, section, &offsets, alignment)
+}
+
+/// The section may close as fully internal only when the source carries no
+/// normalized foreign call fields; otherwise the manifest must declare the
+/// unresolved import-field relocation class.
+fn expected_requirements(
+    fragments: &machine_code::FunctionFragmentEmissionPlan,
+) -> TextSectionRelocationRequirements {
+    let has_foreign = fragments
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .any(|row| row.normalized_foreign_call_fixup.is_some());
+    if has_foreign {
+        TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
+    } else {
+        TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+    }
 }

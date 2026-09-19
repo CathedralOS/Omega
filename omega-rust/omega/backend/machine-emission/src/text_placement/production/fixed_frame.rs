@@ -3,11 +3,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use machine_code::{
     FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
+    FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentNormalizedForeignCallFixupState,
 };
 use machine_code::{
-    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, PlacedFunctionFragment,
-    PlacedInternalMachineCallResolution, RelocationFreeTextSectionPlacement,
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
+    NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
+    PlacedFunctionFragment, PlacedInternalMachineCallResolution,
+    PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
 use optimization_core::TerminalRelocationFreeTextSectionIdentity;
@@ -54,6 +58,7 @@ pub(in crate::text_placement) fn place(
     );
     let mut functions = Vec::with_capacity(fragments.functions.len());
     let mut resolved = Vec::new();
+    let mut unresolved_foreign = Vec::new();
     let mut seen_entry = BTreeSet::new();
 
     for (source_function_index, function) in fragments.functions.iter().enumerate() {
@@ -64,34 +69,58 @@ pub(in crate::text_placement) fn place(
         let mut function_bytes = function.bytes.clone();
         for block in &function.blocks {
             for instruction in &block.instructions {
-                let Some(fixup) = instruction.internal_machine_fixup else {
-                    continue;
-                };
-                let FunctionFragmentControlProvenance::DirectInternalCall { callee } =
-                    instruction.control
-                else {
-                    return Err(TextPlacementError::SourceShapeMismatch);
-                };
-                if callee != fixup.callee {
-                    return Err(TextPlacementError::SourceShapeMismatch);
+                if let Some(fixup) = instruction.internal_machine_fixup {
+                    let FunctionFragmentControlProvenance::DirectInternalCall { callee } =
+                        instruction.control
+                    else {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    };
+                    if callee != fixup.callee {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    }
+                    let operation = exact_operation(&instruction.provenance.operations)?;
+                    let callee_section_offset = *offsets
+                        .get(&callee)
+                        .ok_or(TextPlacementError::MissingInternalMachineTarget(callee))?;
+                    resolved.push(resolve(
+                        fragments.target.architecture,
+                        function.machine,
+                        block.block,
+                        instruction.instruction,
+                        operation,
+                        instruction.offset,
+                        &instruction.bytes,
+                        section_offset,
+                        callee_section_offset,
+                        fixup,
+                        &mut function_bytes,
+                    )?);
                 }
-                let operation = exact_operation(&instruction.provenance.operations)?;
-                let callee_section_offset = *offsets
-                    .get(&callee)
-                    .ok_or(TextPlacementError::MissingInternalMachineTarget(callee))?;
-                resolved.push(resolve(
-                    fragments.target.architecture,
-                    function.machine,
-                    block.block,
-                    instruction.instruction,
-                    operation,
-                    instruction.offset,
-                    &instruction.bytes,
-                    section_offset,
-                    callee_section_offset,
-                    fixup,
-                    &mut function_bytes,
-                )?);
+                if let Some(fixup) = instruction.normalized_foreign_call_fixup {
+                    let FunctionFragmentControlProvenance::NormalizedForeignCall {
+                        boundary,
+                        ordinal,
+                    } = instruction.control
+                    else {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    };
+                    if boundary != fixup.boundary || ordinal != fixup.ordinal {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    }
+                    let operation = exact_operation(&instruction.provenance.operations)?;
+                    unresolved_foreign.push(resolve_foreign(
+                        fragments.target.architecture,
+                        function.machine,
+                        block.block,
+                        instruction.instruction,
+                        operation,
+                        instruction.offset,
+                        &instruction.bytes,
+                        section_offset,
+                        fixup,
+                        &function_bytes,
+                    )?);
+                }
             }
         }
         let blocks = block_spans::place(fragments.target.architecture, function, section_offset)?;
@@ -112,7 +141,17 @@ pub(in crate::text_placement) fn place(
         .flat_map(|block| &block.instructions)
         .filter(|instruction| instruction.internal_machine_fixup.is_some())
         .count();
-    if resolved.len() != source_fixups || usize_to_u64(bytes.len())? != next_offset {
+    let source_foreign = fragments
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| instruction.normalized_foreign_call_fixup.is_some())
+        .count();
+    if resolved.len() != source_fixups
+        || unresolved_foreign.len() != source_foreign
+        || usize_to_u64(bytes.len())? != next_offset
+    {
         return Err(TextPlacementError::UnresolvedInternalMachineFixups);
     }
 
@@ -131,8 +170,12 @@ pub(in crate::text_placement) fn place(
         bytes,
         functions,
         resolved_internal_machine_calls: resolved,
-        relocation_requirements:
-            TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+        relocation_requirements: if unresolved_foreign.is_empty() {
+            TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        } else {
+            TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
+        },
+        unresolved_normalized_foreign_calls: unresolved_foreign,
     };
     section.identity = section.recomputed_identity();
     Ok(section)
@@ -274,5 +317,97 @@ fn resolve(
         field_byte_width: fixup.patch_byte_width,
         addend: fixup.addend,
         displacement,
+    })
+}
+
+/// The foreign call keeps its canonical zero placeholder bytes in the section;
+/// the import field is object-construction custody, never an in-section patch.
+#[allow(clippy::too_many_arguments)]
+fn resolve_foreign(
+    architecture: Architecture,
+    caller: MachineId,
+    block: selected_instructions::SelectedBlockId,
+    instruction: selected_instructions::SelectedInstructionId,
+    operation: OperationId,
+    instruction_offset: u64,
+    instruction_bytes: &[u8],
+    function_section_offset: u64,
+    fixup: FunctionFragmentNormalizedForeignCallFixup,
+    function_bytes: &[u8],
+) -> Result<PlacedNormalizedForeignCallResolution, TextPlacementError> {
+    if fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        || fixup.opcode_function_offset != instruction_offset
+        || fixup.addend != 0
+    {
+        return Err(TextPlacementError::SourceShapeMismatch);
+    }
+    let call_section_offset = function_section_offset
+        .checked_add(instruction_offset)
+        .ok_or(TextPlacementError::OffsetOverflow)?;
+    let kind = match (architecture, fixup.kind) {
+        (
+            Architecture::X86_64,
+            FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+        ) => {
+            if instruction_bytes != [0xe8, 0, 0, 0, 0]
+                || fixup.patch_function_offset != instruction_offset + 1
+                || fixup.reference_function_offset != instruction_offset + 5
+                || fixup.patch_byte_width != 4
+            {
+                return Err(TextPlacementError::SourceShapeMismatch);
+            }
+            NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
+        }
+        (
+            Architecture::Aarch64,
+            FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+        ) => {
+            if instruction_bytes != 0x9400_0000_u32.to_le_bytes()
+                || fixup.patch_function_offset != instruction_offset
+                || fixup.reference_function_offset != instruction_offset
+                || fixup.patch_byte_width != 4
+            {
+                return Err(TextPlacementError::SourceShapeMismatch);
+            }
+            NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
+        }
+        _ => return Err(TextPlacementError::SourceShapeMismatch),
+    };
+
+    let instruction_start =
+        usize::try_from(instruction_offset).map_err(|_| TextPlacementError::OffsetOverflow)?;
+    let instruction_end = instruction_start
+        .checked_add(instruction_bytes.len())
+        .ok_or(TextPlacementError::OffsetOverflow)?;
+    if function_bytes.get(instruction_start..instruction_end) != Some(instruction_bytes) {
+        return Err(TextPlacementError::SourceShapeMismatch);
+    }
+
+    Ok(PlacedNormalizedForeignCallResolution {
+        kind,
+        state: NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
+        caller,
+        block,
+        instruction,
+        operation,
+        boundary: fixup.boundary,
+        ordinal: fixup.ordinal,
+        call_function_offset: instruction_offset,
+        call_section_offset,
+        call_byte_count: usize_to_u64(instruction_bytes.len())?,
+        opcode_function_offset: fixup.opcode_function_offset,
+        opcode_section_offset: function_section_offset
+            .checked_add(fixup.opcode_function_offset)
+            .ok_or(TextPlacementError::OffsetOverflow)?,
+        field_function_offset: fixup.patch_function_offset,
+        field_section_offset: function_section_offset
+            .checked_add(fixup.patch_function_offset)
+            .ok_or(TextPlacementError::OffsetOverflow)?,
+        next_instruction_function_offset: fixup.reference_function_offset,
+        next_instruction_section_offset: function_section_offset
+            .checked_add(fixup.reference_function_offset)
+            .ok_or(TextPlacementError::OffsetOverflow)?,
+        field_byte_width: fixup.patch_byte_width,
+        addend: fixup.addend,
     })
 }

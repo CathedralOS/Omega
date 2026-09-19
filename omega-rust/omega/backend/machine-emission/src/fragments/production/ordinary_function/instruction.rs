@@ -2,6 +2,8 @@ use machine_code::{
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
     FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
     FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentNormalizedForeignCallFixupState,
 };
 use selected_instructions::{
     SelectedBlock, SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
@@ -9,7 +11,8 @@ use selected_instructions::{
 
 use machine_code::{
     ResolvedSelectedFormRow, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState,
+    SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixupKind,
+    SelectedFormNormalizedForeignCallFixupState,
 };
 
 use super::control;
@@ -28,6 +31,7 @@ pub(super) fn emit(
     let instruction = selected(block, row)?;
     let control = control::provenance(block, instruction);
     let internal_machine_fixup = translate_fixup(row, instruction)?;
+    let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction)?;
     bytes.extend_from_slice(&row.bytes);
     Ok(FunctionFragmentInstructionSpan {
         instruction: row.instruction,
@@ -77,6 +81,7 @@ pub(super) fn emit(
             ))
         }),
         internal_machine_fixup,
+        normalized_foreign_call_fixup,
         provenance: instruction.provenance.clone(),
         control,
     })
@@ -121,6 +126,54 @@ fn translate_fixup(
         },
         state: FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1,
         callee,
+        opcode_function_offset: translate(fixup.opcode_row_offset)?,
+        patch_function_offset: translate(fixup.patch_row_offset)?,
+        reference_function_offset: translate(fixup.reference_row_offset)?,
+        patch_byte_width: fixup.patch_byte_width,
+        addend: fixup.addend,
+    }))
+}
+
+/// Row-relative foreign fixups become function-relative custody; the field
+/// itself stays unresolved for object-level import binding.
+fn translate_foreign_fixup(
+    row: &ResolvedSelectedFormRow,
+    instruction: &SelectedInstruction,
+) -> Result<Option<FunctionFragmentNormalizedForeignCallFixup>, ResolvedFragmentEmissionError> {
+    let Some(fixup) = row.normalized_foreign_call_fixup else {
+        if matches!(
+            instruction.kind,
+            SelectedInstructionKind::NormalizedForeignCall { .. }
+        ) {
+            return Err(ResolvedFragmentEmissionError::RootMismatch);
+        }
+        return Ok(None);
+    };
+    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind
+    else {
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
+    };
+    if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        || fixup.boundary != boundary
+        || fixup.ordinal != ordinal
+        || row.branch.is_some()
+        || row.internal_machine_fixup.is_some()
+    {
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
+    }
+    let translate = |offset: u16| {
+        row.offset
+            .checked_add(u64::from(offset))
+            .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)
+    };
+    Ok(Some(FunctionFragmentNormalizedForeignCallFixup {
+        kind: match fixup.kind {
+            SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+            SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+        },
+        state: FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
+        boundary,
+        ordinal,
         opcode_function_offset: translate(fixup.opcode_row_offset)?,
         patch_function_offset: translate(fixup.patch_row_offset)?,
         reference_function_offset: translate(fixup.reference_row_offset)?,
@@ -194,6 +247,7 @@ mod tests {
             bytes,
             branch: None,
             internal_machine_fixup: Some(fixup),
+            normalized_foreign_call_fixup: None,
         }
     }
 

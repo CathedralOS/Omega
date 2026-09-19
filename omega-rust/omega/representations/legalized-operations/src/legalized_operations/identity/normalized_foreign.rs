@@ -207,3 +207,21 @@ fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSou
         }
     }
 }
+
+impl LegalizedNormalizedForeignCall {
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        encode(&mut bytes, self);
+        bytes
+    }
+    pub fn canonical_bytes_with_effects(
+        &self,
+        effect: optimization_unit::EffectLink,
+        ownership: &[optimization_unit::OwnershipEvent],
+    ) -> Vec<u8> {
+        let mut bytes = self.canonical_bytes();
+        super::structural::encode_effect(&mut bytes, effect);
+        super::structural::encode_ownership_roster(&mut bytes, ownership);
+        bytes
+    }
+}

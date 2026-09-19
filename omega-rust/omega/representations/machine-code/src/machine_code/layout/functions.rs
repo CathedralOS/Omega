@@ -13,6 +13,9 @@ pub struct ResolvedSelectedFormRow {
     pub bytes: Vec<u8>,
     pub branch: Option<Box<ResolvedBranchEvidence>>,
     pub internal_machine_fixup: Option<crate::SelectedFormInternalMachineFixup>,
+    /// Unresolved normalized-foreign-call field carried through resolved
+    /// layout; object construction binds it to the declared import symbol.
+    pub normalized_foreign_call_fixup: Option<crate::SelectedFormNormalizedForeignCallFixup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
