@@ -40,7 +40,12 @@ coordinator's procedure — the agents get rendered prompts, not this file.
 ## Launch
 
 Run `local` once with `--create-worktrees` so every slot starts from a clean
-`swarm/<wave>-<name>` branch. `launch.py local` is only the validation and
+`swarm/<wave>-<name>` branch. It fetches `origin/main` first and reports the
+resolved base (or the fetch failure) as `base` in the launch table — every
+spawned slot branches from current main, and each backfill relaunch re-fetches,
+so a long wave does not drift onto a stale base. If `base` reports a fetch
+failure, say so in the wave report; the slots are on the cached ref.
+`launch.py local` is only the validation and
 prompt renderer — it must never be the spawn mechanism.
 
 Spawn each row as a subagent **inside the coordinator session**, using the

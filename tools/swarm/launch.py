@@ -673,6 +673,19 @@ def command_local(arguments, repository):
     wave_directory = build_directory(repository, manifest["wave"])
     prompts_directory = wave_directory / "prompts"
     prompts_directory.mkdir(parents=True, exist_ok=True)
+    if arguments.create_worktrees:
+        # New slots branch from `origin/main`, so fetch it first: spawning on
+        # the cached ref converts main's drift into landing rebase debt for
+        # every worker in the wave. A failed fetch keeps the cached ref and
+        # is reported in `base` rather than silently spawning on staleness.
+        try:
+            git(repository, "fetch", "origin", "main")
+            base = git(repository, "rev-parse", "--verify", "origin/main")
+        except SwarmError as error:
+            base = (f"origin/main fetch failed; new worktrees use the "
+                    f"cached ref ({error})")
+    else:
+        base = None
     rows = []
     for session in sessions:
         state = local_session_state(repository, manifest["wave"], session)
@@ -713,7 +726,7 @@ def command_local(arguments, repository):
             "partition_hints": partition_hints(repository, session, sessions,
                                                route_data),
         })
-    emit({"command": "local", "wave": manifest["wave"],
+    emit({"command": "local", "wave": manifest["wave"], "base": base,
           "skipped_non_local_sessions": skipped, "sessions": rows})
     return 0
 
