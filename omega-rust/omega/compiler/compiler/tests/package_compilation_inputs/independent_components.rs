@@ -70,6 +70,50 @@ pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
 }
 "#;
 
+/// The same provider component, but its entry transitively calls an
+/// unresolved `reaches <=` requirement. The component still compiles and
+/// publishes a verifiable description — the retained row arrives as a
+/// service bound installation still owes, beside the concrete reach's
+/// ceiling rows — but an `Independent` join must reject it rather than
+/// treat the bound as resolved reach. The call sits in an unattached
+/// helper: a boundary call inside `ComponentEntry::main` itself would
+/// stop body construction at the provider-attachment gate before any row
+/// is retained, and a direct `pub boundary requirement` call would
+/// demand a selected provider at validation.
+const BOUNDED_COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+    machine mark(value: i32);
+}
+
+pub boundary trait Console {}
+pub boundary trait Installer { machine install() reaches <= Console; }
+
+pub data VtablePick { mark: addr; }
+pub machine VtablePick::mark(value: i32)
+satisfies Pick::mark
+via Binding::VtableField(mark);
+
+pub data PickProvider { }
+pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
+
+pub data Helper { }
+pub machine Helper::run()
+reaches Installer + Console
+invokes Installer;
+{
+    Installer::install();
+}
+
+pub data ComponentEntry { pick: Pick; }
+pub machine ComponentEntry::main(&mut self)
+reaches Pick + Installer + Console
+invokes Pick;
+invokes Installer;
+{
+    self.pick.mark(7);
+    Helper::run();
+}
+"#;
+
 /// An unrelated component: it declares, seals, and realizes a requirement of
 /// its own. Its description is complete and verifiable, and it realizes
 /// nothing the consuming root selected.
@@ -352,6 +396,29 @@ fn an_unrelated_component_description_realizes_no_selected_plan() {
         &diagnostics,
         &[
             "no verified component realizes it",
+            "refusing to treat the edge as fused",
+        ],
+    );
+}
+
+#[test]
+fn independent_selection_rejects_a_component_exporting_an_unresolved_row() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    fixture.rewrite_dependency(BOUNDED_COMPONENT_SOURCE);
+    let published = fixture.published();
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![published]))
+        .expect_err(
+            "a component retaining an unresolved installation-bound row cannot close the edge",
+        );
+    rejects_with(
+        &diagnostics,
+        &[
+            "unresolved installation-bound requirement row",
+            "Installer::install",
             "refusing to treat the edge as fused",
         ],
     );
