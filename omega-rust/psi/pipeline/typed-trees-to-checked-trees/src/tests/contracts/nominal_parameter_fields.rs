@@ -298,12 +298,27 @@ fn mutated_nominal_parameter_fields_cannot_reuse_entry_facts() {
 }
 
 #[test]
-fn write_only_nominal_parameters_do_not_grant_readable_entry_facts() {
-    let source = format!(
-        "{DEFINITIONS}\nmachine invalid(packet: &write Packet) ensures packet.payload.bytes in Utf8 {{ }}"
+fn write_only_nominal_parameters_grant_only_declared_entry_invariants() {
+    // A `&write` view still cannot read the incoming value, but the caller's
+    // declared field domains are entry premises: `bytes` is declared
+    // `in Utf8`, and every write through the view re-establishes it, so an
+    // `ensures` repeating that invariant already holds. A predicate the
+    // declaration never carries stays unprovable — repair access does not
+    // manufacture a content predicate.
+    let declared = format!(
+        "{DEFINITIONS}\nmachine valid(packet: &write Packet) ensures packet.payload.bytes in Utf8 {{ }}"
     );
-    lower_typed_trees(parse_typed_trees(&source))
-        .expect_err("write-only repair access does not establish the incoming content predicate");
+    lower_typed_trees(parse_typed_trees(&declared)).unwrap_or_else(|diagnostics| {
+        panic!("declared invariant should discharge: {diagnostics:#?}")
+    });
+
+    let undeclared = format!(
+        "{DEFINITIONS}\n
+         domain [u8; 4]::NoNul requires no_nul(self);
+         machine invalid(packet: &write Packet) ensures packet.payload.bytes in NoNul {{ }}"
+    );
+    lower_typed_trees(parse_typed_trees(&undeclared))
+        .expect_err("write-only repair access does not establish an undeclared content predicate");
 }
 
 #[test]

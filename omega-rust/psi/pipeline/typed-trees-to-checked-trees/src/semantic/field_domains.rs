@@ -5,7 +5,10 @@
 //!
 //! Machine storage additionally requires its ZII value to satisfy the domain.
 //! Nominal input storage instead relies on the checked incoming argument.
-//! Write-only input views supply no readable entry facts. Independent fields
+//! Write-only input views supply no facts read from incoming contents, but
+//! they do carry the caller's declared field invariants as entry premises —
+//! the same rows a readable borrow gets, since every admitted write through
+//! the view re-establishes them. Independent fields
 //! use separate contexts so invalidation does not erase unrelated evidence.
 //!
 //! Collection elements carry their declared fields at TWO coordinates: every
@@ -30,11 +33,31 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use crate::facts::field_domain::{
     readable_fixed_array_elements, readable_nominal_definition, readable_type_reference,
 };
+
+/// The declared surface of a state parameter for entry-invariant seeding:
+/// `&`, `&mut`, and `&write` shells all peel, along with `Constrained` domain
+/// wrappers. `readable_type_reference` refuses write-only references because
+/// they expose no readable contents, but these seeded rows are the caller's
+/// declared field obligations — premises a `requires <place> in D` discharge
+/// consumes — never reads of the incoming value.
+fn lent_type_reference(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    while reference.is_valid() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            _ => return Some(reference),
+        }
+    }
+    None
+}
 
 /// The `FixedRange` spelling of "every element of this collection": the
 /// half-open extent `0..usize::MAX` covers any element index a place can
@@ -292,10 +315,13 @@ fn append_data_field_domain_facts(
 /// context onto its sibling fallthrough -- see flow/statements.rs).
 ///
 /// Nominal parameters additionally carry their declared field predicates on
-/// entry, including readable mutable references: calls and transitions are
-/// default-domain consumption points. These are live entry facts, not facts
-/// restored after arbitrary writes. Ordinary storage invalidation retires them.
-/// Write-only views cannot inspect the incoming value and receive no such facts.
+/// entry, including mutable and write-only references: calls and transitions
+/// are default-domain consumption points. These are live entry facts, not
+/// facts restored after arbitrary writes. Ordinary storage invalidation
+/// retires them. A write-only view still cannot inspect the incoming value —
+/// the seeded rows are the caller's declared invariants, and the lent place's
+/// `requires <place> in D` obligation at a nested `&write` subloan discharges
+/// against them.
 pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -308,7 +334,16 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
                 };
-                if let Some(data) = readable_nominal_definition(program, parameter.type_reference) {
+                // A `&write` parameter keeps its declared field domains as
+                // entry premises: they are invariants the caller maintained
+                // and every write through the view must re-establish, not
+                // observations of incoming contents (which remain impossible).
+                // Without these rows a `requires <place> in D` on a nested
+                // `&write` subloan could never discharge, even though the
+                // lent place's own declaration already carries the atom.
+                let lent = lent_type_reference(program, parameter.type_reference);
+                if let Some(data) = lent.and_then(|lent| readable_nominal_definition(program, lent))
+                {
                     append_state_parameter_data_field_domain_facts(
                         program,
                         facts,
@@ -331,7 +366,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 // because the per-element rows already spell the complete
                 // call-boundary obligation.
                 if let Some((element_type, length)) =
-                    readable_fixed_array_elements(program, parameter.type_reference)
+                    lent.and_then(|lent| readable_fixed_array_elements(program, lent))
                     && let Some(data) = readable_nominal_definition(program, element_type)
                 {
                     for index in 0..length {
@@ -368,7 +403,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 // fields, which is exactly what `rooms[index]` subjects narrow
                 // coverage from inside the callee.
                 if let Some(element_type) =
-                    readable_slice_element(program, parameter.type_reference)
+                    lent.and_then(|lent| readable_slice_element(program, lent))
                     && let Some(data) = readable_nominal_definition(program, element_type)
                 {
                     append_state_parameter_data_field_domain_facts(

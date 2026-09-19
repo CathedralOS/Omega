@@ -98,7 +98,7 @@ pub(crate) fn validate_checked_write_only_slice(
                     && receiver::record(program, root).is_none()
                 {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
                         machine.name,
                         state.name,
                         root.name,
@@ -221,11 +221,26 @@ fn literal_fixed_array_length(
 }
 
 fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    is_unrestricted_scalar(program, type_reference)
-        || fixed_unrestricted_write_only_array_length(program, type_reference).is_some()
+    is_unrestricted_write_only_field_leaf(program, type_reference)
+        || is_qualified_write_only_leaf(program, type_reference)
         || is_byte_slice(program, type_reference)
         || write_only_record(program, type_reference).is_some()
         || is_unrestricted_write_only_sum(program, type_reference)
+}
+
+/// The constrained referees a `&write` declaration may carry: the same
+/// qualified leaves a field store may displace. Each declared atom re-enters
+/// the place's own store obligations — a closed range as the bounded-value
+/// proof, a lone arithmetic policy as a carrier behaviour tag, a plain
+/// declared domain as a membership check on every stored value — so the
+/// reference admits exactly what the checked slice can still enforce through
+/// the referent, and nothing weaker or different. Named constraints, mixed
+/// constraint classes, symbolic or open ranges, and non-plain domains stay
+/// unsupported referees here.
+fn is_qualified_write_only_leaf(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    is_closed_ranged_integer_scalar(program, type_reference)
+        || crate::is_arithmetic_policy_only_integer(program, type_reference)
+        || is_plain_domain_qualified_leaf(program, type_reference)
 }
 
 fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -359,10 +374,11 @@ fn is_unrestricted_write_only_array_element(
 }
 
 fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoot) -> bool {
-    is_unrestricted_scalar(program, root.referee)
-        || fixed_unrestricted_write_only_array_length(program, root.referee).is_some()
-        || is_unrestricted_write_only_record(program, root.referee)
-        || is_unrestricted_write_only_sum(program, root.referee)
+    // The whole-root store displaces the complete referee footprint, so the
+    // same leaf judgment that governs one content-independent field store
+    // applies: an unrestricted leaf, or a qualified one whose atoms the
+    // ordinary store obligation re-derives on the incoming value.
+    write_only_assignment_leaf(program, root.referee)
         || receiver::record(program, root).is_some_and(|definition| {
             definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
         })
@@ -420,9 +436,7 @@ fn is_unrestricted_write_only_field_leaf(
 /// or the value relaxes.
 fn write_only_assignment_leaf(program: &TypedTrees, field_type: TypeReferenceHandle) -> bool {
     is_unrestricted_write_only_field_leaf(program, field_type)
-        || is_closed_ranged_integer_scalar(program, field_type)
-        || crate::is_arithmetic_policy_only_integer(program, field_type)
-        || is_plain_domain_qualified_leaf(program, field_type)
+        || is_qualified_write_only_leaf(program, field_type)
 }
 
 /// One qualified leaf a common-field store may displace: an already-admissible
@@ -477,20 +491,159 @@ fn write_only_record_field_assignment(
         .is_some_and(|field_type| write_only_assignment_leaf(program, field_type))
 }
 
-/// An `&write` field subloan attenuates to the callee's declared parameter
-/// referee, so a ranged leaf would shed its bound at the borrow boundary. A
-/// policy-qualified leaf would likewise shed its policy atom at a plain
-/// referee, which call-argument checking already rejects as implicit domain
-/// weakening, and a domain-qualified leaf would shed its membership atom the
-/// same way. Keep the lent leaf to the unrestricted kinds until ranged,
-/// policy, or domain write-only parameter referees exist.
-fn write_only_record_field_subloan(
+/// One `&write` borrow at a checked-call argument boundary. The lent place
+/// keeps every constraint atom it declared: a write-only subloan is sound
+/// only when the callee's declared `&write` referee is the place's type
+/// atom-for-atom — a weaker referee would let the callee write values the
+/// caller's place forbids, and a stronger or different one asserts atoms the
+/// place never owned. Returns `true` once the argument is resolved — admitted
+/// silently, or rejected with a directed diagnostic — and `false` when the
+/// shape is no admitted subloan, leaving the ordinary expression walk to
+/// report it.
+fn write_only_call_subloan(
     program: &TypedTrees,
-    expression: ExpressionHandle,
+    machine: &Machine,
+    state: &State,
+    target: ExpressionHandle,
+    declared_parameter: Option<TypeReferenceHandle>,
     roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    write_only_record_field_type(program, expression, roots)
-        .is_some_and(|field_type| is_unrestricted_write_only_field_leaf(program, field_type))
+    // The argument's own `&write` referee, when the callee declares one. An
+    // unresolvable target (a requirement signature or an unresolved symbol)
+    // keeps the legacy callee-agnostic leaf judgment below; the call's own
+    // access and arity checks own its diagnostics.
+    let declared_referee = declared_parameter.and_then(|parameter| {
+        match program.type_reference_table.type_reference(parameter) {
+            TypeReferenceNode::Reference {
+                referee,
+                access: ReferenceAccess::WriteOnly,
+                ..
+            } => Some(*referee),
+            _ => None,
+        }
+    });
+
+    // Whole-root forwarding lends the complete declared place.
+    if let Some(root) = direct_write_only_root(program, target, roots) {
+        return match declared_referee {
+            Some(declared) => {
+                subloan_referee_matches(program, root.referee, declared)
+                    || reject_subloan_referee_mismatch(
+                        program,
+                        machine,
+                        state,
+                        target,
+                        root.referee,
+                        declared,
+                        diagnostics,
+                    )
+            }
+            None => true,
+        };
+    }
+
+    if let Some(field_type) = write_only_record_field_type(program, target, roots) {
+        return match declared_referee {
+            Some(declared) => {
+                write_only_assignment_leaf(program, field_type)
+                    && (subloan_referee_matches(program, field_type, declared)
+                        || reject_subloan_referee_mismatch(
+                            program,
+                            machine,
+                            state,
+                            target,
+                            field_type,
+                            declared,
+                            diagnostics,
+                        ))
+            }
+            // Without a resolvable `&write` referee the callee's own checks
+            // own the argument; only the legacy unrestricted leaf kinds keep
+            // their callee-agnostic admission.
+            None => is_unrestricted_write_only_field_leaf(program, field_type),
+        };
+    }
+
+    if let Some(leaf) = write_only_literal_indexed_subloan_leaf(program, target, roots) {
+        if !is_unrestricted_scalar(program, leaf) {
+            return false;
+        }
+        return match declared_referee {
+            Some(declared) => {
+                subloan_referee_matches(program, leaf, declared)
+                    || reject_subloan_referee_mismatch(
+                        program,
+                        machine,
+                        state,
+                        target,
+                        leaf,
+                        declared,
+                        diagnostics,
+                    )
+            }
+            None => true,
+        };
+    }
+
+    false
+}
+
+/// Whether the lent place's referee is the callee's declared `&write` referee
+/// atom-for-atom. Normalized identity carries the comparison; the one extra
+/// equation resolves an attached-machine `Self` to the data it names, since a
+/// `self` root's declared type spells `Self` while the callee's parameter
+/// spells the data name for the identical carrier.
+fn subloan_referee_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    declared: TypeReferenceHandle,
+) -> bool {
+    if crate::value_custody::type_references::type_references_match(program, actual, declared) {
+        return true;
+    }
+    let (
+        TypeReferenceNode::Named {
+            symbol: actual_symbol,
+            ..
+        },
+        TypeReferenceNode::Named {
+            symbol: declared_symbol,
+            ..
+        },
+    ) = (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(declared),
+    )
+    else {
+        return false;
+    };
+    program.machines().iter().any(|machine| {
+        machine.symbol == *actual_symbol && machine.attached_data_symbol == *declared_symbol
+    })
+}
+
+/// Report an `&write` subloan whose lent place type is not the callee's
+/// declared referee atom-for-atom, then treat the argument as resolved: the
+/// generic projection envelope must not report the same borrow again.
+fn reject_subloan_referee_mismatch(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: ExpressionHandle,
+    actual: TypeReferenceHandle,
+    declared: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` lends `{}` of type `{}` as `&write` to a parameter declared `&write {}`; a write-only subloan must preserve the callee-declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected",
+        machine.name,
+        state.name,
+        program.expression_table.display_name(target),
+        program.display_type_reference_with_constraints(actual),
+        program.display_type_reference_with_constraints(declared),
+    )));
+    true
 }
 
 /// Admit one relevant primitive field beneath one literal fixed-array element
@@ -565,9 +718,14 @@ fn validate_statement(
     let state = state_definition.name.as_str();
     match statement {
         StatementNode::RootBinding(_) => {}
-        StatementNode::AssemblyFact(fact) => {
-            validate_expression(program, machine, state, fact.expression, roots, diagnostics)
-        }
+        StatementNode::AssemblyFact(fact) => validate_expression(
+            program,
+            machine_definition,
+            state_definition,
+            fact.expression,
+            roots,
+            diagnostics,
+        ),
         StatementNode::Assignment(assignment) => {
             if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
                 if !whole_root_replacement_is_supported(program, root) {
@@ -607,7 +765,14 @@ fn validate_statement(
                 // is in bounds. This gate owns only non-observation: the index
                 // expression must not recover information from the write-only
                 // referent.
-                validate_expression(program, machine, state, index, roots, diagnostics);
+                validate_expression(
+                    program,
+                    machine_definition,
+                    state_definition,
+                    index,
+                    roots,
+                    diagnostics,
+                );
             } else if expression_mentions_write_only_root(program, assignment.target, roots) {
                 diagnose_unsupported_write_only_assignment_target(
                     program,
@@ -620,8 +785,8 @@ fn validate_statement(
             } else {
                 validate_expression(
                     program,
-                    machine,
-                    state,
+                    machine_definition,
+                    state_definition,
                     assignment.target,
                     roots,
                     diagnostics,
@@ -629,8 +794,8 @@ fn validate_statement(
             }
             validate_expression(
                 program,
-                machine,
-                state,
+                machine_definition,
+                state_definition,
                 assignment.value,
                 roots,
                 diagnostics,
@@ -638,13 +803,49 @@ fn validate_statement(
         }
         StatementNode::Call(call) => {
             receiver::validate_statement_call(program, machine, state, call, roots, diagnostics);
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                validate_call_argument(program, machine, state, *argument, roots, diagnostics);
+            // A receiver that names a declaration rather than a runtime place
+            // (`Record::replace(&write leaf)`) supplies `self` as its first
+            // argument — the same correspondence the resolved-target rung of
+            // the call validator applies. A bare `self` receiver is the
+            // receiverless spelling: `self` binds through the implicit
+            // receiver even though its root resolves to the machine symbol,
+            // so it must not shift the authored arguments right by one.
+            let self_is_argument = receiver_names_declaration(program, call.receiver_symbol)
+                && !matches!(
+                    program.statement_table.name_path_members(call.receiver),
+                    [member] if member.as_str() == "self"
+                );
+            let declared_parameters =
+                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+                    .map(|(_, callee_state)| {
+                        declared_state_parameters(program, callee_state, self_is_argument)
+                    })
+                    .unwrap_or_default();
+            for (index, argument) in program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+            {
+                validate_call_argument(
+                    program,
+                    machine_definition,
+                    state_definition,
+                    *argument,
+                    declared_parameters.get(index).copied(),
+                    roots,
+                    diagnostics,
+                );
             }
         }
-        StatementNode::Expression(expression) => {
-            validate_expression(program, machine, state, *expression, roots, diagnostics)
-        }
+        StatementNode::Expression(expression) => validate_expression(
+            program,
+            machine_definition,
+            state_definition,
+            *expression,
+            roots,
+            diagnostics,
+        ),
         StatementNode::LocalData(local)
             if local_formation::admitted(
                 program,
@@ -655,28 +856,35 @@ fn validate_statement(
             ) => {}
         StatementNode::LocalData(local) => validate_expression(
             program,
-            machine,
-            state,
+            machine_definition,
+            state_definition,
             local.initial_value,
             roots,
             diagnostics,
         ),
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
-                validate_expression(program, machine, state, guard, roots, diagnostics);
+                validate_expression(
+                    program,
+                    machine_definition,
+                    state_definition,
+                    guard,
+                    roots,
+                    diagnostics,
+                );
             }
             validate_transition_target(
                 program,
-                machine,
-                state,
+                machine_definition,
+                state_definition,
                 transition.target,
                 roots,
                 diagnostics,
             );
             validate_transition_target(
                 program,
-                machine,
-                state,
+                machine_definition,
+                state_definition,
                 transition.continuation,
                 roots,
                 diagnostics,
@@ -726,24 +934,10 @@ fn validate_write_only_fixed_array_range_assignment(
     };
 
     if range.start.is_valid() {
-        validate_expression(
-            program,
-            machine.name.as_str(),
-            state.name.as_str(),
-            range.start,
-            roots,
-            diagnostics,
-        );
+        validate_expression(program, machine, state, range.start, roots, diagnostics);
     }
     if range.end.is_valid() {
-        validate_expression(
-            program,
-            machine.name.as_str(),
-            state.name.as_str(),
-            range.end,
-            roots,
-            diagnostics,
-        );
+        validate_expression(program, machine, state, range.end, roots, diagnostics);
     } else {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` replaces a write-only fixed-array range with an omitted end; this exact-footprint rung requires a statically known end bound",
@@ -840,19 +1034,20 @@ fn write_only_element_assignment_index(
     }
 }
 
-/// Admit one exact literal primitive element of an admitted write-only place
-/// only at the direct checked-call boundary. The shared non-observing
-/// projection walk — the same judgment local formation applies through
-/// `captured_type` — owns root and bare-field bases, relevant-field identity,
-/// builtin index meaning, and in-bounds literal coordinates. This gate keeps
-/// only the rung's shape: at least one indexed hop and an unrestricted
-/// primitive leaf. Dynamic indices, ranges, and aggregate elements remain
-/// excluded.
-fn write_only_literal_indexed_direct_call_subloan(
+/// The exact leaf type of one literal-indexed subloan shape: an admitted
+/// write-only place reached through member hops plus at least one indexed
+/// hop. The shared non-observing projection walk — the same judgment local
+/// formation applies through `captured_type` — owns root and bare-field
+/// bases, relevant-field identity, builtin index meaning, and in-bounds
+/// literal coordinates. The call gate above keeps only the rung's shape
+/// rules: an unrestricted primitive leaf, and exact referee identity against
+/// the declared parameter. Dynamic indices, ranges, and aggregate elements
+/// remain excluded.
+fn write_only_literal_indexed_subloan_leaf(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
-) -> bool {
+) -> Option<TypeReferenceHandle> {
     let mut cursor = expression;
     let mut visited = Vec::new();
     let has_indexed_hop = loop {
@@ -866,14 +1061,16 @@ fn write_only_literal_indexed_direct_call_subloan(
             _ => break false,
         };
     };
-    has_indexed_hop
-        && receiver::projected(
-            program,
-            expression,
-            roots,
-            receiver::ProjectionAdmission::LiteralIndexes,
-        )
-        .is_some_and(|(_, leaf, _)| is_unrestricted_scalar(program, leaf))
+    if !has_indexed_hop {
+        return None;
+    }
+    receiver::projected(
+        program,
+        expression,
+        roots,
+        receiver::ProjectionAdmission::LiteralIndexes,
+    )
+    .map(|(_, leaf, _)| leaf)
 }
 
 fn diagnose_unsupported_write_only_assignment_target(
@@ -911,8 +1108,8 @@ fn diagnose_unsupported_write_only_assignment_target(
 
 fn validate_transition_target(
     program: &TypedTrees,
-    machine: &str,
-    state: &str,
+    machine: &Machine,
+    state: &State,
     target: typed_trees::statement::TransitionTargetHandle,
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
@@ -923,14 +1120,36 @@ fn validate_transition_target(
         } => {
             receiver::validate_state_transfer(
                 program,
-                machine,
-                state,
+                machine.name.as_str(),
+                state.name.as_str(),
                 path.symbol,
                 roots,
                 diagnostics,
             );
-            for argument in program.statement_table.expression_handles(*arguments) {
-                validate_call_argument(program, machine, state, *argument, roots, diagnostics);
+            // A named transfer never passes `self` as an authored argument,
+            // exactly as the transition argument validator aligns it.
+            let declared_parameters =
+                crate::declarations::transitions::resolved_transition_target_state(
+                    program,
+                    path.symbol,
+                )
+                .map(|(_, callee_state)| declared_state_parameters(program, callee_state, false))
+                .unwrap_or_default();
+            for (index, argument) in program
+                .statement_table
+                .expression_handles(*arguments)
+                .iter()
+                .enumerate()
+            {
+                validate_call_argument(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    declared_parameters.get(index).copied(),
+                    roots,
+                    diagnostics,
+                );
             }
         }
         TransitionTargetNode::Value(value) => {
@@ -940,24 +1159,70 @@ fn validate_transition_target(
     }
 }
 
+/// The callee parameters an argument list corresponds to, in authored order.
+/// A static carrier receiver (`Record::replace(&write leaf)`) supplies `self`
+/// as its first argument exactly as the arity and access checks align it; a
+/// place receiver binds `self` through the receiver operand, so `self` stays
+/// out of the correspondence.
+fn declared_state_parameters(
+    program: &TypedTrees,
+    state: &State,
+    self_is_argument: bool,
+) -> Vec<TypeReferenceHandle> {
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| self_is_argument || !parameter.is_self)
+        .map(|parameter| parameter.type_reference)
+        .collect()
+}
+
+/// Whether a statement call's receiver names a declaration rather than a
+/// runtime place, so `self` is an explicit argument — the same rule the
+/// resolved-target rung of the call validator applies to the argument
+/// correspondence.
+fn receiver_names_declaration(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    matches!(
+        program.symbols.get(symbol).kind,
+        symbols::SymbolKind::BuiltinType
+            | symbols::SymbolKind::Data
+            | symbols::SymbolKind::Domain
+            | symbols::SymbolKind::Machine
+            | symbols::SymbolKind::Module
+            | symbols::SymbolKind::Trait
+            | symbols::SymbolKind::ConformanceParameter
+    )
+}
+
 fn validate_call_argument(
     program: &TypedTrees,
-    machine: &str,
-    state: &str,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
+    declared_parameter: Option<TypeReferenceHandle>,
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
-        && (write_only_record_field_subloan(program, borrow.target, roots)
-            || write_only_literal_indexed_direct_call_subloan(program, borrow.target, roots))
+        && write_only_call_subloan(
+            program,
+            machine,
+            state,
+            borrow.target,
+            declared_parameter,
+            roots,
+            diagnostics,
+        )
     {
-        // This milestone admits the exact projected subloan only at a direct
-        // checked-call argument boundary — statement calls, expression calls,
-        // and named state-transition targets all deliver arguments to callee
-        // parameters through the same borrow-call facts. It does not create a
-        // reusable local reference or widen general expression formation.
+        // This milestone admits the exact projected or whole-root subloan
+        // only at a direct checked-call argument boundary — statement calls,
+        // expression calls, and named state-transition targets all deliver
+        // arguments to callee parameters through the same borrow-call facts.
+        // The lent place carries the declared `&write` referee atom-for-atom:
+        // nothing weaker, stronger, or different crosses here. The gate does
+        // not create a reusable local reference or widen general expression
+        // formation.
         return;
     }
     validate_expression(program, machine, state, expression, roots, diagnostics);
@@ -965,12 +1230,14 @@ fn validate_call_argument(
 
 fn validate_expression(
     program: &TypedTrees,
-    machine: &str,
-    state: &str,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let machine_name = machine.name.as_str();
+    let state_name = state.name.as_str();
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             validate_expression(
@@ -994,7 +1261,7 @@ fn validate_expression(
                 .find(|root| receiver::mentions_name(program, root, path))
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` reads write-only parameter `{}`; `&write` permits replacement or exact `&write` forwarding, never observation",
+                    "machine `{machine_name}` state `{state_name}` reads write-only parameter `{}`; `&write` permits replacement or exact `&write` forwarding, never observation",
                     root.name,
                 )));
             }
@@ -1003,14 +1270,14 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by a finite nonempty suffix of in-bounds literal fixed-array indexes only as a direct checked-call argument"
+                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or one eligible content-independent common-field path optionally followed by a finite nonempty suffix of in-bounds literal fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type"
                     )));
                 }
             }
             ReferenceAccess::Mutable => {
                 if let Some(root) = mentioned_write_only_root(program, borrow.target, roots) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` widens write-only parameter `{}` to `&mut`; forward it explicitly as `&write {}` instead",
+                        "machine `{machine_name}` state `{state_name}` widens write-only parameter `{}` to `&mut`; forward it explicitly as `&write {}` instead",
                         root.name, root.name,
                     )));
                 } else {
@@ -1031,7 +1298,7 @@ fn validate_expression(
                 // exact metadata read as observation.
             } else if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
+                    "machine `{machine_name}` state `{state_name}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
                     member.member, root.name,
                 )));
             } else {
@@ -1041,7 +1308,7 @@ fn validate_expression(
         ExpressionNode::Indexed(indexed) => {
             if let Some(root) = mentioned_write_only_root(program, indexed.collection, roots) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` reads through index projection of write-only parameter `{}`; `&write` permits admitted fixed-array element replacement but never observation",
+                    "machine `{machine_name}` state `{state_name}` reads through index projection of write-only parameter `{}`; `&write` permits admitted fixed-array element replacement but never observation",
                     root.name,
                 )));
             } else {
@@ -1091,9 +1358,38 @@ fn validate_expression(
             // boundary a statement call presents; the shared borrow-fact
             // collection makes no distinction, so the non-observing subloan
             // gate applies uniformly. Only the receiver operand keeps its
-            // observing/non-observing split above.
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                validate_call_argument(program, machine, state, *argument, roots, diagnostics);
+            // observing/non-observing split above. A receiver that names a
+            // declaration rather than a runtime place supplies `self` as the
+            // first argument — the same correspondence the value-position
+            // argument validator derives from `declared_place_type`.
+            let self_is_argument = crate::value_custody::places::declared_place_type(
+                program,
+                machine,
+                Some(state),
+                call.receiver,
+            )
+            .is_none();
+            let declared_parameters =
+                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+                    .map(|(_, callee_state)| {
+                        declared_state_parameters(program, callee_state, self_is_argument)
+                    })
+                    .unwrap_or_default();
+            for (index, argument) in program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+            {
+                validate_call_argument(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    declared_parameters.get(index).copied(),
+                    roots,
+                    diagnostics,
+                );
             }
         }
         ExpressionNode::Range(range) => {
