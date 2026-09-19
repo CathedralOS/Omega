@@ -20,7 +20,8 @@ pub(super) fn pinned_expression_bounds(
         return None;
     };
     let (low, high) =
-        validation::immutable_integer_expression_bounds(program, machine, state, expression)?;
+        validation::immutable_integer_expression_bounds(program, machine, state, expression)
+            .or_else(|| EndpointInput::borrowed_member_bounds(program, state, expression))?;
     let mut inputs = Vec::new();
     let mut pending = vec![expression];
     while let Some(input) = pending.pop() {

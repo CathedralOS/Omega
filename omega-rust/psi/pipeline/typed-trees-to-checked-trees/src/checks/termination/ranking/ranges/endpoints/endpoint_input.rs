@@ -55,9 +55,31 @@ impl<'program> EndpointInput<'program> {
             owner: SymbolHandle::invalid(),
         };
         if let Some(member) = member {
-            let TypeReferenceNode::Named { symbol: owner, .. } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
+            let mut owner_type = parameter.type_reference;
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                program.type_reference_table.type_reference(owner_type)
+            {
+                owner_type = *base_type;
+            }
+            // A shared borrow (`&T`) receiver reads the referent's stored
+            // field: its declared range is store-enforced and the input's
+            // preservation obligation covers the reference's own reseat.
+            if let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = program.type_reference_table.type_reference(owner_type)
+            {
+                if access.is_exclusive() {
+                    return None;
+                }
+                owner_type = *referee;
+            }
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                program.type_reference_table.type_reference(owner_type)
+            {
+                owner_type = *base_type;
+            }
+            let TypeReferenceNode::Named { symbol: owner, .. } =
+                program.type_reference_table.type_reference(owner_type)
             else {
                 return None;
             };
@@ -78,6 +100,20 @@ impl<'program> EndpointInput<'program> {
             input.owner = *owner;
         }
         Some(input)
+    }
+
+    /// The declared bounds of a member endpoint rooted at a shared-borrow
+    /// formal. The general invariant query stays out of references entirely;
+    /// here the endpoint's own preservation judgment below already supplies
+    /// the storage evidence, so the referent's store-enforced field range
+    /// bounds the read.
+    pub(super) fn borrowed_member_bounds(
+        program: &'program TypedTrees,
+        state: &'program State,
+        expression: ExpressionHandle,
+    ) -> Option<(i64, i64)> {
+        let input = Self::resolve(program, state, expression)?;
+        validation::enforced_integer_type_bounds(program, input.field?.type_reference)
     }
 
     pub fn path(&self) -> String {
