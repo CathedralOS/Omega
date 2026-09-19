@@ -96,9 +96,10 @@ impl LoopInvariantNodeResult {
 /// result as [`LoopInvariantNodeResult::Unit`], rebinds member-parameter
 /// scalar operands through `operand_rewrites` like every computation, and
 /// rebinds each structural argument whose root is an invariant member
-/// parameter through `argument_rewrites` — a shared-borrow argument naming
-/// a root a node earlier in the same run produced needs no rewrite, because
-/// the run keeps the producer's declared place identity byte-exact. An
+/// parameter through `argument_rewrites` — a borrow or copyable-owned
+/// argument naming a root a node earlier in the same run produced needs no
+/// rewrite, because the run keeps the producer's declared place identity
+/// byte-exact. An
 /// admitted `CallStructuralScalar` carries the same operand and
 /// argument-root rewrites while recording its result as
 /// [`LoopInvariantNodeResult::Scalar`]: the relocated call's return value

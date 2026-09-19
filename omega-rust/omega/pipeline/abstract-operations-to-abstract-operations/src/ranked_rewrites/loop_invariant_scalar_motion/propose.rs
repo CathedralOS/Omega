@@ -427,9 +427,9 @@ fn admit_member_node(
         // unobservable member roster — then adds the structural halves: the
         // component must perform no member-visible place mutation or custody
         // movement (the callee can observe caller places through its shared
-        // borrows, and can write its exclusively borrowed member-produced
-        // roots), every structural argument must be a borrow — never an
-        // `Owned` transfer — and each argument root must land somewhere the
+        // borrows, can write its exclusively borrowed member-produced
+        // roots, and can copy a copyable `Owned` root's unrestricted
+        // payload), and each argument root must land somewhere the
         // run can see it — already preheader-visible, resolved through an
         // invariant member structural parameter, or produced by a node the
         // same run already covers.
@@ -454,7 +454,8 @@ fn admit_member_node(
         // A scalar-result structural call keeps the unit call's whole
         // evidence surface — the non-speculative gate, the pure transitive
         // callee, the unobservable member roster, the whole-component
-        // place-custody bound, and every borrow argument root landing where
+        // place-custody bound, and every borrow or copyable-owned argument
+        // root landing where
         // the run can see it — and then its preserved scalar result joins
         // `relocating`, so a member node consuming the call's return value
         // relocates behind it in the same run.
@@ -481,7 +482,8 @@ fn admit_member_node(
         // evidence surface — the non-speculative gate, the pure transitive
         // callee, the unobservable member roster, the whole-component
         // place-custody bound run with the run's relocating roots plus the
-        // call's own confined result tolerated, and every borrow argument
+        // call's own confined result tolerated, and every borrow or
+        // copyable-owned argument
         // root landing where the run can see it — and then adds the
         // custody-rewriting half the scalar-case establishment introduced:
         // the cyclic eligibility fence already confines its affine
@@ -490,7 +492,7 @@ fn admit_member_node(
         // through the whole component while member-internal edges stop
         // discarding it and every exit edge and member return disposes it
         // instead. Each scalar argument obeys the shared member-parameter
-        // substitution and each borrowed root rebinds like a
+        // substitution and each borrowed or copyable-owned root rebinds like a
         // `CallStructuralScalar`'s. Its declared place joins
         // `relocating_roots`, so a member node anchored on the persistent
         // result relocates behind it in the same run.
