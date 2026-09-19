@@ -75,7 +75,11 @@ fn checked_request_preserves_targetless_and_exact_target_selection() {
         exact.selected_native_target(),
         Some(target::TargetProfile::WindowsX64.native_target())
     );
-    assert_eq!(targetless.source_file_count(), exact.source_file_count());
+    assert_eq!(targetless.source_file_count(), 1);
+    assert!(
+        exact.source_file_count() > targetless.source_file_count(),
+        "exact target selection seeds the hosted entry contract"
+    );
     assert!(
         !fixture.root.join("build").exists(),
         "preparing a filesystem scope must not create staging without build execution"
