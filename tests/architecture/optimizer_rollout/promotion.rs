@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use crate::inventory::ReleaseRow;
 use crate::Audit;
+use crate::inventory::ReleaseRow;
 
 /// The record schema's value-bearing fields. A record must carry every label
 /// even while its evidence accrues: an absent field is a malformed record,
@@ -221,12 +221,16 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
             "Differential evidence: PENDING",
         );
     let defects = record_defects("ControlFlowCleanup", "Recommended", &incomplete);
-    assert!(defects
-        .iter()
-        .any(|defect| defect.contains("Exact rule: ControlFlowCleanup")));
-    assert!(defects
-        .iter()
-        .any(|defect| defect.contains("Differential evidence:")));
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("Exact rule: ControlFlowCleanup"))
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("Differential evidence:"))
+    );
 }
 
 #[test]
