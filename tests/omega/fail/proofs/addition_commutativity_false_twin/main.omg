@@ -1,10 +1,11 @@
 // False twin of proofs/proof_addition_commutativity (ladder rung L4).
-// a + b == b + a + 1 normalizes to 0 == 1. Accepted today; term
-// normalization (canonical polynomial form) must reject it.
+// Mathematical a + b == b + a + 1 normalizes to 0 == 1. Embedding makes
+// every term well-formed, so normalization must reject the false claim
+// rather than stopping at an unrelated Exact u64 overflow obligation.
 
 machine false_add_commutative(a: u64, b: u64)
 ensures
-    a + b == b + a + 1
+    embed(a) + embed(b) == embed(b) + embed(a) + 1
 {
 }
 

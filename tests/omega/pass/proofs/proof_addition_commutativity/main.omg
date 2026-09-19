@@ -1,10 +1,12 @@
 // Ladder rung L4 (commutativity): a + b == b + a with no hypotheses.
 // Lean analog: `Nat.add_comm`. Needs term normalization (sorting commutative
 // operands into a canonical form), not value computation.
+// Embed the fixed-width inputs before adding: this is a mathematical law,
+// not a claim that every Exact u64 sum is representable.
 
 machine add_commutative(a: u64, b: u64)
 ensures
-    a + b == b + a
+    embed(a) + embed(b) == embed(b) + embed(a)
 {
 }
 

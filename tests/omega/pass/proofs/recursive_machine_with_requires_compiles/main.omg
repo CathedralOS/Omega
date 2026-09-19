@@ -11,6 +11,10 @@
 //     (the same walk the cycle guard must not break), and
 //   - the recursive call threads `limit` unchanged, proven by the caller's
 //     own `requires limit > 0` entry fact.
+// Exact accumulator arithmetic additionally needs a preserved budget. For
+// 0 < n <= 1000, (acc + n) + (n - 1) * 1000 <= acc + n * 1000.
+// That budget survives each call without changing the algorithm or selecting
+// Wrapping, and supplies room for the next Exact accumulator update.
 
 data Main {
 }
@@ -22,7 +26,10 @@ machine Main::main(&mut self) {
 machine Main::gauss_sum(&mut self, n: u64, acc: u64, limit: u64) -> u64
 terminates by n;
 requires
-    limit > 0
+    limit > 0,
+    n <= 1000,
+    acc <= 1000000,
+    acc + n * 1000 <= 1000000
 {
     transition n > 0 {
         true -> gauss_sum(n - 1, acc + n, limit)
