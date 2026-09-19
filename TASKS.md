@@ -1516,9 +1516,10 @@ Owners include
   kernel theorem and scheme is a Rust-built term (`scheme_dsl.rs`),
   `terminal-codec`'s `encode_mathematical_certificate` and
   `decode_mathematical_certificate` have no caller outside tests, and the only
-  source customers cover scalar `==` symmetry/transitivity and fixed-literal
-  discreteness (`compiler/tests/proof_kernel_canaries.rs` and
-  `compiler/tests/kernel_discreteness.rs`), not general dependent theorems.
+  source customers cover scalar `==` symmetry/transitivity, fixed-literal
+  discreteness and subtraction in a ranked loop
+  (`compiler/tests/proof_kernel_canaries.rs`, `kernel_discreteness.rs` and
+  `kernel_subtract_order.rs`), not general dependent theorems.
 
   Remaining work:
 
@@ -1537,9 +1538,12 @@ Owners include
     use `J`; the `Equal`↔`IntegerMathEqual` citation crossing shares one
     denotation, and order transport applies the fixed substitution laws.
     Discreteness derives adjacent literal order from five fixed numeral laws
-    and composes it with the inclusive premise;
-    those laws remain explicit assumptions. Still to do: the remaining
-    `rule_axiom` families (subtract-order, the bound-witness rules, multiple-
+    and composes it with the inclusive premise. Exact scalar subtraction
+    applies fixed zero and antitonicity laws; evaluated differences retain
+    canonical numeral identity and use binary order. Contradictory positivity
+    premises use fixed irreflexivity and checked empty elimination. These
+    laws remain explicit assumptions. Still to do: the remaining
+    `rule_axiom` families (the bound-witness rules, multiple-
     equation or nested transport, and transport outside the supported `Int`
     vocabulary) and open arithmetic — non-closed `IntegerMathTerm`
     equations still name opaque `Int` constants, so `x + 0 = x` assumes
@@ -1582,11 +1586,12 @@ Owners include
   denotes the integer order and equality rules through a fixed roster of
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
-  terms by exact evaluated value — but subtract-order, the bound-witness
+  terms by exact evaluated value. Subtraction order uses fixed arithmetic
+  laws and compositional exact subtraction, but the bound-witness
   rules and remaining multiple-equation, nested or non-`Int` transport
   instances remain per-instance `rule_axiom`s whose
   statements carry no arithmetic a receiver could audit, and open
-  arithmetic has no law roster at all.
+  arithmetic beyond this subtraction route remains opaque.
 
   PCC-CANONICAL-SEMANTIC-LEDGER owns the soundness status of trusted checker
   rows and PROOF-CERTIFICATION-BRIDGE owns loop correspondence. Reopen W only

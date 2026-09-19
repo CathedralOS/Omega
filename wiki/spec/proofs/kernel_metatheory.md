@@ -345,10 +345,17 @@ Fixed scalar literal magnitudes have shared signed binary definitions over
 order from five fixed arithmetic laws, then uses mixed transitivity with
 the inclusive premise. These laws remain assumptions with exact statements;
 this establishes neither their consistency nor receiver approval. Larger
-closed values retain opaque exact-value interning, and open arithmetic
-still lacks compositional meaning.
+closed values retain opaque exact-value interning. Exact scalar subtraction
+has a compositional denotation over the shared integer carrier, including
+overflowing and nested expressions. Subtraction order applies fixed
+subtraction-by-zero and right-antitonicity laws, then transports the endpoints.
+Representable closed differences keep canonical numeral identity and derive
+their order through binary comparison. Contradictory positivity premises
+use an explicit strict-irreflexivity law and checked empty elimination.
+Other open arithmetic remains opaque; these fixed laws are assumptions,
+not an arithmetic consistency result.
 
-Remaining families, including subtract-order, bound and correlated-root
+Remaining families, including bound and correlated-root
 witnesses, multiple-equation or nested transport and transports outside the
 supported integer vocabulary, denote
 a *rule-instance decision*: an assumption constant of type
@@ -360,7 +367,11 @@ content exactly. Source invalidity, unsupported valid encodings and producer
 defects remain separate outcomes. *Witnessed:* the bounded-denotation unit
 tests inspect exact law closure and identity compositions;
 `compiler/tests/kernel_discreteness.rs` independently checks a source-produced
-certificate, its mathematical wire roundtrip and its invalid control. The
+certificate, its mathematical wire roundtrip and its invalid control.
+`compiler/tests/kernel_subtract_order.rs` checks the complete source-produced
+ranked-loop edge against the independently reconstructed obligation, exact
+assumption closure through the mathematical wire, and rejection of a
+non-decreasing rank. The
 `terminal-codec` bounded-certificate tests also exercise retained declarations;
 their older open-term closure and unsupported-crossing expectations still
 need alignment with the shared integer vocabulary.
