@@ -17,7 +17,7 @@ impl PsiTransformationLedger {
     }
 }
 
-pub(in crate::ledger) fn encode_ledger(
+pub(in crate::optimization_unit::ledger) fn encode_ledger(
     psi: TerminalPsiIdentity,
     fuel_schedule: FuelScheduleIdentity,
     input: OptimizationUnitIdentity,

@@ -691,12 +691,12 @@ fn streamed_identity_matches_materialized_canonical_bytes() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&source, FuelScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        let canonical = crate::identity::collect_unit_canonical_bytes(&unit);
+        let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&unit);
         assert_eq!(
             OptimizationUnitIdentity::from_canonical_bytes(&canonical),
             recompute_psi_optimization_unit_identity(&unit),
         );
-        let catalog = crate::identity::collect_structural_domain_catalog_bytes(
+        let catalog = crate::optimization_unit::identity::collect_structural_domain_catalog_bytes(
             unit.structural_domains.as_ref(),
         );
         assert_eq!(

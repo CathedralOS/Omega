@@ -44,7 +44,7 @@ impl PsiRewritePatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(in crate::rewrite) enum PsiRewriteWitness {
+pub(in crate::optimization_unit::rewrite) enum PsiRewriteWitness {
     ScalarEvaluation(ScalarEvaluationWitness),
     RedundantBlockParameter(RedundantBlockParameterWitness),
     AcceptedObligation(AcceptedObligationFactIdentity),
@@ -61,19 +61,19 @@ pub(in crate::rewrite) enum PsiRewriteWitness {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiRewriteCandidate {
-    pub(in crate::rewrite) identity: OptimizationCandidateIdentity,
-    pub(in crate::rewrite) input: OptimizationUnitIdentity,
-    pub(in crate::rewrite) rule: OptimizationRuleIdentity,
-    pub(in crate::rewrite) decision_point: PsiRewriteDecisionPoint,
-    pub(in crate::rewrite) affected_blocks: Vec<BlockId>,
-    pub(in crate::rewrite) required_analyses: AnalysisSet,
-    pub(in crate::rewrite) invalidated_analyses: AnalysisInvalidationSet,
-    pub(in crate::rewrite) safety_class: OptimizationSafetyClass,
-    pub(in crate::rewrite) substitutions: Vec<ScalarSubstitution>,
-    pub(in crate::rewrite) provenance: Vec<ProvenanceRewrite>,
-    pub(in crate::rewrite) witness: PsiRewriteWitness,
-    pub(in crate::rewrite) predicted_cost_delta: i64,
-    pub(in crate::rewrite) patch: PsiRewritePatch,
+    pub(in crate::optimization_unit::rewrite) identity: OptimizationCandidateIdentity,
+    pub(in crate::optimization_unit::rewrite) input: OptimizationUnitIdentity,
+    pub(in crate::optimization_unit::rewrite) rule: OptimizationRuleIdentity,
+    pub(in crate::optimization_unit::rewrite) decision_point: PsiRewriteDecisionPoint,
+    pub(in crate::optimization_unit::rewrite) affected_blocks: Vec<BlockId>,
+    pub(in crate::optimization_unit::rewrite) required_analyses: AnalysisSet,
+    pub(in crate::optimization_unit::rewrite) invalidated_analyses: AnalysisInvalidationSet,
+    pub(in crate::optimization_unit::rewrite) safety_class: OptimizationSafetyClass,
+    pub(in crate::optimization_unit::rewrite) substitutions: Vec<ScalarSubstitution>,
+    pub(in crate::optimization_unit::rewrite) provenance: Vec<ProvenanceRewrite>,
+    pub(in crate::optimization_unit::rewrite) witness: PsiRewriteWitness,
+    pub(in crate::optimization_unit::rewrite) predicted_cost_delta: i64,
+    pub(in crate::optimization_unit::rewrite) patch: PsiRewritePatch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

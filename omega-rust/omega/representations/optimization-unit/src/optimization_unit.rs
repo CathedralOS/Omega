@@ -1,25 +1,68 @@
 //! Immutable optimization-unit aggregate and its exact carrier-family map.
+//!
+//! The one program root for the representation: the aggregate struct below
+//! defines the current unit, and every concept area — construction,
+//! identity, ledger, observation, evidence, rewrite vocabulary, and tests —
+//! is subordinate to it.
 
 use super::{
-    Arc, BoundaryMachineDeclaration, FuelScheduleIdentity, MachineId, OptimizationUnitIdentity,
-    ProviderCandidateConformance, ServiceDeclaration, StructuralDomainDeclaration,
-    TerminalPsiIdentity, TerminalRootServiceReach,
+    AbstractFunction, AbstractOperation, AbstractOperationPlan, AbstractSuccessor, Arc, BTreeSet,
+    BlockId, BoundaryMachineDeclaration, FuelScheduleIdentity, MachineId, ObligationId,
+    OperationId, OptimizationUnitIdentity, PlaceId, ProviderCandidateConformance, ScalarType,
+    ServiceDeclaration, StructuralDomainDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalPsiIdentity, TerminalRootServiceReach, ValueId,
 };
 mod attachment;
+mod construction;
 mod cycles;
+mod evidence;
 mod graph;
+mod identity;
+mod ledger;
 mod manifest;
+mod observation;
 mod ownership;
 mod proof;
 mod range;
+mod rewrite;
+#[cfg(test)]
+mod tests;
 
 pub use attachment::*;
+pub use construction::{OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed};
 pub use cycles::*;
+pub use evidence::*;
 pub use graph::*;
+pub use identity::{recompute_psi_optimization_unit_identity, structural_domain_catalog_identity};
+pub use ledger::{
+    InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
+    PsiTransformationRecord,
+};
 pub use manifest::*;
+pub use observation::{
+    ObservationEventClass, ObservationKnowledge, PsiClosedRegionBlockObservation,
+    PsiClosedRegionObservation, PsiClosedRegionSemantics, PsiNodeObservation, PsiObservableEvent,
+    PsiObservationModel, PsiRegionBoundaryEdgeObservation, PsiRegionFrontierObservation,
+    reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
+};
 pub use ownership::*;
 pub use proof::*;
 pub use range::*;
+pub use rewrite::{
+    AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
+    ConstantConditionalRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
+    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, NonAdjacentBlockMergeRewrite,
+    OwnershipFrontierWitness, OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite,
+    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
+    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint,
+    PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
+    ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
+    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedJumpFusionRewrite,
+    TotalScalarIdentityKind, TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationUnit {
