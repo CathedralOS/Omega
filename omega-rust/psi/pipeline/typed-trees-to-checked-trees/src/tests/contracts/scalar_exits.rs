@@ -2,6 +2,7 @@ use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 mod local_snapshots;
+mod result_fields;
 mod storage_reads;
 mod storage_snapshots;
 

@@ -2587,14 +2587,21 @@ Owners include
     Separate scalar and content-conservation guarantees are supported and
     independently checked (`scalar_and_content_guarantees_are_checked_independently`);
     content-bearing signatures do not restrict every `ensures` to content
-    grammar. The actual allocator probe at `b7bc4a082d` (macOS ARM64), adding
-    `ensures result.strategy.remaining == strategy.remaining - length` to
-    `allocate`, fails `cannot prove ensures contract for exit from allocate`.
-    Reproduce with `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
+    grammar. `allocate` now declares and proves
+    `ensures result.strategy.remaining == strategy.remaining - length`;
+    a wrong-count guarantee rejects. Check the actual fixture on macOS ARM64
+    with `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
     cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
     -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
-    Nested result-field contract proving belongs to **NOMINAL-FIELD-FLOW**'s
-    `checks/contracts` owner, not the content-contract normalizer. A `requires`
+    The next missing step is caller import under exact result/argument
+    substitution, owned by `facts`/`flow` contract transport and
+    `checks/contracts`. A source probe whose `produce(input) -> Count` proves
+    `result.remaining == input`, then calls `consume(value, input)` requiring
+    `value.remaining == expected`, still rejects that requires clause after
+    `let value: Count = produce(input)`. Exit proving lives in
+    `checks/contracts/exits/scalars/result_fields.rs`; its scalar-exit tests
+    cover nested computation, live fields, mutation, policies, and origins.
+    This is source checking, not a Terminal/native allocator claim. A `requires`
     bound also neither carries a subtraction's lower bound nor survives
     consumption of the backing. Each request's residual is a caller-stated
     premise, and post-reset reuse is reachable only through a runtime guard.

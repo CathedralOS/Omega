@@ -16,6 +16,7 @@ use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from
 
 mod boolean_results;
 pub(crate) mod calls;
+mod result_fields;
 mod static_calls;
 
 pub(super) fn proves<'program>(
@@ -50,7 +51,16 @@ pub(super) fn proves<'program>(
         contract,
         call_frames,
     };
-    if !has_builtin_operators(program, &facts.operators, expression) {
+    // A missing checked operator row is not builtin authority. Rejoin the
+    // declaration meaning before either symbolic or concrete comparison.
+    if !has_builtin_operators(program, &facts.operators, expression)
+        || !validation::has_builtin_bound_expression_meaning(
+            program,
+            machine,
+            program.machine_states(machine).first(),
+            expression,
+        )
+    {
         return false;
     }
     if evaluator.proves_boolean_result(expression) == Some(true)
@@ -79,7 +89,9 @@ pub(super) fn proves<'program>(
                     // A current predicate can be known without fixing its scalar
                     // operands to single values. Use the same exit premises as the
                     // whole-contract prover; failed search never supplies false.
-                    evaluator.current_predicate(atom).then_some(true)
+                    (evaluator.proves_result_field_equality(atom)
+                        || evaluator.current_predicate(atom))
+                    .then_some(true)
                 })
         },
     ) == Some(ScalarValue::Boolean(true))
@@ -316,6 +328,9 @@ impl ExitScalars<'_, '_> {
     }
 
     fn contract_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
+        if let Some(value) = self.result_field_value(expression) {
+            return Some(value);
+        }
         if is_result_reference(self.program, self.machine, expression) {
             return self.return_value();
         }
@@ -381,10 +396,28 @@ impl ExitScalars<'_, '_> {
     fn return_expression_is_stable(&self, expression: ExpressionHandle) -> bool {
         // Exit contexts describe storage after return-expression effects.
         // Even short-circuit operands cannot be reread after a later write.
+        let mut nodes = Vec::new();
+        crate::monomorphization::collect_expression_tree(self.program, expression, &mut nodes);
+        let state = crate::semantic_calls::find_state_in_machine(
+            self.program,
+            self.machine.symbol,
+            self.exit.state_symbol,
+        );
         self.program
             .expression_table
             .expression_is_valid(expression)
-            && has_builtin_operators(self.program, &self.facts.operators, expression)
+            && nodes.iter().all(|node| {
+                !matches!(
+                    self.program.expression_table.expression(*node),
+                    typed_trees::expression::ExpressionNode::Atomic(_)
+                ) && has_builtin_operators(self.program, &self.facts.operators, *node)
+                    && validation::has_builtin_bound_expression_meaning(
+                        self.program,
+                        self.machine,
+                        state,
+                        *node,
+                    )
+            })
             && self.call_frames.is_some_and(|frames| {
                 frames
                     .expression_write_frame(self.machine, expression)
