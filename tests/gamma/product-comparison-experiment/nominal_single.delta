@@ -1,8 +1,0 @@
-; Candidate D, one field: a single-field nominal product declared, built, and
-; destructured under the customer's own static checker. The declaration is the
-; only agreement point; the match binder binds the field by position.
-(data Box (Box Int))
-(def open ((value Box)) Int
-  (match value ((Box field) field)))
-(def main ((source Bytes)) Bytes
-  (bytes_single (open (Box 28))))
