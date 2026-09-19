@@ -1704,7 +1704,14 @@ Owners include
     published roster stays in canonical order (authored clauses merge
     ahead of the derived parameter-range tail; merged propositions are
     sorted and deduplicated at every publication site).
-  - Dynamic-dispatch call kinds have no erased-argument lane.
+  - Done: a `&dyn` call to a requirement declaring an erased formal now
+    explicitly refuses its erased lane — check-time diagnostic naming the
+    requirement and formal (`checks/contracts/dynamic_erased_lane.rs`,
+    covering direct bindings and descriptor fields stored in records;
+    `fail/relevance/dynamic_erased_formal_lane` pins the surface).
+    Carrying the lane through the descriptor would need a proof-actual
+    channel on `CheckedDynamicScalarCallPlan` and emitted vtable rows —
+    a larger slice than the refusal.
   - Erased `self`, `const` and `mut` bindings refuse a checked calling plan
     (`execution/unit/types/mod.rs::strips_erased_parameter`). Keep the refusal
     unless the specification gives them a meaning.
