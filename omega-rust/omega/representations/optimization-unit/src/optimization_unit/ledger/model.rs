@@ -1,10 +1,17 @@
 //! Immutable transformation-ledger records and accessors.
 
 use super::{
-    FuelScheduleIdentity, OptimizationCandidateIdentity, OptimizationRuleIdentity,
+    FuelScheduleIdentity, MachineId, OptimizationCandidateIdentity, OptimizationRuleIdentity,
     OptimizationUnitIdentity, OptimizationValidatorIdentity, ProvenanceRewrite,
-    PrunedMachineCustody, TerminalPsiIdentity, TransformationLedgerIdentity,
+    TerminalPsiIdentity, TransformationLedgerIdentity,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PrunedMachineCustody {
+    pub machine: MachineId,
+    pub source_ordinal: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiTransformationRecord {
     pub rule: OptimizationRuleIdentity,

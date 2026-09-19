@@ -35,8 +35,8 @@ pub use evidence::*;
 pub use graph::*;
 pub use identity::{recompute_psi_optimization_unit_identity, structural_domain_catalog_identity};
 pub use ledger::{
-    InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
-    PsiTransformationRecord,
+    InvalidPsiTransformationLedger, PrunedMachineCustody, PsiTransformationLedger,
+    PsiTransformationLedgerDecodeError, PsiTransformationRecord,
 };
 pub use manifest::*;
 pub use observation::{
@@ -98,10 +98,4 @@ pub struct PsiOptimizationUnit {
     /// machine to the immutable verified Terminal-Psi function roster.
     pub pruned_machines: Vec<PrunedMachineCustody>,
     pub functions: Vec<PsiOptimizationFunction>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PrunedMachineCustody {
-    pub machine: MachineId,
-    pub source_ordinal: u32,
 }

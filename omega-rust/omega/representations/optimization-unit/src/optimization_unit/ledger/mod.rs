@@ -14,8 +14,8 @@ use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, Oper
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
-    FuelSettlement, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
-    PsiProvenance, PsiRealizationSite,
+    FuelSettlement, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+    PsiRealizationSite,
 };
 
 mod codec;
@@ -25,7 +25,7 @@ mod validation;
 
 use codec::encode_ledger;
 pub use error::{InvalidPsiTransformationLedger, PsiTransformationLedgerDecodeError};
-pub use model::{PsiTransformationLedger, PsiTransformationRecord};
+pub use model::{PrunedMachineCustody, PsiTransformationLedger, PsiTransformationRecord};
 use validation::validate_provenance;
 
 impl PsiTransformationLedger {

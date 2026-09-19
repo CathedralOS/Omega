@@ -191,6 +191,43 @@ fn optimization_records_and_independent_checks_have_distinct_owners() {
     let program = std::fs::read_to_string(representation.join("optimization_unit.rs")).unwrap();
     assert!(program.contains("pub struct PsiOptimizationUnit"));
     assert!(!representation.join("model.rs").exists());
+    // The unit is a named representation with one root, but its flat public
+    // API is consumed through `use optimization_unit::*` plus crate-qualified
+    // paths, so `pub mod optimization_unit` would make the name ambiguous in
+    // those consumers. Pin the file layout instead of the strict entrance row:
+    // exactly lib.rs + optimization_unit.rs beside the concept directory.
+    let mut files = std::fs::read_dir(&representation)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_file())
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    files.sort();
+    assert_eq!(
+        files,
+        ["lib.rs".to_owned(), "optimization_unit.rs".to_owned()],
+        "ambiguous program entrance in optimization-unit"
+    );
+    for area in [
+        "attachment",
+        "construction",
+        "cycles",
+        "evidence",
+        "graph",
+        "identity",
+        "ledger",
+        "manifest",
+        "observation",
+        "ownership",
+        "proof",
+        "range",
+        "rewrite",
+    ] {
+        assert!(
+            program.contains(&format!("mod {area};")),
+            "optimization-unit lost its {area} owner"
+        );
+    }
     let records = rust_source(&representation);
     for record in [
         "PrePhysicalOptimizationManifest",
