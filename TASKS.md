@@ -2547,10 +2547,22 @@ Owners include
   - Lowering: transport the exact place/loan restoration debt through
     `checked-trees-to-lowered-psi` using the ordinary partial-move, store and
     control-flow relationships, without replacing the caller's storage by a
-    staged copy.
-  - Terminal: represent the window so `terminal-verifier` reconstructs it from
-    operations, loan authority and control flow, then execute it in the Terminal
-    interpreter and supported native targets.
+    staged copy. The Terminal spelling it must produce now exists:
+    `MoveStructuralField`/`StoreStructuralField` (codec tags 77/78).
+  - Terminal (landed): `terminal-verifier/src/validation/borrowed_windows.rs`
+    reconstructs the restoration debt from operations, loan authority and
+    control flow — `MoveStructuralField` opens a per-root hole ledger keyed by
+    canonical field path, `StoreStructuralField` discharges an exactly-typed
+    whole owned place into it, stale reads/edge arguments/non-crash exits
+    reject, and crash exits retain no obligation. `terminal-interpreter`
+    replays the consuming transform with caller-visible subtree contents and
+    exact-once custody across fuel splits
+    (`cargo nextest run -p terminal-verifier --test suite borrowed_storage_windows`,
+    `-p terminal-codec --test suite canonical::borrowed_storage_windows`,
+    `-p terminal-interpreter --test unit borrowed_storage_windows`;
+    linux-x86_64). Omega lowering still rejects both operations via
+    `LoweringError::UnsupportedBorrowedStorageWindow` — native realization
+    remains open.
   - Checker: a move inside a match arm or on a transition edge still takes the
     plain rejection, so branch-local extraction/repair and the reconvergence
     agreement rule are unimplemented. A suspending or blocking call across an
