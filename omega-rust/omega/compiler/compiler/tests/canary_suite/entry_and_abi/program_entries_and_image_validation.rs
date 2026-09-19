@@ -364,40 +364,111 @@ fn checked_uefi_os_handoff_invocation_retains_edge_binding() {
         .find(|machine| machine_path(machine.symbol) == "Loader::run")
         .expect("the loader entry machine must be retained");
 
-    // The selected loader entry reaches and invokes the target-owned
-    // nonreturning handoff surface, naming the exact `UefiOsHandoff` service.
-    let handoff_invocation = checked
+    // The selected loader entry reaches and invokes both authored boundary
+    // surfaces through the target's `UefiOsHandoffCycle::run`: the Boot
+    // Services leaves and the compiler-owned terminal edges.
+    let invokes: std::collections::BTreeSet<String> = checked
         .typed
         .machine_invokes(loader_entry)
         .iter()
-        .find(|invocation| invocation.as_str() == "UefiOsHandoff")
-        .expect("Loader::run must invoke the UefiOsHandoff boundary");
-    let typed_trees::signature::AuthoredInvocationTarget::Service(service) =
-        handoff_invocation.target
-    else {
-        panic!("the handoff invocation must target a boundary service");
-    };
-    assert_eq!(machine_path(service), "UefiOsHandoff");
+        .map(|invocation| invocation.as_str().to_owned())
+        .collect();
+    for service in ["UefiBootServices", "UefiOsHandoffTermination"] {
+        assert!(
+            invokes.contains(service),
+            "Loader::run must invoke the {service} boundary, got {invokes:?}"
+        );
+    }
 
-    // The target package's boundary realization supplies the requirement: the
-    // native provider's `handoff` boundary machine satisfies
-    // `UefiOsHandoff::handoff`, the authored route for the custody edge.
-    let provider_handoff = checked
-        .typed
-        .machines()
+    // The target package's boundary realizations supply the requirements: the
+    // native provider's bodyless machines satisfy `UefiOsHandoffTermination`'s
+    // two compiler-owned edges, and the table leaves satisfy the four
+    // `UefiBootServices` requirements the authored cycle drives.
+    for (provider_machine, requirement) in [
+        ("transfer_to_entry", "transfer"),
+        ("firmware_return", "firmware_return"),
+    ] {
+        let provider = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine_path(machine.symbol)
+                    == format!("UefiOsHandoffNativeProvider::{provider_machine}")
+            })
+            .expect("the target's termination realization must be retained");
+        let conformance = checked
+            .typed
+            .machine_trait_conformances(provider)
+            .iter()
+            .find(|conformance| conformance.requirement.as_deref() == Some(requirement))
+            .expect("the provider realization must satisfy the termination requirement");
+        assert_eq!(
+            machine_path(conformance.requirement_symbol),
+            format!("UefiOsHandoffTermination::{requirement}")
+        );
+    }
+    for (leaf_machine, requirement) in [
+        ("allocate_pages_leaf", "allocate_pages"),
+        ("free_pages_leaf", "free_pages"),
+        ("get_memory_map_leaf", "get_memory_map"),
+        ("exit_boot_services_leaf", "exit_boot_services"),
+    ] {
+        let leaf = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine_path(machine.symbol)
+                    == format!("EfiBootServicesTable::{leaf_machine}")
+            })
+            .expect("the target's Boot Services leaf must be retained");
+        let conformance = checked
+            .typed
+            .machine_trait_conformances(leaf)
+            .iter()
+            .find(|conformance| conformance.requirement.as_deref() == Some(requirement))
+            .expect("the leaf must satisfy the Boot Services requirement");
+        assert_eq!(
+            machine_path(conformance.requirement_symbol),
+            format!("UefiBootServices::{requirement}")
+        );
+    }
+}
+
+#[test]
+fn native_uefi_os_handoff_invocation_reports_missing_boundary_plan() {
+    // The checked canary pins the invocation surface; this pins the authored
+    // handoff route's first refusing emission stage. The cycle's Boot Services
+    // calls live on `UefiOsHandoffLegs` `boundary machine`s — scalar-returning
+    // boundary calls carry no state-graph custody admission in the checked
+    // unit lane, so each leg owns one firmware call and lands its status on
+    // the legs record — and attached-Unit closure refuses them today: a
+    // bodied boundary machine carries no boundary plan for a unit caller.
+    // Once bodied boundary machines lower as callees, this canary becomes the
+    // PE32+ emission assertion.
+    let canary = pass_canary(fixture_roster::BUILD_UEFI_OS_HANDOFF_INVOCATION);
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-uefi-handoff-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    let diagnostics = compile(CanaryCompileSpec {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .expect_err("the authored cycle must stay pinned at the missing boundary plan");
+    let messages: Vec<&str> = diagnostics
         .iter()
-        .find(|machine| machine_path(machine.symbol) == "UefiOsHandoffNativeProvider::handoff")
-        .expect("the target's handoff realization must be retained");
-    let conformance = checked
-        .typed
-        .machine_trait_conformances(provider_handoff)
-        .iter()
-        .find(|conformance| conformance.requirement.as_deref() == Some("handoff"))
-        .expect("the provider realization must satisfy the handoff requirement");
-    assert_eq!(
-        machine_path(conformance.requirement_symbol),
-        "UefiOsHandoff::handoff"
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect();
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("calls boundary `UefiOsHandoffLegs::acquire`, which has no boundary plan")
+        }),
+        "expected the pinned boundary-plan refusal, got {messages:?}"
     );
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

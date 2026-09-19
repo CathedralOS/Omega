@@ -913,6 +913,24 @@ Owners include
   successful exit. Preserve firmware lifetime, surviving-stack evidence, allocation
   lineage and final-map obligations; exhaustion returns the target-defined error.
 
+  Resume evidence (w9, `swarm-w9--uefi-os-handoff`): the bodyless whole-protocol
+  promise is replaced by an authored route in `std/targets/uefi_x86_64/handoff.omg`
+  — `UefiOsHandoffLegs` boundary-machine legs own the four scalar-returning Boot
+  Services calls and land each status on the legs record; `UefiOsHandoffCycle::run`
+  owns the acquire/grow/adopt + stale-key-retry state graph with the explicit
+  `UEFI_OS_HANDOFF_ATTEMPT_BOUND` bound and `UEFI_OS_HANDOFF_EXHAUSTION_STATUS`
+  exhaustion answer; `UefiOsHandoffTermination` keeps entry/stack transfer and
+  firmware return compiler-owned. `build/uefi_os_handoff_invocation` binds
+  `Loader::run` and checks end-to-end
+  (`checked_uefi_os_handoff_invocation_retains_edge_binding`). First refusing
+  emission stage: attached-Unit closure — the legs' bodied boundary machines
+  carry no boundary plan for a unit caller, and scalar-returning boundary calls
+  (`BoundaryScalarCall`) have no state-graph custody admission
+  (`native_uefi_os_handoff_invocation_reports_missing_boundary_plan` pins the
+  diagnostic). Next acceptance: lower bodied boundary machines as callees (or
+  admit boundary scalar results to unit edges), then emit the cycle and run the
+  firmware/controlled-provider harness legs below.
+
   Acceptance: evolve `build/uefi_os_handoff_invocation` from binding-only coverage
   into authored execution through native emission and a firmware or controlled
   provider harness. Cover grow-then-stale-key retry, bounded exhaustion, malformed
