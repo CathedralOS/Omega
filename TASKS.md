@@ -3378,8 +3378,8 @@ Owners include
   - Module-owned forms, once **MODULE-NAMESPACE-RESOLUTION** supplies exact
     lexical selection. No source-spelling fallback, and no runtime value used
     as a static cache key.
-  - Native legs for three scenarios. Repair the owning ordinary call/storage
-    routes, not generic-specific substitutes. Keep
+  - Finish the native call/storage routes using ordinary operations, not
+    generic-specific substitutes. Keep
     `scalar_case_results::record_reads::call_requirements` as the working
     indexed-field receiver-call control: scalar requirements preserve their
     ordered proof custody without relaxing ownership `entry_claims`.
@@ -3389,10 +3389,8 @@ Owners include
     This reproduces with the borrowed-call change absent;
     **CRASH-CONTRACT** owns the newly required comparison occurrence custody.
     Recheck those four cases separately from the passing indexed-field case.
-    A `let mut` primitive local beside a Console receiver stops with
-    `SourceCustodyMismatch` in the selected-instruction
-    `legalization/source/scalar_graph/terminator.rs`; a structural subject
-    over a record local beside a provider receiver gets no checked Unit plan
+    A structural subject over a record local beside a provider receiver gets
+    no checked Unit plan
     (**STATE-LOCAL-VALUE-FRONTIER**). Native receivers spell
     `console: Service<Console> in Bound`; a bare `Console` field stops in
     `image-emission/src/hosted_receiver.rs` (**ENTRY-CONTENT-ROOTS**). Only a
