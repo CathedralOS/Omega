@@ -1146,9 +1146,15 @@ Owners include
   bound set inside `VerifiedNativeArtifactInput`, while
   `try_into_native_input` and `prepare_native_realization_input` keep
   rejecting nonempty rosters because no provider establishment reaches the
-  image entry shim yet. Rows on non-entry machines still fail closed at both
-  boundaries — call-bound custody arrives through the caller, a route neither
-  carries. Continue from
+  image entry shim yet.
+  `placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap`
+  exercises the whole join on a multi-row roster: supplies bind each declared
+  row in roster order regardless of supply order, a partially answered roster
+  and a stale sibling supply reject, an exclusive referent overlapping another
+  established referent — equal path or prefix containment — rejects as
+  aliasing, and disjoint sub-paths or shared-borrow overlap admit. Rows on
+  non-entry machines still fail closed at both boundaries — call-bound
+  custody arrives through the caller, a route neither carries. Continue from
   `terminal-psi-to-abstract-operations/src/artifact_admission.rs`,
   `compiler/native-realization` — where the ProgramEntry settlement's fused
   service establishments are the analog to extend, now with the bound
