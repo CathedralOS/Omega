@@ -4,6 +4,7 @@ use super::super::{
     StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
     claim_id, structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
+use super::parameters::{StructuralResultCustody, emitted_claim_transfers};
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
     Operation, OperationKind, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
@@ -35,6 +36,9 @@ pub(super) struct PreparedCall {
     /// Proof-only erased actuals in the callee's erased-formal order.
     pub erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
     pub structural_arguments: Vec<StructuralArgument>,
+    /// The emitted transfer roster: checked rows plus each completed-result
+    /// `self` consume's minted claim, in canonical order.
+    pub claim_transfers: Vec<ClaimTransfer>,
     pub requirement_obligations: Vec<ObligationId>,
     pub crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
 }
@@ -55,6 +59,9 @@ pub(super) fn prepare(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
+    completed_results: &[(u32, StructuralOperationResult)],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<PreparedCall, LoweringError> {
     let (
@@ -137,13 +144,42 @@ pub(super) fn prepare(
         checked_target.structural_parameters,
         type_ids,
         structural_types,
+        // A claim-carrying `self` formal whose argument is a completed result
+        // discharges its entry claim through the moved frontier — the checker
+        // records the consume as a permission event, not a transfer row, so
+        // the checked roster expects none here. Every other entry claim
+        // expects exactly one.
         &checked_target
             .entry_claims
             .iter()
+            .filter(|claim| {
+                checked_target
+                    .structural_parameters
+                    .get(claim.parameter_index as usize)
+                    .zip(structural_arguments.get(claim.parameter_index as usize))
+                    .is_none_or(|(parameter, argument)| {
+                        !(parameter.is_self && parameter.multiplicity == Multiplicity::Linear)
+                            || argument
+                                .source_structural_result_binding_ordinal()
+                                .is_none()
+                    })
+            })
             .map(|claim| claim.parameter_index)
             .collect::<Vec<_>>(),
         primitive_local_places,
-        None,
+        Some(StructuralResultCustody {
+            results: completed_results,
+            domains: domain_ids,
+            claims: claim_bindings,
+            target_entry_claims: checked_target.entry_claims,
+        }),
+    )?;
+    let claim_transfers = emitted_claim_transfers(
+        structural_arguments,
+        claim_transfers,
+        checked_target.structural_parameters,
+        completed_results,
+        claim_bindings,
     )?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
@@ -240,6 +276,7 @@ pub(super) fn prepare(
         arguments: terminal_scalar_arguments,
         erased_arguments,
         structural_arguments: terminal_arguments,
+        claim_transfers,
         requirement_obligations,
         crash_continuations,
     })
@@ -360,44 +397,42 @@ pub(super) fn emit_structural(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let claim_transfers = custody
-        .claim_transfers
-        .iter()
-        .map(|transfer| {
-            Ok(ClaimTransfer {
-                claim: lookup_claim_id(claim_bindings, transfer.claim_identity)?,
-                argument_index: transfer.argument_index,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let PreparedCall {
+        arguments,
+        erased_arguments,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = prepared;
     // Scalar values and structural custody are separate operand namespaces,
     // not different ownership rules. Keep the scalar-free encoding unchanged;
     // mixed calls retain the same checked claim and content correspondence.
     // `CallStructural` owns no erased lane; a proof-only actual selects the
     // scalar-argument shape even when every runtime operand is empty.
     let kind = if result.multiplicity == Multiplicity::Linear
-        && prepared.arguments.is_empty()
-        && prepared.erased_arguments.is_empty()
+        && arguments.is_empty()
+        && erased_arguments.is_empty()
     {
         OperationKind::CallStructural {
             callee,
-            structural_arguments: prepared.structural_arguments,
+            structural_arguments,
             claim_transfers,
             returned_claim_transfers,
-            requirement_obligations: prepared.requirement_obligations,
-            crash_continuations: prepared.crash_continuations,
+            requirement_obligations,
+            crash_continuations,
             selected_evidence: Vec::new(),
         }
     } else {
         OperationKind::CallStructuralWithScalarArguments {
             callee,
-            arguments: prepared.arguments,
-            erased_arguments: prepared.erased_arguments,
-            structural_arguments: prepared.structural_arguments,
+            arguments,
+            erased_arguments,
+            structural_arguments,
             claim_transfers,
             returned_claim_transfers,
-            requirement_obligations: prepared.requirement_obligations,
-            crash_continuations: prepared.crash_continuations,
+            requirement_obligations,
+            crash_continuations,
         }
     };
     operations.push(Operation {

@@ -143,12 +143,16 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // claim directly — the checker owns the consumption judgment and records no
 // `StateEntry` event for it, so `entry_claims` mints the established identity
 // — and both `settle` bodies plus `probe` carry full Unit plans. In
-// emission the `start` boundary now mints `task`'s caller claim binding
+// emission the `start` boundary mints `task`'s caller claim binding
 // from the `Establish` event its binding statement recorded — the minted
 // `ClaimId` is that claim's only binding — and the completed result carries
-// it. The remaining frontier is `settle` itself: moving the claim-carrying
-// result into the `self` formal still has no completed-result custody to
-// validate the consume against.
+// it. Ordinary call preparation now hands that completed-result custody to
+// transfer-shape validation: `settle`'s `self` formal admits the move only
+// when the result's single carried claim is the minted statement-established
+// binding the formal's whole-value entry claim names, and the emitted call
+// records the consume as a transfer of that exact claim. The remaining
+// frontier is module validation: the ordinary-call argument source policy
+// still admits only affine claim-free operation results.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -387,22 +391,27 @@ fn a_routed_task_start_call_plans_and_owned_settle_stops_at_lowered_custody() {
             .is_none(),
         "Main::probe plans once its specialized settle callee is admitted"
     );
-    // The named frontier moves one edge deeper: `start`'s completed result
-    // now mints `task`'s caller claim binding — a statement-established
-    // claim has no caller entry claim to rebase onto (`probe` declares
-    // none), so the mint allocates the next dense `ClaimId` and the result
-    // carries it. Emission stops on `settle` instead: the claim-carrying
-    // `self` formal consumes the completed linear result, but ordinary call
-    // preparation does not yet hand the completed-result claim frontier to
-    // transfer-shape validation, so the move still has no settled custody
-    // to check against.
+    // The named frontier moves one edge deeper: `settle` now emits with its
+    // completed-result custody joined — transfer-shape validation admits the
+    // move only because `task`'s result carries the exact whole-value claim
+    // `settle`'s `self` entry claim names, minted statement-established, and
+    // the emitted `CallUnit` records that consume as a claim transfer naming
+    // the minted caller binding. Emission then stops inside module
+    // validation: the ordinary-call source policy still classifies every
+    // operation-result argument place as affine and claim-free, so the
+    // claim-carrying boundary result place has no argument source to join.
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the minted start claim has no settled self-formal custody yet");
+        .expect_err("the settled self argument has no ordinary-call source yet");
     assert!(
         matches!(
             error,
-            checked_trees_to_lowered_psi::LoweringError::Unsupported(message)
-                if message == "linear result argument has no completed operation custody"
+            checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
+                terminal_verifier::ModuleError::UnknownStructuralArgument {
+                    operation,
+                    argument_index: 0,
+                    place,
+                }
+            ) if operation.get() == 2 && place.get() == 5
         ),
         "unexpected error: {error:?}"
     );

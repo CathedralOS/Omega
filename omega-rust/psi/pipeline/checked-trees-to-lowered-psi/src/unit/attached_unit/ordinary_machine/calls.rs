@@ -1,7 +1,10 @@
 //! Calls into the closure: Unit and structural calls, scalar calls and the
 //! selected operator realizations, and the selected IEEE FMA.
 
-use super::super::parameters::{lower_structural_arguments, validate_transfer_shape};
+use super::super::parameters::{
+    StructuralResultCustody, emitted_claim_transfers, lower_structural_arguments,
+    validate_transfer_shape,
+};
 use super::super::{
     argument_evaluation, byte_subslices, ordinary_calls, signatures, structural_calls,
     structural_values,
@@ -10,11 +13,11 @@ use super::{MachineEmission, StepInputs};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError,
-    Operation, OperationKind, OperationResult, ScalarTerm, ScalarType, StructuralMultiplicity,
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, LoweringError, Operation,
+    OperationKind, OperationResult, ScalarTerm, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
     allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
-    lookup_claim_id, lookup_machine_id, lookup_type_id, lower_checked_crash_route_buckets,
+    lookup_machine_id, lookup_type_id, lower_checked_crash_route_buckets,
     lower_checked_scalar_expression, obligation_id, place_id, terminal_scalar_type, unsupported,
     validate_direct_parameter_types, value_id,
 };
@@ -79,12 +82,6 @@ impl MachineEmission<'_> {
         else {
             unreachable!("dispatched call_unit")
         };
-        let claim_transfers = match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                claim_transfers, ..
-            } => claim_transfers.as_slice(),
-            _ => &[],
-        };
         let call_byte_places = byte_subslices::argument_places(
             structural_arguments,
             &self.literal_places,
@@ -96,6 +93,7 @@ impl MachineEmission<'_> {
             arguments: terminal_scalar_arguments,
             erased_arguments,
             structural_arguments: terminal_arguments,
+            claim_transfers,
             requirement_obligations,
             crash_continuations,
         } = ordinary_calls::prepare(
@@ -113,6 +111,9 @@ impl MachineEmission<'_> {
             self.type_ids,
             self.structural_types,
             &call_byte_places,
+            &self.operations.structural_values,
+            self.domain_ids,
+            &self.claim_bindings,
             &mut self.scalar_calls,
         )?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
@@ -130,6 +131,7 @@ impl MachineEmission<'_> {
                     arguments: terminal_scalar_arguments,
                     erased_arguments,
                     structural_arguments: terminal_arguments,
+                    claim_transfers,
                     requirement_obligations,
                     crash_continuations,
                 },
@@ -158,15 +160,7 @@ impl MachineEmission<'_> {
             arguments: terminal_scalar_arguments,
             erased_arguments,
             structural_arguments: terminal_arguments,
-            claim_transfers: claim_transfers
-                .iter()
-                .map(|transfer| {
-                    Ok(ClaimTransfer {
-                        claim: lookup_claim_id(&self.claim_bindings, transfer.claim_identity)?,
-                        argument_index: transfer.argument_index,
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?,
+            claim_transfers,
             requirement_obligations,
             crash_continuations,
         }))
@@ -447,13 +441,33 @@ impl MachineEmission<'_> {
                 target.structural_parameters(),
                 self.type_ids,
                 self.structural_types,
+                // A claim-carrying `self` formal fed by a completed result
+                // consumes the moved frontier instead of publishing a
+                // transfer row; every other entry claim expects exactly one.
                 &target
                     .entry_claims()
                     .iter()
+                    .filter(|claim| {
+                        target
+                            .structural_parameters()
+                            .get(claim.parameter_index as usize)
+                            .zip(structural_arguments.get(claim.parameter_index as usize))
+                            .is_none_or(|(parameter, argument)| {
+                                !parameter.is_self
+                                    || argument
+                                        .source_structural_result_binding_ordinal()
+                                        .is_none()
+                            })
+                    })
                     .map(|claim| claim.parameter_index)
                     .collect::<Vec<_>>(),
                 &self.primitive_local_places,
-                None,
+                Some(StructuralResultCustody {
+                    results: &self.operations.structural_values,
+                    domains: self.domain_ids,
+                    claims: &self.claim_bindings,
+                    target_entry_claims: target.entry_claims(),
+                }),
             )?;
             OperationKind::CallStructuralScalar {
                 callee,
@@ -467,15 +481,13 @@ impl MachineEmission<'_> {
                     &[],
                     &self.primitive_local_places,
                 )?,
-                claim_transfers: claim_transfers
-                    .iter()
-                    .map(|transfer| {
-                        Ok(ClaimTransfer {
-                            claim: lookup_claim_id(&self.claim_bindings, transfer.claim_identity)?,
-                            argument_index: transfer.argument_index,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?,
+                claim_transfers: emitted_claim_transfers(
+                    structural_arguments,
+                    claim_transfers,
+                    target.structural_parameters(),
+                    &self.operations.structural_values,
+                    &self.claim_bindings,
+                )?,
                 requirement_obligations,
                 crash_continuations,
             }

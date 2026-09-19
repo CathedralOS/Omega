@@ -241,6 +241,9 @@ pub(super) fn emit_call_operations(
                         &catalogs.type_ids,
                         &catalogs.structural_types,
                         &[],
+                        &output.structural_values,
+                        &catalogs.domain_ids,
+                        claim_bindings,
                         call_context,
                     )?;
                     let declaration = super::super::ordinary_calls::emit_structural(
