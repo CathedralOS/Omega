@@ -38,6 +38,14 @@ the next compiler/checker customer and compare complete audit cost. Experiments
 remain non-authoritative; changes to the trust boundary or required assurances
 must be surfaced before relying on them.
 
+Name the contracts checked and found silent. A question that cannot cite them
+has not shown its decision is open. Specifications are organized by mechanism
+while questions arrive by symptom, so the answering clause is routinely in a
+document whose subject is not the question's: a containment rule sits with
+activation inputs rather than with the vocabulary it confines, and an
+instantiation rule sits with contract import rather than with the value class
+it instantiates. A reviewer verifies those citations before the framing.
+
 ## Open questions
 
 1. **May a provider's selected plan resolve an installation-bound row it

@@ -96,7 +96,10 @@ observable; write-only roots reject.
 A nested state has arrival requirements, not a distinct result carrier.
 Normal completion produces the owning machine's result. In a top-level machine
 `ensures`, reserved `result` denotes that result unless a real entry parameter
-named `result` shadows it.
+named `result` shadows it. A caller importing that `ensures` instantiates it
+under [contract import](../proofs/contracts.md), which requires the matching
+result case and argument/result substitution, so a transported `ensures` names
+the importing use's result rather than one shared value per declaration.
 
 ### Declaration and correspondence
 
