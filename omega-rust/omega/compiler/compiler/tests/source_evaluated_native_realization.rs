@@ -10,6 +10,8 @@ mod linux_dynamic_realization;
 mod linux_hosted_receiver;
 #[path = "source_evaluated_native_realization/macho_and_terminal_imports.rs"]
 mod macho_and_terminal_imports;
+#[path = "source_evaluated_native_realization/ranked_control.rs"]
+mod ranked_control;
 #[path = "source_evaluated_native_realization/windows_hosted_receiver.rs"]
 mod windows_hosted_receiver;
 #[path = "source_evaluated_native_realization/windows_imports_and_mxcsr_custody.rs"]

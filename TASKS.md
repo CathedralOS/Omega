@@ -3810,8 +3810,20 @@ Owners include
 
   Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
   from fixed-width scalar calls to a
-  source-rooted flat-record argument, then ranked control and port-bearing
-  artifacts. Acceptance: independent native replay preserves the exact
+  source-rooted flat-record argument (landed 2026-09-16/17 through the
+  structural-argument chain and `derive_normalized_foreign_child` structural
+  custody), then ranked control and port-bearing artifacts. Ranked control's
+  evidence half landed 2026-09-19: physical derivation no longer blocks a
+  machine on `ranked_scc` alone — the survivor/physical-child bijection is
+  occurrence-coordinate keyed and cycle-agnostic, so `terminates by` machines
+  mint complete native physical evidence and the `RankedMachine` gap subject
+  retires. Remaining frontier: a foreign call inside a ranked machine still
+  stops at legalization's source-custody replay
+  (`target-operations-to-selected-instructions/src/legalization`, upstream of
+  physical evidence — pinned by
+  `ranked_machine_foreign_call_stops_at_legalization_source_custody`), and
+  port-bearing artifacts still have no `port_effects` production writer.
+  Acceptance: independent native replay preserves the exact
   survivor/physical-child bijection and rejects missing, duplicate, substituted,
   or role-swapped children. External realization claims require independently
   admitted concrete authority.

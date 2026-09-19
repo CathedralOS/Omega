@@ -80,15 +80,6 @@ pub(crate) fn derive_physical_evidence(
     }
     let module = terminal_codec::decode_module(terminal_artifact.semantic_bytes())
         .map_err(|_| "native physical evidence cannot decode Terminal semantics")?;
-    if let Some(machine) = module
-        .machines
-        .iter()
-        .find(|machine| machine.ranked_scc.is_some())
-    {
-        return Ok(blocked(NativePhysicalEvidenceGapSubject::RankedMachine {
-            machine: machine.id,
-        }));
-    }
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
