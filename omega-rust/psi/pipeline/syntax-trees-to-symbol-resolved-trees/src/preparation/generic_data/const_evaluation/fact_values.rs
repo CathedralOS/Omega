@@ -14,10 +14,10 @@ pub(in crate::preparation::generic_data) enum ConstFactValue {
 }
 
 /// The concrete scalar bound to `self` while a selected domain's facts replay
-/// at declaration site, and the same payload a nested membership operand
-/// carries into the next selected domain. Unlike `ConstFactValue` there is no
-/// anonymous rational here: declaration-site discharge binds only completed
-/// canonical values.
+/// at declaration site, its closed index binders, and the payload a nested
+/// membership carries into the next selected domain. Unlike `ConstFactValue`
+/// there is no anonymous rational here: declaration-site discharge binds only
+/// completed canonical values.
 #[derive(Clone, Copy)]
 pub(in crate::preparation::generic_data) enum ConstScalarValue {
     Integer(i128),
@@ -25,11 +25,28 @@ pub(in crate::preparation::generic_data) enum ConstScalarValue {
 }
 
 impl ConstScalarValue {
+    pub(in crate::preparation::generic_data) fn from_canonical(
+        value: &super::super::CanonicalConstValue,
+    ) -> Option<Self> {
+        use language_semantics::const_value::DecodedCanonicalConstValue;
+        match value.decode_encoding()? {
+            DecodedCanonicalConstValue::Integer { value, .. } => Some(Self::Integer(value)),
+            DecodedCanonicalConstValue::Boolean(value) => Some(Self::Boolean(value)),
+            _ => None,
+        }
+    }
+
     pub(in crate::preparation::generic_data) fn into_fact_value(self) -> ConstFactValue {
         match self {
             Self::Integer(value) => ConstFactValue::Integer(value),
             Self::Boolean(value) => ConstFactValue::Boolean(value),
         }
+    }
+}
+
+impl From<i128> for ConstScalarValue {
+    fn from(value: i128) -> Self {
+        Self::Integer(value)
     }
 }
 
