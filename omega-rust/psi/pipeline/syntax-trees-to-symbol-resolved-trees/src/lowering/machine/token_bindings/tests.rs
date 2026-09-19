@@ -255,6 +255,87 @@ fn a_named_sibling_never_collides_with_a_token_binding() {
 }
 
 #[test]
+fn operator_repeating_a_machine_binding_rejects_across_introducers() {
+    let source = "data Vec2 { x: u64; y: u64; }
+         machine + Vec2::plus(left: Vec2, right: Vec2) -> Vec2 { right }
+         operator + Vec2::add(left: Vec2, right: Vec2) -> Vec2;";
+    let diagnostics = resolve_source(source)
+        .expect_err("the `operator` repeats the `machine`'s token, owner, and operand shape");
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one diagnostic per duplicate: {diagnostics:?}");
+    };
+    assert!(
+        diagnostic.message.contains(
+            "`Vec2::add` binds the fixed operator token `+` already bound by `Vec2::plus`"
+        ),
+        "{}",
+        diagnostic.message
+    );
+    let span = diagnostic
+        .source_span
+        .expect("reported at the operator declaration");
+    assert_eq!(
+        &source[span.span.start..span.span.end],
+        "Vec2::add",
+        "the diagnostic points at the operator declaration's name"
+    );
+}
+
+#[test]
+fn operator_and_machine_sharing_a_token_on_distinct_shapes_coexist() {
+    resolve_source(
+        "data Vec2 { x: u64; y: u64; }
+         operator + Vec2::add(left: Vec2, right: Vec2) -> Vec2;
+         machine + Vec2::scale(left: Vec2, factor: u64) -> Vec2 { left }",
+    )
+    .expect("distinct operand shapes may share a token across introducers");
+}
+
+#[test]
+fn operator_and_machine_on_distinct_owners_coexist() {
+    resolve_source(
+        "data Vec2 { x: u64; y: u64; }
+         data Vec3 { x: u64; y: u64; z: u64; }
+         operator + Vec2::add(left: Vec2, right: Vec2) -> Vec2;
+         machine + Vec3::add(left: Vec3, right: Vec3) -> Vec3 { left }",
+    )
+    .expect("separate owners keep separate families across introducers");
+}
+
+#[test]
+fn boundary_operator_repeating_a_machine_binding_rejects() {
+    let diagnostics = resolve_source(
+        "data Vec2 { x: u64; y: u64; }
+         boundary operator + Vec2::add(left: Vec2, right: Vec2) -> Vec2;
+         machine + Vec2::plus(left: Vec2, right: Vec2) -> Vec2 { right }",
+    )
+    .expect_err("a boundary slot and a direct binding share the token's candidate space");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("already bound by `Vec2::plus`")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn domain_operator_repeating_a_domain_machine_binding_rejects() {
+    let diagnostics = resolve_source(
+        "data Quantity { value: i32; }
+         domain Quantity::Additive requires self.value >= 0;
+         operator + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
+         machine + Quantity::Additive::plus(left: Quantity, right: Quantity) -> Quantity { left }",
+    )
+    .expect_err("the domain operator repeats the domain machine's token, owner, and shape");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("already bound by `Quantity::Additive::plus`")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn domain_attached_binding_homes_in_the_carrier_and_marks_the_domain_semantic() {
     let program = resolve_source(
         "data Quantity { value: i32; }
