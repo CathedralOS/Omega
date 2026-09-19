@@ -37,8 +37,11 @@ directory. These are host controls, not language semantics.
 ## Current compiler slice
 
 [Scalar compilation](../../../bootstrap/5_omega/scalar_compilation.epsilon)
-accepts ordinary nullary free machines returning unsuffixed nonnegative decimal
-`u8` literals without digit separators. It checks every admitted declaration, detects duplicate names,
+accepts ordinary nullary free machines returning a `u8` terminal expression:
+unsuffixed nonnegative decimal literals without digit separators joined by the
+`+ - * / % << >> & | ^` binary operators, folded under the default Exact policy
+so every intermediate node must stay representable in `u8`. It checks every
+admitted declaration, detects duplicate names,
 resolves an explicitly supplied entry name, checks the result range before
 emission, and uses the shared encoder's labels, call/return and finalization.
 Multiple admitted machines are emitted in authored order; neither the source
@@ -63,11 +66,15 @@ sh tests/bootstrap/omega-executable/run.sh --controls
 ```
 
 The [ordinary Epsilon controls](controls.epsilon) reuse one compiler across
-thirteen invocations: zero and maximum byte results, multiple declarations and
-selection of a non-first entry, duplicate names, missing entry, out-of-range
-and oversized decimal values, an invalid unselected body, unsupported expressions
-and return types, a named-state-only machine, digit separators, malformed syntax,
-and successful reuse after failures. Every rejection requires an empty unsealed
+thirty-five invocations: zero and maximum byte results, folded arithmetic,
+bitwise and shift operations with precedence and grouping, multiple
+declarations and selection of a non-first entry, duplicate names, missing
+entry, out-of-range and oversized decimal values, an out-of-range expression
+operand, overflow, underflow, division and modulo by zero, out-of-width and
+overflowing shifts, an invalid unselected body, unsupported comparison, path,
+unary and other expressions and return types, a named-state-only machine,
+digit separators, malformed syntax, and successful reuse after failures.
+Every rejection requires an empty unsealed
 tape. A final exact literal byte comparison precedes execution of the actual
 emitted tape; the expected bytes are never used as the executable input.
 

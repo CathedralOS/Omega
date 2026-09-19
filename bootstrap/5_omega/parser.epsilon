@@ -435,6 +435,7 @@ machine OmegaParser::parse_view(
             100 -> indexed_range_end_token()
             101 -> membership_domain_token()
             102 -> membership_domain_tail_token()
+            103 -> expression_statement_operand_token()
             _ -> internal_failure()
         }
     }
@@ -899,6 +900,11 @@ machine OmegaParser::parse_view(
                 source.len
             )
             102 -> retain_membership_expression(1)
+            103 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStateBody,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -2545,8 +2551,23 @@ machine OmegaParser::parse_view(
     state state_body_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::RightBrace -> finish_current_state()
+            OmegaPunctuationKind::LeftParen -> begin_grouped_expression_statement()
             _ -> incomplete_root()
         }
+    }
+
+    // A statement-leading parenthesis opens a grouped terminal expression:
+    // the shared group machinery owns the operand until its closing paren,
+    // then the framed tail continues with binary operators or the state
+    // right brace exactly like an ungrouped primary.
+    state begin_grouped_expression_statement() {
+        self.state_has_body_syntax = 1;
+        self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
+        self.expression_frame_value_count = 0;
+        self.expression_frame_operator_count = 0;
+        self.expression_group_count = 0;
+        self.expression_prefix_count = 0;
+        transition true { true -> begin_expression_group() }
     }
 
     state begin_local_data_statement() {
@@ -2664,18 +2685,30 @@ machine OmegaParser::parse_view(
     state begin_integer_expression_statement() {
         self.state_has_body_syntax = 1;
         self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
+        self.expression_frame_value_count = 0;
+        self.expression_frame_operator_count = 0;
+        self.expression_group_count = 0;
+        self.expression_prefix_count = 0;
         transition true { true -> check_integer_expression() }
     }
 
     state begin_string_expression_statement() {
         self.state_has_body_syntax = 1;
         self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
+        self.expression_frame_value_count = 0;
+        self.expression_frame_operator_count = 0;
+        self.expression_group_count = 0;
+        self.expression_prefix_count = 0;
         transition true { true -> retain_string_expression() }
     }
 
     state begin_boolean_expression_statement(value: i32) {
         self.state_has_body_syntax = 1;
         self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
+        self.expression_frame_value_count = 0;
+        self.expression_frame_operator_count = 0;
+        self.expression_group_count = 0;
+        self.expression_prefix_count = 0;
         transition true { true -> retain_boolean_expression(value) }
     }
 
@@ -3028,6 +3061,25 @@ machine OmegaParser::parse_view(
                 select_expression_greater_equal()
             OmegaPunctuationKind::AndAnd -> select_expression_and()
             OmegaPunctuationKind::PipePipe -> select_expression_or()
+            OmegaPunctuationKind::RightBrace -> finish_right_brace_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    // A terminal expression statement ends at the state-closing right brace.
+    // Only the expression-statement consumer owns that terminator; the brace
+    // remains unread for the enclosing machine-body machinery.
+    state finish_right_brace_expression() {
+        transition self.expression_group_count {
+            0 -> finish_root_right_brace_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state finish_root_right_brace_expression() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::ExpressionStatement ->
+                finish_framed_expression()
             _ -> incomplete_root()
         }
     }
@@ -3378,6 +3430,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::AssignmentValue -> scan_semantic(48)
             OmegaExpressionConsumer::LocalDataInitialValue -> scan_semantic(79)
             OmegaExpressionConsumer::CallArgument -> scan_semantic(80)
+            OmegaExpressionConsumer::ExpressionStatement -> scan_semantic(103)
             _ -> incomplete_root()
         }
     }
@@ -3705,6 +3758,8 @@ machine OmegaParser::parse_view(
                 publish_local_data_initial_value_expression()
             OmegaExpressionConsumer::CallArgument ->
                 publish_call_argument_expression()
+            OmegaExpressionConsumer::ExpressionStatement ->
+                retain_expression_statement()
             _ -> incomplete_root()
         }
     }
@@ -4332,6 +4387,10 @@ machine OmegaParser::parse_view(
         self.statement_path_member_count = 0;
         self.call_first_machine_argument = self.static_machine_argument_count;
         self.call_first_argument = self.call_argument_count;
+        self.expression_frame_value_count = 0;
+        self.expression_frame_operator_count = 0;
+        self.expression_group_count = 0;
+        self.expression_prefix_count = 0;
         transition true { true -> retain_statement_path_member() }
     }
 
@@ -4370,6 +4429,26 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Equal -> begin_assignment_statement()
             OmegaPunctuationKind::LeftBracket -> begin_statement_path_expression(0)
             OmegaPunctuationKind::RightBrace -> begin_statement_path_expression(1)
+            OmegaPunctuationKind::Plus -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Minus -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Asterisk -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Slash -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Percent -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::LessLess -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::GreaterGreater ->
+                begin_statement_path_expression(2)
+            OmegaPunctuationKind::Ampersand -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Pipe -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Caret -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::EqualEqual -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::ExclamationEqual ->
+                begin_statement_path_expression(2)
+            OmegaPunctuationKind::LessEqual -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::Greater -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::GreaterEqual ->
+                begin_statement_path_expression(2)
+            OmegaPunctuationKind::AndAnd -> begin_statement_path_expression(2)
+            OmegaPunctuationKind::PipePipe -> begin_statement_path_expression(2)
             _ -> incomplete_root()
         }
     }
@@ -4464,8 +4543,23 @@ machine OmegaParser::parse_view(
         self.expression_count = self.expression_count + 1;
         transition continuation {
             0 -> begin_indexed_expression()
+            2 -> retain_framed_statement_path_operand()
             _ -> retain_expression_statement()
         }
+    }
+
+    // A statement path followed by a binary operator becomes the left operand
+    // of a framed expression statement: the path node is pushed like any
+    // other primary and the already scanned operator token flows through the
+    // shared precedence reducer.
+    state retain_framed_statement_path_operand() {
+        self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
+        self.expression_result_start =
+            self.members[self.statement_first_path_member].start;
+        self.expression_end = self.members[
+            self.statement_first_path_member + self.statement_path_member_count - 1
+        ].end;
+        transition true { true -> retain_framed_expression_operand() }
     }
 
     state begin_indexed_expression() {
@@ -5484,6 +5578,8 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_path_expression()
             OmegaExpressionConsumer::TransitionSubject -> retain_path_expression()
+            OmegaExpressionConsumer::ExpressionStatement ->
+                retain_path_expression()
             _ -> incomplete_root()
         }
     }
@@ -5512,6 +5608,8 @@ machine OmegaParser::parse_view(
                 retain_transition_subject_path()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 retain_transition_target_argument_path()
+            OmegaExpressionConsumer::ExpressionStatement ->
+                retain_path_expression()
             _ -> incomplete_root()
         }
     }
@@ -6014,8 +6112,13 @@ machine OmegaParser::parse_view(
 
     state retain_expression_statement_path_handle() {
         self.expression_result = self.expression_count;
+        self.expression_result_start =
+            self.members[self.argument_first_path_member].start;
+        self.expression_end = self.members[
+            self.argument_first_path_member + self.argument_path_member_count - 1
+        ].end;
         self.expression_count = self.expression_count + 1;
-        transition true { true -> retain_expression_statement() }
+        transition true { true -> finish_framed_primary() }
     }
 
     state retain_transition_target_argument_handle() {
@@ -6406,6 +6509,13 @@ machine OmegaParser::parse_view(
         transition true { true -> scan_semantic(48) }
     }
 
+    // A binary operator in a terminal expression statement scans its next
+    // operand through the same primary grammar the other framed-value
+    // consumers share: paths, literals, groups, and prefix unary forms.
+    state expression_statement_operand_token() {
+        transition true { true -> assignment_value_token() }
+    }
+
     state assignment_value_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> assignment_value_punctuation()
@@ -6682,7 +6792,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::TransitionSubject ->
                 finish_framed_primary()
             OmegaExpressionConsumer::ExpressionStatement ->
-                expression_statement_end_punctuation()
+                finish_framed_primary()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 transition_target_argument_end_punctuation()
             OmegaExpressionConsumer::LocalDataInitialValue ->
@@ -6707,13 +6817,6 @@ machine OmegaParser::parse_view(
         transition self.indexed_range_parsing_end {
             1 -> incomplete_root()
             _ -> begin_index_range_after_completed_start()
-        }
-    }
-
-    state expression_statement_end_punctuation() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::RightBrace -> retain_expression_statement()
-            _ -> incomplete_root()
         }
     }
 

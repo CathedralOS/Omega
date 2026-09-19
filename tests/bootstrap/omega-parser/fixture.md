@@ -1,7 +1,7 @@
 # Parser fixture expectations
 
 `main.epsilon` calls the unchanged `OmegaParser::parse_view` through ordinary
-Epsilon execution. The harness must include all six whole manifested D source
+Epsilon execution. The harness must include all eight whole manifested D source
 members, followed by this entrypoint. There are twelve parser invocations on
 one receiver. Success is `Exit(0)` with stdout `A`; the private tagged execution
 observation is `000000000041`. This fixture does not establish full Omega
