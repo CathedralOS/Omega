@@ -284,7 +284,6 @@ fn dependency_generated_source_collisions_reject_late_duplicates_before_parsing(
         &mut ImportQueue::default(),
         Some("windows_x86_64"),
         &inputs,
-        &mut std::collections::BTreeMap::new(),
         &mut CompileTimings::default(),
     )
     .expect_err("dependency path collisions precede parsing all units");
@@ -312,7 +311,6 @@ fn dependency_generated_source_collisions_preserve_clean_authored_order() {
         &mut ImportQueue::default(),
         Some("windows_x86_64"),
         &inputs,
-        &mut std::collections::BTreeMap::new(),
         &mut CompileTimings::default(),
     )
     .expect("clean handoff retains authored order");
@@ -344,7 +342,6 @@ fn dependency_generated_source_collisions_reject_physical_paths_only_for_depende
         &mut ImportQueue::default(),
         Some("windows_x86_64"),
         &inputs,
-        &mut std::collections::BTreeMap::new(),
         &mut CompileTimings::default(),
     );
     let continuation_result = retain_generated_syntax_extension(

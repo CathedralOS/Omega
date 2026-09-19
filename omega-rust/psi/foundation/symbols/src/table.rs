@@ -338,13 +338,37 @@ impl SymbolTable {
             .product_dependency_target(requester, alias)
     }
 
-    /// Compare declaration provenance at the package boundary. Source-free
-    /// lowering is used by focused representation tests; those trees model
-    /// one package and retain the historical all-local behavior.
+    /// Compare declaration provenance at the lexical package boundary: the
+    /// same package identity AND the same checked dependency scope. Two
+    /// checked instances of one source are the same package nominally but
+    /// share no lexical context — module namespaces, package-private
+    /// visibility, and same-package selection never cross instances
+    /// (wiki/spec/build/scoped_execution.md, "Two checked contexts").
+    /// Source-free lowering is used by focused representation tests; those
+    /// trees model one package and retain the historical all-local behavior.
     pub fn same_source_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
         self.sources
             .as_deref()
-            .is_none_or(|sources| sources.same_package(left, right))
+            .is_none_or(|sources| sources.same_checked_instance(left, right))
+    }
+
+    /// Whether `declaration` is the product-scope checked instance inside
+    /// `reference`'s package — the scope-crossing match for the bridges that
+    /// deliberately name a product declaration from a build occurrence (root
+    /// bindings, product entry/schema/provider queries). Ordinary resolution
+    /// never uses this.
+    pub fn same_product_package_instance(
+        &self,
+        reference: SourceSpan,
+        declaration: SourceSpan,
+    ) -> bool {
+        let Some(sources) = self.sources.as_deref() else {
+            return true;
+        };
+        sources.same_package(reference, declaration)
+            && sources
+                .file_at(declaration)
+                .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
     }
 
     /// Compare declaration provenance for authored or compiler-generated
@@ -361,7 +385,7 @@ impl SymbolTable {
         let Some(right) = self.provenance_source_span(right) else {
             return false;
         };
-        sources.same_package(left, right)
+        sources.same_checked_instance(left, right)
     }
 
     /// Authored declaration provenance for one symbol. Compiler-generated
@@ -576,6 +600,19 @@ impl SymbolTable {
                 self.symbol_source_span(*symbol)
                     .is_some_and(|span| span.source_id == reference.source_id)
             })
+            // Two checked instances of one path each carry the same spelled
+            // candidates; a reference selects only its own instance — but
+            // only among candidates its stratum can already see.
+            .or_else(|| {
+                self.sources.as_deref().and_then(|sources| {
+                    candidates.iter().copied().find(|symbol| {
+                        self.symbol_source_span(*symbol).is_some_and(|declaration| {
+                            !sources.resolution_strata_separate(reference, declaration)
+                                && sources.same_checked_instance(reference, declaration)
+                        })
+                    })
+                })
+            })
             .or_else(|| {
                 self.sources.as_deref().and_then(|sources| {
                     candidates.iter().copied().find(|symbol| {
@@ -639,6 +676,15 @@ impl SymbolTable {
         };
         if left_span.source_id == right_span.source_id {
             return false;
+        }
+        // Two checked instances of one package — including two instances of
+        // the exact same file — never share a resolution scope, module-
+        // declared or not.
+        if self.sources.as_deref().is_some_and(|sources| {
+            sources.same_package(left_span, right_span)
+                && !sources.same_checked_instance(left_span, right_span)
+        }) {
+            return true;
         }
         if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
             return true;

@@ -129,12 +129,14 @@ impl SourceStorage {
         for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
             let (package_root, package_identity, origin) =
                 self.source_metadata(&parsed_source.path, parsed_source.origin);
-            let added = self.sources.add_with_metadata(
+            let added = self.sources.add_checked_instance(
                 parsed_source.path.clone(),
                 parsed_source.source.to_string(),
                 package_root,
                 package_identity,
                 origin,
+                source::SourceResolutionStratum::Base,
+                parsed_source.scope,
             );
 
             debug_assert_eq!(added.source_id, parsed_source.source_id);

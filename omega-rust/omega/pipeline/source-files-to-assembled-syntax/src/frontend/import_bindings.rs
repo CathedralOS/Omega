@@ -4,7 +4,7 @@ use super::{ReconciledPackageImportRequest, identifier_path_text, source_path_ca
 use crate::source::SourceStorage;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use source::SourceId;
+use source::{DependencyScope, SourceId};
 use std::path::{Path, PathBuf};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Item;
@@ -43,19 +43,18 @@ pub(crate) struct ResolvedSourceImport {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingPackageImport {
     pub(super) occurrence: ImportOccurrence,
+    /// The importer's checked instance. Retained so exact-target resolution
+    /// joins the resolved target under the same instance even when the
+    /// requesting path has a second instance.
+    pub(super) scope: DependencyScope,
     pub(super) request: ReconciledPackageImportRequest,
 }
 
 impl PendingPackageImport {
-    /// The importing source's canonical path, for dependency-scope
-    /// propagation when this request resolves under an exact target.
-    pub(crate) fn requesting_source(&self) -> &Path {
-        &self.request.requesting_source
-    }
-
-    /// The package the resolved import target belongs to.
-    pub(crate) fn target_package(&self) -> semantic_vocabulary::PackageKeyIdentity {
-        self.request.package
+    /// The checked instance this request was discovered under. The exact
+    /// resolution joins its target under the importer's instance.
+    pub(crate) fn importer_scope(&self) -> DependencyScope {
+        self.scope
     }
 
     pub(crate) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
@@ -107,6 +106,8 @@ pub(crate) fn retain_module_import_bindings(
     }
     // One borrowed path index replaces a full frontier scan per import.
     // Binding order remains authored order, independent of discovery waves.
+    // The sort keys scope so each path's at-most-two instances sit in a
+    // deterministic order inside one contiguous run.
     let mut sources = storage
         .files
         .iter()
@@ -115,19 +116,43 @@ pub(crate) fn retain_module_import_bindings(
                 .root_items
                 .iter()
                 .any(|item| matches!(storage.syntax_trees.root_item(*item), Item::Module(_)));
-            (source, declares_module)
+            let scope = storage
+                .sources
+                .get(source.source_id)
+                .map(|file| file.dependency_scope)
+                .unwrap_or(DependencyScope::Product);
+            (source, declares_module, scope)
         })
         .collect::<Vec<_>>();
-    sources.sort_by(|(left, _), (right, _)| left.path.cmp(&right.path));
+    sources.sort_by(|(left, _, left_scope), (right, _, right_scope)| {
+        left.path
+            .cmp(&right.path)
+            .then_with(|| scope_order(*left_scope).cmp(&scope_order(*right_scope)))
+    });
     let mut imports = storage.resolved_imports.iter().collect::<Vec<_>>();
     imports.sort_by_key(|import| (import.occurrence.source.0, import.occurrence.ordinal));
     let mut bindings = Vec::with_capacity(imports.len());
     for import in imports {
         let occurrence = &import.occurrence;
-        let position = sources.partition_point(|(source, _)| source.path < import.path);
-        let (declaration, declares_module) = sources
-            .get(position)
-            .filter(|(source, _)| source.path == import.path)
+        let importer_scope = storage
+            .sources
+            .get(occurrence.source)
+            .map(|file| file.dependency_scope)
+            .unwrap_or(DependencyScope::Product);
+        let position = sources.partition_point(|(source, _, _)| source.path < import.path);
+        let run_end = sources[position..]
+            .iter()
+            .position(|(source, _, _)| source.path != import.path)
+            .map(|offset| position + offset)
+            .unwrap_or(sources.len());
+        let candidates = &sources[position..run_end];
+        // An import binds its target's instance in the importer's own scope.
+        // Sources retained outside the queue — generated bundles — carry a
+        // single instance for every importing scope.
+        let (declaration, declares_module, _) = candidates
+            .iter()
+            .find(|(_, _, scope)| *scope == importer_scope)
+            .or(candidates.first())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "import `{}` no longer resolves to its parsed source frontier",
@@ -149,4 +174,11 @@ pub(crate) fn retain_module_import_bindings(
         ));
     }
     Ok(bindings)
+}
+
+fn scope_order(scope: DependencyScope) -> u8 {
+    match scope {
+        DependencyScope::Product => 0,
+        DependencyScope::Build => 1,
+    }
 }

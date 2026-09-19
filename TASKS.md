@@ -405,16 +405,14 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
 - **BUILD-DEPENDENCY-PURPOSES.** Complete the
   [separate checked contexts and prerequisite graph](wiki/spec/build/scoped_execution.md#two-checked-contexts)
   for host/build and product code. Purpose-tagged acquisition, review, lock rows,
-  alias isolation, and build-only target selection already exist.
+  alias isolation, build-only target selection, and per-scope checked
+  instances already exist: `SourceFile::dependency_scope` carries the
+  importer's scope through the import queue, so one path checked in both
+  scopes produces two instances; `SourceMap::same_checked_instance` keeps
+  module dedup, binding ownership, and target rows instance-correct, and the
+  canonical consumption/review projections dedupe the identical fact rows a
+  second instance re-derives.
 
-  - Check a package/file separately when both purposes select it.
-    `source-files-to-assembled-syntax/src/frontend/mod.rs::build_only_packages`
-    currently leaves dual-purpose packages in product scope, while
-    `claim_import_scope` rejects a root-local file used in both scopes.
-    Source bytes may be shared; checked instances, target rows, generated
-    bundles, provider plans, and admission/cache identities may not be
-    conflated. Replace the one-scope-per-source model rather than adding
-    import-order exceptions.
   - Schedule each helper's own build activation in its correct execution
     profile and prerequisite graph. Package-manager reconciliation/closure
     validation and `package-compilation` currently reject non-root build
@@ -426,16 +424,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     acquisition, review, lock recovery, generated-source handoff, and checking.
     Extend the existing owners; no second dependency resolver or build executor.
 
-  Acceptance: real acquisition and CLI multi-file builds use the same std/helper
-  sources in both contexts with different target-scoped implementations, plus
-  a helper that needs its own build dependency. Reject cross-purpose cycles
+  Acceptance: real acquisition and CLI multi-file builds admit a helper that
+  needs its own build dependency. Reject cross-purpose cycles
   before affected execution, conflicting within-scope aliases, missing edges,
   and stale or cross-profile cached outputs. Cross-scope aliases may differ;
   removing one edge affects only its authorized selections. Reuse
   `omega/tests/package_commands/build_purposes.rs`,
   `package-manager/tests/dependency_purposes.rs`, and assembled checking's
   `checking/execution_profile_tests.rs`; include physical and generated files.
-  Existing dual-edge tests do not establish dual-context target checking.
+  `build_purposes::a_root_local_module_checked_in_both_scopes_keeps_two_instances`
+  witnesses the dual-context check.
 
 - **BUILD-PRODUCT-REFERENCES.** Finish
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).

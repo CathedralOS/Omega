@@ -7,7 +7,7 @@ use arena::{Arena, HandleSpan};
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use source::{SourceId, SourceOrigin, SourcePosition};
+use source::{DependencyScope, SourceId, SourceOrigin, SourcePosition};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, ItemHandle};
@@ -19,12 +19,27 @@ pub(crate) use import_bindings::{
     PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
     pub origin: Option<SourceOrigin>,
+    /// The checked instance this load produces. The same path may appear in
+    /// one frontier once per scope.
+    pub scope: DependencyScope,
+}
+
+impl Default for LoadedSource {
+    fn default() -> Self {
+        Self {
+            source_id: SourceId::default(),
+            path: PathBuf::default(),
+            source: Arc::from(""),
+            origin: None,
+            scope: DependencyScope::Product,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -40,6 +55,7 @@ pub struct LexedSource {
     pub source: Arc<str>,
     pub origin: Option<SourceOrigin>,
     pub tokens: TokenStream<'static>,
+    pub scope: DependencyScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -55,6 +71,9 @@ pub struct ParsedSource {
     pub source: Arc<str>,
     pub origin: Option<SourceOrigin>,
     pub root_items: Vec<ItemHandle>,
+    /// Which dependency context checked this instance. An identical path may
+    /// have a second [`ParsedSource`] under the other scope.
+    pub scope: DependencyScope,
 }
 
 impl Default for ParsedSource {
@@ -65,6 +84,7 @@ impl Default for ParsedSource {
             source: Arc::from(""),
             origin: None,
             root_items: Vec::new(),
+            scope: DependencyScope::Product,
         }
     }
 }
@@ -76,14 +96,14 @@ pub struct ParsedSources {
 }
 
 pub fn load_sources(
-    frontier: Vec<PathBuf>,
+    frontier: Vec<(PathBuf, DependencyScope)>,
     first_source_id: usize,
 ) -> Result<LoadedSources, Vec<Diagnostic>> {
     let source_count = frontier.len();
     let mut sources = Arena::with_capacity(source_count);
     let mut loaded = Vec::with_capacity(source_count);
 
-    for (index, path) in frontier.into_iter().enumerate() {
+    for (index, (path, scope)) in frontier.into_iter().enumerate() {
         let source = std::fs::read_to_string(&path).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "failed to read {}: {error}",
@@ -96,6 +116,7 @@ pub fn load_sources(
             path,
             source: Arc::from(source),
             origin: None,
+            scope,
         });
     }
 
@@ -109,24 +130,37 @@ pub fn load_sources(
 /// names the provider in diagnostics.
 pub fn load_injected_source(name: &str, text: &str, first_source_id: usize) -> LoadedSources {
     let mut sources = Arena::with_capacity(1);
+    // Injected toolchain vocabulary is compiler-owned, not a dependency-
+    // selected instance; it carries product scope and joins a build entry
+    // through its explicit source-scoped binding instead.
     let batch = sources.insert_many([LoadedSource {
         source_id: SourceId(first_source_id),
         path: PathBuf::from(name),
         source: Arc::from(text),
         origin: Some(SourceOrigin::Toolchain),
+        scope: DependencyScope::Product,
     }]);
     LoadedSources { sources, batch }
 }
 
 /// Load one compiler-retained package source with a logical package-relative
-/// path and no physical file access.
-pub fn load_package_generated_source(path: PathBuf, text: &str, source_id: usize) -> LoadedSources {
+/// path and no physical file access. `scope` is the checked instance the
+/// generated bundle joins: a bundle embodies its producing package's own
+/// context (host context for a build-only package), so generated sources
+/// keep their owning package's scope rather than the importer's.
+pub fn load_package_generated_source(
+    path: PathBuf,
+    text: &str,
+    source_id: usize,
+    scope: DependencyScope,
+) -> LoadedSources {
     let mut sources = Arena::with_capacity(1);
     let batch = sources.insert_many([LoadedSource {
         source_id: SourceId(source_id),
         path,
         source: Arc::from(text),
         origin: Some(SourceOrigin::User),
+        scope,
     }]);
     LoadedSources { sources, batch }
 }
@@ -157,6 +191,7 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
             source: loaded_source.source.clone(),
             origin: loaded_source.origin,
             tokens: own_token_stream(tokens, &loaded_source.source),
+            scope: loaded_source.scope,
         });
     }
 
@@ -201,6 +236,7 @@ pub fn parse_sources(
             source: lexed_source.source.clone(),
             origin: lexed_source.origin,
             root_items,
+            scope: lexed_source.scope,
         });
     }
 
@@ -219,7 +255,7 @@ pub(crate) fn discover_imports(
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
     retained: &mut Vec<ResolvedSourceImport>,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
     let root_dir = root_path
         .parent()
         .map(Path::to_path_buf)
@@ -249,7 +285,11 @@ pub(crate) fn discover_imports(
                     requires_module: !direct_source_import(&owner, &members[prefix..], &resolved),
                     path: resolved.clone(),
                 });
-                imports.push(resolved);
+                // Standalone imports inherit the importer's checked
+                // instance: a build-scope source's imports are host-context
+                // content, never product content by accident of sharing
+                // bytes.
+                imports.push((resolved, parsed_source.scope));
             }
         }
     }
@@ -425,34 +465,27 @@ fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
     }
 }
 
-/// The dependency scope `source_path`'s own imports resolve in.
+/// The dependency edge purpose `source_path`'s own imports resolve under.
 ///
-/// Only the compilation root's package carries build-scope edges: its build
-/// entry and the transitive local helpers it imports select
-/// `build_depend`/`build_depend_as` targets. Every other package's sources —
-/// and any root source never claimed through the build entry — resolve
-/// product-scope imports: a build dependency's own files use its ordinary
-/// `depend` edges even though they execute in the host context
-/// (wiki/spec/build/scoped_execution.md). Which execution profile a package's
-/// target-scoped rows select against is a separate, graph-derived decision;
-/// see [`build_only_packages`]. Scope claims are recorded per source path as
-/// imports are reconciled; an unclaimed root source defaults to product scope.
+/// Only the compilation root's package carries build-scope edges: a
+/// root-owned source's checked instance selects `build_depend`/
+/// `build_depend_as` targets when that instance is build scope. Every other
+/// package's sources — including build-scope instances of dependency
+/// sources — resolve product-scope imports: a build dependency's own files
+/// use its ordinary `depend` edges even though they execute in the host
+/// context (wiki/spec/build/scoped_execution.md). Which execution profile a
+/// package's target-scoped rows select against is a separate, graph-derived
+/// decision; see [`build_only_packages`].
 pub(crate) fn source_import_scope(
     packages: &PackageCompilationInputs,
-    import_scopes: &BTreeMap<PathBuf, DependencyPurpose>,
+    instance_scope: DependencyScope,
     source_path: &Path,
 ) -> DependencyPurpose {
     if packages.package_for_source(source_path) == Some(packages.root()) {
-        import_scopes
-            .get(source_path)
-            .copied()
-            .or_else(|| {
-                source_path
-                    .canonicalize()
-                    .ok()
-                    .and_then(|canonical| import_scopes.get(&canonical).copied())
-            })
-            .unwrap_or(DependencyPurpose::Product)
+        match instance_scope {
+            DependencyScope::Product => DependencyPurpose::Product,
+            DependencyScope::Build => DependencyPurpose::Build,
+        }
     } else {
         DependencyPurpose::Product
     }
@@ -498,41 +531,6 @@ pub(crate) fn build_only_packages(
         .difference(&product_reachable)
         .copied()
         .collect()
-}
-
-/// Record the scope under which a resolved package import target participates.
-///
-/// Only sources owned by the compilation root carry a scope claim: a
-/// dependency's own files always resolve product-scope imports, so claims on
-/// them are meaningless. A root-owned source claimed under both scopes is a
-/// program error — the two contexts must not silently share one checked copy
-/// of a file.
-pub(crate) fn claim_import_scope(
-    packages: &PackageCompilationInputs,
-    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
-    requesting_source: &Path,
-    target_package: semantic_vocabulary::PackageKeyIdentity,
-    target: &Path,
-    purpose: DependencyPurpose,
-) -> Result<(), Vec<Diagnostic>> {
-    if target_package != packages.root() {
-        return Ok(());
-    }
-    match import_scopes.entry(target.to_path_buf()) {
-        std::collections::btree_map::Entry::Vacant(entry) => {
-            entry.insert(purpose);
-        }
-        std::collections::btree_map::Entry::Occupied(entry) if *entry.get() != purpose => {
-            return Err(vec![Diagnostic::error(format!(
-                "import in {} reaches {}, which the {} scope already claims; a source joins exactly one dependency scope",
-                requesting_source.display(),
-                target.display(),
-                entry.get().name(),
-            ))]);
-        }
-        std::collections::btree_map::Entry::Occupied(_) => {}
-    }
-    Ok(())
 }
 
 pub(crate) fn reconciled_package_import(
@@ -766,8 +764,7 @@ pub(crate) fn discover_imports_with_packages(
     generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
-    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
     let (imports, _) = discover_package_imports(
         parsed,
         syntax_trees,
@@ -775,7 +772,6 @@ pub(crate) fn discover_imports_with_packages(
         PackageImportPhase::ExactTarget(generated_owner),
         retained,
         contract_custody,
-        import_scopes,
     )?;
     Ok(imports)
 }
@@ -787,10 +783,9 @@ pub(crate) enum PackageImportPhase {
 
 /// Retain package requests until the exact child checks generated-source collisions.
 ///
-/// `import_scopes` records which dependency scope each compilation-root source
-/// participates in: the selected build entry and the root-local files it
-/// imports are build scope; every other source is product scope. Claims
-/// propagate from importer to imported target as package imports reconcile.
+/// Each returned path carries the checked instance it joins under: the
+/// importer's own scope. A source both scopes import loads twice — the two
+/// instances share source bytes and package identity but nothing else.
 pub(crate) fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
@@ -798,8 +793,7 @@ pub(crate) fn discover_package_imports(
     phase: PackageImportPhase,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
-    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
-) -> Result<(Vec<PathBuf>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
+) -> Result<(Vec<(PathBuf, DependencyScope)>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
         PackageImportPhase::ExactTarget(owner) => owner,
@@ -811,7 +805,7 @@ pub(crate) fn discover_package_imports(
         // package association; their virtual paths need no filesystem lookup.
         let requester =
             generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
-        let purpose = source_import_scope(packages, import_scopes, &parsed_source.path);
+        let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             let Item::Use(use_item) = syntax_trees.root_item(*root_item) else {
@@ -841,7 +835,7 @@ pub(crate) fn discover_package_imports(
                         ),
                         path: path.clone(),
                     });
-                    imports.push(path);
+                    imports.push((path, parsed_source.scope));
                 }
                 ReconciledPackageImport::ToolchainContract { root, path } => {
                     retained.push(ResolvedSourceImport {
@@ -854,7 +848,7 @@ pub(crate) fn discover_package_imports(
                         requires_module: !direct_source_import(&root, members, &path),
                         path: path.clone(),
                     });
-                    imports.push(path);
+                    imports.push((path, parsed_source.scope));
                 }
                 ReconciledPackageImport::Package(request) => {
                     let prefix = members.len() - request.relative_path.components().count();
@@ -865,34 +859,19 @@ pub(crate) fn discover_package_imports(
                             members,
                             prefix,
                         ),
+                        scope: parsed_source.scope,
                         request,
                     };
                     match phase {
                         PackageImportPhase::TargetIndependent => {
                             if let Some(physical) = pending.physical_source()? {
-                                claim_import_scope(
-                                    packages,
-                                    import_scopes,
-                                    &parsed_source.path,
-                                    pending.request.package,
-                                    &physical,
-                                    purpose,
-                                )?;
-                                imports.push(physical);
+                                imports.push((physical, parsed_source.scope));
                             }
                             requests.push(pending);
                         }
                         PackageImportPhase::ExactTarget(_) => {
                             let resolved = pending.resolve_for_exact_target(packages)?;
-                            claim_import_scope(
-                                packages,
-                                import_scopes,
-                                &parsed_source.path,
-                                pending.request.package,
-                                &resolved.path,
-                                purpose,
-                            )?;
-                            imports.push(resolved.path.clone());
+                            imports.push((resolved.path.clone(), parsed_source.scope));
                             retained.push(resolved);
                         }
                     }
@@ -1085,7 +1064,6 @@ mod missing_dependency_edge_tests {
     use package_compilation::{
         PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
     };
-    use std::collections::BTreeMap;
     use std::path::PathBuf;
     use syntax_trees::SyntaxTrees;
 
@@ -1158,7 +1136,10 @@ mod missing_dependency_edge_tests {
             std::fs::write(&main, source).expect("write consumer source");
             let mut syntax_trees = SyntaxTrees::default();
             let parsed = parse_sources(
-                lex_sources(load_sources(vec![main], 0)?)?,
+                lex_sources(load_sources(
+                    vec![(main, source::DependencyScope::Product)],
+                    0,
+                )?)?,
                 &mut syntax_trees,
             )?;
             discover_package_imports(
@@ -1168,9 +1149,8 @@ mod missing_dependency_edge_tests {
                 PackageImportPhase::ExactTarget(None),
                 &mut Vec::new(),
                 &ToolchainContractCustody::default(),
-                &mut BTreeMap::new(),
             )
-            .map(|(imports, _)| imports)
+            .map(|(imports, _)| imports.into_iter().map(|(path, _)| path).collect())
         }
     }
 

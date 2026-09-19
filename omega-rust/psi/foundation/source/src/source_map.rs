@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::{SourceFile, SourceId, SourceOrigin, SourceResolutionStratum, SourceSpan};
+use crate::{
+    DependencyScope, SourceFile, SourceId, SourceOrigin, SourceResolutionStratum, SourceSpan,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -90,11 +92,37 @@ impl SourceMap {
         origin: SourceOrigin,
         resolution_stratum: SourceResolutionStratum,
     ) -> &SourceFile {
+        self.add_checked_instance(
+            path,
+            source,
+            package_root,
+            package_identity,
+            origin,
+            resolution_stratum,
+            DependencyScope::Product,
+        )
+    }
+
+    /// Add one checked instance of a source. The same path may join once per
+    /// dependency scope: the two instances share source bytes and package
+    /// identity but nothing else
+    /// (wiki/spec/build/scoped_execution.md, "Two checked contexts").
+    pub fn add_checked_instance(
+        &mut self,
+        path: PathBuf,
+        source: String,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+        resolution_stratum: SourceResolutionStratum,
+        dependency_scope: DependencyScope,
+    ) -> &SourceFile {
         self.files.push(SourceFile {
             source_id: SourceId(self.files.len()),
             path,
             package_root,
             package_identity,
+            dependency_scope,
             origin,
             resolution_stratum,
             source: Arc::from(source),
@@ -120,6 +148,25 @@ impl SourceMap {
                 (None, None) => left.package_root == right.package_root,
                 _ => false,
             },
+            _ => false,
+        }
+    }
+
+    /// Whether two declarations belong to one checked instance of a package:
+    /// the same package identity AND the same dependency scope. Two checked
+    /// instances of one source are the same package but never the same
+    /// checked context — lexical sharing (module namespaces, package-private
+    /// visibility, per-context target selection) keys off this predicate.
+    pub fn same_checked_instance(&self, left: SourceSpan, right: SourceSpan) -> bool {
+        match (self.file_at(left), self.file_at(right)) {
+            (Some(left), Some(right)) => {
+                left.dependency_scope == right.dependency_scope
+                    && match (left.package_identity, right.package_identity) {
+                        (Some(left), Some(right)) => left == right,
+                        (None, None) => left.package_root == right.package_root,
+                        _ => false,
+                    }
+            }
             _ => false,
         }
     }

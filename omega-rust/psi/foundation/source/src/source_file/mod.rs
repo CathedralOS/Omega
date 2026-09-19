@@ -24,6 +24,21 @@ pub enum SourceResolutionStratum {
     CurrentActivationExtension,
 }
 
+/// Which dependency context one checked source instance belongs to.
+///
+/// Identical bytes may join a compilation once per scope: a source selected
+/// by both dependency purposes carries two checked instances that share no
+/// module namespace, target-scoped declaration selection, or declaration
+/// authority (wiki/spec/build/scoped_execution.md, "Two checked contexts").
+/// This is deliberately independent of [`SourceResolutionStratum`], which is
+/// an activation-visibility boundary, not a dependency context.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DependencyScope {
+    #[default]
+    Product,
+    Build,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub source_id: SourceId,
@@ -37,6 +52,9 @@ pub struct SourceFile {
     /// nominal identity. Transitional, toolchain, and standalone sources may
     /// not have an admitted package identity yet.
     pub package_identity: Option<PackageKeyIdentity>,
+    /// The dependency context this instance was checked under. Two instances
+    /// of one path carry the same package identity and differ only here.
+    pub dependency_scope: DependencyScope,
     pub origin: SourceOrigin,
     pub resolution_stratum: SourceResolutionStratum,
     pub source: Arc<str>,
@@ -89,7 +107,9 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use crate::{SourceFile, SourceId, SourceOrigin, SourceResolutionStratum, Span};
+    use crate::{
+        DependencyScope, SourceFile, SourceId, SourceOrigin, SourceResolutionStratum, Span,
+    };
 
     #[test]
     fn source_span_carries_source_identity() {
@@ -98,6 +118,7 @@ mod tests {
             path: PathBuf::from("main.omg"),
             package_root: PathBuf::from("."),
             package_identity: None,
+            dependency_scope: DependencyScope::Product,
             origin: SourceOrigin::User,
             resolution_stratum: SourceResolutionStratum::Base,
             source: Arc::from("machine main {}"),

@@ -127,12 +127,32 @@ fn generated_projection_preserves_order_independence_and_custody_errors() {
                 .contains(expected)
         );
     }
+    // Two checked instances of one path consume identical bytes: the
+    // byte-level projection keeps the canonical unit once rather than
+    // rejecting a dual-purpose source (wiki/spec/build/scoped_execution.md).
     let mut repeated = files.clone();
     repeated.push(files[0].clone());
+    assert_eq!(
+        baseline,
+        derive_consumed_source_units(&checked_sources(repeated.clone()), &custody).unwrap()
+    );
+    let package = PackageKeyIdentity::from_digest([9; 32]).expect("package identity");
+    let authored = |text: &str, id| {
+        let mut file = source(
+            "/package/shared.omg",
+            "/package",
+            Some(package),
+            SourceOrigin::User,
+            text,
+        );
+        file.source_id = SourceId(id);
+        file
+    };
+    let colliding = vec![authored("data A {}", 40), authored("data B {}", 41)];
     assert!(
-        derive_consumed_source_units(&checked_sources(repeated.clone()), &custody).unwrap_err()[0]
+        derive_consumed_source_units(&checked_sources(colliding), &[]).unwrap_err()[0]
             .message
-            .contains("duplicate canonical source coordinates")
+            .contains("distinct sources at duplicate canonical coordinates")
     );
     assert!(
         derive_consumed_source_units(&checked_sources(repeated), &missing).unwrap_err()[0]
@@ -332,6 +352,7 @@ fn source(
         path: PathBuf::from(path),
         package_root: PathBuf::from(root),
         package_identity: package,
+        dependency_scope: source::DependencyScope::Product,
         origin,
         resolution_stratum: source::SourceResolutionStratum::Base,
         source: Arc::from(text),

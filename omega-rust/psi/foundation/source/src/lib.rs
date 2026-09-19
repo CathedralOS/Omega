@@ -12,7 +12,9 @@ mod source_file;
 mod source_map;
 mod source_text;
 
-pub use source_file::{SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum};
+pub use source_file::{
+    DependencyScope, SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum,
+};
 pub use source_map::SourceMap;
 pub use source_text::SourceText;
 

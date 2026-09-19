@@ -162,6 +162,32 @@ fn an_import_selects_only_its_own_scope_edges() {
     assert_eq!(fixture.accepted_files(), before);
 }
 
+/// A root-local module imported by the product source and the build source
+/// checks once per scope (wiki/spec/build/scoped_execution.md — two checked
+/// contexts): identical bytes, separate instances, no shared selection.
+#[test]
+fn a_root_local_module_checked_in_both_scopes_keeps_two_instances() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "root/build.omg",
+        "use helper;\nmachine build(builder: &mut Build) {\n    builder.package(\"dual-root\");\n    helper::poke();\n}\n",
+    );
+    fixture.write(
+        "root/main.omg",
+        "use helper;\nmachine main() -> u64 { helper::answer() }\n",
+    );
+    fixture.write(
+        "root/helper.omg",
+        "module helper;\npub machine answer() -> u64 { 7 }\npub machine poke() {}\n",
+    );
+    let output = fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]);
+    assert_status(&output, 0);
+    assert!(
+        fixture.accepted_files().1.is_some(),
+        "update must publish omega.lock"
+    );
+}
+
 #[test]
 fn dropping_an_edge_after_publication_rejects_only_its_authorized_imports() {
     let fixture = purposes_fixture(CROSS_SCOPE_EDGES, "kit");

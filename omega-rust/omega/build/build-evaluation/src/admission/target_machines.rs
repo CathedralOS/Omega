@@ -41,19 +41,26 @@ use typed_trees::TypedTrees;
 /// the selected provider-default declarations must be retained before that
 /// mutation. This carrier owns their deterministic full-name roster and
 /// consumes it exactly once when rebinding the corresponding typed machines.
+/// Each retained name carries its declaring source so two checked instances
+/// of one path rebind to their own typed machine rather than colliding.
 #[derive(Debug)]
 pub struct SelectedTargetMachineDeclarations {
-    provider_default_machine_names: Vec<String>,
-    selected_machine_origins: Vec<(String, String)>,
+    provider_default_machine_names: Vec<(String, source::SourceId)>,
+    selected_machine_origins: Vec<(String, String, source::SourceId)>,
     all_machine_origins: Vec<TargetMachineOrigin>,
 }
 
-/// One target-scoped declaration: its full name, authored target, and whether
-/// that target is the selected one for the declaration's dependency scope.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// One target-scoped declaration: its full name, authored target, declaring
+/// source instance, and whether that target is the selected one for the
+/// declaration's dependency scope. Two checked instances of one file produce
+/// separate rows that never share a validation group.
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct TargetMachineOrigin {
     full_name: String,
     target: String,
+    /// The checked instance (dependency scope) of the declaring source.
+    scope: source::DependencyScope,
+    source: source::SourceId,
     selected: bool,
 }
 
@@ -65,14 +72,22 @@ struct ScopeTargets<'a> {
 }
 
 impl ScopeTargets<'_> {
-    fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
-        let scope_target = if self
+    /// Which dependency scope a machine declaration belongs to.
+    fn scope_of(&self, machine: &syntax_trees::item::Machine) -> source::DependencyScope {
+        if self
             .build_scope_sources
             .contains(&machine.name.source_span().source_id)
         {
-            self.execution
+            source::DependencyScope::Build
         } else {
-            self.product
+            source::DependencyScope::Product
+        }
+    }
+
+    fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
+        let scope_target = match self.scope_of(machine) {
+            source::DependencyScope::Build => self.execution,
+            source::DependencyScope::Product => self.product,
         };
         NativeTarget::from_omega_target_name(Some(target))
             .is_ok_and(|resolved| resolved == scope_target)
@@ -86,13 +101,27 @@ pub struct SettledTargetMachineDeclarations {
 
 impl SelectedTargetMachineDeclarations {
     fn new(
-        mut provider_default_machine_names: Vec<String>,
-        mut selected_machine_origins: Vec<(String, String)>,
+        mut provider_default_machine_names: Vec<(String, source::SourceId)>,
+        mut selected_machine_origins: Vec<(String, String, source::SourceId)>,
         mut all_machine_origins: Vec<TargetMachineOrigin>,
     ) -> Self {
-        provider_default_machine_names.sort();
-        selected_machine_origins.sort();
-        all_machine_origins.sort();
+        provider_default_machine_names.sort_by(|(name, source), (other, other_source)| {
+            name.cmp(other).then(source.0.cmp(&other_source.0))
+        });
+        selected_machine_origins.sort_by(
+            |(name, target, source), (other_name, other_target, other_source)| {
+                name.cmp(other_name)
+                    .then(target.cmp(other_target))
+                    .then(source.0.cmp(&other_source.0))
+            },
+        );
+        all_machine_origins.sort_by(|left, right| {
+            left.scope
+                .cmp(&right.scope)
+                .then_with(|| left.full_name.cmp(&right.full_name))
+                .then_with(|| left.target.cmp(&right.target))
+                .then_with(|| left.source.0.cmp(&right.source.0))
+        });
         Self {
             provider_default_machine_names,
             selected_machine_origins,
@@ -131,9 +160,24 @@ impl SelectedTargetMachineDeclarations {
             .extend(extension.selected_machine_origins);
         self.all_machine_origins
             .extend(extension.all_machine_origins);
-        self.provider_default_machine_names.sort();
-        self.selected_machine_origins.sort();
-        self.all_machine_origins.sort();
+        self.provider_default_machine_names
+            .sort_by(|(name, source), (other, other_source)| {
+                name.cmp(other).then(source.0.cmp(&other_source.0))
+            });
+        self.selected_machine_origins.sort_by(
+            |(name, target, source), (other_name, other_target, other_source)| {
+                name.cmp(other_name)
+                    .then(target.cmp(other_target))
+                    .then(source.0.cmp(&other_source.0))
+            },
+        );
+        self.all_machine_origins.sort_by(|left, right| {
+            left.scope
+                .cmp(&right.scope)
+                .then_with(|| left.full_name.cmp(&right.full_name))
+                .then_with(|| left.target.cmp(&right.target))
+                .then_with(|| left.source.0.cmp(&right.source.0))
+        });
         Ok(self)
     }
 
@@ -146,12 +190,14 @@ impl SelectedTargetMachineDeclarations {
         let mut defaults = Vec::new();
         let mut origins = Vec::new();
         let mut diagnostics = Vec::new();
-        for machine_name in self.provider_default_machine_names {
-            let Some(machine) = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == machine_name)
-            else {
+        for (machine_name, source) in &self.provider_default_machine_names {
+            let Some(machine) = typed.machines().iter().find(|machine| {
+                machine.name.as_str() == machine_name
+                    && typed
+                        .symbols
+                        .symbol_provenance_source_span(machine.symbol)
+                        .is_some_and(|span| span.source_id == *source)
+            }) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "selected target provider-default machine `{machine_name}` did not survive lowering"
                 )));
@@ -162,11 +208,17 @@ impl SelectedTargetMachineDeclarations {
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
         }
-        for (machine_name, target) in self.selected_machine_origins {
+        for (machine_name, target, source) in &self.selected_machine_origins {
             let matches = typed
                 .machines()
                 .iter()
-                .filter(|machine| machine.name.as_str() == machine_name)
+                .filter(|machine| {
+                    machine.name.as_str() == machine_name
+                        && typed
+                            .symbols
+                            .symbol_provenance_source_span(machine.symbol)
+                            .is_some_and(|span| span.source_id == *source)
+                })
                 .collect::<Vec<_>>();
             let [machine] = matches.as_slice() else {
                 diagnostics.push(Diagnostic::error(format!(
@@ -177,7 +229,7 @@ impl SelectedTargetMachineDeclarations {
             };
             origins.push(provider_planning::SelectedTargetMachineOrigin {
                 machine: machine.symbol,
-                target,
+                target: target.clone(),
             });
         }
         if diagnostics.is_empty() {
@@ -244,6 +296,8 @@ fn target_machine_origins(
         let full_name = machine.name.as_str().to_owned();
         origins.push(TargetMachineOrigin {
             selected: scopes.selects(machine, target.as_str()),
+            scope: scopes.scope_of(machine),
+            source: machine.name.source_span().source_id,
             full_name,
             target: target.as_str().to_owned(),
         });
@@ -252,18 +306,23 @@ fn target_machine_origins(
 }
 
 fn validate_target_machine_origins(origins: &[TargetMachineOrigin]) -> Result<(), Vec<Diagnostic>> {
-    // full machine name -> (selected count, non-selected target names).
-    // BTreeMap keeps diagnostics deterministic across runs and generated units.
-    let mut rows: BTreeMap<&str, (usize, Vec<&str>)> = BTreeMap::new();
+    // (dependency scope, full machine name) -> (selected count, non-selected
+    // target names). The zero-or-two rule applies within one checked
+    // instance: two instances of a dual-purpose file legitimately select the
+    // same-named row once each. BTreeMap keeps diagnostics deterministic
+    // across runs and generated units.
+    let mut rows: BTreeMap<(source::DependencyScope, &str), (usize, Vec<&str>)> = BTreeMap::new();
     for origin in origins {
-        let entry = rows.entry(origin.full_name.as_str()).or_default();
+        let entry = rows
+            .entry((origin.scope, origin.full_name.as_str()))
+            .or_default();
         if origin.selected {
             entry.0 += 1;
         } else {
             entry.1.push(origin.target.as_str());
         }
     }
-    for (full_name, (selected_count, other_targets)) in rows {
+    for ((_, full_name), (selected_count, other_targets)) in rows {
         if selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "machine `{full_name}` is implemented twice for the selected target -- \
@@ -316,10 +375,11 @@ fn select_target_machines(
             continue;
         }
         let full_name = machine.name.as_str().to_owned();
+        let declaring_source = machine.name.source_span().source_id;
         if full_name.ends_with("::provider_defaults") {
-            provider_default_machines.push(full_name.clone());
+            provider_default_machines.push((full_name.clone(), declaring_source));
         }
-        selected_machine_origins.push((full_name, target.as_str().to_owned()));
+        selected_machine_origins.push((full_name, target.as_str().to_owned(), declaring_source));
 
         // Typed machines intentionally carry no target marker after this
         // selection point.
@@ -368,7 +428,11 @@ mod tests {
         .expect("build-scope helper selects against the execution profile");
         assert_eq!(
             retained.selected_machine_origins,
-            vec![("Tool::probe".into(), "macos_arm64".into())]
+            vec![(
+                "Tool::probe".into(),
+                "macos_arm64".into(),
+                source::SourceId(7)
+            )]
         );
         let selected_markers = helper
             .root_items()
@@ -416,8 +480,8 @@ mod tests {
     fn missing_typed_provider_default_machines_report_sorted_full_names() {
         let declarations = SelectedTargetMachineDeclarations::new(
             vec![
-                "Zed::provider_defaults".into(),
-                "Alpha::provider_defaults".into(),
+                ("Zed::provider_defaults".into(), source::SourceId(0)),
+                ("Alpha::provider_defaults".into(), source::SourceId(0)),
             ],
             Vec::new(),
             Vec::new(),
@@ -458,14 +522,26 @@ mod tests {
 
         assert_eq!(
             retained.provider_default_machine_names,
-            vec!["Generated::provider_defaults"]
+            vec![("Generated::provider_defaults".into(), source::SourceId(1))]
         );
         assert_eq!(
             retained.selected_machine_origins,
             vec![
-                ("Base::value".into(), "linux_x86_64".into()),
-                ("Generated::provider_defaults".into(), "linux_x86_64".into(),),
-                ("Generated::value".into(), "linux_x86_64".into()),
+                (
+                    "Base::value".into(),
+                    "linux_x86_64".into(),
+                    source::SourceId(0)
+                ),
+                (
+                    "Generated::provider_defaults".into(),
+                    "linux_x86_64".into(),
+                    source::SourceId(1)
+                ),
+                (
+                    "Generated::value".into(),
+                    "linux_x86_64".into(),
+                    source::SourceId(1)
+                ),
             ]
         );
         let generated_targets = extension

@@ -76,7 +76,9 @@ pub(crate) fn collect_root_bindings(
                             .symbols
                             .symbol_source_span(machine.symbol)
                             .is_some_and(|span| {
-                                typed.symbols.same_source_package(span, binding.source_span)
+                                typed
+                                    .symbols
+                                    .same_product_package_instance(binding.source_span, span)
                             })
                 })
                 .collect::<Vec<_>>();
