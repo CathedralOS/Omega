@@ -147,21 +147,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selected-lowering operations, both occurrence roles, and the exemption for
   verified-eliminated occurrences already replay through it with missing,
   duplicate, stale, substituted, padded and role-swapped children rejecting.
-  Coverage is still all-or-nothing per artifact: `derive_physical_evidence`
-  returns `Ok(None)` at eight points, so one occurrence whose realization has
-  no span arm drops the physical evidence for the whole artifact, and a
-  consumer calling `require_native_physical_evidence` sees only
-  `NativePhysicalEvidenceUnavailable` without learning which occurrence failed.
+  Coverage is attributed per occurrence rather than all-or-nothing: a
+  surviving occurrence whose realization admits no span arm yields a
+  `Blocked` `NativePhysicalEvidenceGap` naming its exact subject, and
+  `require_native_physical_evidence` surfaces it as
+  `NativePhysicalEvidenceBlocked` instead of erasing the artifact's
+  evidence unattributed.
 
   Remaining work:
 
-  - Operator applications. `physical/operator_applications.rs` spans only
-    `NongenericCheckedBody` and `SpecializedCheckedBody` — a direct call span,
-    or a fragment call under fragment publication — and
+  - Operator applications. `physical/operator_applications.rs` spans
+    `NongenericCheckedBody` and `SpecializedCheckedBody` — a direct call
+    span, or a fragment call under fragment publication; both arms cover
+    all five static call kinds (`Call`, `CallUnit`, `CallStructural`,
+    `CallStructuralScalar`, `CallStructuralWithScalarArguments`) — and
     `ExactCompilerIntrinsic`, as an FMA span plus an IEEE float-compare
-    fragment. `derive_checked_call_span` yields no span for an operation kind
-    outside `Call`, `CallUnit`, `CallStructuralScalar` and
-    `CallStructuralWithScalarArguments`.
+    fragment. `CallDynamic*` kinds carry descriptor or parameter ordinals
+    rather than a static callee, and other intrinsic kinds have no span
+    arm, so those occurrences remain named gap subjects. Regression:
+    `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
+    (Linux x86-64) drives a structural-result boundary operator through
+    emission, exact-child binding, and every mutation-class rejection.
   - Boundary settlements. `derivation/evidence.rs` matches three hosted
     builtins by exact execution and realization pair (`HostedExitProcessI32`,
     `HostedWriteByteI32`, `HostedReadByte`), the admitted-provider settlement,

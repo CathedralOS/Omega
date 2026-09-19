@@ -2467,3 +2467,234 @@ machine Main::main(&mut self) {
         );
     });
 }
+
+#[test]
+fn structural_result_operator_occurrence_replays_one_exact_physical_child() {
+    // A checked boundary operator application whose realization returns a
+    // structural result lowers to `CallStructuralWithScalarArguments`, which
+    // emitted the same resolved internal machine call as the scalar call
+    // kinds. The surviving operator occurrence still binds exactly one
+    // OperatorApplicationCoverage child through allocation, layout, and
+    // native emission; independent replay rejects every mutation class —
+    // missing, duplicate, stale, substituted, padded, and role-swapped
+    // children.
+    let root = std::env::temp_dir().join(format!(
+        "omega-physical-child-structural-operator-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create structural-operator physical-child project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data Cell {
+    value: i64;
+}
+
+data GenericMath {}
+
+boundary operator GenericMath::pick(items: Cell, at: i64) -> Cell;
+
+data GenericProvider {}
+
+machine GenericProvider::pick(items: Cell, at: i64) -> Cell
+satisfies GenericMath::pick
+{
+    items
+}
+
+machine consume(items: Cell) {
+    let selected: Cell = GenericMath::pick(items, 2);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let items: Cell = Cell { value: 7 };
+    consume(items);
+}
+"#,
+    )
+    .expect("write structural-operator physical-child main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("structural-operator-physical-child");
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+}
+"#,
+    )
+    .expect("write structural-operator physical-child build");
+    let root_identity = package_identity(53);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("structural-operator physical-child package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_arm64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the structural-operator selection must carry a boundary occurrence to native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("structural-operator compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("structural-operator native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact.physical_evidence().unwrap_or_else(|| {
+        panic!(
+            "the surviving boundary occurrence retains nonempty physical evidence; gap: {:?}",
+            artifact.physical_evidence_gap()
+        )
+    });
+    let [occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the structural boundary operator must survive as exactly one operator occurrence")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    let [child] = physical.children() else {
+        panic!("the surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+    );
+    assert_eq!(child.projection(), physical.projection().identity());
+    assert!(matches!(
+        child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(child.machine_span().byte_count() > 0);
+    assert!(child.object_span().byte_count() > 0);
+    assert_eq!(
+        child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+
+    // Independent replay from the published parts alone: every mutation
+    // class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+
+    let mut missing = replay_native_artifact_parts(&parts);
+    let evidence = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: Vec::new(),
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "a missing physical child must not replay"
+    );
+
+    let mut duplicate = replay_native_artifact_parts(&parts);
+    let evidence = duplicate
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let [only_child] = evidence.children.as_slice() else {
+        panic!("one physical child before duplication")
+    };
+    duplicate.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: vec![only_child.clone(), only_child.clone()],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        "a duplicate physical child must not replay"
+    );
+
+    let assert_mutated_child_rejected =
+        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let [child] = evidence.children.as_slice() else {
+                panic!("one physical child before mutation")
+            };
+            let mut child = child.clone().into_parts();
+            mutate(&mut child);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children: vec![
+                            native_realization::NativePhysicalChild::from_replayed_parts(child),
+                        ],
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "a mutated physical child must not replay"
+            );
+        };
+    // Role-swapped: the operator occurrence cannot be re-presented as a
+    // boundary occurrence.
+    assert_mutated_child_rejected(&|child| {
+        assert!(matches!(
+            child.parent,
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        ));
+        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
+                child.occurrence.identity(),
+            ),
+        );
+    });
+    // Padded: the machine span must name exactly the emitted call interval.
+    assert_mutated_child_rejected(&|child| {
+        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+            child.machine_span.offset(),
+            child.machine_span.byte_count() + 1,
+        );
+    });
+    // Substituted: the child must bind the validated projection identity.
+    assert_mutated_child_rejected(&|child| {
+        child.projection =
+            optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+    // Stale: an occurrence identity no surviving projection names cannot carry
+    // a child.
+    assert_mutated_child_rejected(&|child| {
+        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
+        );
+    });
+}
