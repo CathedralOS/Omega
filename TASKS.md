@@ -3166,15 +3166,19 @@ Owners include
 
   Remaining work:
 
-  - Finish the same-leaf indexed-domain owner collision: the qualified `bounds::Below<8>`
-    customer beside a root `Below` with a different predicate reaches
-    `validation/src/proof_contracts/domains.rs::validate_repeated_normalized_domain_identities`,
-    which compares leaf `name` rather than exact declaration ownership.
+  - Include exact checked-package ownership in domain semantic identity.
+    `syntax-trees-to-symbol-resolved-trees/src/lowering/domain.rs` currently
+    interns a module path and domain name without the package owner, so equal
+    module/domain paths in different packages can alias. Qualification
+    implication treats equal IDs as the same domain;
+    `validation/src/proof_contracts/domains.rs` rejects this cross-owner
+    collision independently of same-owner capacity consistency. Retain that
+    rejection until the producer carries exact ownership through consumers.
     `cargo nextest run -p compiler --test module_machine_indices -E 'test(indexed_domains)'`
-    retains that first failure and the independently replayed nested-membership
-    control (macOS ARM64, base `29ca2fd46e`). Finish owner-aware duplicate
-    validation, then require the same-leaf customer's full Terminal result.
-    Recheck live assignments on the validation crate before editing.
+    retains the cross-package qualification-exchange rejection beside
+    independent same-leaf module execution (macOS ARM64, base `9893b57eac`).
+    Acceptance additionally requires valid same-module/same-leaf declarations
+    from separate packages to reach Terminal with distinct semantic identities.
     Generic carrier-qualified `T::Domain`
     also remains unresolved in `Holder<T>` and its closed instance with or
     without the qualified-selector repair; bare generic-family coverage does
@@ -3204,8 +3208,7 @@ Owners include
     `cargo nextest run -p compiler --test module_machine_indices -E 'test(indexed_domains)'`
     retains those observed boundaries beside source-free literal/named Boolean
     and mixed forwarded-index controls (macOS ARM64, base `2daf4198ba`).
-    The discovery and parser files currently have an active
-    **STRUCTURAL-GENERIC-MATCHING** assignment; coordinate before editing.
+    Recheck live assignments on discovery, parser and typed-probe owners before editing.
     Reuse typed expression evaluation, not untyped fact folding that erases
     operand widths and selected-operation custody.
   - Extend concrete failure discharge in `const_initializers/invocations.rs`

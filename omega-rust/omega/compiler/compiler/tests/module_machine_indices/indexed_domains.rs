@@ -22,7 +22,7 @@ fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
-fn qualified_domain_selection_reaches_the_separate_duplicate_validation_boundary() {
+fn qualified_domain_selection_keeps_distinct_same_leaf_owners_through_terminal() {
     let tree = Sources::new();
     let root = tree.package("root");
     let library = tree.package("library");
@@ -39,16 +39,81 @@ fn qualified_domain_selection_reaches_the_separate_duplicate_validation_boundary
         "use library::settings; domain<const N: u64> u64::Below<N> requires self > N;
          machine read() -> u64 { settings::VALUE }",
     );
-    // Selection must not falsely pool the root's generic leaf with the exact
-    // qualified declaration. Validation still has a separate leaf-name-based
-    // duplicate check; retain this customer until that owner-aware check lands.
+    let checked = compile(&root, package_inputs(&root, &library));
+    assert!(!selections(&checked, "bounds::Below", identity(2)).is_empty());
+    assert_source_free_seven(checked);
+}
+
+#[test]
+fn same_leaf_domain_owners_do_not_hide_a_false_foreign_predicate() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("bounds.omg"),
+        "module bounds; pub domain<const N: u64> u64::Below<N> requires self < N;",
+    );
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; use bounds; pub const VALUE: u64 in bounds::Below<8> = 9;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings; domain<const N: u64> u64::Below<N> requires self > N;
+         machine read() -> u64 { settings::VALUE }",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(error.contains("for const `VALUE` is false"), "{error}");
+}
+
+#[test]
+fn same_owner_capacity_specializations_keep_one_theory_through_terminal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "use codecs; machine read() -> u64 { 7 }",
+    );
+    for predicate in ["valid_utf8", "no_nul"] {
+        Sources::write(
+            root.join("codecs.omg"),
+            &format!(
+                "module codecs;
+                domain [u8; 8]::Utf8 requires valid_utf8(self);
+                domain [u8; 16]::Utf8 requires {predicate}(self);"
+            ),
+        );
+        if predicate == "valid_utf8" {
+            assert_source_free_seven(compile(&root, super::root_inputs(&root)));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(error.contains("different normalized semantics"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn separate_packages_cannot_exchange_qualifications_through_a_shared_domain_identity() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("bounds.omg"),
+        "module bounds; pub domain u64::Tag requires self > 0;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "module bounds; use library::bounds;
+         domain u64::Tag requires self > 100;
+         machine exchange(value: u64 in library::bounds::Tag) -> u64 in Tag { value }
+         machine read() -> u64 { 7 }",
+    );
+    // The producer still interns module paths without package ownership. That
+    // cannot establish cross-package equality merely because the paths match:
+    // equal semantic IDs otherwise short-circuit qualification implication.
     let error = rejection(&root, package_inputs(&root, &library));
     assert!(
-        error.contains("declared more than once with different normalized semantics"),
-        "{error}"
-    );
-    assert!(
-        !error.contains("declaration-site proof checking"),
+        error.contains("normalized semantic identity with a distinct declaration owner"),
         "{error}"
     );
 }

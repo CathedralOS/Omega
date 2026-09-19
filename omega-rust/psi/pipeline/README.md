@@ -454,9 +454,13 @@ value encoding. `module_machine_indices::indexed_domains` covers source-free
 Terminal execution and false, mismatched, private, file-local, transitive,
 ambiguous-import and cyclic controls.
 The shared symbol selector distinguishes a generic family's carrier qualifier
-from a foreign module qualifier. Distinct same-leaf domain predicates still hit
-the validation owner's leaf-name-based duplicate check; this is a remaining
-selection-to-checking dependency, not a language ambiguity.
+from a foreign module qualifier. Validation groups repeated normalized domain
+names within their exact declaring module and checked package; different owners
+may supply different predicates while capacity specializations within one owner
+must agree. Distinct owners must also retain distinct semantic IDs, because
+qualification implication uses ID equality. The producer still omits package
+ownership from domain identity, so equal module/domain paths across packages
+remain rejected rather than exchanging their qualifications through an alias.
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
