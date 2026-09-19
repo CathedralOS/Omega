@@ -45,6 +45,12 @@ pub struct ProofFacts {
     /// Canonical nominal proposition declarations and applications after
     /// transparent aliases and source handles have been eliminated.
     pub proposition_vocabulary: crate::CheckedPropositionVocabulary,
+    /// Checked top-level `let`/`boundary let` mathematical declarations — the
+    /// PROOF-CONTRACT-MIGRATION surface that replaces proposition
+    /// declarations. Each record mirrors one proof-kernel `Declaration`:
+    /// universe binders, the parameter telescope, the statement's result, and
+    /// a transparent term or named-assumption absence.
+    pub mathematical_declarations: Vec<crate::CheckedMathematicalDeclaration>,
 }
 
 impl ProofFacts {
@@ -160,5 +166,6 @@ mod tests {
         assert_eq!(facts.float_meaning_projections, float_meaning_projections);
         assert_eq!(facts.float_meaning_equalities, float_meaning_equalities);
         assert_eq!(facts.proposition_vocabulary, proposition_vocabulary);
+        assert!(facts.mathematical_declarations.is_empty());
     }
 }

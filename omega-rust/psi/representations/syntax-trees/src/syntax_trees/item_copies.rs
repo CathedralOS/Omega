@@ -4,9 +4,10 @@
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
-    DomainDefinition, Item, Machine, MeasureDefinition, OperatorDefinition, ProofFact,
-    ProofMembershipFact, StateParameterHandle, StateParameterNode, TraitDefinition, TypeParameter,
-    UseItem,
+    DomainDefinition, Item, Machine, MathematicalDefinition, MathematicalDefinitionBody,
+    MathematicalParameterNode, MathematicalTypeHandle, MathematicalTypeNode, MeasureDefinition,
+    OperatorDefinition, ProofFact, ProofMembershipFact, StateParameterHandle, StateParameterNode,
+    TraitDefinition, TypeParameter, UseItem,
 };
 use crate::syntax_trees::SyntaxTrees;
 use arena::{Handle, HandleSpan};
@@ -91,6 +92,72 @@ impl SyntaxTrees {
             terminates_guarantee: copied.terminates_guarantee,
             where_facts: copied.where_facts,
         }
+    }
+
+    /// Deep-copy one top-level `let`/`boundary let` declaration from another
+    /// syntax tree. Mirrors the item copies so `extend_from` keeps the exact
+    /// telescope, arrow structure and body term the parser recorded.
+    pub(crate) fn copy_mathematical_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        definition: &MathematicalDefinition,
+    ) -> MathematicalDefinition {
+        MathematicalDefinition {
+            name: definition.name.clone(),
+            is_public: definition.is_public,
+            type_parameters: self.copy_type_parameter_span(other, definition.type_parameters),
+            parameters: self.copy_mapped_span(
+                other
+                    .items
+                    .mathematical_parameters(definition.parameters)
+                    .to_vec(),
+                |this, handle| {
+                    let parameter = other.items.mathematical_parameter(handle);
+                    let node = MathematicalParameterNode {
+                        name: parameter.name.clone(),
+                        relevance: parameter.relevance,
+                        ty: this.copy_mathematical_type(other, parameter.ty),
+                    };
+                    this.items.insert_mathematical_parameter(node)
+                },
+                |this, handle| this.items.append_mathematical_parameter_handle(handle),
+            ),
+            result: self.copy_mathematical_type(other, definition.result),
+            body: match definition.body {
+                MathematicalDefinitionBody::Definition(term) => {
+                    MathematicalDefinitionBody::Definition(self.copy_expression_handle(other, term))
+                }
+                MathematicalDefinitionBody::Assumption => MathematicalDefinitionBody::Assumption,
+            },
+        }
+    }
+
+    fn copy_mathematical_type(
+        &mut self,
+        other: &SyntaxTrees,
+        handle: MathematicalTypeHandle,
+    ) -> MathematicalTypeHandle {
+        let node = match other.items.mathematical_type(handle) {
+            MathematicalTypeNode::Ordinary(type_reference) => MathematicalTypeNode::Ordinary(
+                self.copy_type_reference_handle(other, *type_reference),
+            ),
+            MathematicalTypeNode::Arrow {
+                binder,
+                domain,
+                codomain,
+            } => MathematicalTypeNode::Arrow {
+                binder: binder.clone(),
+                domain: self.copy_mathematical_type(other, *domain),
+                codomain: self.copy_mathematical_type(other, *codomain),
+            },
+            MathematicalTypeNode::Application { callee, arguments } => {
+                MathematicalTypeNode::Application {
+                    callee: self.copy_mathematical_type(other, *callee),
+                    arguments: self.copy_expression_handle_list(other, *arguments),
+                }
+            }
+        };
+        self.items.insert_mathematical_type(node)
     }
 
     pub(crate) fn copy_item(&mut self, other: &SyntaxTrees, item: &Item) -> Item {

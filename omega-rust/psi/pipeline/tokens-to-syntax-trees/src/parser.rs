@@ -1,14 +1,17 @@
 pub use crate::diagnostics::parse_error;
 
 use crate::ParseError;
-use crate::declarations::parse_declaration::parse_item;
+use crate::declarations::parse_declaration::{ParsedDeclaration, parse_item};
 use crate::input::token_cursor::Input;
 use source::SourceId;
 use syntax_trees::{SyntaxTrees, item::ItemHandle};
 use tokens::Token;
 
-/// Parses one source into the caller's arena and returns that source's root handles.
-/// Existing roots retain their identities. On error, the arena retains the parsed prefix.
+/// Parses one source into the caller's arena and returns that source's root
+/// item handles. Top-level `let`/`boundary let` declarations land on
+/// `SyntaxTreeRoots::mathematical_definitions` instead — they are not items —
+/// so they do not appear in the returned list. Existing roots retain their
+/// identities. On error, the arena retains the parsed prefix.
 pub fn parse(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
@@ -17,8 +20,15 @@ pub fn parse(
     let mut input = Input::new(source_id, tokens);
     let mut root_items = Vec::new();
     while !input.tokens.is_empty() {
-        let (item, rest) = parse_item(syntax_trees, input)?;
-        root_items.push(syntax_trees.push_root_item(item));
+        let (declaration, rest) = parse_item(syntax_trees, input)?;
+        match declaration {
+            ParsedDeclaration::Item(item) => {
+                root_items.push(syntax_trees.push_root_item(item));
+            }
+            ParsedDeclaration::Mathematical(definition) => {
+                syntax_trees.push_root_mathematical_definition(definition);
+            }
+        }
         input = rest;
     }
 

@@ -3,6 +3,7 @@ use super::namespace::{parse_module_declaration, parse_package_declaration};
 use super::capability::parse_capability_definition;
 use super::const_item::parse_const_definition;
 use super::domain::parse_domain_definition;
+use super::let_definition::parse_let_definition;
 use super::measure::parse_measure_definition;
 use super::operator::parse_operator_definition;
 use super::proposition::parse_proposition_definition;
@@ -12,13 +13,22 @@ use crate::declarations::data::{parse_boundary_data_definition, parse_data_defin
 use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::Item;
+use syntax_trees::item::{Item, MathematicalDefinition};
 use tokens::{KeywordKind, PunctuationKind};
+
+/// One parsed top-level declaration. `let`/`boundary let` mathematical
+/// declarations are not [`Item`] variants yet — the symbol-resolution
+/// lowering that admits declarations is a separately owned leg — so they ride
+/// their own channel into `SyntaxTreeRoots::mathematical_definitions`.
+pub(crate) enum ParsedDeclaration {
+    Item(Item),
+    Mathematical(MathematicalDefinition),
+}
 
 pub(crate) fn parse_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Item> {
+) -> ParseResult<'tokens, 'source, ParsedDeclaration> {
     if input.at_keyword(KeywordKind::Pub) {
         let input = input.take_keyword(KeywordKind::Pub, "pub")?;
         // Data retains this bit because public structural declarations publish
@@ -27,25 +37,123 @@ pub(crate) fn parse_item<'tokens, 'source>(
         // alias may not publish a private constituent; machines retain it because public checked
         // bodies publish strict authority and operational ceilings. Traits
         // retain it as source-level API metadata independent of trait identity.
-        let (mut item, rest) = parse_item(syntax_trees, input)?;
-        match &mut item {
-            Item::Conformance(conformance) => conformance.is_public = true,
-            Item::Const(constant) => constant.is_public = true,
-            Item::Data(data) => data.is_public = true,
-            Item::Domain(domain) => domain.is_public = true,
-            Item::Machine(machine) => machine.is_public = true,
-            Item::Operator(operator) => operator.is_public = true,
-            Item::Proposition(proposition) => proposition.is_public = true,
-            Item::Trait(trait_definition) => trait_definition.is_public = true,
-            _ => {
-                return Err(rest.error_here(
-                    "`pub` is not yet retained for this declaration kind; refusing to compile a silently private API",
-                ));
-            }
+        // Mathematical declarations retain it because a `boundary let`
+        // assumption's declaration identity is its trust surface, and a
+        // transparent `let` may not publish a private constituent.
+        let (mut declaration, rest) = parse_item(syntax_trees, input)?;
+        match &mut declaration {
+            ParsedDeclaration::Item(item) => match item {
+                Item::Conformance(conformance) => conformance.is_public = true,
+                Item::Const(constant) => constant.is_public = true,
+                Item::Data(data) => data.is_public = true,
+                Item::Domain(domain) => domain.is_public = true,
+                Item::Machine(machine) => machine.is_public = true,
+                Item::Operator(operator) => operator.is_public = true,
+                Item::Proposition(proposition) => proposition.is_public = true,
+                Item::Trait(trait_definition) => trait_definition.is_public = true,
+                _ => {
+                    return Err(rest.error_here(
+                        "`pub` is not yet retained for this declaration kind; refusing to compile a silently private API",
+                    ));
+                }
+            },
+            ParsedDeclaration::Mathematical(definition) => definition.is_public = true,
         }
-        return Ok((item, rest));
+        return Ok((declaration, rest));
     }
 
+    // Top-level mathematical `let` — the selected surface for named
+    // mathematical definitions (mathematical_bindings.md). `boundary let`
+    // rides the `boundary` arm below.
+    if input.at_keyword(KeywordKind::Let) {
+        let input = input.take_keyword(KeywordKind::Let, "let")?;
+        let (definition, rest) = parse_let_definition(syntax_trees, input, false)?;
+        return Ok((ParsedDeclaration::Mathematical(definition), rest));
+    }
+
+    if input.at_contextual("boundary") {
+        let input = input.take_contextual("boundary")?;
+        return parse_boundary_item(syntax_trees, input);
+    }
+
+    let (item, rest) = parse_declared_item(syntax_trees, input)?;
+    Ok((ParsedDeclaration::Item(item), rest))
+}
+
+/// The `boundary` continuation after its contextual keyword: the exported
+/// callable, trusted requirement and data/trait forms, plus `boundary let`
+/// mathematical assumptions.
+fn parse_boundary_item<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ParsedDeclaration> {
+    // `boundary let name<binders>(params): Type;` — a named mathematical
+    // assumption with no body and no implementation-search slot. Its exact
+    // declaration identity is the trust surface receivers admit.
+    if input.at_keyword(KeywordKind::Let) {
+        let input = input.take_keyword(KeywordKind::Let, "let")?;
+        let (definition, rest) = parse_let_definition(syntax_trees, input, true)?;
+        return Ok((ParsedDeclaration::Mathematical(definition), rest));
+    }
+    if input.at_contextual("requirement") {
+        let input = input.take_contextual("requirement")?;
+        let (mut item, rest) = parse_machine(syntax_trees, input)?;
+        if item.spelling.is_some() {
+            return Err(rest.error_here(
+                "a `boundary requirement` does not take a fixed operator token; a \
+                 token-bearing boundary requirement is spelled bodyless \
+                 `boundary machine + Name(...);`",
+            ));
+        }
+        if !item.satisfies.is_empty() {
+            return Err(rest.error_here(
+                "a top-level `boundary requirement` declares a required operation and cannot itself carry a `satisfies` clause",
+            ));
+        }
+        if !item.bodyless {
+            return Err(rest.error_here(
+                "a top-level `boundary requirement` is bodyless and must end with `;`, not a checked `{ ... }` body",
+            ));
+        }
+        item.is_top_level_boundary_requirement = true;
+        return Ok((ParsedDeclaration::Item(Item::Machine(item)), rest));
+    }
+    if input.at_keyword(KeywordKind::Data) {
+        let input = input.take_keyword(KeywordKind::Data, "data")?;
+        let (item, rest) = parse_boundary_data_definition(syntax_trees, input)?;
+        return Ok((ParsedDeclaration::Item(Item::Data(item)), rest));
+    }
+    // THE EXPORTED CALLABLE (settled 2026-07-04): `boundary machine ...`
+    // declares "we export this as a callable surface" -- the entry, a
+    // callback, an interrupt handler. Its parameter list is the
+    // boundary-trusted shape over the arrival bytes; its calling plan is
+    // inferred from the image subsystem.
+    if input.at_keyword(KeywordKind::Machine) {
+        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (mut item, rest) = parse_machine(syntax_trees, input)?;
+        item.boundary = true;
+        if item.service_reach_is_installation_bound
+            && (!item.bodyless || !item.satisfies.is_empty())
+        {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
+            ));
+        }
+        return Ok((ParsedDeclaration::Item(Item::Machine(item)), rest));
+    }
+    if input.at_contextual("operator") {
+        let input = input.take_contextual("operator")?;
+        let (item, rest) = parse_operator_definition(syntax_trees, input, true)?;
+        return Ok((ParsedDeclaration::Item(Item::Operator(item)), rest));
+    }
+    let (item, rest) = parse_trait_definition(syntax_trees, input, true)?;
+    Ok((ParsedDeclaration::Item(Item::Trait(item)), rest))
+}
+
+fn parse_declared_item<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Item> {
     if input.at_contextual("repr") {
         let input = input.take_contextual("repr")?;
         let input = input.take_contextual("native")?;
@@ -257,63 +365,6 @@ pub(crate) fn parse_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
-    if input.at_contextual("boundary") {
-        let input = input.take_contextual("boundary")?;
-        if input.at_contextual("requirement") {
-            let input = input.take_contextual("requirement")?;
-            let (mut item, rest) = parse_machine(syntax_trees, input)?;
-            if item.spelling.is_some() {
-                return Err(rest.error_here(
-                    "a `boundary requirement` does not take a fixed operator token; a \
-                     token-bearing boundary requirement is spelled bodyless \
-                     `boundary machine + Name(...);`",
-                ));
-            }
-            if !item.satisfies.is_empty() {
-                return Err(rest.error_here(
-                    "a top-level `boundary requirement` declares a required operation and cannot itself carry a `satisfies` clause",
-                ));
-            }
-            if !item.bodyless {
-                return Err(rest.error_here(
-                    "a top-level `boundary requirement` is bodyless and must end with `;`, not a checked `{ ... }` body",
-                ));
-            }
-            item.is_top_level_boundary_requirement = true;
-            return Ok((Item::Machine(item), rest));
-        }
-        if input.at_keyword(KeywordKind::Data) {
-            let input = input.take_keyword(KeywordKind::Data, "data")?;
-            let (item, rest) = parse_boundary_data_definition(syntax_trees, input)?;
-            return Ok((Item::Data(item), rest));
-        }
-        // THE EXPORTED CALLABLE (settled 2026-07-04): `boundary machine ...`
-        // declares "we export this as a callable surface" -- the entry, a
-        // callback, an interrupt handler. Its parameter list is the
-        // boundary-trusted shape over the arrival bytes; its calling plan is
-        // inferred from the image subsystem.
-        if input.at_keyword(KeywordKind::Machine) {
-            let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-            let (mut item, rest) = parse_machine(syntax_trees, input)?;
-            item.boundary = true;
-            if item.service_reach_is_installation_bound
-                && (!item.bodyless || !item.satisfies.is_empty())
-            {
-                return Err(rest.error_here(
-                    "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
-                ));
-            }
-            return Ok((Item::Machine(item), rest));
-        }
-        if input.at_contextual("operator") {
-            let input = input.take_contextual("operator")?;
-            let (item, rest) = parse_operator_definition(syntax_trees, input, true)?;
-            return Ok((Item::Operator(item), rest));
-        }
-        let (item, rest) = parse_trait_definition(syntax_trees, input, true)?;
-        return Ok((Item::Trait(item), rest));
-    }
-
     // Identifier-led TARGET-SCOPED boundary machine --
     // `<target> boundary machine Path(..);`. Compiler-catalog leaves retain
     // both facts independently: `boundary` says that the bodyless declaration
@@ -393,6 +444,7 @@ pub(crate) fn parse_item<'tokens, 'source>(
         "`abi`",
         "`machine`",
         "`capability`",
+        "`let`",
         "`library`",
         "`measure`",
         "`host`",
@@ -402,6 +454,7 @@ pub(crate) fn parse_item<'tokens, 'source>(
         "`platform`",
         "`pub`",
         "`trait`",
+        "`boundary let`",
         "`boundary operator`",
         "`boundary requirement`",
         "`boundary data`",

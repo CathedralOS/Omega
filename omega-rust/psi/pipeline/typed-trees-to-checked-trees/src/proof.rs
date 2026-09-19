@@ -13,6 +13,7 @@ mod contract_entailment;
 mod contracts;
 mod evidence_forwarding;
 mod float_meaning;
+mod mathematical_declarations;
 mod obligations;
 mod outcome_arms;
 mod proof_output_calls;
@@ -38,6 +39,7 @@ use checked_trees::{
     BorrowFacts, CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 
+use crate::proof::mathematical_declarations::build_checked_mathematical_declarations;
 use crate::proof::proposition_vocabulary::{
     build_checked_proposition_vocabulary, fact_handles, lower_checked_evidence_interface,
 };
@@ -250,6 +252,7 @@ pub(crate) fn build_proof_facts_with_operators(
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
     let proposition_vocabulary = build_checked_proposition_vocabulary(program);
+    let mathematical_declarations = build_checked_mathematical_declarations(program);
 
     ProofFacts {
         obligations,
@@ -262,6 +265,7 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_exits,
         contract_operator_uses,
         proposition_vocabulary,
+        mathematical_declarations,
         ..ProofFacts::default()
     }
 }
