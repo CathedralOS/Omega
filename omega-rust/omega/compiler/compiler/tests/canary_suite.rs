@@ -307,6 +307,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "drops/core_drop_owner_hook",
     "contracts/proof_fact_indexed_domain_application",
     "memory/address_translation_canary",
+    // The descriptor-table leg of exception-roots-and-timer: the authored
+    // Cathedral gate/table layout is a checked-only surface; materialization
+    // and validation are witnessed in compiler/tests/layout_plans.
+    "memory/interrupt_table_canary",
     "operators/operand_requires_after_effects",
     "dependent/valuation_order_cycle",
     "expressions/match_float_patterns",

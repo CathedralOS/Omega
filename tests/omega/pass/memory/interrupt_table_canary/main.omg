@@ -1,0 +1,28 @@
+// INTERRUPT-TABLE-CANARY: Cathedral's interrupt descriptor table spelled
+// as an ordinary source layout. `cathedral/interrupt_table.omg` carries
+// the package's authored shapes -- the semantic gate record, the table
+// record, and the build-time layout policies that place them on the
+// x86-64 wire encoding. The compiler-side witness lives in
+// `compiler/tests/layout_plans/interrupt_descriptor_tables.rs`: it
+// compiles this program, derives the generic post-handoff writer from
+// the validated table layout, materializes each member's sealed entry
+// into the split `entry` offsets, and runs the package's semantic
+// validator over the produced slots before the established table value
+// is minted. This root only needs to retain the authored types so the
+// checked program carries them.
+
+use cathedral::interrupt_table;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
+
+// Keeping the gate and table in an ordinary parameter/result position is
+// what binds the module's declarations into this program's checked
+// surface; the layout policies themselves are invoked by build-time
+// evaluation, not by authored call sites.
+machine Main::retain(&mut self, table: InterruptDescriptorTable) -> InterruptDescriptorTable {
+    table
+}

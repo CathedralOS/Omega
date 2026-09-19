@@ -2818,12 +2818,25 @@ Owners include
     [machine-state evidence](wiki/spec/build/machine_state_evidence.md) in the
     emitted image. Owners: `backend/machine-emission`,
     `calling-conventions/src/stack_realizations/` and `external-roots`.
-  - Descriptor table. Author it as an ordinary source layout whose split
-    entry-offset fields the generic post-handoff writer
-    (`executable-installation/src/executable_installation/post_handoff_writer.rs`)
-    materializes. The package's validator produces the established value and
-    the checked `lidt` provider edge publishes it. The flag below names the
-    ledger code this replaces.
+  - Descriptor table. The authored half now exists:
+    `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
+    package whose `InterruptGate` layout splits the entry-offset fields into
+    the wired bit placements and whose `InterruptDescriptorTable` layout
+    strides 33 gates at 16 bytes; the generic post-handoff writer
+    materializes the authored image with the installed roots' sealed entries,
+    and
+    `compiler/tests/layout_plans/interrupt_descriptor_tables.rs` decodes the
+    written bytes through the authored layout alone, joins each gate's IST
+    slot to the declared dedicated stack class through the staged TSS, mints
+    `EstablishedInterruptTable`, and drives the ledger admission → issued
+    carrier → checked `lidt` provider edge → `PublishedInterruptTable` path
+    end to end. The flag below names the ledger code this replaces.
+    Remaining on this leg: the established value and the profile are still
+    produced by test-shaped Rust on the compiler side — the Cathedral
+    package needs authored validators and root machines so
+    `interrupt_table/`'s member admission, established-record and
+    publication types can relocate into source; the ledger itself (installed
+    roots, `lidt` contract, checked writer) stays compiler-owned.
   - Timer. The device source, tick record and wake are package code. The
     acknowledgement settles through `InterruptAcknowledgement::complete`, whose
     LAPIC/x2APIC reach waits on `BOUNDED-INSTALLATION-REACH-ROWS`.
