@@ -1151,6 +1151,43 @@ fn computed_boolean_domain_indices_reach_source_free_terminal() {
 }
 
 #[test]
+fn computed_boolean_indices_compose_with_other_const_qualifications() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; pub domain<const Enabled: bool> u64::Gate<Enabled> requires Enabled;
+         pub domain u64::Small requires self < 8;
+         pub domain<const Limit: u64> u64::Below<Limit> requires self < Limit;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings; machine read() -> u64 { settings::RESULT }",
+    );
+    // Nongeneric attachments keep the carrier in their exact address; the
+    // indexed family has a leaf-named declaration. An invalid Small address
+    // would reject selection before testing either predicate.
+    for qualification in [
+        "policy::u64::Small",
+        "policy::Gate<true> & policy::u64::Small",
+        "policy::Gate<ENABLED> & policy::u64::Small",
+        "policy::u64::Small & policy::Gate<(!false)>",
+        "policy::Gate<ENABLED> & policy::Below<(4 + 4)>",
+    ] {
+        Sources::write(
+            library.join("settings.omg"),
+            &format!(
+                "module settings; use policy; const ENABLED: bool = !false;
+             pub const VALUE: u64 in {qualification} = 7;
+             pub const RESULT: u64 = VALUE + 0;"
+            ),
+        );
+        assert_source_free_seven(compile(&root, package_inputs(&root, &library)));
+    }
+}
+
+#[test]
 fn computed_boolean_domain_indices_do_not_publish_placeholder_membership() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -1170,8 +1207,8 @@ fn computed_boolean_domain_indices_do_not_publish_placeholder_membership() {
         (
             "!false",
             "ENABLED",
-            " & policy::Small",
-            "constrained const declarations require declaration-site proof checking",
+            " & policy::u64::Small",
+            "domain constraint `policy::u64::Small` for const `VALUE` is false",
         ),
         (
             "1u8 == 1u64",
