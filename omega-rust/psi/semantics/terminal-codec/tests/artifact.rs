@@ -27,6 +27,8 @@ mod placed_view_input_custody;
 mod proof_section;
 #[path = "artifact/proof_section_custody.rs"]
 mod proof_section_custody;
+#[path = "artifact/reborrow_restored_call_use_custody.rs"]
+mod reborrow_restored_call_use_custody;
 #[path = "artifact/reborrow_root_handoff_custody.rs"]
 mod reborrow_root_handoff_custody;
 #[path = "artifact/recursive_component_custody.rs"]
