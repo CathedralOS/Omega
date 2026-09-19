@@ -9,6 +9,76 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use typed_trees::types::PrimitiveType;
 
 #[test]
+fn constructed_range_equation_preserves_checked_field_values_and_inferred_capacity() {
+    use build_time_evaluation::{
+        BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue,
+    };
+
+    let canary = pass_canary("generics/omitted_data_binder_range_equation");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("omitted Length constructs the exact range type before field checking");
+    let admission = BuildTimeAdmissionPlan::infer(&checked.typed, None);
+    // Check the ordinary field value separately from its declared endpoint:
+    // runtime observations must never redefine the constructed type's bound.
+    // Terminal execution also needs nested fixed-array record construction;
+    // STATE-LOCAL-VALUE-FRONTIER owns that independent storage boundary.
+    for value in [0, 17, 256] {
+        for (name, expected) in [("constructed_value", value), ("constructed_capacity", 256)] {
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| checked.symbols.display_path(machine.symbol, "::") == name)
+                .expect("constructed range consumer");
+            let execution = admission
+                .evaluate_machine_symbol_for_invocation_measured(
+                    &checked.typed,
+                    machine.symbol,
+                    vec![BuildTimeValue::Int(value)],
+                    BuildTimeInvocationCustody::Symbol(machine.symbol),
+                )
+                .unwrap_or_else(|error| panic!("checked range consumer {name}: {error:?}"));
+            assert_eq!(execution.value(), &BuildTimeValue::Int(expected), "{name}");
+        }
+    }
+}
+
+#[test]
+fn constructed_range_equation_keeps_explicit_identity_and_field_obligations() {
+    let canary = pass_canary("generics/omitted_data_binder_range_equation");
+    let source = fs::read_to_string(canary.join("main.omg")).unwrap();
+    let scratch = unique_no_output_build_dir();
+    fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("main.omg");
+    for (name, invalid, expected) in [
+        (
+            "explicit larger range",
+            "machine invalid(value: Bytes<256, u64[0..=512]>) -> Bytes<256> { value }",
+            "where equation binds `Capacity` to 512 but its explicit argument is 256",
+        ),
+        (
+            "field outside the constructed range",
+            "machine invalid() -> u64 { let bytes: Bytes<256> = Bytes { length: 257 }; bytes.length }",
+            "field `length`: value 257 is outside its declared range `0..=256`",
+        ),
+    ] {
+        fs::write(&path, format!("{source}\n{invalid}\n")).unwrap();
+        let diagnostics =
+            compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None))
+                .expect_err(name);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{name}: expected {expected:?}, received {diagnostics:?}",
+        );
+    }
+    fs::remove_dir_all(scratch).unwrap();
+}
+
+#[test]
 fn declared_range_boolean_endpoints_survive_terminal_publication() {
     let canary = pass_canary("generics/declared_range_endpoint_boolean_arguments");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
