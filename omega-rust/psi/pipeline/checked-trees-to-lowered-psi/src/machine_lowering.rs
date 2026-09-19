@@ -69,10 +69,25 @@ pub fn lower_machine_by_symbol(
     lower_terminal_selection(checked, selection)
 }
 
+/// The checked `let`/`boundary let` mathematical declarations carry no
+/// Terminal Psi evidence encoding yet, so no production route may emit a
+/// module that omits them: every public lowering entrance refuses the roster
+/// loudly until PROOF-CONTRACT-MIGRATION consumes it downstream.
+fn reject_mathematical_declarations(checked: &CheckedTrees) -> Result<(), LoweringError> {
+    if checked.facts.proof.mathematical_declarations.is_empty() {
+        return Ok(());
+    }
+    unsupported(
+        "mathematical `let`/`boundary let` declarations check onto checked trees, but \
+         no Terminal evidence encoding carries them yet (PROOF-CONTRACT-MIGRATION)",
+    )
+}
+
 fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
+    reject_mathematical_declarations(checked)?;
     operation_crash_contracts::reject_unjoinable_named_sites(checked, selection.machine)?;
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let exact_guarded_payloadless = checked
@@ -362,6 +377,7 @@ pub fn lower_bounded_callback_identity_machine(
     source_machine: symbols::SymbolHandle,
     source_entry: symbols::SymbolHandle,
 ) -> Result<LoweredCallbackPsi, LoweringError> {
+    reject_mathematical_declarations(checked)?;
     let matching_selection_count = checked
         .facts
         .flow

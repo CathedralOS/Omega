@@ -488,6 +488,31 @@ fn hard_root_checked_fixture() -> CheckedTrees {
     )
 }
 
+#[test]
+fn mathematical_declarations_refuse_at_terminal_lowering() {
+    // Checked `let`/`boundary let` records reach this stage on
+    // `ProofFacts::mathematical_declarations`; no Terminal evidence encoding
+    // carries them yet, so production refuses loudly rather than emit a
+    // module that silently omits them (PROOF-CONTRACT-MIGRATION).
+    let checked = checked_source(
+        r#"
+            let double(x: u64): u64 = x;
+
+            machine main() {}
+        "#,
+    );
+    assert_eq!(checked.facts.proof.mathematical_declarations.len(), 1);
+    let error =
+        lower_machine(&checked, "main").expect_err("mathematical declarations refuse at lowering");
+    assert!(
+        matches!(
+            error,
+            LoweringError::Unsupported(reason) if reason.contains("PROOF-CONTRACT-MIGRATION")
+        ),
+        "unexpected lowering error: {error:?}"
+    );
+}
+
 fn source_projection(
     version: CheckedContentPlaceVersion,
     root: CheckedContentPlaceRoot,

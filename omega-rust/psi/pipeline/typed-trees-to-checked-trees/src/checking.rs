@@ -29,23 +29,14 @@ fn check_program(
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     // Mathematical `let`/`boundary let` declarations elaborate into
     // `CheckedMathematicalDeclaration` records and then into a kernel
-    // signature the kernel itself re-decides; run both elaborations so a
-    // declaration that fails either fails with its own diagnostic.
-    // Downstream consumption of the checked signature remains a separate
-    // PROOF-CONTRACT-MIGRATION leg, so an elaborated declaration still
-    // refuses here rather than silently dropping from checked trees.
-    if let Some(definition) = program.mathematical_definitions().first() {
+    // signature the kernel itself re-decides; run both elaborations first so
+    // a declaration that fails either fails with its own diagnostic. The
+    // checked records land on `ProofFacts::mathematical_declarations`; the
+    // Terminal-side consumer refuses them with a named diagnostic until the
+    // evidence encoding lands (PROOF-CONTRACT-MIGRATION).
+    if !program.mathematical_definitions().is_empty() {
         crate::proof::build_checked_mathematical_declarations(&program)?;
         crate::proof::check_mathematical_signature(&program)?;
-        let mut diagnostic = diagnostics::Diagnostic::error(
-            "mathematical `let`/`boundary let` declarations elaborate to the checked \
-                 surface and check as kernel signature declarations, but downstream \
-                 consumption is not implemented yet (PROOF-CONTRACT-MIGRATION)",
-        );
-        if let Some(span) = program.symbols.symbol_source_span(definition.symbol) {
-            diagnostic = diagnostic.with_source_span(span);
-        }
-        return Err(vec![diagnostic]);
     }
     // A deferred range endpoint is pre-check-continuation custody: the
     // semantic evaluation owner marks it when its fold must wait for selected
@@ -393,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn mathematical_declarations_refuse_at_checked_lowering() {
+    fn mathematical_declarations_check_into_checked_facts() {
         use source_files_to_tokens::Lexer;
         use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
         use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -406,14 +397,15 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
-        let diagnostics =
-            crate::lower_typed_trees(typed).expect_err("checked elaboration is pending");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("PROOF-CONTRACT-MIGRATION")),
-            "unexpected diagnostics: {diagnostics:?}"
-        );
+        let checked =
+            crate::lower_typed_trees(typed).expect("elaborated declarations check into facts");
+        let [declaration] = checked.facts.proof.mathematical_declarations.as_slice() else {
+            panic!("one checked mathematical declaration expected");
+        };
+        assert_eq!(declaration.name, "double");
+        assert_eq!(declaration.result, "u64");
+        assert!(!declaration.is_assumption());
+        assert_eq!(declaration.parameters.len(), 1);
     }
 
     #[test]

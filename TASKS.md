@@ -1730,12 +1730,18 @@ Owners include
   shared signature prefix, telescopes and arrows fold to `Pi`/`Lambda`
   spines over de Bruijn scope, `core::Squash` forms the proposition, and a
   transparent definition body must inhabit its declared result or the
-  program fails with that declaration's own kernel diagnostic.
-  `checking.rs` still refuses programs carrying them — `Constant` level
-  instantiation, machine-valued body denotation, applied carriers, and
-  downstream consumption are pending legs. No `core::Level`, `Type`,
-  `Strict` or `Squash` declaration exists, and the dedicated `proposition`
-  declaration with its named-witness call lanes
+  program fails with that declaration's own kernel diagnostic. Binder
+  property bounds and `Machine`/`Proposition` binder kinds already refuse
+  loudly in `mathematical_signature.rs::plan_binder`.
+  `checking.rs` now admits programs carrying them: the checked records land
+  on `ProofFacts::mathematical_declarations`, and every
+  `checked-trees-to-lowered-psi` entrance refuses them with a named
+  `PROOF-CONTRACT-MIGRATION` diagnostic (fail canary
+  `proofs/mathematical_declaration_lowering_rejected`) until a Terminal
+  evidence encoding exists — `Constant` level instantiation, machine-valued
+  body denotation, applied carriers, and that encoding are pending legs. No
+  `core::Level`, `Type`, `Strict` or `Squash` declaration exists, and the
+  dedicated `proposition` declaration with its named-witness call lanes
   (`typed-trees-to-checked-trees/src/proof/proof_output_calls.rs`) still
   carries `core/int.omg` and 37 files under `tests/`.
 
@@ -1751,8 +1757,10 @@ Owners include
     references to polymorphic declarations, denote machine-valued body
     expressions (the bounded-denotation leg), replace authored-name carrier
     classification with symbol identity once the fixed `core::*`
-    declarations exist, consume the checked signature downstream, and admit
-    the surface past the `checking.rs` refusal. Preserve ordinary local bindings, complete
+    declarations exist, and encode the checked signature into Terminal
+    evidence so the lowering consumer stops refusing
+    (`terminal-codec`'s certificate wire exists but has no production
+    caller). Preserve ordinary local bindings, complete
     machine calls and executable callback selection. Add no quantifier
     keywords, and do not substitute declaration enumeration or an
     optional-returning decider for mathematical quantification.
