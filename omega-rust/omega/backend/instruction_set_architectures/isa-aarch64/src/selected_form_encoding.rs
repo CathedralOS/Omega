@@ -20,6 +20,7 @@ mod integer_normalization_tests;
 mod jump;
 mod memory;
 mod movn_materialization;
+mod normalized_foreign_call;
 mod scalar_call;
 mod selected_forms;
 #[cfg(test)]
@@ -49,5 +50,6 @@ pub use movn_materialization::{
     aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
     validate_aarch64_shortest_movn_materialization,
 };
+pub use normalized_foreign_call::*;
 pub use scalar_call::*;
 pub use selected_forms::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};

@@ -13,7 +13,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v26\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v27\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -42,6 +42,10 @@ pub fn machine_effect_catalog_identity(
     encode_len(&mut bytes, catalog.selected_keys.call_unit_mixed.len());
     encode_len(&mut bytes, catalog.selected_keys.call_scalar.len());
     encode_len(&mut bytes, catalog.selected_keys.call_aggregate.len());
+    encode_len(
+        &mut bytes,
+        catalog.selected_keys.call_normalized_foreign.len(),
+    );
     encode_len(&mut bytes, catalog.selected_keys.return_aggregate.len());
     let selected_keys = catalog.selected_keys.in_identity_order();
     encode_len(&mut bytes, selected_keys.len());
@@ -82,6 +86,12 @@ pub fn machine_effect_catalog_identity(
                 pre_call_stack_alignment,
             } => {
                 bytes.push(1);
+                bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+            }
+            crate::MachineCallEffect::DirectExternalNormalReturnV1 {
+                pre_call_stack_alignment,
+            } => {
+                bytes.push(2);
                 bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
             }
         }

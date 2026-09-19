@@ -23,6 +23,15 @@ pub(super) fn check(
             matches!(actual, Control::DirectInternalCall { callee: target } if *target == callee),
         );
     }
+    if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {
+        return require(matches!(
+            actual,
+            Control::NormalizedForeignCall {
+                boundary: actual_boundary,
+                ordinal: actual_ordinal,
+            } if *actual_boundary == boundary && *actual_ordinal == ordinal
+        ));
+    }
     let (terminal, predicate, successors) = match &block.terminator {
         SelectedTerminator::Jump {
             instruction: terminal,

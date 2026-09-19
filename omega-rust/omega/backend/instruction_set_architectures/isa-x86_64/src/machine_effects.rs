@@ -76,6 +76,12 @@ pub fn x86_64_machine_effect_catalog(
                         crate::selected_form_encoding::hosted_write_byte::declaration(constraint),
                     );
                 }
+                if semantic == MachineSemanticKind::NormalizedForeignCall {
+                    return Ok(scalar_call::normalized_foreign_declaration(
+                        constraint,
+                        constraints,
+                    ));
+                }
                 Ok(
                     if matches!(
                         semantic,
@@ -243,6 +249,10 @@ fn selected_keys(
         .into_iter()
         .chain(crate::x86_64_float_scalar_call_keys(microsoft))
         .collect(),
+        call_normalized_foreign: match abi {
+            X86_64SelectedAbi::SystemV => crate::x86_64_system_v_normalized_foreign_call_keys(),
+            X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_normalized_foreign_call_keys(),
+        },
         materialize_i64: X86_64_MATERIALIZE_I64,
         materialize_boolean: crate::X86_64_MATERIALIZE_BOOLEAN,
         copy_i64: X86_64_COPY_I64,

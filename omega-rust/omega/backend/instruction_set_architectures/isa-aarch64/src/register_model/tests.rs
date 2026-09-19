@@ -6,7 +6,8 @@ use super::{
     AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_LINUX_SYSTEM_CALL,
     AARCH64_MATERIALIZE_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SUBTRACT_I64,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_aapcs64_mixed_unit_call_keys,
-    aarch64_darwin_mixed_unit_call_keys, aarch64_fixed_register_view,
+    aarch64_aapcs64_normalized_foreign_call_keys, aarch64_darwin_mixed_unit_call_keys,
+    aarch64_darwin_normalized_foreign_call_keys, aarch64_fixed_register_view,
     aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys,
     aarch64_indirect_aggregate_call_keys, aarch64_mixed_aggregate_call_keys,
     aarch64_physical_register_model, aarch64_preservation_convention_for_target,
@@ -170,6 +171,8 @@ fn register_constraint_catalog_closes_the_required_aarch64_inventory() {
             + aarch64_mixed_aggregate_call_keys(true).len()
             + aarch64_register_aggregate_return_keys(false).len()
             + aarch64_register_aggregate_return_keys(true).len()
+            + aarch64_aapcs64_normalized_foreign_call_keys().len()
+            + aarch64_darwin_normalized_foreign_call_keys().len()
     );
 
     let call = row(catalog, AARCH64_AAPCS64_CALL);

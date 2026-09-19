@@ -96,6 +96,7 @@ fn environment_selected_keys(
         call_unit_mixed: keys.call_unit_mixed.clone(),
         call_scalar: keys.call_scalar.clone(),
         call_aggregate: keys.call_aggregate.clone(),
+        call_normalized_foreign: keys.call_normalized_foreign.clone(),
         return_aggregate: keys.return_aggregate.clone(),
         materialize_i64: keys.materialize_i64,
         materialize_boolean: keys.materialize_boolean,

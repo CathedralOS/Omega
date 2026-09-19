@@ -99,6 +99,11 @@ fn widen(
                     fixup.patch_function_offset = grow(fixup.patch_function_offset)?;
                     fixup.reference_function_offset = grow(fixup.reference_function_offset)?;
                 }
+                if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
+                    fixup.opcode_function_offset = grow(fixup.opcode_function_offset)?;
+                    fixup.patch_function_offset = grow(fixup.patch_function_offset)?;
+                    fixup.reference_function_offset = grow(fixup.reference_function_offset)?;
+                }
             }
         }
     }

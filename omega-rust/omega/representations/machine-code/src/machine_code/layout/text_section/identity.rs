@@ -1,13 +1,14 @@
 use super::{
     InternalMachineCallResolutionKind, InternalMachineCallResolutionState, MachineAlternativeKey,
-    NativeTarget, RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
+    NativeTarget, NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
+    RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
 use selected_instructions::{MachineAlternativeFamily, SaturatingOperation};
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v9";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v10";
 
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,
@@ -78,8 +79,36 @@ pub fn relocation_free_text_section_identity(
         hasher.update(resolution.addend.to_le_bytes());
         hasher.update(resolution.displacement.to_le_bytes());
     }
+    hasher.update((section.unresolved_normalized_foreign_calls.len() as u64).to_le_bytes());
+    for resolution in &section.unresolved_normalized_foreign_calls {
+        hasher.update([match resolution.kind {
+            NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
+            NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
+        }]);
+        hasher.update([match resolution.state {
+            NormalizedForeignCallResolutionState::UnresolvedImportFieldV1 => 1,
+        }]);
+        hasher.update(resolution.caller.get().to_le_bytes());
+        hasher.update(resolution.block.0.to_le_bytes());
+        hasher.update(resolution.instruction.0.to_le_bytes());
+        hasher.update(resolution.operation.get().to_le_bytes());
+        hasher.update(resolution.boundary.get().to_le_bytes());
+        hasher.update(resolution.ordinal.to_le_bytes());
+        hasher.update(resolution.call_function_offset.to_le_bytes());
+        hasher.update(resolution.call_section_offset.to_le_bytes());
+        hasher.update(resolution.call_byte_count.to_le_bytes());
+        hasher.update(resolution.opcode_function_offset.to_le_bytes());
+        hasher.update(resolution.opcode_section_offset.to_le_bytes());
+        hasher.update(resolution.field_function_offset.to_le_bytes());
+        hasher.update(resolution.field_section_offset.to_le_bytes());
+        hasher.update(resolution.next_instruction_function_offset.to_le_bytes());
+        hasher.update(resolution.next_instruction_section_offset.to_le_bytes());
+        hasher.update([resolution.field_byte_width]);
+        hasher.update(resolution.addend.to_le_bytes());
+    }
     hasher.update([match section.relocation_requirements {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => 1,
+        TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
     }]);
     TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finalize())
 }
@@ -247,6 +276,7 @@ mod tests {
                 }],
             }],
             resolved_internal_machine_calls: Vec::new(),
+            unresolved_normalized_foreign_calls: Vec::new(),
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
         };
@@ -320,6 +350,7 @@ mod tests {
                     }],
                 },
             ],
+            unresolved_normalized_foreign_calls: Vec::new(),
             resolved_internal_machine_calls: vec![
                 PlacedInternalMachineCallResolution {
                     kind: InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,

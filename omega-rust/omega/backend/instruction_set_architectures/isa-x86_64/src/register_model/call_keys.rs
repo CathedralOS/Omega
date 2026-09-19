@@ -124,6 +124,36 @@ pub fn x86_64_microsoft_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
     }]
 }
 
+/// Per-plan normalized foreign call rows over the System-V integer bank.
+/// Variants encode `(register arity, has scalar result)` as
+/// `3000 + arity * 2 + has_result`; stack-passed arguments are outgoing
+/// custody, not row operands, so the family bounds at the six-register bank.
+pub fn x86_64_system_v_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
+    (0..=6u32)
+        .flat_map(|arity| {
+            (0..=1u32).map(move |has_result| RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 3000 + arity * 2 + has_result,
+            })
+        })
+        .collect()
+}
+
+/// Per-plan normalized foreign call rows over the Microsoft integer bank.
+/// Variants encode `(register arity, has scalar result)` as
+/// `3040 + arity * 2 + has_result`; stack-passed arguments are outgoing
+/// custody, not row operands, so the family bounds at the four-register bank.
+pub fn x86_64_microsoft_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
+    (0..=4u32)
+        .flat_map(|arity| {
+            (0..=1u32).map(move |has_result| RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 3040 + arity * 2 + has_result,
+            })
+        })
+        .collect()
+}
+
 /// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
 pub const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,

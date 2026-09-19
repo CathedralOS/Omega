@@ -44,6 +44,7 @@ fn zero_span_plan() -> FunctionFragmentEmissionPlan {
                     bytes: Vec::new(),
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                     provenance: SelectedInstructionProvenance::default(),
                     control: FunctionFragmentControlProvenance::None,
                 }],

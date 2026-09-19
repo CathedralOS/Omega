@@ -258,6 +258,7 @@ fn fixture(target: NativeTarget) -> ValidatedCommutingMemberRunInterchange {
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),
             calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
             memory_accesses: vec![
                 access(MEMBER, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
                 access(LOAD_C, 2, SelectedMemoryAccessRole::ReadPlace, 8, 8),

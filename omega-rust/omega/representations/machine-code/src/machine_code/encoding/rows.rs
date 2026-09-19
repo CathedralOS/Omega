@@ -32,6 +32,14 @@ pub enum SelectedFormEncodingState {
         footprint: Box<SelectedFormDecodedFootprint>,
         fixup: SelectedFormInternalMachineFixup,
     },
+    /// Normalized foreign call whose import field stays unresolved until
+    /// object construction binds it to the declared import symbol. The fixup
+    /// names the selected roster row, never a raw foreign coordinate.
+    UnresolvedNormalizedForeignCall {
+        bytes: Vec<u8>,
+        footprint: Box<SelectedFormDecodedFootprint>,
+        fixup: crate::SelectedFormNormalizedForeignCallFixup,
+    },
 }
 
 /// Closed rule-neutral disposition consumed by generic encoding and layout.
@@ -68,6 +76,10 @@ pub struct SelectedFormEncodingCounts {
     pub ordinary_encoded_call_templates: u64,
     pub ordinary_deferred_internal_control: u64,
     pub ordinary_internal_fixups: u64,
+    /// Encoded normalized-foreign-call templates whose import fields stay
+    /// unresolved until object construction binds them to declared import
+    /// symbols. These are not internal control fixups.
+    pub ordinary_normalized_foreign_import_fixups: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,9 @@
 //! Functions, blocks, and instruction spans in an unplaced fragment.
 
-use super::{FunctionFragmentControlProvenance, FunctionFragmentInternalMachineFixup};
+use super::{
+    FunctionFragmentControlProvenance, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentNormalizedForeignCallFixup,
+};
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionProvenance,
 };
@@ -33,6 +36,9 @@ pub struct FunctionFragmentInstructionSpan {
     pub bytes: Vec<u8>,
     pub branch: Option<Box<super::FunctionFragmentBranchEvidence>>,
     pub internal_machine_fixup: Option<FunctionFragmentInternalMachineFixup>,
+    /// Unresolved normalized-foreign-call field awaiting object-level import
+    /// binding. Internal calls and foreign imports never share one fixup.
+    pub normalized_foreign_call_fixup: Option<FunctionFragmentNormalizedForeignCallFixup>,
     pub provenance: SelectedInstructionProvenance,
     pub control: FunctionFragmentControlProvenance,
 }

@@ -5,7 +5,7 @@ use super::super::{
     validation_rules::{
         frame_permissions, transformed_implicit_writes_any, unique_encoding_rows,
         unique_layout_rows, validate_internal_call, validate_non_return,
-        validate_preservation_writes, validate_process_exit,
+        validate_normalized_foreign_call, validate_preservation_writes, validate_process_exit,
     },
 };
 use super::{Inputs, context::Context, require, returned};
@@ -245,6 +245,22 @@ pub(super) fn check(
                         ));
                     }
                     validate_internal_call(
+                        machine.target,
+                        context.stack_pointer,
+                        instruction.id,
+                        encoded,
+                        resolved,
+                    )?;
+                } else if matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::NormalizedForeignCall { .. }
+                ) {
+                    if function_frame.is_none() {
+                        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+                            instruction.id,
+                        ));
+                    }
+                    validate_normalized_foreign_call(
                         machine.target,
                         context.stack_pointer,
                         instruction.id,

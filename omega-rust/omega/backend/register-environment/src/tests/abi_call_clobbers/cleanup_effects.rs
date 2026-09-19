@@ -41,7 +41,8 @@ fn lifecycle_owner(
     match semantic {
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallUnit
-        | MachineSemanticKind::CallAggregate => Some(LifecycleOwner::Call),
+        | MachineSemanticKind::CallAggregate
+        | MachineSemanticKind::NormalizedForeignCall => Some(LifecycleOwner::Call),
         MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnUnit
         | MachineSemanticKind::ReturnAggregate => Some(LifecycleOwner::Return),

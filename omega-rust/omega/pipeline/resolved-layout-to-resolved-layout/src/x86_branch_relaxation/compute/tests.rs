@@ -136,6 +136,7 @@ fn conditional_function(
                         },
                     ))),
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -152,6 +153,7 @@ fn conditional_function(
                     bytes: vec![0x90; fallthrough_arm_bytes],
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -168,6 +170,7 @@ fn conditional_function(
                     bytes: vec![0xc3],
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
         ],
@@ -206,6 +209,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     bytes: vec![0x90; target_block_bytes],
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -233,6 +237,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                         },
                     ))),
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -249,6 +254,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     bytes: vec![0xc3],
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
         ],
@@ -302,6 +308,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                         },
                     ))),
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -329,6 +336,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                         },
                     ))),
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -345,6 +353,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     bytes: vec![0x90; fallthrough_arm_bytes],
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -361,6 +370,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     bytes: vec![0xc3],
                     branch: None,
                     internal_machine_fixup: None,
+                    normalized_foreign_call_fixup: None,
                 }],
             },
         ],

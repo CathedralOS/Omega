@@ -81,6 +81,7 @@ pub(super) fn selected_environment_keys(
         call_unit: keys.call_unit,
         call_scalar: keys.call_scalar,
         call_aggregate: keys.call_aggregate,
+        call_normalized_foreign: keys.call_normalized_foreign,
         return_aggregate: keys.return_aggregate,
         materialize_i64: keys.materialize_i64,
         materialize_boolean: keys.materialize_boolean,
@@ -145,6 +146,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 .into_iter()
                 .chain(isa_x86_64::x86_64_float_scalar_call_keys(false))
                 .collect(),
+            call_normalized_foreign: isa_x86_64::x86_64_system_v_normalized_foreign_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
             copy_i64: X86_64_COPY_I64,
@@ -201,6 +203,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 .into_iter()
                 .chain(isa_x86_64::x86_64_float_scalar_call_keys(true))
                 .collect(),
+            call_normalized_foreign: isa_x86_64::x86_64_microsoft_normalized_foreign_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
             copy_i64: X86_64_COPY_I64,
@@ -260,6 +263,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 .into_iter()
                 .chain(isa_aarch64::aarch64_float_scalar_call_keys(false))
                 .collect(),
+            call_normalized_foreign: isa_aarch64::aarch64_aapcs64_normalized_foreign_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
             copy_i64: AARCH64_COPY_I64,
@@ -319,6 +323,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 .into_iter()
                 .chain(isa_aarch64::aarch64_float_scalar_call_keys(true))
                 .collect(),
+            call_normalized_foreign: isa_aarch64::aarch64_darwin_normalized_foreign_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
             copy_i64: AARCH64_COPY_I64,

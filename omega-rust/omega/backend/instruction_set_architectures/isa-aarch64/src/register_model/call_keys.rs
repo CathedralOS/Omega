@@ -101,6 +101,35 @@ pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
+/// Per-plan normalized foreign call rows over the AAPCS64 integer bank.
+/// Variants encode `(register arity, has scalar result)` as
+/// `3000 + arity * 2 + has_result`; stack-passed arguments are outgoing
+/// custody, not row operands, so the family bounds at the eight-register bank.
+pub fn aarch64_aapcs64_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
+    (0..=8u32)
+        .flat_map(|arity| {
+            (0..=1u32).map(move |has_result| RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 3000 + arity * 2 + has_result,
+            })
+        })
+        .collect()
+}
+
+/// Per-plan normalized foreign call rows over the Darwin AAPCS64 integer
+/// bank. Variants encode `(register arity, has scalar result)` as
+/// `3040 + arity * 2 + has_result`.
+pub fn aarch64_darwin_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
+    (0..=8u32)
+        .flat_map(|arity| {
+            (0..=1u32).map(move |has_result| RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 3040 + arity * 2 + has_result,
+            })
+        })
+        .collect()
+}
+
 /// Exact Linux AAPCS64 scalar call with two U64 arguments and one U64 result.
 pub const AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,

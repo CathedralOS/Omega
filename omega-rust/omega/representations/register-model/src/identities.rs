@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v19\0"
+    b"omega.target-register-environment-identity.v20\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -191,6 +191,7 @@ pub fn target_register_environment_identity(
     }
     for keys in [
         &selected_keys.call_aggregate,
+        &selected_keys.call_normalized_foreign,
         &selected_keys.return_aggregate,
     ] {
         u64_value(&mut bytes, keys.len() as u64);

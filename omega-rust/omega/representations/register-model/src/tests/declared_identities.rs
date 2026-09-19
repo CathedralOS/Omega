@@ -156,6 +156,10 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             family: RegisterConstraintFamily::Call,
             variant: 3,
         }],
+        call_normalized_foreign: vec![RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 3000,
+        }],
         materialize_i64: instruction_key(1),
         materialize_boolean: instruction_key(732),
         copy_i64: instruction_key(5),
@@ -283,6 +287,14 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             call_aggregate: vec![instruction_key(30)],
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            call_normalized_foreign: Vec::new(),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            call_normalized_foreign: vec![instruction_key(30)],
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

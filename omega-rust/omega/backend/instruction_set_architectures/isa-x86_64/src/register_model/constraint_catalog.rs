@@ -18,9 +18,10 @@ use crate::register_model::{
     X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64,
     X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, x86_64_microsoft_aggregate_call_keys,
-    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_register_call_keys,
-    x86_64_microsoft_register_unit_call_keys, x86_64_physical_register_model,
-    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
+    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_normalized_foreign_call_keys,
+    x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
+    x86_64_physical_register_model, x86_64_system_v_aggregate_call_keys,
+    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
     x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::{
@@ -204,7 +205,7 @@ pub fn x86_64_register_constraint_catalog(
                 })
                 .collect(),
             implicit_uses: rip_units.clone(),
-            implicit_defs: rip_units,
+            implicit_defs: rip_units.clone(),
             clobbers: syscall_clobbers,
         },
         RegisterInstructionConstraint {
@@ -353,7 +354,7 @@ pub fn x86_64_register_constraint_catalog(
             id: RegisterConstraintId(15),
             key: X86_64_MICROSOFT_RETURN_UNIT,
             operands: Vec::new(),
-            implicit_uses: rsp_units,
+            implicit_uses: rsp_units.clone(),
             implicit_defs: control_defs.clone(),
             clobbers: Vec::new(),
         },
@@ -586,6 +587,60 @@ pub fn x86_64_register_constraint_catalog(
     returned.key = x86_64_microsoft_aggregate_return_keys()[0];
     constraints.push(returned);
 
+    // Per-plan normalized foreign call rows: one row per (integer bank,
+    // register arity, scalar-result presence). Stack-passed arguments are
+    // outgoing custody, never row operands; every caller-saved register is
+    // clobbered regardless of how many bank registers carry arguments. A row
+    // without a scalar result leaves the ABI result register clobbered, like
+    // the unit-call rows.
+    for (keys, bank, call_convention) in [
+        (
+            x86_64_system_v_normalized_foreign_call_keys(),
+            ["rdi", "rsi", "rdx", "rcx", "r8", "r9"].as_slice(),
+            sysv,
+        ),
+        (
+            x86_64_microsoft_normalized_foreign_call_keys(),
+            ["rcx", "rdx", "r8", "r9"].as_slice(),
+            microsoft,
+        ),
+    ] {
+        for (index, key) in keys.into_iter().enumerate() {
+            let arity = index / 2;
+            let mut operands = bank[..arity]
+                .iter()
+                .enumerate()
+                .map(|(operand, name)| {
+                    fixed(
+                        u16::try_from(operand).expect("operand index fits u16"),
+                        RegisterOperandAccess::Use,
+                        name,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let mut clobbers = call_clobbers(call_convention);
+            if index % 2 == 1 {
+                operands.push(fixed(
+                    u16::try_from(arity).expect("operand index fits u16"),
+                    RegisterOperandAccess::Def,
+                    "rax",
+                ));
+            } else {
+                clobbers = sorted_units(clobbers.into_iter().chain(rax_units.iter().copied()));
+            }
+            constraints.push(RegisterInstructionConstraint {
+                id: RegisterConstraintId(0),
+                key,
+                operands,
+                implicit_uses: sorted_units(
+                    rsp_units.iter().copied().chain(rip_units.iter().copied()),
+                ),
+                implicit_defs: control_defs.clone(),
+                clobbers,
+            });
+        }
+    }
+
     for (key, operands, uses) in [
         (
             X86_64_STORE,
@@ -796,6 +851,8 @@ pub fn x86_64_register_constraint_catalog(
             required.extend(x86_64_system_v_aggregate_return_keys());
             required.extend(x86_64_microsoft_aggregate_call_keys());
             required.extend(x86_64_microsoft_aggregate_return_keys());
+            required.extend(x86_64_system_v_normalized_foreign_call_keys());
+            required.extend(x86_64_microsoft_normalized_foreign_call_keys());
             required.sort_unstable();
             required
         },

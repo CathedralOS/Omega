@@ -1,7 +1,13 @@
-use isa_aarch64::{Aarch64ScalarCallTemplateError, Aarch64SelectedFormEncodingError};
+use isa_aarch64::{
+    Aarch64NormalizedForeignCallTemplateError, Aarch64ScalarCallTemplateError,
+    Aarch64SelectedFormEncodingError,
+};
 use isa_x86_64::X86_64MovR32Imm32I64MaterializationError;
 use isa_x86_64::X86_64MovR64Imm32SignExtendedI64MaterializationError;
-use isa_x86_64::{X86_64ScalarCallTemplateError, X86_64SelectedFormEncodingError};
+use isa_x86_64::{
+    X86_64NormalizedForeignCallTemplateError, X86_64ScalarCallTemplateError,
+    X86_64SelectedFormEncodingError,
+};
 use selected_instructions::SelectedInstructionId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,10 +23,12 @@ pub enum OptimizedSelectedFormEncodingError {
     CountOverflow,
     X86_64(X86_64SelectedFormEncodingError),
     X86_64ScalarCall(X86_64ScalarCallTemplateError),
+    X86_64NormalizedForeignCall(X86_64NormalizedForeignCallTemplateError),
     X86_64MovR32Imm32(X86_64MovR32Imm32I64MaterializationError),
     X86_64MovR64Imm32SignExtended(X86_64MovR64Imm32SignExtendedI64MaterializationError),
     Aarch64(Aarch64SelectedFormEncodingError),
     Aarch64ScalarCall(Aarch64ScalarCallTemplateError),
+    Aarch64NormalizedForeignCall(Aarch64NormalizedForeignCallTemplateError),
     ArtifactMismatch,
 }
 

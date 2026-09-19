@@ -140,6 +140,7 @@ mod tests {
             resolved_internal_machine_calls: vec![],
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            unresolved_normalized_foreign_calls: vec![],
         }
     }
 

@@ -98,15 +98,17 @@ impl FunctionFragmentTextSectionManifest {
             }
         };
         let text_section = TerminalRelocationFreeTextSectionIdentity::from_bytes(cursor.array()?);
-        let relocation_requirements =
-            match cursor.byte()? {
-                1 => TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
-                tag => return Err(
+        let relocation_requirements = match cursor.byte()? {
+            1 => TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            2 => TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
+            tag => {
+                return Err(
                     FunctionFragmentTextSectionManifestDecodeError::UnknownRelocationRequirements(
                         tag,
                     ),
-                ),
-            };
+                );
+            }
+        };
         let statistics = FunctionFragmentTextSectionStatistics {
             functions: u64::from_le_bytes(cursor.array()?),
             blocks: u64::from_le_bytes(cursor.array()?),
@@ -197,6 +199,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.text_section.bytes());
     bytes.push(match record.relocation_requirements {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => 1,
+        TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
     });
     bytes.extend_from_slice(&record.statistics.functions.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.blocks.to_le_bytes());

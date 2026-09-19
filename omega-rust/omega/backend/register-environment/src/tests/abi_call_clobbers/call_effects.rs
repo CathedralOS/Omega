@@ -33,6 +33,11 @@ fn selected_call_rules(
                 .iter()
                 .map(|key| (*key, MachineSemanticKind::CallAggregate)),
         )
+        .chain(
+            keys.call_normalized_foreign
+                .iter()
+                .map(|key| (*key, MachineSemanticKind::NormalizedForeignCall)),
+        )
         .collect()
 }
 
@@ -90,11 +95,20 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             assert_eq!(declaration.barrier, MachineBarrier::Call, "{key:?}");
             // The call contract is bound to the declared preservation
             // convention, not to the effect producer's own constant.
-            assert_eq!(
-                declaration.call,
+            // Normalized foreign rows cross an external boundary: their
+            // normal-return contract is the external variant at the same
+            // convention alignment.
+            let expected_call = if *semantic == MachineSemanticKind::NormalizedForeignCall {
+                MachineCallEffect::DirectExternalNormalReturnV1 {
+                    pre_call_stack_alignment: convention.stack_alignment,
+                }
+            } else {
                 MachineCallEffect::DirectInternalNormalReturnV1 {
                     pre_call_stack_alignment: convention.stack_alignment,
-                },
+                }
+            };
+            assert_eq!(
+                declaration.call, expected_call,
                 "{key:?} must honor the {} call alignment",
                 convention.name
             );
@@ -120,6 +134,9 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 }
                 MachineSemanticKind::CallAggregate => {
                     assert!(results.len() <= 2, "{key:?}")
+                }
+                MachineSemanticKind::NormalizedForeignCall => {
+                    assert!(results.len() <= 1, "{key:?}")
                 }
                 _ => unreachable!("the call sweep only contains call semantics"),
             }

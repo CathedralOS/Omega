@@ -19,6 +19,7 @@ mod control;
 mod ieee_comparison;
 mod integer_conversion;
 mod literal_compare;
+mod normalized_foreign;
 mod process_exit;
 mod scalar_call;
 mod scalar_stack;
@@ -744,6 +745,7 @@ pub(super) fn build_with_environment(
         outgoing_arguments: builder.transport.slots,
         local_storage_slots: builder.transport.local_slots,
         calls: builder.transport.calls,
+        normalized_foreign_calls: builder.transport.normalized_foreign_calls,
         memory_accesses: builder.transport.memory,
         boundary_settlements: builder.transport.settlements,
         entry_block: SelectedBlockId(0),

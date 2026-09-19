@@ -61,7 +61,9 @@ pub use preservation_storage::{
     X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
+pub use register_model::x86_64_microsoft_normalized_foreign_call_keys;
 pub use register_model::x86_64_microsoft_register_call_keys;
+pub use register_model::x86_64_system_v_normalized_foreign_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,
@@ -113,18 +115,26 @@ pub use selected_form_encoding::materialization::xor_zero::{
     validate_x86_64_xor_zero_i64_materialization,
 };
 pub use selected_form_encoding::{
-    ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedScalarCallTemplate,
-    X86_64_SCALAR_CALL_OPCODE_OFFSET, X86_64_SCALAR_CALL_PATCH_OFFSET,
-    X86_64_SCALAR_CALL_PATCH_WIDTH, X86_64_SCALAR_CALL_REFERENCE_OFFSET,
-    X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT, X86_64ScalarCallFixup, X86_64ScalarCallFixupKind,
-    X86_64ScalarCallFixupState, X86_64ScalarCallTemplateError, X86_64SelectedFormEncodingError,
-    X86_64SelectedFormFootprint, encode_x86_64_selected_form,
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_jump_form,
-    encode_x86_64_selected_memory_form, encode_x86_64_selected_nonzero_branch_form,
+    ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedNormalizedForeignCallTemplate,
+    ValidatedX86_64SelectedScalarCallTemplate, X86_64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET,
+    X86_64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET, X86_64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH,
+    X86_64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
+    X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, X86_64_SCALAR_CALL_OPCODE_OFFSET,
+    X86_64_SCALAR_CALL_PATCH_OFFSET, X86_64_SCALAR_CALL_PATCH_WIDTH,
+    X86_64_SCALAR_CALL_REFERENCE_OFFSET, X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallFixupKind,
+    X86_64NormalizedForeignCallFixupState, X86_64NormalizedForeignCallTemplateError,
+    X86_64ScalarCallFixup, X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,
+    X86_64ScalarCallTemplateError, X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
+    encode_x86_64_selected_form, encode_x86_64_selected_i64_less_than_branch_form,
+    encode_x86_64_selected_jump_form, encode_x86_64_selected_memory_form,
+    encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_normalized_foreign_call_template,
     encode_x86_64_selected_scalar_call_template, encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, validate_x86_64_selected_form_encoding,
     validate_x86_64_selected_i64_less_than_branch_form, validate_x86_64_selected_jump_form,
     validate_x86_64_selected_memory_form, validate_x86_64_selected_nonzero_branch_form,
+    validate_x86_64_selected_normalized_foreign_call_template,
     validate_x86_64_selected_scalar_call_template,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,

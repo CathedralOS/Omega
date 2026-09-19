@@ -9,10 +9,11 @@ use super::{
     x86_64_fixed_register_view, x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
     x86_64_indirect_aggregate_call_keys, x86_64_microsoft_aggregate_call_keys,
     x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_mixed_aggregate_call_keys,
-    x86_64_microsoft_mixed_unit_call_keys, x86_64_physical_register_model,
-    x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
-    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
-    x86_64_system_v_mixed_aggregate_call_keys, x86_64_system_v_mixed_unit_call_keys,
+    x86_64_microsoft_mixed_unit_call_keys, x86_64_microsoft_normalized_foreign_call_keys,
+    x86_64_physical_register_model, x86_64_preservation_convention_for_target,
+    x86_64_register_constraint_catalog, x86_64_system_v_aggregate_call_keys,
+    x86_64_system_v_aggregate_return_keys, x86_64_system_v_mixed_aggregate_call_keys,
+    x86_64_system_v_mixed_unit_call_keys, x86_64_system_v_normalized_foreign_call_keys,
 };
 use crate::register_model::physical_model::GPR64;
 use crate::register_model::physical_model::VECTOR128;
@@ -226,6 +227,8 @@ fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
             + x86_64_system_v_aggregate_return_keys().len()
             + x86_64_microsoft_aggregate_call_keys().len()
             + x86_64_microsoft_aggregate_return_keys().len()
+            + x86_64_system_v_normalized_foreign_call_keys().len()
+            + x86_64_microsoft_normalized_foreign_call_keys().len()
     );
 
     let sysv_call = row(catalog, X86_64_SYSTEM_V_CALL);

@@ -2,12 +2,11 @@
 
 use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+    MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 pub(super) fn declaration(
@@ -38,11 +37,7 @@ pub(super) fn declaration(
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: if semantic == MachineSemanticKind::CallAggregate {
-                    MachineAlternativeFamily::CallAggregate
-                } else {
-                    MachineAlternativeFamily::CallScalar
-                },
+                family: semantic.into(),
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
@@ -77,4 +72,23 @@ pub(super) fn declaration(
             },
         }],
     }
+}
+
+/// A normalized foreign call shares the internal-call row effects — operand
+/// views, return-address stack lifecycle, implicit uses/defs, and clobbers all
+/// come from the exact selected constraint row — but its callee is an external
+/// import, so the call effect declares the external normal-return form.
+pub(super) fn normalized_foreign_declaration(
+    constraint: RegisterConstraintKey,
+    constraints: &ValidatedRegisterConstraintCatalog,
+) -> MachineEffectDeclaration {
+    let mut declaration = declaration(
+        MachineSemanticKind::NormalizedForeignCall,
+        constraint,
+        constraints,
+    );
+    declaration.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+        pre_call_stack_alignment: 16,
+    };
+    declaration
 }

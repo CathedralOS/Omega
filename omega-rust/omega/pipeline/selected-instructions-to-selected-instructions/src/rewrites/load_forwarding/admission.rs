@@ -204,6 +204,7 @@ fn bare_function() -> SelectedFunction {
         local_storage_slots: Vec::new(),
         outgoing_arguments: Vec::new(),
         calls: Vec::new(),
+        normalized_foreign_calls: Vec::new(),
         memory_accesses: Vec::new(),
         boundary_settlements: Vec::new(),
         entry_block: selected_instructions::SelectedBlockId(0),

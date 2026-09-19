@@ -22,7 +22,8 @@ use super::{
         EntryAssumptionKind, frame_permissions, target_contract_inputs,
         transformed_implicit_writes_any, unique_encoding_rows, unique_layout_rows,
         validate_internal_call, validate_layout_custody, validate_non_return,
-        validate_preservation_writes, validate_process_exit, validate_return, view,
+        validate_normalized_foreign_call, validate_preservation_writes, validate_process_exit,
+        validate_return, view,
     },
 };
 
@@ -404,6 +405,24 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             ));
                         }
                         validate_internal_call(
+                            target,
+                            stack_pointer,
+                            instruction.id,
+                            encoding_row,
+                            resolved_row,
+                        )?;
+                        continue;
+                    }
+                    if matches!(
+                        instruction.kind,
+                        SelectedInstructionKind::NormalizedForeignCall { .. }
+                    ) {
+                        if function_frame.is_none() {
+                            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+                                instruction.id,
+                            ));
+                        }
+                        validate_normalized_foreign_call(
                             target,
                             stack_pointer,
                             instruction.id,

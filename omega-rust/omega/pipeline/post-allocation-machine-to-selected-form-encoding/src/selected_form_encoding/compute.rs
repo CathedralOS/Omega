@@ -103,6 +103,13 @@ fn encoding_counts(
                     .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
                 &mut counts.ordinary_internal_fixups
             }
+            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. } => {
+                counts.ordinary_encoded_call_templates = counts
+                    .ordinary_encoded_call_templates
+                    .checked_add(1)
+                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+                &mut counts.ordinary_normalized_foreign_import_fixups
+            }
         };
         *count = count
             .checked_add(1)

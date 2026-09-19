@@ -14,6 +14,7 @@ use super::{
     SelectedFormMachineDisposition,
 };
 
+mod normalized_foreign;
 mod route;
 mod scalar_call;
 
@@ -57,6 +58,10 @@ pub(super) fn encode_row(
         RowRoute::InternalCallTemplate => {
             reject_unrouted_address(address)?;
             scalar_call::encode(target, selected.id, selected.kind, machine, physical)?
+        }
+        RowRoute::NormalizedForeignCallTemplate => {
+            reject_unrouted_address(address)?;
+            normalized_foreign::encode(target, selected.id, selected.kind, machine, physical)?
         }
         RowRoute::DeferredControlFlow => {
             reject_unrouted_address(address)?;

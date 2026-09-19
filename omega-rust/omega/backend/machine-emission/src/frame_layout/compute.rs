@@ -69,6 +69,7 @@ pub(super) fn derive(
                             MachineAlternativeFamily::CallScalar
                                 | MachineAlternativeFamily::CallUnit
                                 | MachineAlternativeFamily::CallAggregate
+                                | MachineAlternativeFamily::NormalizedForeignCall
                         )
                     });
                 // A frame-address materialization on an activation-local

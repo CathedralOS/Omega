@@ -127,7 +127,8 @@ pub(in crate::exit_contract) fn transformed_implicit_writes_any(
             .iter()
             .chain(&footprint.implicit_clobbers)
             .any(|unit| units.contains(unit)),
-        SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. } => footprint
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. }
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. } => footprint
             .implicit_defs
             .iter()
             .chain(&footprint.implicit_clobbers)
@@ -165,6 +166,9 @@ pub(in crate::exit_contract) fn validate_non_return(
     let effects = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, bytes }
         | SelectedFormEncodingState::UnresolvedInternalMachineCall {
+            footprint, bytes, ..
+        }
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
             footprint, bytes, ..
         } => {
             let disposition_matches = match encoding.machine_disposition {
@@ -494,7 +498,8 @@ pub(in crate::exit_contract) fn validate_return(
                 selected.id,
             ));
         }
-        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. }
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. } => {
             return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
                 selected.id,
             ));

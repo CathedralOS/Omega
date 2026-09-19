@@ -31,6 +31,7 @@ impl SelectedConstraintKeys {
         .chain(self.call_unit_mixed.iter().copied())
         .chain(self.call_scalar.iter().copied())
         .chain(self.call_aggregate.iter().copied())
+        .chain(self.call_normalized_foreign.iter().copied())
         .chain(self.return_aggregate.iter().copied())
         .chain(self.return_float.iter().copied())
         .chain([
@@ -139,9 +140,10 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallAggregate
             | MachineSemanticKind::ReturnAggregate => return None,
-            // Normalized foreign calls carry their ABI views on a per-plan
-            // constraint row roster, not a single fixed key; no target declares
-            // a row yet, so the semantic fails closed at declaration lookup.
+            // Normalized foreign calls carry their ABI views on the per-plan
+            // `call_normalized_foreign` roster, not a single fixed key; the
+            // evaluated boundary plan selects the row, so the semantic keeps
+            // failing closed at single-key lookup.
             MachineSemanticKind::NormalizedForeignCall => return None,
             MachineSemanticKind::Jump => self.jump,
         })
@@ -164,6 +166,7 @@ impl SelectedConstraintKeys {
                         | MachineSemanticKind::CallUnit
                         | MachineSemanticKind::CallAggregate
                         | MachineSemanticKind::ReturnAggregate
+                        | MachineSemanticKind::NormalizedForeignCall
                 ) {
                     (if semantic == MachineSemanticKind::CallAggregate {
                         &self.call_aggregate
@@ -171,6 +174,8 @@ impl SelectedConstraintKeys {
                         &self.return_aggregate
                     } else if semantic == MachineSemanticKind::CallUnit {
                         &self.call_unit
+                    } else if semantic == MachineSemanticKind::NormalizedForeignCall {
+                        &self.call_normalized_foreign
                     } else {
                         &self.call_scalar
                     })

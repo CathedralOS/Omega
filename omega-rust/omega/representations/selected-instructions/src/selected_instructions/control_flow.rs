@@ -14,6 +14,7 @@ pub struct SelectedFunction {
     pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,
     pub outgoing_arguments: Vec<super::SelectedOutgoingArgumentSlot>,
     pub calls: Vec<super::SelectedCallContract>,
+    pub normalized_foreign_calls: Vec<super::SelectedNormalizedForeignCall>,
     pub memory_accesses: Vec<super::SelectedMemoryAccess>,
     pub boundary_settlements: Vec<super::SelectedBoundarySettlement>,
     pub entry_block: SelectedBlockId,

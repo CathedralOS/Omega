@@ -51,6 +51,12 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
             bytes.push(1);
             bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
         }
+        MachineCallEffect::DirectExternalNormalReturnV1 {
+            pre_call_stack_alignment,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+        }
     }
     bytes.push(match instruction.cleanup {
         MachineCleanupEffect::NoneV1 => 0,

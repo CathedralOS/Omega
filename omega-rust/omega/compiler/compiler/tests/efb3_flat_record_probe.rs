@@ -19,13 +19,14 @@ impl Probe {
         fs::write(
             &main,
             r#"use omega::language::core::external_binding;
+use omega::language::core::service;
 
-data Point {
+pub data Point {
     x: i32;
     y: i32;
 }
 
-boundary trait Move {
+pub boundary trait Move {
     machine shift(p: &Point) -> i32 reaches Move;
 }
 
@@ -43,7 +44,7 @@ macos_arm64 machine MoveProvider::shift(p: &Point) -> i32
 satisfies Move::shift
 via shift_binding();
 
-data Main { m: Move; p: Point; }
+data Main { m: Service<Move> in Bound; p: Point; }
 machine Main::main(&mut self) reaches Move {
     let rc: i32 = self.m.shift(&self.p);
     let keep: i32 = rc;
@@ -188,12 +189,15 @@ impl ProviderExecutionEvidence for ProbeExecution {
 /// call into a dedicated `NormalizedForeignCall` legalized instruction that
 /// carries the admitted provider execution, evaluated entry plan, ordered
 /// scalar rows, and the source-rooted structural argument, and independent
-/// replay re-derives and rejoins all of it. The current frontier is
-/// selection: the selected-instruction construction has no normalized-foreign
-/// transport yet and rejects the kind as an unsupported source shape. This
-/// pins that exact failure so the probe flips when the selection transport
-/// lands, at which point it must be promoted to the full custody and
-/// physical-child replay assertions.
+/// replay re-derives and rejoins all of it. Selection, encoding, layout, and
+/// text placement now transport the call as a per-plan normalized foreign
+/// row and emit its import relocation. The current frontier is image
+/// custody: the emitted image carries no foreign-call custody record for the
+/// call, so the artifact's admitted provider execution has no image
+/// counterpart and independent replay rejects the report set. This pins that
+/// exact failure so the probe flips when image custody lands, at which point
+/// it must be promoted to the full custody and physical-child replay
+/// assertions.
 #[test]
 fn flat_record_via_call_native_realization_probe() {
     let probe = Probe::new();
@@ -326,7 +330,7 @@ fn flat_record_via_call_native_realization_probe() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        text.contains("Selection(Selection(UnsupportedSourceShape { function: 0 }))"),
-        "expected the known selected-instruction transport frontier, got:\n{text}"
+        text.contains("native artifact provider execution reports disagree with its image"),
+        "expected the known image-custody frontier, got:\n{text}"
     );
 }

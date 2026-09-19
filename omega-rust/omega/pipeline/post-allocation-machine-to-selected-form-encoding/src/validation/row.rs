@@ -14,6 +14,7 @@ use super::super::{
     SelectedFormMachineDisposition,
 };
 
+mod normalized_foreign_call;
 mod scalar_call;
 
 pub(crate) fn validate(
@@ -130,6 +131,19 @@ pub(crate) fn validate(
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
             scalar_call::validate(target, selected.id, kind, machine, physical, &row.state)
+        }
+        kind @ SelectedInstructionKind::NormalizedForeignCall { .. } => {
+            if row.address.is_some() {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+            normalized_foreign_call::validate(
+                target,
+                selected.id,
+                kind,
+                machine,
+                physical,
+                &row.state,
+            )
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan

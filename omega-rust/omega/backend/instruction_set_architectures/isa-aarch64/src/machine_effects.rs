@@ -98,6 +98,8 @@ pub fn aarch64_machine_effect_catalog(
                             | MachineSemanticKind::CallAggregate
                     ) {
                         scalar_call_declaration(semantic, constraint, constraints)
+                    } else if semantic == MachineSemanticKind::NormalizedForeignCall {
+                        scalar_call::normalized_foreign_declaration(constraint, constraints)
                     } else {
                         declaration(semantic, &selected_keys)
                     },
@@ -219,6 +221,10 @@ fn selected_keys(
         .into_iter()
         .chain(crate::aarch64_float_scalar_call_keys(darwin))
         .collect(),
+        call_normalized_foreign: match abi {
+            Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_normalized_foreign_call_keys(),
+            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
+        },
         materialize_i64: AARCH64_MATERIALIZE_I64,
         materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
         call_aggregate: crate::aarch64_register_aggregate_call_keys(darwin)

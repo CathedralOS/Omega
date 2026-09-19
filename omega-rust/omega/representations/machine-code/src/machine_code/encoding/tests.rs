@@ -116,13 +116,14 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
 }
 
 #[test]
-fn current_encoding_binds_the_version_21_ordinary_instruction_schema() {
+fn current_encoding_binds_the_version_22_ordinary_instruction_schema() {
     let mut program = deferred_program();
-    // V21 signs resolved address displacements for red-zone-resident frames.
-    // This deferred-branch payload is unchanged; its schema domain still changes.
+    // V22 signs the normalized-foreign-call template state and its fixup
+    // count. This deferred-branch payload is unchanged; its schema domain
+    // still changes.
     // Assemble the canonical bytes independently of the production encoder.
     use sha2::{Digest, Sha256};
-    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v21".to_vec();
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v22".to_vec();
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
@@ -131,13 +132,13 @@ fn current_encoding_binds_the_version_21_ordinary_instruction_schema() {
     canonical.push(6); // ConditionalBranchNonZero family.
     canonical.extend_from_slice(&0_u32.to_le_bytes()); // Alternative variant.
     canonical.extend_from_slice(&[0, 0, 1, 0, 0]); // No address, retained, deferred, reason, no frame.
-    for count in [0_u64, 1, 0, 0, 0] {
+    for count in [0_u64, 1, 0, 0, 0, 0] {
         canonical.extend_from_slice(&count.to_le_bytes());
     }
-    assert_eq!(canonical.len(), 187);
+    assert_eq!(canonical.len(), 195);
     let expected = [
-        125, 214, 39, 72, 88, 119, 92, 28, 12, 132, 27, 41, 130, 113, 128, 112, 56, 106, 133, 238,
-        77, 71, 63, 40, 58, 52, 0, 26, 185, 248, 36, 221,
+        113, 250, 84, 2, 143, 44, 191, 107, 5, 136, 253, 63, 184, 15, 77, 32, 16, 62, 48, 150, 160,
+        120, 233, 246, 123, 160, 146, 242, 27, 14, 209, 192,
     ];
     assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);

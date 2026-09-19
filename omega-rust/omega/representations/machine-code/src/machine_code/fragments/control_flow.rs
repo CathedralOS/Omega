@@ -4,7 +4,7 @@ use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
 use register_model::RegisterViewId;
 use selected_instructions::{MachineEncodedEffects, SelectedBlockId};
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentBranchEvidence {
@@ -42,6 +42,14 @@ pub enum FunctionFragmentControlProvenance {
     },
     DirectInternalCall {
         callee: MachineId,
+    },
+    /// Direct evaluated normalized foreign call. The `{boundary, ordinal}`
+    /// pair names the selected roster row owning the evaluated locator; the
+    /// unresolved import field rides the foreign fixup channel and binds only
+    /// at object construction.
+    NormalizedForeignCall {
+        boundary: BoundaryMachineId,
+        ordinal: u32,
     },
     ConditionalBranch {
         predicate: FunctionFragmentConditionalBranchPredicate,

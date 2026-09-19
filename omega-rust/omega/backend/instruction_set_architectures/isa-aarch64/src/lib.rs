@@ -49,7 +49,9 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
 };
+pub use register_model::aarch64_aapcs64_normalized_foreign_call_keys;
 pub use register_model::aarch64_aapcs64_register_call_keys;
+pub use register_model::aarch64_darwin_normalized_foreign_call_keys;
 pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
@@ -81,22 +83,29 @@ pub use selected_form_encoding::hosted_read_byte::{
 };
 pub use selected_form_encoding::hosted_write_byte::decode_aarch64_selected_hosted_write_byte_i32;
 pub use selected_form_encoding::{
-    AARCH64_SCALAR_CALL_OPCODE_OFFSET, AARCH64_SCALAR_CALL_PATCH_OFFSET,
-    AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
-    AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT, Aarch64MovkPatch, Aarch64MovnSeed,
-    Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind, Aarch64ScalarCallFixupState,
-    Aarch64ScalarCallTemplateError, Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    Aarch64ShortestMovnMaterializationRecipe, ValidatedAarch64SelectedFormEncoding,
+    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, AARCH64_SCALAR_CALL_OPCODE_OFFSET,
+    AARCH64_SCALAR_CALL_PATCH_OFFSET, AARCH64_SCALAR_CALL_PATCH_WIDTH,
+    AARCH64_SCALAR_CALL_REFERENCE_OFFSET, AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    Aarch64MovkPatch, Aarch64MovnSeed, Aarch64NormalizedForeignCallFixup,
+    Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
+    Aarch64NormalizedForeignCallTemplateError, Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,
+    Aarch64ScalarCallFixupState, Aarch64ScalarCallTemplateError, Aarch64SelectedFormEncodingError,
+    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe,
+    ValidatedAarch64SelectedFormEncoding, ValidatedAarch64SelectedNormalizedForeignCallTemplate,
     ValidatedAarch64SelectedScalarCallTemplate, aarch64_shortest_movn_materialization_recipe,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_form, encode_aarch64_selected_i64_less_than_branch_form,
     encode_aarch64_selected_jump_form, encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_normalized_foreign_call_template,
     encode_aarch64_selected_scalar_call_template,
     encode_aarch64_selected_u64_less_than_branch_form,
     encode_aarch64_shortest_movn_materialization,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_selected_form_encoding, validate_aarch64_selected_i64_less_than_branch_form,
     validate_aarch64_selected_jump_form, validate_aarch64_selected_nonzero_branch_form,
+    validate_aarch64_selected_normalized_foreign_call_template,
     validate_aarch64_selected_scalar_call_template,
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_shortest_movn_materialization,

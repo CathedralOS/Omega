@@ -31,6 +31,7 @@ pub mod provenance;
 pub mod structural_case;
 pub mod values;
 
+pub use calls::normalized_foreign::SelectedNormalizedForeignCall;
 pub use calls::ordinary::*;
 pub use constraints::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedSelectionConstraints,

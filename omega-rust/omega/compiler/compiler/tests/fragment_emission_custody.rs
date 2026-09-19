@@ -577,6 +577,10 @@ fn optimized_function_fragment_emission_custody_rejects_every_one_field_substitu
                 | machine_code::SelectedFormEncodingState::UnresolvedInternalMachineCall {
                     footprint,
                     ..
+                }
+                | machine_code::SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
+                    footprint,
+                    ..
                 } => footprint
                     .register_reads
                     .first()

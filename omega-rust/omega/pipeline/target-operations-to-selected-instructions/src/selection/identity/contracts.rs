@@ -66,6 +66,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 .canonical_bytes_with_effects(row.effect, &row.ownership),
         );
     }
+    encode_len(bytes, function.normalized_foreign_calls.len());
+    for row in &function.normalized_foreign_calls {
+        bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+        bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+        blob(
+            bytes,
+            &row.call
+                .canonical_bytes_with_effects(row.effect, &row.ownership),
+        );
+    }
     encode_len(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
         bytes.extend_from_slice(&row.instruction.0.to_le_bytes());

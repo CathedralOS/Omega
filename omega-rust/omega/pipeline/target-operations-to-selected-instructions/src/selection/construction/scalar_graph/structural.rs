@@ -45,6 +45,7 @@ pub(super) struct Transport {
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
     pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
     pub calls: Vec<SelectedCallContract>,
+    pub normalized_foreign_calls: Vec<selected_instructions::SelectedNormalizedForeignCall>,
     pub memory: Vec<SelectedMemoryAccess>,
     pub settlements: Vec<SelectedBoundarySettlement>,
 }
@@ -83,30 +84,16 @@ pub(super) fn transport_register(
     Ok(id)
 }
 
-/// End the outgoing fixed-register constraint at a copy of the reference pointer.
-pub(super) fn call_pointer(
+/// Resolve the durable root pointer for `place` and offset it into a fresh
+/// transport register. This is shared by ordinary borrowed call arguments and
+/// normalized foreign structural arguments; each call family validates its
+/// own custody before reaching this transport.
+pub(super) fn place_pointer(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(invalid());
-    };
-    if call.validate_source(&row.ownership).is_err()
-        || !call.claim_transfers.is_empty()
-        // Authored structural calls retain an explicit transfer event even
-        // when no claims move. Installed calls retain their completion event.
-        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
-            && !matches!(row.ownership.as_slice(),
-                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-        || row.result.is_some_and(|result| {
-            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
-                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
-        })
-    {
-        return Err(invalid());
-    }
     let incoming = builder
         .transport
         .pointers
@@ -148,6 +135,33 @@ pub(super) fn call_pointer(
         SelectedInstructionProvenance::default(),
     )?;
     Ok(output)
+}
+
+/// End the outgoing fixed-register constraint at a copy of the reference pointer.
+pub(super) fn call_pointer(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+        return Err(invalid());
+    };
+    if call.validate_source(&row.ownership).is_err()
+        || !call.claim_transfers.is_empty()
+        // Authored structural calls retain an explicit transfer event even
+        // when no claims move. Installed calls retain their completion event.
+        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
+            && !matches!(row.ownership.as_slice(),
+                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+        || row.result.is_some_and(|result| {
+            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
+                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
+        })
+    {
+        return Err(invalid());
+    }
+    place_pointer(builder, row, place, byte_offset)
 }
 
 pub(super) fn operation(
@@ -269,6 +283,15 @@ pub(super) fn operation(
                         settlement.clone(),
                     ),
             });
+        return Ok(true);
+    }
+    // Evaluated normalized foreign calls own their own argument transport and
+    // result custody; they are never routed through the internal Call family.
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::NormalizedForeignCall(_)
+    ) {
+        super::normalized_foreign::emit(function, source, row, environment, builder)?;
         return Ok(true);
     }
     if row.result.is_some() {
