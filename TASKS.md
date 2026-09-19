@@ -2410,6 +2410,12 @@ Owners include
   hardware entry/exit stub (`iretq` exists only in the instruction catalog),
   and the repository has no QEMU harness.
 
+  `begin_published_interrupt_entry` now dispatches the member's declared
+  obligation: a `FatalException` member's entry arrives unconditionally —
+  the processor fault owes no declared stack-nesting edge or parent depth
+  bound — and its settle halts the ledger (`InstalledRootLedger::halted_by`),
+  so the interrupted chain it preempted can never resume ordinary work.
+
   Remaining work:
 
   - Authored roots. Cathedral's fatal-exception and timer entry machines
