@@ -83,6 +83,7 @@ pub(super) fn evaluate_build_and_continue(
     let build_machine_filesystem_scope = build_evaluation::prepare_filesystem_scope(
         root_path,
         package_inputs,
+        &base_sources,
         build_execution_profile,
         build_dir,
         filesystem_sponsor,

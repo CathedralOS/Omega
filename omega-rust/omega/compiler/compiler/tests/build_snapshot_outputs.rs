@@ -8,11 +8,14 @@
 // custody, interruption without a committed set, and staged-output capture's
 // rejection of entries outside sponsor custody.
 
+use build_declarations::DependencyPurpose;
 use checked_interpreter::FilesystemSponsor;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use package_compilation::{
+    BuildDependencyOccurrence, BuildSourceCaptureObligation, BuildSourceCaptureRequest,
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    capture_scoped_source_input,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
@@ -128,20 +131,70 @@ fn run_build(
     target_name: &'static str,
     required_outputs: &[&[u8]],
 ) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    run_request(
+        project,
+        label,
+        target_name,
+        build_evaluation::BuildSnapshotRequest::new(
+            required_outputs.iter().map(|name| name.to_vec()),
+        ),
+        true,
+    )
+}
+
+/// The package-custody route with a caller-constructed snapshot request.
+fn run_build_request(
+    project: &Project,
+    label: &str,
+    target_name: &'static str,
+    request: build_evaluation::BuildSnapshotRequest,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    run_request(project, label, target_name, request, true)
+}
+
+/// The standalone route: no package custody, so the request must carry its
+/// own caller-authorized source inventory.
+fn run_standalone_build(
+    project: &Project,
+    label: &str,
+    target_name: &'static str,
+    request: build_evaluation::BuildSnapshotRequest,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    run_request(project, label, target_name, request, false)
+}
+
+fn run_request(
+    project: &Project,
+    label: &str,
+    target_name: &'static str,
+    request: build_evaluation::BuildSnapshotRequest,
+    package_custody: bool,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let (session, sponsor, build_dir) = bound_build_output_session(label);
     set_canonical_source_tree_permissions(&project.root, true);
+    // Package custody captures canonical source metadata, so the binding is
+    // built only after the fixture is sealed.
     let result = compile_to_checked(CheckedCompileRequest {
         build_dir: Some(build_dir),
-        package_inputs: Some(package_inputs(&project.root)),
+        package_inputs: package_custody.then(|| package_inputs(&project.root)),
         filesystem_sponsor: Some(sponsor),
-        build_snapshot: Some(build_evaluation::BuildSnapshotRequest::new(
-            required_outputs.iter().map(|name| name.to_vec()),
-        )),
+        build_snapshot: Some(request),
         ..CheckedCompileRequest::new(&project.main(), Some(target_name))
     });
     set_canonical_source_tree_permissions(&project.root, false);
     let _ = std::fs::remove_dir_all(session);
     result
+}
+
+fn scoped_capture_request(
+    entries: &[(&[u8], BuildSourceCaptureObligation)],
+) -> BuildSourceCaptureRequest {
+    BuildSourceCaptureRequest::new(
+        entries
+            .iter()
+            .map(|(path, obligation)| (path.to_vec(), *obligation)),
+    )
+    .expect("declared scoped source inventory")
 }
 
 fn diagnostic_messages(diagnostics: &[diagnostics::Diagnostic]) -> String {
@@ -1583,4 +1636,263 @@ fn retained_native_product_publication_rejects_source_target_and_artifact_drift(
         "unexpected diagnostics: {messages}"
     );
     let _ = std::fs::remove_dir_all(&publish_root);
+}
+
+#[test]
+fn standalone_scoped_capture_serves_only_declared_members() {
+    let project = Project::new("scoped-members");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    project.write("templates/banner.tmpl", "HELLO {name}\n");
+    // A real sibling the working directory holds but the caller never
+    // authorized: the scoped inventory must deny it even though capture on
+    // this host could physically read it.
+    project.write("ledger.txt", "LEDGER\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-scoped-members");
+    let required: RequiredOutput = builder.output.require("verdict.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let out: i32 = builder.output.create(artifact, 438);
+    let member_path: BuildPath = builder.source.resolve("templates/banner.tmpl");
+    let member: i32 = builder.source.open(member_path, 0);
+    transition member < 0 {
+        true -> failed(builder, required, artifact, out)
+        _ -> reading(builder, required, artifact, out, member)
+    }
+
+    state reading(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32,
+        member: i32
+    ) {
+        let mut bytes: [u8; 4];
+        let count: i64 = builder.source.read(member, &mut bytes, 4);
+        let closed: i32 = builder.source.close(member);
+        transition count == 4 {
+            true -> probing(builder, required, artifact, out, bytes)
+            _ -> failed(builder, required, artifact, out)
+        }
+    }
+
+    state probing(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32,
+        bytes: [u8; 4]
+    ) {
+        let undeclared_path: BuildPath = builder.source.resolve("ledger.txt");
+        let undeclared: i32 = builder.source.open(undeclared_path, 0);
+        transition undeclared < 0 {
+            true -> finish(builder, required, artifact, out, bytes)
+            _ -> failed(builder, required, artifact, out)
+        }
+    }
+
+    state finish(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32,
+        bytes: [u8; 4]
+    ) {
+        let written: i64 = builder.output.write(out, &bytes);
+        let mark: i64 = builder.output.write(out, "d\n");
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+
+    state failed(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let written: i64 = builder.output.write(out, "FAIL\n");
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+}
+"#,
+    );
+
+    // The standalone root names its whole inventory explicitly: the two
+    // already-required source files and the one declared template subtree.
+    // `ledger.txt` stays physically present but outside the inventory.
+    let checked = run_standalone_build(
+        &project,
+        "scoped-members",
+        "linux_x86_64",
+        build_evaluation::BuildSnapshotRequest::scoped(
+            std::iter::empty::<Vec<u8>>(),
+            scoped_capture_request(&[
+                (b"build.omg", BuildSourceCaptureObligation::Required),
+                (b"main.omg", BuildSourceCaptureObligation::Required),
+                (b"templates", BuildSourceCaptureObligation::Required),
+            ]),
+        ),
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "a scoped standalone build must publish against its declared inventory: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    });
+    let observation = checked
+        .build_observation_summary()
+        .expect("scoped standalone execution retains a build observation");
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"verdict.txt")
+        .expect("the verdict output is discoverable in sealed custody");
+    let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() else {
+        panic!("the verdict output completes only as a sealed regular file")
+    };
+    // The declared subtree member serves its captured bytes; the undeclared
+    // sibling — physically present in the working directory — is denied.
+    assert_eq!(
+        bytes, b"HELLd\n",
+        "a scoped snapshot admits declared members and denies every undeclared sibling"
+    );
+}
+
+#[test]
+fn standalone_scoped_capture_rejects_a_missing_required_member() {
+    let project = Project::new("scoped-absent");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-scoped-absent");
+}
+"#,
+    );
+
+    // `ghost.txt` is declared Required but never written: capture must fail
+    // rather than silently narrow the inventory.
+    let diagnostics = run_standalone_build(
+        &project,
+        "scoped-absent",
+        "linux_x86_64",
+        build_evaluation::BuildSnapshotRequest::scoped(
+            std::iter::empty::<Vec<u8>>(),
+            scoped_capture_request(&[
+                (b"build.omg", BuildSourceCaptureObligation::Required),
+                (b"ghost.txt", BuildSourceCaptureObligation::Required),
+                (b"main.omg", BuildSourceCaptureObligation::Required),
+            ]),
+        ),
+    )
+    .expect_err("a missing required capture entry must reject");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("required source capture entry `ghost.txt` is absent"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn standalone_scoped_capture_rejects_a_consumed_member_the_request_omits() {
+    let project = Project::new("scoped-omits");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-scoped-omits");
+}
+"#,
+    );
+
+    // The request declares only `main.omg`; `build.omg` is a source member
+    // this compilation already consumed, so the inventory cannot omit it.
+    let diagnostics = run_standalone_build(
+        &project,
+        "scoped-omits",
+        "linux_x86_64",
+        build_evaluation::BuildSnapshotRequest::scoped(
+            std::iter::empty::<Vec<u8>>(),
+            scoped_capture_request(&[(b"main.omg", BuildSourceCaptureObligation::Required)]),
+        ),
+    )
+    .expect_err("a scoped inventory that omits a required source member must reject");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("scoped source inventory omits required source member"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn named_input_for_an_absent_dependency_occurrence_rejects() {
+    let project = Project::new("absent-occurrence");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-absent-occurrence");
+}
+"#,
+    );
+
+    // The input itself is honestly captured, but it is keyed to an edge the
+    // reconciled graph does not contain — an extra input the binding must
+    // reject rather than attach to another occurrence.
+    set_canonical_source_tree_permissions(&project.root, true);
+    let input = capture_scoped_source_input(
+        &project.root,
+        &scoped_capture_request(&[(b"main.omg", BuildSourceCaptureObligation::Required)]),
+        Vec::<PathBuf>::new(),
+    )
+    .expect("capture the named input's own inventory");
+    set_canonical_source_tree_permissions(&project.root, false);
+    let root = PackageKeyIdentity::from_digest([89; 32]).expect("nonzero package identity");
+    let ghost_target = PackageKeyIdentity::from_digest([90; 32]).expect("nonzero package identity");
+    let request = build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
+        .with_dependency_inputs([(
+            BuildDependencyOccurrence::new(root, DependencyPurpose::Build, "ghost", ghost_target),
+            b"module".to_vec(),
+            input,
+        )])
+        .expect("the named-input map is well formed");
+
+    let diagnostics = run_build_request(&project, "absent-occurrence", "linux_x86_64", request)
+        .expect_err("an input assigned to an absent occurrence must reject");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("dependency occurrence that does not exist")
+            && messages.contains("ghost"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn standalone_snapshot_without_a_capture_request_rejects() {
+    let project = Project::new("unscoped");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write("notes.txt", "PRIVATE\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-unscoped");
+}
+"#,
+    );
+
+    // The package-inventory form names no members; without package custody it
+    // would silently capture the whole working directory, so it rejects.
+    let diagnostics = run_standalone_build(
+        &project,
+        "unscoped",
+        "linux_x86_64",
+        build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()),
+    )
+    .expect_err("a standalone snapshot with no capture request must reject");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("requires package source custody"),
+        "unexpected diagnostics: {messages}"
+    );
 }

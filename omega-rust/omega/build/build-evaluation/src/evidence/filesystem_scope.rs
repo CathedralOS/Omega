@@ -17,7 +17,7 @@ use build_time_evaluation::{
 };
 use checked_interpreter::FilesystemSponsorEntry;
 use diagnostics::Diagnostic;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
@@ -56,6 +56,10 @@ pub struct BuildMachineFilesystemScope {
     captured_source_input: Option<CapturedBuildSourceInput>,
     snapshot_dir: Option<PathBuf>,
     required_outputs: BTreeSet<Vec<u8>>,
+    dependency_inputs: BTreeMap<
+        package_compilation::BuildDependencyOccurrence,
+        BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
+    >,
 }
 
 /// Maximum declared required sealed outputs for one build occurrence.
@@ -103,6 +107,7 @@ impl BuildMachineFilesystemScope {
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
+            dependency_inputs: BTreeMap::new(),
         }
     }
 
@@ -127,6 +132,7 @@ impl BuildMachineFilesystemScope {
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
+            dependency_inputs: BTreeMap::new(),
         }
     }
 
@@ -221,6 +227,29 @@ impl BuildMachineFilesystemScope {
         self.captured_source_input = Some(input);
         self.snapshot_dir = Some(snapshot_dir);
         Ok(self)
+    }
+
+    /// Bind caller-captured immutable inputs assigned to exact dependency
+    /// occurrences. The request's binding already validated every key
+    /// against the reconciled graph, so this custody move never rereads the
+    /// host and cannot widen an occurrence's inputs.
+    pub fn with_dependency_inputs(
+        mut self,
+        inputs: BTreeMap<
+            package_compilation::BuildDependencyOccurrence,
+            BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
+        >,
+    ) -> Self {
+        self.dependency_inputs = inputs;
+        self
+    }
+
+    /// Inputs assigned to one exact dependency occurrence, in slot order.
+    pub fn dependency_inputs(
+        &self,
+        occurrence: &package_compilation::BuildDependencyOccurrence,
+    ) -> Option<&BTreeMap<Vec<u8>, CapturedBuildSourceInput>> {
+        self.dependency_inputs.get(occurrence)
     }
 
     /// Declare the required sealed outputs this build occurrence must

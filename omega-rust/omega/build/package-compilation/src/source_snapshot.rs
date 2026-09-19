@@ -8,12 +8,86 @@ use checked_interpreter::{
     CanonicalFilesystemMetadataRowKind, FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
 };
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
+
+/// Whether one declared capture entry must be present when the inventory is
+/// taken.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildSourceCaptureObligation {
+    /// The member must exist under the captured root; absence fails capture.
+    Required,
+    /// Absence is itself committed: the inventory simply holds no member at
+    /// that path.
+    Optional,
+}
+
+/// The explicit, caller-authorized source inventory for one standalone build
+/// activation: exact canonical relative paths under the captured root.
+///
+/// A declared file or symlink is one member; a declared directory member
+/// admits its whole subtree. Ancestor directories are committed as
+/// directory rows so every member keeps canonical parents, but they never
+/// widen the inventory — only a declared member opens a subtree. Two
+/// entries where one nests inside the other would let one declaration
+/// silently admit another's subtree, so the request rejects them instead
+/// of guessing at the intended boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildSourceCaptureRequest {
+    entries: BTreeMap<Vec<u8>, BuildSourceCaptureObligation>,
+}
+
+impl BuildSourceCaptureRequest {
+    /// The declared inventory keyed by canonical relative path. Every entry
+    /// is a nonempty canonical relative spelling; duplicates and
+    /// nested-declaration pairs reject.
+    pub fn new(
+        entries: impl IntoIterator<Item = (Vec<u8>, BuildSourceCaptureObligation)>,
+    ) -> Result<Self, String> {
+        let mut request = BTreeMap::new();
+        for (relative_path, obligation) in entries {
+            if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+                &relative_path,
+                false,
+            ) {
+                return Err(format!(
+                    "source capture entry is not a canonical relative path: {relative_path:?}"
+                ));
+            }
+            if request.insert(relative_path.clone(), obligation).is_some() {
+                return Err(format!(
+                    "source capture entry is declared twice: {relative_path:?}"
+                ));
+            }
+        }
+        for relative_path in request.keys() {
+            for (end, _) in relative_path
+                .iter()
+                .enumerate()
+                .filter(|(_, byte)| **byte == b'/')
+            {
+                if request.contains_key(&relative_path[..end]) {
+                    return Err(format!(
+                        "source capture entry {relative_path:?} nests inside declared entry {:?}",
+                        &relative_path[..end]
+                    ));
+                }
+            }
+        }
+        Ok(Self { entries: request })
+    }
+
+    /// The declared entries in canonical path order.
+    pub fn entries(&self) -> impl Iterator<Item = (&[u8], BuildSourceCaptureObligation)> {
+        self.entries
+            .iter()
+            .map(|(path, obligation)| (path.as_slice(), *obligation))
+    }
+}
 
 pub(super) fn validate_current(
     root: &Path,
@@ -70,6 +144,66 @@ pub fn capture_package_source_input(
     })
 }
 
+/// Capture one standalone invocation's explicit source inventory: exactly
+/// the members the caller authorized, plus the ancestor directory rows every
+/// member's canonical parentage requires. The root row is committed but
+/// never enumerated, so members outside the request are never read — a
+/// local build does not implicitly expose the working directory.
+///
+/// `required_members` are the source files the compilation already
+/// consumed. Every one located under this root must be a captured member,
+/// so a request cannot silently omit a file the assembled program needed;
+/// members outside the root (toolchain and injected sources) are not this
+/// inventory's members and are skipped.
+pub fn capture_scoped_source_input(
+    source_root: &Path,
+    request: &BuildSourceCaptureRequest,
+    required_members: impl IntoIterator<Item = PathBuf>,
+) -> Result<CapturedBuildSourceInput, String> {
+    let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
+    let (index, retained) =
+        capture_scoped_rows(canonical_root.clone(), request, capture_physical_source_row)?;
+    let captured: BTreeSet<&[u8]> = retained.iter().map(|(path, _)| path.as_slice()).collect();
+    for member in required_members {
+        let relative = match member.canonicalize() {
+            Ok(canonical) => canonical
+                .strip_prefix(&canonical_root)
+                .ok()
+                .map(Path::to_path_buf),
+            // An unresolvable member still named under the root was deleted
+            // after consumption; the membership check below fails it.
+            Err(_) => member.strip_prefix(source_root).ok().map(Path::to_path_buf),
+        };
+        let Some(relative) = relative else { continue };
+        let mut relative_bytes = Vec::new();
+        for component in relative.components() {
+            let std::path::Component::Normal(name) = component else {
+                return Err(format!(
+                    "required source member {} is not a canonical relative path",
+                    member.display()
+                ));
+            };
+            if !relative_bytes.is_empty() {
+                relative_bytes.push(b'/');
+            }
+            relative_bytes.extend_from_slice(&os_str_bytes(name)?);
+        }
+        if !captured.contains(relative_bytes.as_slice()) {
+            return Err(format!(
+                "scoped source inventory omits required source member {}",
+                member.display()
+            ));
+        }
+    }
+    CapturedBuildSourceInput::from_capture_rows(index, retained).map_err(|diagnostics| {
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.to_string())
+            .collect::<Vec<_>>()
+            .join("; ")
+    })
+}
+
 /// One coherent traversal of the canonical sealed source root. Every visited
 /// path produces both its canonical metadata row and one capture-authority
 /// payload, so a caller cannot assemble an index and a retained inventory
@@ -89,77 +223,287 @@ fn capture_rows<T>(
     let mut aggregate_content_bytes = 0u64;
 
     while let Some((path, relative_path)) = stack.pop() {
-        if rows.len() >= CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
-            return Err(format!(
-                "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
-            ));
-        }
         let physical = std::fs::symlink_metadata(&path).map_err(|error| {
             format!("could not inspect canonical Source metadata path: {error}")
         })?;
-        let (captured, entry) = row_for(&path, &physical, &mut aggregate_content_bytes)?;
-        if rows.insert(relative_path.clone(), captured).is_some() {
-            return Err(format!(
-                "physical Source traversal duplicated a path: {relative_path:?}"
-            ));
+        if admit_capture_row(
+            &path,
+            &relative_path,
+            &physical,
+            &mut aggregate_content_bytes,
+            &mut rows,
+            &mut retained,
+            &mut row_for,
+        )? {
+            enqueue_capture_children(
+                &path,
+                &relative_path,
+                &rows,
+                &mut stack,
+                &mut aggregate_path_bytes,
+            )?;
         }
-        if !relative_path.is_empty() {
-            retained.push((relative_path.clone(), entry));
-        }
+    }
+    Ok((finish_capture_index(rows)?, retained))
+}
 
-        if physical.is_dir() {
-            let children = std::fs::read_dir(&path).map_err(|error| {
-                format!("could not enumerate canonical Source metadata directory: {error}")
-            })?;
-            for child in children {
-                let child = child.map_err(|error| {
-                    format!("could not enumerate canonical Source metadata entry: {error}")
-                })?;
-                if rows
-                    .len()
-                    .checked_add(stack.len())
-                    .and_then(|count| count.checked_add(1))
-                    .is_none_or(|count| count > CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
-                {
+/// One traversal restricted to a declared inventory. The root row is
+/// admitted but never enumerated; each declared member is admitted and —
+/// for directories — opened for subtree enumeration. Ancestor directories
+/// are admitted as rows without opening their own subtrees, and a declared
+/// required member absent under the root fails capture.
+fn capture_scoped_rows<T>(
+    canonical_root: PathBuf,
+    request: &BuildSourceCaptureRequest,
+    mut row_for: impl FnMut(
+        &Path,
+        &std::fs::Metadata,
+        &mut u64,
+    ) -> Result<(CapturedPhysicalMetadataRow, T), String>,
+) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
+    let mut stack = Vec::<(PathBuf, Vec<u8>)>::new();
+    let mut rows = BTreeMap::<Vec<u8>, CapturedPhysicalMetadataRow>::new();
+    let mut retained = Vec::<(Vec<u8>, T)>::new();
+    let mut aggregate_path_bytes = 0usize;
+    let mut aggregate_content_bytes = 0u64;
+
+    let root_physical = std::fs::symlink_metadata(&canonical_root)
+        .map_err(|error| format!("could not inspect canonical Source root: {error}"))?;
+    if !root_physical.is_dir() {
+        return Err("canonical Source root is not a directory".to_owned());
+    }
+    admit_capture_row(
+        &canonical_root,
+        &[],
+        &root_physical,
+        &mut aggregate_content_bytes,
+        &mut rows,
+        &mut retained,
+        &mut row_for,
+    )?;
+
+    for (declared, obligation) in request.entries() {
+        // Admit each missing ancestor directory row so a committed member
+        // always keeps canonical parents. An ancestor that is absent or not
+        // a concrete directory leaves the member unreachable: under
+        // no-traversal a symlink ancestor never opens a path.
+        let mut ancestor_relative = Vec::<u8>::new();
+        let mut reachable = true;
+        let components: Vec<&[u8]> = declared.split(|byte| *byte == b'/').collect();
+        for component in &components[..components.len() - 1] {
+            if !ancestor_relative.is_empty() {
+                ancestor_relative.push(b'/');
+            }
+            ancestor_relative.extend_from_slice(component);
+            match rows.get(&ancestor_relative) {
+                Some(row) if matches!(row.kind, CanonicalFilesystemMetadataRowKind::Directory) => {
+                    continue;
+                }
+                Some(_) => {
+                    reachable = false;
+                    break;
+                }
+                None => {}
+            }
+            let ancestor_path = join_capture_path(&canonical_root, &ancestor_relative)?;
+            let physical = match std::fs::symlink_metadata(&ancestor_path) {
+                Ok(physical) => physical,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    reachable = false;
+                    break;
+                }
+                Err(error) => {
                     return Err(format!(
-                        "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
+                        "could not inspect canonical Source metadata path: {error}"
                     ));
                 }
-                let name = os_str_bytes(&child.file_name())?;
-                let mut child_relative = relative_path.clone();
-                if !child_relative.is_empty() {
-                    child_relative.push(b'/');
-                }
-                child_relative.extend_from_slice(&name);
-                aggregate_path_bytes = aggregate_path_bytes
-                    .checked_add(child_relative.len())
-                    .filter(|bytes| *bytes <= FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT)
-                    .ok_or_else(|| {
-                        format!(
-                            "canonical Source metadata path bytes exceed {FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT}"
-                        )
-                    })?;
-                if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
-                    &child_relative,
-                    false,
-                ) {
+            };
+            if !physical.is_dir() {
+                reachable = false;
+                break;
+            }
+            charge_capture_path_bytes(&mut aggregate_path_bytes, &ancestor_relative)?;
+            admit_capture_row(
+                &ancestor_path,
+                &ancestor_relative,
+                &physical,
+                &mut aggregate_content_bytes,
+                &mut rows,
+                &mut retained,
+                &mut row_for,
+            )?;
+        }
+        if !reachable {
+            match obligation {
+                BuildSourceCaptureObligation::Required => {
                     return Err(format!(
-                        "physical Source path is not canonical metadata: {child_relative:?}"
+                        "required source capture entry `{}` is absent",
+                        String::from_utf8_lossy(declared)
                     ));
                 }
-                stack.push((child.path(), child_relative));
+                BuildSourceCaptureObligation::Optional => continue,
+            }
+        }
+        let physical_path = join_capture_path(&canonical_root, declared)?;
+        match std::fs::symlink_metadata(&physical_path) {
+            Ok(_) => {
+                charge_capture_path_bytes(&mut aggregate_path_bytes, declared)?;
+                stack.push((physical_path, declared.to_vec()));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => match obligation {
+                BuildSourceCaptureObligation::Required => {
+                    return Err(format!(
+                        "required source capture entry `{}` is absent",
+                        String::from_utf8_lossy(declared)
+                    ));
+                }
+                BuildSourceCaptureObligation::Optional => {}
+            },
+            Err(error) => {
+                return Err(format!(
+                    "could not inspect canonical Source metadata path: {error}"
+                ));
             }
         }
     }
 
+    while let Some((path, relative_path)) = stack.pop() {
+        let physical = std::fs::symlink_metadata(&path).map_err(|error| {
+            format!("could not inspect canonical Source metadata path: {error}")
+        })?;
+        if admit_capture_row(
+            &path,
+            &relative_path,
+            &physical,
+            &mut aggregate_content_bytes,
+            &mut rows,
+            &mut retained,
+            &mut row_for,
+        )? {
+            enqueue_capture_children(
+                &path,
+                &relative_path,
+                &rows,
+                &mut stack,
+                &mut aggregate_path_bytes,
+            )?;
+        }
+    }
+    Ok((finish_capture_index(rows)?, retained))
+}
+
+/// Admit one visited physical member: ceiling, row construction, duplicate
+/// detection, and retention of every non-root entry. Returns whether the
+/// member is a concrete directory whose children should be enumerated.
+fn admit_capture_row<T>(
+    path: &Path,
+    relative_path: &[u8],
+    physical: &std::fs::Metadata,
+    aggregate_content_bytes: &mut u64,
+    rows: &mut BTreeMap<Vec<u8>, CapturedPhysicalMetadataRow>,
+    retained: &mut Vec<(Vec<u8>, T)>,
+    row_for: &mut impl FnMut(
+        &Path,
+        &std::fs::Metadata,
+        &mut u64,
+    ) -> Result<(CapturedPhysicalMetadataRow, T), String>,
+) -> Result<bool, String> {
+    if rows.len() >= CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
+        return Err(format!(
+            "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
+        ));
+    }
+    let (captured, entry) = row_for(path, physical, aggregate_content_bytes)?;
+    if rows.insert(relative_path.to_vec(), captured).is_some() {
+        return Err(format!(
+            "physical Source traversal duplicated a path: {relative_path:?}"
+        ));
+    }
+    if !relative_path.is_empty() {
+        retained.push((relative_path.to_vec(), entry));
+    }
+    Ok(physical.is_dir())
+}
+
+/// Push one directory's children onto the traversal stack under the shared
+/// row and path-byte ceilings and the canonical-path gate.
+fn enqueue_capture_children(
+    path: &Path,
+    relative_path: &[u8],
+    rows: &BTreeMap<Vec<u8>, CapturedPhysicalMetadataRow>,
+    stack: &mut Vec<(PathBuf, Vec<u8>)>,
+    aggregate_path_bytes: &mut usize,
+) -> Result<(), String> {
+    let children = std::fs::read_dir(path).map_err(|error| {
+        format!("could not enumerate canonical Source metadata directory: {error}")
+    })?;
+    for child in children {
+        let child = child.map_err(|error| {
+            format!("could not enumerate canonical Source metadata entry: {error}")
+        })?;
+        if rows
+            .len()
+            .checked_add(stack.len())
+            .and_then(|count| count.checked_add(1))
+            .is_none_or(|count| count > CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
+        {
+            return Err(format!(
+                "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
+            ));
+        }
+        let name = os_str_bytes(&child.file_name())?;
+        let mut child_relative = relative_path.to_vec();
+        if !child_relative.is_empty() {
+            child_relative.push(b'/');
+        }
+        child_relative.extend_from_slice(&name);
+        charge_capture_path_bytes(aggregate_path_bytes, &child_relative)?;
+        if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+            &child_relative,
+            false,
+        ) {
+            return Err(format!(
+                "physical Source path is not canonical metadata: {child_relative:?}"
+            ));
+        }
+        stack.push((child.path(), child_relative));
+    }
+    Ok(())
+}
+
+fn charge_capture_path_bytes(
+    aggregate_path_bytes: &mut usize,
+    relative_path: &[u8],
+) -> Result<(), String> {
+    *aggregate_path_bytes = aggregate_path_bytes
+        .checked_add(relative_path.len())
+        .filter(|bytes| *bytes <= FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT)
+        .ok_or_else(|| {
+            format!(
+                "canonical Source metadata path bytes exceed {FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT}"
+            )
+        })?;
+    Ok(())
+}
+
+fn join_capture_path(root: &Path, relative_path: &[u8]) -> Result<PathBuf, String> {
+    let mut path = root.to_path_buf();
+    for component in relative_path.split(|byte| *byte == b'/') {
+        path.push(os_str_from_bytes(component)?);
+    }
+    Ok(path)
+}
+
+fn finish_capture_index(
+    rows: BTreeMap<Vec<u8>, CapturedPhysicalMetadataRow>,
+) -> Result<CanonicalFilesystemMetadataIndex, String> {
     let commitment = canonical_build_source_content_commitment(&rows)?;
-    let index = CanonicalFilesystemMetadataIndex::version_1(
+    CanonicalFilesystemMetadataIndex::version_1(
         commitment,
         rows.into_iter()
             .map(|(path, row)| CanonicalFilesystemMetadataRow::new(path, row.kind)),
     )
-    .map_err(|error| format!("could not construct canonical Source metadata: {error}"))?;
-    Ok((index, retained))
+    .map_err(|error| format!("could not construct canonical Source metadata: {error}"))
 }
 
 fn capture_physical_metadata_row(
@@ -538,4 +882,17 @@ fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
         .to_str()
         .map(|value| value.as_bytes().to_vec())
         .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
+}
+
+#[cfg(unix)]
+fn os_str_from_bytes(bytes: &[u8]) -> Result<std::ffi::OsString, String> {
+    use std::os::unix::ffi::OsStrExt;
+    Ok(std::ffi::OsStr::from_bytes(bytes).to_os_string())
+}
+
+#[cfg(not(unix))]
+fn os_str_from_bytes(bytes: &[u8]) -> Result<std::ffi::OsString, String> {
+    std::str::from_utf8(bytes)
+        .map(std::ffi::OsString::from)
+        .map_err(|_| "physical Source path is not portable UTF-8".to_owned())
 }

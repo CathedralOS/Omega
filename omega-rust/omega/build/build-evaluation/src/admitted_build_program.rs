@@ -14,13 +14,15 @@ use crate::evidence::filesystem_scope::{
 use crate::evidence::observations::{BuildEvaluationUsage, BuildObservationSummary};
 use crate::execute_admitted_build_program;
 use crate::optimization;
-use build_output::PackageGeneratedSource;
+use build_output::{CapturedBuildSourceInput, PackageGeneratedSource};
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
     PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
 use diagnostics::Diagnostic;
+use package_compilation::{BuildDependencyOccurrence, BuildSourceCaptureRequest};
+use std::collections::BTreeMap;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -36,22 +38,110 @@ use typed_trees::TypedTrees;
 /// canonical sealed form (the same physical inventory validated for canonical
 /// Source metadata); an unsealed or mutating root fails capture rather than
 /// producing a falsely attributed snapshot.
+///
+/// `dependency_inputs` carries immutable inputs already captured by the
+/// caller, each keyed to an exact dependency occurrence — requester, purpose,
+/// alias, and target — under a canonical slot name. Binding rejects an input
+/// whose occurrence does not exist in the reconciled graph rather than
+/// attaching it to another edge; a keyed input can never widen an occurrence
+/// or substitute host filesystem access.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
     required_outputs: Vec<Vec<u8>>,
+    capture: BuildSnapshotCapture,
+    dependency_inputs:
+        BTreeMap<BuildDependencyOccurrence, BTreeMap<Vec<u8>, CapturedBuildSourceInput>>,
+}
+
+/// The caller-authorized source inventory one build activation captures
+/// before execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildSnapshotCapture {
+    /// The root package's complete sealed inventory — the exact custody the
+    /// resolver already validated. Capture reads no member the package
+    /// binding did not commit.
+    PackageInventory,
+    /// An explicit invocation inventory of files and subtrees for a
+    /// standalone root. Capture reads exactly the declared members; a local
+    /// build never implicitly exposes the working directory.
+    Scoped(BuildSourceCaptureRequest),
 }
 
 impl BuildSnapshotRequest {
+    /// A snapshot over the root package's sealed inventory. Package custody
+    /// is itself the caller-authorized inventory — the resolver's canonical
+    /// index fixes membership — so this form needs no capture request.
     pub fn new(required_outputs: impl IntoIterator<Item = Vec<u8>>) -> Self {
         Self {
             required_outputs: required_outputs.into_iter().collect(),
+            capture: BuildSnapshotCapture::PackageInventory,
+            dependency_inputs: BTreeMap::new(),
         }
+    }
+
+    /// A snapshot over an explicit invocation inventory for a standalone
+    /// root: exactly the files and subtrees the caller declared.
+    pub fn scoped(
+        required_outputs: impl IntoIterator<Item = Vec<u8>>,
+        capture: BuildSourceCaptureRequest,
+    ) -> Self {
+        Self {
+            required_outputs: required_outputs.into_iter().collect(),
+            capture: BuildSnapshotCapture::Scoped(capture),
+            dependency_inputs: BTreeMap::new(),
+        }
+    }
+
+    /// Assign caller-captured immutable inputs to exact dependency
+    /// occurrences. Each name is an input slot in canonical relative form,
+    /// not a host path; a duplicate (occurrence, name) pair or a
+    /// noncanonical name rejects the request.
+    pub fn with_dependency_inputs(
+        mut self,
+        inputs: impl IntoIterator<Item = (BuildDependencyOccurrence, Vec<u8>, CapturedBuildSourceInput)>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        for (occurrence, name, input) in inputs {
+            if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(&name, false) {
+                return Err(vec![Diagnostic::error(format!(
+                    "named build input slot is not a canonical relative name: {name:?}"
+                ))]);
+            }
+            if self
+                .dependency_inputs
+                .entry(occurrence)
+                .or_default()
+                .insert(name.clone(), input)
+                .is_some()
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "named build input slot {name:?} is declared twice for one dependency occurrence"
+                ))]);
+            }
+        }
+        Ok(self)
     }
 
     /// Required sealed output paths in canonical slash-separated form. An
     /// empty roster still runs against the captured source snapshot.
     pub fn required_outputs(&self) -> &[Vec<u8>] {
         &self.required_outputs
+    }
+
+    /// The caller-authorized inventory this snapshot captures.
+    pub const fn capture(&self) -> &BuildSnapshotCapture {
+        &self.capture
+    }
+
+    /// Immutable inputs assigned to exact dependency occurrences.
+    pub fn dependency_inputs(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &BuildDependencyOccurrence,
+            &BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
+        ),
+    > {
+        self.dependency_inputs.iter()
     }
 }
 
