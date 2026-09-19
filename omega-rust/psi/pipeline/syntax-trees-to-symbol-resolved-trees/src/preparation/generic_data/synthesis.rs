@@ -12,6 +12,7 @@ use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::evaluate_const_membership_fact;
 use crate::preparation::generic_data::normalize_generic_template_const_expressions;
 use crate::preparation::generic_data::qualified_const_name;
+use crate::preparation::generic_data::relabel_closed_data_uses_in_constants;
 use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_assignments;
 use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_calls_and_returns;
 use crate::preparation::generic_data::relabel_closed_sum_memberships_from_local_types;
@@ -656,6 +657,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         }
     }
 
+    relabel_closed_data_uses_in_constants(syntax, &synthesized, selection);
     relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized, selection);
     relabel_closed_data_uses_in_exact_calls_and_returns(syntax, &synthesized, selection);
     relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection);

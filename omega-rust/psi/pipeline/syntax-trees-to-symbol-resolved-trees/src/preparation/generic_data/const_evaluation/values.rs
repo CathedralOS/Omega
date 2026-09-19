@@ -412,11 +412,56 @@ fn generic_application_label(
     argument_handles: &[TypeReferenceHandle],
     selection: Option<&ConstantSelection>,
 ) -> Result<String, String> {
-    if let Some(name) = synthesized_instance_name(syntax, selection, definition, argument_handles) {
-        return Ok(name);
+    if let Some(instance) = synthesized_instance(syntax, selection, definition, argument_handles) {
+        return Ok(instance.name.as_str().to_owned());
     }
-    let argument_names = monomorphizable_argument_slugs(syntax, argument_handles)
-        .ok_or("generic const carrier is not a closed monomorphizable application".to_owned())?;
+    let argument_names =
+        if let Some(names) = monomorphizable_argument_slugs(syntax, argument_handles) {
+            names
+        } else {
+            // Declaration evaluation precedes instance synthesis. A nested closed
+            // application still has its authored Generic node here, so it has no
+            // synthesized slug yet. Require an exact closed identity before using
+            // the same recursive label that later instance publication will use.
+            let parameters = syntax.items.type_parameters(definition.type_parameters);
+            if parameters.len() != argument_handles.len() {
+                return Err(
+                    "generic const carrier is not a closed monomorphizable application".to_owned(),
+                );
+            }
+            parameters
+                .iter()
+                .zip(argument_handles)
+                .map(|(parameter, argument)| {
+                    if let Some(slug) =
+                        crate::preparation::generic_data::type_reference_slug(syntax, *argument)
+                    {
+                        return Ok(slug);
+                    }
+                    closed_argument_identity(
+                        syntax,
+                        selection,
+                        *argument,
+                        matches!(
+                            parameter.kind,
+                            syntax_trees::item::TypeParameterKind::Const { .. }
+                        ),
+                    )
+                    .ok_or("generic const carrier is not a closed monomorphizable application")?;
+                    let label = selected_type_label(syntax, *argument, selection)?;
+                    if let TypeReferenceNode::Generic { base_name, .. } =
+                        syntax.type_references.type_reference(*argument)
+                        && let Some(selection) = selection
+                        && let Some(path) = selection.data_lookup_path(syntax, base_name)
+                        && let Some((prefix, _)) = path.rsplit_once("::")
+                    {
+                        Ok(format!("{prefix}::{label}"))
+                    } else {
+                        Ok(label)
+                    }
+                })
+                .collect::<Result<Vec<_>, String>>()?
+        };
     Ok(format!(
         "{}<{}>",
         definition.name.as_str(),
@@ -427,12 +472,12 @@ fn generic_application_label(
 /// The already-synthesized instance for one selected template and closed
 /// argument tuple, found by the same `Instance` identity deduplication uses —
 /// never by rendered-name equality.
-fn synthesized_instance_name(
-    syntax: &SyntaxTrees,
+fn synthesized_instance<'syntax>(
+    syntax: &'syntax SyntaxTrees,
     selection: Option<&ConstantSelection>,
     template: &DataDefinition,
     argument_handles: &[TypeReferenceHandle],
-) -> Option<String> {
+) -> Option<&'syntax DataDefinition> {
     let parameters = syntax.items.type_parameters(template.type_parameters);
     if parameters.len() != argument_handles.len() {
         return None;
@@ -462,7 +507,7 @@ fn synthesized_instance_name(
                 Some(ClosedArgumentIdentity::Instance(declaration, identities))
                     if declaration == template_handle && identities == identity =>
                 {
-                    Some(data.name.as_str().to_owned())
+                    Some(data)
                 }
                 _ => None,
             }
@@ -963,6 +1008,23 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             // contributes its argument's slug to the synthesized name.
             let label =
                 generic_application_label(syntax, definition, &resolved_arguments, selection)?;
+            // Constructor normalization may already have selected the closed
+            // instance. Rejoin it through the exact template/argument tuple,
+            // not its rendered label, before comparing constructor ownership.
+            // Before synthesis the same operation uses the template and its
+            // explicit substitutions; neither route accepts another tuple.
+            if let Some(instance) =
+                synthesized_instance(syntax, selection, definition, &resolved_arguments)
+            {
+                return canonicalize_selected_data_const_expression(
+                    syntax,
+                    instance,
+                    &label,
+                    expression,
+                    selection,
+                    &GenericApplicationSubstitution::new(),
+                );
+            }
             canonicalize_selected_data_const_expression(
                 syntax,
                 definition,

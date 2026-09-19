@@ -441,9 +441,22 @@ have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-foreign/generic constant attachments, operator homes and qualified case
-membership in declared-domain proof facts have resolution probes but still
-need end-to-end selection coverage.
+indexed domain constraints, operator homes and qualified case membership in
+declared-domain proof facts still need end-to-end selection coverage.
+
+Module-owned constants with foreign nominal and closed generic value types
+retain separate declaration, carrier and initializer owners. Name expressions
+carry their complete authored spans even inside aggregate initializers. Closed
+constructors join the constant's declared template/argument tuple before body
+substitution, using the same destination normalization as local construction.
+Declaration finalization checks nominal constructor identity even for unused
+private constants; eligibility for public/index encoding is a separate judgment.
+The `module_machine_indices::constant_attachments` integration tests follow
+scalar field reads through checked compilation and source-free Terminal execution,
+including nested generic records, private initializer imports and same-leaf
+competitors. Wrong carriers, private API exposure, sibling imports and transitive
+package selection reject. These tests do not establish native aggregate result
+transport or generic type-scoped `const Type::NAME` support.
 
 Trait defaults keep two distinct owners: the synthesized implementation and
 its states belong to the conforming package, while copied body operands retain
@@ -604,8 +617,9 @@ scalar constants. Receiving generic and domain arguments independently rejoin
 the exact nominal carrier before accepting the canonical value; equal layouts
 and encoded labels cannot grant identity. Fields encode in declaration order.
 The `module_machine_indices::nominal` integration probes cover these checked-source
-uses and hostile carrier, import and visibility controls. Module-owned templates,
-foreign/generic attachments remain separate.
+uses and hostile carrier, import and visibility controls. Module-owned constants
+with closed foreign templates additionally have the `constant_attachments`
+source-free execution coverage above; generic attachment heads remain separate.
 Closed nominal literal constants also substitute into ordinary bodies after
 resolving each initializer in its declaring source. Constructor, case and field
 selections survive each independent deep copy; a caller's same-spelled data

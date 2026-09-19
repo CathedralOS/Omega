@@ -3050,15 +3050,16 @@ Owners include
   open-template indices, trait defaults, operator homes and qualified case
   membership in domain facts pass normalization and resolution
   (`tests/module_namespace_residuals.rs` in that crate). The remaining
-  non-default forms mostly assert only resolution success; their selected
-  declarations still need following through typing, checking and Terminal.
+  indexed-domain/operator/case-fact forms mostly assert only resolution success;
+  their selected declarations still need following through typing, checking
+  and Terminal.
 
   Remaining work:
 
-  - Carry exact lexical/package selection for the remaining constant
-    attachments, indexed domain constraints, operator homes and declared-domain
-    case facts through typed and
-    checked trees and Terminal artifacts, with per-use exposure under
+  - Carry exact lexical/package selection for remaining generic type-scoped
+    constant attachment heads, indexed domain constraints, operator homes and
+    declared-domain case facts through typed and checked trees and Terminal
+    artifacts, with per-use exposure under
     specialization and owner-local imports, and add same-leaf, private and
     transitive-exposure controls for each.
   - Complete declaration evaluation, including unused initializers:

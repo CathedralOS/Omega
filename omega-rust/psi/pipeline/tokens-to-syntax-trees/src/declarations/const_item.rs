@@ -28,20 +28,6 @@ pub(super) fn parse_const_definition<'tokens, 'source>(
     let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
     let (value, input) = parse_expression_handle(syntax_trees, input)?;
-    // Name expressions carry coordinates on their path members. A declaration
-    // also needs a source-owned initializer root, including a bare const alias.
-    if let syntax_trees::expression::ExpressionNode::Name(path) =
-        syntax_trees.expressions.expression(value)
-    {
-        let members = syntax_trees.expressions.identifier_path_members(*path);
-        if let (Some(first), Some(last)) = (members.first(), members.last()) {
-            let reference = source::SourceSpan::new(
-                first.source_span().source_id,
-                source::Span::new(first.source_span().span.start, last.source_span().span.end),
-            );
-            syntax_trees.expressions.set_source_span(value, reference);
-        }
-    }
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     Ok((
         ConstDefinition {

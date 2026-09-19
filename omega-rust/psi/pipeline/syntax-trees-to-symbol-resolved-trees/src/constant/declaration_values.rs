@@ -11,6 +11,97 @@ use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
+/// Even unused private constants owe their exact nominal destination. Check
+/// resolved constructor and field identities after specialization, without
+/// requiring a public/index encoding or duplicating scalar type checking.
+pub(super) fn validate_nominal_destinations(
+    program: &SymbolResolvedTrees,
+) -> Result<(), Diagnostic> {
+    use symbol_resolved_trees::data::DataMember;
+    use symbol_resolved_trees::expression::ExpressionNode;
+    use symbol_resolved_trees::types::TypeReference;
+
+    let mut pending = program
+        .const_declarations
+        .iter()
+        .map(|declaration| (&declaration.declared_type, declaration.initializer))
+        .collect::<Vec<_>>();
+    while let Some((destination, expression)) = pending.pop() {
+        let table = &program.tables.bodies.expressions;
+        if let TypeReference::Constrained(constraint) = destination {
+            pending.push((
+                program.child_type_reference(constraint.base_type),
+                expression,
+            ));
+            continue;
+        }
+        if let (TypeReference::FixedArray(array), ExpressionNode::ArrayLiteral(elements)) =
+            (destination, table.expression(expression))
+        {
+            pending.extend(
+                table
+                    .expression_handles(*elements)
+                    .iter()
+                    .map(|element| (program.child_type_reference(array.element_type), *element)),
+            );
+            continue;
+        }
+        let expected = match destination {
+            TypeReference::Named { symbol, .. } => *symbol,
+            TypeReference::Generic(application) if application.arguments.is_empty() => {
+                application.base_symbol
+            }
+            _ => continue,
+        };
+        let (actual, literal) = match table.expression(expression) {
+            ExpressionNode::StructLiteral(literal) => (literal.type_symbol, Some(literal)),
+            ExpressionNode::Name(path)
+                if program.symbols.get(path.symbol).kind == SymbolKind::Variant =>
+            {
+                (program.symbols.get(path.symbol).parent, None)
+            }
+            _ => continue,
+        };
+        if !expected.is_valid() || !actual.is_valid() || expected != actual {
+            return Err(Diagnostic::error(format!(
+                "constant constructor selects a different nominal carrier than its declared destination `{}`",
+                program.symbols.display_path(expected, "::"),
+            )).with_source_span(table.source_span(expression)));
+        }
+        let Some(literal) = literal else {
+            continue;
+        };
+        let Some(definition) = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.symbol == expected)
+        else {
+            continue;
+        };
+        for field in table.struct_fields(literal.fields) {
+            let declared = program
+                .data_members(definition.members)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Field(declared) if declared.symbol == field.field_symbol => {
+                        Some(declared)
+                    }
+                    DataMember::Variant(variant) if literal.case_symbol == Some(variant.symbol) => {
+                        program
+                            .data_payload_fields(variant.payload)
+                            .iter()
+                            .find(|declared| declared.symbol == field.field_symbol)
+                    }
+                    _ => None,
+                });
+            if let Some(declared) = declared {
+                pending.push((&declared.type_reference, field.value));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Public declaration identity includes floating scalars with determined bits, independently
 /// of the narrower structural values eligible for generic and domain indices.
 pub(crate) fn public_declaration_value_encoding(
