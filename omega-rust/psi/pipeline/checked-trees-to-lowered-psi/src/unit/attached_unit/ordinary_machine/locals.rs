@@ -75,7 +75,7 @@ impl MachineEmission<'_> {
                 lookup_machine_id(self.machine_ids, *target_machine)?,
                 self.type_ids,
                 self.domain_ids,
-                self.claim_bindings,
+                &self.claim_bindings,
                 true,
                 place_counter,
                 output,

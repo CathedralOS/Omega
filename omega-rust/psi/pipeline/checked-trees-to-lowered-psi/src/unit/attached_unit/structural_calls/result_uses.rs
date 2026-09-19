@@ -1667,6 +1667,43 @@ fn claimed_result_consumer(
             "Unit structural result claim custody was not established and consumed exactly once",
         );
     }
+    // The bound local's producing statement establishes the whole claim
+    // frontier the consume retires: a sibling mint at the same coordinate —
+    // or an establish event re-minting an identity established elsewhere —
+    // leaves claim custody this consume never carries.
+    let (_, source_state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return unsupported("Unit structural result claim custody has no authored local");
+    };
+    if checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == caller.machine
+                && event.state_symbol == caller.state
+                && event.source
+                    == language_semantics::PermissionEventSource::Statement { statement_index }
+                && event.kind == language_semantics::PermissionEventKind::Establish
+                && event.access == language_semantics::PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Linear
+                && event.obligation_live
+                && event.root == facts::PlaceRoot::Symbol(local.symbol)
+        })
+        .count()
+        != 1
+    {
+        return unsupported(
+            "Unit structural result claim custody was not established and consumed exactly once",
+        );
+    }
     for candidate in caller
         .operations
         .iter()

@@ -27,9 +27,9 @@ use crate::unit::{
     PermissionClaimIdentity, PlaceId, ScalarType, SemanticDomainId, StructuralDomainId,
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense,
-    content_conservation, contract_id, edge_id, lookup_type_id, lower_checked_crash_route_buckets,
-    lower_structural_crash_route_buckets, obligation_id, place_id, terminal_scalar_type,
-    unsupported, value_id,
+    content_conservation, contract_id, dense_identity, edge_id, lookup_type_id,
+    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, obligation_id,
+    place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
     BoundaryMachineId, MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration,
@@ -81,7 +81,15 @@ pub(super) struct MachineEmission<'a> {
     plans: &'a checked_trees::CheckedUnitEffectPlans,
     parameters: &'a Vec<StructuralParameterDeclaration>,
     scalar_parameter_count: usize,
-    claim_bindings: &'a [(PermissionClaimIdentity, ClaimId)],
+    /// The caller's claim bindings: the lowered entry claims plus every
+    /// caller-local binding a boundary result mints for a claim established
+    /// at its own binding statement. The table grows during emission so
+    /// later receipts, transfers and result custody resolve the same
+    /// semantic identity to the same `ClaimId`.
+    claim_bindings: Vec<(PermissionClaimIdentity, ClaimId)>,
+    /// Dense tail past the lowered entry claims; each minted boundary result
+    /// claim allocates the next value so two claims never share an id.
+    next_claim: u64,
     structural_types: &'a mut Vec<StructuralTypeDeclaration>,
     type_ids: &'a [(String, StructuralTypeId)],
     domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
@@ -417,7 +425,8 @@ pub(super) fn emit(
         plans,
         parameters,
         scalar_parameter_count,
-        claim_bindings,
+        claim_bindings: claim_bindings.clone(),
+        next_claim: dense_identity(claim_bindings.len())?,
         structural_types,
         type_ids,
         domain_ids,
