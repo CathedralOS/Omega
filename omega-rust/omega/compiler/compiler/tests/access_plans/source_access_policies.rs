@@ -790,6 +790,78 @@ machine Inspector::inspect(
         lowered.semantic_module.placed_view_inputs
     );
 
+    // The ordinary establishment route supplies the roster's custody at
+    // interpretation: each direct-entry row joins exactly one establishment
+    // lending the qualified referent backing for the invocation's duration.
+    // The referent carrier stays opaque — Psi never interprets its type,
+    // layout, or address — so the provider's structural runtime value is the
+    // whole supply, and the entry machine completes with the input bound.
+    let establishments = [terminal_interpreter::TerminalPlacedViewEstablishment {
+        input: lowered.semantic_module.placed_view_inputs[0].clone(),
+        referent: terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 0x5a17,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1)
+                .expect("nonzero structural type"),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    }];
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        terminal_interpreter::TerminalStructuralInputs {
+            placed_view_establishments: &establishments,
+            ..Default::default()
+        },
+    )
+    .expect("an exact establishment binds the declared placed-view input");
+    let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut terminal_interpreter::AcceptTerminalEffects)
+            .expect("the established view runs the entry to completion"),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    // Completing the invocation retires the loan; the custody gate still
+    // holds when no establishment answers the declared row, and a supply
+    // whose roster row is stale — or that the roster never declared — rejects
+    // before the entry machine runs.
+    assert!(matches!(
+        terminal_interpreter::TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &profile,
+            &[],
+            Default::default(),
+        ),
+        Err(
+            terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                terminal_interpreter::TerminalInterpretError::PlacedViewInputsRequireCustody
+            )
+        )
+    ));
+    let mut stale_supply = establishments[0].clone();
+    stale_supply.input.placement_commitment[0] ^= 1;
+    assert!(matches!(
+        terminal_interpreter::TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &profile,
+            &[],
+            terminal_interpreter::TerminalStructuralInputs {
+                placed_view_establishments: &[stale_supply],
+                ..Default::default()
+            },
+        ),
+        Err(terminal_interpreter::TerminalArtifactInterpretError::Execution(
+            terminal_interpreter::TerminalInterpretError::PlacedViewInputEstablishmentUnexpected { .. }
+        ))
+    ));
+
     let native = terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

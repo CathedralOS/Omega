@@ -19,12 +19,26 @@ pub enum TerminalInterpretError {
     /// A projection cannot be represented exactly by the interpreter's current
     /// path-aware structural model, so execution fails closed.
     AffineProjectionNotRepresentable,
-    /// The module declares placed-view inputs. That roster is semantic
-    /// custody, not storage: no scalar, structural, or byte-sequence input
-    /// can supply the referent each row names, and interpretation has no
-    /// establishment route that lends one. Execution therefore fails closed
-    /// rather than starting the entry machine with a declared input unbound.
+    /// A direct-entry placed-view input was not established by any supplied
+    /// `TerminalPlacedViewEstablishment`, or the roster carries a row on a
+    /// non-entry machine — an input bound by its call, which this boundary
+    /// cannot yet route. Execution fails closed rather than starting the
+    /// entry machine with a declared input unbound.
     PlacedViewInputsRequireCustody,
+    /// Two supplied establishments name the same roster row.
+    PlacedViewInputEstablishmentDuplicate {
+        machine: MachineId,
+        position: u32,
+    },
+    /// A supplied establishment names no declared entry roster row: custody
+    /// the artifact never demanded cannot be bound at its input boundary.
+    PlacedViewInputEstablishmentUnexpected {
+        machine: MachineId,
+        position: u32,
+    },
+    /// An established referent overlaps another placed-view establishment's
+    /// referent or a structural argument under exclusive access.
+    PlacedViewInputEstablishmentAliasing(u64),
     ArgumentCount {
         expected: usize,
         actual: usize,

@@ -28,6 +28,7 @@ mod execution;
 mod integer_operations;
 #[cfg(test)]
 mod placed_view_input_tests;
+mod placed_views;
 mod primitive_storage;
 mod record;
 mod reference;
@@ -64,6 +65,7 @@ pub use errors::{
     ProviderInstallationError, TerminalArtifactInterpretError, TerminalInterpretError,
 };
 pub use execution::TerminalExecution;
+pub use placed_views::TerminalPlacedViewEstablishment;
 pub use results::{
     MeasuredTerminalExecution, TerminalCrash, TerminalCrashSite, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalScalarCaseResult, TerminalStructuralResult,

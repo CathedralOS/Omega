@@ -35,7 +35,7 @@ fn verified_startup_moves_the_decoded_operation_allocation() {
     let block = module.machines[0].entry;
     let operations = module.machines[0].blocks[0].operations.as_ptr();
     let mut execution =
-        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], None).unwrap();
+        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], &[], None).unwrap();
     assert_eq!(
         execution.machines[&machine].blocks[&block]
             .operations

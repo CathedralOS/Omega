@@ -252,6 +252,7 @@ fn execution() -> TerminalExecution {
         byte_sequence_values: BTreeMap::new(),
         live_affine_frontier: BTreeSet::new(),
         live_claims: BTreeMap::new(),
+        placed_view_occurrences: BTreeMap::new(),
         current_machine,
         current: BlockId::new(1).unwrap(),
         next_operation: 0,

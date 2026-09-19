@@ -3,14 +3,22 @@
 //! `placed_view_inputs` declares direct entry inputs whose opaque placed-view
 //! meaning is bound to one exact source-derived placement interpretation. That
 //! roster is semantic custody, not storage: no scalar, structural, or
-//! byte-sequence input can supply the referent it names. Interpretation has no
-//! establishment route that lends one, so a module whose roster is nonempty
-//! must reject at start rather than execute the entry machine with a declared
-//! input silently unbound — the same custody gate the plan, optimizer, and
-//! native-realization admissions already apply.
+//! byte-sequence input can supply the referent it names. The ordinary
+//! establishment route supplies one `TerminalPlacedViewEstablishment` per
+//! direct-entry roster row — the provider's loan of the exact qualified
+//! backing — and interpretation binds it as a live occurrence for the entry
+//! invocation's duration. A row left unsupplied, a supply answering no
+//! declared row, and a row on a non-entry machine all reject at start rather
+//! than execute the entry machine with a declared input silently unbound.
 
-use super::{TerminalExecution, TerminalInterpretError};
-use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId};
+use super::{
+    AcceptTerminalEffects, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalInterpretError, TerminalPlacedViewEstablishment, TerminalStructuralValue,
+};
+use semantic_vocabulary::{
+    BlockId, ContractId, EdgeId, MachineId, StructuralDomainId, StructuralTypeId,
+};
+use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Block, MachineContract, StructuralAccess, TerminalMachine, TerminalMachineResult,
     TerminalModule, TerminalPlacedViewInput, Terminator,
@@ -95,19 +103,23 @@ fn module(placed_view_inputs: Vec<TerminalPlacedViewInput>) -> TerminalModule {
         suspension_call_sites: Vec::new(),
         suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
-        machines: vec![unit_machine(1)],
+        machines: vec![unit_machine(1), unit_machine(2)],
     }
 }
 
-fn placed_view_row(machine: MachineId) -> TerminalPlacedViewInput {
-    let policy_identity = "package::Uart".to_string();
-    let schema_identity = "package::Registers".to_string();
+const PACKAGE_DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+fn placed_view_row(machine: MachineId, position: u32) -> TerminalPlacedViewInput {
+    let policy_identity = format!("package:{PACKAGE_DIGEST}::Uart");
+    let schema_identity = format!("package:{PACKAGE_DIGEST}::Registers");
     TerminalPlacedViewInput {
         machine,
-        position: 0,
-        source_machine_identity: "package::inspect".into(),
-        source_state_identity: "package::inspect::entry".into(),
-        source_parameter_identity: "package::inspect::entry::view0".into(),
+        position,
+        source_machine_identity: format!("package:{PACKAGE_DIGEST}::inspect"),
+        source_state_identity: format!("package:{PACKAGE_DIGEST}::inspect::entry"),
+        source_parameter_identity: format!(
+            "package:{PACKAGE_DIGEST}::inspect::entry::view{position}"
+        ),
         access: StructuralAccess::MutableBorrow,
         binding_is_const: false,
         binding_is_mutable: true,
@@ -116,10 +128,29 @@ fn placed_view_row(machine: MachineId) -> TerminalPlacedViewInput {
             &schema_identity,
         ),
         policy_identity,
-        policy_plan_machine_identity: "package::Uart::plan".into(),
+        policy_plan_machine_identity: format!("package:{PACKAGE_DIGEST}::Uart::plan"),
         schema_identity,
-        placement_report_fingerprint: 41,
+        placement_report_fingerprint: 41 + u64::from(position),
         placement_commitment: [0x5a; 32],
+    }
+}
+
+fn referent(opaque_identity: u64) -> TerminalStructuralValue {
+    TerminalStructuralValue {
+        opaque_identity,
+        structural_type: StructuralTypeId::new(1).unwrap(),
+        qualifications: vec![StructuralDomainId::new(7).unwrap()],
+        path: Vec::new(),
+    }
+}
+
+fn establishment(
+    input: TerminalPlacedViewInput,
+    opaque_identity: u64,
+) -> TerminalPlacedViewEstablishment {
+    TerminalPlacedViewEstablishment {
+        input,
+        referent: referent(opaque_identity),
     }
 }
 
@@ -128,9 +159,9 @@ fn placed_view_roster_rejects_at_interpretation_start() {
     let mut placed = module(Vec::new());
     placed
         .placed_view_inputs
-        .push(placed_view_row(placed.entry));
+        .push(placed_view_row(placed.entry, 0));
     assert!(matches!(
-        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], None),
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &[], None),
         Err(TerminalInterpretError::PlacedViewInputsRequireCustody)
     ));
 }
@@ -138,7 +169,155 @@ fn placed_view_roster_rejects_at_interpretation_start() {
 #[test]
 fn empty_placed_view_roster_still_starts() {
     assert!(
-        TerminalExecution::start_verified_module(module(Vec::new()), &[], &[], &[], &[], None)
+        TerminalExecution::start_verified_module(module(Vec::new()), &[], &[], &[], &[], &[], None)
             .is_ok()
     );
+}
+
+#[test]
+fn established_placed_view_binds_and_retires_at_completion() {
+    let mut placed = module(Vec::new());
+    let row = placed_view_row(placed.entry, 0);
+    placed.placed_view_inputs.push(row);
+    let establishments = [establishment(
+        placed.placed_view_inputs[0].clone(),
+        0xC0FFEE,
+    )];
+    let mut execution =
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None)
+            .expect("an exact establishment supplies the declared input's custody");
+    assert_eq!(execution.placed_view_occurrences.len(), 1);
+    let mut meter = TerminalFuelMeter::unbounded();
+    let status = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .expect("the declared input is bound for the invocation");
+    assert!(matches!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    ));
+    assert!(
+        execution.placed_view_occurrences.is_empty(),
+        "completing the entry invocation retires the lent occurrences"
+    );
+}
+
+#[test]
+fn stale_or_substituted_establishment_rejects() {
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    // A drifted supply — a stale placement commitment — answers no declared
+    // row, so it rejects as unexpected rather than binding stale custody.
+    let mut drifted = placed_view_row(placed.entry, 0);
+    drifted.placement_commitment = [0xee; 32];
+    let establishments = [establishment(drifted, 0xC0FFEE)];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
+        Err(TerminalInterpretError::PlacedViewInputEstablishmentUnexpected { .. })
+    ));
+}
+
+#[test]
+fn establishment_for_undeclared_input_rejects() {
+    let placed = module(Vec::new());
+    let establishments = [establishment(placed_view_row(machine_id(1), 0), 0xC0FFEE)];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
+        Err(TerminalInterpretError::PlacedViewInputEstablishmentUnexpected { .. })
+    ));
+}
+
+#[test]
+fn duplicate_establishment_rejects() {
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    let row = placed.placed_view_inputs[0].clone();
+    let establishments = [
+        establishment(row.clone(), 0xC0FFEE),
+        establishment(row, 0xBEEF),
+    ];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
+        Err(TerminalInterpretError::PlacedViewInputEstablishmentDuplicate { .. })
+    ));
+}
+
+#[test]
+fn non_entry_roster_row_still_requires_custody() {
+    let mut placed = module(Vec::new());
+    // A row on a non-entry machine declares a call-bound input; this input
+    // boundary cannot route its custody, so it keeps failing closed.
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(machine_id(2), 0));
+    let establishments = [establishment(
+        placed.placed_view_inputs[0].clone(),
+        0xC0FFEE,
+    )];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
+        Err(TerminalInterpretError::PlacedViewInputsRequireCustody)
+    ));
+}
+
+#[test]
+fn non_canonical_referent_qualifications_reject() {
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    let mut supply = establishment(placed.placed_view_inputs[0].clone(), 0xC0FFEE);
+    supply.referent.qualifications = vec![
+        StructuralDomainId::new(9).unwrap(),
+        StructuralDomainId::new(7).unwrap(),
+    ];
+    let establishments = [supply];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
+        Err(TerminalInterpretError::StructuralQualificationsNonCanonical)
+    ));
+}
+
+#[test]
+fn exclusive_establishment_referent_aliasing_rejects() {
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 1));
+    let establishments = [
+        establishment(placed.placed_view_inputs[0].clone(), 0xC0FFEE),
+        establishment(placed.placed_view_inputs[1].clone(), 0xC0FFEE),
+    ];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
+        Err(TerminalInterpretError::PlacedViewInputEstablishmentAliasing(0xC0FFEE))
+    ));
+}
+
+#[test]
+fn exclusive_establishment_aliasing_structural_argument_rejects() {
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    let arguments = [referent(0xBEEF)];
+    let establishments = [establishment(placed.placed_view_inputs[0].clone(), 0xBEEF)];
+    assert!(matches!(
+        TerminalExecution::start_verified_module(
+            placed,
+            &[],
+            &arguments,
+            &[],
+            &[],
+            &establishments,
+            None
+        ),
+        Err(TerminalInterpretError::PlacedViewInputEstablishmentAliasing(0xBEEF))
+    ));
 }

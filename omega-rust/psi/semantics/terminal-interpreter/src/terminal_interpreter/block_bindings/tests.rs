@@ -169,6 +169,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         ]),
         live_affine_frontier: Default::default(),
         live_claims: BTreeMap::new(),
+        placed_view_occurrences: BTreeMap::new(),
         current_machine: machine_id,
         current: entry,
         next_operation: 0,
