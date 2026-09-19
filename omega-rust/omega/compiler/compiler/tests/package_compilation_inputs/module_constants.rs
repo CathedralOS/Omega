@@ -462,13 +462,12 @@ fn public_float_declarations_do_not_admit_machine_or_domain_indices() {
 }
 
 #[test]
-fn public_float_identity_requires_literals_with_matching_landings() {
+fn public_float_identity_preserves_explicit_literal_landings() {
     let tree = TempTree::new();
     let root = tree.package("root");
     for (initializer, diagnostic) in [
         ("1e9999f64", "conflicts with declared floating carrier"),
         ("1.5f64", "conflicts with declared floating carrier"),
-        ("1.0 + 0.5", "conflicts with declared floating carrier"),
     ] {
         TempTree::write(
             root.join("main.omg"),

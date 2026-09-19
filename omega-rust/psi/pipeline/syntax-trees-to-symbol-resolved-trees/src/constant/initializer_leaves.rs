@@ -188,13 +188,19 @@ pub(crate) fn pending_const_initializer_leaves(
                         | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64
                         | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16
                         | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64
-                        | symbols::BuiltinTypeAtom::Bool)
+                        | symbols::BuiltinTypeAtom::Bool
+                        | symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)
                 ) =>
             {
-                if !matches!(
-                    syntax.expressions.expression(expression),
-                    ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
-                ) {
+                let materialized = match syntax.expressions.expression(expression) {
+                    ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
+                    // Decimal-to-integer landing still needs evaluation; a
+                    // floating declaration's literal validation owns its suffix.
+                    ExpressionNode::Float(_) => matches!(selection.builtin_type(name),
+                        Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)),
+                    _ => false,
+                };
+                if !materialized {
                     leaves.push(PendingConstInitializerLeaf {
                         expression,
                         destination: type_reference,

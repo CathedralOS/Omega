@@ -328,7 +328,9 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
         );
     }
     let declarations = std::fs::read_to_string(owner.join("lowering/item.rs")).unwrap();
-    assert!(declarations.contains(
+    assert!(declarations.contains("crate::constant::public_declaration_value_encoding"));
+    let values = std::fs::read_to_string(owner.join("constant/declaration_values.rs")).unwrap();
+    assert!(values.contains(
         "crate::preparation::generic_data::canonicalize_selected_declared_const_definition"
     ));
     let selection =

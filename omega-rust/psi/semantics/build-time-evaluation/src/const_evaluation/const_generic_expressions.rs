@@ -206,6 +206,7 @@ pub(crate) fn evaluate(
             warnings,
         } = evaluate_probe(&typed, reference, public, authority, expected, &syntax)
             .map_err(&failure)?;
+        let result = result.into_index().map_err(&failure)?;
         let replacement = match result.decode_encoding() {
             Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
             Some(DecodedCanonicalConstValue::Boolean(_)) => result.atom(),
@@ -276,6 +277,28 @@ pub(super) fn exact_probe_destination(
         BuiltinTypeAtom::U64 => PrimitiveType::U64,
         BuiltinTypeAtom::Bool => PrimitiveType::Bool,
         _ => return None,
+    })
+}
+
+/// Scalar declaration probes additionally admit floating destinations. Keep the
+/// structural index predicate unchanged for generic and aggregate consumers.
+fn scalar_probe_destination(
+    program: &typed_trees::TypedTrees,
+    destination: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    use symbols::BuiltinTypeAtom;
+    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+    exact_probe_destination(program, destination).or_else(|| {
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(destination)
+        else {
+            return None;
+        };
+        match program.symbols.builtin_type_atom(*symbol)? {
+            BuiltinTypeAtom::F32 => Some(PrimitiveType::F32),
+            BuiltinTypeAtom::F64 => Some(PrimitiveType::F64),
+            _ => None,
+        }
     })
 }
 
@@ -644,9 +667,8 @@ fn evaluate_probe_internal(
     else {
         return Err("typed probe return is not a value".to_owned());
     };
-    let destination = exact_probe_destination(typed, state.return_type).ok_or(
-        "constant destination requires an unconstrained exact builtin integer or Boolean carrier",
-    )?;
+    let destination = scalar_probe_destination(typed, state.return_type)
+        .ok_or("constant destination requires an unconstrained builtin scalar carrier")?;
     crate::machine_execution::admission::require_const_expression_selection(
         typed, machine, reference, authority,
     )?;
@@ -681,14 +703,14 @@ fn evaluate_probe_internal(
         );
     }
     let (value, warnings) = if let Some((_, calls)) = calls {
-        value::evaluate(typed, machine, state, *expression, destination, Some(calls))?
+        value::evaluate_scalar(typed, machine, state, *expression, destination, Some(calls))?
     } else {
-        value::evaluate(typed, machine, state, *expression, destination, None)?
+        value::evaluate_scalar(typed, machine, state, *expression, destination, None)?
     };
-    if value.type_name != destination.name() {
+    if value.type_name() != destination.name() {
         return Err(format!(
             "landed `{}` result cannot initialize `{}`",
-            value.type_name,
+            value.type_name(),
             destination.name(),
         ));
     }
@@ -701,7 +723,7 @@ fn evaluate_probe_internal(
 }
 
 pub(super) struct ScalarProbeResult {
-    pub(super) value: language_semantics::const_value::CanonicalConstValue,
+    pub(super) value: value::ScalarValue,
     pub(super) origins: Vec<ConstArgumentOrigin>,
     pub(super) operators: Vec<SourceSpan>,
     pub(super) warnings: Vec<Diagnostic>,

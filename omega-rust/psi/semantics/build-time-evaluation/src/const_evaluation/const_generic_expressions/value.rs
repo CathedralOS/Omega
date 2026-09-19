@@ -31,7 +31,7 @@ use language_semantics::const_value::{
 };
 use numerics::{
     arithmetic::ArithmeticDomain,
-    literals::{IntegerLiteral, LandedIntegerType},
+    literals::{FloatFormat, IntegerLiteral, LandedIntegerType},
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use typed_trees::{
@@ -80,6 +80,45 @@ enum Value {
     Landed(LandedIntegerType, IntegerValue),
 }
 
+/// Declaration values and generic indices have different eligibility. Floating
+/// bits can be materialized, but must never acquire a canonical index atom.
+pub(crate) enum ScalarValue {
+    Index(CanonicalConstValue),
+    Float { format: FloatFormat, bits: u64 },
+}
+
+impl ScalarValue {
+    pub(crate) fn type_name(&self) -> &str {
+        match self {
+            Self::Index(value) => &value.type_name,
+            Self::Float { format, .. } => format.name(),
+        }
+    }
+
+    pub(crate) fn encoding(&self) -> String {
+        match self {
+            Self::Index(value) => value.encoding.clone(),
+            Self::Float {
+                format: FloatFormat::F32,
+                bits,
+            } => format!("float:f32:{bits:08x}"),
+            Self::Float {
+                format: FloatFormat::F64,
+                bits,
+            } => format!("float:f64:{bits:016x}"),
+        }
+    }
+
+    pub(crate) fn into_index(self) -> Result<CanonicalConstValue, String> {
+        match self {
+            Self::Index(value) => Ok(value),
+            Self::Float { .. } => {
+                Err("floating declaration values are not canonical indices".into())
+            }
+        }
+    }
+}
+
 /// Validate every operand and landing boundary without invoking landed calls.
 pub(crate) fn validate(
     program: &TypedTrees,
@@ -101,17 +140,19 @@ pub(crate) fn evaluate(
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-    evaluate_internal(program, machine, state, expression, destination, calls)
+    let (value, warnings) =
+        evaluate_scalar(program, machine, state, expression, destination, calls)?;
+    Ok((value.into_index()?, warnings))
 }
 
-fn evaluate_internal(
+pub(crate) fn evaluate_scalar(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
-) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
     if !program.expression_table.expression_is_valid(expression) {
         return Err("invalid constant expression".to_owned());
     }
@@ -425,6 +466,37 @@ fn evaluate_internal(
         return Err("constant expression did not produce one value".into());
     }
     let value = match values.pop().ok_or("missing constant expression value")? {
+        Value::Anonymous(expression)
+            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                program,
+                expression,
+                &selected_arms,
+                |operand| {
+                    validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        operand,
+                    )
+                },
+            )
+            .ok_or("floating constant requires a defined exact anonymous value")?;
+            // Round the completed rational directly at its declared format;
+            // an intermediate f64 would double-round some f32 destinations.
+            let value = match destination {
+                PrimitiveType::F32 => ScalarValue::Float {
+                    format: FloatFormat::F32,
+                    bits: u64::from(exact.to_f32().to_bits()),
+                },
+                _ => ScalarValue::Float {
+                    format: FloatFormat::F64,
+                    bits: exact.to_f64().to_bits(),
+                },
+            };
+            return Ok((value, warnings));
+        }
         Value::Anonymous(expression) => land_anonymous(
             program,
             machine,
@@ -437,7 +509,10 @@ fn evaluate_internal(
         value => value,
     };
     if let Value::Boolean(value) = value {
-        return Ok((CanonicalConstValue::boolean(value), warnings));
+        return Ok((
+            ScalarValue::Index(CanonicalConstValue::boolean(value)),
+            warnings,
+        ));
     }
     let Value::Landed(carrier, value) = value else {
         return Err("constant expression has no integer landing".into());
@@ -449,7 +524,11 @@ fn evaluate_internal(
     };
     let identity = CanonicalConstIdentity::integer(carrier.name(), value);
     Ok((
-        CanonicalConstValue::new(identity.type_name, identity.encoding, value.to_string()),
+        ScalarValue::Index(CanonicalConstValue::new(
+            identity.type_name,
+            identity.encoding,
+            value.to_string(),
+        )),
         warnings,
     ))
 }
@@ -688,6 +767,9 @@ fn validate_shapes(
     // dispatch. Checking only a bare Match would let an unselected fractional
     // or out-of-range result disappear before the selected value is published.
     match shapes[0] {
+        Shape::Anonymous(_) if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) => {
+            match_dispatch::validate_anonymous_fragments(program, machine, state, root)?;
+        }
         Shape::Anonymous(_) => {
             match_dispatch::validate_landing(
                 program,

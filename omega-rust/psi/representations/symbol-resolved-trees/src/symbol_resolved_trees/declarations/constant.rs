@@ -15,7 +15,8 @@ pub struct ConstDeclaration {
     /// Already-resolved declaration-owned root, deep-copied at each later use.
     pub initializer: crate::expression::ExpressionHandle,
     /// Detached original computation for independent semantic fold replay.
-    /// Invalid for declarations which were already literal values.
+    /// Literal-only declarations retain their initializer here too; absence
+    /// cannot stand for an erased computation with no operator occurrences.
     pub authored_initializer: crate::expression::ExpressionHandle,
     /// Declaration-side source occurrence, independent of each use-site copy.
     pub initializer_source_span: source::SourceSpan,
