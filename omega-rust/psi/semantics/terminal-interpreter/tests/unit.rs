@@ -10,6 +10,8 @@ use terminal_interpreter::TerminalStructuralInputs;
 mod affine_cleanups;
 #[path = "unit/affine_identity_calls.rs"]
 mod affine_identity_calls;
+#[path = "unit/borrowed_storage_windows.rs"]
+mod borrowed_storage_windows;
 #[path = "unit/boundary_borrows.rs"]
 mod boundary_borrows;
 #[path = "unit/bounded_fields.rs"]

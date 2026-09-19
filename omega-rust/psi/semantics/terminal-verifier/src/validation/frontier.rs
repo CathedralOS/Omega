@@ -11,9 +11,9 @@ use super::affine_cleanup::{
     bounded_nominal_cleanup_receiver_shape, valid_nominal_cleanup_requirements,
 };
 use super::{
-    BTreeMap, BTreeSet, BlockId, ClaimId, EdgeId, MachineId, ModuleError, OperationId,
-    OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceKind,
+    BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, ClaimId, EdgeId, MachineId,
+    ModuleError, OperationId, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, partial_affine_residuals, partial_affine_root_type,
 };
@@ -44,6 +44,16 @@ pub struct VerifiedPartialStructuralCustody {
     pub moved_paths: Vec<Vec<StructuralPathSegment>>,
 }
 
+/// One open borrowed-storage restoration window: `path` is the exact
+/// canonical hole beneath the borrowed `place` that a repair store must
+/// reseat with a subtree of `structural_type` before any non-crash exit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedRestorationDebt {
+    pub place: PlaceId,
+    pub path: Vec<CanonicalStructuralPathSegment>,
+    pub structural_type: StructuralTypeId,
+}
+
 /// Exact verifier-owned ownership state at one deterministic control site.
 /// Plain unrestricted arrays, primitive locals, and borrowed views have no
 /// by-value disposal debt here; their availability is validated separately.
@@ -53,6 +63,7 @@ pub struct VerifiedStructuralOwnershipFrontier {
     owned_places: Vec<VerifiedOwnedStructuralPlace>,
     partial_custody: Vec<VerifiedPartialStructuralCustody>,
     references: Vec<super::references::LiveReference>,
+    restoration_debt: Vec<VerifiedRestorationDebt>,
 }
 
 impl VerifiedStructuralOwnershipFrontier {
@@ -66,6 +77,10 @@ impl VerifiedStructuralOwnershipFrontier {
 
     pub fn partial_custody(&self) -> &[VerifiedPartialStructuralCustody] {
         &self.partial_custody
+    }
+
+    pub fn restoration_debt(&self) -> &[VerifiedRestorationDebt] {
+        &self.restoration_debt
     }
 }
 
@@ -128,19 +143,19 @@ impl VerifiedTerminalStructuralFrontiers {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct LiveClaim {
-    input: Option<PlaceId>,
-    path: Vec<StructuralPathSegment>,
-    multiplicity: Option<StructuralMultiplicity>,
+pub(super) struct LiveClaim {
+    pub(super) input: Option<PlaceId>,
+    pub(super) path: Vec<StructuralPathSegment>,
+    pub(super) multiplicity: Option<StructuralMultiplicity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct StructuralOwnershipFrontier {
-    references: Vec<super::references::LiveReference>,
+pub(super) struct StructuralOwnershipFrontier {
+    pub(super) references: Vec<super::references::LiveReference>,
     // Claims carry proof-visible custody identity. Owned places independently
     // enforce by-value affine/linear use even when no linear claim row exists.
-    claims: BTreeMap<ClaimId, LiveClaim>,
-    owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
+    pub(super) claims: BTreeMap<ClaimId, LiveClaim>,
+    pub(super) owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
     /// Exact projected paths already transferred from an otherwise-live owned
     /// root. This is independent of the root's multiplicity: no whole-root use
     /// is legal while a hole remains. Affine roots close through explicit
@@ -149,6 +164,13 @@ struct StructuralOwnershipFrontier {
     /// rule, while affine arrays admit only the exact two-element/no-residual
     /// carrier so no cleanup order is inferred.
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
+    /// Open borrowed-storage windows: `MoveStructuralField` keys the exact
+    /// canonical hole under its borrowed root and records the declared type
+    /// the matching `StoreStructuralField` must reseat. Unlike
+    /// `partial_custody_paths` the root is borrowed, not owned — disjoint
+    /// siblings stay usable and only the exact hole closes the debt.
+    pub(super) restoration_debt:
+        BTreeMap<PlaceId, BTreeMap<Vec<CanonicalStructuralPathSegment>, StructuralTypeId>>,
 }
 
 impl StructuralOwnershipFrontier {
@@ -181,6 +203,19 @@ impl StructuralOwnershipFrontier {
                     moved_paths: moved_paths.iter().cloned().collect(),
                 })
                 .collect(),
+            restoration_debt: self
+                .restoration_debt
+                .iter()
+                .flat_map(|(place, holes)| {
+                    holes
+                        .iter()
+                        .map(move |(path, structural_type)| VerifiedRestorationDebt {
+                            place: *place,
+                            path: path.clone(),
+                            structural_type: *structural_type,
+                        })
+                })
+                .collect(),
         }
     }
 }
@@ -200,6 +235,10 @@ pub(super) struct FrontierWalk<'a> {
     /// union over every incoming edge's shared arguments, transitively
     /// closed through shared parameters that reborrow earlier views.
     pub(super) shared_loans: &'a BTreeMap<BlockId, BTreeSet<PlaceId>>,
+    /// The ultimate place each borrowed block parameter may alias, with the
+    /// canonical prefix beneath that place. Machine parameters and
+    /// non-parameter places alias only themselves, so they need no row.
+    pub(super) window_aliases: &'a crate::validation::borrowed_windows::WindowAliases,
 }
 
 pub(super) fn validate_structural_frontier(
@@ -298,6 +337,7 @@ pub(super) fn validate_structural_frontier(
         .collect();
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
+    let window_aliases = crate::validation::borrowed_windows::window_aliases(module, machine);
     let walk = FrontierWalk {
         module,
         machine,
@@ -306,6 +346,7 @@ pub(super) fn validate_structural_frontier(
         dominators,
         parameter_order: &parameter_order,
         shared_loans: &shared_loans,
+        window_aliases: &window_aliases,
     };
     for block_id in order {
         let frontiers = incoming
@@ -599,6 +640,7 @@ fn require_snapshot_match(
     if candidate.owned_places != expected.owned_places
         || candidate.partial_custody != expected.partial_custody
         || candidate.references != expected.references
+        || candidate.restoration_debt != expected.restoration_debt
     {
         return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block));
     }
@@ -988,6 +1030,7 @@ mod tests {
             claims: Vec::new(),
             owned_places: Vec::new(),
             partial_custody: Vec::new(),
+            restoration_debt: Vec::new(),
         }
     }
 

@@ -341,6 +341,12 @@ fn validate_operation_foundation(
         OperationKind::StructuralScalarFieldStore { .. } => {
             storage_foundations::validate_structural_scalar_field_store(module, machine, operation)?
         }
+        OperationKind::MoveStructuralField { .. } => {
+            storage_foundations::validate_move_structural_field(module, machine, operation)?
+        }
+        OperationKind::StoreStructuralField { .. } => {
+            storage_foundations::validate_store_structural_field(module, machine, operation)?
+        }
         OperationKind::IntegerStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. } => {
             storage_foundations::validate_integer_structural_field(module, machine, operation)?

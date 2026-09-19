@@ -28,6 +28,9 @@ pub(super) fn apply_operation(
         dominators,
         ..
     } = *walk;
+    // An operation touching an open borrowed-storage window's absent subtree
+    // rejects before any custody effect of its own is applied.
+    super::super::borrowed_windows::check_operation(walk, operation, frontier)?;
     // A projected reference establishment selects its carrier's leaf: the
     // carrier is consumed whole by that move, so detect it before the
     // reference transaction re-homes the leaf under the result.
@@ -147,6 +150,10 @@ pub(super) fn apply_operation(
             });
         }
     }
+    // Once the consumed places have left the frontier, a window operation
+    // opens or closes its restoration debt; the result place installs below
+    // through the ordinary structural-result block.
+    super::super::borrowed_windows::apply_operation(walk, operation, frontier)?;
     let projected_arguments = projected_arguments(operation);
     for argument in projected_arguments
         .iter()
@@ -298,6 +305,15 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
                 })
                 .collect()
         }
+        // The repair value is consumed exactly once, like an owned call
+        // argument; an unrestricted source stays live by its own rule.
+        OperationKind::StoreStructuralField { value, .. } => {
+            super::super::structural_result_contracts::source_signature(machine, value.place)
+                .filter(|source| source.multiplicity != StructuralMultiplicity::Unrestricted)
+                .map(|_| value.place)
+                .into_iter()
+                .collect()
+        }
         _ => Vec::new(),
     }
 }
@@ -339,9 +355,13 @@ fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
         OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
+        | OperationKind::StoreStructuralField { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
         | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | OperationKind::ByteSequenceWrite { destination, .. } => vec![*destination],
+        // Extraction mutates through the borrowed root a shared view may
+        // observe, so a pinned source rejects like a store's destination.
+        OperationKind::MoveStructuralField { source, .. } => vec![*source],
         _ => Vec::new(),
     }
 }

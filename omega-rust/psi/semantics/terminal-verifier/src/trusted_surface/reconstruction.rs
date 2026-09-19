@@ -425,6 +425,20 @@ static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry
     soundness: TRUSTED,
 };
 
+static FACT_BORROWED_STORAGE_RESTORATION_DEBT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:borrowed-storage-restoration-debt",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "an exact canonical field hole under a borrowed machine-parameter root opened by MoveStructuralField and closed only by a same-typed StoreStructuralField at the identical path",
+    conclusion: "the verification-time debt: every non-crash exit, join, edge transfer, and operation touching the open subtree is replayed against the hole set; a producer assertion that the owner is restored is not evidence",
+    dependencies: &["formation:operation-validation"],
+    implementation: &[
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/borrowed_windows.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/frontier.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_PROOF_BEARING_SCALAR_GOAL: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:proof-bearing-scalar-goal",
     family: LedgerFamily::ReconstructedFactKind,
@@ -584,6 +598,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
     FACT_INTEGER_FIELD_READ_RANGE,
     FACT_FIELD_STORE_LEAF_EQUATION,
+    FACT_BORROWED_STORAGE_RESTORATION_DEBT,
     FACT_PROOF_BEARING_SCALAR_GOAL,
     FACT_CALL_PARAMETER_INSTANTIATION,
     FACT_CALL_REQUIRES_INSTANTIATION,

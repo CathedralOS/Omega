@@ -288,6 +288,8 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::IntegerStructuralField { .. }
+        | OperationKind::MoveStructuralField { .. }
+        | OperationKind::StoreStructuralField { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }

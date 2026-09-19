@@ -717,6 +717,14 @@ impl TerminalExecution {
                     OperationKind::StructuralScalarFieldStore { .. } => {
                         self.execute_structural_scalar_field_store(operation)?
                     }
+                    OperationKind::MoveStructuralField { .. } => {
+                        self.execute_move_structural_field(operation)?;
+                        OperationFlow::Advance
+                    }
+                    OperationKind::StoreStructuralField { .. } => {
+                        self.execute_store_structural_field(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::StructuralByteSequenceFieldStore { .. } => {
                         self.execute_structural_byte_sequence_field_store(operation)?;
                         OperationFlow::Advance

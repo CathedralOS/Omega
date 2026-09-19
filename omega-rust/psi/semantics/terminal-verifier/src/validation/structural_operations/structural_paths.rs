@@ -72,39 +72,18 @@ pub(crate) fn structural_argument_canonical_prefix(
     Some(prefix)
 }
 
-/// Resolve the exact canonical path one field store writes. `path` arrives in
-/// the operation's name-spelled segment space; each field identity is resolved
-/// against the declared carrier so the result can be compared against exact
-/// canonical observation paths. `None` means the write cannot be scoped below
-/// the root and callers must forget the whole root instead.
-pub(crate) fn structural_field_store_write_path(
+/// Resolve one name-spelled structural path beneath `root` into canonical
+/// field-id/fixed-index segments. `None` means the path cannot be scoped
+/// against the declared carriers — callers either forget the whole root or
+/// reject through their own validation.
+pub(crate) fn canonical_field_path(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    operation: &terminal_psi::Operation,
-) -> Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
-    let (root, path, field) = match &operation.kind {
-        OperationKind::StructuralScalarFieldStore {
-            destination,
-            path,
-            field,
-            ..
-        }
-        | OperationKind::StructuralByteSequenceFieldStore {
-            destination,
-            path,
-            field,
-            ..
-        }
-        | OperationKind::StructuralByteSequenceFieldByteStore {
-            destination,
-            path,
-            field,
-            ..
-        } => (*destination, path, *field),
-        _ => return None,
-    };
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
     let mut structural_type = caller_structural_root_type(machine, root)?;
-    let mut written = Vec::with_capacity(path.len() + 1);
+    let mut written = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
             StructuralPathSegment::Referent => return None,
@@ -142,6 +121,57 @@ pub(crate) fn structural_field_store_write_path(
             }
         }
     }
+    Some(written)
+}
+
+/// Resolve the exact canonical path one field store writes. `path` arrives in
+/// the operation's name-spelled segment space; each field identity is resolved
+/// against the declared carrier so the result can be compared against exact
+/// canonical observation paths. `None` means the write cannot be scoped below
+/// the root and callers must forget the whole root instead.
+pub(crate) fn structural_field_store_write_path(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
+    let (root, path, field) = match &operation.kind {
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | OperationKind::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | OperationKind::StoreStructuralField {
+            destination,
+            path,
+            field,
+            ..
+        } => (*destination, path, *field),
+        OperationKind::MoveStructuralField {
+            source,
+            path,
+            field,
+        } => (*source, path, *field),
+        _ => return None,
+    };
+    let mut written = canonical_field_path(module, machine, root, path)?;
+    let structural_type = super::super::foundation::resolve_structural_path(
+        module,
+        caller_structural_root_type(machine, root)?,
+        path,
+    )?;
     let carrier = module
         .structural_types
         .iter()

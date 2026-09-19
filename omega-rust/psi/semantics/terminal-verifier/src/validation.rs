@@ -59,6 +59,7 @@ use crate::verification::{
 
 mod affine_cleanup;
 mod block_views;
+mod borrowed_windows;
 mod byte_sequence_length;
 mod byte_sequence_read;
 mod byte_sequence_subslice;

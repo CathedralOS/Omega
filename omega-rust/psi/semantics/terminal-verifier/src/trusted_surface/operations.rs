@@ -51,6 +51,8 @@ const TS_PRIMITIVE_PLACE: &str =
 const VAL_REFERENCES: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/references.rs";
 const VAL_STRUCTURAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_paths.rs";
+const VAL_BORROWED_WINDOWS: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/borrowed_windows.rs";
 const VAL_STRUCTURAL_SCALAR: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs";
 const VAL_STRUCTURAL_BYTES: &str =
@@ -275,6 +277,43 @@ static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_STRUCTURAL_OPS,
         "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs",
+    ],
+);
+static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
+    "operation:move-structural-field",
+    "a live borrowed machine-parameter root and canonical field path to a declared non-erased structural subtree with no open repair obligation over it",
+    "the extraction observation; the subtree leaves its borrowed home as restoration debt until an exact-type repair store reseats it, and every proposition observing the vacated path is invalidated",
+    &[
+        "invalidation:structural-field-store",
+        "fact:borrowed-storage-restoration-debt",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_STRUCTURAL_OPS,
+        VAL_BORROWED_WINDOWS,
+    ],
+);
+static OP_STORE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
+    "operation:store-structural-field",
+    "an open restoration-debt hole under a borrowed machine-parameter root and a consumed same-typed value reseating it",
+    "the repair observation closing the exact debt; propositions observing the reseated path are invalidated and no field equation survives the move boundary",
+    &[
+        "invalidation:structural-field-store",
+        "fact:borrowed-storage-restoration-debt",
+        "owner:operation",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_STRUCTURAL_OPS,
+        VAL_BORROWED_WINDOWS,
     ],
 );
 static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
@@ -903,6 +942,8 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_WRITE_ONLY_PRIMITIVE_STORE,
     OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
+    OP_MOVE_STRUCTURAL_FIELD,
+    OP_STORE_STRUCTURAL_FIELD,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE,
@@ -979,6 +1020,8 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
             &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE
         }
         OperationSemanticTag::StructuralScalarFieldStore => &OP_STRUCTURAL_SCALAR_FIELD_STORE,
+        OperationSemanticTag::MoveStructuralField => &OP_MOVE_STRUCTURAL_FIELD,
+        OperationSemanticTag::StoreStructuralField => &OP_STORE_STRUCTURAL_FIELD,
         OperationSemanticTag::StructuralByteSequenceFieldStore => {
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE
         }

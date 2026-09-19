@@ -730,6 +730,132 @@ pub(super) fn validate_structural_scalar_field_store(
     Ok(())
 }
 
+/// Borrowed-storage restoration window moves: `MoveStructuralField` opens the
+/// window on one declared structural field beneath a mutable-borrowed root and
+/// `StoreStructuralField` reseats exactly that field. Foundation validation
+/// proves the field's declared type and the result/stored value's declared type
+/// agree and that the root carries mutable-borrow authority; the window's
+/// opening, exact repair, and non-crash-exit closure belong to ordered
+/// verification, and the moved subtree's custody transfer belongs to the
+/// interpreter.
+pub(super) fn validate_move_structural_field(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::MoveStructuralField {
+        source,
+        path,
+        field,
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_move_structural_field")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("structural field move has no structural result");
+    };
+    if !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+    {
+        return malformed("structural field move result carries attached custody");
+    }
+    let Some(parameter) = borrowed_field_store_root(machine, *source) else {
+        return malformed("structural field move requires a mutable-borrowed parameter");
+    };
+    let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
+    let Some(field_type) = declared_structural_field_type(module, parent_type, *field) else {
+        return malformed("structural field move does not select a structural field");
+    };
+    if result.structural_type != field_type {
+        return malformed("structural field move result type does not match field");
+    }
+    Ok(())
+}
+
+pub(super) fn validate_store_structural_field(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::StoreStructuralField {
+        destination,
+        path,
+        field,
+        value,
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_store_structural_field")
+    };
+    if operation.result != OperationResult::Unit {
+        return malformed("structural field store declares a non-Unit result");
+    }
+    if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
+        return malformed("structural field store value must be a whole owned place");
+    }
+    let Some(parameter) = borrowed_field_store_root(machine, *destination) else {
+        return malformed("structural field store requires a mutable-borrowed parameter");
+    };
+    let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
+    let Some(field_type) = declared_structural_field_type(module, parent_type, *field) else {
+        return malformed("structural field store does not select a structural field");
+    };
+    if structural_place_type(machine, value.place) != Some(field_type) {
+        return malformed("structural field store value type does not match field");
+    }
+    Ok(())
+}
+
+fn borrowed_field_store_root(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    machine.structural_parameters.iter().find(|parameter| {
+        parameter.place == place
+            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            && matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == place)
+            && !machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == place)
+    })
+}
+
+fn declared_structural_field_type(
+    module: &TerminalModule,
+    parent_type: semantic_vocabulary::StructuralTypeId,
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parent_type)
+        .and_then(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields.iter().find_map(|candidate| {
+                    (candidate.id == field && !candidate.relevance.is_erased())
+                        .then_some(&candidate.field_type)
+                        .and_then(|field_type| match field_type {
+                            StructuralFieldType::Structural(structural_type) => {
+                                Some(*structural_type)
+                            }
+                            _ => None,
+                        })
+                })
+            }
+            _ => None,
+        })
+}
+
 pub(super) fn validate_integer_structural_field(
     module: &TerminalModule,
     machine: &TerminalMachine,

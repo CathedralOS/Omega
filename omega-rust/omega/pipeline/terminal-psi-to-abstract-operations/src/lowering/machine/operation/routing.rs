@@ -268,6 +268,11 @@ pub(super) fn lower(
         | OperationKind::IntegerStructuralField { .. } => {
             structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
+        OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. } => {
+            Err(LoweringError::UnsupportedBorrowedStorageWindow(
+                operation.id,
+            ))
+        }
         OperationKind::Call { .. } => calls::lower(
             operation,
             machine,

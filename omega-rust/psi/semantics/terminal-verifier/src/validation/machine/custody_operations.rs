@@ -174,6 +174,10 @@ pub(super) fn register_custody_operation(
         validate_unit_operation_static(module, machine, machines, operation)?;
         return Ok(true);
     }
+    if matches!(operation.kind, OperationKind::MoveStructuralField { .. }) {
+        super::super::borrowed_windows::validate_move_static(module, machine, operation)?;
+        return Ok(true);
+    }
     if matches!(
         operation.kind,
         OperationKind::CallUnit { .. }
@@ -181,6 +185,7 @@ pub(super) fn register_custody_operation(
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
+            | OperationKind::StoreStructuralField { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::ByteSequenceWrite { .. }

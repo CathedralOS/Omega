@@ -838,6 +838,30 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
+    /// An operation read, moved, borrowed, stored into, or dispatched on a
+    /// subtree that an open borrowed-storage restoration window has already
+    /// vacated, or opened a second window overlapping one already open.
+    BorrowedStorageFieldAbsent {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    /// A structural-field move/store named a place, path, or value that
+    /// cannot host or repair a borrowed-storage window: the root must be a
+    /// mutable-borrowed machine parameter with unrestricted-or-affine
+    /// multiplicity and no entry claims, the path must resolve to a declared
+    /// structural record field, and the result or stored value must carry
+    /// that field's exact declared type.
+    InvalidBorrowedStorageWindow {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    /// A structural-field store claimed to repair a borrowed-storage window,
+    /// but no open window recorded the exact canonical hole at that
+    /// destination, or the stored value did not carry the required type.
+    BorrowedStorageRepairMismatch {
+        operation: OperationId,
+        place: PlaceId,
+    },
     /// An operation moved, exclusively subloaned, or wrote through a root a
     /// shared-borrow block parameter still observes. The joined view keeps
     /// the root stable for the whole block that binds it.
@@ -853,6 +877,15 @@ pub enum ModuleError {
         claim: ClaimId,
     },
     PartialStructuralCustodyAtUnitReturn {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
+    },
+    /// A block reached a non-crash exit or case-dispatch edge while a
+    /// borrowed-storage restoration window on `place` was still open. Crash
+    /// exits abandon the window by contract; every other exit must first
+    /// observe the exact repair store.
+    BorrowedStorageRestorationPending {
         machine: MachineId,
         block: BlockId,
         place: PlaceId,
