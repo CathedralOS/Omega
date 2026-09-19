@@ -878,6 +878,22 @@ fn shared_vocabulary_representations_need_no_program_root() {
                 "selected_provider_plans.rs",
             ][..],
         ),
+        // Value-passing vocabulary: call/state plan schemas, aggregate and
+        // stack realization records, callback materialization identities, the
+        // host operation catalog and per-host ABI facts. The evaluate_*/validate_*
+        // functions reason over that vocabulary for layout and selection
+        // consumers; no current program lives here. `host_operations.rs` is the
+        // declared reading entry.
+        ("calling-conventions", &["host_operations.rs"][..]),
+        // Compiler-private function identities (`StateKey`,
+        // `MachineFunctionIdentity`) shared by Terminal-Psi-derived native
+        // stages; identity vocabulary, not a program.
+        ("function-identity", &[][..]),
+        // Read-only projections of admitted installation evidence — the
+        // artifact digest plus provider-execution, installation, acceptance,
+        // object and stack-demand traits and records. The sealed values stay
+        // with their orchestration owners; only projections cross.
+        ("installation-evidence", &[][..]),
     ] {
         let directory = repository()
             .join("omega-rust/omega/representations")
