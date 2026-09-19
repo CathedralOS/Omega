@@ -1,8 +1,8 @@
 //! Content-independent receiver addresses through closed fields and fixed arrays.
 
 use super::super::{
-    TypeReferenceHandle, direct_write_only_root, fixed_unrestricted_write_only_array_shape,
-    is_supported_checked_referee, validate_expression,
+    Machine, State, TypeReferenceHandle, direct_write_only_root,
+    fixed_unrestricted_write_only_array_shape, is_supported_checked_referee, validate_expression,
 };
 use super::{
     DataDefinition, Diagnostic, ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot,
@@ -157,8 +157,8 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
 /// non-observation check. The range checker separately establishes index bounds.
 pub(in crate::value_custody::write_only_borrows) fn validate_operands(
     program: &TypedTrees,
-    machine: &str,
-    state: &str,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,

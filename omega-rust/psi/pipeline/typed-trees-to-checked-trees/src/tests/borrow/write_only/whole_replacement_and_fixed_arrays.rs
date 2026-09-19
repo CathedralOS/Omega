@@ -163,6 +163,61 @@ fn ineligible_record_leaves_remain_outside_whole_replacement() {
 }
 
 #[test]
+fn qualified_scalar_and_carrier_roots_are_wholly_replaceable() {
+    // A qualified `&write` root is the same leaf judgment a field store
+    // applies: the replacement displaces the complete referee footprint, so
+    // the store's own bounded-value and domain obligations re-derive every
+    // declared atom on the incoming value.
+    for (name, source) in [
+        (
+            "closed ranged scalar root",
+            r#"
+                machine replace(limited: &write u8 [0..=10], next: u8 [0..=10]) {
+                    limited = next;
+                    limited = 4;
+                }
+            "#,
+        ),
+        (
+            "arithmetic policy scalar root",
+            r#"
+                machine replace(counter: &write u32 in Wrapping, next: u32 in Wrapping) {
+                    counter = next;
+                }
+            "#,
+        ),
+        (
+            "domain-qualified carrier root",
+            r#"
+                domain [u8; 8]::Utf8
+                requires
+                    valid_utf8(self);
+                machine rename(label: &write [u8; 8] in Utf8, next: [u8; 8] in Utf8) {
+                    label = next;
+                }
+            "#,
+        ),
+        (
+            "domain-qualified sum root",
+            r#"
+                data Choice [copy] { case Empty; case Value(value: u16); }
+                domain Choice::Valid;
+                machine replace(
+                    choice: &write Choice in Valid,
+                    replacement: Choice in Valid
+                ) {
+                    choice = replacement;
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!("{name}: a qualified `&write` root should be wholly replaceable: {errors:?}")
+        });
+    }
+}
+
+#[test]
 fn ineligible_sum_shapes_remain_outside_whole_replacement() {
     for (name, source, expected) in [
         (
@@ -207,22 +262,6 @@ fn ineligible_sum_shapes_remain_outside_whole_replacement() {
                     case Value(value: u16);
                 }
                 machine replace(choice: &write Choice, replacement: Choice) {
-                    choice = replacement;
-                }
-            "#,
-            "freely discardable supported root",
-        ),
-        (
-            "qualified",
-            r#"
-                data Choice [copy] { case Empty; case Value(value: u16); }
-                domain Choice::Valid
-                requires
-                    self == Choice::Empty;
-                machine replace(
-                    choice: &write Choice in Valid,
-                    replacement: Choice in Valid
-                ) {
                     choice = replacement;
                 }
             "#,
@@ -724,13 +763,13 @@ fn ineligible_fixed_array_element_shapes_remain_rejected() {
             "#,
         ),
         (
-            "qualified",
+            "qualified element",
             r#"
                 domain [u8; 4]::Utf8
                 requires
                     valid_utf8(self);
 
-                machine fill(values: &write [u8; 4] in Utf8) {}
+                machine fill(values: &write [[u8; 4] in Utf8; 2]) {}
             "#,
         ),
         (

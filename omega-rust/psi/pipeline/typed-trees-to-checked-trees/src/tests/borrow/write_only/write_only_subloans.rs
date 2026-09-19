@@ -359,18 +359,6 @@ fn non_field_and_non_closed_field_write_only_subloans_remain_fenced() {
             "#,
         ),
         (
-            "qualified leaf",
-            r#"
-                data Leaf [copy] { value: u16; }
-                domain Leaf::Valid requires self.value <= 10;
-                data Outer { leaf: Leaf in Valid; }
-                machine replace(value: &write Leaf in Valid) {}
-                machine forward(outer: &write Outer) {
-                    replace(&write outer.leaf);
-                }
-            "#,
-        ),
-        (
             "invariant-bearing leaf",
             r#"
                 data Leaf [copy]
@@ -384,12 +372,13 @@ fn non_field_and_non_closed_field_write_only_subloans_remain_fenced() {
             "#,
         ),
         (
-            "constrained leaf",
+            "affine leaf",
             r#"
-                data Outer { value: u16 [0..=10]; }
-                machine replace(value: &write u16 [0..=10]) {}
+                data Leaf { value: u16; }
+                data Outer { leaf: Leaf; }
+                machine replace(value: &write Leaf) {}
                 machine forward(outer: &write Outer) {
-                    replace(&write outer.value);
+                    replace(&write outer.leaf);
                 }
             "#,
         ),
@@ -404,11 +393,11 @@ fn non_field_and_non_closed_field_write_only_subloans_remain_fenced() {
 }
 
 #[test]
-fn closed_ranged_record_field_subloan_remains_fenced() {
-    // Assignment stores may displace a closed-ranged leaf in place, but a
-    // `&write` subloan attenuates to the callee's declared referee — `&write
-    // u8` here — where the field's bound is no longer visible. Until ranged
-    // write-only referees exist, that boundary keeps ranged leaves fenced.
+fn closed_ranged_record_field_subloan_rejects_a_weakened_referee() {
+    // Assignment stores may displace a closed-ranged leaf in place, and a
+    // `&write` subloan now carries atoms — but only atom-for-atom. Lending
+    // `outer.value` to a plain `&write u8` would shed the declared bound at
+    // the borrow boundary, so the weakened referee stays rejected.
     let rendered = rendered_rejection(
         r#"
             data Outer { value: u8 [0..=10]; }
@@ -423,19 +412,41 @@ fn closed_ranged_record_field_subloan_remains_fenced() {
         "#,
     );
     assert!(
-        rendered.contains("forms `&write` from an unsupported projection"),
+        rendered.contains("lends `outer.value` of type `u8[0..=10]` as `&write`")
+            && rendered.contains("declared `&write u8`")
+            && rendered.contains("must preserve the callee-declared constraint atoms exactly"),
         "a ranged leaf must not attenuate into a wider `&write` referee: {rendered}"
     );
 }
 
 #[test]
-fn policy_qualified_record_field_subloan_remains_fenced() {
+fn closed_ranged_record_field_subloan_rejects_a_narrower_referee() {
+    // A stronger referee is no more honest than a weaker one: the callee's
+    // own store obligation would require values the caller's place never
+    // declared.
+    let rendered = rendered_rejection(
+        r#"
+            data Outer { value: u8 [0..=10]; }
+
+            machine replace(value: &write u8 [0..=5]) {}
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.value);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("must preserve the callee-declared constraint atoms exactly"),
+        "a ranged leaf must not lend to a narrower `&write` referee: {rendered}"
+    );
+}
+
+#[test]
+fn policy_qualified_record_field_subloan_rejects_a_weakened_referee() {
     // Assignment stores may displace a policy-only leaf in place — the policy
-    // is a behaviour tag, not a membership bound. A `&write` subloan still
-    // attenuates to the callee's declared referee — `&write u32` here — and
-    // would shed the field's `Wrapping` atom at the boundary; call-argument
-    // checking rejects that drop as implicit domain weakening in any case.
-    // Until policy write-only referees exist, the lent leaf stays fenced.
+    // is a behaviour tag, not a membership bound. A `&write` subloan carries
+    // atoms now, but a plain `&write u32` referee would shed the field's
+    // `Wrapping` atom at the boundary, so the weakened referee stays rejected.
     let rendered = rendered_rejection(
         r#"
             data Outer { value: u32 in Wrapping; }
@@ -450,8 +461,316 @@ fn policy_qualified_record_field_subloan_remains_fenced() {
         "#,
     );
     assert!(
-        rendered.contains("forms `&write` from an unsupported projection"),
+        rendered.contains("lends `outer.value` of type `u32[in Wrapping]` as `&write`")
+            && rendered.contains("must preserve the callee-declared constraint atoms exactly"),
         "a policy leaf must not attenuate into a policy-free `&write` referee: {rendered}"
+    );
+}
+
+#[test]
+fn policy_qualified_record_field_subloan_rejects_a_different_policy() {
+    // `in <policy>` is a behaviour tag, and a different tag is a different
+    // obligation — exact identity rejects the mismatch rather than weakening
+    // or strengthening silently.
+    let rendered = rendered_rejection(
+        r#"
+            data Outer { value: u32 in Wrapping; }
+
+            machine replace(value: &write u32 in Saturating) {}
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.value);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("must preserve the callee-declared constraint atoms exactly"),
+        "a Wrapping leaf must not lend to a Saturating `&write` referee: {rendered}"
+    );
+}
+
+#[test]
+fn qualified_scalar_write_only_referees_are_admitted() {
+    // A qualified `&write` referee keeps its atoms on the place itself: every
+    // store through the reference still owes the declared bound or domain, so
+    // the referee admits exactly the constrained leaves a field store may
+    // displace and nothing weaker or different.
+    for (name, source) in [
+        (
+            "closed ranged scalar",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(limited: &write u8 [0..=10]) {
+                    replace(&write limited);
+                }
+            "#,
+        ),
+        (
+            "arithmetic policy scalar",
+            r#"
+                machine replace(value: &write u32 in Wrapping) {
+                    value = 7;
+                }
+
+                machine forward(counter: &write u32 in Wrapping) {
+                    replace(&write counter);
+                }
+            "#,
+        ),
+        (
+            "plain domain carrier",
+            r#"
+                domain [u8; 8]::Utf8
+                requires
+                    valid_utf8(self);
+
+                machine rename(label: &write [u8; 8] in Utf8, next: [u8; 8] in Utf8) {
+                    label = next;
+                }
+
+                machine forward(label: &write [u8; 8] in Utf8, next: [u8; 8] in Utf8) {
+                    rename(&write label, next);
+                }
+            "#,
+        ),
+        (
+            "domain-qualified record",
+            r#"
+                data Leaf [copy] { value: u16; }
+                domain Leaf::Valid requires self.value <= 10;
+
+                machine replace(value: &write Leaf in Valid, next: Leaf in Valid) {
+                    value = next;
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!("{name}: qualified `&write` referee should lower: {errors:?}")
+        });
+    }
+}
+
+#[test]
+fn qualified_field_write_only_subloans_carry_exact_atoms() {
+    // The projected `&write` carries the field's declared atoms verbatim into
+    // the callee's identically-declared referee, so every store the callee
+    // performs re-derives the same obligations the caller's field declared.
+    for (name, source) in [
+        (
+            "closed ranged leaf",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "arithmetic policy leaf",
+            r#"
+                data Outer { value: u32 in Wrapping; }
+
+                machine replace(value: &write u32 in Wrapping) {
+                    value = 7;
+                }
+
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "plain domain leaf",
+            r#"
+                domain [u8; 8]::Utf8
+                requires
+                    valid_utf8(self);
+
+                data Tagged { label: [u8; 8] in Utf8; }
+                data Outer { tagged: Tagged; }
+
+                machine rename(label: &write [u8; 8] in Utf8, next: [u8; 8] in Utf8) {
+                    label = next;
+                }
+
+                machine forward(outer: &write Outer, next: [u8; 8] in Utf8) {
+                    rename(&write outer.tagged.label, next);
+                }
+            "#,
+        ),
+        (
+            "domain-qualified record leaf",
+            r#"
+                data Leaf [copy] { value: u16; }
+                domain Leaf::Valid requires self.value <= 10;
+                data Outer { leaf: Leaf in Valid; }
+
+                machine replace(value: &write Leaf in Valid, next: Leaf in Valid) {
+                    value = next;
+                }
+
+                machine forward(outer: &write Outer, next: Leaf in Valid) {
+                    replace(&write outer.leaf, next);
+                }
+            "#,
+        ),
+        (
+            "conjunction leaf",
+            r#"
+                domain u8::Low requires self < 250;
+                domain u8::Small requires self < 10;
+                data Outer { value: u8 in Low & Small; }
+
+                machine replace(value: &write u8 in Low & Small, next: u8 in Low & Small) {
+                    value = next;
+                }
+
+                machine forward(outer: &write Outer, next: u8 in Low & Small) {
+                    replace(&write outer.value, next);
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!("{name}: exact-atom `&write` subloan should lower: {errors:?}")
+        });
+    }
+}
+
+#[test]
+fn qualified_field_subloans_reject_every_non_exact_referee() {
+    // Exact-atom admission pins the boundary: a weaker referee sheds atoms,
+    // a stronger or different one asserts obligations the place never owned.
+    for (name, source) in [
+        (
+            "domain dropped",
+            r#"
+                domain u8::Low requires self < 250;
+                data Outer { value: u8 in Low; }
+                machine replace(value: &write u8) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "domain subset",
+            r#"
+                domain u8::Low requires self < 250;
+                domain u8::Small requires self < 10;
+                data Outer { value: u8 in Low & Small; }
+                machine replace(value: &write u8 in Low) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "domain superset",
+            r#"
+                domain u8::Low requires self < 250;
+                domain u8::Small requires self < 10;
+                data Outer { value: u8 in Low; }
+                machine replace(value: &write u8 in Low & Small) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "domain identity mismatch",
+            r#"
+                domain u8::Low requires self < 250;
+                domain u8::Small requires self < 10;
+                data Outer { value: u8 in Low; }
+                machine replace(value: &write u8 in Small) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "carrier mismatch beneath equal domains",
+            r#"
+                domain u8::Low requires self < 250;
+                domain u16::Wide requires self < 60000;
+                data Outer { value: u8 in Low; }
+                machine replace(value: &write u16 in Wide) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "whole root widened",
+            r#"
+                machine replace(value: &write u8) {}
+                machine forward(limited: &write u8 [0..=10]) {
+                    replace(&write limited);
+                }
+            "#,
+        ),
+        (
+            "whole root narrowed",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {}
+                machine forward(limited: &write u8) {
+                    replace(&write limited);
+                }
+            "#,
+        ),
+        (
+            "literal-indexed element widened",
+            r#"
+                machine replace(value: &write u8) {}
+                machine forward(values: &write [u16; 2]) {
+                    replace(&write values[1]);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("must preserve the callee-declared constraint atoms exactly"),
+            "{name}: a non-exact `&write` referee must stay rejected: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn domain_qualified_carrier_keeps_element_subloans_fenced() {
+    // A whole-leaf `&write` on a domain-qualified carrier is exact, but an
+    // element subloan cannot re-establish whole-value membership: the
+    // projection walk refuses to descend into the qualified array at all, so
+    // the partial write stays outside the envelope.
+    let rendered = rendered_rejection(
+        r#"
+            domain [u8; 8]::Utf8
+            requires
+                valid_utf8(self);
+
+            data Tagged { label: [u8; 8] in Utf8; }
+            data Outer { tagged: Tagged; }
+
+            machine fill(byte: &write u8) {}
+
+            machine forward(outer: &write Outer) {
+                fill(&write outer.tagged.label[0]);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("forms `&write` from an unsupported projection"),
+        "an element subloan of a domain-qualified carrier must stay fenced: {rendered}"
     );
 }
 
