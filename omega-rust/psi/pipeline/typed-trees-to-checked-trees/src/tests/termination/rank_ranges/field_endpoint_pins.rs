@@ -440,3 +440,97 @@ fn member_chains_through_stored_references_supply_endpoint_bounds() {
         "{diagnostics:#?}"
     );
 }
+
+const NAMED_STORED_ENDPOINT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/stored_reference_endpoint_arrivals/main.omg"
+));
+
+#[test]
+fn stored_reference_endpoint_follows_named_state_arrival() {
+    accepts(NAMED_STORED_ENDPOINT);
+}
+
+#[test]
+fn named_stored_endpoint_preserves_reconstruction_and_unrelated_computation() {
+    accepts(&NAMED_STORED_ENDPOINT
+        .replace("target: &Wrap;", "target: &mut Wrap;")
+        .replace("        transition pending > 0", "        let mut scratch: u64 = pending;\n        scratch = 0;\n        transition pending > 0")
+        .replace("iterate(held, pending - 1)", "iterate(Indirect { target: held.target }, pending - 1)"));
+}
+
+#[test]
+fn named_stored_endpoint_rejects_foreign_referents_and_invalid_rank() {
+    rejects_range(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/fail/termination/stored_reference_endpoint_reseat/main.omg"
+    )));
+    rejects_range(&NAMED_STORED_ENDPOINT.replace("[0..=4]", "[0..=5]"));
+    let stalled = NAMED_STORED_ENDPOINT.replace("pending - 1", "pending");
+    let diagnostics =
+        lower_typed_trees(typed(&stalled)).expect_err("every cyclic edge must decrease");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("terminates by")
+                || diagnostic.message.contains("rank range")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn named_stored_endpoint_rejects_pointee_and_binding_writes() {
+    let source = NAMED_STORED_ENDPOINT
+        .replace("target: &Wrap;", "target: &mut Wrap;")
+        .replace("state iterate(held:", "state iterate(mut held:");
+    for prefix in [
+        "held.target.remaining = 4;",
+        "reset(held.target);",
+        "relay(held.target);",
+        "let alias: &mut Wrap = held.target; reset(alias);",
+    ] {
+        let changed = format!(
+            "machine reset(value: &mut Wrap) {{ value.remaining = 4; }} machine relay(value: &mut Wrap) {{ reset(value); }} {}",
+            source.replace(
+                "        transition pending > 0",
+                &format!("        {prefix}\n        transition pending > 0")
+            )
+        );
+        accepts(&changed.replace("indirect.target.remaining;", "5;"));
+        rejects_range(&changed);
+    }
+    let source = NAMED_STORED_ENDPOINT
+        .replace("indirect: Indirect)", "indirect: Indirect, other: &Wrap)")
+        .replace(
+            "iterate(indirect, remaining)",
+            "iterate(indirect, remaining, other)",
+        )
+        .replace(
+            "held: Indirect, pending: u64 [0..=4])",
+            "held: Indirect, pending: u64 [0..=4], spare: &Wrap)",
+        )
+        .replace(
+            "iterate(held, pending - 1)",
+            "iterate(held, pending - 1, spare)",
+        )
+        .replace("state iterate(held:", "state iterate(mut held:")
+        .replace(
+            "        transition pending > 0",
+            "        held.target = spare;\n        transition pending > 0",
+        );
+    accepts(&source.replace("indirect.target.remaining;", "5;"));
+    rejects_range(&source);
+}
+
+#[test]
+fn named_stored_endpoint_requires_readable_reference_boundaries() {
+    let source = NAMED_STORED_ENDPOINT.replace("target: &Wrap;", "target: &write Wrap;");
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed(&source))
+        .expect_err("write-only endpoint cannot supply a value");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
+        "{diagnostics:#?}"
+    );
+}

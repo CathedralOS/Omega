@@ -357,13 +357,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Remaining work:
 
-  - Generalize endpoint formation and conservation through exact checked
-    value relationships. The independent endpoint fallback still requires one
-    state; it pins member endpoints through readable borrowed receivers
-    (`bag: &Wrap` or `&mut Wrap` in `0..=bag.remaining`) and member chains through
-    stored readable references (`indirect.target: &mut Wrap` in
-    `0..=indirect.target.remaining`) using the referent's store-enforced
-    field bounds plus exact per-edge referent and write preservation.
+  - Generalize independent endpoint formation and conservation beyond one
+    state for non-polynomial expressions. Reuse the relational field-coordinate
+    route for natural member endpoints, including stored readable references
+    carried through renamed or reordered named-state parameters; its exact
+    arrival equality and complete write-frame checks remain required.
+    `termination/stored_reference_endpoint_arrivals` and its reseating false
+    twin pin that source boundary. The independent endpoint fallback still
+    requires one state for its broader arithmetic expressions.
     Mixed-component inputs beyond direct integers/arithmetic trees and
     non-polynomial substitutions need their actual formation, equality, and
     write-preservation evidence, not polynomial cancellation or positional
