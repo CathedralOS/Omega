@@ -1714,9 +1714,16 @@ Owners include
     Carrying the lane through the descriptor would need a proof-actual
     channel on `CheckedDynamicScalarCallPlan` and emitted vtable rows —
     a larger slice than the refusal.
-  - Erased `self`, `const` and `mut` bindings refuse a checked calling plan
-    (`execution/unit/types/mod.rs::strips_erased_parameter`). Keep the refusal
-    unless the specification gives them a meaning.
+  - Done: erased `self`, `const` and `mut` bindings now refuse by name at
+    check time. `strips_erased_parameter` already refused them a calling
+    plan, but the omission surfaced only as an unadmitted plan downstream;
+    `relevance/shape_admission.rs::validate_erased_binding_qualifiers`
+    diagnoses the qualifier on signature parameters (machines and trait
+    requirements), `let mut` locals, and reference formals, pinned by
+    `fail/relevance/erased_mutable_parameter`. `self [erased]` is not
+    expressible in the grammar (receivers take no binding properties); a
+    `&mut x [erased]` formal fails as `mut`. Keep the refusal unless the
+    specification gives the combination a meaning.
 
   Acceptance now holds for the erased-term lane:
   `pass/relevance/erased_parameter_proof_only` (exits 70) and
