@@ -60,9 +60,6 @@ exact summary. Validation recomputes the report before comparing any expected
 field. Neither its receipt nor a successful corpus/model check grants optimizer
 replay, compiler activation, process execution, or publication authority.
 
-The compiler's separate [external adapter](../../compiler/compiler/src/compiler/optimization/external_policy/mod.rs)
-is dormant: it requires an opaque verified-sandbox invocation with no production
-constructor. Its transport limits and fallback handling are not evidence of a
-real platform sandbox. The adjacent [bounded-process tool](../bounded-process/README.md)
+The adjacent [bounded-process tool](../bounded-process/README.md)
 provides containment and resource controls, not filesystem, executable,
 credential, or network isolation.

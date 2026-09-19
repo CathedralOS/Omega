@@ -18,10 +18,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn prepare_native_product(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/compiler/src/compiler/optimization/external_policy/mod.rs",
-        coordination_marker: "pub(crate) fn execute(",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
         coordination_marker: "fn settle(",
     },

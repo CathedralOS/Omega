@@ -8,11 +8,6 @@ version.workspace = true
 name = "compiler"
 path = "src/lib.rs"
 
-[features]
-experimental-external-optimization-policy = [
-    "dep:bounded-process",
-]
-
 [dependencies]
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/lowered-psi-to-lowered-psi" }
@@ -53,7 +48,6 @@ artifacts = { path = "../../tooling/artifacts" }
 assembled-syntax-to-checked-compilation = { path = "../../pipeline/assembled-syntax-to-checked-compilation" }
 checked-compilation-to-terminal-artifact = { path = "../../pipeline/checked-compilation-to-terminal-artifact" }
 source-files-to-assembled-syntax = { path = "../../pipeline/source-files-to-assembled-syntax" }
-bounded-process = { path = "../../tooling/bounded-process", optional = true }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
 build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
@@ -92,7 +86,6 @@ sha2 = "0.10.9"
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 
 terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
-bounded-process = { path = "../../tooling/bounded-process" }
 image-emission = { path = "../../backend/images/image-emission", features = ["test-support", "installed-artifact"] }
 machine-code = { path = "../../representations/machine-code" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }

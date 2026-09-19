@@ -12,7 +12,6 @@ use checked_compilation_to_terminal_artifact::produce_terminal_report;
 use diagnostics::Diagnostic;
 use native_realization::{NativeInputReuse, prepare_native_product};
 
-pub(crate) mod optimization;
 pub(crate) mod options;
 pub(crate) mod package;
 pub(crate) mod request;
