@@ -119,6 +119,65 @@ impl PackageDependencyBinding {
     pub const fn purpose(&self) -> DependencyPurpose {
         self.purpose
     }
+
+    /// The exact occurrence coordinate of this edge: requester, purpose,
+    /// alias, and target together, so an immutable input assigned to one
+    /// occurrence can never slide onto a different edge.
+    pub fn occurrence(&self) -> BuildDependencyOccurrence {
+        BuildDependencyOccurrence {
+            requester: self.requester,
+            purpose: self.purpose,
+            alias: self.alias.clone(),
+            target: self.target,
+        }
+    }
+}
+
+/// The exact dependency-occurrence coordinate an immutable build input is
+/// assigned to: one reconciled edge identified by requester, purpose,
+/// alias, and target. Two edges sharing a requester and target under
+/// different aliases remain distinct occurrences, and a coordinate naming
+/// no edge is an extra input the binding rejects rather than guesses at.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BuildDependencyOccurrence {
+    requester: PackageKeyIdentity,
+    purpose: DependencyPurpose,
+    alias: String,
+    target: PackageKeyIdentity,
+}
+
+impl BuildDependencyOccurrence {
+    /// The declared coordinate; membership against a reconciled graph is
+    /// checked by `PackageCompilationInputs::has_dependency_occurrence`.
+    pub fn new(
+        requester: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+        alias: impl Into<String>,
+        target: PackageKeyIdentity,
+    ) -> Self {
+        Self {
+            requester,
+            purpose,
+            alias: alias.into(),
+            target,
+        }
+    }
+
+    pub const fn requester(&self) -> PackageKeyIdentity {
+        self.requester
+    }
+
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
+
+    pub fn alias(&self) -> &str {
+        &self.alias
+    }
+
+    pub const fn target(&self) -> PackageKeyIdentity {
+        self.target
+    }
 }
 
 /// Exact, source-path-free dependency closure consumed by one package-aware
@@ -617,6 +676,21 @@ impl PackageCompilationInputs {
     #[doc(hidden)]
     pub fn source_inputs(&self) -> Arc<PackageCompilationSourceInputs> {
         Arc::clone(&self.source)
+    }
+
+    /// Whether this reconciled graph contains the exact dependency
+    /// occurrence — requester, purpose, alias, and target all naming one
+    /// edge. Inputs keyed to a coordinate that is not an occurrence reject
+    /// at binding rather than attaching to the nearest edge.
+    pub fn has_dependency_occurrence(&self, occurrence: &BuildDependencyOccurrence) -> bool {
+        let Some(record) = self.source.packages.get(&occurrence.requester) else {
+            return false;
+        };
+        let edges = match occurrence.purpose {
+            DependencyPurpose::Product => &record.dependencies,
+            DependencyPurpose::Build => &record.build_dependencies,
+        };
+        edges.get(&occurrence.alias) == Some(&occurrence.target)
     }
 
     /// Separate shared source ownership from this invocation's target attachments.

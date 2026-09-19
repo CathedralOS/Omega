@@ -14,9 +14,10 @@ mod source_snapshot;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use package_compilation::{
-    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
-    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyBinding,
-    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
+    BuildDependencyOccurrence, IndependentComponentDescription, PackageCompilationInputError,
+    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
+    PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
+    PackageSourceBinding,
 };
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
@@ -27,4 +28,7 @@ pub use source_consumption::{
     derive_package_compilation_subject, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
 };
-pub use source_snapshot::capture_package_source_input;
+pub use source_snapshot::{
+    BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
+    capture_scoped_source_input,
+};
