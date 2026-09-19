@@ -54,6 +54,43 @@ pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut 
 
     validate_unresolved_erased_generic_uses(program, diagnostics);
     validate_erased_binding_qualifiers(program, diagnostics);
+    validate_erased_runtime_scalar_formals(program, diagnostics);
+}
+
+/// Erased signature parameters on a runtime machine occupy no position in the
+/// checked calling plan, and the plan builder admits them only when a scalar
+/// slot can carry the erased actual. A record, enum, or proof-only formal such
+/// as `Nat` has no such carrier until the contract term lane exists, so the
+/// plan omission would otherwise surface with no name. Proof machines are
+/// exempt: their erased formals are proof-side occurrences that never need a
+/// runtime plan.
+fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    let proof_only = typed_trees::proof_only::classify(program);
+    for machine in program.machines() {
+        if proof_only.is_proof_machine(program, machine) {
+            continue;
+        }
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                if !parameter.relevance.is_erased()
+                    || parameter.is_self
+                    || !parameter.type_reference.is_valid()
+                {
+                    continue;
+                }
+                if program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+                {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}::{}` erased parameter `{}` is not scalar; an erased formal on a runtime machine needs a scalar lane until contract terms can carry it",
+                    machine.name, state.name, parameter.name,
+                )));
+            }
+        }
+    }
 }
 
 /// `mut`, `const`, and the receiver `self` describe runtime storage or

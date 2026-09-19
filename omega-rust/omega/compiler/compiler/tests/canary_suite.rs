@@ -1006,6 +1006,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     // `mut`/`const` qualify runtime storage or custody; an erased binding owns
     // neither, so the qualifier combination refuses by name.
     "relevance/erased_mutable_parameter",
+    // A runtime machine's erased formal needs a scalar lane; a structural or
+    // proof-only type has none until contract terms carry it.
+    "relevance/erased_nonscalar_parameter",
     "operators/operand_requires_invalidated",
     "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",

@@ -1,0 +1,19 @@
+// FAIL canary. An erased signature formal on a runtime machine occupies no
+// position in the checked calling plan, and only a scalar slot can carry an
+// erased actual; a record formal would otherwise be omitted with no name.
+// Shape admission names the refusal until the contract term lane exists.
+data Proof {
+    tag: i32;
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    self.record(Proof { tag: 1 }, 4);
+}
+
+machine Main::record(&mut self, w [erased]: Proof, y: i32) {
+    self.value = y;
+}
