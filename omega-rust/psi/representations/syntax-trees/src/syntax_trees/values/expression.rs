@@ -195,6 +195,9 @@ pub enum ExpressionNode {
     /// UTF-8 after `\xNN` escape decoding.
     String(Arc<[u8]>),
     Unary(TableUnaryExpression),
+    /// A static type operand retained for type-equation checking. This is not
+    /// a runtime value and must be consumed or rejected before value lowering.
+    TypeExpression(crate::types::TypeReferenceHandle),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(crate::types::TypeReferenceHandle),
 }

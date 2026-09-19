@@ -26,6 +26,7 @@ pub(crate) mod constant_selection;
 mod discovery;
 mod eligibility;
 mod equations;
+pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
 mod module_constants;
 mod substitution;
 mod synthesis;

@@ -211,6 +211,9 @@ pub enum ExpressionSnapshot {
     ZeroValue {
         type_reference: Box<TypeReferenceSnapshot>,
     },
+    TypeExpression {
+        type_reference: Box<TypeReferenceSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -481,6 +484,12 @@ pub(crate) fn snapshot_expression_handle(
             operand: Box::new(snapshot_expression_handle(syntax_trees, unary.operand)),
         },
         ExpressionNode::ZeroValue(type_reference) => ExpressionSnapshot::ZeroValue {
+            type_reference: Box::new(snapshot_type_reference_handle(
+                syntax_trees,
+                *type_reference,
+            )),
+        },
+        ExpressionNode::TypeExpression(type_reference) => ExpressionSnapshot::TypeExpression {
             type_reference: Box::new(snapshot_type_reference_handle(
                 syntax_trees,
                 *type_reference,

@@ -2,6 +2,161 @@ use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::TypeReferenceNode;
+
+#[test]
+fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy() {
+    for equation in [
+        "Backing == [[Element; Count]; 2]",
+        "(Backing == [[Element; Count]; 2])",
+        "([[Element; Count]; 2]) == Backing",
+    ] {
+        let source = format!(
+            "data Buffer<Backing, Element, const Count: u64> where {equation} {{ storage: Backing; }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize equation");
+        let parsed = parse_syntax_trees(&tokens).expect("parse fixed-array type equation");
+        let item = parsed.root_items().next().expect("data item");
+        let mut copied = syntax_trees::SyntaxTrees::default();
+        let copied_item = copied.copy_item_from(&parsed, item);
+        for (trees, item) in [(&parsed, item), (&copied, &copied_item)] {
+            let syntax_trees::item::Item::Data(data) = item else {
+                panic!("expected data");
+            };
+            let [syntax_trees::item::ProofFact::Expression(fact)] =
+                trees.items.proof_facts(data.where_facts)
+            else {
+                panic!("expected one equation");
+            };
+            let ExpressionNode::Binary(equation) = trees.expressions.expression(*fact) else {
+                panic!("expected equality");
+            };
+            assert_eq!(
+                equation.operator,
+                syntax_trees::expression::BinaryOperator::Equal
+            );
+            let operand = [equation.left, equation.right]
+                .into_iter()
+                .find_map(|operand| match trees.expressions.expression(operand) {
+                    ExpressionNode::TypeExpression(type_reference) => Some(*type_reference),
+                    _ => None,
+                })
+                .expect("one operand retains a type reference");
+            let TypeReferenceNode::FixedArray {
+                element_type,
+                length: syntax_trees::types::FixedArrayLength::Literal(2),
+            } = trees.type_references.type_reference(operand)
+            else {
+                panic!("expected outer fixed array");
+            };
+            let TypeReferenceNode::FixedArray {
+                element_type,
+                length: syntax_trees::types::FixedArrayLength::ConstParameter(count),
+            } = trees.type_references.type_reference(*element_type)
+            else {
+                panic!("expected nested fixed array");
+            };
+            assert_eq!(count.as_str(), "Count");
+            let TypeReferenceNode::Named(element) =
+                trees.type_references.type_reference(*element_type)
+            else {
+                panic!("expected element binder");
+            };
+            assert_eq!(element.as_str(), "Element");
+        }
+    }
+}
+
+#[test]
+fn proof_fact_array_values_remain_value_expressions() {
+    for equation in [
+        "[1, 2] == [1, 2]",
+        "([[1, 2], [3, 4]] == [[1, 2], [3, 4]])",
+        "[match 1 { 1 -> 2, _ -> 3 }] == [2]",
+    ] {
+        let source = format!("data Buffer where {equation} {{ storage: u64; }}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize array values");
+        let parsed = parse_syntax_trees(&tokens).expect("parse array value equality");
+        assert!(
+            parsed
+                .expressions
+                .iter_expressions()
+                .any(|(_, expression)| { matches!(expression, ExpressionNode::ArrayLiteral(_)) })
+        );
+        assert!(
+            !parsed
+                .expressions
+                .iter_expressions()
+                .any(|(_, expression)| { matches!(expression, ExpressionNode::TypeExpression(_)) })
+        );
+    }
+}
+
+#[test]
+fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
+    let source = "data Buffer<Backing, Element, const Count: u64> where Backing == [Pair<Element, Element>; Count] { storage: Backing; }";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize generic element");
+    let parsed = parse_syntax_trees(&tokens).expect("parse generic array element");
+    let array = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::TypeExpression(type_reference) => Some(*type_reference),
+            _ => None,
+        })
+        .expect("retained array type operand");
+    let TypeReferenceNode::FixedArray { element_type, .. } =
+        parsed.type_references.type_reference(array)
+    else {
+        panic!("expected fixed array");
+    };
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = parsed.type_references.type_reference(*element_type)
+    else {
+        panic!("expected generic element");
+    };
+    assert_eq!(base_name.as_str(), "Pair");
+    assert_eq!(
+        parsed
+            .type_references
+            .type_reference_handles(*arguments)
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
+    for operand in [
+        "[Element;]",
+        "[Element; -1]",
+        "[Element; Count + 1]",
+        "[; 4]",
+    ] {
+        let source = format!(
+            "data Buffer<Backing, Element, const Count: u64> where Backing == {operand} {{ storage: Backing; }}"
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize malformed type");
+        assert!(parse_syntax_trees(&tokens).is_err(), "{operand}");
+    }
+}
+
+#[test]
+fn fixed_array_type_operand_is_not_runtime_value_syntax() {
+    let tokens = Lexer::new("machine main() -> u64 { [u8; 4] }")
+        .tokenize()
+        .expect("tokenize type in value position");
+    assert!(parse_syntax_trees(&tokens).is_err());
+}
+
 #[test]
 fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
     for endpoint in [

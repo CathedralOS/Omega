@@ -212,12 +212,23 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let (expression, input) =
-            parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+            parse_expression_handle_in(syntax_trees, input, context.grouped())?;
         let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
         return Ok((expression, input));
     }
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
+        if context.allows_type_expression() && starts_fixed_array_type(input) {
+            let start = input;
+            let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
+            let expression = syntax_trees
+                .expressions
+                .insert(ExpressionNode::TypeExpression(type_reference));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, start.source_span_until(input));
+            return Ok((expression, input));
+        }
         let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
         let mut values = Vec::new();
 
@@ -293,6 +304,48 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     Err(input.error_here("expected expression"))
+}
+
+/// The outer semicolon distinguishes `[Element; Count]` from a value array.
+/// Nested brackets, parentheses and braces own their separators; those do not
+/// decide the outer operand's role. Once selected, the ordinary type parser owns all
+/// syntax validation, including malformed lengths and nested element types.
+fn starts_fixed_array_type(input: Input<'_, '_>) -> bool {
+    let mut bracket_depth = 0usize;
+    let mut parenthesis_depth = 0usize;
+    let mut brace_depth = 0usize;
+    for token in input.tokens {
+        match token.kind {
+            TokenKind::Punctuation(PunctuationKind::LeftBracket) => bracket_depth += 1,
+            TokenKind::Punctuation(PunctuationKind::LeftParen) => parenthesis_depth += 1,
+            TokenKind::Punctuation(PunctuationKind::RightParen) => {
+                let Some(depth) = parenthesis_depth.checked_sub(1) else {
+                    return false;
+                };
+                parenthesis_depth = depth;
+            }
+            TokenKind::Punctuation(PunctuationKind::LeftBrace) => brace_depth += 1,
+            TokenKind::Punctuation(PunctuationKind::RightBrace) => {
+                let Some(depth) = brace_depth.checked_sub(1) else {
+                    return false;
+                };
+                brace_depth = depth;
+            }
+            TokenKind::Punctuation(PunctuationKind::RightBracket) => {
+                if bracket_depth <= 1 {
+                    return false;
+                }
+                bracket_depth -= 1;
+            }
+            TokenKind::Punctuation(PunctuationKind::Semicolon)
+                if bracket_depth == 1 && parenthesis_depth == 0 && brace_depth == 0 =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn parse_struct_literal_handle<'tokens, 'source>(

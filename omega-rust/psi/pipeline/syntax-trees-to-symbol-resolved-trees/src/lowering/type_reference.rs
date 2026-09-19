@@ -21,6 +21,11 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    crate::preparation::generic_data::validate_materialized_type_equations(
+        syntax_trees,
+        type_reference,
+        lowerer.constant_selection.as_ref(),
+    )?;
     if let Some(normalization) = syntax_trees
         .type_references
         .const_argument_normalization(type_reference)
@@ -123,7 +128,7 @@ pub(crate) fn lower_type_reference_handle(
         .type_references
         .generic_application_origin(type_reference);
     if origin.is_valid() {
-        let application = lower_type_reference_handle(lowerer, syntax_trees, origin)?;
+        let application = lower_generic_application_origin(lowerer, syntax_trees, origin)?;
         let instance = lowerer
             .symbol_resolved_trees
             .tables
@@ -147,6 +152,26 @@ pub(crate) fn lower_type_reference_handle(
             });
     }
     Ok(lowered)
+}
+
+/// An already synthesized instance retains its generic tuple as identity
+/// metadata, not as an unspecialized application. Its argument types still
+/// take ordinary lowering and checking; only this outer metadata node bypasses
+/// the requirement that executable type equations have been specialized.
+pub(crate) fn lower_generic_application_origin(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    origin: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
+    if !matches!(
+        syntax_trees.type_references.type_reference(origin),
+        syntax::types::TypeReferenceNode::Generic { .. }
+    ) {
+        return Err(Diagnostic::error(
+            "generic instance origin must retain a generic application",
+        ));
+    }
+    lower_type_reference_node(lowerer, syntax_trees, origin)
 }
 
 fn lower_type_reference_node(

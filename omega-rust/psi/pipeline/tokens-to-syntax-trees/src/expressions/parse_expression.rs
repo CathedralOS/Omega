@@ -37,6 +37,15 @@ pub(crate) fn parse_expression_handle_without_struct_literals_or_membership<'tok
     )
 }
 
+/// Proof facts may retain static type operands while leaving outer membership
+/// and the declaration body delimiter to the contract parser.
+pub(crate) fn parse_proof_fact_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    parse_expression_handle_in(syntax_trees, input, ExpressionContext::ProofFact)
+}
+
 /// Parse the operator subset that can appear in a const generic argument
 /// without consuming the closing `>` as a comparison. This intentionally
 /// stops above the comparison/equality/logical layers while retaining ordinary
