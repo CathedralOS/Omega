@@ -181,11 +181,22 @@ pub(crate) fn prove_ranking_range_call_entry(
             RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
             _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
         };
+        for endpoint in [range.start, range.end] {
+            meanings::install_integer_quotients(
+                program,
+                member.machine,
+                state,
+                &mut engine,
+                endpoint,
+                0,
+            )?;
+        }
         let floor = engine.normalize(range.start)?;
         let ceiling = engine.normalize(range.end)?;
         if !engine.install_hypotheses(comparisons) {
             return None;
         }
+        engine.refresh_opaque_intervals();
         if !engine.requires_unsatisfiable {
             for endpoint in &deferred_endpoints {
                 let polynomial = if *endpoint == range.start {
@@ -601,6 +612,19 @@ pub(crate) fn prove_ranking_range_call(
         let ExpressionNode::Range(range) = program.expression_table.expression(caller.range) else {
             return None;
         };
+        // The entry-spelled endpoint reads the site's already-established
+        // caller coordinates. Its mathematical quotient retains those inputs;
+        // neither callee formals nor callee requirements are available yet.
+        for endpoint in [range.start, range.end] {
+            meanings::install_integer_quotients(
+                program,
+                caller.machine,
+                entry,
+                &mut engine,
+                endpoint,
+                0,
+            )?;
+        }
         Some((
             engine.normalize(range.start)?,
             engine.normalize(range.end)?,
@@ -630,6 +654,7 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
+    engine.refresh_opaque_intervals();
     // A caller endpoint that declaration bounds alone could not place owes
     // its carrier landing under this site's hypotheses: requires facts at
     // entry, or the member's own range invariant re-established at a
@@ -802,6 +827,19 @@ pub(crate) fn prove_ranking_range_call(
         let ExpressionNode::Range(range) = program.expression_table.expression(callee.range) else {
             return None;
         };
+        // Meaning belongs to the callee, but these formals and projections
+        // now denote the actuals installed by this call. Bind only now: an
+        // earlier occurrence binding would freeze the wrong namespace.
+        for endpoint in [range.start, range.end] {
+            meanings::install_integer_quotients(
+                program,
+                callee.machine,
+                destination,
+                &mut engine,
+                endpoint,
+                0,
+            )?;
+        }
         Some((
             engine.normalize(range.start)?,
             engine.normalize(range.end)?,
@@ -810,6 +848,7 @@ pub(crate) fn prove_ranking_range_call(
     } else {
         None
     };
+    engine.refresh_opaque_intervals();
     if engine.requires_unsatisfiable {
         return Some(RankingRangeCallProgress::Strict);
     }
