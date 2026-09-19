@@ -73,6 +73,9 @@ mod trait_defaults;
 #[path = "module_machine_indices/constant_attachments.rs"]
 mod constant_attachments;
 
+#[path = "module_machine_indices/indexed_domains.rs"]
+mod indexed_domains;
+
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
 const BUFFER: &str = "pub data Buffer<const N: u64> { value: [u8; N]; }";
 

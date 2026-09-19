@@ -270,7 +270,11 @@ fn lower_item_with_exposure(
                 })?
                 .is_empty();
             if !pending {
-                crate::constant::validate_const_definition(syntax_trees, definition)?;
+                crate::constant::validate_const_definition(
+                    syntax_trees,
+                    definition,
+                    lowerer.constant_selection.as_ref(),
+                )?;
             }
             let initializer =
                 crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;

@@ -241,9 +241,9 @@ fn module_domain_key(
 /// with `self` bound and the application's closed index binders mapped in
 /// `parameter_values` (empty for a monomorphic domain). Unindexed and closed
 /// indexed membership share this body so both apply the same carrier check,
-/// recursion guard, and fact order. A nested indexed membership still
-/// declines: an open family application inside a fact keeps the whole
-/// evaluation on the checked-record path rather than discharge here.
+/// recursion guard, and fact order. Nested indexed memberships reuse the
+/// same application evaluator with the enclosing binder values; their own
+/// authored spans select declarations in the fact author's source context.
 fn evaluate_selected_domain_facts(
     syntax: &SyntaxTrees,
     domain: &syntax_trees::item::DomainDefinition,
@@ -287,9 +287,6 @@ fn evaluate_selected_domain_facts(
                     warnings,
                 )?,
                 ProofFact::Membership(membership) => {
-                    if !membership.domain_arguments.is_empty() {
-                        return Ok(None);
-                    }
                     let Some(nested_value) = evaluate_const_fact_expression(
                         syntax,
                         membership.value,
@@ -312,21 +309,39 @@ fn evaluate_selected_domain_facts(
                         .map(|member| member.as_str())
                         .collect::<Vec<_>>()
                         .join("::");
-                    evaluate_named_const_domain(
-                        syntax,
-                        &path,
-                        nested_carrier,
-                        nested_value,
-                        const_values,
-                        visiting,
-                        members
-                            .first()
-                            .map(|member| member.source_span())
-                            .unwrap_or_default(),
-                        selection,
-                        warnings,
-                    )?
-                    .map(ConstFactValue::Boolean)
+                    let reference = members
+                        .first()
+                        .map(|member| member.source_span())
+                        .unwrap_or_default();
+                    let holds = if membership.domain_arguments.is_empty() {
+                        evaluate_named_const_domain(
+                            syntax,
+                            &path,
+                            nested_carrier,
+                            nested_value,
+                            const_values,
+                            visiting,
+                            reference,
+                            selection,
+                            warnings,
+                        )?
+                    } else {
+                        evaluate_indexed_const_domain(
+                            syntax,
+                            &path,
+                            membership.domain_arguments,
+                            nested_carrier,
+                            nested_value,
+                            const_values,
+                            parameter_values,
+                            syntax.items.type_parameters(domain.type_parameters),
+                            visiting,
+                            reference,
+                            selection,
+                            warnings,
+                        )?
+                    };
+                    holds.map(ConstFactValue::Boolean)
                 }
             };
             let Some(ConstFactValue::Boolean(holds)) = holds else {
@@ -387,6 +402,7 @@ fn evaluate_indexed_const_domain(
     value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, i128>,
+    argument_parameters: &[syntax_trees::item::TypeParameter],
     visiting: &mut Vec<String>,
     reference: source::SourceSpan,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
@@ -476,12 +492,16 @@ fn evaluate_indexed_const_domain(
             *argument,
             const_values,
             argument_values,
+            argument_parameters,
             selection,
             warnings,
         )?
         else {
             return Ok(None);
         };
+        let required =
+            crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+        crate::preparation::generic_data::validate_syntax_integer_range(&required, bound)?;
         parameter_values.insert(parameter.name.as_str().to_owned(), bound);
     }
     evaluate_selected_domain_facts(
@@ -514,6 +534,7 @@ fn evaluate_domain_index_argument(
     argument: TypeReferenceHandle,
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, i128>,
+    argument_parameters: &[syntax_trees::item::TypeParameter],
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<i128>, String> {
@@ -556,6 +577,29 @@ fn evaluate_domain_index_argument(
                 ));
             }
             if let Some(value) = argument_values.get(name.as_str()) {
+                // Forwarding binds a declared value, not an anonymous integer.
+                // Retain the caller telescope until its carrier is checked;
+                // reducing to i128 first would let `u64` silently become `u8`.
+                let Some(syntax_trees::item::TypeParameter {
+                    kind: TypeParameterKind::Const { type_reference },
+                    ..
+                }) = argument_parameters
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == name.as_str())
+                else {
+                    return Ok(None);
+                };
+                let actual = crate::preparation::generic_data::syntax_type_identity(
+                    syntax,
+                    *type_reference,
+                )?;
+                let required =
+                    crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+                if actual != required {
+                    return Err(format!(
+                        "index argument for `{family_name}::{parameter_name}` has carrier `{actual}`, expected `{required}`"
+                    ));
+                }
                 return Ok(Some(*value));
             }
             if let Some(selection) = selection {
@@ -764,6 +808,7 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
                 self_value,
                 &const_values,
                 &HashMap::new(),
+                &[],
                 &mut Vec::new(),
                 domain.name.source_span(),
                 selection,
