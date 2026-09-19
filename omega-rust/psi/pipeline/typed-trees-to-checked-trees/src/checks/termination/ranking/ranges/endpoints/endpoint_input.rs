@@ -1,9 +1,9 @@
-//! Exact scalar or direct-field inputs of an independently formed endpoint.
+//! Exact scalar or member-chain inputs of an independently formed endpoint.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataField;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceNode;
@@ -11,8 +11,10 @@ use typed_trees::types::TypeReferenceNode;
 pub(super) struct EndpointInput<'program> {
     pub argument_position: usize,
     parameter: &'program StateParameter,
-    field: Option<&'program DataField>,
-    owner: SymbolHandle,
+    /// Member chain from the parameter to the endpoint leaf, paired with each
+    /// field's declaring data symbol: `indirect.target.remaining` is
+    /// `[(target, Indirect), (remaining, Wrap)]`.
+    chain: Vec<(&'program DataField, SymbolHandle)>,
 }
 
 impl<'program> EndpointInput<'program> {
@@ -23,13 +25,22 @@ impl<'program> EndpointInput<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        let member = match program.expression_table.expression(expression) {
-            ExpressionNode::Member(member) => Some(member),
-            ExpressionNode::Name(_) => None,
-            _ => return None,
-        };
-        let receiver = member.map_or(expression, |member| member.receiver);
-        let ExpressionNode::Name(name) = program.expression_table.expression(receiver) else {
+        // `a.b.c` parses leaf-out: the expression is Member(c) whose receiver
+        // is Member(b) over Name(a). Collect each Member, then walk the chain
+        // root-to-leaf through declared field types.
+        let mut members = Vec::new();
+        let mut cursor = expression;
+        loop {
+            match program.expression_table.expression(cursor) {
+                ExpressionNode::Member(member) => {
+                    members.push(member);
+                    cursor = member.receiver;
+                }
+                ExpressionNode::Name(_) => break,
+                _ => return None,
+            }
+        }
+        let ExpressionNode::Name(name) = program.expression_table.expression(cursor) else {
             return None;
         };
         let [spelling] = program.expression_table.name_path_members(name.members) else {
@@ -51,20 +62,21 @@ impl<'program> EndpointInput<'program> {
         let mut input = Self {
             argument_position,
             parameter,
-            field: None,
-            owner: SymbolHandle::invalid(),
+            chain: Vec::new(),
         };
-        if let Some(member) = member {
-            let mut owner_type = parameter.type_reference;
+        let mut owner_type = parameter.type_reference;
+        for member in members.iter().rev() {
             while let TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(owner_type)
             {
                 owner_type = *base_type;
             }
-            // A shared borrow (`&T`) receiver reads the referent's stored
-            // field: its declared range is store-enforced and the input's
-            // preservation obligation covers the reference's own reseat.
-            if let TypeReferenceNode::Reference {
+            // A shared borrow (`&T`, including a stored reference field) reads
+            // the referent's stored members: declared ranges are
+            // store-enforced and the input's preservation obligation covers
+            // every reseat of the reference binding itself. Exclusive borrows
+            // write through, so they stay outside this input's identity.
+            while let TypeReferenceNode::Reference {
                 referee, access, ..
             } = program.type_reference_table.type_reference(owner_type)
             {
@@ -72,11 +84,11 @@ impl<'program> EndpointInput<'program> {
                     return None;
                 }
                 owner_type = *referee;
-            }
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(owner_type)
-            {
-                owner_type = *base_type;
+                while let TypeReferenceNode::Constrained { base_type, .. } =
+                    program.type_reference_table.type_reference(owner_type)
+                {
+                    owner_type = *base_type;
+                }
             }
             let TypeReferenceNode::Named { symbol: owner, .. } =
                 program.type_reference_table.type_reference(owner_type)
@@ -90,56 +102,73 @@ impl<'program> EndpointInput<'program> {
                 .data_definitions()
                 .iter()
                 .find(|declaration| owner.is_valid() && declaration.symbol == *owner)?;
-            input.field = Some(validation::exact_data_member_field(
+            let field = validation::exact_data_member_field(
                 program,
                 declaration,
                 member.member_symbol,
                 member.member.as_str(),
                 None,
-            )?);
-            input.owner = *owner;
+            )?;
+            input.chain.push((field, *owner));
+            owner_type = field.type_reference;
         }
         Some(input)
     }
 
-    /// The declared bounds of a member endpoint rooted at a shared-borrow
-    /// formal. The general invariant query stays out of references entirely;
-    /// here the endpoint's own preservation judgment below already supplies
-    /// the storage evidence, so the referent's store-enforced field range
-    /// bounds the read.
-    pub(super) fn borrowed_member_bounds(
+    /// The declared bounds of a member endpoint whose chain traverses a shared
+    /// borrow. The general invariant query stays out of references entirely;
+    /// here the endpoint's own preservation judgment supplies the storage
+    /// evidence, so the leaf's store-enforced field range bounds the read.
+    pub(super) fn declared_member_bounds(
         program: &'program TypedTrees,
         state: &'program State,
         expression: ExpressionHandle,
     ) -> Option<(i64, i64)> {
         let input = Self::resolve(program, state, expression)?;
-        validation::enforced_integer_type_bounds(program, input.field?.type_reference)
+        let (leaf, _) = input.chain.last()?;
+        validation::enforced_integer_type_bounds(program, leaf.type_reference)
     }
 
     pub fn path(&self) -> String {
-        match self.field {
-            Some(field) => format!("{}.{}", self.parameter.name.as_str(), field.name.as_str()),
-            None => self.parameter.name.as_str().to_owned(),
+        let mut path = self.parameter.name.as_str().to_owned();
+        for (field, _) in &self.chain {
+            path.push('.');
+            path.push_str(field.name.as_str());
         }
+        path
     }
 
     pub fn preserved_by(&self, program: &TypedTrees, actual: ExpressionHandle) -> bool {
         if self.is_parameter(program, actual) {
             return true;
         }
-        let Some(field) = self.field else {
+        if self.chain.is_empty() {
             return false;
-        };
+        }
         let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(actual)
         else {
             return false;
         };
-        if literal.type_symbol != self.owner
+        let (_, root_owner) = self.chain[0];
+        if literal.type_symbol != root_owner
             || literal.case_symbol.is_some()
             || literal.case_name.is_some()
         {
             return false;
         }
+        self.literal_preserves_at(program, literal, 0)
+    }
+
+    /// The actual's literal field at `depth` either forwards the same storage
+    /// (a member path spelling exactly `param.chain[0..=depth]`) or rebuilds it
+    /// as a nested literal that preserves the remaining chain the same way.
+    fn literal_preserves_at(
+        &self,
+        program: &TypedTrees,
+        literal: &TableStructLiteral,
+        depth: usize,
+    ) -> bool {
+        let (field, _) = self.chain[depth];
         let mut matching = program
             .expression_table
             .struct_fields(literal.fields)
@@ -151,11 +180,45 @@ impl<'program> EndpointInput<'program> {
         if matching.next().is_some() {
             return false;
         }
-        matches!(program.expression_table.expression(actual.value), ExpressionNode::Member(member)
-            if member.member_symbol == field.symbol
-                && member.member == field.name
-                && member.case_variant.is_none()
-                && self.is_parameter(program, member.receiver))
+        if self.is_prefix_path(program, actual.value, depth) {
+            return true;
+        }
+        if let Some((_, next_owner)) = self.chain.get(depth + 1) {
+            if let ExpressionNode::StructLiteral(inner) =
+                program.expression_table.expression(actual.value)
+            {
+                if inner.type_symbol == *next_owner
+                    && inner.case_symbol.is_none()
+                    && inner.case_name.is_none()
+                {
+                    return self.literal_preserves_at(program, inner, depth + 1);
+                }
+            }
+        }
+        false
+    }
+
+    /// `expression` spells the member path `param.chain[0..=depth]` exactly.
+    fn is_prefix_path(
+        &self,
+        program: &TypedTrees,
+        mut cursor: ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        for index in (0..=depth).rev() {
+            let ExpressionNode::Member(member) = program.expression_table.expression(cursor) else {
+                return false;
+            };
+            let (field, _) = self.chain[index];
+            if member.member_symbol != field.symbol
+                || member.member != field.name
+                || member.case_variant.is_some()
+            {
+                return false;
+            }
+            cursor = member.receiver;
+        }
+        self.is_parameter(program, cursor)
     }
 
     fn is_parameter(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {

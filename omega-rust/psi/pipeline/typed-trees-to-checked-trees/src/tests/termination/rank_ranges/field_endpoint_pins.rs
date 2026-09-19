@@ -319,3 +319,47 @@ fn borrowed_receiver_fields_supply_endpoint_bounds() {
             ),
     );
 }
+
+/// A member chain through a stored shared reference reaches the referent's
+/// declared bounds: `indirect.target.remaining` pins when the chain's prefix
+/// is forwarded intact, and only then.
+const PROJECTED_ENDPOINT: &str = r#"
+    data Wrap { remaining: u64 [4..=500]; }
+    data Indirect { target: &Wrap; }
+    machine walk(n: u64 [0..=4], indirect: Indirect)
+    terminates by n -> Nat::Descending in 0..=indirect.target.remaining;
+    -> u64 {
+        transition n > 0 {
+            true -> walk(n - 1, Indirect { target: indirect.target })
+            false -> n
+        }
+    }
+"#;
+
+#[test]
+fn member_chains_through_stored_references_supply_endpoint_bounds() {
+    accepts(PROJECTED_ENDPOINT);
+    // A different receiver's reference field does not preserve this input.
+    rejects_range(
+        &PROJECTED_ENDPOINT
+            .replace(
+                "indirect: Indirect)",
+                "indirect: Indirect, spare: Indirect)",
+            )
+            .replace(
+                "Indirect { target: indirect.target })",
+                "Indirect { target: spare.target }, spare)",
+            ),
+    );
+    // Rebinding the stored reference to another formal is a foreign referent.
+    rejects_range(
+        &PROJECTED_ENDPOINT
+            .replace("indirect: Indirect)", "indirect: Indirect, spare: &Wrap)")
+            .replace(
+                "Indirect { target: indirect.target })",
+                "Indirect { target: spare }, spare)",
+            ),
+    );
+    // An exclusive stored borrow can write through; the chain refuses it.
+    rejects_range(&PROJECTED_ENDPOINT.replace("target: &Wrap;", "target: &mut Wrap;"));
+}
