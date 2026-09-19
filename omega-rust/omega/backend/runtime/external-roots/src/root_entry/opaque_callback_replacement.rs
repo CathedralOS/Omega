@@ -35,6 +35,12 @@ impl Eq for OpaqueCallbackRegistrationCapacityEvidence {}
 
 /// Provider evidence that one opaque callback address is a process-lifetime
 /// gateway rather than an entry embedded in replaceable component code.
+///
+/// The receipt binds the exact live-registration capacity occurrence the
+/// provider is spending on this registration: provider, capacity identity,
+/// and private provenance come from the issued occurrence, so the record
+/// traces to that provider's issued supply rather than self-declared
+/// identities.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessLifetimeGatewayAdmissionReceipt {
     identity: GatewayAdmissionReceiptId,
@@ -42,6 +48,8 @@ pub struct ProcessLifetimeGatewayAdmissionReceipt {
     provider: OpaqueCallbackProviderId,
     gateway: ProcessLifetimeGatewayId,
     dispatch_contract: GatewayDispatchContractId,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrenceId,
+    capacity_evidence: OpaqueCallbackRegistrationCapacityEvidence,
     installed_code: InstalledCodeContext,
     installed_code_identity: InstalledCodeId,
     entry: EntryStubId,
@@ -55,9 +63,9 @@ impl ProcessLifetimeGatewayAdmissionReceipt {
     pub fn from_provider(
         identity: GatewayAdmissionReceiptId,
         registration: OpaqueCallbackRegistrationId,
-        provider: OpaqueCallbackProviderId,
         gateway: ProcessLifetimeGatewayId,
         dispatch_contract: GatewayDispatchContractId,
+        capacity: &OpaqueCallbackRegistrationCapacityOccurrence,
         installed_code: &InstalledCode,
         entry: EntryStubId,
         foreign_target_is_gateway: bool,
@@ -67,9 +75,11 @@ impl ProcessLifetimeGatewayAdmissionReceipt {
         Self {
             identity,
             registration,
-            provider,
+            provider: capacity.provider,
             gateway,
             dispatch_contract,
+            capacity: capacity.identity,
+            capacity_evidence: capacity.evidence.clone(),
             installed_code: installed_code.receipt_context(),
             installed_code_identity: installed_code.identity(),
             entry,
@@ -81,7 +91,10 @@ impl ProcessLifetimeGatewayAdmissionReceipt {
 }
 
 /// Accepted opaque callback whose foreign address remains in process-lifetime
-/// code. The installed-code borrow deliberately has no retirement operation.
+/// code. The installed-code borrow deliberately has no retirement operation,
+/// and the consumed live-registration capacity occurrence is held by the
+/// admission for the registration's process lifetime — a permanent
+/// registration permanently holds its supply.
 #[derive(Debug)]
 pub struct ProcessLifetimeOpaqueCallback<'code> {
     registration: OpaqueCallbackRegistrationId,
@@ -89,6 +102,7 @@ pub struct ProcessLifetimeOpaqueCallback<'code> {
     gateway: ProcessLifetimeGatewayId,
     dispatch_contract: GatewayDispatchContractId,
     admission: GatewayAdmissionReceiptId,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
     entry: EntryStubId,
     installed_code: &'code InstalledCode,
 }
@@ -114,6 +128,12 @@ impl ProcessLifetimeOpaqueCallback<'_> {
         self.admission
     }
 
+    /// The exact live-registration capacity occurrence this registration
+    /// permanently holds.
+    pub const fn capacity(&self) -> &OpaqueCallbackRegistrationCapacityOccurrence {
+        &self.capacity
+    }
+
     pub const fn entry(&self) -> EntryStubId {
         self.entry
     }
@@ -123,14 +143,28 @@ impl ProcessLifetimeOpaqueCallback<'_> {
     }
 }
 
+/// Admit one process-lifetime gateway registration. The receipt must bind
+/// the exact capacity occurrence presented: identity, issuing provider, and
+/// private provenance all compare by value, so a forged, substituted, or
+/// replayed capacity claim rejects with every input returned. The admitted
+/// registration owns the occurrence for process lifetime; there is no
+/// unregistration or supply-return path.
 pub fn admit_process_lifetime_opaque_callback<'code>(
     installed_code: &'code InstalledCode,
     receipt: ProcessLifetimeGatewayAdmissionReceipt,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
 ) -> Result<ProcessLifetimeOpaqueCallback<'code>, Box<ProcessLifetimeGatewayAdmissionError>> {
+    let exact_capacity = receipt.capacity == capacity.identity
+        && receipt.provider == capacity.provider
+        && receipt.capacity_evidence == capacity.evidence;
     let exact_code = receipt.installed_code == installed_code.receipt_context()
         && receipt.installed_code_identity == installed_code.identity();
     let entry_admitted = installed_code.selected_entry_target(receipt.entry).is_ok();
-    let diagnostic = if !exact_code {
+    let diagnostic = if !exact_capacity {
+        Some(
+            "process-lifetime callback gateway receipt does not bind the exact live-registration capacity occurrence",
+        )
+    } else if !exact_code {
         Some("process-lifetime callback gateway receipt does not bind the exact installed code")
     } else if !entry_admitted {
         Some("process-lifetime callback gateway entry is not admitted by the installed artifact")
@@ -146,6 +180,7 @@ pub fn admit_process_lifetime_opaque_callback<'code>(
     if let Some(diagnostic) = diagnostic {
         return Err(Box::new(ProcessLifetimeGatewayAdmissionError {
             receipt,
+            capacity,
             diagnostic: ExternalRootDiagnostic(diagnostic.into()),
         }));
     }
@@ -155,6 +190,7 @@ pub fn admit_process_lifetime_opaque_callback<'code>(
         gateway: receipt.gateway,
         dispatch_contract: receipt.dispatch_contract,
         admission: receipt.identity,
+        capacity,
         entry: receipt.entry,
         installed_code,
     })
@@ -163,6 +199,7 @@ pub fn admit_process_lifetime_opaque_callback<'code>(
 #[derive(Debug)]
 pub struct ProcessLifetimeGatewayAdmissionError {
     receipt: ProcessLifetimeGatewayAdmissionReceipt,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
     diagnostic: ExternalRootDiagnostic,
 }
 
@@ -171,8 +208,14 @@ impl ProcessLifetimeGatewayAdmissionError {
         &self.diagnostic
     }
 
-    pub fn into_receipt(self) -> ProcessLifetimeGatewayAdmissionReceipt {
-        self.receipt
+    /// Return the rejected receipt and the unconsumed capacity occurrence.
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProcessLifetimeGatewayAdmissionReceipt,
+        OpaqueCallbackRegistrationCapacityOccurrence,
+    ) {
+        (self.receipt, self.capacity)
     }
 }
 
