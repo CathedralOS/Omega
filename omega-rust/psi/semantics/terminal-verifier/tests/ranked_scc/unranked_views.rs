@@ -381,6 +381,10 @@ fn boundary_view_call(module: &mut TerminalModule, source: u64) -> Operation {
         id: boundary,
         identity: "test::Output::write".into(),
         attachment: None,
+        parameter_order: vec![
+            terminal_psi::BoundaryParameterKind::Scalar,
+            terminal_psi::BoundaryParameterKind::Structural,
+        ],
         scalar_parameters: vec![ScalarType::Boolean],
         structural_parameters: vec![parameter],
         result: BoundaryMachineResult::Unit,

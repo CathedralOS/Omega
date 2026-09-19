@@ -56,6 +56,9 @@ pub(super) fn validate_boundary_machine(
         return malformed("boundary machine has an unknown attachment type");
     }
     validate_structural_parameters(module, &boundary.structural_parameters)?;
+    if !boundary.has_valid_parameter_order() {
+        return malformed("boundary parameter order does not cover its lanes exactly");
+    }
     for requirement in &boundary.requires {
         let Some(parameter) = boundary
             .structural_parameters

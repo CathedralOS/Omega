@@ -697,6 +697,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
         id: boundary_id,
         identity: "Splitter::partition".to_owned(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![structural_parameter],
         result: terminal_psi::BoundaryMachineResult::Unit,

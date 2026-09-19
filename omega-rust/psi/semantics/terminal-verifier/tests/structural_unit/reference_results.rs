@@ -616,6 +616,10 @@ fn reference_result_host_projection_rejects_without_widening_boundary_support() 
         id: boundary_id(1),
         identity: "primitive_boundary".into(),
         attachment: None,
+        parameter_order: vec![
+            terminal_psi::BoundaryParameterKind::Scalar,
+            terminal_psi::BoundaryParameterKind::Structural,
+        ],
         scalar_parameters: vec![signed_i8()],
         structural_parameters: vec![parameter],
         result: terminal_psi::BoundaryMachineResult::Unit,
@@ -880,6 +884,7 @@ fn reference_record_rejects_unreplayed_producer_and_interface_custody() {
                     id: boundary_id(1),
                     identity: "stored_reference_boundary".into(),
                     attachment: None,
+                    parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
                     scalar_parameters: Vec::new(),
                     structural_parameters: vec![parameter],
                     result: terminal_psi::BoundaryMachineResult::Unit,

@@ -179,6 +179,7 @@ fn scalar_fixture() -> (
 fn scalar_provider_module() -> TerminalModule {
     let mut module = provider_module();
     let scalar_type = signed_i32();
+    module.boundary_machines[0].parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
     module.boundary_machines[0].scalar_parameters = vec![scalar_type];
     for (index, machine) in module.machines.iter_mut().enumerate() {
         let parameter = ValueDeclaration {

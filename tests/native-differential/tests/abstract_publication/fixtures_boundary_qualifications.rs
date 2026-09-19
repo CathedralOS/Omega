@@ -82,6 +82,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
         identity: "test::consume_qualification".into(),
         attachment: None,
         crash_routes: Vec::new(),
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![parameter(boundary_place, Vec::new())],
         result: terminal_psi::BoundaryMachineResult::Unit,
@@ -196,6 +197,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         identity: "test::consume_projected_qualification".into(),
         attachment: None,
         crash_routes: Vec::new(),
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
             place: boundary_place,

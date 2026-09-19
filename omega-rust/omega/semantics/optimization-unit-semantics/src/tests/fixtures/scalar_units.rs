@@ -365,6 +365,7 @@ pub(crate) fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
             id: boundary,
             identity: "validation::scalar-boundary".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
             scalar_parameters: vec![scalar_type],
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Scalar(scalar_type),

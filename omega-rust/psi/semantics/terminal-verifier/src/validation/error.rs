@@ -446,6 +446,7 @@ pub enum ModuleError {
     RootInstallationReachDependenciesMismatch,
     DuplicateBoundaryMachine(BoundaryMachineId),
     InvalidBoundaryMachineIdentity(BoundaryMachineId),
+    InvalidBoundaryParameterOrder(BoundaryMachineId),
     NonCanonicalBoundaryCrashRoutes(BoundaryMachineId),
     InvalidBoundaryCrashParameters(BoundaryMachineId),
     UnsupportedBoundaryCrashPredicate(BoundaryMachineId),

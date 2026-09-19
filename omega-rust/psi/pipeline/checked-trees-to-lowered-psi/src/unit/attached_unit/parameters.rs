@@ -261,6 +261,51 @@ pub(crate) fn checked_scalar_source_parameters(
         .collect()
 }
 
+/// Merge retained formals without turning lane-local proof/custody coordinates
+/// into ABI positions. Gaps may denote omitted receivers or erased formals.
+pub(crate) fn lower_boundary_parameter_order(
+    scalars: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    structural: &[checked_trees::CheckedUnitStructuralParameterPlan],
+) -> Result<Vec<terminal_psi::BoundaryParameterKind>, LoweringError> {
+    use terminal_psi::BoundaryParameterKind::{Scalar, Structural};
+    if scalars
+        .windows(2)
+        .any(|pair| pair[0].source_position >= pair[1].source_position)
+        || structural
+            .windows(2)
+            .any(|pair| pair[0].position >= pair[1].position)
+    {
+        return unsupported("boundary parameter lanes are not in strict source order");
+    }
+    let mut scalar = scalars.iter().peekable();
+    let mut structure = structural.iter().peekable();
+    let mut order = Vec::with_capacity(scalars.len() + structural.len());
+    loop {
+        let kind = match (scalar.peek(), structure.peek()) {
+            (Some(left), Some(right)) => match left.source_position.cmp(&right.position) {
+                std::cmp::Ordering::Less => Scalar,
+                std::cmp::Ordering::Greater => Structural,
+                std::cmp::Ordering::Equal => {
+                    return unsupported("boundary parameter lanes share a source position");
+                }
+            },
+            (Some(_), None) => Scalar,
+            (None, Some(_)) => Structural,
+            (None, None) => break,
+        };
+        match kind {
+            Scalar => {
+                scalar.next();
+            }
+            Structural => {
+                structure.next();
+            }
+        }
+        order.push(kind);
+    }
+    Ok(order)
+}
+
 pub(crate) fn lower_unit_scalar_parameter_types(
     parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> Result<Vec<ScalarType>, LoweringError> {

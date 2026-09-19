@@ -1261,17 +1261,13 @@ impl Replay<'_> {
                 Some((callback, ordinal))
             }
         };
-        // The Terminal declaration splits scalar and structural formals into
-        // two lane-local lists and erases their authored interleave, so a
-        // structural argument rejoins its exact plan position only while the
-        // scalar lane is empty; a mixed signature fails closed rather than
-        // guessing an ordinal the artifact cannot prove.
+        // Reconstruct both ABI lanes from the portable declaration's authored
+        // runtime order, independently of the target argument rows.
         if structural_arguments.len() != declaration.structural_parameters.len()
             || actual_structural.len() != structural_arguments.len()
             || arguments.len() != declaration.scalar_parameters.len()
             || actual_scalar.len() != arguments.len()
-            || (!structural_arguments.is_empty()
-                && (!declaration.scalar_parameters.is_empty() || callback.is_some()))
+            || !declaration.has_valid_parameter_order()
         {
             return Err(psi_operation);
         }
@@ -1318,20 +1314,25 @@ impl Replay<'_> {
         // placement, while the declaration still counts only semantic
         // formals — semantic argument indices shift around the callback's
         // native ordinal.
+        let mut next_scalar_shape = scalar_shapes.iter();
+        let mut parameter_shapes = declaration
+            .parameter_order
+            .iter()
+            .map(|kind| match kind {
+                terminal_psi::BoundaryParameterKind::Scalar => {
+                    next_scalar_shape.next().copied().ok_or(psi_operation)
+                }
+                terminal_psi::BoundaryParameterKind::Structural => Ok(pointer_shape),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some((_, ordinal)) = callback {
+            if ordinal > parameter_shapes.len() {
+                return Err(psi_operation);
+            }
+            parameter_shapes.insert(ordinal, pointer_shape);
+        }
         let signature = CallSignature {
-            parameters: if callback.is_some() {
-                binding
-                    .boundary_entry_plan
-                    .call
-                    .parameters
-                    .iter()
-                    .map(|placement| placement.shape)
-                    .collect()
-            } else if structural_arguments.is_empty() {
-                scalar_shapes.clone()
-            } else {
-                vec![pointer_shape; structural_arguments.len()]
-            },
+            parameters: parameter_shapes,
             result: expected_result.as_ref().map(|(_, shape)| *shape),
         };
         let validated = match callback {
@@ -1411,11 +1412,12 @@ impl Replay<'_> {
                 retained_scalar_homes.insert(home.defining_operation, home);
             }
         }
-        for (index, ((actual, value), shape)) in actual_scalar
+        for ((index, ((actual, value), shape)), formal_position) in actual_scalar
             .iter()
             .zip(arguments)
             .zip(&scalar_shapes)
             .enumerate()
+            .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
         {
             let placed_byte_size = match actual.placement.locations.as_slice() {
                 [
@@ -1470,8 +1472,8 @@ impl Replay<'_> {
             // semantic scalar at or after its ordinal shifts one placement
             // position — the materialized signature is positional in the
             // authored order, not the semantic order.
-            let expected_index =
-                index + usize::from(callback.is_some_and(|(_, ordinal)| index >= ordinal));
+            let expected_index = formal_position
+                + usize::from(callback.is_some_and(|(_, ordinal)| formal_position >= ordinal));
             let destination = binding
                 .boundary_entry_plan
                 .call
@@ -1489,11 +1491,16 @@ impl Replay<'_> {
                 return Err(psi_operation);
             }
         }
-        for (index, ((actual, semantic), declaration_parameter)) in actual_structural
-            .iter()
-            .zip(structural_arguments)
-            .zip(&declaration.structural_parameters)
-            .enumerate()
+        for ((index, ((actual, semantic), declaration_parameter)), formal_position) in
+            actual_structural
+                .iter()
+                .zip(structural_arguments)
+                .zip(&declaration.structural_parameters)
+                .enumerate()
+                .zip(
+                    declaration
+                        .parameter_positions(terminal_psi::BoundaryParameterKind::Structural),
+                )
         {
             // The referent root must be one of the caller's own checked
             // structural parameters; the projected type, offset, and home are
@@ -1524,7 +1531,12 @@ impl Replay<'_> {
                 .boundary_entry_plan
                 .call
                 .parameters
-                .get(index)
+                .get(
+                    formal_position
+                        + usize::from(
+                            callback.is_some_and(|(_, ordinal)| formal_position >= ordinal),
+                        ),
+                )
                 .ok_or(psi_operation)?;
             let placed_pointer_word = match destination.locations.as_slice() {
                 [

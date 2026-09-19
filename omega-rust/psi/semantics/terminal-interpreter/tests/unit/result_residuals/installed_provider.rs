@@ -35,6 +35,7 @@ fn module(nested: bool) -> TerminalModule {
         id: boundary_id(1),
         identity: "test::forward".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![boundary_parameter],
         result: BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
@@ -251,6 +252,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
         id: boundary_id(2),
         identity: "test::observe_leaf".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![parameter.clone()],
         result: BoundaryMachineResult::Unit,

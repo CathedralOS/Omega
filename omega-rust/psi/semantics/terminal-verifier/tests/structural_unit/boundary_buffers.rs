@@ -170,6 +170,9 @@ fn boundary_buffer_resolves_each_index_and_rejects_overlapping_loans() {
     second_parameter.position = 1;
     second_parameter.place = place_id(3);
     module.boundary_machines[0]
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
+    module.boundary_machines[0]
         .structural_parameters
         .push(second_parameter);
     let mut second_argument = arguments(&mut module)[0].clone();

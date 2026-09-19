@@ -17,6 +17,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         id: boundary_id(2),
         identity: "observe_continuation".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
         scalar_parameters: vec![scalar_type],
         structural_parameters: Vec::new(),
         result: terminal_psi::BoundaryMachineResult::Unit,

@@ -56,6 +56,7 @@ fn reported_boundary_crash_rejects_nonliteral_or_malformed_actuals() {
         );
     }
     let mut integer = boundary.clone();
+    integer.parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
     integer.scalar_parameters = vec![ScalarType::Integer(integer_type)];
     integer.crash_routes[0].alternatives = vec![CrashRouteGuard::Truth];
     assert_eq!(
@@ -85,6 +86,9 @@ fn reported_boundary_crash_rejects_nonliteral_or_malformed_actuals() {
 fn reported_boundary_crash_scalar_positions_ignore_structural_lane() {
     let module = guarded_boundary_module();
     let mut boundary = module.boundary_machines[0].clone();
+    boundary
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
     boundary
         .structural_parameters
         .push(terminal_psi::StructuralParameterDeclaration {
@@ -164,6 +168,7 @@ fn mathematical_boundary_guards_preserve_signs_composition_and_exact_positions()
     use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
     let mut boundary = boundary_call_module().boundary_machines.remove(0);
     let integer_type = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    boundary.parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar; 2];
     boundary.scalar_parameters = vec![ScalarType::Integer(integer_type); 2];
     let actual = |value| ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).unwrap();
     let formal = |value| IntegerMathTerm::MathValue {
@@ -214,6 +219,7 @@ fn mathematical_boundary_guards_preserve_signs_composition_and_exact_positions()
 fn mathematical_boundary_guard_resource_failure_is_not_false_or_crash_permission() {
     use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
     let mut boundary = boundary_call_module().boundary_machines.remove(0);
+    boundary.parameter_order.clear();
     boundary.scalar_parameters.clear();
     let literal = |value| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
     let shifted = IntegerMathTerm::ShiftLeft {
@@ -260,6 +266,7 @@ fn mathematical_boundary_guard_resource_failure_is_not_false_or_crash_permission
 fn same_cause_alternatives_can_independently_permit_a_crash_after_incomplete_evaluation() {
     use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
     let mut boundary = boundary_call_module().boundary_machines.remove(0);
+    boundary.parameter_order.clear();
     boundary.scalar_parameters.clear();
     let literal = |value| IntegerMathTerm::literal(IntegerValue::Signed(value));
     let exhausted = IntegerMathTerm::ShiftLeft {
@@ -400,6 +407,8 @@ fn guarded_routes(value: u64) -> Vec<CrashRouteBucket> {
 
 fn guarded_boundary_module() -> TerminalModule {
     let mut module = boundary_call_module();
+    module.boundary_machines[0].parameter_order =
+        vec![terminal_psi::BoundaryParameterKind::Scalar; 2];
     module.boundary_machines[0].scalar_parameters = vec![ScalarType::Boolean; 2];
     module.boundary_machines[0].crash_routes = guarded_routes(1);
     let caller = &mut module.machines[0];

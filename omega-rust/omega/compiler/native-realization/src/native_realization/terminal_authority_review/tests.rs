@@ -78,6 +78,7 @@ fn boundary(id: u32, requirement: &str) -> terminal_psi::BoundaryMachineDeclarat
         id: semantic_vocabulary::BoundaryMachineId::new(u64::from(id)).unwrap(),
         identity: requirement.to_owned(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         result: terminal_psi::BoundaryMachineResult::Unit,

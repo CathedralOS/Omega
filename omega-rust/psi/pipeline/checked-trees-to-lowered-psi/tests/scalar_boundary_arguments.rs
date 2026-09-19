@@ -303,47 +303,116 @@ fn verify_roundtrip(lowered: &lowered_psi::LoweredPsi) {
 
 #[test]
 fn mixed_boundary_signature_uses_dense_scalar_crash_formals() {
-    let source = r#"
-        data Token {}
-        boundary trait Sink {
-            machine record(token: Token, selected: bool, value: u16)
-            crashes Abort selected && value == 0u16;
-        }
-        data Root {}
-        machine Root::enter(selected: bool, token: Token, value: u16)
-        reaches Sink
-        crashes Abort selected && value == 0u16 {
-            Sink::record(token, selected, value);
-        }
-    "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("mixed boundary crash source should lower");
-    assert_eq!(
-        lowered.semantic_module.boundary_machines[0]
-            .scalar_parameters
-            .len(),
-        2
-    );
-    assert_eq!(
-        lowered.semantic_module.boundary_machines[0]
-            .crash_routes
-            .len(),
-        1
-    );
-    verify_roundtrip(&lowered);
-    for (selected, value, permitted) in [(true, 0, true), (false, 0, false), (true, 1, false)] {
-        exercise_boundary_outcomes(
-            &lowered,
-            &[
-                terminal_interpreter::TerminalScalarValue::Boolean(selected),
-                unsigned16(value),
+    use terminal_psi::BoundaryParameterKind::{Scalar, Structural};
+
+    let mut reference_routes = None;
+    for (parameters, arguments, order) in [
+        (
+            "token: Token, selected: bool, value: u16",
+            "token, selected, value",
+            [Structural, Scalar, Scalar],
+        ),
+        (
+            "selected: bool, token: Token, value: u16",
+            "selected, token, value",
+            [Scalar, Structural, Scalar],
+        ),
+        (
+            "selected: bool, value: u16, token: Token",
+            "selected, value, token",
+            [Scalar, Scalar, Structural],
+        ),
+    ] {
+        let source = format!(
+            r#"
+            data Token {{}}
+            boundary trait Sink {{
+                machine record({parameters})
+                crashes Abort selected && value == 0u16;
+            }}
+            data Root {{}}
+            machine Root::enter(selected: bool, token: Token, value: u16)
+            reaches Sink
+            crashes Abort selected && value == 0u16 {{
+                Sink::record({arguments});
+            }}
+            "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed).expect("check");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
+            .unwrap_or_else(|error| panic!("{parameters}: {error:?}"));
+        let module = &lowered.semantic_module;
+        let boundary = &module.boundary_machines[0];
+        assert_eq!(boundary.parameter_order, order);
+        assert_eq!(boundary.scalar_parameters.len(), 2);
+        assert_eq!(boundary.structural_parameters.len(), 1);
+        assert_eq!(boundary.crash_routes.len(), 1);
+        assert_eq!(
+            boundary
+                .scalar_contract_parameters()
+                .expect("scalar contract coordinates")
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect::<Vec<_>>(),
+            [
+                semantic_vocabulary::ValueId::new(1).unwrap(),
+                semantic_vocabulary::ValueId::new(2).unwrap(),
             ],
-            permitted,
+        );
+        if let Some(routes) = &reference_routes {
+            assert_eq!(&boundary.crash_routes, routes);
+        } else {
+            reference_routes = Some(boundary.crash_routes.clone());
+        }
+        verify_roundtrip(&lowered);
+        for (selected, value, permitted) in [(true, 0, true), (false, 0, false), (true, 1, false)] {
+            exercise_boundary_outcomes(
+                &lowered,
+                &[
+                    terminal_interpreter::TerminalScalarValue::Boolean(selected),
+                    unsigned16(value),
+                ],
+                permitted,
+            );
+        }
+
+        for mutation in ["missing", "extra", "wrong kind"] {
+            let mut changed = module.clone();
+            let order = &mut changed.boundary_machines[0].parameter_order;
+            match mutation {
+                "missing" => {
+                    order.pop();
+                }
+                "extra" => order.push(Scalar),
+                "wrong kind" => {
+                    let position = order.iter().position(|kind| *kind == Structural).unwrap();
+                    order[position] = Scalar;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                terminal_codec::encode_module(&changed).is_err(),
+                "{mutation}"
+            );
+            assert!(
+                terminal_verifier::validate_module(&changed).is_err(),
+                "{mutation}"
+            );
+        }
+        // A complete alternate ordering is a different signature, not an
+        // ill-formed roster. Its exact canonical identity must change.
+        let mut reordered = module.clone();
+        reordered.boundary_machines[0]
+            .parameter_order
+            .rotate_left(1);
+        terminal_verifier::validate_module(&reordered).expect("complete alternate signature");
+        assert_ne!(
+            terminal_codec::semantic_fingerprint(module).unwrap(),
+            terminal_codec::semantic_fingerprint(&reordered).unwrap(),
         );
     }
 }

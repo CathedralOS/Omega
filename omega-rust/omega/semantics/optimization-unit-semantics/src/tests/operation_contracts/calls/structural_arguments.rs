@@ -50,6 +50,7 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
             id: boundary_id,
             identity: "validation::structural-boundary".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![boundary.functions[1].structural_parameters[0].clone()],
             result: terminal_psi::BoundaryMachineResult::Unit,

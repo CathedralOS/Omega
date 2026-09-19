@@ -379,6 +379,7 @@ fn subslice_boundary_receives_only_the_window_and_preserves_caller_continuation(
         let mut boundary = module.boundary_machines[0].clone();
         boundary.id = boundary_id(3);
         boundary.identity = "test::window".into();
+        boundary.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
         boundary.scalar_parameters.clear();
         let mut parameter = module.machines[1].structural_parameters[0].clone();
         parameter.place = place_id(8);

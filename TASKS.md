@@ -1901,6 +1901,12 @@ Owners include
 
   Remaining work:
 
+  - Close the codec's implementation-source inventory. Unlike the verifier and
+    representation closures, `terminal-codec/src/sections/trust_graph/current.rs`
+    binds hand-picked codec files to its decoder and canonical-byte roots.
+    Make omitted production codec sources mechanically detectable; changing any
+    such source must change the relevant implementation commitment. Keep this
+    distinct from proving those implementations sound.
   - Move proof search out of verification. The verifier still searches, for
     example 4096 steps in
     `terminal-verifier/src/validation/crash/entry_requirements.rs`; the
@@ -2036,13 +2042,11 @@ Owners include
     and the image-custody rejection; **EVALUATED-FOREIGN-BINDINGS** owns
     locators and import evidence.
   - Widen foreign arguments and results. The scalar lane admits fixed-width
-    integers only. The structural lane admits one source-rooted borrowed flat
-    record, and only while the scalar lane is empty, because the Terminal
-    machine declaration does not retain the authored order of scalar and
-    structural formals
+    integers only; add floating-point and other admitted scalar shapes. Borrowed
+    flat-record projections compose with scalars in retained formal order
     (`abstract-operations-to-target-operations/src/lowering/unit/boundary_call/normalized_foreign.rs`).
-    Retain the authored parameter position so a mixed signature rejoins its
-    plan rows, then add owned aggregates and dynamic descriptors.
+    Add owned aggregates and dynamic descriptors without replacing the shared
+    formal-order mapping with signature-shape-specific routes.
   - Dynamic descriptor calls. Target lowering produces
     `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
     and the `...WithDynamicArguments` calls, and

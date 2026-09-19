@@ -60,6 +60,7 @@ fn boundary_call_module() -> TerminalModule {
             id: boundary_id(1),
             identity: "test::observe".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
             scalar_parameters: vec![ScalarType::Boolean],
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,

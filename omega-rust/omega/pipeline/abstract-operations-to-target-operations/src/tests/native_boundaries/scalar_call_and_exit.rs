@@ -16,6 +16,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         id: boundary,
         identity: "Console::exit_process(i32)->Unit".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
         scalar_parameters: vec![scalar_type],
         structural_parameters: Vec::new(),
         result: terminal_psi::BoundaryMachineResult::Unit,

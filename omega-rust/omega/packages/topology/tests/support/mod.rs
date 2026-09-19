@@ -147,6 +147,7 @@ fn boundary_machine(id: BoundaryMachineId, requirement: &str) -> BoundaryMachine
         id,
         identity: requirement.to_owned(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         crash_routes: Vec::new(),
         structural_parameters: Vec::new(),

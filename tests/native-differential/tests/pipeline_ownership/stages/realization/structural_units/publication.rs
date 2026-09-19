@@ -383,6 +383,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
             identity: "Extent::complete".into(),
             attachment: None,
             crash_routes: Vec::new(),
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![boundary_parameter],
             result: terminal_psi::BoundaryMachineResult::Unit,
@@ -451,6 +452,10 @@ fn provider_artifact() -> (
         identity: "StructuralSink::accept".into(),
         attachment: None,
         crash_routes: Vec::new(),
+        parameter_order: vec![
+            terminal_psi::BoundaryParameterKind::Structural;
+            boundary_parameters.len()
+        ],
         scalar_parameters: Vec::new(),
         structural_parameters: boundary_parameters,
         result: terminal_psi::BoundaryMachineResult::Unit,

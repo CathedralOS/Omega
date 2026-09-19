@@ -18,6 +18,14 @@ scalar result is a separate lane. Encoding binds the orders; verification checks
 arity, definition, dominance, and exact types. Interpretation evaluates scalar
 inputs before invoking the effect handler. Lowering must preserve both lanes.
 
+Each declaration also retains the exact runtime interleave as scalar/structural
+parameter tags. Reading a tag consumes the next parameter from that lane; the
+tag counts must cover both lanes exactly. Scalar contract IDs and structural
+custody positions remain lane-local. Erased formals and omitted service receivers
+do not receive tags. Private callback parameters enter only through the evaluated
+calling plan. Native placement and independent replay join both semantic lanes
+to that plan in retained runtime order, never scalar-first by convention.
+
 Borrowed arguments retain the caller's referent across completion. Only owned
 arguments transfer custody; eventual owner cleanup remains separate even when
 another argument in that call is consumed.

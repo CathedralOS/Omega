@@ -36,6 +36,7 @@ fn byte_output_module() -> TerminalModule {
         identity: "Console::write_byte(i32)->Unit".into(),
         attachment: None,
         crash_routes: Vec::new(),
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
         scalar_parameters: vec![scalar_type],
         structural_parameters: Vec::new(),
         result: BoundaryMachineResult::Unit,

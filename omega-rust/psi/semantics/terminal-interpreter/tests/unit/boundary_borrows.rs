@@ -76,6 +76,9 @@ fn a_boundary_consumes_its_owned_argument_without_consuming_its_borrowed_argumen
     owned.place = place_id(3);
     owned.position = 1;
     owned.access = StructuralAccess::Owned;
+    mixed
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
     mixed.structural_parameters.push(owned);
     module.boundary_machines.push(mixed);
     let caller = &mut module.machines[0];

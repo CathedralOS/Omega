@@ -208,6 +208,7 @@ fn scalar_provider_module(
             id: boundary_id(1),
             identity: "test::combine".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; operands.len()],
             scalar_parameters: operands
                 .iter()
                 .map(|value| ScalarType::IeeeFloat(value.format()))

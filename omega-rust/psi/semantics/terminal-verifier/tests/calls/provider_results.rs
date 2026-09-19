@@ -37,6 +37,9 @@ fn provider_module() -> TerminalModule {
     };
     let mut boundary_parameter = parameter.clone();
     boundary_parameter.place = PlaceId::new(3).unwrap();
+    module.boundary_machines[0]
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
     module.boundary_machines[0].structural_parameters = vec![boundary_parameter];
     module.boundary_machines[0].result =
         BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {

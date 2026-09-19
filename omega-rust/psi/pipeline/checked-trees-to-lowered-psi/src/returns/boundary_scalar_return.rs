@@ -83,6 +83,10 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     requires.dedup();
     let boundary_id = boundary_machine_id(1);
     let boundary_declaration = BoundaryMachineDeclaration {
+        parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
+            &boundary.scalar_parameters,
+            &boundary.structural_parameters,
+        )?,
         id: boundary_id,
         identity: checked_unit_boundary_identity(checked, boundary.machine)?,
         attachment: boundary

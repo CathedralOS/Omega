@@ -31,6 +31,10 @@ fn boundary_fixture() -> TerminalModule {
         id: boundary_machine_id(1),
         identity: "test::guarded_boundary".into(),
         attachment: None,
+        parameter_order: vec![
+            terminal_psi::BoundaryParameterKind::Scalar,
+            terminal_psi::BoundaryParameterKind::Scalar,
+        ],
         scalar_parameters: vec![ScalarType::Boolean; 2],
         crash_routes: routes(1),
         structural_parameters: Vec::new(),

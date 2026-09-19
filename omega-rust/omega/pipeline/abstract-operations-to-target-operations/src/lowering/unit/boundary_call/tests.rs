@@ -15,6 +15,7 @@ fn declaration(
     scalar_parameters: Vec<ScalarType>,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; scalar_parameters.len()],
         fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "Foreign::leaf".into(),
@@ -778,6 +779,7 @@ fn borrowed_flat_record_arguments_preserve_source_custody_and_plan_positions() {
     let receiver = caller_receiver(caller_place, main);
     let parameters_by_place = BTreeMap::from([(caller_place, &receiver)]);
     let mut declaration = declaration(boundary, Vec::new());
+    declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural; 2];
     declaration.structural_parameters = vec![
         structural_formal(0, point, terminal_psi::StructuralAccess::SharedBorrow),
         structural_formal(1, point, terminal_psi::StructuralAccess::SharedBorrow),
@@ -865,6 +867,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
     };
     let base_declaration = || {
         let mut declaration = declaration(boundary, Vec::new());
+        declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
         declaration.structural_parameters = vec![structural_formal(
             0,
             point,

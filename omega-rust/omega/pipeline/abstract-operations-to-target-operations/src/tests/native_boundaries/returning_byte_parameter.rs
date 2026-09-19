@@ -73,6 +73,7 @@ pub(super) fn fixture() -> AbstractOperationPlan {
             id: boundary,
             identity: "Console::write_byte(i32)->Unit".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
             scalar_parameters: vec![scalar_type],
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,

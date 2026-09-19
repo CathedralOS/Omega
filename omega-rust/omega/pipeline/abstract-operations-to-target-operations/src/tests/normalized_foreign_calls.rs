@@ -23,11 +23,12 @@ const REQUIREMENT: &str = "Foreign::leaf";
 #[derive(Debug)]
 struct Execution {
     plan_report: u64,
+    requirement: String,
 }
 
 impl installation_evidence::ProviderExecutionEvidence for Execution {
     fn requirement_identity(&self) -> &str {
-        REQUIREMENT
+        &self.requirement
     }
     fn provider_plan_report_identity(&self) -> u64 {
         self.plan_report
@@ -83,6 +84,14 @@ fn locator_for(native: NativeTarget) -> target::NormalizedForeignLocator {
 }
 
 fn binding(native: NativeTarget, signature: CallSignature) -> NormalizedForeignCallBinding {
+    binding_for_requirement(REQUIREMENT, native, signature)
+}
+
+fn binding_for_requirement(
+    requirement: &str,
+    native: NativeTarget,
+    signature: CallSignature,
+) -> NormalizedForeignCallBinding {
     let locator = locator_for(native);
     let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(native),
@@ -98,7 +107,7 @@ fn binding(native: NativeTarget, signature: CallSignature) -> NormalizedForeignC
         task_plans::SameStackContributionAdmissionCandidate {
             provider_plan_report_identity,
             provider_plan_commitment,
-            requirement_identity: REQUIREMENT.to_owned(),
+            requirement_identity: requirement.to_owned(),
             receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
                 0xA2,
             )
@@ -108,7 +117,7 @@ fn binding(native: NativeTarget, signature: CallSignature) -> NormalizedForeignC
         },
         provider_plan_report_identity,
         provider_plan_commitment,
-        REQUIREMENT,
+        requirement,
     )
     .expect("same-stack admission");
     NormalizedForeignCallBinding {
@@ -124,6 +133,15 @@ fn declaration(
     result: terminal_psi::BoundaryMachineResult,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        parameter_order: std::iter::repeat_n(
+            terminal_psi::BoundaryParameterKind::Scalar,
+            scalar_parameters.len(),
+        )
+        .chain(std::iter::repeat_n(
+            terminal_psi::BoundaryParameterKind::Structural,
+            structural_parameters.len(),
+        ))
+        .collect(),
         fixed_service_reach: Vec::new(),
         id: BoundaryMachineId::new(1).unwrap(),
         identity: REQUIREMENT.into(),
@@ -249,7 +267,13 @@ fn scalar_fixture() -> (AbstractOperationPlan, Execution) {
             completion_receipts: Vec::new(),
         },
     );
-    (source, Execution { plan_report: 0xA1 })
+    (
+        source,
+        Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        },
+    )
 }
 
 /// The flat-record lane: `main(&mut self)` calls `shift(&self.p) -> i32`
@@ -337,7 +361,13 @@ fn flat_record_fixture() -> (AbstractOperationPlan, Execution) {
             completion_receipts: Vec::new(),
         },
     );
-    (source, Execution { plan_report: 0xA1 })
+    (
+        source,
+        Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        },
+    )
 }
 
 fn lower(
@@ -455,6 +485,170 @@ fn normalized_foreign_rows_replay_on_both_linux_targets() {
         );
         crate::validate_abstract_to_target_translation(&source, native, &target)
             .expect("projected normalized foreign row replays");
+    }
+}
+
+#[test]
+fn mixed_foreign_formals_preserve_each_authored_interleave() {
+    use terminal_psi::BoundaryParameterKind::{Scalar, Structural};
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for order in [
+            vec![Scalar, Structural, Scalar],
+            vec![Structural, Scalar, Scalar],
+            vec![Scalar, Scalar, Structural],
+        ] {
+            let (mut source, execution) = flat_record_fixture();
+            let integers = [
+                IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+            ];
+            source.boundary_machines[0].scalar_parameters =
+                integers.map(ScalarType::Integer).to_vec();
+            source.boundary_machines[0].parameter_order = order.clone();
+            let AbstractOperation::BoundaryCall { arguments, .. } =
+                &mut source.functions[0].operations[0]
+            else {
+                panic!("boundary call")
+            };
+            *arguments = vec![ValueId::new(1).unwrap(), ValueId::new(2).unwrap()];
+            for (index, scalar_type) in integers.iter().enumerate() {
+                source.functions[0].operations.insert(
+                    index,
+                    AbstractOperation::IntegerConstant {
+                        psi_operation: OperationId::new(index as u64 + 1).unwrap(),
+                        result: ValueId::new(index as u64 + 1).unwrap(),
+                        scalar_type: ScalarType::Integer(*scalar_type),
+                        value: semantic_vocabulary::IntegerValue::Signed(index as i128 + 11),
+                    },
+                );
+            }
+            let mut scalars = [ValueShape::integer(8, 8), ValueShape::integer(4, 4)].into_iter();
+            let signature = CallSignature {
+                parameters: order
+                    .iter()
+                    .map(|kind| match kind {
+                        Scalar => scalars.next().unwrap(),
+                        Structural => ValueShape::integer(8, 8),
+                    })
+                    .collect(),
+                result: Some(ValueShape::integer(4, 4)),
+            };
+            let foreign = binding(native, signature);
+            let target = lower(&source, native, &execution, &[(1, foreign.clone())]);
+            crate::validate_abstract_to_target_translation(&source, native, &target)
+                .expect("mixed signature independently replays");
+            let TargetUnitOperation::NormalizedForeignCall {
+                scalar_arguments,
+                structural_arguments,
+                ..
+            } = normalized_foreign_ref(&target, 7)
+            else {
+                panic!("foreign row")
+            };
+            let positions = order
+                .iter()
+                .enumerate()
+                .filter_map(|(index, kind)| (*kind == Scalar).then_some(index as u32))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                scalar_arguments
+                    .iter()
+                    .map(|argument| argument.parameter_index)
+                    .collect::<Vec<_>>(),
+                positions
+            );
+            let structural_position = order.iter().position(|kind| *kind == Structural).unwrap();
+            assert_eq!(
+                structural_arguments[0].destination,
+                foreign.boundary_entry_plan.call.parameters[structural_position]
+            );
+
+            // Even equally shaped scalar/pointer parameters have distinct
+            // authored identities; swapping them cannot replay old custody.
+            let mut changed_source = source.clone();
+            let scalar_position = positions[0] as usize;
+            changed_source.boundary_machines[0]
+                .parameter_order
+                .swap(scalar_position, structural_position);
+            assert!(
+                crate::validate_abstract_to_target_translation(&changed_source, native, &target)
+                    .is_err()
+            );
+            let mut changed_target = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                scalar_arguments, ..
+            } = normalized_foreign_mut(&mut changed_target, 7)
+            else {
+                panic!("foreign row")
+            };
+            scalar_arguments[0].parameter_index = structural_position as u32;
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed_target)
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn authored_mixed_foreign_call_survives_canonical_artifact_and_target_replay() {
+    let source = super::structural_borrows::source_plan(
+        r#"
+        data Point { x: i32; y: i32; }
+        boundary trait Foreign {
+            machine leaf(left: i64, point: &Point, right: i32) -> i32;
+        }
+        data Main { point: Point; }
+        machine Main::run(&self) reaches Foreign {
+            let observed: i32 = Foreign::leaf(11i64, &self.point, 12i32);
+        }
+    "#,
+    );
+    assert_eq!(
+        source.boundary_machines[0].parameter_order,
+        [
+            terminal_psi::BoundaryParameterKind::Scalar,
+            terminal_psi::BoundaryParameterKind::Structural,
+            terminal_psi::BoundaryParameterKind::Scalar,
+        ]
+    );
+    let execution = Execution {
+        plan_report: 0xA1,
+        requirement: source.boundary_machines[0].identity.clone(),
+    };
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target = lower(
+            &source,
+            native,
+            &execution,
+            &[(
+                1,
+                binding_for_requirement(
+                    &execution.requirement,
+                    native,
+                    CallSignature {
+                        parameters: vec![
+                            ValueShape::integer(8, 8),
+                            ValueShape::integer(8, 8),
+                            ValueShape::integer(4, 4),
+                        ],
+                        result: Some(ValueShape::integer(4, 4)),
+                    },
+                ),
+            )],
+        );
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("authored mixed call replays");
     }
 }
 
@@ -688,7 +882,13 @@ fn callback_fixture() -> (AbstractOperationPlan, Execution) {
             completion_receipts: Vec::new(),
         },
     );
-    (source, Execution { plan_report: 0xA1 })
+    (
+        source,
+        Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        },
+    )
 }
 
 /// The registrar binding whose entry plan carries the private
@@ -841,5 +1041,173 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
             crate::validate_abstract_to_target_translation(&source, native, &reordered).is_err(),
             "accepted scalar argument at the callback's private ordinal"
         );
+    }
+}
+
+#[test]
+fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot() {
+    use terminal_psi::BoundaryParameterKind::{Scalar, Structural};
+
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for callback_ordinal in [0usize, 1] {
+            let (mut source, execution) = flat_record_fixture();
+            let integer = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+            let value = ValueId::new(1).unwrap();
+            source.boundary_machines[0].scalar_parameters = vec![ScalarType::Integer(integer)];
+            source.boundary_machines[0].parameter_order = vec![Scalar, Structural];
+            let AbstractOperation::BoundaryCall { arguments, .. } =
+                &mut source.functions[0].operations[0]
+            else {
+                panic!("boundary call")
+            };
+            *arguments = vec![value];
+            source.functions[0].operations.insert(
+                0,
+                AbstractOperation::IntegerConstant {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: value,
+                    scalar_type: ScalarType::Integer(integer),
+                    value: IntegerValue::Signed(11),
+                },
+            );
+
+            // Scalar, borrowed referent, and callback deliberately share a
+            // native shape. Only the retained identities distinguish them.
+            let pointer = ValueShape::integer(8, 8);
+            let mut foreign = binding(
+                native,
+                CallSignature {
+                    parameters: vec![pointer; 3],
+                    result: Some(ValueShape::integer(4, 4)),
+                },
+            );
+            let binder = calling_conventions::StaticMachineBinderId::new(81).unwrap();
+            let parameter = calling_conventions::NativeParameterId::new(82).unwrap();
+            let requirement = calling_conventions::CallbackRequirementId::new(83).unwrap();
+            let destination = calling_conventions::NativePlace::Parameter(parameter);
+            foreign.boundary_entry_plan.call.callback_materializations =
+                vec![calling_conventions::CallbackMaterialization {
+                    binder,
+                    destination: destination.clone(),
+                }];
+            let context = calling_conventions::CallbackMaterializationContext {
+                binders: vec![calling_conventions::CallbackBinderRequirement {
+                    binder,
+                    requirement,
+                }],
+                demands: vec![calling_conventions::NativeCallbackDemand {
+                    destination,
+                    requirement,
+                }],
+            };
+            let continuation = function_identity::StateKey {
+                machine: symbols::SymbolHandle::from_parts(1, 1),
+                state: symbols::SymbolHandle::from_parts(2, 1),
+                segment_index: 0,
+            };
+            let admission = crate::AdmittedNativeCallbackArgument {
+                terminal_operation: OperationId::new(7).unwrap(),
+                placement_index: 0,
+                callback_function: function_identity::MachineFunctionIdentity::callback_thunk(
+                    continuation,
+                    0,
+                )
+                .unwrap(),
+                application: calling_conventions::NativeParameterApplication {
+                    parameter,
+                    native_ordinal: u32::try_from(callback_ordinal).unwrap(),
+                    shape: pointer,
+                    placement: foreign.boundary_entry_plan.call.parameters[callback_ordinal]
+                        .clone(),
+                },
+                registrar_boundary_entry_plan: foreign.boundary_entry_plan.clone(),
+                registrar_context: context,
+                registrar_application_commitment: [0x66; 32],
+            };
+            let settlements = [AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::Provider(&execution),
+                realization: BoundarySettlementRealization::NormalizedForeignCall(foreign.clone()),
+            }];
+            let target = crate::lower_to_target_operations_and_native_callbacks(
+                &source,
+                crate::TargetLoweringRequest {
+                    target: native,
+                    settlements: &settlements,
+                    installation: None,
+                    ieee_float_fma: &[],
+                },
+                &[admission],
+            )
+            .expect("mixed registrar lowers");
+            crate::validate_abstract_to_target_translation(&source, native, &target)
+                .expect("mixed registrar independently replays");
+            let scalar_position = usize::from(callback_ordinal == 0);
+            let structural_position = 2;
+            let TargetUnitOperation::NormalizedForeignCall {
+                scalar_arguments,
+                structural_arguments,
+                ..
+            } = normalized_foreign_ref(&target, 7)
+            else {
+                panic!("normalized foreign row")
+            };
+            assert_eq!(
+                scalar_arguments[0].parameter_index as usize,
+                scalar_position
+            );
+            assert_eq!(
+                scalar_arguments[0].placement,
+                foreign.boundary_entry_plan.call.parameters[scalar_position]
+            );
+            assert_eq!(
+                structural_arguments[0].destination,
+                foreign.boundary_entry_plan.call.parameters[structural_position]
+            );
+
+            let mut callback_collision = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                structural_arguments,
+                ..
+            } = normalized_foreign_mut(&mut callback_collision, 7)
+            else {
+                panic!("normalized foreign row")
+            };
+            structural_arguments[0].destination =
+                foreign.boundary_entry_plan.call.parameters[callback_ordinal].clone();
+            assert!(
+                crate::validate_abstract_to_target_translation(
+                    &source,
+                    native,
+                    &callback_collision
+                )
+                .is_err(),
+                "accepted structural argument at the callback's private slot"
+            );
+
+            let mut swapped = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                scalar_arguments,
+                structural_arguments,
+                ..
+            } = normalized_foreign_mut(&mut swapped, 7)
+            else {
+                panic!("normalized foreign row")
+            };
+            scalar_arguments[0].parameter_index = structural_position as u32;
+            std::mem::swap(
+                &mut scalar_arguments[0].placement,
+                &mut structural_arguments[0].destination,
+            );
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &swapped).is_err(),
+                "accepted equally shaped scalar/structural placement swap"
+            );
+        }
     }
 }

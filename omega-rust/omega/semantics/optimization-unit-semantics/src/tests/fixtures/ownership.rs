@@ -460,6 +460,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
             id: boundary,
             identity: "validation::affine-claim-settlement".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![parameter(boundary_root)],
             result: terminal_psi::BoundaryMachineResult::Unit,

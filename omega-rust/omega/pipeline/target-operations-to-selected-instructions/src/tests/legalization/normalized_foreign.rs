@@ -130,6 +130,15 @@ fn declaration(
         id: BoundaryMachineId::new(1).unwrap(),
         identity: REQUIREMENT.into(),
         attachment: None,
+        parameter_order: std::iter::repeat_n(
+            terminal_psi::BoundaryParameterKind::Scalar,
+            scalar_parameters.len(),
+        )
+        .chain(std::iter::repeat_n(
+            terminal_psi::BoundaryParameterKind::Structural,
+            structural_parameters.len(),
+        ))
+        .collect(),
         scalar_parameters,
         structural_parameters,
         result,

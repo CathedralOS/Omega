@@ -97,6 +97,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
             id: boundary_id(1),
             identity: "test::write_line".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: place_id(2),
@@ -220,6 +221,10 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
             id: boundary_id(1),
             identity: "test::observe".into(),
             attachment: None,
+            parameter_order: vec![
+                terminal_psi::BoundaryParameterKind::Scalar,
+                terminal_psi::BoundaryParameterKind::Scalar,
+            ],
             scalar_parameters: vec![ScalarType::Boolean, ScalarType::Boolean],
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,
@@ -394,6 +399,7 @@ pub(super) fn effect_module() -> TerminalModule {
             id: boundary_id(1),
             identity: "test::acknowledge".into(),
             attachment: Some(structural_type),
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![structural_parameter(place_id(3), structural_type, domain)],
             result: terminal_psi::BoundaryMachineResult::Unit,

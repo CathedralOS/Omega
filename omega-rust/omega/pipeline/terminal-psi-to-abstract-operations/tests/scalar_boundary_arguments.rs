@@ -51,6 +51,10 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
             id: boundary,
             identity: "Console::write_byte(u8,bool)->Unit".into(),
             attachment: None,
+            parameter_order: vec![
+                terminal_psi::BoundaryParameterKind::Scalar,
+                terminal_psi::BoundaryParameterKind::Scalar,
+            ],
             scalar_parameters: vec![byte_type, ScalarType::Boolean],
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,

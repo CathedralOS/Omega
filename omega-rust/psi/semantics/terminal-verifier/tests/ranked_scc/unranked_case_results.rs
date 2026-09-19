@@ -48,6 +48,7 @@ fn fixture() -> TerminalModule {
         id: boundary,
         identity: "Input::read".into(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         result: BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {

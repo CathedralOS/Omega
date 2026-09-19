@@ -25,6 +25,7 @@ pub(crate) fn provider_attachment_specialization_unit() -> PsiOptimizationUnit {
         id,
         identity: identity.into(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         result: terminal_psi::BoundaryMachineResult::Unit,

@@ -391,7 +391,13 @@ trusting this list.
 
 ## Machine rows
 
-Module bytes are `PSITERM\0` + `u16` format marker 101 + `u16` vocabulary
+A boundary declaration stores its counted runtime parameter-order tags after
+the optional attachment and before scalar parameter types: `u8` 0 selects the
+next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
+lane-count mismatches reject. Reordering a valid roster changes the semantic
+identity even when the parameters have identical physical shapes.
+
+Module bytes are `PSITERM\0` + `u16` format marker 102 + `u16` vocabulary
 marker 107 + the entry machine id, followed by the module's counted tables in
 declaration order and ending with the machine roster. The roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by

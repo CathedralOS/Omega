@@ -153,6 +153,7 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
         id: boundary_id(700),
         identity: "test::observe_primitive_loan".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![parameter],
         result: terminal_psi::BoundaryMachineResult::Unit,

@@ -97,6 +97,16 @@ pub fn conservative_syscall_terminal_mechanism(
 
     let mut digest = Sha256::new();
     digest.update(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
+    if !declaration.has_valid_parameter_order() {
+        return Err("direct syscall parameter order does not cover its checked lanes".to_owned());
+    }
+    push_count(&mut digest, declaration.parameter_order.len())?;
+    for kind in &declaration.parameter_order {
+        digest.update([match kind {
+            terminal_psi::BoundaryParameterKind::Scalar => 0,
+            terminal_psi::BoundaryParameterKind::Structural => 1,
+        }]);
+    }
     push_count(&mut digest, declaration.scalar_parameters.len())?;
     for scalar in &declaration.scalar_parameters {
         encode_scalar(&mut digest, *scalar);

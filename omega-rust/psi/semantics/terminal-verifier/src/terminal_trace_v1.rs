@@ -672,6 +672,12 @@ mod tests {
             id: boundary,
             identity: "Console::publish".into(),
             attachment: None,
+            parameter_order: vec![
+                terminal_psi::BoundaryParameterKind::Scalar,
+                terminal_psi::BoundaryParameterKind::Scalar,
+                terminal_psi::BoundaryParameterKind::Structural,
+                terminal_psi::BoundaryParameterKind::Structural,
+            ],
             scalar_parameters: vec![ScalarType::Boolean, u8_type],
             structural_parameters: vec![
                 StructuralParameterDeclaration {

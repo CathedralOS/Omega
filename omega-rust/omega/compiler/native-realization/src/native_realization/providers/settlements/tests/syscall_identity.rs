@@ -26,6 +26,7 @@ fn abstract_plan() -> abstract_operations::AbstractOperationPlan {
             id: boundary,
             identity: REQUIREMENT.into(),
             attachment: None,
+            parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,
@@ -82,6 +83,8 @@ fn add_unqualified_structural_parameter(plan: &mut abstract_operations::Abstract
                 semantic_vocabulary::ScalarType::Boolean,
             ),
         });
+    plan.boundary_machines[0].parameter_order =
+        vec![terminal_psi::BoundaryParameterKind::Structural];
     plan.boundary_machines[0].structural_parameters =
         vec![terminal_psi::StructuralParameterDeclaration {
             place,
@@ -357,6 +360,7 @@ fn conservative_contract_commits_scalar_carriers_and_rejects_occurrence_drift() 
         )
         .expect("empty verified signature has an exact conservative contract");
 
+    plan.boundary_machines[0].parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
     plan.boundary_machines[0].scalar_parameters = vec![semantic_vocabulary::ScalarType::Boolean];
     assert!(
         crate::native_realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(

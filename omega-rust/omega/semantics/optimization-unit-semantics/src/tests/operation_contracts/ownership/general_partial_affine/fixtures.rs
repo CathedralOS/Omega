@@ -283,6 +283,7 @@ fn build_unit(
             id: boundary,
             identity: "validation::general-affine-factory".into(),
             attachment: None,
+            parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Structural(
