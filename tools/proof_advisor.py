@@ -18,8 +18,10 @@ Python 3 standard library only. Usage:
   python tools/proof_advisor.py --omega target/debug/omega.exe main.omg
   python tools/proof_advisor.py --self-test
 
-Key: TYPESAFE_API_KEY env var, or --key-file build/typesafe.env.txt.
-Without a key the diagnostics pass through unchanged.
+Key resolution order: TYPESAFE_API_KEY env var, --key-file, then
+build/typesafe.env.txt in the cwd and in the main checkout (the latter is
+found from linked worktrees via git --git-common-dir). Without a key the
+diagnostics pass through unchanged.
 """
 import argparse
 import json
@@ -200,6 +202,45 @@ def render(verdicts, diagnostics):
     return out
 
 
+def read_key(path):
+    if not path.exists():
+        return ""
+    keys = [line.partition("=")[2].strip().strip("\"'")
+            for line in path.read_text(encoding="utf-8-sig").splitlines()
+            if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
+    return keys[0] if len(keys) == 1 else ""
+
+
+def main_checkout_root():
+    """Linked worktrees share the main checkout's .git dir; its parent is the
+    checkout root where local-only files like build/typesafe.env.txt live."""
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    return Path(done.stdout.strip()).parent
+
+
+def find_key(key_file):
+    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
+    if key:
+        return key
+    candidates = ([key_file] if key_file else [])
+    candidates.append(Path("build/typesafe.env.txt"))
+    root = main_checkout_root()
+    if root is not None:
+        candidates.append(root / "build/typesafe.env.txt")
+    for path in candidates:
+        key = read_key(path)
+        if key:
+            return key
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("root", type=Path, nargs="?", help="Omega entrypoint")
@@ -220,14 +261,7 @@ def main():
     if completed.returncode == 0 or not diagnostics:
         sys.stderr.write(completed.stderr)
         return  # clean compile or no in-scope rejection: nothing to advise
-    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
-    if not key and arguments.key_file and arguments.key_file.exists():
-        keys = [line.partition("=")[2].strip().strip("\"'")
-                for line in arguments.key_file.read_text(
-                    encoding="utf-8-sig").splitlines()
-                if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-        if len(keys) == 1:
-            key = keys[0]
+    key = find_key(arguments.key_file)
     if not key:
         sys.stderr.write(completed.stderr)
         print("  = advisory unavailable: no TYPESAFE_API_KEY", file=sys.stderr)
