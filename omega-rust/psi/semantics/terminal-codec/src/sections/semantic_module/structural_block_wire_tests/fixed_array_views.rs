@@ -58,6 +58,10 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
             id: id(1),
             identity: "Host::borrow_bytes".into(),
             attachment: None,
+            parameter_order: vec![
+                terminal_psi::BoundaryParameterKind::Structural;
+                callee.structural_parameters.len()
+            ],
             scalar_parameters: Vec::new(),
             structural_parameters: callee.structural_parameters,
             result: terminal_psi::BoundaryMachineResult::Unit,

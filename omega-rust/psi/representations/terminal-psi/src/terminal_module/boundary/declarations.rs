@@ -48,11 +48,23 @@ impl BoundaryMachineResult {
     }
 }
 
+/// One retained runtime formal in declaration order. Its lane-local index is
+/// the number of preceding tags of the same kind; private ABI materializations
+/// and erased formals are not semantic parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryParameterKind {
+    Scalar,
+    Structural,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
     pub identity: String,
     pub attachment: Option<StructuralTypeId>,
+    /// Exact interleave of the two lanes. Each parameter appears once, in its
+    /// lane's order. This relationship is part of the portable signature.
+    pub parameter_order: Vec<BoundaryParameterKind>,
     /// Ordered primitive scalar parameters. Boundary calls bind their scalar
     /// arguments positionally and preserve this authored order exactly.
     pub scalar_parameters: Vec<ScalarType>,
@@ -88,6 +100,26 @@ pub struct BoundaryMachineDeclaration {
 }
 
 impl BoundaryMachineDeclaration {
+    pub fn has_valid_parameter_order(&self) -> bool {
+        self.parameter_order.len()
+            == self.scalar_parameters.len() + self.structural_parameters.len()
+            && self
+                .parameter_positions(BoundaryParameterKind::Scalar)
+                .count()
+                == self.scalar_parameters.len()
+    }
+
+    /// Runtime formal positions for a lane, before any private ABI parameters.
+    pub fn parameter_positions(
+        &self,
+        kind: BoundaryParameterKind,
+    ) -> impl Iterator<Item = usize> + '_ {
+        self.parameter_order
+            .iter()
+            .enumerate()
+            .filter_map(move |(position, found)| (*found == kind).then_some(position))
+    }
+
     /// Reconstruct declaration-local scalar formals for contract validation and
     /// substitution. These are proof coordinates, not executable module values.
     pub fn scalar_contract_parameters(&self) -> Option<Vec<ValueDeclaration>> {

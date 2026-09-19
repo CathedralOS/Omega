@@ -52,6 +52,7 @@ fn fixture() -> AbstractOperationPlan {
     let mut read = plan.boundary_machines[0].clone();
     read.id = BoundaryMachineId::new(902).unwrap();
     read.identity = "Console::read_byte()->ByteRead".into();
+    read.parameter_order.clear();
     read.scalar_parameters.clear();
     read.result = BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
         structural_type,

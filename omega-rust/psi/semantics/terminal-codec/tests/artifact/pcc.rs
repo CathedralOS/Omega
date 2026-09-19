@@ -29,6 +29,7 @@ fn artifact_and_receiver() -> (CanonicalTerminalArtifact, PccReceiverPolicy) {
         id: boundary,
         identity: dependency.requirement_identity.clone(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         crash_routes: Vec::new(),
         structural_parameters: Vec::new(),

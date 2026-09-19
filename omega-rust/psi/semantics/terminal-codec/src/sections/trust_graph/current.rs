@@ -5,11 +5,12 @@ use super::{
     BYTE_FIELD_FRESHNESS_SOURCE, BYTE_FIELD_STORE_VALIDATION_SOURCE,
     BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
     BYTE_VIEW_FRONTIER_SOURCE, BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE,
-    DISCRETE_PATH_FACTS_SOURCE, LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
-    PREDICATE_VALUE_EQUALITIES_SOURCE, PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE,
-    PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_STRICT_ORDER_SOURCE,
-    PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE, PROOF_CODEC_VALIDATION_SOURCE,
-    REACH_APPLICATION_WIRE_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
+    DECLARATION_FOUNDATIONS_SOURCE, DISCRETE_PATH_FACTS_SOURCE, LITERAL_FOUNDATION_SOURCE,
+    MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE, PREDICATE_VALUE_EQUALITIES_SOURCE,
+    PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE,
+    PROOF_ADMISSION_STRICT_ORDER_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+    PROOF_CODEC_VALIDATION_SOURCE, REACH_APPLICATION_WIRE_SOURCE, STRUCTURAL_SIGNATURE_WIRE_SOURCE,
+    TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -50,7 +51,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-100-vocabulary-107"
+    "root:canonical-terminal-bytes-format-102-vocabulary-107"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -206,6 +207,14 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                     "terminal-codec/reach_application_wire.rs",
                     REACH_APPLICATION_WIRE_SOURCE,
                 ),
+                (
+                    "terminal-codec/structural_signature_wire.rs",
+                    STRUCTURAL_SIGNATURE_WIRE_SOURCE,
+                ),
+                (
+                    "terminal-codec/module_foundation_validation/declaration_foundations.rs",
+                    DECLARATION_FOUNDATIONS_SOURCE,
+                ),
             ],
         ),
         TrustDependencyNode::new(
@@ -320,6 +329,14 @@ fn decoder_node() -> TrustDependencyNode {
             (
                 "terminal-codec/reach_application_wire.rs",
                 REACH_APPLICATION_WIRE_SOURCE,
+            ),
+            (
+                "terminal-codec/structural_signature_wire.rs",
+                STRUCTURAL_SIGNATURE_WIRE_SOURCE,
+            ),
+            (
+                "terminal-codec/module_foundation_validation/declaration_foundations.rs",
+                DECLARATION_FOUNDATIONS_SOURCE,
             ),
         ],
     )

@@ -160,6 +160,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
             id: boundary,
             identity: "validation::qualified-operation-result-boundary".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
                 place: id(4_703, PlaceId::new),
@@ -283,6 +284,7 @@ fn qualified_boundary_consumer() -> (PsiOptimizationUnit, StructuralDomainId, St
             id: boundary,
             identity: "validation::preserved-roster-boundary".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
                 place: id(4_713, PlaceId::new),

@@ -90,7 +90,7 @@ pub(crate) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(crate) use parameters::lower_contract_service_ceiling;
 pub(crate) use parameters::{
-    checked_scalar_source_parameters, literal_argument_places,
+    checked_scalar_source_parameters, literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_unit_parameters, structural_carrier_type,
     validate_transfer_shape,
@@ -530,6 +530,10 @@ fn assemble_unit_closure(
             plan.state,
         )?;
         boundary_machines.push(BoundaryMachineDeclaration {
+            parameter_order: lower_boundary_parameter_order(
+                &plan.scalar_parameters,
+                &plan.structural_parameters,
+            )?,
             id,
             identity: identity.clone(),
             attachment: plan

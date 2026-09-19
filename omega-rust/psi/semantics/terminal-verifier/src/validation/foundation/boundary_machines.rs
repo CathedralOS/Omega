@@ -24,6 +24,9 @@ pub(super) fn validate_boundary_machines(
     let mut boundary_ids = BTreeSet::new();
     let mut boundary_names = BTreeSet::new();
     for boundary in &module.boundary_machines {
+        if !boundary.has_valid_parameter_order() {
+            return Err(ModuleError::InvalidBoundaryParameterOrder(boundary.id));
+        }
         let reference_type = boundary
             .structural_parameters
             .iter()

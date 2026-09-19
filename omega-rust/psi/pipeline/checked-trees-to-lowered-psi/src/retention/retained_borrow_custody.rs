@@ -239,6 +239,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            parameter_order: Vec::new(),
             fixed_service_reach: Vec::new(),
             id,
             identity: row.callable_identity.clone(),

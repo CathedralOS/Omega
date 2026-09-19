@@ -117,6 +117,7 @@ pub fn provider_module(
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: requirement_identity.to_owned(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         crash_routes: Vec::new(),
         structural_parameters: Vec::new(),

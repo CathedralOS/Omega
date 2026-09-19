@@ -18,11 +18,9 @@ use super::{
 /// destination placement.
 ///
 /// The evaluated `BoundaryEntryPlan` orders `call.parameters` by the authored
-/// formal signature. The Terminal boundary declaration splits scalar and
-/// structural formals into two lane-local lists and erases their authored
-/// interleave, so a structural argument rejoins its exact plan position only
-/// while the scalar lane is empty; a mixed signature fails closed rather than
-/// guessing an ordinal the artifact cannot prove.
+/// formal signature. The Terminal declaration retains that order separately
+/// from lane-local proof and custody coordinates. Private callback slots are
+/// inserted by the evaluated calling plan, not by the semantic declaration.
 ///
 /// Each admitted argument must resolve to one borrowed flat-record projection:
 /// a nonempty field-only path rooted at a caller structural parameter, the
@@ -45,8 +43,11 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
     if structural_arguments.len() != declaration.structural_parameters.len()
-        || (!structural_arguments.is_empty()
-            && (!declaration.scalar_parameters.is_empty() || native_callback.is_some()))
+        || !declaration.has_valid_parameter_order()
+        || boundary_entry_plan.call.parameters.len()
+            != declaration.parameter_order.len() + usize::from(native_callback.is_some())
+        || native_callback
+            .is_some_and(|callback| callback.registrar_boundary_entry_plan != *boundary_entry_plan)
     {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
@@ -54,11 +55,18 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     let pointer_alignment = u16::try_from(target.pointer_alignment)
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    let callback_ordinal = native_callback
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .transpose()
+        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     structural_arguments
         .iter()
         .zip(&declaration.structural_parameters)
         .enumerate()
-        .map(|(index, (argument, parameter))| {
+        .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
+        .map(|((index, (argument, parameter)), semantic_position)| {
+            let native_position = semantic_position
+                + usize::from(callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal));
             let source = parameters_by_place.get(&argument.place).copied().ok_or(
                 LoweringError::UnknownStructuralArgumentPlace {
                     machine,
@@ -98,7 +106,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             let destination = boundary_entry_plan
                 .call
                 .parameters
-                .get(index)
+                .get(native_position)
                 .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
             match parameter.access {
                 StructuralAccess::SharedBorrow
@@ -160,6 +168,11 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
     structural_parameter_shapes: &[ValueShape],
 ) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+    if !declaration.has_valid_parameter_order()
+        || structural_parameter_shapes.len() != declaration.structural_parameters.len()
+    {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    }
     let scalar_parameter_shapes = declaration
         .scalar_parameters
         .iter()
@@ -180,22 +193,30 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         .map(|callback| usize::try_from(callback.application.native_ordinal))
         .transpose()
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
-    // The signature lists every authored formal in evaluated-plan order.
-    // Mixed scalar/structural signatures are rejected by the structural lane
-    // before this point, so exactly one lane contributes here.
+    let mut scalar_shapes = scalar_parameter_shapes.iter();
+    let mut structural_shapes = structural_parameter_shapes.iter();
+    let mut parameter_shapes = declaration
+        .parameter_order
+        .iter()
+        .map(|kind| {
+            match kind {
+                terminal_psi::BoundaryParameterKind::Scalar => scalar_shapes.next(),
+                terminal_psi::BoundaryParameterKind::Structural => structural_shapes.next(),
+            }
+            .copied()
+            .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Some(callback) = native_callback {
+        let ordinal =
+            callback_ordinal.ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+        if ordinal > parameter_shapes.len() {
+            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+        }
+        parameter_shapes.insert(ordinal, callback.application.shape);
+    }
     let signature = CallSignature {
-        parameters: if native_callback.is_some() {
-            boundary_entry_plan
-                .call
-                .parameters
-                .iter()
-                .map(|placement| placement.shape)
-                .collect()
-        } else if structural_parameter_shapes.is_empty() {
-            scalar_parameter_shapes.clone()
-        } else {
-            structural_parameter_shapes.to_vec()
-        },
+        parameters: parameter_shapes,
         result: result_shape,
     };
     let validated = match native_callback {
@@ -235,9 +256,9 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         .iter()
         .zip(&declaration.scalar_parameters)
         .zip(&scalar_parameter_shapes)
-        .enumerate()
+        .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
         .map(
-            |(semantic_parameter_index, ((source_value, parameter), shape))| {
+            |(((source_value, parameter), shape), semantic_parameter_index)| {
                 let parameter_index = semantic_parameter_index
                     + usize::from(
                         callback_ordinal.is_some_and(|ordinal| semantic_parameter_index >= ordinal),

@@ -50,6 +50,7 @@ fn rejects_self_consistent_internal_claim_transfer_and_boundary_completion_corru
             id: boundary_id,
             identity: "validation::claim-completing-boundary".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![parameter],
             result: terminal_psi::BoundaryMachineResult::Unit,

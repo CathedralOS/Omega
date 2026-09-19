@@ -61,6 +61,7 @@ pub(crate) fn fixture(
             id: boundary,
             identity: "test::input".into(),
             attachment: None,
+            parameter_order: Vec::new(),
             scalar_parameters: vec![],
             structural_parameters: vec![],
             result: terminal_psi::BoundaryMachineResult::Structural(

@@ -99,6 +99,9 @@ fn boundary_fixed_byte_views_preserve_source_projection_and_reject_corruption() 
                     parameter.position = 1;
                     parameter.place = semantic_vocabulary::PlaceId::new(900).unwrap();
                     changed.boundary_machines[0]
+                        .parameter_order
+                        .push(terminal_psi::BoundaryParameterKind::Structural);
+                    changed.boundary_machines[0]
                         .structural_parameters
                         .push(parameter);
                 }

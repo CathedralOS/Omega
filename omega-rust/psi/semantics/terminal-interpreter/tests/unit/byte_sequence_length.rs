@@ -254,6 +254,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
     let mut boundary = byte_sequence_literal_module(Vec::new())
         .boundary_machines
         .remove(0);
+    boundary.parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
     boundary.structural_parameters.clear();
     boundary.scalar_parameters = vec![byte_count_type()];
     module.boundary_machines.push(boundary);

@@ -79,6 +79,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
     let mut producer = module.boundary_machines[0].clone();
     producer.identity = "create_affine".into();
     producer.structural_parameters.clear();
+    producer.parameter_order.clear();
     producer.requires.clear();
     producer.result = terminal_psi::BoundaryMachineResult::Structural(
         terminal_psi::BoundaryStructuralResultDeclaration {
@@ -91,6 +92,8 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
     reader.id = boundary_id(2);
     reader.identity = "read_affine".into();
     reader.structural_parameters = borrowed_parameters.clone();
+    reader.parameter_order =
+        vec![terminal_psi::BoundaryParameterKind::Structural; borrowed_parameters.len()];
     reader.result = if scalar {
         terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Boolean)
     } else {
@@ -100,6 +103,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
     consumer.id = boundary_id(3);
     consumer.identity = "consume_affine".into();
     consumer.structural_parameters = vec![owned_parameter];
+    consumer.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
     consumer.result = terminal_psi::BoundaryMachineResult::Unit;
     module.boundary_machines = vec![producer, reader, consumer];
 

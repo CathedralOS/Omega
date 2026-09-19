@@ -696,6 +696,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     let contract_prefix = [
         1, 0, 0, 0, 0, 0, 0, 0, // ContractId(1)
         0, 0, 0, 0, // zero crash route buckets
+        0, 0, 0, 0, // zero erased scalar formals
         8, 0, 0, 0, // eight requirements
         1, 2, 3, // Truth, Falsehood, Atom
     ];
@@ -703,7 +704,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
         .windows(contract_prefix.len())
         .position(|window| window == contract_prefix)
         .expect("fixture contract prefix should be unique");
-    reordered_requirements.swap(contract_offset + 16, contract_offset + 17);
+    reordered_requirements.swap(contract_offset + 20, contract_offset + 21);
     assert_eq!(
         decode_module(&reordered_requirements),
         Err(CodecError::NonCanonicalOrder("requires propositions"))
@@ -933,6 +934,7 @@ fn boundary_inline_byte_module(
         id: boundary_machine_id(1),
         identity: "example::write_buffer".to_owned(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![inline_byte_parameter(
             place_id(920),

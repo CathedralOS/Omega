@@ -17,7 +17,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 100_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 102_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -250,6 +250,9 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
     let mut module = structural_effect_fixture();
     let first = value_id(1);
     let second = value_id(2);
+    module.boundary_machines[0]
+        .parameter_order
+        .splice(0..0, [terminal_psi::BoundaryParameterKind::Scalar; 2]);
     module.boundary_machines[0].scalar_parameters = vec![ScalarType::Boolean; 2];
     let operations = &mut module.machines[1].blocks[0].operations;
     operations[0].id = operation_id(4);
@@ -306,6 +309,9 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
 #[test]
 fn structural_foundation_rejects_wrong_boundary_scalar_arity() {
     let mut module = structural_effect_fixture();
+    module.boundary_machines[0]
+        .parameter_order
+        .insert(0, terminal_psi::BoundaryParameterKind::Scalar);
     module.boundary_machines[0].scalar_parameters = vec![ScalarType::Integer(i32_type())];
 
     assert_eq!(

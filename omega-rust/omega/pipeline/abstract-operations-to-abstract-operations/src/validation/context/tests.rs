@@ -44,6 +44,7 @@ fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
             id: boundary,
             identity: "forged-boundary".into(),
             attachment: None,
+            parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,

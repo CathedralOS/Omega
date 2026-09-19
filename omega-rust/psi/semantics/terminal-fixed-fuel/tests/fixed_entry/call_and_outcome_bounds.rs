@@ -220,6 +220,8 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
             shape: StructuralTypeShape::FixedArray { element, length: 2 },
         },
     ];
+    module.boundary_machines[0].parameter_order =
+        vec![terminal_psi::BoundaryParameterKind::Structural];
     module.boundary_machines[0].structural_parameters = vec![StructuralParameterDeclaration {
         access: StructuralAccess::Owned,
         place: place_id(952),

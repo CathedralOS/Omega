@@ -113,9 +113,14 @@ fn boundary_result_partial_affine_rejects_signature_and_result_drift() {
                     claim: id(90_031, semantic_vocabulary::ClaimId::new),
                     path: Vec::new(),
                 }),
-            7 => changed.boundary_machines[0]
-                .scalar_parameters
-                .push(semantic_vocabulary::ScalarType::Boolean),
+            7 => {
+                changed.boundary_machines[0]
+                    .parameter_order
+                    .push(terminal_psi::BoundaryParameterKind::Scalar);
+                changed.boundary_machines[0]
+                    .scalar_parameters
+                    .push(semantic_vocabulary::ScalarType::Boolean);
+            }
             8 => {
                 let root_type = result(&mut changed).structural_type;
                 let domain = structural_domain(90_032, 90_032, root_type);

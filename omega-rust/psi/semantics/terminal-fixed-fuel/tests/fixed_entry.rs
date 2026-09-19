@@ -690,6 +690,7 @@ fn unit_effect_fixture() -> TerminalModule {
             id: boundary_id(1),
             identity: "test::boundary".into(),
             attachment: None,
+            parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Unit,

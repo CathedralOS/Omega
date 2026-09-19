@@ -32,6 +32,10 @@ const MACHINE_WIRE_SOURCE: &[u8] = include_bytes!("semantic_module/machine_wire.
 const BLOCK_WIRE_SOURCE: &[u8] = include_bytes!("semantic_module/block_wire.rs");
 const REACH_APPLICATION_WIRE_SOURCE: &[u8] =
     include_bytes!("semantic_module/reach_application_wire.rs");
+const STRUCTURAL_SIGNATURE_WIRE_SOURCE: &[u8] =
+    include_bytes!("semantic_module/structural_signature_wire.rs");
+const DECLARATION_FOUNDATIONS_SOURCE: &[u8] =
+    include_bytes!("semantic_module/module_foundation_validation/declaration_foundations.rs");
 const PROOF_CODEC_VALIDATION_SOURCE: &[u8] = include_bytes!("proof_bundle/validation.rs");
 const PROOF_ADMISSION_RECURSION_SOURCE: &[u8] =
     include_bytes!("../../../proof-admission/src/admission/recursion.rs");
@@ -826,6 +830,65 @@ mod tests {
             without_canonical_goal_source.digest(),
             "proof-bearing leaf custody must bind its exact canonical-goal source",
         );
+    }
+
+    #[test]
+    fn canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation() {
+        let sources = [
+            ("terminal-codec/lib.rs", super::CODEC_SOURCE),
+            ("terminal-codec/machine_wire.rs", super::MACHINE_WIRE_SOURCE),
+            ("terminal-codec/block_wire.rs", super::BLOCK_WIRE_SOURCE),
+            (
+                "terminal-codec/reach_application_wire.rs",
+                super::REACH_APPLICATION_WIRE_SOURCE,
+            ),
+            (
+                "terminal-codec/structural_signature_wire.rs",
+                super::STRUCTURAL_SIGNATURE_WIRE_SOURCE,
+            ),
+            (
+                "terminal-codec/module_foundation_validation/declaration_foundations.rs",
+                super::DECLARATION_FOUNDATIONS_SOURCE,
+            ),
+        ];
+        let graph = current_terminal_trust_graph().expect("built-in graph");
+        for identity in [
+            format!(
+                "root:canonical-terminal-bytes-format-{}-vocabulary-{}",
+                crate::FORMAT_MARKER,
+                terminal_psi::VocabularyMarker::CURRENT.get()
+            ),
+            "implementation:rust-terminal-decoder".into(),
+        ] {
+            let node = graph
+                .nodes()
+                .iter()
+                .find(|node| node.identity == identity)
+                .unwrap();
+            let digest = |sources: &[(&str, &[u8])]| {
+                super::dependency_digest(
+                    &node.identity,
+                    node.kind,
+                    node.status,
+                    &node.semantic_subject,
+                    &node.version,
+                    &node.owner,
+                    &node.scope,
+                    &node.rationale,
+                    node.accepting_policy,
+                    sources,
+                )
+            };
+            assert_eq!(node.digest(), digest(&sources));
+            for index in [4, 5] {
+                let mut substituted = sources;
+                substituted[index].1 = b"different implementation";
+                assert_ne!(node.digest(), digest(&substituted), "{}", sources[index].0);
+                let mut omitted = sources.to_vec();
+                omitted.remove(index);
+                assert_ne!(node.digest(), digest(&omitted), "{}", sources[index].0);
+            }
+        }
     }
 
     fn test_root() -> TrustDependencyNode {

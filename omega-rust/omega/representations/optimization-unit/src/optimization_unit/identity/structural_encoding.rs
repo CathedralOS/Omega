@@ -101,6 +101,12 @@ pub(super) fn encode_boundary_machine(
     bytes.slice(&declaration.scalar_parameters, |bytes, parameter| {
         encode_scalar_type(bytes, *parameter)
     });
+    bytes.slice(&declaration.parameter_order, |bytes, kind| {
+        bytes.u8(match kind {
+            terminal_psi::BoundaryParameterKind::Scalar => 0,
+            terminal_psi::BoundaryParameterKind::Structural => 1,
+        });
+    });
     bytes.slice(
         &declaration.structural_parameters,
         encode_structural_parameter,

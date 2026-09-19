@@ -306,6 +306,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             id: boundary_machine_id(10),
             identity: "Spike::Resource::settle".into(),
             attachment: Some(resource),
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![parameter(place_id(30), 0, true)],
             result: terminal_psi::BoundaryMachineResult::Unit,

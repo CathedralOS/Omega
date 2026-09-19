@@ -105,6 +105,7 @@ pub(crate) fn fixture(
     let mut output = plan.boundary_machines[0].clone();
     output.id = BoundaryMachineId::new(2).unwrap();
     output.identity = "test::output".into();
+    output.parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
     output.scalar_parameters = vec![scalar_type];
     output.result = terminal_psi::BoundaryMachineResult::Unit;
     plan.boundary_machines.push(output);

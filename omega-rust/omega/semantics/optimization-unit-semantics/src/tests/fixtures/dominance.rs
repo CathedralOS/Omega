@@ -54,6 +54,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                 id: boundary,
                 identity: "validation::byte-literal-boundary".into(),
                 attachment: None,
+                parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
                 scalar_parameters: Vec::new(),
                 structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
                     place: boundary_place,
@@ -178,6 +179,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
                 id: boundary,
                 identity: "validation::consume-qualified-field".into(),
                 attachment: None,
+                parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
                 scalar_parameters: Vec::new(),
                 structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
                     place: boundary_place,

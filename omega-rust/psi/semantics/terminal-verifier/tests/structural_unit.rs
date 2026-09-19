@@ -80,6 +80,7 @@ fn unused_provider_attachment_module() -> TerminalModule {
         id: boundary_id(1),
         identity: "example::Console::write".into(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         result: terminal_psi::BoundaryMachineResult::Unit,
@@ -154,6 +155,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
         id: boundary_id(1),
         identity: "consume_ready_leaf".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![StructuralParameterDeclaration {
             place: place_id(2),
@@ -343,6 +345,7 @@ fn hard_root_module() -> TerminalModule {
         id: boundary_id(1),
         identity: "settle_port".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![boundary_parameter],
         result: terminal_psi::BoundaryMachineResult::Unit,

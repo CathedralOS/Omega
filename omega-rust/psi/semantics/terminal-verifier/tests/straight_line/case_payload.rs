@@ -224,6 +224,7 @@ fn selected_bounded_boundary_result_supplies_both_checked_call_requirements() {
         id: boundary,
         identity: "Input::observe".into(),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         result: terminal_psi::BoundaryMachineResult::Structural(

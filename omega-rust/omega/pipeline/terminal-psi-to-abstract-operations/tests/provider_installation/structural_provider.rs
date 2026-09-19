@@ -87,6 +87,8 @@ pub(super) fn structural_provider_module() -> TerminalModule {
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
+    module.boundary_machines[0].parameter_order =
+        vec![terminal_psi::BoundaryParameterKind::Structural];
     module.boundary_machines[0].structural_parameters =
         vec![structural_parameter(place_id(9), resource)];
     module.boundary_machines.push(BoundaryMachineDeclaration {
@@ -94,6 +96,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
         id: boundary_id(2),
         identity: "Resource::settle".into(),
         attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
         scalar_parameters: Vec::new(),
         structural_parameters: vec![structural_parameter(place_id(10), resource)],
         result: terminal_psi::BoundaryMachineResult::Unit,

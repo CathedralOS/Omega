@@ -92,6 +92,9 @@ fn nested_module() -> TerminalModule {
     second_parameter.place = place_id(4);
     second_parameter.position = 1;
     module.boundary_machines[0]
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
+    module.boundary_machines[0]
         .structural_parameters
         .push(second_parameter);
     let root = &mut module.machines[0];

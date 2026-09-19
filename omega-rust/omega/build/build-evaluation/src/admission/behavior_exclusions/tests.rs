@@ -123,6 +123,7 @@ fn boundary_declaration(raw: u64) -> BoundaryMachineDeclaration {
         id: boundary_id(raw),
         identity: format!("test::boundary_{raw}"),
         attachment: None,
+        parameter_order: Vec::new(),
         scalar_parameters: Vec::new(),
         crash_routes: Vec::new(),
         structural_parameters: Vec::new(),

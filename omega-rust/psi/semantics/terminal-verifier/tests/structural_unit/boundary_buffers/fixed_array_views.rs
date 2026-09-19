@@ -76,6 +76,8 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
     let structural_arguments = structural_arguments.clone();
     let mut boundary = buffer_module().boundary_machines.remove(0);
     boundary.structural_parameters = module.machines[1].structural_parameters.clone();
+    boundary.parameter_order =
+        vec![terminal_psi::BoundaryParameterKind::Structural; boundary.structural_parameters.len()];
     module.boundary_machines.push(boundary);
     module.machines.pop();
     module.machines[0].blocks[0].operations[0].kind = OperationKind::BoundaryCall {

@@ -117,6 +117,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             id: semantic_vocabulary::BoundaryMachineId::new(1).expect("boundary identity"),
             identity: "TestRoot::entry".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: semantic_vocabulary::PlaceId::new(1).expect("place identity"),
@@ -195,6 +196,9 @@ pub(super) fn program_local_root_module() -> TerminalModule {
 pub(super) fn program_local_two_schema_module() -> TerminalModule {
     let mut module = program_local_root_module();
     let machine = &mut module.boundary_machines[0];
+    machine
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
     machine
         .structural_parameters
         .push(StructuralParameterDeclaration {

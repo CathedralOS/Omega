@@ -276,6 +276,10 @@ fn lower_catalogs(
             }
         };
         boundary_machines.push(BoundaryMachineDeclaration {
+            parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
+                &boundary.scalar_parameters,
+                &boundary.structural_parameters,
+            )?,
             id,
             identity: identity.clone(),
             attachment: boundary

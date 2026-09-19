@@ -163,6 +163,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
             id: boundary_id(1),
             identity: "produce_pair".into(),
             attachment: None,
+            parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: terminal_psi::BoundaryMachineResult::Structural(

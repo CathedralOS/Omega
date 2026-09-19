@@ -71,6 +71,7 @@ pub(super) fn successor(edge: u64, block: u64) -> SuccessorEdge {
 /// only after normal caller continuation.
 pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule {
     let mut module = byte_sequence_literal_module(bytes);
+    module.boundary_machines[0].parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
     module.boundary_machines[0].structural_parameters.clear();
     module.boundary_machines[0].scalar_parameters = vec![unsigned_type(8)];
     let mut helper = module.machines[0].clone();

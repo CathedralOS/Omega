@@ -228,6 +228,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
             id: boundary_id(1),
             identity: "test::write_line".into(),
             attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
             scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: place_id(2),
