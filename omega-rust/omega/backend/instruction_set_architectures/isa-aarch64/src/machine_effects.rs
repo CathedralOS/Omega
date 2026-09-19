@@ -234,6 +234,7 @@ fn selected_keys(
         bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
         add_i64: AARCH64_ADD_I64,
         subtract_i64: AARCH64_SUBTRACT_I64,
+        multiply_i64: crate::AARCH64_MULTIPLY_I64,
         saturating_subtract_unsigned: crate::register_model::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
         saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
@@ -399,7 +400,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64
-        | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
+        | MachineSemanticKind::ExactSubtractI64
+        | MachineSemanticKind::ExactMultiplyI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         MachineSemanticKind::ConditionalBranchNonZero

@@ -127,6 +127,11 @@ pub(crate) enum DecodedInstruction {
         source: u8,
         destination: u8,
     },
+    /// `imul destination, source`: the register-form two-operand multiply.
+    Multiply {
+        source: u8,
+        destination: u8,
+    },
     Negate {
         destination: u8,
     },
@@ -206,6 +211,18 @@ pub(crate) fn decode_one(
                     source,
                     destination,
                 },
+            },
+            4,
+        ));
+    }
+    if let [rex, 0x0f, 0xaf, modrm, ..] = bytes
+        && rex & !0x05 == 0x48
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::Multiply {
+                source: (modrm & 7) | ((rex & 1) << 3),
+                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
             },
             4,
         ));
@@ -731,6 +748,43 @@ pub(crate) fn validate_decoded(
             }
             _ => false,
         },
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => match alternative.variant {
+            0 => {
+                decoded
+                    == [DecodedInstruction::Multiply {
+                        source: registers[2],
+                        destination: registers[2],
+                    }]
+            }
+            1 => {
+                decoded
+                    == [DecodedInstruction::Multiply {
+                        source: registers[1],
+                        destination: registers[2],
+                    }]
+            }
+            2 => {
+                decoded
+                    == [DecodedInstruction::Multiply {
+                        source: registers[0],
+                        destination: registers[2],
+                    }]
+            }
+            3 => {
+                decoded
+                    == [
+                        DecodedInstruction::Move {
+                            source: registers[0],
+                            destination: registers[2],
+                        },
+                        DecodedInstruction::Multiply {
+                            source: registers[1],
+                            destination: registers[2],
+                        },
+                    ]
+            }
+            _ => false,
+        },
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
@@ -1036,6 +1090,11 @@ pub(crate) fn footprint(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
+        // `imul` reads its destination operand even when every operand shares
+        // one view, so no variant collapses the reads the way `xor` does.
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+            (vec![operands[0], operands[1]], vec![operands[2]], true)
+        }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
@@ -1156,6 +1215,7 @@ pub(crate) fn footprint(
                     vec![]
                 }
                 SelectedInstructionKind::ExactSubtractI64 { .. }
+                | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64 => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
@@ -1179,6 +1239,7 @@ pub(crate) fn footprint(
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
+                | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
                     vec![2]
@@ -1202,6 +1263,7 @@ pub(crate) fn footprint(
         if matches!(
             kind,
             SelectedInstructionKind::ExactSubtractI64 { .. }
+                | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
         ) {

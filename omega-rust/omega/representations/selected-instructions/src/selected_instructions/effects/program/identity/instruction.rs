@@ -139,6 +139,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
         SelectedInstructionKind::CallScalar { .. } => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::LoadPacked { .. } => 46,
@@ -224,6 +225,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             accepted_fact,
         }
         | SelectedInstructionKind::ExactSubtractI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactMultiplyI64 {
             obligation,
             accepted_fact,
         } => {

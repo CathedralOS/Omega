@@ -55,6 +55,7 @@ impl SelectedConstraintKeys {
             self.saturating_add_clamped,
             self.saturating_subtract_clamped,
             self.saturating_divide_signed,
+            self.multiply_i64,
         ])
         .collect()
     }
@@ -110,6 +111,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::BitwiseXorI64 => self.subtract_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
+            MachineSemanticKind::ExactMultiplyI64 => self.multiply_i64,
             MachineSemanticKind::ExactDivideU64 => self.divide_u64,
             MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
             // Operand shape, not carrier, selects the constraint row: the u64

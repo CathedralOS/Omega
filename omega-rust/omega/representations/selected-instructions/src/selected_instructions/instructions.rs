@@ -178,6 +178,14 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Exact mathematical multiplication whose source proof obligation was
+    /// discharged before target lowering. A validated legalization theorem
+    /// may transport a narrower exact operation to this i64 form; the
+    /// retained representability proof makes the i64 result canonical.
+    ExactMultiplyI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     /// Exact mathematical addition with the right source value encoded as an
     /// instruction immediate. Proof and source-value custody remain explicit.
     ExactAddI64Immediate {

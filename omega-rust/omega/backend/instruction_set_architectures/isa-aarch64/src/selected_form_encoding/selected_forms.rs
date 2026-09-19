@@ -150,6 +150,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
         }
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+            (MachineAlternativeFamily::ExactMultiplyI64, 3)
+        }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (MachineAlternativeFamily::ExactAddI64Immediate, 2)
         }
@@ -414,6 +417,16 @@ fn encode_unchecked(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             words.push(
                 0xcb00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+            // `MUL Xd, Xn, Xm` is `MADD Xd, Xn, Xm, XZR`: the 0x9b00 base with
+            // the addend field fixed to 31.
+            words.push(
+                0x9b00_7c00
                     | (u32::from(registers[1]) << 16)
                     | (u32::from(registers[0]) << 5)
                     | u32::from(registers[2]),

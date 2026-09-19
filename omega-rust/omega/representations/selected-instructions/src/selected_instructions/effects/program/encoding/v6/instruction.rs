@@ -200,6 +200,10 @@ fn decode_kind(
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
+        88 => SelectedInstructionKind::ExactMultiplyI64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
         tag if saturating_kind(tag).is_some() => {
             let (operation, carrier) = saturating_kind(tag).unwrap();
             match operation {
@@ -424,6 +428,7 @@ fn decode_alternative_for_version(
         56 => MachineAlternativeFamily::ExactDivideU64,
         57 => MachineAlternativeFamily::WrappingRemainderI64,
         58 => MachineAlternativeFamily::WrappingAddI64,
+        88 => MachineAlternativeFamily::ExactMultiplyI64,
         tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
             (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
             (SaturatingOperation::Subtract, carrier) => {

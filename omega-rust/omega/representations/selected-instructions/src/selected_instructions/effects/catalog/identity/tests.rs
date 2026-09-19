@@ -64,6 +64,7 @@ fn keys() -> SelectedConstraintKeys {
         bits_to_float64: Some(instruction(31)),
         add_i64: instruction(2),
         subtract_i64: instruction(4),
+        multiply_i64: instruction(44),
         saturating_subtract_unsigned: instruction(4),
         saturating_add_u64: instruction(4),
         divide_u64: instruction(4),

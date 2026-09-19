@@ -1395,6 +1395,7 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
         | CompareI64Immediate { .. }
         | ExactAddI64 { .. }
         | ExactSubtractI64 { .. }
+        | ExactMultiplyI64 { .. }
         | ExactAddI64Immediate { .. }
         | ExactSubtractI64Immediate { .. }
         | WrappingAddI64

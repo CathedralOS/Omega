@@ -48,6 +48,7 @@ pub(super) fn accepts(
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::ExactIntegerMultiply { .. }
         | AbstractOperation::Call { .. } => true,
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => !declarations
             .iter()

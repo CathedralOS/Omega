@@ -60,7 +60,8 @@ pub(super) fn classify(
     match defining.kind {
         SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactAddI64Immediate { .. }
-        | SelectedInstructionKind::ExactSubtractI64 { .. } => {
+        | SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::ExactMultiplyI64 { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         SelectedInstructionKind::MaterializeI64 { .. } => {}

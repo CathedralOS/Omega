@@ -269,6 +269,7 @@ pub(super) fn project(
         }
         AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::ExactIntegerMultiply { .. }
         | AbstractOperation::ExactIntegerDivide { .. } => {
             scalar_instructions::project_exact_integer_add(node, optimized, unit)?
         }

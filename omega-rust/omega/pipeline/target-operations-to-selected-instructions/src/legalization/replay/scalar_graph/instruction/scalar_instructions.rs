@@ -137,6 +137,13 @@ pub(super) fn validate_exact_binary(
             left: source_left,
             right: source_right,
             ..
+        }
+        | AbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            obligation: source_obligation,
+            left: source_left,
+            right: source_right,
+            ..
         },
     ) = (&actual.kind, &node.operation)
     else {
@@ -147,6 +154,7 @@ pub(super) fn validate_exact_binary(
         AbstractOperation::ExactIntegerAdd { .. } => LegalizedExactIntegerOperator::Add,
         AbstractOperation::ExactIntegerSubtract { .. } => LegalizedExactIntegerOperator::Subtract,
         AbstractOperation::ExactIntegerDivide { .. } => LegalizedExactIntegerOperator::Divide,
+        AbstractOperation::ExactIntegerMultiply { .. } => LegalizedExactIntegerOperator::Multiply,
         _ => return Err(invalid),
     };
     let fact = unit

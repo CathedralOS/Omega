@@ -1538,6 +1538,14 @@ fn scalar_forms_report_exact_decoded_footprints() {
             MachineAlternativeFamily::ExactSubtractI64Immediate,
             2,
         ),
+        (
+            SelectedInstructionKind::ExactMultiplyI64 {
+                obligation: ObligationId::new(5).unwrap(),
+                accepted_fact: fact,
+            },
+            MachineAlternativeFamily::ExactMultiplyI64,
+            3,
+        ),
     ];
     for (kind, family, count) in cases {
         let encoded =
@@ -1565,6 +1573,24 @@ fn scalar_forms_report_exact_decoded_footprints() {
     assert!(compare.footprint().register_writes.is_empty());
     assert!(compare.footprint().writes_nzcv);
     assert_eq!(compare.footprint().encoded.external_operand_reads, [0, 1]);
+    // `mul x5, x3, x4` is `madd x5, x3, x4, xzr`: flag-transparent with the
+    // ordinary three-operand read/write footprint.
+    let multiply = encode_aarch64_selected_form(
+        &physical,
+        SelectedInstructionKind::ExactMultiplyI64 {
+            obligation: ObligationId::new(5).unwrap(),
+            accepted_fact: fact,
+        },
+        alternative(MachineAlternativeFamily::ExactMultiplyI64),
+        &views,
+    )
+    .unwrap();
+    assert_eq!(multiply.bytes(), [0x65, 0x7c, 0x04, 0x9b]);
+    assert_eq!(multiply.footprint().register_reads, views[..2]);
+    assert_eq!(multiply.footprint().register_writes, views[2..]);
+    assert!(!multiply.footprint().writes_nzcv);
+    assert_eq!(multiply.footprint().encoded.external_operand_reads, [0, 1]);
+    assert_eq!(multiply.footprint().encoded.external_operand_writes, [2]);
 }
 
 #[test]

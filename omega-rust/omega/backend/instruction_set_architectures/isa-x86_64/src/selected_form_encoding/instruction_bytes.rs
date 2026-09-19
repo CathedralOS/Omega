@@ -388,6 +388,29 @@ pub(crate) fn encode_unchecked(
             }
             _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
         },
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+            // `imul destination, source` multiplies the destination by the
+            // source in place; multiplication commutes, so the aliased input
+            // may hold either factor.
+            let append_imul = |bytes: &mut Vec<u8>, source: u8, destination: u8| {
+                bytes.extend([
+                    rex(destination, 0, source),
+                    0x0f,
+                    0xaf,
+                    modrm(3, destination, source),
+                ]);
+            };
+            match alternative.variant {
+                0 => append_imul(&mut bytes, registers[2], registers[2]),
+                1 => append_imul(&mut bytes, registers[1], registers[2]),
+                2 => append_imul(&mut bytes, registers[0], registers[2]),
+                3 => {
+                    append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
+                    append_imul(&mut bytes, registers[1], registers[2]);
+                }
+                _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
+            }
+        }
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => bytes.push(0xc3),

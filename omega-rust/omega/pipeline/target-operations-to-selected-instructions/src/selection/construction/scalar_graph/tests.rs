@@ -391,7 +391,7 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
 
 #[test]
 fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
-    use legalized_operations::LegalizedExactIntegerOperator::{Add, Subtract};
+    use legalized_operations::LegalizedExactIntegerOperator::{Add, Multiply, Subtract};
     use semantic_vocabulary::ObligationId;
     for target in [
         target::NativeTarget::linux_x64(),
@@ -432,7 +432,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                 source.blocks[0].instructions.truncate(2);
             }
             let first = source.blocks[0].instructions.len() as u64 + 1;
-            for (operator, raw) in [(Subtract, first), (Add, first + 1)] {
+            for (operator, raw) in [(Subtract, first), (Add, first + 1), (Multiply, first + 2)] {
                 let operation = OperationId::new(raw).unwrap();
                 source.blocks[0]
                     .instructions
@@ -510,6 +510,15 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                 selected.blocks[0].instructions[binary + 1].kind,
                 SelectedInstructionKind::ExactAddI64 { .. }
             ));
+            let multiply = &selected.blocks[0].instructions[binary + 2];
+            assert!(matches!(
+                multiply.kind,
+                SelectedInstructionKind::ExactMultiplyI64 { .. }
+            ));
+            assert_eq!(
+                multiply.constraint,
+                environment.selected_keys().multiply_i64
+            );
             for corruption in 0..12 {
                 let mut changed = selected.clone();
                 let row = &mut changed.blocks[0].instructions[binary];

@@ -150,6 +150,7 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::ByteViewAddress
                 | MachineAlternativeFamily::ExactAddI64
                 | MachineAlternativeFamily::ExactAddI64Immediate
+                | MachineAlternativeFamily::ExactMultiplyI64
                 | MachineAlternativeFamily::ExactSubtractI64
                 | MachineAlternativeFamily::ExactSubtractI64Immediate => {
                     if row.branch.is_some()

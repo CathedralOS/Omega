@@ -250,6 +250,14 @@ pub(super) fn observation(
             right,
             ..
         }
+        | AbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        }
         | AbstractOperation::ExactIntegerDivide {
             psi_operation,
             result,
