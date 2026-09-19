@@ -21,17 +21,26 @@
 //! custody — an already established lease/reservation or an inline
 //! completion report — and therefore rejects through the ledger's own
 //! `TaskStartRejection`, which returns the supplied storage whole.
+//!
+//! Admission is also where a call target the checker could not resolve — a
+//! requirement slot, a machine parameter, or a dynamic descriptor — finally
+//! names its concrete checked-body machine. `bind_call_targets` matches each
+//! presented binding to a sealed `UnresolvedCallSite` coordinate, charges
+//! the bound callee's validated subtree into the composed WCSU demand, and
+//! re-seals the activation plan; a site no binding names stays unresolved,
+//! so the fail-closed lease rule is unchanged.
 
 use crate::stack_leases::{StackLeaseBacking, TaskStorageProvenance, establish_stack_lease};
 use crate::{
-    ActivationInstanceId, ClosedTaskRuntime, LiveCarryDemand, MovedTaskArguments,
-    SettledTaskLifecycle, StackPlan, SuspensionCrossingId, TaskActivationPlanSet,
-    TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId, TaskLifecycleLedger,
-    TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
+    ActivationInstanceId, CallTargetBinding, ClosedTaskRuntime, LiveCarryDemand,
+    MovedTaskArguments, SettledTaskLifecycle, StackPlan, SuspensionCrossingId,
+    TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId,
+    TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
     TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskSettlementOutcome,
     TaskStartRejection, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
-    TaskStorageOwnerId, ValidatedTaskRuntimeInvocationReceipt,
-    validate_task_runtime_invocation_receipt,
+    TaskStorageOwnerId, ValidatedActivationPlan, ValidatedTaskRuntimeInvocationReceipt,
+    cover_unresolved_call_sites, validate_task_runtime_invocation_receipt,
+    validate_wcsu_activation_plan,
 };
 use std::collections::BTreeMap;
 
@@ -152,6 +161,44 @@ impl TaskRuntimeAdmission {
     /// Auditable dependencies for every live claim this instance admitted.
     pub fn records(&self) -> impl Iterator<Item = &TaskDependencyRecord> {
         self.ledger.records()
+    }
+
+    /// Bind a provider-resolved call target to each matching unresolved site
+    /// of a served activation plan, re-sealing its WCSU projection.
+    ///
+    /// A requirement slot, machine parameter, or dynamic descriptor the
+    /// checker could not resolve names its concrete machine when this
+    /// provider binds the call target at admission. Each
+    /// [`CallTargetBinding`] must match one sealed `UnresolvedCallSite`
+    /// exactly — frame, state, statement index and call ordinal — and carry
+    /// the bound callee's validated subtree, whose frames charge into the
+    /// recomposed demand. The covered plan re-projects and re-validates
+    /// against the same activation candidate, so the returned plan is what
+    /// the provider must swap into the served `TaskActivationPlanFact` before
+    /// presenting a receipt. A site no binding names stays unresolved, so a
+    /// partially covered projection still publishes partial and keeps
+    /// rejecting a lease — binding never weakens the fail-closed rule.
+    ///
+    /// Covering charges the bound callee's stack demand only; the plan's
+    /// canonical suspension-crossing roster is unchanged, so a bound callee
+    /// that may suspend still cannot park at a crossing the roster does not
+    /// name — that suspension-preservation leg stays fail-closed until a
+    /// later leg joins the bound subtree's crossings.
+    pub fn bind_call_targets(
+        plan: &ValidatedActivationPlan,
+        bindings: &[CallTargetBinding],
+    ) -> Result<ValidatedActivationPlan, TaskPlanDiagnostic> {
+        let Some(projection) = plan.wcsu_stack_projection() else {
+            return Err(TaskPlanDiagnostic(
+                "call target binding requires the activation plan's sealed whole-call-graph \
+                 WCSU evidence"
+                    .into(),
+            ));
+        };
+        let covered = cover_unresolved_call_sites(projection, bindings)?;
+        let mut candidate = plan.candidate().clone();
+        candidate.stack_plan = covered.stack_plan();
+        validate_wcsu_activation_plan(candidate, covered)
     }
 
     /// Admission for a pending activation: the provider selects unleased

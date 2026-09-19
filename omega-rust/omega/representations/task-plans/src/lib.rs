@@ -71,12 +71,13 @@ pub use runtime_invocation::{
 };
 pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
 pub use stack_composition::{
-    AdmittedSameStackContribution, ComposedTaskStackDemand,
+    AdmittedSameStackContribution, CallTargetBinding, ComposedTaskStackDemand,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
     SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
     UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
     WcsuStackPlanProjection, admit_same_stack_contribution, compose_task_stack_demand,
-    project_wcsu_stack_plan, validate_task_stack_frame_summary,
+    cover_unresolved_call_sites, project_wcsu_stack_plan, task_stack_frame_validation_identity,
+    validate_task_stack_frame_summary,
 };
 pub use stack_leases::{
     StackLease, StackLeaseBacking, TaskStorageProvenance, establish_stack_lease,
