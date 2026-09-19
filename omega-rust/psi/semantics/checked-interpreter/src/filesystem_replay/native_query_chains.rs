@@ -476,23 +476,24 @@ fn source_native_handle_close_attempt(
 /// query-release chain: constrained open, one or more admitted
 /// observations including at least one final-path query, and one
 /// successful close that retires the acquired identity.
-pub(crate) fn source_native_handle_query_chain_is_exact(
-    attempts: &[FilesystemOperationAttempt],
+pub(crate) fn source_native_handle_query_chain_is_exact<
+    T: std::borrow::Borrow<FilesystemOperationAttempt>,
+>(
+    attempts: &[T],
 ) -> bool {
     if attempts.len() < 3 {
         return false;
     }
-    let Some(identity) = source_native_handle_query_open_identity(&attempts[0]) else {
+    let Some(identity) = source_native_handle_query_open_identity(attempts[0].borrow()) else {
         return false;
     };
     let middle = &attempts[1..attempts.len() - 1];
-    middle
+    middle.iter().any(|operation| {
+        operation.borrow().operation_tag == FINAL_PATH_NAME_BY_HANDLE_OPERATION_TAG
+    }) && middle
         .iter()
-        .any(|operation| operation.operation_tag == FINAL_PATH_NAME_BY_HANDLE_OPERATION_TAG)
-        && middle
-            .iter()
-            .all(|operation| native_handle_query_operation_is_exact(operation, identity))
-        && source_native_handle_close_is_exact(&attempts[attempts.len() - 1], identity)
+        .all(|operation| native_handle_query_operation_is_exact(operation.borrow(), identity))
+        && source_native_handle_close_is_exact(attempts[attempts.len() - 1].borrow(), identity)
 }
 
 /// Identity acquired by one constrained Source `open_path_handle`, or

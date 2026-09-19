@@ -18,6 +18,8 @@ pub(crate) const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
 
+// The wire already stores original attempt order. Lifetime interleaving changes
+// supported composition, not this encoding or the meaning of existing records.
 pub(crate) const VERSION: u16 = 58;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem

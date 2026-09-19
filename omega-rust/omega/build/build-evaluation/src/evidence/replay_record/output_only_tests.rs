@@ -101,6 +101,151 @@ fn output_file_attempts() -> Vec<BuildFilesystemOperationAttempt> {
     vec![create, close]
 }
 
+fn source_file_attempts(handle: u64, path: &[u8]) -> Vec<BuildFilesystemOperationAttempt> {
+    let descriptor = identity(handle);
+    let mut endpoints = output_file_attempts();
+    let mut open = endpoints.remove(0);
+    open.operation_tag = 2;
+    open.result = BuildFilesystemOperationResult::LogicalHandle(descriptor);
+    open.scalar_operands[0].value = BuildFilesystemScalarOperandValue::I32(0);
+    open.logical_handle_output.as_mut().unwrap().identity = descriptor;
+    open.rooted_path_operand_resolutions[0].root = BuildFilesystemRoot::Source;
+    open.rooted_path_operand_resolutions[0].relative_path = path.to_vec();
+    open.authorized_paths[0].root = BuildFilesystemRoot::Source;
+    open.authorized_paths[0].access = BuildFilesystemGrantAccess::Read;
+    open.authorized_paths[0].relative_path = path.to_vec();
+    let mut close = endpoints.remove(0);
+    close.logical_handle_inputs[0].resolution =
+        BuildFilesystemLogicalHandleInputResolution::Resolved(descriptor);
+    close.retired_logical_handles = vec![descriptor];
+    let mut read = attempt(4, BuildFilesystemOperationResult::Scalar(2));
+    read.logical_handle_inputs = close.logical_handle_inputs.clone();
+    read.scalar_operands.push(BuildFilesystemScalarOperand {
+        operand_ordinal: 2,
+        value: BuildFilesystemScalarOperandValue::U64(2),
+    });
+    read.mutable_byte_operand_resolutions.push(
+        crate::BuildFilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: b"....".to_vec(),
+        },
+    );
+    read.mutable_byte_operands
+        .push(crate::BuildFilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: b"....".to_vec(),
+            post_bytes: b"ab..".to_vec(),
+        });
+    read.observed_byte_regions
+        .push(crate::BuildFilesystemObservedByteRegion {
+            output_operand_ordinal: 1,
+            kind: crate::BuildFilesystemObservedByteRegionKind::SequentialFileRead,
+            offset: 0,
+            length: 2,
+        });
+    vec![open, read, close]
+}
+
+fn round_trip_summary(summary: &BuildObservationSummary) -> checked_interpreter::FilesystemReplay {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let captured = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("record captures")
+        .expect("record is replayed");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("record recovers");
+    assert_eq!(captured, recovered);
+    rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("record rehydrates")
+}
+
+#[test]
+fn source_output_source_record_round_trip_preserves_every_attempt_and_global_handoff() {
+    let first = source_file_attempts(71, b"first.txt");
+    let second = source_file_attempts(72, b"second.txt");
+    let mut output = output_file_attempts();
+    let mut write = attempt(5, BuildFilesystemOperationResult::Scalar(2));
+    write.logical_handle_inputs = output[1].logical_handle_inputs.clone();
+    write.byte_operands.push(crate::BuildFilesystemByteOperand {
+        operand_ordinal: 1,
+        bytes: b"ab".to_vec(),
+    });
+    output.insert(1, write);
+    let mut summary = output_only_summary(9);
+    summary.filesystem_operation_attempts = first
+        .iter()
+        .chain(&output)
+        .chain(&second)
+        .cloned()
+        .collect();
+    let sequential = round_trip_summary(&summary);
+    assert_eq!(
+        sequential
+            .attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 8, 2, 4, 8]
+    );
+    // Both inputs and Output are live together, then Output closes before the
+    // last input. Its handoff ordinal still counts the original global stream.
+    let order = [0, 1, 3, 4, 6, 7, 2, 5, 8];
+    let baseline = summary.filesystem_operation_attempts.clone();
+    summary.filesystem_operation_attempts = order
+        .iter()
+        .map(|position| baseline[*position].clone())
+        .collect();
+    summary.included_source_handoffs[0].filesystem_attempt_ordinal = 8;
+    let interleaved = round_trip_summary(&summary);
+    let expected = order
+        .iter()
+        .map(|position| sequential.attempts()[*position].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(interleaved.attempts(), expected);
+    assert_eq!(
+        interleaved.output_files()[0].replayed_bytes().unwrap(),
+        b"ab"
+    );
+    assert_eq!(
+        interleaved.expected_included_sources()[0].filesystem_attempt_ordinal(),
+        8
+    );
+
+    summary.included_source_handoffs[0].filesystem_attempt_ordinal = 7;
+    assert!(
+        capture_verified_build_filesystem_replay_record(
+            &summary,
+            BuildFilesystemReplayRecordLimits::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn interleaved_source_only_record_preserves_complete_carriers_and_lifetimes() {
+    let first = source_file_attempts(71, b"first.txt");
+    let second = source_file_attempts(72, b"second.txt");
+    let mut summary = output_only_summary(0);
+    summary.included_source_handoffs.clear();
+    summary.filesystem_operation_attempts = first.iter().chain(&second).cloned().collect();
+    let sequential = round_trip_summary(&summary);
+    let baseline = summary.filesystem_operation_attempts.clone();
+    let order = [0, 3, 1, 4, 5, 2];
+    summary.filesystem_operation_attempts = order
+        .iter()
+        .map(|position| baseline[*position].clone())
+        .collect();
+    let replay = round_trip_summary(&summary);
+    assert_eq!(
+        replay.attempts(),
+        order
+            .iter()
+            .map(|position| sequential.attempts()[*position].clone())
+            .collect::<Vec<_>>()
+    );
+    assert!(replay.output_files().is_empty());
+}
+
 pub(super) fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSummary {
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,

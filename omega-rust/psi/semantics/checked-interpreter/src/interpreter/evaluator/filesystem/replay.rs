@@ -63,12 +63,27 @@ impl<'program> Evaluator<'program> {
         self.virtual_errno = post_error;
         let raw = match result {
             FilesystemOperationResult::Scalar(value) => value,
-            FilesystemOperationResult::LogicalHandle(identity) => i64::try_from(identity.get())
-                .map_err(|_| {
-                    Halt::Trap(format!(
-                        "filesystem replay event {attempt_index} logical handle exceeds i64"
-                    ))
-                })?,
+            FilesystemOperationResult::LogicalHandle(identity) => {
+                if expected.logical_handle_output.is_some_and(|output| {
+                    output.kind == crate::FilesystemLogicalHandleKind::Descriptor
+                }) {
+                    // Injected Source descriptors and executed Output descriptors
+                    // share one raw-token namespace. A recorded logical identity
+                    // is not a free provider token: another live Output can own
+                    // that number when their lifetimes interleave.
+                    let descriptor = self.virtual_next_fd;
+                    self.virtual_next_fd = descriptor.checked_add(1).ok_or_else(|| {
+                        Halt::Resource("filesystem replay descriptor space exhausted".to_owned())
+                    })?;
+                    i64::from(descriptor)
+                } else {
+                    i64::try_from(identity.get()).map_err(|_| {
+                        Halt::Trap(format!(
+                            "filesystem replay event {attempt_index} logical handle exceeds i64"
+                        ))
+                    })?
+                }
+            }
         };
         Ok(Value::Int(raw))
     }

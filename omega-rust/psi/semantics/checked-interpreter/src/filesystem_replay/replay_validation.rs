@@ -202,6 +202,21 @@ pub(crate) fn validate_expected_included_sources(
 pub(crate) fn validate_source_input_attempts(
     attempts: &[FilesystemOperationAttempt],
 ) -> Result<(), String> {
+    let membership = super::source_stream::SourceEventMembership::discover(attempts)?;
+    if membership.source_attempts.is_empty()
+        || membership.source_attempts.iter().any(|source| !source)
+    {
+        return Err("filesystem replay requires only complete Source events".to_owned());
+    }
+    for event in membership.project(attempts) {
+        validate_source_event_attempts(&event)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_source_event_attempts(
+    attempts: &[&FilesystemOperationAttempt],
+) -> Result<(), String> {
     let mut cursor = 0;
     let mut event_count = 0;
     while cursor < attempts.len() {
@@ -209,7 +224,7 @@ pub(crate) fn validate_source_input_attempts(
             break;
         }
         if attempts[cursor].operation_tag() == 21 {
-            if !source_read_link_attempt_is_exact(&attempts[cursor]) {
+            if !source_read_link_attempt_is_exact(attempts[cursor]) {
                 return Err(
                     "bounded filesystem replay source read-link event is inconsistent".to_owned(),
                 );
@@ -219,7 +234,7 @@ pub(crate) fn validate_source_input_attempts(
             continue;
         }
         if matches!(attempts[cursor].operation_tag(), 38 | 40) {
-            if !source_path_metadata_attempt_is_exact(&attempts[cursor]) {
+            if !source_path_metadata_attempt_is_exact(attempts[cursor]) {
                 return Err("bounded filesystem replay source metadata is inconsistent".to_owned());
             }
             cursor += 1;
@@ -294,7 +309,7 @@ pub(crate) fn validate_source_input_attempts(
         cursor += 1;
         event_count += 1;
     }
-    if event_count == 0 {
+    if event_count == 0 || cursor != attempts.len() {
         return Err("bounded filesystem replay requires source-input events".to_owned());
     }
     for (index, attempt) in attempts.iter().enumerate() {

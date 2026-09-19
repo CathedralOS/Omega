@@ -4,26 +4,36 @@
 use crate::evidence::replay_eligibility::{
     ReceiptedOutputEntry, ReceiptedOutputFile, complete_no_output_failure_suffix_is_recognized,
     errno_tag, exact_source_write_refusal, get_last_error_tag, is_source_input_replay_record,
-    operand_free_unknown_descriptor_operation_tag, source_input_replay_prefix_end,
-    unknown_descriptor_bad_descriptor_failure_tag, unknown_descriptor_get_osfhandle_tag,
-    unknown_descriptor_open_at_tag, unknown_descriptor_read_dir_tag,
-    unknown_descriptor_read_file_metadata_tag, unknown_descriptor_read_operation_tag,
-    unknown_descriptor_set_file_times_tag, unknown_descriptor_unlink_at_tag,
-    unknown_descriptor_write_operation_tag, unknown_descriptor_write_payload_operation_tag,
-    unknown_native_handle_close_tag, unknown_native_handle_final_path_tag,
-    unknown_native_handle_mutation_tag,
+    operand_free_unknown_descriptor_operation_tag, source_events_are_exact,
+    source_input_replay_prefix_end, unknown_descriptor_bad_descriptor_failure_tag,
+    unknown_descriptor_get_osfhandle_tag, unknown_descriptor_open_at_tag,
+    unknown_descriptor_read_dir_tag, unknown_descriptor_read_file_metadata_tag,
+    unknown_descriptor_read_operation_tag, unknown_descriptor_set_file_times_tag,
+    unknown_descriptor_unlink_at_tag, unknown_descriptor_write_operation_tag,
+    unknown_descriptor_write_payload_operation_tag, unknown_native_handle_close_tag,
+    unknown_native_handle_final_path_tag, unknown_native_handle_mutation_tag,
 };
 use build_output::{BuildStagedOutputTree, ReplayedBuildOutputEntry, empty, replayed_output_tree};
 use checked_interpreter::{EvaluationObservations, FilesystemReplay};
 use diagnostics::Diagnostic;
 
-/// Select the replay constructor matching the observed operation suffix. Every
-/// recognized shape is one exact input-only or output-bearing record family;
-/// anything else is not replayable and stays a volatile observation.
+/// Validate ordinary Source/Output composition by descriptor lifetime. Exact
+/// failure-only sequences remain separately selected below; a failed normal
+/// validation never falls back to a less restrictive record family.
 pub(super) fn recognize_filesystem_replay(
     observations: &EvaluationObservations,
 ) -> Option<FilesystemReplay> {
     let attempts = observations.filesystem_operation_attempts();
+    // Successful Output streams use lifetime membership, never a Source prefix.
+    // Select by the observed namespace operation, not by trying alternative
+    // validators after a failure. Exact failure-only routes remain below.
+    if attempts.iter().any(|attempt| {
+        matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27)
+            && !exact_source_write_refusal(attempt)
+    }) {
+        let replay = FilesystemReplay::from_input_output_observations(observations).ok()?;
+        return source_events_are_exact(&replay).then_some(replay);
+    }
     if let Some(operation_suffix_start) =
         source_input_replay_prefix_end(attempts).filter(|end| *end < attempts.len())
     {

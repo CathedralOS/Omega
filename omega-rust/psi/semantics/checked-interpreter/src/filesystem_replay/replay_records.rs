@@ -253,6 +253,13 @@ pub struct FilesystemSourceInputReplayRecord {
 }
 
 impl FilesystemSourceInputReplayRecord {
+    /// Expand exact typed events without cloning their retained input carriers.
+    /// Event order here is construction order; a mixed stream retains its own
+    /// original attempt ordinals and places these operations at those positions.
+    pub fn into_attempts(self) -> Vec<crate::FilesystemOperationAttempt> {
+        super::source_attempts::source_input_record_attempts(self)
+    }
+
     pub fn new(events: Vec<FilesystemSourceInputReplayEventRecord>) -> Result<Self, String> {
         if events.is_empty() {
             return Err("filesystem replay requires at least one source-input event".to_owned());

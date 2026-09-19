@@ -268,11 +268,12 @@ fn only_directory_lanes(attempt: &FilesystemOperationAttempt) -> bool {
         && attempt.grant_refusals.is_empty()
 }
 
-pub(crate) fn source_attempts_use_root(
-    attempts: &[FilesystemOperationAttempt],
+pub(crate) fn source_attempts_use_root<T: std::borrow::Borrow<FilesystemOperationAttempt>>(
+    attempts: &[T],
     output_root: FilesystemGrantRootIdentity,
 ) -> bool {
     attempts.iter().any(|attempt| {
+        let attempt = attempt.borrow();
         attempt
             .rooted_path_operand_resolutions
             .iter()

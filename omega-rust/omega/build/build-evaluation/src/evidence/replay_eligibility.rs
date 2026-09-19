@@ -5,8 +5,18 @@ use crate::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
 pub(crate) fn is_source_input_replay_record(
     observations: &checked_interpreter::EvaluationObservations,
 ) -> bool {
-    let attempts = observations.filesystem_operation_attempts();
-    source_input_replay_prefix_end(attempts) == Some(attempts.len())
+    checked_interpreter::FilesystemReplay::from_source_input_observations(observations)
+        .is_ok_and(|replay| source_events_are_exact(&replay))
+}
+
+/// Projected validation keeps the exact Source-root and operand checks while
+/// permitting other lifetimes to run between operations. Only the replay's
+/// full chronological stream controls execution and shared error state.
+pub(crate) fn source_events_are_exact(replay: &checked_interpreter::FilesystemReplay) -> bool {
+    replay
+        .source_input_event_attempts()
+        .iter()
+        .all(|event| source_input_replay_prefix_refs(event) == Some(event.len()))
 }
 
 pub(crate) const fn operand_free_unknown_descriptor_operation_tag(operation_tag: u16) -> bool {
@@ -167,6 +177,12 @@ pub(crate) fn complete_no_output_failure_suffix_is_recognized(
 pub(crate) fn source_input_replay_prefix_end(
     attempts: &[checked_interpreter::FilesystemOperationAttempt],
 ) -> Option<usize> {
+    source_input_replay_prefix_refs(&attempts.iter().collect::<Vec<_>>())
+}
+
+fn source_input_replay_prefix_refs(
+    attempts: &[&checked_interpreter::FilesystemOperationAttempt],
+) -> Option<usize> {
     let mut cursor = 0;
     let mut identities = Vec::new();
     let mut event_count = 0;
@@ -207,7 +223,7 @@ pub(crate) fn source_input_replay_prefix_end(
             break;
         }
         if attempts[cursor].operation_tag() == 21 {
-            if !source_read_link_is_exact(&attempts[cursor]) {
+            if !source_read_link_is_exact(attempts[cursor]) {
                 return None;
             }
             cursor += 1;
@@ -215,7 +231,7 @@ pub(crate) fn source_input_replay_prefix_end(
             continue;
         }
         if matches!(attempts[cursor].operation_tag(), 38 | 40) {
-            if !source_path_metadata_is_exact(&attempts[cursor]) {
+            if !source_path_metadata_is_exact(attempts[cursor]) {
                 return None;
             }
             cursor += 1;
@@ -223,7 +239,7 @@ pub(crate) fn source_input_replay_prefix_end(
             continue;
         }
         if attempts[cursor].operation_tag() == 28 {
-            let identity = source_native_query_open_identity(&attempts[cursor])?;
+            let identity = source_native_query_open_identity(attempts[cursor])?;
             if identities.contains(&identity) {
                 return None;
             }
@@ -233,9 +249,9 @@ pub(crate) fn source_input_replay_prefix_end(
             while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 31 | 35) {
                 let operation_is_exact = if attempts[cursor].operation_tag() == 31 {
                     saw_final_path_query = true;
-                    native_final_path_query_is_exact(&attempts[cursor], identity)
+                    native_final_path_query_is_exact(attempts[cursor], identity)
                 } else {
-                    native_error_observation_is_exact(&attempts[cursor])
+                    native_error_observation_is_exact(attempts[cursor])
                 };
                 if !operation_is_exact {
                     return None;
@@ -244,7 +260,7 @@ pub(crate) fn source_input_replay_prefix_end(
             }
             if !saw_final_path_query
                 || cursor == attempts.len()
-                || !source_native_query_close_is_exact(&attempts[cursor], identity)
+                || !source_native_query_close_is_exact(attempts[cursor], identity)
             {
                 return None;
             }
@@ -252,7 +268,7 @@ pub(crate) fn source_input_replay_prefix_end(
             event_count += 1;
             continue;
         }
-        let identity = source_read_chain_open_identity(&attempts[cursor])?;
+        let identity = source_read_chain_open_identity(attempts[cursor])?;
         if identities.contains(&identity) {
             return None;
         }
@@ -260,12 +276,12 @@ pub(crate) fn source_input_replay_prefix_end(
         cursor += 1;
 
         if cursor < attempts.len() && attempts[cursor].operation_tag() == 39 {
-            if !source_descriptor_metadata_is_exact(&attempts[cursor], identity) {
+            if !source_descriptor_metadata_is_exact(attempts[cursor], identity) {
                 return None;
             }
             cursor += 1;
             if cursor == attempts.len()
-                || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+                || !source_read_chain_close_is_exact(attempts[cursor], identity)
             {
                 return None;
             }
@@ -277,14 +293,14 @@ pub(crate) fn source_input_replay_prefix_end(
         if cursor < attempts.len() && attempts[cursor].operation_tag() == 23 {
             let reads_start = cursor;
             while cursor < attempts.len() && attempts[cursor].operation_tag() == 23 {
-                if !source_directory_read_is_exact(&attempts[cursor], identity) {
+                if !source_directory_read_is_exact(attempts[cursor], identity) {
                     return None;
                 }
                 cursor += 1;
             }
             if cursor == reads_start
                 || cursor == attempts.len()
-                || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+                || !source_read_chain_close_is_exact(attempts[cursor], identity)
             {
                 return None;
             }
@@ -295,14 +311,14 @@ pub(crate) fn source_input_replay_prefix_end(
 
         let reads_start = cursor;
         while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
-            if !source_read_chain_read_is_exact(&attempts[cursor], identity) {
+            if !source_read_chain_read_is_exact(attempts[cursor], identity) {
                 return None;
             }
             cursor += 1;
         }
         if cursor == reads_start
             || cursor == attempts.len()
-            || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+            || !source_read_chain_close_is_exact(attempts[cursor], identity)
         {
             return None;
         }

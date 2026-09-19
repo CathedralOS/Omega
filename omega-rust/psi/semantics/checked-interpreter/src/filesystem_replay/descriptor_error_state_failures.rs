@@ -51,10 +51,7 @@ impl FilesystemReplay {
         validate_descriptor_failure_with_errno_attempts(&attempts, &[], |attempt| {
             unknown_descriptor_operation_from_exact_attempt(attempt).is_some()
         })?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Validate exactly one operand-free unknown-descriptor failure and its
@@ -74,10 +71,7 @@ impl FilesystemReplay {
             observations.build_included_sources(),
             |attempt| unknown_descriptor_operation_from_exact_attempt(attempt).is_some(),
         )?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
     }
 
     /// Append immediate `errno` to any already exact unknown-descriptor replay
@@ -109,10 +103,7 @@ impl FilesystemReplay {
             &[],
             unknown_descriptor_bad_descriptor_failure_attempt_is_exact,
         )?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Validate any exact unknown-descriptor `EBADF` failure followed
@@ -132,10 +123,7 @@ impl FilesystemReplay {
             observations.build_included_sources(),
             unknown_descriptor_bad_descriptor_failure_attempt_is_exact,
         )?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
     }
 }
 

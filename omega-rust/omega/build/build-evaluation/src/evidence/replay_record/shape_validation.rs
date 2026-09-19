@@ -1,8 +1,7 @@
-//! Validating each decoded attempt shape against the replay's rungs: the
-//! first rung, source refusals, output files and every handle, read, query
-//! and metadata lane.
+//! Validate chronological Source/Output composition and bounded failure records.
 //!
-//! This file validates the first rung. `source_shapes.rs` validates
+//! This file dispatches the exact record contract. `source_stream.rs` derives
+//! Source lifetime membership without reordering attempts. `source_shapes.rs` validates
 //! included source and source write refusal shapes, `output_stream.rs`
 //! derives chronological output membership, `output_shapes.rs` validates output file
 //! operations, `path_and_descriptor_shapes.rs` validates path metadata,
@@ -14,12 +13,14 @@ mod output_shapes;
 mod output_stream;
 mod path_and_descriptor_shapes;
 mod source_shapes;
+mod source_stream;
 
 pub(crate) use output_stream::{OutputEntryAttempts, output_tree_membership};
 pub(crate) use path_and_descriptor_shapes::validate_close_shape;
 pub(crate) use source_shapes::{
     validate_included_source_shapes, validate_source_write_refusal_shape,
 };
+pub(crate) use source_stream::{has_failure_sequence, source_output_membership};
 
 use crate::evidence::replay_record::BuildFilesystemReplayRecordError;
 use crate::evidence::replay_record::attempt_codec::{AttemptShape, ShapeScalar};
@@ -65,6 +66,17 @@ use crate::evidence::replay_record::shape_validation::path_and_descriptor_shapes
 use crate::evidence::replay_record::symlinks::validate_output_symlink_shape;
 
 pub(crate) fn validate_first_rung(
+    shapes: &[AttemptShape<'_>],
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if has_failure_sequence(shapes) {
+        return validate_failure_sequence(shapes);
+    }
+    let membership = source_output_membership(shapes)?;
+    let output_stream = output_tree_membership(shapes, &membership.output_attempts)?;
+    validate_output_entries(shapes, &output_stream)
+}
+
+fn validate_failure_sequence(
     shapes: &[AttemptShape<'_>],
 ) -> Result<(), BuildFilesystemReplayRecordError> {
     let mut cursor = 0;
@@ -330,180 +342,167 @@ pub(crate) fn validate_first_rung(
             validate_output_absent_remove_shapes(&shapes[cursor..])?;
             return Ok(());
         }
-        let output_stream = output_tree_membership(shapes, cursor)?;
-        if output_stream.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay failure sequence contains unsupported operations",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_output_entries(
+    shapes: &[AttemptShape<'_>],
+    output_stream: &[OutputEntryAttempts],
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if output_stream.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output exceeds the Output-tree entry ceiling",
+        ));
+    }
+    let mut output_paths = Vec::new();
+    output_paths
+        .try_reserve_exact(output_stream.len())
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new("filesystem replay output-path allocation failed")
+        })?;
+    let mut aggregate_output_extent = 0usize;
+    let mut aggregate_output_duplicates = 0usize;
+    let mut aggregate_output_lock_pairs = 0usize;
+    let mut aggregate_path_bytes = 0usize;
+    for (entry_index, range) in output_stream.iter().enumerate() {
+        let path = range.path(shapes);
+        if path.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES {
             return Err(BuildFilesystemReplayRecordError::new(
-                "receipted build output exceeds the Output-tree entry ceiling",
+                "receipted build output path exceeds its explicit ceiling",
             ));
         }
-        let mut output_paths = Vec::new();
-        output_paths
-            .try_reserve_exact(output_stream.len())
-            .map_err(|_| {
+        aggregate_path_bytes = aggregate_path_bytes
+            .checked_add(path.len())
+            .filter(|bytes| {
+                *bytes
+                    <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+            })
+            .ok_or_else(|| {
                 BuildFilesystemReplayRecordError::new(
-                    "filesystem replay output-path allocation failed",
+                    "receipted build output paths exceed their aggregate ceiling",
                 )
             })?;
-        let mut aggregate_output_extent = 0usize;
-        let mut aggregate_output_duplicates = 0usize;
-        let mut aggregate_output_lock_pairs = 0usize;
-        let mut aggregate_path_bytes = 0usize;
-        for (entry_index, range) in output_stream.iter().enumerate() {
-            let path = range.path(shapes);
-            if path.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES {
+        if output_paths.contains(&path) {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output path appears more than once",
+            ));
+        }
+        if let Some(separator) = path.iter().rposition(|byte| *byte == b'/') {
+            let parent = &path[..separator];
+            if !output_stream[..entry_index]
+                .iter()
+                .any(|prior| prior.is_directory() && prior.path(shapes) == parent)
+            {
                 return Err(BuildFilesystemReplayRecordError::new(
-                    "receipted build output path exceeds its explicit ceiling",
+                    "receipted nested Output entry does not follow its exact parent directory",
                 ));
             }
-            aggregate_path_bytes = aggregate_path_bytes
-                .checked_add(path.len())
-                .filter(|bytes| {
-                    *bytes
-                        <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
-                })
-                .ok_or_else(|| {
-                    BuildFilesystemReplayRecordError::new(
-                        "receipted build output paths exceed their aggregate ceiling",
-                    )
-                })?;
-            if output_paths.contains(&path) {
-                return Err(BuildFilesystemReplayRecordError::new(
-                    "filesystem replay Output path appears more than once",
-                ));
+        }
+        output_paths.push(path);
+
+        let attempts = match range {
+            OutputEntryAttempts::Directory(index) => {
+                validate_output_directory_shape(&shapes[*index])?;
+                continue;
             }
-            if let Some(separator) = path.iter().rposition(|byte| *byte == b'/') {
-                let parent = &path[..separator];
-                if !output_stream[..entry_index]
-                    .iter()
-                    .any(|prior| prior.is_directory() && prior.path(shapes) == parent)
-                {
+            OutputEntryAttempts::HardLink(index) => {
+                validate_output_hard_link_shape(&shapes[*index])?;
+                let (existing, _) = output_hard_link_paths(&shapes[*index])?;
+                aggregate_path_bytes = aggregate_path_bytes
+                    .checked_add(existing.len())
+                    .filter(|bytes| {
+                        *bytes
+                            <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+                    })
+                    .ok_or_else(|| {
+                        BuildFilesystemReplayRecordError::new(
+                            "receipted build output and hard-link paths exceed their aggregate ceiling",
+                        )
+                    })?;
+                if !output_stream[..entry_index].iter().any(|prior| {
+                    matches!(
+                        prior,
+                        OutputEntryAttempts::File { .. } | OutputEntryAttempts::HardLink(_)
+                    ) && prior.path(shapes) == existing
+                        && prior
+                            .attempt_indices()
+                            .last()
+                            .is_some_and(|closed| closed < index)
+                }) {
                     return Err(BuildFilesystemReplayRecordError::new(
-                        "receipted nested Output entry does not follow its exact parent directory",
+                        "filesystem replay Output hard link does not follow an existing regular-file name",
                     ));
                 }
+                continue;
             }
-            output_paths.push(path);
-
-            let attempts = match range {
-                OutputEntryAttempts::Directory(index) => {
-                    validate_output_directory_shape(&shapes[*index])?;
-                    continue;
-                }
-                OutputEntryAttempts::HardLink(index) => {
-                    validate_output_hard_link_shape(&shapes[*index])?;
-                    let (existing, _) = output_hard_link_paths(&shapes[*index])?;
-                    aggregate_path_bytes = aggregate_path_bytes
-                        .checked_add(existing.len())
-                        .filter(|bytes| {
-                            *bytes
-                                <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
-                        })
-                        .ok_or_else(|| {
-                            BuildFilesystemReplayRecordError::new(
-                                "receipted build output and hard-link paths exceed their aggregate ceiling",
-                            )
-                        })?;
-                    if !output_stream[..entry_index].iter().any(|prior| {
-                        matches!(
-                            prior,
-                            OutputEntryAttempts::File { .. } | OutputEntryAttempts::HardLink(_)
-                        ) && prior.path(shapes) == existing
-                            && prior
-                                .attempt_indices()
-                                .last()
-                                .is_some_and(|closed| closed < index)
-                    }) {
-                        return Err(BuildFilesystemReplayRecordError::new(
-                            "filesystem replay Output hard link does not follow an existing regular-file name",
-                        ));
-                    }
-                    continue;
-                }
-                OutputEntryAttempts::Symlink(index) => {
-                    validate_output_symlink_shape(&shapes[*index])?;
-                    let [(_, target)] = shapes[*index].path_like_operands.as_slice() else {
-                        unreachable!("validated Output symlink has one target spelling")
-                    };
-                    aggregate_path_bytes = aggregate_path_bytes
-                        .checked_add(target.len())
-                        .filter(|bytes| {
-                            *bytes
-                                <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
-                        })
-                        .ok_or_else(|| {
-                            BuildFilesystemReplayRecordError::new(
-                                "receipted build output paths and symlink targets exceed their aggregate ceiling",
-                            )
-                        })?;
-                    continue;
-                }
-                OutputEntryAttempts::File { attempts } => attempts,
-            };
-            let chain = attempts
-                .iter()
-                .map(|position| &shapes[*position])
-                .collect::<Vec<_>>();
-            let create = &chain[0];
-            let close = chain.last().expect("validated Output file has a close");
-            let extent = validate_output_file(create, &chain[1..chain.len() - 1], close)?;
-            aggregate_output_extent = aggregate_output_extent
-                .checked_add(extent)
-                .filter(|total| *total <= checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES)
-                .ok_or_else(|| {
-                    BuildFilesystemReplayRecordError::new(
-                        "receipted build outputs exceed the aggregate replay extent ceiling",
-                    )
-                })?;
-            let output = create
-                .output
-                .expect("validated output create has a descriptor");
-            for identity in std::iter::once(output.identity).chain(
+            OutputEntryAttempts::Symlink(index) => {
+                validate_output_symlink_shape(&shapes[*index])?;
+                let [(_, target)] = shapes[*index].path_like_operands.as_slice() else {
+                    unreachable!("validated Output symlink has one target spelling")
+                };
+                aggregate_path_bytes = aggregate_path_bytes
+                    .checked_add(target.len())
+                    .filter(|bytes| {
+                        *bytes
+                            <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+                    })
+                    .ok_or_else(|| {
+                        BuildFilesystemReplayRecordError::new(
+                            "receipted build output paths and symlink targets exceed their aggregate ceiling",
+                        )
+                    })?;
+                continue;
+            }
+            OutputEntryAttempts::File { attempts } => attempts,
+        };
+        let chain = attempts
+            .iter()
+            .map(|position| &shapes[*position])
+            .collect::<Vec<_>>();
+        let create = &chain[0];
+        let close = chain.last().expect("validated Output file has a close");
+        let extent = validate_output_file(create, &chain[1..chain.len() - 1], close)?;
+        aggregate_output_extent = aggregate_output_extent
+            .checked_add(extent)
+            .filter(|total| *total <= checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES)
+            .ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "receipted build outputs exceed the aggregate replay extent ceiling",
+                )
+            })?;
+        aggregate_output_duplicates = aggregate_output_duplicates
+            .checked_add(
                 chain[1..chain.len() - 1]
                     .iter()
                     .filter(|operation| operation.operation == 45)
-                    .filter_map(|operation| operation.output.map(|output| output.identity)),
-            ) {
-                if identities.contains(&identity) {
-                    return Err(BuildFilesystemReplayRecordError::new(
-                        "filesystem replay Output descriptor overlaps another descriptor",
-                    ));
-                }
-                identities.push(identity);
-            }
-            aggregate_output_duplicates = aggregate_output_duplicates
-                .checked_add(
-                    chain[1..chain.len() - 1]
-                        .iter()
-                        .filter(|operation| operation.operation == 45)
-                        .count(),
+                    .count(),
+            )
+            .filter(|count| *count <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES)
+            .ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "receipted build outputs exceed the duplicate-descriptor ceiling",
                 )
-                .filter(|count| {
-                    *count <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES
-                })
-                .ok_or_else(|| {
-                    BuildFilesystemReplayRecordError::new(
-                        "receipted build outputs exceed the duplicate-descriptor ceiling",
-                    )
-                })?;
-            aggregate_output_lock_pairs = aggregate_output_lock_pairs
-                .checked_add(
-                    chain[1..chain.len() - 1]
-                        .iter()
-                        .filter(|operation| {
-                            operation.operation == 46
-                                && operation.scalars.as_slice() == [(1, ShapeScalar::I32(6))]
-                        })
-                        .count(),
+            })?;
+        aggregate_output_lock_pairs = aggregate_output_lock_pairs
+            .checked_add(
+                chain[1..chain.len() - 1]
+                    .iter()
+                    .filter(|operation| {
+                        operation.operation == 46
+                            && operation.scalars.as_slice() == [(1, ShapeScalar::I32(6))]
+                    })
+                    .count(),
+            )
+            .filter(|count| *count <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS)
+            .ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "receipted build outputs exceed the descriptor-lock-pair ceiling",
                 )
-                .filter(|count| {
-                    *count <= checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS
-                })
-                .ok_or_else(|| {
-                    BuildFilesystemReplayRecordError::new(
-                        "receipted build outputs exceed the descriptor-lock-pair ceiling",
-                    )
-                })?;
-        }
+            })?;
     }
     Ok(())
 }

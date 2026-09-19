@@ -30,10 +30,7 @@ pub(crate) fn unknown_handle_input_failure_replay_from_record(
         operation_is_exact,
         operation_name,
     )?;
-    Ok(FilesystemReplay {
-        attempts: attempts.into(),
-        expected_included_sources: std::sync::Arc::from([]),
-    })
+    FilesystemReplay::from_validated(attempts.into(), std::sync::Arc::from([]))
 }
 
 pub(crate) fn unknown_handle_input_failure_replay_from_observations(
@@ -58,10 +55,7 @@ pub(crate) fn unknown_handle_input_failure_replay_from_observations(
         operation_is_exact,
         operation_name,
     )?;
-    Ok(FilesystemReplay {
-        attempts: attempts.to_vec().into(),
-        expected_included_sources: std::sync::Arc::from([]),
-    })
+    FilesystemReplay::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
 }
 
 fn validate_unknown_descriptor_failure_attempts(

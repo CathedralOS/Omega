@@ -184,31 +184,30 @@ pub(crate) fn validate_output_tree_records(
     included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
     validate_output_tree_shape(source_attempts, entries)?;
-    let mut output_attempt_count = 0usize;
+    let mut total_attempt_count = source_attempts.len();
     let mut completion_ordinals = Vec::with_capacity(entries.len());
     for entry in entries {
-        output_attempt_count = output_attempt_count
+        total_attempt_count = total_attempt_count
             .checked_add(
                 entry
                     .attempt_count()
                     .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?,
             )
             .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
-        completion_ordinals.push(output_attempt_count);
+        completion_ordinals.push(total_attempt_count);
     }
     validate_tree_included_sources(
         entries,
         &completion_ordinals,
         included_sources,
-        source_attempts.len(),
-        output_attempt_count,
+        total_attempt_count,
     )
 }
 
 pub(crate) fn validate_observed_output_tree_records(
-    source_attempts: &[FilesystemOperationAttempt],
+    source_attempts: &[&FilesystemOperationAttempt],
     output: &ObservedOutputTree,
-    output_attempt_count: usize,
+    total_attempt_count: usize,
     included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
     validate_output_tree_shape(source_attempts, &output.entries)?;
@@ -216,13 +215,12 @@ pub(crate) fn validate_observed_output_tree_records(
         &output.entries,
         &output.completion_ordinals,
         included_sources,
-        source_attempts.len(),
-        output_attempt_count,
+        total_attempt_count,
     )
 }
 
-fn validate_output_tree_shape(
-    source_attempts: &[FilesystemOperationAttempt],
+fn validate_output_tree_shape<T: std::borrow::Borrow<FilesystemOperationAttempt>>(
+    source_attempts: &[T],
     entries: &[FilesystemOutputTreeEntryReplayRecord],
 ) -> Result<(), String> {
     // Observed records do not need to reconstruct the already validated typed
@@ -359,18 +357,14 @@ fn validate_tree_included_sources(
     entries: &[FilesystemOutputTreeEntryReplayRecord],
     completion_ordinals: &[usize],
     included_sources: &[BuildIncludedSource],
-    source_attempt_count: usize,
-    output_attempt_count: usize,
+    total_attempt_count: usize,
 ) -> Result<(), String> {
     if included_sources.len() > MAX_INCLUDED_BUILD_SOURCES {
         return Err(format!(
             "filesystem replay exceeds its {MAX_INCLUDED_BUILD_SOURCES}-source handoff ceiling"
         ));
     }
-    let total_attempt_count = source_attempt_count
-        .checked_add(output_attempt_count)
-        .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
-    let mut previous_ordinal = source_attempt_count;
+    let mut previous_ordinal = 0;
     for (handoff_index, included) in included_sources.iter().enumerate() {
         if included.filesystem_attempt_ordinal() < previous_ordinal {
             return Err(
@@ -398,10 +392,7 @@ fn validate_tree_included_sources(
                 "filesystem replay included-source handoff has no matching output file".to_owned(),
             );
         };
-        let close_ordinal = source_attempt_count
-            .checked_add(*close_ordinal)
-            .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
-        if included.filesystem_attempt_ordinal() < close_ordinal
+        if included.filesystem_attempt_ordinal() < *close_ordinal
             || included.filesystem_attempt_ordinal() > total_attempt_count
         {
             return Err(

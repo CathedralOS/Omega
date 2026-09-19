@@ -16,8 +16,8 @@ use crate::evidence::replay_record::native_mutation_failures::{
 use crate::evidence::replay_record::read_links::rehydrate_source_read_link_shape;
 use crate::evidence::replay_record::record::{MAGIC, VERSION, clone_bytes};
 use crate::evidence::replay_record::shape_validation::{
-    OutputEntryAttempts, output_tree_membership, validate_first_rung,
-    validate_included_source_shapes, validate_source_write_refusal_shape,
+    OutputEntryAttempts, has_failure_sequence, output_tree_membership, source_output_membership,
+    validate_first_rung, validate_included_source_shapes, validate_source_write_refusal_shape,
 };
 use crate::evidence::replay_record::symlinks::rehydrate_output_symlink_shape;
 use crate::evidence::replay_record::{
@@ -96,7 +96,9 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
     let decoded = decode_shapes(record.canonical_bytes(), limits)?;
-    let included_sources = decoded.included_sources;
+    if !has_failure_sequence(&decoded.shapes) {
+        return rehydrate_composed_record(decoded);
+    }
     let shapes = decoded.shapes;
     let operation_suffix_start = shapes
         .iter()
@@ -120,123 +122,11 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 .map(|_| shapes.len() - 1)
         })
         .unwrap_or(shapes.len());
-    let mut events = Vec::new();
-    let mut cursor = 0;
-    while cursor < operation_suffix_start {
-        if shapes[cursor].operation == 21 {
-            events.push(
-                checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadLink(
-                    rehydrate_source_read_link_shape(&shapes[cursor])?,
-                ),
-            );
-            cursor += 1;
-            continue;
-        }
-        if matches!(shapes[cursor].operation, 38 | 40) {
-            events.push(
-                checked_interpreter::FilesystemSourceInputReplayEventRecord::PathMetadata(
-                    rehydrate_path_metadata_shape(&shapes[cursor])?,
-                ),
-            );
-            cursor += 1;
-            continue;
-        }
-        if shapes[cursor].operation == 28 {
-            let open = &shapes[cursor];
-            cursor += 1;
-            let operations_start = cursor;
-            while matches!(shapes[cursor].operation, 31 | 35) {
-                cursor += 1;
-            }
-            let close = &shapes[cursor];
-            cursor += 1;
-            events.push(
-                checked_interpreter::FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(
-                    rehydrate_native_query_chain_shape(
-                        open,
-                        &shapes[operations_start..cursor - 1],
-                        close,
-                    )?,
-                ),
-            );
-            continue;
-        }
-        let open = &shapes[cursor];
-        cursor += 1;
-        if shapes[cursor].operation == 39 {
-            let metadata = &shapes[cursor];
-            let close = &shapes[cursor + 1];
-            cursor += 2;
-            events.push(
-                checked_interpreter::FilesystemSourceInputReplayEventRecord::DescriptorMetadata(
-                    rehydrate_descriptor_metadata_shape(open, metadata, close)?,
-                ),
-            );
-            continue;
-        }
-        if shapes[cursor].operation == 23 {
-            let reads_start = cursor;
-            while shapes[cursor].operation == 23 {
-                cursor += 1;
-            }
-            let close = &shapes[cursor];
-            events.push(
-                checked_interpreter::FilesystemSourceInputReplayEventRecord::DirectoryReadChain(
-                    rehydrate_source_directory_shape(open, &shapes[reads_start..cursor], close)?,
-                ),
-            );
-            cursor += 1;
-            continue;
-        }
-        let reads_start = cursor;
-        while matches!(shapes.get(cursor), Some(read) if matches!(read.operation, 4 | 6)) {
-            cursor += 1;
-        }
-        let close = &shapes[cursor];
-        let read_shapes = &shapes[reads_start..cursor];
-        cursor += 1;
-
-        let ShapeResult::Handle(logical_handle_identity) = open.result else {
-            unreachable!("validated bounded replay open returns a handle")
-        };
-        let [source_path] = open.rooted_paths.as_slice() else {
-            unreachable!("validated bounded replay open has one rooted path")
-        };
-        let mut reads = Vec::new();
-        reads.try_reserve_exact(read_shapes.len()).map_err(|_| {
-            BuildFilesystemReplayRecordError::new("filesystem replay read allocation failed")
-        })?;
-        for read in read_shapes {
-            reads.push(rehydrate_read_shape(read)?);
-        }
-        events.push(
-            checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadChain(
-                checked_interpreter::FilesystemSourceReadChainReplayRecord::new(
-                    crate::BUILD_SOURCE_ROOT_IDENTITY,
-                    clone_bytes(source_path.bytes)?,
-                    logical_handle_identity,
-                    open.post_error,
-                    reads,
-                    close.post_error,
-                )
-                .map_err(|_| {
-                    BuildFilesystemReplayRecordError::new(
-                        "filesystem replay chain could not be rehydrated",
-                    )
-                })?,
-            ),
-        );
-    }
-    let typed_source_record = if events.is_empty() {
+    let source_shapes = shapes[..operation_suffix_start].iter().collect::<Vec<_>>();
+    let typed_source_record = if source_shapes.is_empty() {
         None
     } else {
-        Some(
-            checked_interpreter::FilesystemSourceInputReplayRecord::new(events).map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay source inputs could not be rehydrated",
-                )
-            })?,
-        )
+        Some(rehydrate_source_record(&source_shapes)?)
     };
     if operation_suffix_start == shapes.len() {
         let typed_source_record = typed_source_record.ok_or_else(|| {
@@ -372,7 +262,18 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
-    let output_stream = output_tree_membership(&shapes, operation_suffix_start)?;
+    Err(BuildFilesystemReplayRecordError::new(
+        "filesystem replay failure sequence could not be rehydrated",
+    ))
+}
+
+fn rehydrate_composed_record(
+    decoded: DecodedReplay<'_>,
+) -> Result<checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
+    let shapes = decoded.shapes;
+    let included_sources = decoded.included_sources;
+    let membership = source_output_membership(&shapes)?;
+    let output_stream = output_tree_membership(&shapes, &membership.output_attempts)?;
     let mut ordered_attempts = Vec::new();
     ordered_attempts
         .try_reserve_exact(shapes.len())
@@ -380,23 +281,24 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             BuildFilesystemReplayRecordError::new("filesystem replay Output-tree allocation failed")
         })?;
     ordered_attempts.resize_with(shapes.len(), || None);
-    if let Some(source) = typed_source_record {
-        let source = checked_interpreter::FilesystemReplay::from_source_input_record(source)
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new("filesystem replay Source prefix is invalid")
-            })?;
-        if source.attempts().len() != operation_suffix_start {
+    for indices in &membership.source_events {
+        let projection = indices
+            .iter()
+            .map(|position| &shapes[*position])
+            .collect::<Vec<_>>();
+        let attempts = rehydrate_source_record(&projection)?.into_attempts();
+        if attempts.len() != indices.len() {
             return Err(BuildFilesystemReplayRecordError::new(
-                "filesystem replay Source prefix coverage differs",
+                "filesystem replay Source event coverage differs",
             ));
         }
-        for (slot, attempt) in ordered_attempts.iter_mut().zip(source.attempts()) {
-            *slot = Some(attempt.clone());
+        for (position, attempt) in indices.iter().zip(attempts) {
+            if ordered_attempts[*position].replace(attempt).is_some() {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Source event is owned twice",
+                ));
+            }
         }
-    } else if operation_suffix_start != 0 {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "filesystem replay Output record has a malformed non-Source prefix",
-        ));
     }
     for range in output_stream {
         let entry = match &range {
@@ -493,9 +395,127 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     })
 }
 
+fn rehydrate_source_record(
+    shapes: &[&AttemptShape<'_>],
+) -> Result<checked_interpreter::FilesystemSourceInputReplayRecord, BuildFilesystemReplayRecordError>
+{
+    let mut events = Vec::new();
+    let mut cursor = 0;
+    while cursor < shapes.len() {
+        if shapes[cursor].operation == 21 {
+            events.push(
+                checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadLink(
+                    rehydrate_source_read_link_shape(shapes[cursor])?,
+                ),
+            );
+            cursor += 1;
+            continue;
+        }
+        if matches!(shapes[cursor].operation, 38 | 40) {
+            events.push(
+                checked_interpreter::FilesystemSourceInputReplayEventRecord::PathMetadata(
+                    rehydrate_path_metadata_shape(shapes[cursor])?,
+                ),
+            );
+            cursor += 1;
+            continue;
+        }
+        if shapes[cursor].operation == 28 {
+            let open = shapes[cursor];
+            cursor += 1;
+            let operations_start = cursor;
+            while matches!(shapes[cursor].operation, 31 | 35) {
+                cursor += 1;
+            }
+            let close = shapes[cursor];
+            cursor += 1;
+            events.push(
+                checked_interpreter::FilesystemSourceInputReplayEventRecord::NativeHandleQueryChain(
+                    rehydrate_native_query_chain_shape(
+                        open,
+                        &shapes[operations_start..cursor - 1],
+                        close,
+                    )?,
+                ),
+            );
+            continue;
+        }
+        let open = shapes[cursor];
+        cursor += 1;
+        if shapes[cursor].operation == 39 {
+            let metadata = shapes[cursor];
+            let close = shapes[cursor + 1];
+            cursor += 2;
+            events.push(
+                checked_interpreter::FilesystemSourceInputReplayEventRecord::DescriptorMetadata(
+                    rehydrate_descriptor_metadata_shape(open, metadata, close)?,
+                ),
+            );
+            continue;
+        }
+        if shapes[cursor].operation == 23 {
+            let reads_start = cursor;
+            while shapes[cursor].operation == 23 {
+                cursor += 1;
+            }
+            let close = shapes[cursor];
+            events.push(
+                checked_interpreter::FilesystemSourceInputReplayEventRecord::DirectoryReadChain(
+                    rehydrate_source_directory_shape(open, &shapes[reads_start..cursor], close)?,
+                ),
+            );
+            cursor += 1;
+            continue;
+        }
+        let reads_start = cursor;
+        while matches!(shapes.get(cursor), Some(read) if matches!(read.operation, 4 | 6)) {
+            cursor += 1;
+        }
+        let close = shapes[cursor];
+        let read_shapes = &shapes[reads_start..cursor];
+        cursor += 1;
+
+        let ShapeResult::Handle(logical_handle_identity) = open.result else {
+            unreachable!("validated bounded replay open returns a handle")
+        };
+        let [source_path] = open.rooted_paths.as_slice() else {
+            unreachable!("validated bounded replay open has one rooted path")
+        };
+        let mut reads = Vec::new();
+        reads.try_reserve_exact(read_shapes.len()).map_err(|_| {
+            BuildFilesystemReplayRecordError::new("filesystem replay read allocation failed")
+        })?;
+        for read in read_shapes {
+            reads.push(rehydrate_read_shape(read)?);
+        }
+        events.push(
+            checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadChain(
+                checked_interpreter::FilesystemSourceReadChainReplayRecord::new(
+                    crate::BUILD_SOURCE_ROOT_IDENTITY,
+                    clone_bytes(source_path.bytes)?,
+                    logical_handle_identity,
+                    open.post_error,
+                    reads,
+                    close.post_error,
+                )
+                .map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay chain could not be rehydrated",
+                    )
+                })?,
+            ),
+        );
+    }
+    checked_interpreter::FilesystemSourceInputReplayRecord::new(events).map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay Source events could not be rehydrated",
+        )
+    })
+}
+
 fn rehydrate_source_directory_shape(
     open: &AttemptShape<'_>,
-    reads: &[AttemptShape<'_>],
+    reads: &[&AttemptShape<'_>],
     close: &AttemptShape<'_>,
 ) -> Result<
     checked_interpreter::FilesystemSourceDirectoryReadChainReplayRecord,
@@ -927,7 +947,7 @@ fn rehydrate_read_shape(
 
 fn rehydrate_native_query_chain_shape(
     open: &AttemptShape<'_>,
-    operations: &[AttemptShape<'_>],
+    operations: &[&AttemptShape<'_>],
     close: &AttemptShape<'_>,
 ) -> Result<
     checked_interpreter::FilesystemSourceNativeHandleQueryChainReplayRecord,

@@ -5,7 +5,9 @@
 //! `replay_records.rs` holds the typed records, `replay_validation.rs`
 //! validates a replay. `output_stream.rs` follows descriptor lifetimes in the
 //! original event order; `output_attempts.rs` checks each file's projected
-//! operations. `source_attempts.rs` owns the bounded Source prefix.
+//! operations. `source_stream.rs` associates Source events with their exact
+//! lifetimes, so Source and Output may interleave without changing either's
+//! validation. Only the separately selected failure grammars require a prefix.
 
 #[cfg(test)]
 mod descriptor_error_state_failure_tests;
@@ -50,6 +52,7 @@ mod source_directory_tests;
 #[cfg(test)]
 mod source_read_link_tests;
 mod source_read_links;
+mod source_stream;
 mod source_write_refusals;
 mod symlinks;
 mod unlink_at_failures;
@@ -176,6 +179,7 @@ pub use source_directories::{
 pub use source_read_links::FilesystemSourceReadLinkReplayRecord;
 #[cfg(test)]
 pub(crate) use source_read_links::source_read_link_attempt_is_exact;
+use source_stream::SourceEventMembership;
 pub use source_write_refusals::{
     FilesystemSourceWriteRefusalReplayKind, FilesystemSourceWriteRefusalReplayRecord,
 };
@@ -206,6 +210,7 @@ pub(crate) use unlink_at_failures::{
 pub struct FilesystemReplay {
     pub(crate) attempts: std::sync::Arc<[FilesystemOperationAttempt]>,
     pub(crate) expected_included_sources: std::sync::Arc<[BuildIncludedSource]>,
+    source_membership: std::sync::Arc<SourceEventMembership>,
 }
 
 /// Ordinary non-executable create mode admitted by the first Output replay
@@ -221,6 +226,25 @@ pub const MAX_FILESYSTEM_REPLAY_RETAINED_BYTES: usize = 16 * 1024 * 1024;
 // second encoder, a Rust-layout measurement, or package evidence.
 
 impl FilesystemReplay {
+    fn from_validated(
+        attempts: std::sync::Arc<[FilesystemOperationAttempt]>,
+        expected_included_sources: std::sync::Arc<[BuildIncludedSource]>,
+    ) -> Result<Self, String> {
+        let source_membership = SourceEventMembership::discover(&attempts)?.into();
+        Ok(Self {
+            attempts,
+            expected_included_sources,
+            source_membership,
+        })
+    }
+
+    /// Borrow each Source event's operations for exact root and input checking.
+    /// These projections are not execution schedules; `attempts()` retains the
+    /// complete chronology across Source and Output.
+    pub fn source_input_event_attempts(&self) -> Vec<Vec<&FilesystemOperationAttempt>> {
+        self.source_membership.project(&self.attempts)
+    }
+
     pub(crate) fn executes_replay_attempt(&self, attempt_index: usize) -> bool {
         if self
             .attempts
@@ -241,10 +265,10 @@ impl FilesystemReplay {
         {
             return true;
         }
-        self.attempts
-            .iter()
-            .position(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
-            .is_some_and(|output_start| attempt_index >= output_start)
+        self.source_membership
+            .source_attempts
+            .get(attempt_index)
+            .is_some_and(|source| !source)
     }
 
     /// Whether this replay contains any Output-rooted operation, including a
@@ -267,10 +291,7 @@ impl FilesystemReplay {
         let attempts = observations.filesystem_operation_attempts();
         validate_filesystem_replay_size(attempts)?;
         validate_source_input_attempts(attempts)?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
     }
 
     pub fn attempts(&self) -> &[FilesystemOperationAttempt] {
@@ -294,19 +315,17 @@ impl FilesystemReplay {
 
     /// Reconstruct all exact Output entries in authored operation order.
     pub fn output_entries(&self) -> Vec<FilesystemOutputTreeEntryReplayRecord> {
-        let Some(output_start) = self.attempts.iter().position(|attempt| {
-            !source_write_refusal_attempt_is_exact(attempt)
-                && filesystem_output_attempt_tag(attempt.operation_tag())
-        }) else {
+        if !self.has_output_attempts() {
             return Vec::new();
-        };
-        if self.attempts[output_start..]
+        }
+        let output_attempts = self.source_membership.output_attempts(&self.attempts);
+        if output_attempts
             .iter()
-            .all(output_absent_remove_attempt_is_exact)
+            .all(|(_, attempt)| output_absent_remove_attempt_is_exact(attempt))
         {
             return Vec::new();
         }
-        output_tree_from_attempts(&self.attempts[output_start..])
+        output_tree_from_attempts(&output_attempts)
             .expect("validated filesystem replay retains exact Output entries")
             .entries
     }
@@ -362,10 +381,7 @@ impl FilesystemReplay {
     ) -> Result<Self, String> {
         let attempts = source_input_record_attempts(record);
         validate_filesystem_replay_size(&attempts)?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Validate the exact compiler-policy denial of one attempted create
@@ -394,10 +410,10 @@ impl FilesystemReplay {
         };
         source_write_refusal_record_from_attempt(attempt)?;
         validate_filesystem_replay_size(std::slice::from_ref(attempt))?;
-        Ok(Self {
-            attempts: std::sync::Arc::from([attempt.clone()]),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(
+            std::sync::Arc::from([attempt.clone()]),
+            std::sync::Arc::from([]),
+        )
     }
 
     /// Construct the exact refused Source-write replay from typed compiler
@@ -407,16 +423,13 @@ impl FilesystemReplay {
     ) -> Result<Self, String> {
         let attempt = source_write_refusal_attempt(record);
         validate_filesystem_replay_size(std::slice::from_ref(&attempt))?;
-        Ok(Self {
-            attempts: std::sync::Arc::from([attempt]),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(std::sync::Arc::from([attempt]), std::sync::Arc::from([]))
     }
 
-    /// Validate an optional observed Source-input prefix followed by one or
-    /// more exact Output entries, plus an exact ordered subset of explicit
-    /// generated-source handoffs. A present Source prefix retains the same
-    /// closed validation grammar as a source-bearing replay.
+    /// Validate observed Source/Output operations in their original order,
+    /// plus an exact ordered subset of explicit generated-source handoffs.
+    /// Each Source event retains its exact operation contract while independent
+    /// descriptor lifetimes may overlap and interleave with Output operations.
     pub fn from_input_output_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
@@ -427,10 +440,10 @@ impl FilesystemReplay {
         }
         let attempts = observations.filesystem_operation_attempts();
         Self::validate_input_output_attempts(attempts, observations.build_included_sources())?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: observations.build_included_sources().to_vec().into(),
-        })
+        Self::from_validated(
+            attempts.to_vec().into(),
+            observations.build_included_sources().to_vec().into(),
+        )
     }
 
     /// Admit a complete chronological Source/Output stream, including descriptor
@@ -442,10 +455,7 @@ impl FilesystemReplay {
         included_sources: Vec<BuildIncludedSource>,
     ) -> Result<Self, String> {
         Self::validate_input_output_attempts(&attempts, &included_sources)?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: included_sources.into(),
-        })
+        Self::from_validated(attempts.into(), included_sources.into())
     }
 
     fn validate_input_output_attempts(
@@ -453,22 +463,35 @@ impl FilesystemReplay {
         included_sources: &[BuildIncludedSource],
     ) -> Result<(), String> {
         validate_filesystem_replay_size(attempts)?;
-        let output_start = attempts
-            .iter()
-            .position(|attempt| {
-                !source_write_refusal_attempt_is_exact(attempt)
-                    && filesystem_output_attempt_tag(attempt.operation_tag())
-            })
-            .ok_or_else(|| {
-                "bounded filesystem replay requires one or more exact Output operations".to_owned()
-            })?;
-        if output_start > 0 {
-            validate_source_input_attempts(&attempts[..output_start])?;
+        if attempts.is_empty() {
+            return Err("filesystem replay requires at least one attempt".to_owned());
         }
-        if attempts[output_start..]
+        let membership = SourceEventMembership::discover(attempts)?;
+        let source_events = membership.project(attempts);
+        for event in &source_events {
+            replay_validation::validate_source_event_attempts(event)?;
+        }
+        let source_attempts = source_events.into_iter().flatten().collect::<Vec<_>>();
+        let output_attempts = membership.output_attempts(attempts);
+        if output_attempts.is_empty() {
+            return if included_sources.is_empty() {
+                Ok(())
+            } else {
+                Err("filesystem replay Source-only stream cannot hand off Output".to_owned())
+            };
+        }
+        if output_attempts
             .iter()
-            .all(output_absent_remove_attempt_is_exact)
+            .all(|(_, attempt)| output_absent_remove_attempt_is_exact(attempt))
         {
+            // Failure-only mutation retains its existing bounded prefix rule;
+            // it is not a fallback for a malformed successful Output stream.
+            let output_start = output_attempts[0].0;
+            if output_attempts.len() != attempts.len() - output_start {
+                return Err(
+                    "filesystem replay failure-only Output requires a Source prefix".to_owned(),
+                );
+            }
             validate_output_absent_remove_attempts(
                 &attempts[..output_start],
                 &attempts[output_start..],
@@ -476,11 +499,11 @@ impl FilesystemReplay {
             )?;
             return Ok(());
         }
-        let output = output_tree_from_attempts(&attempts[output_start..])?;
+        let output = output_tree_from_attempts(&output_attempts)?;
         validate_observed_output_tree_records(
-            &attempts[..output_start],
+            &source_attempts,
             &output,
-            attempts.len() - output_start,
+            attempts.len(),
             included_sources,
         )
     }
@@ -500,10 +523,7 @@ impl FilesystemReplay {
             &attempts[output_start..],
             &[],
         )?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Construct the same bounded grammar from already typed records.
@@ -518,10 +538,7 @@ impl FilesystemReplay {
             attempts.extend(output_file_attempts(output));
         }
         validate_filesystem_replay_size(&attempts)?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: record.expected_included_sources.into(),
-        })
+        Self::from_validated(attempts.into(), record.expected_included_sources.into())
     }
 
     /// Construct the bounded optional-Source-input plus ordered Output-tree
@@ -549,9 +566,6 @@ impl FilesystemReplay {
         let mut attempts = source_input_record_attempts(source_input);
         attempts.extend(output_directories.into_iter().map(output_directory_attempt));
         validate_filesystem_replay_size(&attempts)?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 }

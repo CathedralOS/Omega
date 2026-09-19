@@ -50,14 +50,15 @@ struct DescriptorLifetime {
 
 pub(crate) fn output_tree_membership(
     shapes: &[AttemptShape<'_>],
-    output_start: usize,
+    attempt_indices: &[usize],
 ) -> Result<Vec<OutputEntryAttempts>, BuildFilesystemReplayRecordError> {
     let failure = |message| BuildFilesystemReplayRecordError::new(message);
     let mut entries = Vec::new();
     // Wire identities are sparse, untrusted u64 values. Retain retired keys to
     // reject lifetime reuse without allocating by an externally chosen index.
     let mut descriptors = BTreeMap::<u64, DescriptorLifetime>::new();
-    for (position, shape) in shapes.iter().enumerate().skip(output_start) {
+    for &position in attempt_indices {
+        let shape = &shapes[position];
         if matches!(shape.operation, 1 | 11 | 19 | 20 | 27) {
             if entries.len() == checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
                 return Err(failure(
