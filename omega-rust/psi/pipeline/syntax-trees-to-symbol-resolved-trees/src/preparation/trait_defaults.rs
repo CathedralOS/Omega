@@ -916,7 +916,12 @@ fn machine_from_signature(
     requirement_owner: Option<&str>,
 ) -> Machine {
     let state = State {
-        name: signature.name.clone(),
+        // This state belongs to the synthesized implementation, not to the
+        // foreign trait's authored requirement. Its generated name inherits
+        // the machine's conformance-site package provenance. Keep the body
+        // and signature operands authored: their names still resolve with
+        // the default author's lexical imports and private access.
+        name: Identifier::generated(signature.name.as_str()),
         parameters: signature.parameters,
         return_type: signature.return_type,
         contracts: HandleSpan::empty(),

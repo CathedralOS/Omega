@@ -225,6 +225,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   across the required hosted matrix. Record unavailable hosts explicitly;
   scoped reruns do not establish a new complete baseline.
 
+  `calendar`'s current first failure (macOS ARM64, `2d0b5495c6`,
+  `omega --check --target macos_arm64 samples/cli/simulation/calendar/main.omg`)
+  is preservation of `self.line`'s `Utf8` default-domain requirement at
+  `advance` and `clear_loop`, under **NOMINAL-FIELD-FLOW**. Preserve its
+  qualified capacity-21 buffers and 20-byte live header; padding the header or
+  dropping encoding qualification is not a repair. Native grid/output
+  acceptance remains unverified.
+
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and their
   `compiler/tests/canary_suite/` owners to the promised checked/native stages.
   **SAMPLE-CORPUS** owns maintained application examples, not this task's
@@ -2998,13 +3006,15 @@ Owners include
   module-owned form: constant attachments, specialized foreign templates,
   open-template indices, trait defaults, operator homes and qualified case
   membership in domain facts pass normalization and resolution
-  (`tests/module_namespace_residuals.rs` in that crate). Most of those tests
-  assert only that resolution succeeds; none follows the selected declaration
-  through typing, checking or Terminal.
+  (`tests/module_namespace_residuals.rs` in that crate). The remaining
+  non-default forms mostly assert only resolution success; their selected
+  declarations still need following through typing, checking and Terminal.
 
   Remaining work:
 
-  - Carry exact lexical/package selection for those forms through typed and
+  - Carry exact lexical/package selection for the remaining constant
+    attachments, indexed domain constraints, operator homes and declared-domain
+    case facts through typed and
     checked trees and Terminal artifacts, with per-use exposure under
     specialization and owner-local imports, and add same-leaf, private and
     transitive-exposure controls for each.
