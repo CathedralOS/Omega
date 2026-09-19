@@ -1,0 +1,62 @@
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    compiler: OmegaScalarCompiler;
+    source: [u8; 65536];
+    length: i32;
+}
+
+machine Main::main(&mut self) {
+    self.length = 0;
+    transition true { true -> read() }
+
+    state read() {
+        let value: i32 = self.console.read_byte();
+        transition value == -1 {
+            true -> compile()
+            _ -> append(value)
+        }
+    }
+
+    state append(value: i32) {
+        transition self.length < 65536 {
+            true -> retain(value)
+            _ -> self.console.exit_process(3)
+        }
+    }
+
+    state retain(value: i32) {
+        self.source[self.length] = value;
+        self.length = self.length + 1;
+        transition true { true -> read() }
+    }
+
+    state compile() {
+        self.compiler.compile(self.source.as_slice[0..self.length], "answer");
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Complete -> publish(0)
+            OmegaScalarCompilationStatus::Reject -> self.console.exit_process(1)
+            OmegaScalarCompilationStatus::Incomplete -> self.console.exit_process(2)
+            OmegaScalarCompilationStatus::ResourceFailure -> self.console.exit_process(3)
+            _ -> self.console.exit_process(4)
+        }
+    }
+
+    state publish(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> byte(index)
+            _ -> return
+        }
+    }
+
+    state byte(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> publish(index + 1) }
+    }
+}
