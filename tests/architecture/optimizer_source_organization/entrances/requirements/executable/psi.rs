@@ -10,7 +10,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn optimize_artifact_sections",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-unit/src/identity/operation_encoding/mod.rs",
+        path: "omega-rust/omega/representations/optimization-unit/src/optimization_unit/identity/operation_encoding/mod.rs",
         coordination_marker: "match operation",
     },
     RequiredCoordinationEntrance {
@@ -42,15 +42,15 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub struct PsiOptimizationUnit",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-unit/src/rewrite/candidate/mod.rs",
+        path: "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/candidate/mod.rs",
         coordination_marker: "fn new(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-unit/src/construction/mod.rs",
+        path: "omega-rust/omega/representations/optimization-unit/src/optimization_unit/construction/mod.rs",
         coordination_marker: "pub fn reconstruct_psi_optimization_unit_seed",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-unit/src/ledger/mod.rs",
+        path: "omega-rust/omega/representations/optimization-unit/src/optimization_unit/ledger/mod.rs",
         coordination_marker: "pub fn new(",
     },
     RequiredCoordinationEntrance {
