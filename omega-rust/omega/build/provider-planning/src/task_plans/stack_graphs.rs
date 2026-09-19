@@ -100,7 +100,7 @@ pub(crate) fn task_call_graph<'program>(
 /// Resolve an entry state symbol to its exact owning machine and state. A
 /// state symbol is globally unique, so a zero or plural resolution means the
 /// checked program retained a drifted call target and must fail closed.
-fn exact_frame_target(
+pub(crate) fn exact_frame_target(
     program: &CheckedTrees,
     entry: SymbolHandle,
 ) -> Result<

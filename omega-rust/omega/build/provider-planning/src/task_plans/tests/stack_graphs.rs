@@ -13,7 +13,7 @@ use task_plans::{
 /// Two checked machines whose entry states call each other. `Alpha::run`
 /// calls `Beta::run`; `Beta::run` calls `Alpha::run` unless its call row is
 /// retired by selected execution.
-fn mutual_call_fixture() -> (
+pub(super) fn mutual_call_fixture() -> (
     CheckedTrees,
     symbols::SymbolHandle,
     symbols::SymbolHandle,
@@ -83,7 +83,7 @@ fn mutual_call_fixture() -> (
     )
 }
 
-fn frame_entry(
+pub(super) fn frame_entry(
     program: &CheckedTrees,
     machine_symbol: symbols::SymbolHandle,
 ) -> (
@@ -353,7 +353,8 @@ fn admission_binding_covers_an_unresolved_target_with_the_bound_subtree() {
 /// the unresolved site provider admission later binds — while `Beta::run`
 /// makes a may-suspend checked call to `Gamma::run`. Both suspending calls
 /// retain their canonical crossing facts.
-fn suspending_subtree_fixture() -> (CheckedTrees, symbols::SymbolHandle, symbols::SymbolHandle) {
+pub(super) fn suspending_subtree_fixture()
+-> (CheckedTrees, symbols::SymbolHandle, symbols::SymbolHandle) {
     let alpha_machine = symbols::SymbolHandle::from_arena_index(1);
     let alpha_state = symbols::SymbolHandle::from_arena_index(2);
     let beta_machine = symbols::SymbolHandle::from_arena_index(3);

@@ -5,6 +5,7 @@ use crate::ProviderPlanDerivation;
 mod activation_crossings_and_task_starts;
 mod activation_operational_and_requirements;
 mod activation_targets_and_topology;
+mod call_target_bindings;
 mod stack_graphs;
 
 use crate::task_plans::carry_crossings::{
