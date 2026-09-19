@@ -1000,6 +1000,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "relevance/erased_parameter_receiver_call",
     "relevance/erased_field_receiver_call",
     "relevance/erased_field_projection_receiver_call",
+    // The `&dyn` descriptor lane carries `self` arity only: a requirement
+    // declaring an erased formal rejects the dynamic call at check time.
+    "relevance/dynamic_erased_formal_lane",
     "operators/operand_requires_invalidated",
     "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",

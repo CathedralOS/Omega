@@ -5,6 +5,7 @@ pub(crate) mod calls;
 mod content_preservation;
 mod direct;
 mod domains;
+mod dynamic_erased_lane;
 mod entailment;
 mod evaluator;
 mod evidence;
@@ -93,6 +94,13 @@ pub(super) fn check_flow_call_contracts(
             if caller_is_proof && is_proof_machine(call_flow.target_symbol) {
                 continue;
             }
+            dynamic_erased_lane::check_dynamic_erased_formal_lane(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                &mut diagnostics,
+            );
             check_call_requires(
                 program,
                 facts,
