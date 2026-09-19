@@ -639,3 +639,78 @@ fn const_generic_zero_argument_call_still_rejects_a_parameterized_entry() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn const_generic_argument_calls_evaluate_machine_local_destinations() {
+    // The `let folded: Buffer<size(4)>` annotation is parsed once per
+    // speculative statement alternative before the real parse; the abandoned
+    // clones stay in the type arena sharing the authored span. Only the clone
+    // referenced by the local's declared destination may join the destination
+    // check -- the copies must not demand destinations of their own.
+    let package = PackageKeyIdentity::from_digest([0x7a; 32]).expect("nonzero package identity");
+    let source = r#"
+        machine size(n: u64) -> u64 {
+            transition { _ -> n }
+        }
+
+        data Buffer<const N: u64> {
+            values: [u8; N];
+        }
+
+        data Main {
+            value: Buffer<size(4)>;
+        }
+
+        machine Main::main(&mut self) {
+            let folded: Buffer<size(4)> = Buffer { values: [1, 2, 3, 4] };
+        }
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect(
+        "an application call in a machine-local const argument occupies its declared destination",
+    );
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let folded = folded_const_arguments(&syntax);
+    assert_eq!(folded, vec![4]);
+    let machine = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("the main machine");
+    let state = syntax
+        .items
+        .state(syntax.items.state_handles(machine.states)[0]);
+    let local_type = syntax
+        .items
+        .statements(state.statements)
+        .iter()
+        .find_map(|statement| match syntax.statements.statement(*statement) {
+            syntax_trees::statement::StatementNode::LocalData(local) => Some(local.type_reference),
+            _ => None,
+        })
+        .expect("the annotated local");
+    match syntax.type_references.type_reference(local_type) {
+        syntax_trees::types::TypeReferenceNode::Named(name) => {
+            assert_eq!(name.as_str(), "Buffer<4>")
+        }
+        node => panic!(
+            "the local's application call must fold into its synthesized instance spelling, got {node:?}"
+        ),
+    }
+    let mut typed = typed_after_pre_resolution(&syntax, sources);
+    pre_check
+        .evaluate(&mut typed)
+        .expect("the folded local destination must survive pre-check evaluation");
+}

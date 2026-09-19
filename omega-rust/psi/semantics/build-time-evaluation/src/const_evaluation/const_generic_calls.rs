@@ -23,13 +23,16 @@
 //! while calls it cannot close keep their authored expression for ordinary
 //! post-typing admission.
 
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use syntax_trees::item::Item;
+use syntax_trees::statement::{StatementNode, TableLocalData};
+use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub fn evaluate_const_generic_calls(
     mut syntax: SyntaxTrees,
@@ -78,11 +81,31 @@ pub fn evaluate_const_generic_calls(
                 &syntax,
             ),
         );
+        // Speculative statement probes (`let` alternatives for atomic and
+        // proof forms) parse one annotated type repeatedly and abandon every
+        // attempt's arena subtree, so a single authored const expression can
+        // appear in several cloned type-reference nodes that share its source
+        // span. Only the clone still referenced from a declared const-argument
+        // position is the occurrence; the rest must not demand destinations of
+        // their own. Reachability cannot be recovered from the span alone, so
+        // a clone is dropped only when its authored span is declared elsewhere.
+        let declared_spans: Vec<source::SourceSpan> = applications
+            .iter()
+            .filter(|(type_reference, _)| {
+                const_arguments
+                    .iter()
+                    .any(|(argument, _, _)| argument == type_reference)
+            })
+            .map(|(_, expression)| syntax.expressions.source_span(*expression))
+            .collect();
         for (type_reference, expression) in &applications {
             let Some((_, destination, public)) = const_arguments
                 .iter()
                 .find(|(argument, _, _)| argument == type_reference)
             else {
+                if declared_spans.contains(&syntax.expressions.source_span(*expression)) {
+                    continue;
+                }
                 return Err(vec![Diagnostic::error(
                     "a const-generic application call must occupy a declared const argument destination",
                 )
@@ -116,6 +139,7 @@ pub fn evaluate_const_generic_calls(
             TypeReferenceNode::Named(Identifier::generated(placeholder)),
         );
     }
+    detach_probe_value_producers(&mut probe, &application_destinations);
     for (ordinal, (_, expression, destination, _)) in application_destinations.iter().enumerate() {
         crate::const_evaluation::const_generic_expressions::append_probe(
             &mut probe,
@@ -290,6 +314,128 @@ pub fn evaluate_const_generic_calls(
         }
     }
     Ok(syntax)
+}
+
+/// Detach the probe's value producers that sit next to a placeholdered
+/// declared type. `let folded: Buffer<size(4)> = Buffer { values: [..] }`
+/// becomes `Buffer<0>` while its initializer keeps the authored element
+/// count, so the probe's ordinary construction checks would compare shapes
+/// the placeholder invented rather than the program's own. The probe exists
+/// only to evaluate the appended call probes: a `let` keeps its binding
+/// without an initial value, and a state whose return position was
+/// placeholdered runs body-free with the declaration dropped (a retained
+/// `-> T` plus an empty body is itself a diagnostic). The authored syntax is
+/// untouched; the real pipeline still checks every initializer against the
+/// folded destination.
+fn detach_probe_value_producers(
+    probe: &mut SyntaxTrees,
+    application_destinations: &[(
+        TypeReferenceHandle,
+        ExpressionHandle,
+        TypeReferenceHandle,
+        bool,
+    )],
+) {
+    let arguments: Vec<TypeReferenceHandle> = application_destinations
+        .iter()
+        .map(|(argument, ..)| *argument)
+        .collect();
+    if arguments.is_empty() {
+        return;
+    }
+    let states: Vec<_> = probe
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Machine(machine) => Some(machine.states),
+            _ => None,
+        })
+        .flat_map(|states| probe.items.state_handles(states).to_vec())
+        .collect();
+    for state_handle in states {
+        let (return_type, statements) = {
+            let state = probe.items.state(state_handle);
+            (state.return_type, state.statements)
+        };
+        if type_reference_contains_any(probe, return_type, &arguments) {
+            let state = probe.items.state_mut(state_handle);
+            state.return_type = TypeReferenceHandle::invalid();
+            state.statements = HandleSpan::empty();
+            continue;
+        }
+        for statement_handle in probe.items.statements(statements).to_vec() {
+            let StatementNode::LocalData(local) =
+                probe.statements.statement(statement_handle).clone()
+            else {
+                continue;
+            };
+            if !type_reference_contains_any(probe, local.type_reference, &arguments) {
+                continue;
+            }
+            probe.statements.replace_statement(
+                statement_handle,
+                StatementNode::LocalData(TableLocalData {
+                    initial_value: ExpressionHandle::invalid(),
+                    ..local
+                }),
+            );
+        }
+    }
+}
+
+/// Whether a type reference's subtree contains one of the given const
+/// argument nodes, walking the same shapes position collection walks.
+fn type_reference_contains_any(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    arguments: &[TypeReferenceHandle],
+) -> bool {
+    if arguments.contains(&type_reference) {
+        return true;
+    }
+    match syntax.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_contains_any(syntax, *referee, arguments)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            if type_reference_contains_any(syntax, *base_type, arguments) {
+                return true;
+            }
+            syntax
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        return false;
+                    };
+                    syntax
+                        .type_references
+                        .type_reference_handles(domain.arguments)
+                        .iter()
+                        .any(|argument| type_reference_contains_any(syntax, *argument, arguments))
+                })
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            type_reference_contains_any(syntax, *element_type, arguments)
+        }
+        TypeReferenceNode::Generic {
+            arguments: generic_arguments,
+            ..
+        } => syntax
+            .type_references
+            .type_reference_handles(*generic_arguments)
+            .iter()
+            .any(|argument| type_reference_contains_any(syntax, *argument, arguments)),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named(_)
+        | TypeReferenceNode::SelfType
+        | TypeReferenceNode::Unit => false,
+    }
 }
 
 /// Every authored call leaf inside declared range endpoints of generic
