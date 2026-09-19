@@ -3,6 +3,7 @@
 // health = 50 satisfies `health >= 1 && health <= 100`; construction is
 // the gate.
 use omega_language_std::console;
+use omega::language::core::service;
 data Player
 where
     health >= 1,
@@ -10,7 +11,7 @@ where
 {
     health: i32;
 }
-data Main { console: Console; champion: Player; }
+data Main { console: Service<Console>; champion: Player; }
 machine Main::main(&mut self) reaches Console {
     self.champion = Player { health: 50 };
     // The access gate opens after the proven construction: this read is

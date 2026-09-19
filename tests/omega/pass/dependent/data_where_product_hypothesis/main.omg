@@ -4,6 +4,7 @@
 // observation, so the callee's `target.count * 32` (max 3264) proves u32
 // Exact with NO flow knowledge and NO spelled requires.
 use omega_language_std::console;
+use omega::language::core::service;
 data MemoryMap
 where
     count * stride <= len,
@@ -13,7 +14,7 @@ where
     stride: u32;
     count: u32;
 }
-data Main { console: Console; map: MemoryMap; }
+data Main { console: Service<Console>; map: MemoryMap; }
 machine Main::scaled(&mut self, target: &mut MemoryMap) -> u32 {
     target.count * 32
 }

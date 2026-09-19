@@ -4,13 +4,14 @@
 // AFTER the call passes the access gate (establishment is globally
 // monotone -- a call can only add it).
 use omega_language_std::console;
+use omega::language::core::service;
 data Player
 where
     health >= 1,
 {
     health: i32;
 }
-data Main { console: Console; champion: Player; }
+data Main { console: Service<Console>; champion: Player; }
 machine Main::recruit(&mut self, strength: i32 [1..=100]) {
     self.champion = Player { health: strength };
 }

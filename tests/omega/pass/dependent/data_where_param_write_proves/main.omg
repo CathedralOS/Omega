@@ -2,13 +2,14 @@
 // written field proves without co-field knowledge -- count = 3 folds
 // `count <= 4096` regardless of the parameter's unknown arrival values.
 use omega_language_std::console;
+use omega::language::core::service;
 data Meter
 where
     count <= 4096,
 {
     count: u32;
 }
-data Main { console: Console; meter: Meter; }
+data Main { console: Service<Console>; meter: Meter; }
 machine Main::bump(&mut self, target: &mut Meter) {
     target.count = 3;
 }

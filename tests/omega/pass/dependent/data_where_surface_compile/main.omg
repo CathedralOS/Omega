@@ -1,6 +1,7 @@
 // COMPILE CANARY. R2 parser/IR rung: a data declaration carries its default
 // domain as ordinary proof facts over bare field binders.
 use omega_language_std::console;
+use omega::language::core::service;
 data Span
 where
     start <= end,
@@ -8,5 +9,5 @@ where
     start: u32;
     end: u32;
 }
-data Main { console: Console; span: Span; }
+data Main { console: Service<Console>; span: Span; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }

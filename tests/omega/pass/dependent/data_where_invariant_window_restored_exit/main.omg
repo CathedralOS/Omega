@@ -1,11 +1,12 @@
 // RUN CANARY (exit 70). The first write transiently violates start <= end;
 // the second restores it, and the next call closes the derived window.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main
 where
     start <= end,
 {
-    console: Console;
+    console: Service<Console>;
     start: i32;
     end: i32;
 }

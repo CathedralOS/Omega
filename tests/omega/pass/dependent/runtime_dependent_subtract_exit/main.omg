@@ -11,7 +11,8 @@
 // (`i - self.count`) stays refused (probed -- underflow is real there).
 // exits: 8 - 6 = 2.
 use omega_language_std::console;
-data Main { console: Console; count: u32 [0..=11]; j: u32; out: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 8;
     self.j = 6;

@@ -1,6 +1,7 @@
 // COMPILE CANARY. A zero-excluding default domain gates the type, while an
 // explicit construction that proves the fact establishes an ordinary value.
 use omega_language_std::console;
+use omega::language::core::service;
 data Player
 where
     health >= 1,
@@ -8,7 +9,7 @@ where
     health: i32;
     score: i32;
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let player: Player = Player { health: 50 };
     self.console.exit_process(70);

@@ -1,13 +1,14 @@
 // COMPILE CANARY. The first sum case is the zero value. A payload-free Empty
 // therefore absorbs Player's gate, and an array of slots can zero-initialize.
 use omega_language_std::console;
+use omega::language::core::service;
 data Player { health: i32 [1..=100]; }
 data PlayerSlot {
     case Empty;
     case Filled(player: Player);
 }
 data Team { roster: [PlayerSlot; 8]; }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let team: Team = Team {};
     self.console.exit_process(70);

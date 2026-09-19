@@ -10,7 +10,8 @@
 // refuse (fail siblings). Slice views are immutable, so the length
 // needs no write fence.
 use omega_language_std::console;
-data Main { console: Console; buf: [u8; 8]; j: u64; out: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; buf: [u8; 8]; j: u64; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.buf[5] = 7;
     self.j = 5;

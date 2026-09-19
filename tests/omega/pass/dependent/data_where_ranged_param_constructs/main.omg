@@ -4,13 +4,14 @@
 // constructs from runtime data with no spelled requires, and the access
 // gate opens in the constructing machine.
 use omega_language_std::console;
+use omega::language::core::service;
 data Player
 where
     health >= 1,
 {
     health: i32;
 }
-data Main { console: Console; champion: Player; }
+data Main { console: Service<Console>; champion: Player; }
 machine Main::recruit(&mut self, strength: i32 [1..=100]) -> i32 {
     self.champion = Player { health: strength };
     self.champion.health

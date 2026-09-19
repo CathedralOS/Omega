@@ -17,7 +17,8 @@
 // `pixels[y * self.cols + x]` (R3b) rides the same rule mirrored at the
 // hoist-temp range synthesis -- no explicit ranged temp needed.
 use omega_language_std::console;
-data Main { console: Console; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.rows = 3;
     self.cols = 4;

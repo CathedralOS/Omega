@@ -22,8 +22,9 @@
 // exits: 71 = guard-route leg wrong; 72 = exclusive-sugar leg wrong;
 // 73 = forward leg wrong.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     items: [u8; 12];
     count: u32 [0..=11];
     j: u32;
