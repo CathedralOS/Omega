@@ -12,8 +12,8 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::native_artifact::boundary_application_coverage_identity;
 use crate::physical::derivation::children::{
-    derive_admitted_provider_settlement_child, derive_exit_group_child,
-    derive_normalized_foreign_child, derive_read_byte_child, derive_write_byte_child,
+    derive_admitted_provider_settlement_child, derive_hosted_builtin_child,
+    derive_normalized_foreign_child, hosted_builtin_settlement,
 };
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
@@ -28,7 +28,6 @@ use crate::physical::model::{NativePhysicalEvidenceGap, NativePhysicalEvidenceGa
 use crate::physical::operator_applications::derive_operator_physical_span;
 use crate::{NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
-use machine_code::BoundaryExecutionRecord;
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
@@ -37,7 +36,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::{BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution};
+use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
 /// How one scoped physical-evidence derivation finished. `Blocked` names the
@@ -196,88 +195,20 @@ pub(crate) fn derive_physical_evidence(
             return Err("native physical evidence cannot rejoin one exact selected provider plan");
         };
         match (installed, foreign) {
-            (Some(installed), None)
-                if matches!(
-                    (
-                        installed.settlement.execution,
-                        &installed.settlement.realization,
-                    ),
-                    (
-                        BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::HostedExitProcessI32
-                        ),
-                        BoundaryRealization::HostedExitProcessI32(_),
-                    )
-                ) =>
-            {
-                if installed.settlement.byte_count == 0 {
-                    return Err(
-                        "Hosted process-exit physical child requires a nonempty emitted span",
-                    );
-                }
-                children.push(derive_exit_group_child(
-                    occurrence,
-                    projection.identity(),
-                    requirement,
-                    selected_plan.plan_digest(),
-                    target,
-                    object,
-                    image,
-                    installed,
-                )?);
-            }
-            (Some(installed), None)
-                if matches!(
-                    (
-                        installed.settlement.execution,
-                        &installed.settlement.realization,
-                    ),
-                    (
-                        BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::HostedWriteByteI32
-                        ),
-                        BoundaryRealization::HostedWriteByteI32(_),
-                    )
-                ) =>
-            {
-                children.push(derive_write_byte_child(
-                    occurrence,
-                    projection.identity(),
-                    requirement,
-                    selected_plan.plan_digest(),
-                    target,
-                    object,
-                    image,
-                    installed,
-                )?);
-            }
-            (Some(installed), None)
-                if matches!(
-                    (
-                        installed.settlement.execution,
-                        &installed.settlement.realization,
-                    ),
-                    (
-                        BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::HostedReadByte
-                        ),
-                        BoundaryRealization::HostedReadByte(_),
-                    )
-                ) =>
-            {
-                children.push(derive_read_byte_child(
-                    occurrence,
-                    projection.identity(),
-                    requirement,
-                    selected_plan.plan_digest(),
-                    target,
-                    object,
-                    image,
-                    installed,
-                )?);
-            }
             (Some(installed), None) => {
-                let Some(child) = derive_admitted_provider_settlement_child(
+                if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {
+                    children.push(derive_hosted_builtin_child(
+                        builtin,
+                        occurrence,
+                        projection.identity(),
+                        requirement,
+                        selected_plan.plan_digest(),
+                        target,
+                        object,
+                        image,
+                        installed,
+                    )?);
+                } else if let Some(child) = derive_admitted_provider_settlement_child(
                     &module,
                     object,
                     image,
@@ -289,15 +220,15 @@ pub(crate) fn derive_physical_evidence(
                     target,
                     installed,
                     &mut consumed_port_effects,
-                )?
-                else {
+                )? {
+                    children.push(child);
+                } else {
                     return Ok(blocked(
                         NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization {
                             occurrence: *occurrence,
                         },
                     ));
-                };
-                children.push(child);
+                }
             }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(

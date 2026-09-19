@@ -21,7 +21,7 @@ use crate::physical::derivation::evidence::boundary_occurrence_identity;
 use crate::physical::derivation::evidence::operator_occurrence_identity;
 use crate::physical::derivation::evidence::validate_exact_physical_child_coordinates;
 use crate::physical::derivation::settlement_identity::admitted_provider_settlement_identity;
-use crate::physical::derivation::settlement_identity::builtin_structural_boundary_trait_settlement_identity;
+use crate::physical::derivation::settlement_identity::hosted_builtin_settlement_identity;
 use crate::physical::model::NativeOptimizationProjection;
 use crate::physical::model::NativePhysicalOccurrence;
 use crate::physical::model::native_optimization_projection;
@@ -247,12 +247,14 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
     };
     let projection = physical_projection();
     let identity = |result: &machine_code::BoundaryStructuralResultRecord| {
-        builtin_structural_boundary_trait_settlement_identity(
+        hosted_builtin_settlement_identity(
             &projection.boundary_occurrences()[0],
             "Input::read",
             NativeSelectedProviderPlanDigest::from_digest([7; 32]),
             NativeTarget::linux_x64(),
-            result,
+            [3, 3],
+            None,
+            &crate::CompilerBuiltinResult::Structural(result.clone()),
         )
         .unwrap()
     };
@@ -1139,8 +1141,9 @@ fn physical_child_identity_binds_every_retained_field() {
     use crate::physical::derivation::evidence::physical_child_identity;
     use crate::physical::model::native_byte_span;
     use crate::{
-        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-        NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent, PhysicalRelocationDisposition,
+        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
+        CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent,
+        PhysicalRelocationDisposition,
     };
 
     let terminal = terminal_psi::TerminalPsiIdentity {
@@ -1209,14 +1212,17 @@ fn physical_child_identity_binds_every_retained_field() {
                     catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
                     execution: CompilerBuiltinExecution::HostedExitProcessI32,
                     realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
-                    scalar_argument: BoundaryScalarArgument {
-                        source_value: ValueId::new(45).unwrap(),
-                        scalar_type: ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                        ),
-                        immediate: IntegerValue::Signed(0),
-                        destination: calling_conventions::MachineRegister::X86Rdi,
-                    },
+                    scalar_argument: Some(CompilerBuiltinScalarArgument::Immediate(
+                        BoundaryScalarArgument {
+                            source_value: ValueId::new(45).unwrap(),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                            ),
+                            immediate: IntegerValue::Signed(0),
+                            destination: calling_conventions::MachineRegister::X86Rdi,
+                        },
+                    )),
+                    result: CompilerBuiltinResult::Unit,
                 },
                 identity,
             }
@@ -1491,9 +1497,9 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         normalized_foreign_callback_relocation,
     };
     use crate::{
-        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-        NativeCompilerBuiltinCatalogIdentity, NormalizedForeignCallbackRelocations,
-        PhysicalChildParent, PhysicalRelocationDisposition,
+        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
+        CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity,
+        NormalizedForeignCallbackRelocations, PhysicalChildParent, PhysicalRelocationDisposition,
     };
 
     let projection = physical_projection();
@@ -1507,14 +1513,17 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
                 execution: CompilerBuiltinExecution::HostedExitProcessI32,
                 realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
-                scalar_argument: BoundaryScalarArgument {
-                    source_value: ValueId::new(45).unwrap(),
-                    scalar_type: ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                    ),
-                    immediate: IntegerValue::Signed(0),
-                    destination: calling_conventions::MachineRegister::X86Rdi,
-                },
+                scalar_argument: Some(CompilerBuiltinScalarArgument::Immediate(
+                    BoundaryScalarArgument {
+                        source_value: ValueId::new(45).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                        ),
+                        immediate: IntegerValue::Signed(0),
+                        destination: calling_conventions::MachineRegister::X86Rdi,
+                    },
+                )),
+                result: CompilerBuiltinResult::Unit,
             },
             identity: [21; 32],
         }

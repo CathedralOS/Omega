@@ -191,9 +191,6 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
         native_realization::BoundaryTraitSettlementRole::CompilerBuiltin {
             execution: target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
             ..
-        } | native_realization::BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
-            execution: target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
-            ..
         }
     ));
     assert!(boundary_child.machine_span().byte_count() > 0);

@@ -237,7 +237,7 @@ fn hosted_read_physical_children_retain_result_and_target_custody() {
                 };
                 matches!(
                     parent.role(),
-                    native::BoundaryTraitSettlementRole::CompilerBuiltinStructural {
+                    native::BoundaryTraitSettlementRole::CompilerBuiltin {
                         execution: target_operations::CompilerBuiltinExecution::HostedReadByte,
                         ..
                     }
@@ -291,8 +291,8 @@ fn hosted_read_physical_children_retain_result_and_target_custody() {
                             parent.selected_plan_digest =
                                 native::NativeSelectedProviderPlanDigest::from_digest([11; 32]);
                         } else {
-                            let native::BoundaryTraitSettlementRole::CompilerBuiltinStructural {
-                                result,
+                            let native::BoundaryTraitSettlementRole::CompilerBuiltin {
+                                result: native::CompilerBuiltinResult::Structural(result),
                                 ..
                             } = &mut parent.role
                             else {

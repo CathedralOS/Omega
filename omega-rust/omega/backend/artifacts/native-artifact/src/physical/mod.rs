@@ -8,10 +8,11 @@ pub(crate) use derivation::{NativePhysicalEvidenceDerivation, derive_physical_ev
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 pub use model::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-    NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
-    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts,
-    NativePhysicalOccurrence, NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
+    CompilerBuiltinResult, CompilerBuiltinScalarArgument, NativeByteSpan,
+    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+    NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalOccurrence,
+    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
     NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
     PhysicalChildParent, PhysicalRelocationDisposition,
     ValidatedOptimizedNativePhysicalEvidenceScope,
