@@ -180,8 +180,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
     missing-provider or exact occurrence checks to preserve obsolete examples.
 
   Resume from focused runs, not the accumulated historical failure counts.
-  At `d575c7e8e0` on macOS ARM64, the `cli_mvp` library oracle ran correctly
-  and `print_squares` reached unsupported wrapping-u32 multiplication. Earlier
+  At `d575c7e8e0` on macOS ARM64, `print_squares` reached unsupported
+  wrapping-u32 multiplication. Earlier
   `print_squares` probes stopped at the nonzero-divisor proof
   `1 <= self.place`; these are different checkpoints, not simultaneous claims
   about today's first failure. The current scalar legalization has no wrapping-
@@ -192,7 +192,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   | Customer | Remaining integration and owner |
   | --- | --- |
-  | [`cli_mvp`](samples/cli/basics/cli_mvp/README.md) | Ordinary package review and CLI execution without receiving-policy input; exact two lines, EOF/Enter, exit 0 on the hosted matrix. **ENTRY-CONTENT-ROOTS** owns service/entry custody; **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns any remaining production/admission coupling. |
+  | [`cli_mvp`](samples/cli/basics/cli_mvp/README.md) | Remaining: ordinary review and native execution on Windows x86-64 and both Linux hosts. On macOS ARM64, ordinary update/review/resume at `ba57b10d5e` published the local lock; the `c459b1d25c` release CLI compiled with `--target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg` and `RUST_MIN_STACK=67108864`, without receiving-policy input. Its emitted executable produced both exact lines, empty stderr, and exit 0 with EOF and Enter; prompts appeared before input and Enter completed the waiting process. Repeat review per checkout and target. **ENTRY-CONTENT-ROOTS** owns remaining service/entry custody; **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns production/admission coupling. |
   | [`print_squares`](samples/cli/basics/print_squares/README.md) | Wrapping arithmetic legalization in `target-operations-to-selected-instructions`, cyclic field/divisor facts under **NOMINAL-FIELD-FLOW**, and complete cyclic plans under **GENERAL-CYCLIC-EXECUTION**. Preserve nine computed rows ending in `081`, byte storage, and exit 0. |
   | `recursive_sum`, `framed_payload`, `dutch_flag` | Native exit 70, 60, and 70 respectively. **STATE-LOCAL-VALUE-FRONTIER** owns indexed primitive/sum storage and replacements; **GENERAL-CYCLIC-EXECUTION** owns typed slice views, recursive/cyclic transfer and ranking. Preserve saved reads, untouched siblings, shared payload loans and affine enum custody. No synthetic field IDs for scalar array elements or invented ranking for unranked cycles. |
   | [`generic_counters`](samples/cli/basics/generic_counters/README.md) | Remaining: ordinary review and CLI execution on Windows x86-64 and both Linux hosts. At `b004b477e5`, macOS ARM64 `omega update --project samples/cli/basics/generic_counters --target macos_arm64`, exact review decisions, and `update --resume` published the local lock; `omega run samples/cli/basics/generic_counters/main.omg` then exited 16 with empty stdout and no receiving-policy input. Repeat review in each checkout; do not reuse the temporary checkout's local-source lock or reimplement counter calls. |

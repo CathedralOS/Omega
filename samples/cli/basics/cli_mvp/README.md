@@ -1,22 +1,57 @@
-# CLI MVP: work from a should-be-working example
+# CLI MVP
 
-The customer behavior is unchanged: print two lines, read into `Main.pause`,
-then exit 0. Success means a published native executable produces:
+Print two lines, read into the existing `Main.pause` array, and exit 0:
 
 ```text
 Hello, Omega.
 [press Enter to close]
 ```
 
-Interactive execution accepts Enter. The focused automated test compiles once
-and runs both EOF and Enter, checking both exact lines, empty stderr and exit 0.
-It passes on macOS ARM64 under explicit test-owned package acceptance. Remaining
-CLI acceptance and hosted-target work live in [SAMPLE-CORPUS](../../../../TASKS.md).
+Ordinary package review, CLI compilation, and native execution pass on macOS
+ARM64: EOF and Enter produce exactly those bytes (including both newlines),
+empty stderr, and exit 0. Both lines appear before input; with stdin open the
+program waits until Enter. Windows and Linux execution remain open in
+[SAMPLE-CORPUS](../../../../TASKS.md). Cross-compilation is not host execution.
 
-## Use the real command as the outer loop
+## Review the project
 
-Run from the repository root. These commands build the shipped `omega` CLI too;
-compiling or testing the `compiler` library alone does not establish that it builds.
+Run from the repository root, in the checkout where you intend to compile:
+
+```text
+mbx run --release -p omega -- update --project samples/cli/basics/cli_mvp --target macos_arm64
+```
+
+Select `windows_x86_64`, `linux_x86_64`, or `linux_arm64` for those hosts.
+Use Cargo if `mbx` is unavailable. Exit 3 means decisions are pending, not that
+acceptance was published. Inspect the reported
+`build/package-manager/review-<target>.txt` and change each required decision
+from `pending` to `accept` or `reject`, then resume:
+
+```text
+mbx run --release -p omega -- update --resume --project samples/cli/basics/cli_mvp
+```
+
+Resume must succeed before compilation. The observed fresh macOS review required
+six decisions: the application's Console output, input, and termination
+permissions; std's external byte-input declaration and intrinsic binding; and
+std's public filesystem capability. Inspect the actual findings rather than
+assuming that list is unchanged. The source-diff renderer can report incomplete
+output; accepted decisions are not evidence of a complete source audit.
+
+Local-source identities bind the checkout. Do not copy another worktree's lock
+as reusable approval. The [package acceptance contract](../../../../wiki/spec/packages/acceptance.md)
+requires fresh checking against the accepted project policy. Ordinary artifact
+production needs no receiving-policy input and makes no receiver-admission claim.
+Acceptance does not bypass proof, provider, or entry checks.
+
+## Compile and execute
+
+macOS ARM64 shell:
+
+```sh
+mbx run --release -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg &&
+  ./build/cli-mvp-route/omega-program
+```
 
 Windows PowerShell:
 
@@ -27,197 +62,47 @@ if ($LASTEXITCODE -ne 0) { throw 'cli_mvp compilation failed; do not run an old 
 if ($LASTEXITCODE -ne 0) { throw 'cli_mvp returned a nonzero exit' }
 ```
 
-macOS ARM64 shell:
+On Linux use the shell command with its matching target. These are host routes,
+not claims that the untested hosts pass. Confirm the CLI's reported publication
+path before execution. Use a fresh ignored build directory when comparing
+revisions, and never execute a stale image after failed compilation.
 
-```sh
-mbx run --release -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg &&
-  ./build/cli-mvp-route/omega-program
-```
+Observe both lines and press Enter. Executing the emitted image directly keeps
+stdin available for this interactive check. EOF also completes the program.
+The macOS validation used `RUST_MIN_STACK=67108864` for compiler invocations:
+`export RUST_MIN_STACK=67108864` in a shell, or
+`$env:RUST_MIN_STACK='67108864'` in PowerShell sets the same environment option.
 
-Observe both lines and press Enter. Use a fresh ignored build directory when
-comparing revisions. Failed compilation is not permission to run a stale image.
-Do not remove `read_line`, rewrite the writer as synthetic machines, or substitute
-a special Console intrinsic for its checked source body.
+Cargo's `--release` optimizes the host compiler, not Omega's checking policy.
+Measure direct invocations of `target/release/omega` separately from the Rust
+build. Add `--timings` to compilation for command-stage durations on stderr;
+builds do not emit debug manifests.
 
-Use the release compiler for customer-facing latency measurements. The first
-invocation also builds the Rust compiler; measure subsequent direct invocations
-of `target/release/omega` (`omega.exe` on Windows) separately from that build.
-Cargo's `--release` optimizes the host compiler; it does not disable Omega's
-semantic checking, package review, or acceptance requirements. Development-build
-timings are useful for developer iteration but are not release performance.
+## Focused regression and ownership
 
-The faster Windows compiler-library probe is:
-
-```powershell
-$env:OMEGA_SAMPLE_RUNTIME_FILTER='cli_mvp'
-mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'
-Remove-Item Env:OMEGA_SAMPLE_RUNTIME_FILTER
-```
-
-On macOS use the same test command with the inline environment assignment
-`OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp`. This test exercises compilation,
-publication, output, and exit through the compiler library. Its explicit fixture
-policy accepts the checked macOS entry contract separately from the exact
-selected std Console binding and corresponding termination/byte-output/byte-input
-permissions, using the existing canary helpers.
-It does not perform the CLI's local-project package review or change `omega.lock`.
-Checking-only sample probes retain unaccepted package inputs. Keep these results
-separate from the outer command.
-
-For exact output and both input cases on either host:
+The existing compiler-library regression compiles once and runs EOF and Enter,
+checking exact stdout, empty stderr, and exit 0:
 
 ```text
-mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'
+mbx nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'
 ```
 
-## Trace the actual route
+It executes the report's checked executable path under test-owned package
+acceptance. It does not perform the local project's CLI review or accept its
+`omega.lock`; keep those checks separate.
 
-The outer CLI checks current package requirements against the project's accepted
-`omega.lock` policy. Missing acceptance or changed requirements stop before
-native production with ordinary `omega update` guidance and compiler-rendered
-findings. The [single package-acceptance rule](../../../../wiki/spec/packages/acceptance.md#authority-boundaries)
-means an unchanged accepted policy needs no second native approval file.
-The macOS release outer command reaches missing package acceptance on a fresh
-checkout. With a completed local review (`omega update`, accept the three
-audit-recommended rows, `omega update --resume`), the same command passes
-acceptance. The former misplaced production gate is removed: the receiving
-permission policy is optional at every join from `compile_project` through
-native realization, so ordinary compilation needs no ecosystem policy, and an
-artifact emitted without one carries no receiver-admission claim. Explicit
-admission replay is a separate check that compares bound policy identities and
-still rejects an artifact emitted under absent or insufficient receiving
-policy. The next outer-command observation on a hosted target must name the
-first post-acceptance blocker rather than describe the removed gate. Remaining
-package latency, current measurements, and the next performance investigation
-belong to the owning task; Windows release timing has not been measured.
+[`main.omg`](main.omg) uses ordinary std Console and intrinsic
+`Service<Console>` establishment. [`build.omg`](build.omg) binds each hosted
+`ProgramEntry` to the same machine. Preserve the two writes, mutable pause view,
+blocking line read, and exit; do not replace the library bodies with sample-only
+compiler paths. [Bounded input](../../../../wiki/spec/resources/bounded_input.md)
+owns byte preservation, destination bounds, and LF/EOF/Full behavior; this
+pause-only sample intentionally discards the line result and does not exercise
+that entire contract.
 
-Windows x86_64 observation at `e07e5c7a25` (2026-09-17, Windows host, dev
-`omega`): the outer command stops inside the fresh package review's checked
-compilation — `selected ProgramEntry establishment rejoins 0 Terminal
-attachment identities; expected one` — under both `--target windows_x86_64`
-and `--target macos_arm64`, so the review produces no findings to accept.
-`omega --check` and `omega audit packages --details` report the same
-diagnostic, and the filtered `samples_compile` probe fails identically on
-`windows_x86_64`. The probe's test-owned entry bindings exist only for
-`macos_arm64`/`linux_x86_64`, and std's `windows_x86_64` target def authors no
-entry contract (no `…Application: ProgramStorageEntry` boundary trait or
-calling-policy machine; `linux_x86_64`, `macos_arm64`, and `uefi_x86_64` each
-ship `entry.omg`). A zero attachment count means the checked stage retained no
-Terminal Unit plan carrying `Main`'s attachment. This precedes the leaf
-settlement and receiver provisioning gaps below: on Windows the stop is
-inside checked compilation, and the `macos_arm64` result shows the stop is
-not specific to the Windows target under this revision and host.
-
-On Windows, std contributes `FilesystemHost` authority and three external Console
-leaves: `read_byte`, `write_byte`, and `exit_process`. `read_line` is a checked
-library adapter over that same provider's `read_byte` leaf. These are review
-findings, not implicit grants. Do not supply blanket acceptance merely to advance
-the example. Native proof/provider checks remain production requirements;
-receiving-permission checks apply separately when an ecosystem admits the artifact.
-
-The compiler-library sample test supplies test-owned acceptance and publishes
-and executes the unchanged program on macOS ARM64. Installed provider calls use
-ordinary call transport while retaining independent selection, original boundary
-operands, result and completion checks. `Main.pause` remains the original raw
-fixed array and `read_line` still receives its mutable view. This native result
-does not grant project acceptance or establish runtime behavior on other hosts.
-
-Use `omega audit packages --project samples/cli/basics/cli_mvp
---target macos_arm64 --details` to inspect the current macOS package findings;
-select `windows_x86_64` for the Windows closure. This displays ordinary package
-findings without changing acceptance. Use `omega update --project
-samples/cli/basics/cli_mvp --target macos_arm64` to start ordinary review; edit any
-required decisions and use `omega update --resume --project
-samples/cli/basics/cli_mvp` to finish it. An audit report alone never accepts a package.
-
-The existing focused review probe is
-`mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.
-It selects the Linux x64 source profile on every host. Its macOS pass is a source
-review check, not native Linux execution or another target's acceptance. The
-actual CLI command remains the outer check through package review, policy,
-native production, and execution.
-
-| Step | Owning code and required result |
-| --- | --- |
-| CLI and package closure | [`main.rs`](../../../../omega-rust/omega/src/main.rs) dispatches package operations through [`package_manager.rs`](../../../../omega-rust/omega/packages/manager/src/package_manager.rs). The shared workflow reviews the dependency closure and retains its checked root before native production. An error here precedes native provider installation. |
-| Source and selection | [`main.omg`](main.omg) imports ordinary std Console. [`build.omg`](build.omg) declares the std path dependency and binds each target's `ProgramEntry` to `Main::main`. The checked frontend resolves types, text/borrow/termination facts, and selected provider calls. |
-| Checked writer body | [`std/console.omg`](../../../../source/library/std/console.omg) implements `ConsoleNativeProvider::write_line(text)` by calling `console_write_bytes(text, true)`. That helper is one five-state slice-ranked machine. Its `emit` state writes a byte and transfers the guarded tail; completion optionally emits newline and returns. |
-| Complete callable closure | [`execution/unit/mod.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/unit/mod.rs) builds ordinary/composed bodies and prunes callers whose targets are missing. [`call_closure.rs`](../../../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit/call_closure.rs) requires every reached body before lowering. Preserve exact view/scalar state transfers, effect order, and slice-decrease evidence. |
-| Portable execution | [`terminal-production`](../../../../omega-rust/psi/compiler/terminal-production/src/lib.rs) produces the canonical Terminal artifact with source-entry evidence. Codec replay, independent verification, and interpretation must agree on the writer's bytes and continuation. |
-| Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) retains byte length, proof-bearing indexed reads, and checked subslices. Ordinary scalar and Unit calls retain descriptors and scalar arguments; block transfers snapshot source descriptors before writing destinations. Natural-cycle lowering and literal descriptor creation remain separate from those transfers; layout alone is not operation support. |
-| Entry storage and providers | [`native_realization.rs`](../../../../omega-rust/omega/compiler/native-realization/src/native_realization.rs) requires exact checked receiver eligibility and service establishment. `ENTRY-CONTENT-ROOTS` owns removing the source's separate service qualification; the settled carrier is `Service<Console>` with intrinsic binding validity. The macOS bridge provisions the receiver, including fixed primitive arrays, under its conditional image-loading contract. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for selected output, input, and exit leaves; declarations alone are not native implementations. |
-| Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/native_realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
-
-Terminal transport retains the exact `pause` field and inline capacity when
-presented to the boundary's mutable byte parameter. Natural slice-decrease
-modules use ordinary independently verified native admission and retain grouped
-proofs. Only unsigned-countdown modules use the restricted countdown route.
-Downstream cycle lowering must preserve the natural evidence rather than
-fabricating countdown or fixed-fuel certificates. Terminal production uses the validated
-boundary-call source view; direct selected-adapter calls belong to interpreter
-dispatch, while native adapter selection remains on the Omega side. Source
-custody and structural validation must not be bypassed.
-
-Measure the complete package route separately from the compiler-library probe.
-Source checking repeats for preliminary and settled package inputs; permission
-comparison follows those checks. Mutation summaries depend on immutable source
-and borrow facts, so range-state passes and branch snapshots share their check's
-existing table. Local bounds and invalidations still evolve independently.
-No summary cache spans source revisions or substitutes for package acceptance.
-
-The shared free/attached Unit graph retains scalar prefixes, guarded head/tail
-operands, repeated descriptor bindings, and authored `Slice::Length` ranking.
-A writer-shaped source regression passes serialized Terminal verification and
-interpretation with raw bytes, both newline choices, caller continuation, and
-fuel suspension. The native `terminal_byte_views::natural_writer` regression also
-publishes its object, image and installation record for Linux x64/ARM64 and macOS
-ARM64, and executes published text on the host with raw bytes, empty views and
-both newline choices. Its explicit test-owned output settlement does not
-establish that the unchanged std provider closure or this native sample executes.
-
-Writer acceptance requires the actual authored closure through verified Terminal
-and native execution: empty/nonempty bytes, both newline choices, exact output
-order, and caller continuation. Unguarded head reads and unchanged tails reject.
-The producer's [writer composition notes](../../../../omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
-describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
-owns the portable view rules.
-Windows leaf settlement and receiver provisioning remain dependencies, now
-ordered behind the earlier Windows stop recorded above: the dated observation
-replaces the previous code-inspection-only status.
-
-`pause` belongs to the provisioned `Main` receiver; this program does not need a
-new source-local array constructor. The entry bridge must establish the receiver
-beneath admitted storage and lend it to the selected machine. The macOS bridge
-retains disjoint receiver, private-stack and continuation partitions under
-conforming loading, exclusive writable-image storage and one-entry-activation
-premises. It does not grant runtime installation authority or establish other
-targets' entry contracts. Follow `ENTRY-CONTENT-ROOTS` for those remaining edges.
-`pause` is a raw fixed array, not UTF-8-qualified storage. The shared line reader
-fills its existing range and reports LF, EOF, or Full with the written count;
-this pause-only caller explicitly discards that result. Zeroed backing alone
-is not the completed native line-input contract.
-
-The [native byte-observation regressions](../../../../tests/native-differential/tests/terminal_byte_views.rs)
-execute encoded, verified Terminal scalar functions against empty, nonempty,
-non-UTF-8, and rebound caller descriptors on macOS ARM64, and cross-lower
-Linux x64/ARM64 and Windows x64. Runtime `u64` indices guarded by the exact
-view's measured length read and widen the selected `u8`; empty and out-of-range
-inputs take the non-reading branch. Missing, changed, or wrong-view bounds
-evidence rejects. Checked nested subslices and framed helper calls also execute;
-repeated whole-view calls preserve the caller's descriptor pointer and runtime
-index across both invocations. These regressions start at Terminal, not source
-helper lowering. The Unit byte-output fixtures also retain object/image and
-installation custody, with actual macOS byte output and caller continuation.
-Literal descriptor creation, natural-cycle lowering, and the complete authored
-writer remain separate dependencies.
-
-## Read the evidence at the boundary reached
-
-Capture the command's exit and diagnostic first. Package preparation/review can
-fail before source checking. Add `--timings` to report command-stage durations and
-total elapsed time on stderr. Builds do not emit debug manifests or timing files;
-do not infer progress from old files in a build directory.
-
-After a change, report the old and new first failure under the same outer
-command. An unchanged failure with a passing helper test is dependency progress;
-it is not a working Hello World. No Windows observation establishes a macOS run.
+For a new failure, start with the actual CLI diagnostic. The
+[Terminal production owner](../../../../omega-rust/psi/compiler/terminal-production/README.md)
+documents source-to-Terminal composition; `ENTRY-CONTENT-ROOTS` owns entry and
+service establishment, and `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW` owns any remaining
+production/admission coupling. Their current obligations live on the board,
+not in a historical progress log here.
