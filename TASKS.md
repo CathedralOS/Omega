@@ -3604,53 +3604,50 @@ Owners include
   dispatch placement before claiming an improvement over explicit branches.
   No new reflection API or arbitrary generic virtual method is needed.
 
-- **DOMAIN-ISSUER-ROUTES.** Implement the exact-machine half of the
+- **DOMAIN-ISSUER-ROUTES.** Finish private issuer catalogs and independent
+  artifact evidence for the
   [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
-  and the [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes)
-  for public qualifications issued by owner-selected validators without an
-  artificial trait. Requirement routes exist: `established by
-  Trait::requirement` normalizes to
-  `DomainEstablishmentRoute::{CheckedRequirement, BoundaryRequirement}` in
-  `syntax-trees-to-symbol-resolved-trees/src/selection/domain_establishment.rs`,
-  checking introduces `AuthorizedRouteEstablishment` evidence
-  (`typed-trees-to-checked-trees/src/facts/qualification_evidence.rs`), and
-  package review publishes the route rows. That does not establish machine
-  targets or private catalogs: the route sum has no concrete-machine kind,
-  resolution rejects every path that is not one exact `Trait::requirement`,
-  and a public domain's route is recorded as an ordinary `PublicInterface`
-  declaration selection with no issuer-authorization exception for a private
-  target.
+  and [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes).
+  Source normalization already retains exact free/attached machine identities
+  beside checked/boundary requirement routes in
+  `syntax-trees-to-symbol-resolved-trees/src/selection/domain_establishment.rs`.
+  Checked issuance and forwarding use `AuthorizedRouteEstablishment` evidence
+  (`typed-trees-to-checked-trees/src/facts/qualification_evidence.rs`). Public
+  exact-machine routes retain package owner and normalized callable identity
+  through package capture, binary/text policy recovery and existing ordinary
+  ledger reconstruction. The source-to-review regression is
+  `cargo nextest run -p package-evidence --test suite -E
+  'test(public_exact_machine_issuer_routes_capture_checked_wrappers)'`;
+  on macOS ARM64 with `RUST_MIN_STACK=67108864`, bare free, qualified free and
+  attached issuers prove `self > 0`, and public wrappers forward issued values.
+  A false predicate rejects; substituted package/callable route rows recover
+  structurally but fail fresh local reconstruction.
 
   Remaining work:
 
-  - Psi route normalization: a closed target kind with exact declaration
-    identity for free and attached concrete machines, resolved signature-free
-    without consulting an expected result. Ambiguity across overloads or
-    declaration kinds rejects.
-  - Checked membership and Terminal qualification evidence: introduce the
-    declared provenance only for the exact result subject of the named
-    machine's own invocation, after carrier, predicate and custody checks
-    that do not assume the qualification being introduced.
   - Private catalogs: a public domain may name an author-accessible private
-    requirement or machine. Package source-selection capture
-    (`packages/review/evidence/src/capture/api/domains/`) owns the limited
-    private-route metadata exception; interface and proof evidence retain
-    route kind, owner, declaration and dependencies without making the
-    private type consumer-nameable.
+    requirement or machine. Route resolution in
+    `syntax-trees-to-symbol-resolved-trees/src/selection/domain_establishment.rs`
+    still marks public-domain routes as ordinary `PublicInterface` selections;
+    `validation/src/declarations/declaration_visibility.rs` rejects private
+    targets. Implement the limited issuer-authorization metadata exception
+    through source checking and package capture, retaining route kind, owner,
+    declaration and dependencies without making private types consumer-nameable
+    or weakening public carrier, predicate and signature visibility.
+  - Independent Terminal qualification evidence: establish that replay checks
+    the exact result subject and authorized invocation after independent
+    carrier/predicate/custody checks; reject forged result/route evidence.
+    Source checking and inert package-row recovery alone do not close this
+    artifact acceptance.
 
-  Module-owned targets depend on MODULE-NAMESPACE-RESOLUTION; do not weaken
-  its rejection fences to accept same-spelled identities.
-
-  Acceptance: exact free/attached issuer calls establish only their authorized
-  result provenance after carrier/predicate/custody checks; public ordinary
-  requirements still permit valid downstream conformers. Public wrappers
-  forward issued values without becoming issuers. Reject ambiguous target
-  kinds/overloads, self-justifying membership, forged result/route evidence,
-  direct-call borrowing of admitted requirement authority, and outside private
-  call/conformance access. Artifact/package replay retains exact private
-  issuer identity and dependencies without exposing private types or hiding
-  admissions. Resource capacity and classification-specific boundary-route
-  restrictions remain unchanged.
+  Acceptance: a public wrapper exposes a privately issued qualification while
+  outside private calls/conformances reject. Artifact/package replay retains
+  exact private issuer identity and dependencies without exposing private types
+  or hiding admissions. Public ordinary requirements still permit valid
+  downstream conformers. Reject ambiguous target kinds/overloads,
+  self-justifying membership, forged result/route evidence and direct-call
+  borrowing of admitted requirement authority. Resource capacity and
+  classification-specific boundary-route restrictions remain unchanged.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish receiver admission under
   [artifact production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)

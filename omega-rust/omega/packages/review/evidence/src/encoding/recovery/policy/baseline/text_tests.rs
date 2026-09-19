@@ -38,11 +38,12 @@ fn named_text_recovers_exact_binary_and_typed_meaning() {
 #[test]
 fn labels_variants_whitespace_and_scalar_spellings_are_authoritative() {
     let text = fixture().canonical_text().unwrap();
+    let version = crate::encoding::PACKAGE_POLICY_BASELINE_VERSION;
     for changed in [
         text.replacen("field public_api", "field private_api", 1),
         text.replacen("tag layout 1", "tag ownership_behavior 1", 1),
-        text.replacen("u16 5", "u16 05", 1),
-        text.replacen("u16 5", "u16 +5", 1),
+        text.replacen(&format!("u16 {version}"), &format!("u16 0{version}"), 1),
+        text.replacen(&format!("u16 {version}"), &format!("u16 +{version}"), 1),
         text.replacen("  field", " field", 1),
         text.replace('\n', "\r\n"),
         format!("{text}\n"),

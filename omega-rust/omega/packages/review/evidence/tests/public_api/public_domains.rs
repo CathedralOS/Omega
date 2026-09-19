@@ -212,16 +212,18 @@ pub boundary trait SchedulerAdmission {
         route.kind(),
         PackageReviewDomainEstablishmentKind::BoundaryRequirement
     );
-    assert_eq!(route.trait_identity().path(), "SchedulerAdmission");
+    assert_eq!(route.trait_identity().unwrap().path(), "SchedulerAdmission");
     assert!(
         route
             .requirement_identity()
+            .unwrap()
             .path()
             .starts_with("named-callable(")
     );
     assert!(
         route
             .requirement_identity()
+            .unwrap()
             .path()
             .contains("SchedulerAdmission::grant")
     );
@@ -364,5 +366,194 @@ pub domain u64::Portable = Carry::Portable;
         compile(&second)
             .canonical_review_bytes()
             .expect("reordered alias encoding")
+    );
+}
+
+#[test]
+fn public_exact_machine_issuer_routes_capture_checked_wrappers() {
+    for (declaration, issuer, route) in [
+        ("", "issue", "issue"),
+        ("", "issue", "issuance::issue"),
+        (
+            "pub data Factory {}",
+            "Factory::issue",
+            "issuance::Factory::issue",
+        ),
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", &format!(
+            "module issuance;\n{declaration}\npub domain u64::Issued requires self > 0; established by {route};\n\
+             pub machine {issuer}() -> u64 in Issued {{ 7 }}\n\
+             pub machine forward() -> u64 in Issued {{ {issuer}() }}\n"
+        ));
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
+        .expect("exact issuer and forwarding wrapper should check");
+        let review = project_checked_package_review(&checked)
+            .expect("public exact-machine issuer route should capture");
+        let [domain] = review.public_domains() else {
+            panic!("one public domain")
+        };
+        let [route] = domain.establishment_routes() else {
+            panic!("one issuer route")
+        };
+        assert_eq!(
+            route.kind(),
+            PackageReviewDomainEstablishmentKind::ExactMachine
+        );
+        assert!(route.trait_identity().is_none());
+        assert!(route.requirement_identity().is_none());
+        let identity = route.machine_identity().expect("concrete issuer identity");
+        assert_eq!(
+            identity.owner(),
+            PackageReviewNominalOwner::Package(package_identity())
+        );
+        assert!(
+            identity.path().starts_with("named-callable("),
+            "{}",
+            identity.path()
+        );
+        assert!(identity.path().contains(issuer), "{}", identity.path());
+        assert!(!identity.path().contains("forward"));
+        let policy = package_evidence::project_checked_package_policy(
+            &checked,
+            review.target(),
+            package_identity(),
+        )
+        .expect("exact issuer route participates in complete inert policy");
+        let bytes = policy.canonical_bytes().unwrap();
+        let recovered = package_evidence::record::PackagePolicyBaseline::recover_canonical(
+            &bytes,
+            package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(recovered, policy);
+        let text = policy.canonical_text().unwrap();
+        assert!(text.contains("exact_machine"));
+        assert_eq!(
+            package_evidence::record::PackagePolicyBaseline::recover_text(
+                &text,
+                package_evidence::encoding::PackagePolicyTextRecoveryLimits::default()
+            )
+            .unwrap(),
+            policy
+        );
+        let wrong_label = text.replacen("machine_identity", "requirement_identity", 1);
+        assert!(
+            package_evidence::record::PackagePolicyBaseline::recover_text(
+                &wrong_label,
+                package_evidence::encoding::PackagePolicyTextRecoveryLimits::default()
+            )
+            .is_err()
+        );
+        let rows = review.canonical_rows().unwrap();
+        let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+            checked.custody.dependency_closure().cloned().unwrap(),
+            &rows,
+        )
+        .unwrap();
+        let recovered_ledger = decode_ordinary_package_obligation_ledger(
+            &encode_ordinary_package_obligation_ledger(&ledger).unwrap(),
+        )
+        .unwrap();
+        validate_ordinary_package_obligation_ledger(&recovered_ledger, &checked).unwrap();
+        // The envelope carries inert bytes. A plausible substituted issuer
+        // remains decodable but must fail independent local reconstruction.
+        for wrong_owner in [false, true] {
+            let changed_rows = rows
+                .iter()
+                .map(|row| {
+                    let mut bytes = encode_package_review_canonical_row(row).unwrap();
+                    if row.kind() == PackageReviewCanonicalRowKind::PublicDomain {
+                        let positions = bytes
+                            .windows(identity.path().len())
+                            .enumerate()
+                            .filter_map(|(index, value)| {
+                                (value == identity.path().as_bytes()).then_some(index)
+                            })
+                            .collect::<Vec<_>>();
+                        let [position] = positions.as_slice() else {
+                            panic!("one exact route identity in domain payload")
+                        };
+                        if wrong_owner {
+                            // The exact same callable spelling under another
+                            // package owner must not authorize the original row.
+                            bytes[position - 8 - 32] ^= 0x40;
+                        } else {
+                            let offset = identity.path().find("issue").unwrap();
+                            bytes[position + offset..position + offset + 5]
+                                .copy_from_slice(b"other");
+                        }
+                    }
+                    decode_package_review_canonical_row(&bytes).unwrap()
+                })
+                .collect::<Vec<_>>();
+            let supplied = recover_ordinary_package_obligation_ledger(
+                checked.custody.dependency_closure().cloned().unwrap(),
+                &changed_rows,
+            )
+            .unwrap();
+            assert!(
+                validate_ordinary_package_obligation_ledger(&supplied, &checked).is_err(),
+                "a supplied wrong issuer identity must fail local reconstruction"
+            );
+        }
+    }
+}
+
+#[test]
+fn public_exact_machine_issuer_order_is_canonical_and_predicates_remain_obligations() {
+    let mut encodings = Vec::new();
+    for routes in [
+        "issuance::first, issuance::second",
+        "issuance::second, issuance::first",
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", &format!(
+            "module issuance; pub domain u64::Issued requires self > 0; established by {routes};\n\
+             pub machine first() -> u64 in Issued {{ 7 }}\n\
+             pub machine second() -> u64 in Issued {{ 9 }}\n\
+             pub machine forward() -> u64 in Issued {{ first() }}"
+        ));
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
+        .unwrap();
+        encodings.push(
+            project_checked_package_review(&checked)
+                .unwrap()
+                .canonical_review_bytes()
+                .unwrap(),
+        );
+    }
+    assert_eq!(encodings[0], encodings[1]);
+
+    let invalid = TempPackage::new();
+    invalid.write("main.omg", "module issuance; pub domain u64::Issued requires self > 0; established by issuance::issue; pub machine issue() -> u64 in Issued { 0 }");
+    invalid.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+    );
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&invalid.0)),
+        ..CheckedCompileRequest::new(&invalid.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect_err("issuer authorization cannot prove a false predicate");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove scalar result domain")),
+        "{diagnostics:?}"
     );
 }

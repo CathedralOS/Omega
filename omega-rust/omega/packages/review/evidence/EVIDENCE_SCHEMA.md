@@ -1,11 +1,11 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 132 and row schema version 90. This file
+The canonical review schema is version 133 and row schema version 91. This file
 records the closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance. Proof-interface sections follow the
 [contract/bundle direction](../../../../../wiki/spec/proofs/contracts.md)
 and require encoding migration; they are not a claim that replacement proof
-rows already exist in version 132. The source/codec changes and exact-version
+rows already exist in version 133. The source/codec changes and exact-version
 rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
 
 This describes the current encoding and support limits, not a
@@ -41,7 +41,7 @@ policy baseline below includes this component; the manager retains only exact
 risk-bearing rows beside source pins and accepted decisions. This component does not change the
 full-review schema or any compiler validator.
 
-`OMEGA-PACKAGE-POLICY` version 4 composes the full inert package baseline under
+`OMEGA-PACKAGE-POLICY` version 6 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
 (traits, conformances, domains, consts, operators, data), callables,
 selected providers, terminal permissions, representation, external supplies,
@@ -75,6 +75,19 @@ manager's lock envelope, not this policy record. Compiler proof/discharge and
 row-source custody are not policy identity or substitutes for fresh admission
 validation.
 
+Domain establishment routes retain checked-requirement tag 0 and boundary-
+requirement tag 1 with their existing trait and requirement nominal identities.
+Exact-machine tag 2 carries one nominal identity: its package owner and complete
+normalized callable declaration identity, including overload shape and attached
+owner. Canonical route ordering includes the closed kind and its matching
+identity payload. Public exact-machine routes survive review rows and complete
+policy binary/text recovery; private issuer catalogs remain unsupported.
+Recovery validates inert structure and canonical encoding. Existing ordinary
+ledger validation compares supplied rows with a fresh checked-source projection;
+a decoded issuer identity is not authority to establish a qualification.
+The added kind versions the review, review rows and complete policy baseline;
+recovery-envelope and text-grammar framing remain unchanged.
+
 Structural predicate paths retain field tag 0 and case tag 1 with their existing
 string payloads, and fixed-index tag 2 with an exact little-endian `u64` payload.
 Indexes are numeric coordinates, not names. The closed vocabulary increment
@@ -107,7 +120,7 @@ canonical scratch; verification does not allocate another expanded text buffer.
 This adds no proof, acceptance, or replay fields and changes no binary schema.
 
 Complete normalized audit rows have their own version 2, independent of
-legacy review row version 90. Binary rows start with
+legacy review row version 91. Binary rows start with
 `OMEGA-PACKAGE-POLICY-ROW` and a zero byte; named text starts with
 `omega_package_policy_row_text 1` and LF. Each row binds its row and baseline
 schemas, package, exact target, kind, initial/update decision classification,

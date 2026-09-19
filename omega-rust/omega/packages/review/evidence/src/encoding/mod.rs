@@ -29,7 +29,7 @@ pub use recovery::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
 };
 
-pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 5;
+pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 6;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 4;

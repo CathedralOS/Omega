@@ -31,17 +31,7 @@ pub(in crate::encoding::recovery::policy) fn domain_shape(
                 _ => return Err(Error::InvalidTag),
             })
         })?,
-        establishment_routes: reader.sequence(83, |reader| {
-            Ok(PackageReviewDomainEstablishmentRoute {
-                kind: match reader.byte()? {
-                    0 => PackageReviewDomainEstablishmentKind::CheckedRequirement,
-                    1 => PackageReviewDomainEstablishmentKind::BoundaryRequirement,
-                    _ => return Err(Error::InvalidTag),
-                },
-                trait_identity: nominal(reader)?,
-                requirement_identity: nominal(reader)?,
-            })
-        })?,
+        establishment_routes: reader.sequence(42, establishment_route)?,
     })
 }
 
@@ -57,6 +47,27 @@ pub(in crate::encoding::recovery::policy) fn alias_atom(
             3 => language_semantics::CarryPermission::MovableAddress,
             _ => return Err(Error::InvalidTag),
         }),
+        _ => return Err(Error::InvalidTag),
+    })
+}
+
+/// Minimum route size is tag + nominal owner tag/digest + empty path length:
+/// 42 bytes. Requirement variants additionally carry a second nominal.
+pub(in crate::encoding::recovery::policy) fn establishment_route(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewDomainEstablishmentRoute, Error> {
+    Ok(match reader.byte()? {
+        0 => PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+            trait_identity: nominal(reader)?,
+            requirement_identity: nominal(reader)?,
+        },
+        1 => PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+            trait_identity: nominal(reader)?,
+            requirement_identity: nominal(reader)?,
+        },
+        2 => PackageReviewDomainEstablishmentRoute::ExactMachine {
+            machine_identity: nominal(reader)?,
+        },
         _ => return Err(Error::InvalidTag),
     })
 }

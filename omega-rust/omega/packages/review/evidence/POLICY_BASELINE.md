@@ -60,6 +60,11 @@ keeps its declaring owner and arguments distinct from the selecting schema.
 Service reach, direct invocations, progress profiles, subject projections, and
 establishment requirements also retain exact source owners; equal readable names
 from different packages cannot establish equal policy.
+Domain establishment routes distinguish checked and boundary requirements from
+exact machines. Each machine route retains its package owner and complete
+normalized callable declaration identity. Public routes are recoverable as inert
+policy; private issuer catalogs still require the source-selection visibility
+exception. Recovery does not establish result provenance.
 Evaluated bindings retain their exact producer and physical locator or syscall
 meaning without evaluator accounting. Plain and evaluated syscalls remain
 distinct. Table bindings retain the exact attached data declaration. Grants
