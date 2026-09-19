@@ -6,4 +6,5 @@ pub enum LegalizedExactIntegerOperator {
     Add,
     Subtract,
     Divide,
+    Multiply,
 }

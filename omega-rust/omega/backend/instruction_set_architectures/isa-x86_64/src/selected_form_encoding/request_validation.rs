@@ -129,6 +129,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3, 0..=3)
         }
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+            (MachineAlternativeFamily::ExactMultiplyI64, 3, 0..=3)
+        }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (MachineAlternativeFamily::ExactAddI64Immediate, 2, 0..=0)
         }
@@ -256,7 +259,11 @@ pub(crate) fn validate_alias_partition(
     alternative: MachineAlternativeKey,
     registers: &[u8],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if !matches!(kind, SelectedInstructionKind::ExactSubtractI64 { .. }) {
+    if !matches!(
+        kind,
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+            | SelectedInstructionKind::ExactMultiplyI64 { .. }
+    ) {
         return Ok(());
     }
     let [left, right, result] = registers else {

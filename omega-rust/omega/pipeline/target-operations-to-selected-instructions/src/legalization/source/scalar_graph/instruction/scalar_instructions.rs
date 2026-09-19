@@ -230,6 +230,13 @@ pub(super) fn project_exact_integer_add(
         left,
         right,
         ..
+    }
+    | AbstractOperation::ExactIntegerMultiply {
+        psi_operation,
+        obligation,
+        left,
+        right,
+        ..
     }) = &node.operation
     else {
         unreachable!("dispatched project_exact_integer_add")
@@ -254,6 +261,11 @@ pub(super) fn project_exact_integer_add(
                 LegalizedExactIntegerOperator::Add
             } else if matches!(node.operation, AbstractOperation::ExactIntegerDivide { .. }) {
                 LegalizedExactIntegerOperator::Divide
+            } else if matches!(
+                node.operation,
+                AbstractOperation::ExactIntegerMultiply { .. }
+            ) {
+                LegalizedExactIntegerOperator::Multiply
             } else {
                 LegalizedExactIntegerOperator::Subtract
             },

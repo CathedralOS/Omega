@@ -396,6 +396,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::WrappingIntegerAdd { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerDivide { .. }
+            | AbstractOperation::ExactIntegerMultiply { .. }
             | AbstractOperation::WrappingIntegerRemainder { .. }
             | AbstractOperation::SaturatingIntegerDivide { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }

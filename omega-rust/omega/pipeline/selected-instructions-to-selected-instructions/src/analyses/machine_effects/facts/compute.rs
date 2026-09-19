@@ -144,6 +144,7 @@ fn terminal_selected_keys(
         bits_to_float64: keys.bits_to_float64,
         add_i64: keys.add_i64,
         subtract_i64: keys.subtract_i64,
+        multiply_i64: keys.multiply_i64,
         saturating_subtract_unsigned: keys.saturating_subtract_unsigned,
         saturating_add_u64: keys.saturating_add_u64,
         divide_u64: keys.divide_u64,
@@ -335,6 +336,7 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             MachineSemanticKind::ExactSubtractI64Immediate
         }
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => MachineSemanticKind::ExactMultiplyI64,
         SelectedInstructionKind::ConditionalBranchNonZero => {
             MachineSemanticKind::ConditionalBranchNonZero
         }

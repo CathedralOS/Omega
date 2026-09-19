@@ -252,6 +252,7 @@ fn selected_keys(
         bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
+        multiply_i64: crate::X86_64_MULTIPLY_I64,
         saturating_subtract_unsigned: crate::register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED,
         saturating_add_u64: crate::register_model::X86_64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::X86_64_DIVIDE_U64,
@@ -341,6 +342,50 @@ fn declaration(
                     right: 1,
                 },
                 MachineSizeKnowledge::ExactBytes(6),
+            ),
+        ],
+        // `imul r64, r64` is one REX.W + 0F AF form in every alias case; only
+        // the distinct-result variant prepends a three-byte `mov`.
+        MachineSemanticKind::ExactMultiplyI64 => vec![
+            alternative(
+                semantic,
+                0,
+                MachineAlternativeApplicability::ResultAliasesOperands {
+                    result: 2,
+                    left: 0,
+                    right: 1,
+                },
+                MachineSizeKnowledge::ExactBytes(4),
+            ),
+            alternative(
+                semantic,
+                1,
+                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                    result: 2,
+                    aliased_operand: 0,
+                    distinct_operand: 1,
+                },
+                MachineSizeKnowledge::ExactBytes(4),
+            ),
+            alternative(
+                semantic,
+                2,
+                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                    result: 2,
+                    aliased_operand: 1,
+                    distinct_operand: 0,
+                },
+                MachineSizeKnowledge::ExactBytes(4),
+            ),
+            alternative(
+                semantic,
+                3,
+                MachineAlternativeApplicability::ResultDistinctFromOperands {
+                    result: 2,
+                    left: 0,
+                    right: 1,
+                },
+                MachineSizeKnowledge::ExactBytes(7),
             ),
         ],
         MachineSemanticKind::ConditionalBranchU64LessThan
@@ -454,6 +499,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         MachineSemanticKind::ExactSubtractI64 if variant == 0 => (vec![], vec![2]),
         MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
+        // `imul r, r` genuinely reads its input to square it, so even the
+        // fully-aliased variant 0 reads both external operands.
+        MachineSemanticKind::ExactMultiplyI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
@@ -540,6 +588,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             | MachineSemanticKind::BitwiseXorI64
             | MachineSemanticKind::SaturatingAdd(_)
             | MachineSemanticKind::SaturatingSubtract(_)
+            | MachineSemanticKind::ExactMultiplyI64
             | MachineSemanticKind::ExactSubtractI64 => (
                 vec![],
                 vec![],
@@ -703,8 +752,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::ReturnUnit => MachineSizeKnowledge::ExactBytes(1),
-        MachineSemanticKind::ExactSubtractI64 => {
-            unreachable!("subtraction declares alias-dependent alternatives")
+        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::ExactMultiplyI64 => {
+            unreachable!("subtraction and multiplication declare alias-dependent alternatives")
         }
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate

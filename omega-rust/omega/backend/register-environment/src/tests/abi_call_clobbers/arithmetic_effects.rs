@@ -63,6 +63,7 @@ fn selected_arithmetic_rules(
             Some(keys.subtract_i64),
             &[BitwiseAndI64, BitwiseXorI64, ExactSubtractI64][..],
         ),
+        (Some(keys.multiply_i64), &[ExactMultiplyI64][..]),
         (
             Some(keys.subtract_i64_immediate),
             &[ExactSubtractI64Immediate][..],
@@ -241,8 +242,8 @@ fn expected_size(
             BitwiseAndI64 | BitwiseXorI64 => resolved(3, 6),
             ByteViewAddress | WrappingAddI64 | ExactAddI64 => resolved(4, 5),
             ExactAddI64Immediate | ExactSubtractI64Immediate => resolved(4, 8),
-            ExactSubtractI64 => {
-                unreachable!("x86-64 subtraction declares alias-dependent alternatives")
+            ExactSubtractI64 | ExactMultiplyI64 => {
+                unreachable!("x86-64 subtract/multiply declare alias-dependent alternatives")
             }
             other => panic!("{other:?} is not a selected arithmetic rule"),
         },
@@ -377,6 +378,66 @@ fn arithmetic_contract(
                                 right: 1,
                             },
                         size: MachineSizeKnowledge::ExactBytes(6),
+                        reads: &[0, 1],
+                        writes: &[2],
+                    },
+                ]
+            } else {
+                one(&[0, 1], &[2])
+            },
+            ..ArithmeticContract::plain(&[Use, Use, Def], Vec::new())
+        },
+        // `imul` reads its in-place destination input even when every operand
+        // shares one view, so the fully-aliased variant still reads both
+        // logical operands — unlike the `xor`-realized subtract.
+        ExactMultiplyI64 => ArithmeticContract {
+            flags: if x86 {
+                FlagsCustody::Clobber
+            } else {
+                FlagsCustody::None
+            },
+            alternatives: if x86 {
+                vec![
+                    AlternativeContract {
+                        applicability: MachineAlternativeApplicability::ResultAliasesOperands {
+                            result: 2,
+                            left: 0,
+                            right: 1,
+                        },
+                        size: MachineSizeKnowledge::ExactBytes(4),
+                        reads: &[0, 1],
+                        writes: &[2],
+                    },
+                    AlternativeContract {
+                        applicability:
+                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                                result: 2,
+                                aliased_operand: 0,
+                                distinct_operand: 1,
+                            },
+                        size: MachineSizeKnowledge::ExactBytes(4),
+                        reads: &[0, 1],
+                        writes: &[2],
+                    },
+                    AlternativeContract {
+                        applicability:
+                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                                result: 2,
+                                aliased_operand: 1,
+                                distinct_operand: 0,
+                            },
+                        size: MachineSizeKnowledge::ExactBytes(4),
+                        reads: &[0, 1],
+                        writes: &[2],
+                    },
+                    AlternativeContract {
+                        applicability:
+                            MachineAlternativeApplicability::ResultDistinctFromOperands {
+                                result: 2,
+                                left: 0,
+                                right: 1,
+                            },
+                        size: MachineSizeKnowledge::ExactBytes(7),
                         reads: &[0, 1],
                         writes: &[2],
                     },
@@ -552,7 +613,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         let arithmetic_rules = selected_arithmetic_rules(&environment);
         assert_eq!(
             arithmetic_rules.len(),
-            54,
+            55,
             "{} selects an unexpected arithmetic roster",
             case.convention
         );

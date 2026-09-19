@@ -401,6 +401,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::CallScalar => 13,
         MachineSemanticKind::Jump => 14,
         MachineSemanticKind::NormalizedForeignCall => 87,
+        MachineSemanticKind::ExactMultiplyI64 => 88,
     }
 }
 
@@ -474,6 +475,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::CallScalar => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::NormalizedForeignCall => 87,
+        MachineAlternativeFamily::ExactMultiplyI64 => 88,
     }
 }
 

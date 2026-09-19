@@ -218,12 +218,19 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             scalar_type,
             ..
+        }
+        | AbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
-            // Exact add/sub use the full-register operation for every fixed
-            // native carrier. Inputs are sign/zero normalized; the retained
-            // representability proof makes the result canonical without the
-            // truncation needed by wrapping arithmetic. Signedness is not an
-            // admission fence, and this does not widen exact division.
+            // Exact add/sub/mul use the full-register operation for every
+            // fixed native carrier. Inputs are sign/zero normalized; the
+            // retained representability proof makes the result canonical
+            // without the truncation needed by wrapping arithmetic.
+            // Signedness is not an admission fence, and this does not widen
+            // exact division.
             Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerEqual {
@@ -641,6 +648,7 @@ pub(super) fn validate(
             }
             AbstractOperation::ExactIntegerAdd { scalar_type, .. }
             | AbstractOperation::ExactIntegerSubtract { scalar_type, .. }
+            | AbstractOperation::ExactIntegerMultiply { scalar_type, .. }
             | AbstractOperation::ExactIntegerDivide { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }

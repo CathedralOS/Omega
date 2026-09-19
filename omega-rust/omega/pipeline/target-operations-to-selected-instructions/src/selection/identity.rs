@@ -178,6 +178,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 57,
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
@@ -250,6 +251,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::ExactSubtractI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactMultiplyI64 {
             obligation,
             accepted_fact,
         } => {

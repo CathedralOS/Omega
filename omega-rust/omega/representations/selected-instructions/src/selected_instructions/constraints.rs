@@ -41,6 +41,7 @@ pub struct SelectedConstraintKeys {
     pub bits_to_float64: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
+    pub multiply_i64: RegisterConstraintKey,
     pub saturating_subtract_unsigned: RegisterConstraintKey,
     pub saturating_add_u64: RegisterConstraintKey,
     pub divide_u64: RegisterConstraintKey,

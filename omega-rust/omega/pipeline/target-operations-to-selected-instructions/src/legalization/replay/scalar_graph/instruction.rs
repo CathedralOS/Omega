@@ -443,6 +443,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::ExactBinary { .. },
             AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerSubtract { .. }
+            | AbstractOperation::ExactIntegerMultiply { .. }
             | AbstractOperation::ExactIntegerDivide { .. },
         ) => scalar_instructions::validate_exact_binary(actual, node, optimized, unit)?,
         (

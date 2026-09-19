@@ -1527,6 +1527,69 @@ fn scalar_sizes_and_subtraction_alias_partitions_are_exact() {
 }
 
 #[test]
+fn exact_multiply_alias_partitions_encode_and_decode() {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let views = ["rax", "rbx", "rcx"].map(|name| physical.model().view_named(name).unwrap().id);
+    let kind = SelectedInstructionKind::ExactMultiplyI64 {
+        obligation: ObligationId::new(2).unwrap(),
+        accepted_fact: AcceptedObligationFactIdentity::from_bytes([4; 32]),
+    };
+    for (homes, variant, size) in [
+        ([views[0], views[0], views[0]], 0, 4),
+        ([views[0], views[1], views[0]], 1, 4),
+        ([views[0], views[1], views[1]], 2, 4),
+        ([views[0], views[1], views[2]], 3, 7),
+    ] {
+        let key = alternative(MachineAlternativeFamily::ExactMultiplyI64, variant);
+        let encoded = encode_x86_64_selected_form(&physical, kind, key, &homes).unwrap();
+        assert_eq!(encoded.bytes().len(), size);
+        let decoded =
+            validate_x86_64_selected_form_encoding(&physical, kind, key, &homes, encoded.bytes())
+                .unwrap();
+        // Even the fully-aliased `imul r, r` reads both logical operands: the
+        // multiply consumes its in-place destination input.
+        assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
+        assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
+        assert!(
+            !decoded
+                .footprint()
+                .encoded
+                .implicit_unit_clobbers
+                .is_empty(),
+            "imul clobbers rflags"
+        );
+        for byte in 0..encoded.bytes().len() {
+            let mut corrupted = encoded.bytes().to_vec();
+            corrupted[byte] ^= 1;
+            assert!(
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &homes, &corrupted,)
+                    .is_err(),
+                "changed byte {byte}"
+            );
+        }
+    }
+    // A mismatched variant cannot validate the alias partition it skips.
+    let homes = [views[0], views[1], views[2]];
+    let encoded = encode_x86_64_selected_form(
+        &physical,
+        kind,
+        alternative(MachineAlternativeFamily::ExactMultiplyI64, 3),
+        &homes,
+    )
+    .unwrap();
+    assert!(
+        validate_x86_64_selected_form_encoding(
+            &physical,
+            kind,
+            alternative(MachineAlternativeFamily::ExactMultiplyI64, 0),
+            &homes,
+            encoded.bytes(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let views = ["rax", "r9", "r12"].map(|name| physical.model().view_named(name).unwrap().id);

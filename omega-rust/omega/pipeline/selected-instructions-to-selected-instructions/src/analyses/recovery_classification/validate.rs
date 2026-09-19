@@ -307,7 +307,8 @@ fn replay_classification(
     let value = match defining.kind {
         SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactAddI64Immediate { .. }
-        | SelectedInstructionKind::ExactSubtractI64 { .. } => {
+        | SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::ExactMultiplyI64 { .. } => {
             return replay_no(NoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         SelectedInstructionKind::MaterializeI64 { value } => value,

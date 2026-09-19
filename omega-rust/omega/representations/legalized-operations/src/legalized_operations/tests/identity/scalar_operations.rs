@@ -222,12 +222,12 @@ fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
 fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
     let plan = operation_plan();
     let identity = legalized_operation_plan_identity(&plan);
-    for mutation in 0..12 {
+    for mutation in 0..14 {
         let mut changed = plan.clone();
         let rows = &mut changed.scalar_functions[0].blocks[0].instructions;
         match mutation {
             0 => rows[0].kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(8)),
-            1..=5 => {
+            1..=5 | 12 | 13 => {
                 let LegalizedScalarInstructionKind::ExactBinary {
                     operator,
                     left,
@@ -240,6 +240,8 @@ fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
                 };
                 match mutation {
                     1 => *operator = LegalizedExactIntegerOperator::Subtract,
+                    12 => *operator = LegalizedExactIntegerOperator::Divide,
+                    13 => *operator = LegalizedExactIntegerOperator::Multiply,
                     2 => *left = id(999),
                     3 => *right = id(999),
                     4 => *obligation = id(999),

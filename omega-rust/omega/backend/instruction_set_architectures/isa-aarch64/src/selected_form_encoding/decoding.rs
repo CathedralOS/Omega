@@ -29,6 +29,12 @@ pub(crate) enum DecodedWord {
         minuend: u8,
         destination: u8,
     },
+    /// `mul destination, left, right` — MADD with the addend fixed to XZR.
+    Multiply {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
     UnsignedDivide {
         dividend: u8,
         divisor: u8,
@@ -213,6 +219,13 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             left: ((word >> 5) & 31) as u8,
             right: ((word >> 16) & 31) as u8,
             minuend: ((word >> 10) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9b00_7c00 {
+        return Ok(DecodedWord::Multiply {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
             destination: (word & 31) as u8,
         });
     }
@@ -624,6 +637,14 @@ pub(crate) fn validate_decoded(
                     destination: registers[2],
                 }]
         }
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+            decoded
+                == [DecodedWord::Multiply {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: registers[2],
+                }]
+        }
         SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
             decoded
                 == [DecodedWord::SubtractImmediate {
@@ -802,6 +823,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::BitwiseXorI64
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::ExactAddI64 { .. }
+        | SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
@@ -913,6 +935,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
+                | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
             },
@@ -937,6 +960,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
+                | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],

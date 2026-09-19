@@ -151,12 +151,13 @@ impl Checker<'_> {
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
-            Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} | Expression::ExactDivide {psi_operation,obligation,left,right} => {
+            Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} | Expression::ExactMultiply {psi_operation,obligation,left,right} | Expression::ExactDivide {psi_operation,obligation,left,right} => {
                 let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
-                    AbstractOperation::ExactIntegerAdd {psi_operation:operation,..} | AbstractOperation::ExactIntegerSubtract {psi_operation:operation,..} | AbstractOperation::ExactIntegerDivide {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
+                    AbstractOperation::ExactIntegerAdd {psi_operation:operation,..} | AbstractOperation::ExactIntegerSubtract {psi_operation:operation,..} | AbstractOperation::ExactIntegerMultiply {psi_operation:operation,..} | AbstractOperation::ExactIntegerDivide {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
                 let (result,source_obligation,source_left,source_right) = match (&node.operation,expression) {
                     (AbstractOperation::ExactIntegerAdd {result,obligation,left,right,..},Expression::ExactAdd {..})
                     | (AbstractOperation::ExactIntegerSubtract {result,obligation,left,right,..},Expression::ExactSubtract {..})
+                    | (AbstractOperation::ExactIntegerMultiply {result,obligation,left,right,..},Expression::ExactMultiply {..})
                     | (AbstractOperation::ExactIntegerDivide {result,obligation,left,right,..},Expression::ExactDivide {..}) => (*result,*obligation,*left,*right),
                     _ => return false,
                 };

@@ -261,6 +261,11 @@ pub(super) fn match_input(
             obligation,
             ..
         }
+        | AbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            obligation,
+            ..
+        }
         | AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             obligation,

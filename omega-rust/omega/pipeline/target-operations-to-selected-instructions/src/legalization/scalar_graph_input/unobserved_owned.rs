@@ -81,6 +81,7 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerDivide { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. }
+                | AbstractOperation::ExactIntegerMultiply { .. }
                 | AbstractOperation::Call { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. } => true,
                 AbstractOperation::PrimitiveLocalStore { destination, .. }

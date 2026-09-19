@@ -650,6 +650,13 @@ pub(super) fn build_with_environment(
                                 },
                                 constraints.keys.subtract_i64,
                             ),
+                            legalized_operations::LegalizedExactIntegerOperator::Multiply => (
+                                SelectedInstructionKind::ExactMultiplyI64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.multiply_i64,
+                            ),
                         };
                         let output =
                             builder.register(result.value, result.definition_site, scalar_type)?;

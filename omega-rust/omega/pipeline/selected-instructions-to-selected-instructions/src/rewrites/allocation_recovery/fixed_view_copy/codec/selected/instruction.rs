@@ -148,6 +148,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
+        SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
     };
     bytes.push(tag);
     match kind {
@@ -222,6 +223,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             accepted_fact,
         }
         | SelectedInstructionKind::ExactSubtractI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactMultiplyI64 {
             obligation,
             accepted_fact,
         } => {
@@ -437,6 +442,12 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
             ),
         },
         57 => SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
+        88 => SelectedInstructionKind::ExactMultiplyI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                 cursor.array()?,

@@ -471,6 +471,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         LegalizedExactIntegerOperator::Add => 0,
                         LegalizedExactIntegerOperator::Subtract => 1,
                         LegalizedExactIntegerOperator::Divide => 2,
+                        LegalizedExactIntegerOperator::Multiply => 3,
                     });
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());

@@ -234,6 +234,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::CallAggregate => 35,
         MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::NormalizedForeignCall => 87,
+        MachineAlternativeFamily::ExactMultiplyI64 => 88,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
