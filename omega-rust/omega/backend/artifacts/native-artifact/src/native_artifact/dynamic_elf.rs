@@ -4,11 +4,12 @@ use super::identity::{
     NativeArtifactIdentityFields, derive_native_artifact_identity, foreign_call_custody_digest,
 };
 use super::{
-    NativePhysicalEvidence, NativePhysicalEvidenceScope, NativeProviderExecution,
-    NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
-    boundary_application_coverage_identity, derive_physical_evidence, mixed_structural_scalar,
-    validate_boundary_application_coverage, validate_foreign_stack_contribution,
-    validate_ieee_float_fma_occurrences, validate_provider_execution_reports,
+    NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
+    NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderClosureDigest,
+    NativeSelectedProviderPlan, boundary_application_coverage_identity, derive_physical_evidence,
+    mixed_structural_scalar, validate_boundary_application_coverage,
+    validate_foreign_stack_contribution, validate_ieee_float_fma_occurrences,
+    validate_provider_execution_reports,
 };
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use effects::{
@@ -73,6 +74,11 @@ pub struct DynamicElfNativeArtifact {
     boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence: Option<NativePhysicalEvidence>,
+    /// The exact subject that stopped the scoped derivation when
+    /// `physical_evidence` is absent. Derived here, never retained as a
+    /// caller claim: `DynamicElfNativeArtifactParts` deliberately has no slot
+    /// for it.
+    physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: DynamicElfNativeArtifactIdentity,
 }
 
@@ -129,7 +135,7 @@ impl DynamicElfNativeArtifact {
     ) -> Result<Self, &'static str> {
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes();
-        let physical_evidence = derive_physical_evidence(
+        let physical_evidence = match derive_physical_evidence(
             &parts.physical_evidence_scope,
             &parts.psi_artifact,
             parts.target,
@@ -139,7 +145,11 @@ impl DynamicElfNativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
-        )?;
+        )? {
+            NativePhysicalEvidenceDerivation::Complete(evidence) => Some(evidence),
+            NativePhysicalEvidenceDerivation::Unavailable
+            | NativePhysicalEvidenceDerivation::Blocked(_) => None,
+        };
         Self::from_replayed_parts(DynamicElfNativeArtifactParts {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
@@ -164,6 +174,26 @@ impl DynamicElfNativeArtifact {
     /// source-free field.  No installation or publication authority is
     /// produced by successful replay.
     pub fn from_replayed_parts(parts: DynamicElfNativeArtifactParts) -> Result<Self, &'static str> {
+        let final_image_symbol_digest =
+            *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes();
+        // The gap is derivation state, not a retained claim: it is recomputed
+        // from the replayed inputs so a retained candidate can never assert a
+        // blocking subject the derivation would not have produced.
+        let physical_evidence_gap = match derive_physical_evidence(
+            &parts.physical_evidence_scope,
+            &parts.psi_artifact,
+            parts.target,
+            &parts.object,
+            parts.image.output(),
+            final_image_symbol_digest,
+            &parts.selected_provider_plans,
+            &parts.provider_executions,
+            parts.boundary_application_coverage.as_ref(),
+        )? {
+            NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
+            NativePhysicalEvidenceDerivation::Unavailable
+            | NativePhysicalEvidenceDerivation::Complete(_) => None,
+        };
         let mut artifact = Self {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
@@ -181,6 +211,7 @@ impl DynamicElfNativeArtifact {
             boundary_application_coverage: parts.boundary_application_coverage,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence,
+            physical_evidence_gap,
             identity: DynamicElfNativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
@@ -323,19 +354,29 @@ impl DynamicElfNativeArtifact {
         )?;
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(self.image.emission().admitted().image()).as_bytes();
-        let expected_physical_evidence = derive_physical_evidence(
-            &self.physical_evidence_scope,
-            &self.psi_artifact,
-            self.target,
-            &self.object,
-            self.image.output(),
-            final_image_symbol_digest,
-            &self.selected_provider_plans,
-            &self.provider_executions,
-            self.boundary_application_coverage.as_ref(),
-        )?;
+        let (expected_physical_evidence, expected_physical_evidence_gap) =
+            match derive_physical_evidence(
+                &self.physical_evidence_scope,
+                &self.psi_artifact,
+                self.target,
+                &self.object,
+                self.image.output(),
+                final_image_symbol_digest,
+                &self.selected_provider_plans,
+                &self.provider_executions,
+                self.boundary_application_coverage.as_ref(),
+            )? {
+                NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+                NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+            };
         if self.physical_evidence != expected_physical_evidence {
             return Err("dynamic native artifact physical children disagree with exact replay");
+        }
+        if self.physical_evidence_gap != expected_physical_evidence_gap {
+            return Err(
+                "dynamic native artifact physical evidence gap disagrees with exact derivation replay",
+            );
         }
         if self.identity != self.recomputed_identity() {
             return Err("dynamic native artifact identity disagrees with retained custody");
@@ -424,6 +465,10 @@ impl DynamicElfNativeArtifact {
                 .physical_evidence
                 .as_ref()
                 .map(|evidence| *evidence.identity()),
+            physical_evidence_gap_identity: self
+                .physical_evidence_gap
+                .as_ref()
+                .map(|gap| *gap.identity()),
         });
         let mut digest = Sha256::new();
         digest.update(DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN);
@@ -471,6 +516,15 @@ impl DynamicElfNativeArtifact {
 
     pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
         self.physical_evidence.as_ref()
+    }
+
+    /// The exact subject that stopped this candidate's scoped D32 derivation
+    /// when [`Self::physical_evidence`] is absent. `None` means the evidence
+    /// is complete or the scope admits no derivation at all; a `Some` value
+    /// names the first occurrence or retained record the derivation could
+    /// not bind to a physical child.
+    pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
+        self.physical_evidence_gap.as_ref()
     }
 
     pub fn into_parts(self) -> DynamicElfNativeArtifactParts {

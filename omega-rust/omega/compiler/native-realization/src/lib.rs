@@ -31,9 +31,10 @@ pub use native_artifact::{
     BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts,
     BoundaryTraitSettlementRole, DynamicElfNativeArtifact, DynamicElfNativeArtifactParts,
     NativeArtifact, NativeArtifactParts, NativeByteSpan, NativePhysicalChild,
-    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceParts,
-    NativePhysicalEvidenceScope, NativePhysicalOccurrence, NativeProviderExecution,
-    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+    NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalEvidenceScope,
+    NativePhysicalOccurrence, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
 };

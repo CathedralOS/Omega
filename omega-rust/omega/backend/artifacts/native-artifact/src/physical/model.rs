@@ -4,10 +4,10 @@ use optimization_core::{
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use target::NativeTarget;
 use target_operations::{
-    BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument,
+    BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument, CallSiteOwner,
     NormalizedForeignCallBinding, ProviderExecutionBinding,
 };
 use terminal_psi::TerminalPsiIdentity;
@@ -629,6 +629,173 @@ pub struct NativePhysicalEvidenceParts {
     pub identity: [u8; 32],
 }
 
+/// The exact subject that stopped a scoped physical-evidence derivation
+/// before it could bind every surviving occurrence to a physical child.
+///
+/// Scoped evidence is all-or-nothing: the first occurrence or retained record
+/// that cannot be bound blocks the whole derivation, and the gap names that
+/// subject rather than exposing a bare absence. Every variant carries enough
+/// coordinate custody to rejoin the exact Terminal operation or retained
+/// object record independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativePhysicalEvidenceGapSubject {
+    /// A Terminal machine still carries its ranked SCC decomposition, which
+    /// the surviving-occurrence projection does not replay.
+    RankedMachine { machine: MachineId },
+    /// A normalized foreign call is owned by a cleanup action rather than an
+    /// operation, so no surviving boundary occurrence can claim it.
+    ForeignCallSiteOwner {
+        machine: MachineId,
+        owner: CallSiteOwner,
+    },
+    /// A surviving boundary occurrence's installed settlement carries an
+    /// execution and realization pair no supported child arm admits.
+    UnsupportedSettlementRealization {
+        occurrence: OptimizedBoundaryOccurrence,
+    },
+    /// A surviving boundary occurrence's normalized foreign call declined the
+    /// normalized-foreign child derivation.
+    UnsupportedNormalizedForeignCall {
+        occurrence: OptimizedBoundaryOccurrence,
+    },
+    /// A surviving boundary occurrence retained neither an installed
+    /// settlement nor a normalized foreign call.
+    UnrealizedBoundaryOccurrence {
+        occurrence: OptimizedBoundaryOccurrence,
+    },
+    /// A surviving operator occurrence's realization declined every physical
+    /// span arm.
+    UnsupportedOperatorSpan {
+        occurrence: OptimizedOperatorOccurrence,
+    },
+    /// A retained privileged port effect was consumed by no exact
+    /// `MetadataOnlyPort` settlement join.
+    UnownedPortEffect {
+        machine: MachineId,
+        psi_operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+        operation_ordinal: usize,
+        code_offset: usize,
+        byte_count: usize,
+    },
+}
+
+/// Canonical name of the subject that stopped one scoped physical-evidence
+/// derivation. The identity binds the complete subject, so an artifact's
+/// identity commits to exactly where its evidence stopped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativePhysicalEvidenceGap {
+    subject: NativePhysicalEvidenceGapSubject,
+    identity: [u8; 32],
+}
+
+impl NativePhysicalEvidenceGap {
+    pub const fn subject(&self) -> NativePhysicalEvidenceGapSubject {
+        self.subject
+    }
+
+    /// The surviving occurrence when the blocking subject is one; `None` for
+    /// retained-record and machine-level subjects.
+    pub const fn occurrence(&self) -> Option<NativePhysicalOccurrence> {
+        match self.subject {
+            NativePhysicalEvidenceGapSubject::RankedMachine { .. }
+            | NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { .. }
+            | NativePhysicalEvidenceGapSubject::UnownedPortEffect { .. } => None,
+            NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence }
+            | NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence }
+            | NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
+                Some(NativePhysicalOccurrence::Boundary(occurrence.identity()))
+            }
+            NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
+                Some(NativePhysicalOccurrence::Operator(occurrence.identity()))
+            }
+        }
+    }
+
+    pub const fn identity(&self) -> &[u8; 32] {
+        &self.identity
+    }
+}
+
+impl std::fmt::Display for NativePhysicalEvidenceGap {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.subject {
+            NativePhysicalEvidenceGapSubject::RankedMachine { machine } => write!(
+                formatter,
+                "machine {machine} still carries its ranked SCC decomposition"
+            ),
+            NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
+                match owner {
+                    CallSiteOwner::Operation(operation) => write!(
+                        formatter,
+                        "normalized foreign call on machine {machine} is owned by operation {operation}"
+                    ),
+                    CallSiteOwner::CleanupAction {
+                        edge,
+                        action_ordinal,
+                    } => write!(
+                        formatter,
+                        "normalized foreign call on machine {machine} is owned by cleanup action {action_ordinal} on edge {edge}"
+                    ),
+                }
+            }
+            NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence } => {
+                write!(
+                    formatter,
+                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} has no supported settlement realization",
+                    occurrence.machine(),
+                    occurrence.operation(),
+                    occurrence.boundary(),
+                    occurrence.operation_ordinal(),
+                )
+            }
+            NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence } => {
+                write!(
+                    formatter,
+                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} declined the normalized-foreign child derivation",
+                    occurrence.machine(),
+                    occurrence.operation(),
+                    occurrence.boundary(),
+                    occurrence.operation_ordinal(),
+                )
+            }
+            NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
+                write!(
+                    formatter,
+                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} retained neither an installed settlement nor a normalized foreign call",
+                    occurrence.machine(),
+                    occurrence.operation(),
+                    occurrence.boundary(),
+                    occurrence.operation_ordinal(),
+                )
+            }
+            NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
+                write!(
+                    formatter,
+                    "operator occurrence on machine {} operation {} ordinal {} has no supported physical span",
+                    occurrence.machine(),
+                    occurrence.operation(),
+                    occurrence.operation_ordinal(),
+                )
+            }
+            NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+                machine,
+                psi_operation,
+                service,
+                port,
+                value,
+                operation_ordinal,
+                ..
+            } => write!(
+                formatter,
+                "privileged port effect on machine {machine} operation {psi_operation} service {service} port {port} value {value} ordinal {operation_ordinal} was consumed by no MetadataOnlyPort settlement"
+            ),
+        }
+    }
+}
+
 impl From<NativePhysicalChildParts> for NativePhysicalChild {
     fn from(parts: NativePhysicalChildParts) -> Self {
         Self {
@@ -781,4 +948,13 @@ pub(super) fn native_physical_evidence(
         children,
         identity,
     }
+}
+
+/// Construction stays derivation-owned: the identity must be the derivation's
+/// canonical encoding of `subject`, never a caller-asserted digest.
+pub(crate) fn native_physical_evidence_gap(
+    subject: NativePhysicalEvidenceGapSubject,
+    identity: [u8; 32],
+) -> NativePhysicalEvidenceGap {
+    NativePhysicalEvidenceGap { subject, identity }
 }

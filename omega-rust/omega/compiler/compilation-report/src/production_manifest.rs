@@ -3,7 +3,9 @@
 //! so adding a field is a new domain rather than a silent reinterpretation.
 
 use build_evaluation::{BuildEvaluationUsage, BuildObservationIdentity, BuildObservationSummary};
-use native_artifact::{NativeArtifact, NativeArtifactIdentity, NativePhysicalEvidence};
+use native_artifact::{
+    NativeArtifact, NativeArtifactIdentity, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+};
 use package_compilation::PackageCompilationSubject;
 use sha2::{Digest, Sha256};
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
@@ -47,30 +49,40 @@ pub enum FinalRealizationEvidenceError {
     NativeTargetMismatch,
     NativeArtifactMismatch,
     NativePhysicalEvidenceUnavailable,
+    /// The artifact's scoped derivation stopped at one exact subject, which
+    /// the payload names. Consumers learn which occurrence or retained record
+    /// failed instead of receiving a bare absence.
+    NativePhysicalEvidenceBlocked(NativePhysicalEvidenceGap),
 }
 
 impl std::fmt::Display for FinalRealizationEvidenceError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::InvalidReportCustody => "compiler report has inconsistent production custody",
-            Self::RetainedNativeArtifactRequired => {
-                "final-realization evidence requires a retained native artifact"
+        match self {
+            Self::NativePhysicalEvidenceBlocked(gap) => {
+                write!(
+                    formatter,
+                    "native artifact physical evidence stops at {gap}"
+                )
             }
+            Self::InvalidReportCustody => {
+                formatter.write_str("compiler report has inconsistent production custody")
+            }
+            Self::RetainedNativeArtifactRequired => formatter
+                .write_str("final-realization evidence requires a retained native artifact"),
             Self::PackageProductionManifestRequired => {
-                "final-realization evidence requires package-aware production"
+                formatter.write_str("final-realization evidence requires package-aware production")
             }
-            Self::InvalidProductionManifest => "production compilation manifest is invalid",
-            Self::InvalidNativeArtifact => "native artifact is invalid",
-            Self::NativeTargetMismatch => {
-                "production compilation manifest and native artifact target disagree"
+            Self::InvalidProductionManifest => {
+                formatter.write_str("production compilation manifest is invalid")
             }
-            Self::NativeArtifactMismatch => {
-                "production compilation manifest and native artifact identity disagree"
-            }
-            Self::NativePhysicalEvidenceUnavailable => {
-                "native artifact carries no physical evidence for this realization"
-            }
-        })
+            Self::InvalidNativeArtifact => formatter.write_str("native artifact is invalid"),
+            Self::NativeTargetMismatch => formatter
+                .write_str("production compilation manifest and native artifact target disagree"),
+            Self::NativeArtifactMismatch => formatter
+                .write_str("production compilation manifest and native artifact identity disagree"),
+            Self::NativePhysicalEvidenceUnavailable => formatter
+                .write_str("native artifact carries no physical evidence for this realization"),
+        }
     }
 }
 
@@ -448,9 +460,12 @@ impl ProductionCompilationManifest {
         ) {
             return Err(FinalRealizationEvidenceError::NativeArtifactMismatch);
         }
-        artifact
-            .physical_evidence()
-            .ok_or(FinalRealizationEvidenceError::NativePhysicalEvidenceUnavailable)
+        artifact.physical_evidence().ok_or_else(|| {
+            artifact.physical_evidence_gap().map_or(
+                FinalRealizationEvidenceError::NativePhysicalEvidenceUnavailable,
+                |gap| FinalRealizationEvidenceError::NativePhysicalEvidenceBlocked(*gap),
+            )
+        })
     }
 }
 

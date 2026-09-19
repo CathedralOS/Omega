@@ -11,4 +11,4 @@ mod settlement_identity;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use evidence::derive_physical_evidence;
+pub(crate) use evidence::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
