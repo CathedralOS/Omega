@@ -142,9 +142,18 @@ pub fn spill_selected_runtime_value_with_span_policy(
                     .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
             );
             let mut rewritten = original.clone();
+            // Uses and `UseDef` operands both read the victim and move to a
+            // reload register; a `UseDef` additionally writes that register
+            // back, which the instruction's following store then reads. A
+            // plain `Def` keeps the victim register so its own store reads
+            // the post-write value — possibly bound to a tied use's reload
+            // home, which is the read-modify-write idiom's point.
             for operand in &mut rewritten.operands {
                 if operand.virtual_register != register
-                    || operand.access != RegisterOperandAccess::Use
+                    || !matches!(
+                        operand.access,
+                        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+                    )
                 {
                     continue;
                 }
@@ -178,16 +187,35 @@ pub fn spill_selected_runtime_value_with_span_policy(
             }
             for definition in admitted.definitions.iter().filter(|definition| {
                 definition.block_index == block_index
-                    && matches!(definition.position,
-                        admission::StoragePosition::AfterInstruction(instruction)
-                            if instruction == original.id)
+                    && match definition.position {
+                        admission::StoragePosition::AfterInstruction(anchor)
+                        | admission::StoragePosition::AfterUseDef {
+                            instruction: anchor,
+                            ..
+                        } => anchor == original.id,
+                        admission::StoragePosition::BlockStart => false,
+                    }
             }) {
-                let store = admission::store(
-                    &admitted,
-                    definition.register,
-                    &mut next_instruction,
-                    &mut next_register,
-                )?;
+                // A `UseDef` write left the new value in the register its
+                // operand was redirected to — the emitted instruction's
+                // operand names it; the victim register itself was never
+                // written. Every other definition stores the recorded
+                // register directly.
+                let stored = match definition.position {
+                    admission::StoragePosition::AfterUseDef { operand, .. } => instructions
+                        .last()
+                        .and_then(|emitted| {
+                            emitted
+                                .operands
+                                .iter()
+                                .find(|candidate| candidate.operand == operand)
+                        })
+                        .map(|operand| operand.virtual_register)
+                        .ok_or(RuntimeSpillError::SourceMismatch)?,
+                    _ => definition.register,
+                };
+                let store =
+                    admission::store(&admitted, stored, &mut next_instruction, &mut next_register)?;
                 let (registers, sequence) = store.into_streams();
                 function.virtual_registers.extend(registers);
                 instructions.extend(sequence);

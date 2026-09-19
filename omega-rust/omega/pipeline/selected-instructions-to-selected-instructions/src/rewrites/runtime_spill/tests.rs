@@ -26,6 +26,7 @@ mod control_flow;
 mod dominance;
 mod liveness_custody;
 mod parameters;
+mod read_modify_write;
 mod redefinitions;
 mod scalar_payloads;
 mod structural_transports;

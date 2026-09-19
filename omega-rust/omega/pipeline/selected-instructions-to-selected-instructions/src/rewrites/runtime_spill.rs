@@ -27,9 +27,20 @@
 //! mirror of the register's last write, a use on the redefining instruction
 //! still reads the pre-write value through its own reload, and the
 //! redefinition closes any still-open shared reload since the value it held
-//! no longer restates the register. The origin definition still dominates
-//! every use, so on each path the last executed store is the register's
-//! reaching write.
+//! no longer restates the register. Two operand forms read and write the
+//! victim in one instruction — the read-modify-write family. A `Def` tied to
+//! a victim use is the two-operand form: the use reloads the pre-write value
+//! as usual, the tie binds the write to that reload register's home, and the
+//! redefinition's store reads the victim operand the write kept. A `UseDef`
+//! operand is the one-operand form: the operand moves to a reload register,
+//! the instruction writes its result there, and the store after the
+//! instruction reads the emitted operand's register rather than the victim it
+//! no longer defines. Either form must be the instruction's only victim write
+//! — a second one leaves the slot without a defined last writer — and a
+//! use-side tie onto a write to another register, an early-clobber write, or
+//! a `UseDef` carrying its own tie all stay rejected. The origin definition
+//! still dominates every use, so on each path the last executed store is the
+//! register's reaching write.
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use.

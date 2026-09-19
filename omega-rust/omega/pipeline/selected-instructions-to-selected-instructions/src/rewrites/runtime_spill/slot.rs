@@ -287,9 +287,14 @@ fn shareable(
                         .iter()
                         .filter(|definition| {
                             definition.block_index == block_index
-                                && matches!(definition.position,
+                                && match definition.position {
                                     StoragePosition::AfterInstruction(anchor)
-                                        if anchor == instruction.id)
+                                    | StoragePosition::AfterUseDef {
+                                        instruction: anchor,
+                                        ..
+                                    } => anchor == instruction.id,
+                                    StoragePosition::BlockStart => false,
+                                }
                         })
                         .map(|_| Event::NewStore),
                 );
