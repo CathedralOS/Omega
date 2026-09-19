@@ -1531,3 +1531,344 @@ machine Main::main(&mut self) { }
         }
     });
 }
+
+#[test]
+fn record_array_symbolic_materialization_realizes_on_both_linux_isas() {
+    // Record arrays under the general recursive rule, end to end:
+    // `members[i].choice.Run.<payload>` composes one literal element hop with
+    // the record boundary inside each element, while the same leaf level also
+    // carries a direct sum `route` beside the record array. The recursive
+    // projection retains the `members` row once — element count, constant
+    // stride, and the element record's own leaf report — and the
+    // `SymbolicFieldInnerLayout::RecordArray` carrier folds that row into the
+    // same hop vocabulary every other repeated interior spells, so the exact
+    // index stays symbolic until derivation assigns
+    // `field At + index * stride + interior offset`.
+    let main_path = write_program(
+        "record-array-symbolic-field",
+        r#"
+data Choice [copy] {
+    case #1 Empty;
+    case #2 Run(#3 callback: u64, #4 clock: u64);
+}
+data Neighbor [copy] {
+    #1 choice: Choice;
+    #2 pad: u64;
+}
+data OnlyMembers [copy] {
+    #1 header: u64;
+    #2 members: [Neighbor; 2];
+}
+data Outer [copy] {
+    #1 header: u64;
+    #2 members: [Neighbor; 2];
+    #3 route: Choice;
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a recursive record/record-array record should check");
+    let plan = build_layout_plan(&checked, NativeTarget::linux_x64(), &[])
+        .expect("the record-array record should lay out");
+    let arm_plan = build_layout_plan(&checked, NativeTarget::linux_arm64(), &[])
+        .expect("the record-array record should lay out for linux_arm64");
+    // The record array is the recursive owner's shape alone: a record holding
+    // only `[Neighbor; 2]` beside a scalar rejects from both non-recursive
+    // owners, each naming the row it refuses to lift.
+    let only_members = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "OnlyMembers")
+        .expect("the scalar-and-record-array record");
+    let direct_error = layout::project_conventional_record_with_sum_materialization_layout(
+        &checked,
+        &plan,
+        only_members.symbol,
+    )
+    .expect_err("the direct-sum owner must refuse a direct record array");
+    assert!(
+        direct_error
+            .message
+            .contains("does not lift the direct record array `members`"),
+        "{direct_error:?}"
+    );
+    let array_error = layout::project_conventional_record_with_sum_arrays_materialization_layout(
+        &checked,
+        &plan,
+        only_members.symbol,
+    )
+    .expect_err("the sum-array owner must refuse a direct record array");
+    assert!(
+        array_error
+            .message
+            .contains("does not lift the direct record array `members`"),
+        "{array_error:?}"
+    );
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .expect("the outer record");
+    let paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            owner.symbol,
+        )
+        .expect("a record reaching sums through a record array should project");
+    let arm_paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &arm_plan,
+            owner.symbol,
+        )
+        .expect("the same recursive projection closes on linux_arm64");
+    assert_eq!(
+        paths, arm_paths,
+        "both Linux ISAs retain the same recursive path geometry"
+    );
+    assert_eq!(
+        paths
+            .outer_layout()
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("members", LayoutPlacementReport::At { offset: 8 }),
+            ("route", LayoutPlacementReport::At { offset: 72 }),
+        ]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts,
+        child_sum_array_layouts,
+        child_record_array_layouts,
+        ..
+    } = &paths
+    else {
+        panic!("the outer record is a leaf level: no deeper record paths");
+    };
+    // The leaf level co-locates its own direct sum `route` beside the record
+    // array `members` — one `At` extent per repeated field, one compact row
+    // carrying the element record's complete leaf report for every index.
+    assert_eq!(
+        child_sum_layouts
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        vec![("route", Some(3))]
+    );
+    assert!(child_sum_array_layouts.is_empty());
+    assert_eq!(
+        child_record_array_layouts
+            .iter()
+            .map(|row| {
+                (
+                    row.field.as_str(),
+                    row.member_identity,
+                    row.element_count,
+                    row.element_stride,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("members", Some(2), 2, 32)]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts: element_sums,
+        ..
+    } = &child_record_array_layouts[0].inner
+    else {
+        panic!("the record-array element record is a leaf level");
+    };
+    assert_eq!(
+        element_sums
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        vec![("choice", Some(1))]
+    );
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
+        .expect("the recursive report folds the record-array carrier");
+
+    let header_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let zero_clock_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0xbeef).expect("normalized data identity"),
+    );
+    let pad_zero_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x0bad).expect("normalized data identity"),
+    );
+    let member_one_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let pad_one_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x7ea7).expect("normalized data identity"),
+    );
+    let route_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x77ee).expect("normalized entry identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new_numbered("header", 1, 64, header_target)
+            .expect("numbered scalar field"),
+        SymbolicFieldValue::new_indexed_numbered("members", 2, 0, 64, zero_clock_target)
+            .expect("indexed record-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("choice", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("clock", 4)),
+                ),
+            ),
+        SymbolicFieldValue::new_indexed_numbered("members", 2, 0, 64, pad_zero_target)
+            .expect("indexed record-array field")
+            .with_inner_segment(SymbolicFieldPathSegment::new_numbered("pad", 2)),
+        SymbolicFieldValue::new_indexed_numbered("members", 2, 1, 64, member_one_target)
+            .expect("indexed record-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("choice", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+                ),
+            ),
+        SymbolicFieldValue::new_indexed_numbered("members", 2, 1, 64, pad_one_target)
+            .expect("indexed record-array field")
+            .with_inner_segment(SymbolicFieldPathSegment::new_numbered("pad", 2)),
+        SymbolicFieldValue::new_numbered("route", 3, 64, route_target)
+            .expect("numbered direct sum field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("Run", 2)
+                    .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+            ),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("record-array paths compose the element hop and record boundary");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved record-array paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    // `members` spans 8..72 at a 32-byte stride; inside each element `choice`
+    // sits at 0 and `pad` at 24, while the level's own `route` sum sits at
+    // 72. `members[1].choice.Run.callback` composes `8 + 1*32 + 0 + 8 = 48`;
+    // `members[i].pad` composes `8 + i*32 + 24`.
+    assert_eq!(
+        writes,
+        [
+            ("header", 0),
+            ("members[0].choice.Run.clock", 24),
+            ("members[0].pad", 32),
+            ("members[1].choice.Run.callback", 48),
+            ("members[1].pad", 64),
+            ("route.Run.callback", 80),
+        ]
+    );
+
+    // The path bound stays exact until assignment: an unindexed hop into the
+    // repeated record names no element, and an index outside the retained
+    // count rejects against the row's own bounds — both before any byte
+    // offset is chosen.
+    let unindexed = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &[
+            SymbolicFieldValue::new_numbered("members", 2, 64, member_one_target)
+                .expect("numbered record-array field")
+                .with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("choice", 1).with_inner_segment(
+                        SymbolicFieldPathSegment::new_numbered("Run", 2).with_inner_segment(
+                            SymbolicFieldPathSegment::new_numbered("callback", 3),
+                        ),
+                    ),
+                ),
+        ],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect_err("a record-array hop without an element index must reject");
+    assert!(
+        unindexed
+            .0
+            .contains("requires an element index into the repeated record field `members`"),
+        "{unindexed:?}"
+    );
+    let out_of_range = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &[
+            SymbolicFieldValue::new_indexed_numbered("members", 2, 2, 64, member_one_target)
+                .expect("indexed record-array field")
+                .with_inner_segment(SymbolicFieldPathSegment::new_numbered("pad", 2)),
+        ],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect_err("a record-array index past the element count must reject");
+    assert!(
+        out_of_range
+            .0
+            .contains("element index 2 is outside its 2 element placements"),
+        "{out_of_range:?}"
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the record-array boundary writes derive a writer");
+    let mut expected = vec![0xa5_u8; 96];
+    expected[0..8].copy_from_slice(&0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    expected[24..32].copy_from_slice(&0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    expected[32..40].copy_from_slice(&0x55aa_bb00_00dd_ee11_u64.to_le_bytes());
+    expected[48..56].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    expected[64..72].copy_from_slice(&0x0bad_f00d_c001_d00d_u64.to_le_bytes());
+    expected[80..88].copy_from_slice(&0xcafe_babe_face_feed_u64.to_le_bytes());
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &expected, |resolved| {
+        if resolved == member_one_target {
+            0x1122_3344_5566_7788
+        } else if resolved == zero_clock_target {
+            0xdead_beef_cafe_f00d
+        } else if resolved == pad_zero_target {
+            0x55aa_bb00_00dd_ee11
+        } else if resolved == pad_one_target {
+            0x0bad_f00d_c001_d00d
+        } else if resolved == route_target {
+            0xcafe_babe_face_feed
+        } else {
+            assert_eq!(resolved, header_target);
+            0x99aa_bbcc_ddee_ff00
+        }
+    });
+}

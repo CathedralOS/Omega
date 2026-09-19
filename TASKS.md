@@ -964,7 +964,14 @@ Owners include
   field-keyed namespace (`SymbolicFieldInnerLayout::from_recursive_sum_paths`
   in `omega-rust/psi/foundation/layout-plans/src/symbolic_values/mod.rs`), and
   build-time evaluation retains, replays and fingerprints the same custody.
-  Carry record depth as data and extend that owner rather than adding
+  The record-array shape now runs the pinned writer-lowering leg:
+  `record_array_symbolic_materialization_realizes_on_both_linux_isas` in
+  `omega-rust/omega/compiler/compiler/tests/layout_plans/writer_lowering.rs`
+  projects a leaf level carrying a direct sum beside a literal `[R; N]` record
+  array, folds the `RecordArray` carrier, composes `field At + index * stride
+  + interior offset` for `members[i].<path>` writes, and lowers/replays the
+  post-handoff writer on both Linux ISAs (native execution on x86-64). Carry
+  record depth as data and extend that owner rather than adding
   depth-specific implementations.
 
   Remaining work:
@@ -978,12 +985,6 @@ Owners include
   - Shapes the recursion still fences: an array reaching sums through more
     than one literal element hop — nested arrays or mixed elements — and any
     non-literal array length.
-  - Record arrays have no realization leg.
-    `omega-rust/omega/compiler/compiler/tests/layout_plans/writer_lowering.rs`
-    runs `lower_writer_on_both_linux_isas` for the nested-indexed, direct-sum,
-    nested-sum-array, recursive-sum and recursive-sum-array shapes; the
-    record-array shape has layout-plans and build-time-evaluation coverage
-    only.
   - The Linux aarch64 native leg has never executed. That harness selects its
     guarded C driver by `cfg(target_arch)`, so only the x86-64 arm has run;
     every other host takes the emission-only path.
