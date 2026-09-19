@@ -43,7 +43,7 @@ pub use composed_unit_control_plans::{
     CheckedScalarCaseFieldPlan, CheckedStateNaturalRank, CheckedStructuralCaseReturnPlan,
 };
 pub use result_binding_plans::{
-    CheckedByteSequenceWritePlan, CheckedPrimitiveStoreDestination,
+    CheckedByteSequenceStoreValue, CheckedByteSequenceWritePlan, CheckedPrimitiveStoreDestination,
     CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralByteSequenceFieldStorePlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
 };

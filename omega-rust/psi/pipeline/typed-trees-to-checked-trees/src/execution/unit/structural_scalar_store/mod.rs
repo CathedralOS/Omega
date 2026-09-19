@@ -372,6 +372,17 @@ fn build_structural_field_store_at(
     call_result: Option<(u32, PrimitiveType)>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    // Every byte-store destination lane replays the same resolved scalar
+    // source: the SSA result of the call this same statement performs, or the
+    // bound pure authored expression.
+    let byte_value = byte_store_scalar_value(
+        program,
+        facts,
+        state,
+        statement_index,
+        assignment,
+        call_result,
+    );
     if let Some(write) = structural_parameters.iter().find_map(|destination| {
         let parameter = program
             .state_parameters(state)
@@ -385,6 +396,7 @@ fn build_structural_field_store_at(
             parameter,
             statement_index,
             assignment,
+            byte_value.as_ref(),
         )
     }) {
         return Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(write));
@@ -638,15 +650,8 @@ fn build_structural_field_store_at(
                 statement_index,
                 CheckedScalarExpressionRole::AssignmentIndex,
             )?;
-            let (value_binding, value) = facts.values.scalar_expressions.bound_expression_at(
-                state.symbol,
-                statement_index,
-                CheckedScalarExpressionRole::AssignmentValue,
-            )?;
             if index_binding.expression != byte_index
-                || value_binding.expression != assignment.value
                 || crate::values::scalar_expression_type(index) != Some(PrimitiveType::U64)
-                || crate::values::scalar_expression_type(value) != Some(PrimitiveType::U8)
             {
                 return None;
             }
@@ -658,7 +663,7 @@ fn build_structural_field_store_at(
                         carrier_path,
                         field_identity: terminal_field_identity(program, field.symbol)?,
                         index: index.clone(),
-                        value: value.clone(),
+                        value: byte_value?,
                     },
                 ),
             );
@@ -882,6 +887,45 @@ fn build_structural_field_store_at(
     ))
 }
 
+/// The byte-store scalar source, resolved once for every destination lane: the
+/// SSA result of the scalar call this same statement performs, or the bound
+/// pure authored expression. The call-result source binds no local, so no
+/// `AssignmentValue` scalar-expression row names it; its dense position names
+/// the value the ordered call operation established.
+fn byte_store_scalar_value(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    call_result: Option<(u32, PrimitiveType)>,
+) -> Option<checked_trees::CheckedByteSequenceStoreValue> {
+    if let Some((position, result_type)) = call_result {
+        if result_type != PrimitiveType::U8
+            || !matches!(
+                program.expression_table.expression(assignment.value),
+                ExpressionNode::Call(_)
+            )
+        {
+            return None;
+        }
+        return Some(checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position });
+    }
+    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    if binding.expression != assignment.value
+        || crate::values::scalar_expression_type(value) != Some(PrimitiveType::U8)
+    {
+        return None;
+    }
+    Some(checked_trees::CheckedByteSequenceStoreValue::Pure(
+        value.clone(),
+    ))
+}
+
 fn build_byte_view_write(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -891,6 +935,7 @@ fn build_byte_view_write(
     parameter: &typed_trees::signature::StateParameter,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
+    value: Option<&checked_trees::CheckedByteSequenceStoreValue>,
 ) -> Option<checked_trees::CheckedByteSequenceWritePlan> {
     if destination.is_self
         || destination.access != CheckedStructuralAccess::MutableBorrow
@@ -926,15 +971,8 @@ fn build_byte_view_write(
         statement_index,
         CheckedScalarExpressionRole::AssignmentIndex,
     )?;
-    let (value_binding, value) = facts.values.scalar_expressions.bound_expression_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
-    )?;
     if index_binding.expression != indexed.index
-        || value_binding.expression != assignment.value
         || crate::values::scalar_expression_type(index) != Some(PrimitiveType::U64)
-        || crate::values::scalar_expression_type(value) != Some(PrimitiveType::U8)
     {
         return None;
     }
@@ -942,7 +980,7 @@ fn build_byte_view_write(
         statement_index,
         destination_parameter_position: destination.position,
         index: index.clone(),
-        value: value.clone(),
+        value: value?.clone(),
     })
 }
 

@@ -71,36 +71,77 @@ pub(crate) fn validate_assignment(
     }) {
         return unsupported("byte-view write changed its selected index meaning");
     }
-    for (role, authored, retained, primitive) in [
-        (
+    let (binding, expression) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(
+            state_symbol,
+            write.statement_index,
             CheckedScalarExpressionRole::AssignmentIndex,
-            indexed.index,
-            &write.index,
-            PrimitiveType::U64,
-        ),
-        (
-            CheckedScalarExpressionRole::AssignmentValue,
-            assignment.value,
-            &write.value,
-            PrimitiveType::U8,
-        ),
-    ] {
-        let (binding, expression) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(state_symbol, write.statement_index, role)
-            .ok_or(LoweringError::Unsupported(
-                "byte-view write lost its operand source",
-            ))?;
-        if binding.expression != authored || expression != retained {
-            return unsupported("byte-view write substituted an authored operand");
+        )
+        .ok_or(LoweringError::Unsupported(
+            "byte-view write lost its operand source",
+        ))?;
+    if binding.expression != indexed.index || expression != &write.index {
+        return unsupported("byte-view write substituted an authored operand");
+    }
+    crate::expression_preparation::source_custody::validate_pure(
+        checked,
+        binding,
+        terminal_scalar_type(PrimitiveType::U64)?,
+    )?;
+    let value_expressions = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter()
+        .filter(|expression| {
+            expression.state == state_symbol
+                && expression.statement_ordinal == write.statement_index
+                && expression.role == CheckedScalarExpressionRole::AssignmentValue
+        })
+        .collect::<Vec<_>>();
+    match &write.value {
+        // A store reading its own statement's call result has no authored
+        // scalar expression to select: the right-hand side is the call. The
+        // producing call is rejoined where the operation order and the value
+        // are lowered; a selected expression here would mean the checked
+        // stage chose a different source.
+        checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. } => {
+            if !value_expressions.is_empty() {
+                return unsupported("byte-view write replaced a selected RHS with a result");
+            }
+            if !matches!(
+                checked.expression_table.expression(assignment.value),
+                ExpressionNode::Call(_)
+            ) {
+                return unsupported("byte-view write call result has no authored call");
+            }
         }
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            binding,
-            terminal_scalar_type(primitive)?,
-        )?;
+        checked_trees::CheckedByteSequenceStoreValue::Pure(retained) => {
+            let (binding, expression) = checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(
+                    state_symbol,
+                    write.statement_index,
+                    CheckedScalarExpressionRole::AssignmentValue,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "byte-view write lost its operand source",
+                ))?;
+            if binding.expression != assignment.value || expression != retained {
+                return unsupported("byte-view write substituted an authored operand");
+            }
+            crate::expression_preparation::source_custody::validate_pure(
+                checked,
+                binding,
+                terminal_scalar_type(PrimitiveType::U8)?,
+            )?;
+        }
     }
     Ok(())
 }

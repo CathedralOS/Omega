@@ -40,6 +40,35 @@ pub struct CheckedStructuralByteSequenceFieldStorePlan {
     pub bytes: Vec<u8>,
 }
 
+/// The scalar source a byte-sequence store replays. Every byte-store
+/// destination lane resolves this once and retains the same distinction the
+/// scalar field store carries: a bound pure authored expression, or the SSA
+/// result of the scalar call the same statement performs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedByteSequenceStoreValue {
+    Pure(CheckedScalarExpression),
+    /// The already-defined SSA result of the scalar call this same statement
+    /// performs, named by its dense position in the consuming plan's scalar
+    /// namespace -- the namespace `CheckedScalarExpression::Local` indexes,
+    /// scalar parameters first and then each established scalar result in
+    /// order. The authored call binds no local, so no `AssignmentValue`
+    /// scalar-expression row exists for it; the receiving lowerer reconstructs
+    /// the value from the call operation it already emitted for this
+    /// statement instead of from an authored expression.
+    ScalarResult {
+        position: u32,
+    },
+}
+
+impl CheckedByteSequenceStoreValue {
+    pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
+        match self {
+            Self::Pure(expression) => Some(expression),
+            Self::ScalarResult { .. } => None,
+        }
+    }
+}
+
 /// Exact source operands of a scalar byte replacement within the live prefix.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
@@ -48,7 +77,7 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,
     pub index: CheckedScalarExpression,
-    pub value: CheckedScalarExpression,
+    pub value: CheckedByteSequenceStoreValue,
 }
 
 /// Exact authored operands of a write through a whole mutable byte view.
@@ -57,7 +86,7 @@ pub struct CheckedByteSequenceWritePlan {
     pub statement_index: u32,
     pub destination_parameter_position: u32,
     pub index: CheckedScalarExpression,
-    pub value: CheckedScalarExpression,
+    pub value: CheckedByteSequenceStoreValue,
 }
 
 /// Primitive store custody stays separate from immutable scalar bindings.

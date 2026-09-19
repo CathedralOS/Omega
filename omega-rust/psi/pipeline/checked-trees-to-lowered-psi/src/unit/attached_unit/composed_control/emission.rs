@@ -638,11 +638,13 @@ pub(super) fn emit_call_operations(
                 write.statement_index,
                 CheckedScalarExpressionRole::AssignmentIndex,
             )?;
-            let value = bindings.expression_at(
+            let value = crate::emission::byte_store_scalar_value(
+                bindings,
                 checked,
                 state.state,
                 write.statement_index,
-                CheckedScalarExpressionRole::AssignmentValue,
+                &write.value,
+                values,
             )?;
             let kind = crate::emission::byte_sequence_write::emit(
                 write,
@@ -680,11 +682,13 @@ pub(super) fn emit_call_operations(
                 store.statement_index,
                 CheckedScalarExpressionRole::AssignmentIndex,
             )?;
-            let value = bindings.expression_at(
+            let value = crate::emission::byte_store_scalar_value(
+                bindings,
                 checked,
                 state.state,
                 store.statement_index,
-                CheckedScalarExpressionRole::AssignmentValue,
+                &store.value,
+                values,
             )?;
             let kind = crate::emission::structural_byte_sequence_index_store::emit(
                 store,
