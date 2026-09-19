@@ -1,11 +1,18 @@
 //! Inert pending-review input, with no acceptance or compiler authority.
 //!
-//! Version 1 uses fixed-order LF rows, lowercase hexadecimal digests, and
+//! Version 2 uses fixed-order LF rows, lowercase hexadecimal digests, and
 //! canonical target identities. Targets are strictly ascending by
 //! `target.target_name()` (not enum order).
 //! Each `proposed-build N` / `source N` row precedes exactly N UTF-8 bytes and
 //! one framing LF, even when the payload already ends in LF. `end\n` closes
 //! the envelope. Kind and old-project digests only support stale-state checks.
+//! The caller's root inventory is retained as `build-inputs absent`, or
+//! `build-inputs present` followed by `build-input-count N` and strictly
+//! byte-ordered `build-input required|optional` / `build-input-path N` frames.
+//! Path payloads use the same length-plus-LF framing as source text. An empty
+//! explicit inventory differs from the absent default. Version 1 cannot retain
+//! that distinction and rejects; callers may discard its pending review and
+//! start again. Decoding input intent never supplies capture or review evidence.
 
 mod framing;
 #[cfg(test)]
@@ -17,11 +24,18 @@ use crate::resolution::graph::{
 };
 use crate::resolution::source::git::workspace::MAX_BUILD_DECLARATION_BYTES;
 use framing::{Reader, Writer, read_digest, write_digest};
+use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use target::TargetProfile;
 
-const HEADER: &str = "omega-package-proposal 1";
+const HEADER: &str = "omega-package-proposal 2";
 const MAXIMUM_TEXT_BYTES: usize = 128 * 1024 * 1024;
 const MAXIMUM_TARGETS: usize = 32;
+// Match capture's non-root entry ceiling and aggregate relative-path byte
+// budget. Optional absent entries still consume pending-review storage.
+const MAXIMUM_BUILD_INPUTS: usize =
+    checked_interpreter::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT - 1;
+const MAXIMUM_BUILD_INPUT_PATH_BYTES: usize =
+    checked_interpreter::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT;
 
 pub(super) struct PendingPackageChange {
     pub kind: PackageCommandKind,
@@ -31,6 +45,7 @@ pub(super) struct PendingPackageChange {
     pub proposed_build: String,
     pub source: CanonicalSourceClosureSubject,
     pub targets: Vec<TargetProfile>,
+    pub build_inputs: Option<BuildSourceCaptureRequest>,
 }
 
 impl PendingPackageChange {
@@ -63,6 +78,7 @@ impl PendingPackageChange {
         for target in &self.targets {
             writer.row("target", target.identity().as_str())?;
         }
+        write_build_inputs(&mut writer, self.build_inputs.as_ref())?;
         writer.section("proposed-build", &self.proposed_build)?;
         writer.section("source", &source)?;
         writer.append("end\n")?;
@@ -76,7 +92,9 @@ impl PendingPackageChange {
             return Err("package proposal exceeds text byte limit".into());
         }
         let mut reader = Reader::new(text);
-        reader.expect(HEADER)?;
+        reader.expect(HEADER).map_err(|_| {
+            "unsupported or malformed package proposal header; use --discard-review, then start a fresh install/update review".to_owned()
+        })?;
         let kind = match reader.field("kind")? {
             "install" => PackageCommandKind::Install,
             "update" => PackageCommandKind::Update,
@@ -103,6 +121,7 @@ impl PendingPackageChange {
         }
         let targets = &targets[..count];
         validate_targets(targets, targets[0])?;
+        let build_inputs = read_build_inputs(&mut reader)?;
         let proposed_build = reader.section("proposed-build", MAX_BUILD_DECLARATION_BYTES)?;
         let source_limits = CanonicalSourceClosureSubjectLimits::default();
         let source_text = reader.section("source", source_limits.maximum_record_bytes)?;
@@ -132,8 +151,78 @@ impl PendingPackageChange {
             proposed_build: owned_build,
             source,
             targets: owned_targets,
+            build_inputs,
         })
     }
+}
+
+fn write_build_inputs(
+    writer: &mut Writer,
+    request: Option<&BuildSourceCaptureRequest>,
+) -> Result<(), String> {
+    let Some(request) = request else {
+        return writer.row("build-inputs", "absent");
+    };
+    let count = request.entries().count();
+    if count > MAXIMUM_BUILD_INPUTS {
+        return Err("package proposal build input count exceeds limit".into());
+    }
+    writer.row("build-inputs", "present")?;
+    writer.row("build-input-count", count)?;
+    let mut remaining_path_bytes = MAXIMUM_BUILD_INPUT_PATH_BYTES;
+    for (path, obligation) in request.entries() {
+        remaining_path_bytes = remaining_path_bytes
+            .checked_sub(path.len())
+            .ok_or("package proposal build input paths exceed byte limit")?;
+        let path = std::str::from_utf8(path)
+            .map_err(|_| "package proposal build input path must be UTF-8")?;
+        writer.row(
+            "build-input",
+            match obligation {
+                BuildSourceCaptureObligation::Required => "required",
+                BuildSourceCaptureObligation::Optional => "optional",
+            },
+        )?;
+        writer.section("build-input-path", path)?;
+    }
+    Ok(())
+}
+
+fn read_build_inputs(reader: &mut Reader<'_>) -> Result<Option<BuildSourceCaptureRequest>, String> {
+    match reader.field("build-inputs")? {
+        "absent" => return Ok(None),
+        "present" => {}
+        _ => return Err("invalid package proposal build input selection".into()),
+    }
+    let count = reader.count("build-input-count", MAXIMUM_BUILD_INPUTS)?;
+    let mut entries = Vec::new();
+    entries
+        .try_reserve_exact(count)
+        .map_err(|_| "package proposal allocation failed")?;
+    let mut remaining_path_bytes = MAXIMUM_BUILD_INPUT_PATH_BYTES;
+    let mut previous_path: Option<&str> = None;
+    for _ in 0..count {
+        let obligation = match reader.field("build-input")? {
+            "required" => BuildSourceCaptureObligation::Required,
+            "optional" => BuildSourceCaptureObligation::Optional,
+            _ => return Err("invalid package proposal build input obligation".into()),
+        };
+        let path = reader.section("build-input-path", remaining_path_bytes)?;
+        remaining_path_bytes -= path.len();
+        if previous_path.is_some_and(|previous| previous.as_bytes() >= path.as_bytes()) {
+            return Err(
+                "package proposal build input paths are repeated or not canonically ordered".into(),
+            );
+        }
+        previous_path = Some(path);
+        let mut owned_path = Vec::new();
+        owned_path
+            .try_reserve_exact(path.len())
+            .map_err(|_| "package proposal allocation failed")?;
+        owned_path.extend_from_slice(path.as_bytes());
+        entries.push((owned_path, obligation));
+    }
+    BuildSourceCaptureRequest::new(entries).map(Some)
 }
 
 fn validate_targets(targets: &[TargetProfile], source_target: TargetProfile) -> Result<(), String> {

@@ -145,8 +145,8 @@ omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]
-omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]
+omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
+omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
 omega <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
 omega refresh-samples [samples-dir]
 ```

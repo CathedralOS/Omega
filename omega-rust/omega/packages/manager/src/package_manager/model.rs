@@ -35,6 +35,9 @@ pub struct PackageCommandOptions {
     pub targets: Vec<TargetProfile>,
     /// Use cached recorded Git pins only; never fetch or refresh a selector.
     pub offline: bool,
+    /// Root-only immutable input selection for a new install/update. Resume
+    /// uses the pending proposal's selection; it cannot override it.
+    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

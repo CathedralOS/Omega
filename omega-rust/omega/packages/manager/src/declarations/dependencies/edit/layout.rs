@@ -5,7 +5,8 @@ use crate::declarations::dependencies::read::DependencyProjectionError;
 use build_declarations::DependencyOperation;
 use source_files_to_tokens::Lexer;
 use syntax_trees::item::Item;
-use tokens::TokenStream;
+use syntax_trees::statement::StatementNode;
+use tokens::{PunctuationKind, TokenKind, TokenStream};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[derive(Debug)]
@@ -13,6 +14,7 @@ pub(super) struct BuildLayout {
     machine_indent: String,
     body_open_end: usize,
     body_close_start: usize,
+    entry_end_start: usize,
     dependency_rows: Vec<DependencyRow>,
 }
 
@@ -40,16 +42,21 @@ impl BuildLayout {
             );
             return Some(replacement);
         }
-        let close_line_start = source[..self.body_close_start]
+        let insertion_line_start = source[..self.entry_end_start]
             .rfind('\n')
             .map_or(0, |index| index + 1);
-        let close_prefix = &source[close_line_start..self.body_close_start];
-        if !close_prefix.chars().all(char::is_whitespace) {
+        let insertion_prefix = &source[insertion_line_start..self.entry_end_start];
+        if !insertion_prefix.chars().all(char::is_whitespace) {
             return None;
         }
+        let extra_indent = if self.entry_end_start == self.body_close_start {
+            "    "
+        } else {
+            ""
+        };
         replacement.insert_str(
-            close_line_start,
-            &format!("{}    {statement}{newline}", close_prefix),
+            insertion_line_start,
+            &format!("{insertion_prefix}{extra_indent}{statement}{newline}"),
         );
         Some(replacement)
     }
@@ -114,12 +121,85 @@ pub(super) fn discover_build_layout(
         .unwrap_or_default()
         .to_owned();
     let dependency_rows = dependency_rows(&tokens, body_open, body_close);
+    // Declarations belong to the implicit entry, not after nested states.
+    // Stop before its first transfer so adding a dependency cannot make it
+    // conditional or unreachable. Parsed transition spans start at an arm's
+    // arrow, so recover the enclosing statement from retained delimiters;
+    // inserting directly at the arrow would split the transition itself.
+    // Keyword tokens are also valid identifiers and cannot locate this boundary.
+    let states = syntax.items.state_handles(build.states);
+    let Some(entry) = states.first().map(|handle| syntax.items.state(*handle)) else {
+        return Ok(Some(None));
+    };
+    let entry_boundary = syntax
+        .items
+        .statements(entry.statements)
+        .iter()
+        .find_map(|handle| match syntax.statements.statement(*handle) {
+            StatementNode::Transition(transition) => Some(transition.source_span.span.start),
+            _ => None,
+        })
+        .or_else(|| {
+            states.get(1).map(|handle| {
+                let state = syntax.items.state(*handle);
+                state.name.source_span().span.start
+            })
+        });
+    let entry_end_start = if let Some(bound) = entry_boundary {
+        let Some(start) = entry_insertion_start(&tokens, body_open, body_close, bound) else {
+            return Ok(Some(None));
+        };
+        start
+    } else {
+        tokens[body_close].span.start
+    };
     Ok(Some(Some(BuildLayout {
         machine_indent,
         body_open_end: tokens[body_open].span.end,
         body_close_start: tokens[body_close].span.start,
+        entry_end_start,
         dependency_rows,
     })))
+}
+
+/// Insert after the last top-level semicolon preceding the parsed boundary.
+/// A closing brace alone is not a boundary: it may end a compound operand.
+/// Keep any intervening standalone blocks with the following transfer rather
+/// than reconstructing their grammar. Reprojection still checks declaration order.
+fn entry_insertion_start(
+    tokens: &TokenStream<'_>,
+    body_open: usize,
+    body_close: usize,
+    bound: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut start = None;
+    for token in tokens[body_open + 1..body_close]
+        .iter()
+        .filter(|token| !token.is_non_semantic())
+    {
+        start.get_or_insert(token.span.start);
+        if token.span.start >= bound {
+            return start;
+        }
+        match token.kind {
+            TokenKind::Punctuation(
+                PunctuationKind::LeftBrace
+                | PunctuationKind::LeftParen
+                | PunctuationKind::LeftBracket,
+            ) => depth = depth.checked_add(1)?,
+            TokenKind::Punctuation(
+                PunctuationKind::RightBrace
+                | PunctuationKind::RightParen
+                | PunctuationKind::RightBracket,
+            ) => {
+                depth = depth.checked_sub(1)?;
+            }
+            TokenKind::Punctuation(PunctuationKind::Semicolon) if depth == 0 => start = None,
+            _ => {}
+        }
+    }
+    None
 }
 
 fn semantic_indices(tokens: &TokenStream<'_>) -> Vec<usize> {

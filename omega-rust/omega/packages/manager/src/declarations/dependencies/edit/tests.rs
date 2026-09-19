@@ -115,6 +115,76 @@ fn appends_after_existing_build_work_and_preserves_it() {
 }
 
 #[test]
+fn adds_after_direct_dependencies_before_entry_transfer_or_nested_states() {
+    for entry_tail in [
+        "transition true { true -> done() _ -> done() }\n    state done {}",
+        "transition record.transition { true -> done() _ -> done() }\n    state done {}",
+        "transition (Record { transition: true }).transition { true -> done() _ -> done() }\n    state done {}",
+        "transition { _ -> done() }\n    state done {}",
+        "state done {}",
+        "state state {}",
+    ] {
+        for newline in ["\n", "\r\n"] {
+            let source = format!(
+                r#"machine build(builder: &mut Build) {{
+    builder.application("dependency-edit-probe");
+    builder.depend(Source::Path {{ location: "existing" }});
+    builder.build_depend(Source::Path {{ location: "build-helper" }});
+    // Keep ordinary work, comments, and keyword-like strings intact.
+    let label: String = "transition state";
+    {entry_tail}
+}}
+"#
+            )
+            .replace('\n', newline);
+            let replacement = automatic(
+                plan_dependency_addition_from_source(
+                    PathBuf::from("build.omg"),
+                    source.clone(),
+                    &path("vendor"),
+                )
+                .unwrap_or_else(|error| panic!("{entry_tail}: {error:?}")),
+            );
+            let inserted =
+                format!("    builder.depend(Source::Path {{ location: \"vendor\" }});{newline}");
+            let expected = source.replacen(
+                &format!("    {}", entry_tail.lines().next().unwrap()),
+                &format!("{inserted}    {}", entry_tail.lines().next().unwrap()),
+                1,
+            );
+            assert_eq!(replacement.replacement_source(), expected);
+            assert_eq!(
+                extract_scoped_from_source(replacement.replacement_source())
+                    .expect("project edited entry"),
+                vec![
+                    (DependencyPurpose::Product, path("existing")),
+                    (DependencyPurpose::Build, path("build-helper")),
+                    (DependencyPurpose::Product, path("vendor")),
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn inline_entry_transfer_requires_manual_placement() {
+    let source = "machine build(builder: &mut Build) {\n    builder.application(\"dependency-edit-probe\"); transition { _ -> done() }\n    state done {}\n}\n";
+    let plan = plan_dependency_addition_from_source(
+        PathBuf::from("build.omg"),
+        source.to_owned(),
+        &path("vendor"),
+    )
+    .expect("plan inline entry addition");
+    let BuildDependencyEditPlan::Manual(patch) = plan else {
+        panic!("expected manual placement for inline transfer");
+    };
+    assert_eq!(
+        patch.reason(),
+        BuildDependencyManualReason::NonCanonicalBuildBodyLayout
+    );
+}
+
+#[test]
 fn noncanonical_signature_rejects_before_edit_planning() {
     let source = "machine build(builder: &mut Build, profile: u32) {\n    builder.application(\"dependency-edit-probe\");\n}\n".to_owned();
     assert!(matches!(

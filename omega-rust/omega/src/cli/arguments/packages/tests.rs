@@ -5,6 +5,53 @@ use super::{
 mod named;
 mod offline;
 
+#[test]
+fn install_and_update_retain_canonical_input_obligations() {
+    use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+    for kind in [PackageCommandKind::Install, PackageCommandKind::Update] {
+        let mut arguments = vec![
+            "--build-input",
+            "main.omg",
+            "--optional-build-input",
+            "settings.cfg",
+            "--build-input",
+            "-template",
+        ];
+        if kind == PackageCommandKind::Install {
+            arguments.push("../dependency");
+        }
+        let (_, options) = parse(kind, &arguments);
+        assert_eq!(
+            options.build_inputs.unwrap().entries().collect::<Vec<_>>(),
+            vec![
+                (b"-template".as_slice(), Required),
+                (b"main.omg".as_slice(), Required),
+                (b"settings.cfg".as_slice(), Optional),
+            ]
+        );
+    }
+}
+
+#[test]
+fn package_input_paths_reject_invalid_or_ambiguous_inventories() {
+    for arguments in [
+        vec!["--build-input", "../secret"],
+        vec!["--build-input", "/absolute"],
+        vec!["--build-input", "C:/drive"],
+        vec!["--build-input", "a", "--build-input", "a/child"],
+        vec!["--build-input", "a", "--optional-build-input", "a"],
+    ] {
+        assert!(
+            parse_arguments(
+                PackageCommandKind::Update,
+                arguments.iter().map(OsString::from)
+            )
+            .is_err(),
+            "{arguments:?}"
+        );
+    }
+}
+
 fn parse(kind: PackageCommandKind, arguments: &[&str]) -> (PackageCommand, PackageCommandOptions) {
     parse_arguments(kind, arguments.iter().map(OsString::from))
         .unwrap_or_else(|error| panic!("{arguments:?}: {error}"))
@@ -43,6 +90,7 @@ fn install_preserves_source_and_leaves_defaults_to_manager() {
         assert_eq!(options.project_root, PathBuf::from("."));
         assert!(options.targets.is_empty());
         assert!(!options.offline);
+        assert!(options.build_inputs.is_none());
     }
 }
 
@@ -234,7 +282,14 @@ fn unknown_options_targets_and_wrong_command_options_reject() {
 
 #[test]
 fn option_values_cannot_be_missing_empty_or_another_option() {
-    for option in ["--rev", "--as", "--project", "--target"] {
+    for option in [
+        "--rev",
+        "--as",
+        "--project",
+        "--target",
+        "--build-input",
+        "--optional-build-input",
+    ] {
         for suffix in [vec![], vec![""], vec!["--help"]] {
             let mut arguments = vec!["source", option];
             arguments.extend(suffix);
@@ -253,6 +308,8 @@ fn review_controls_reject_new_command_inputs_in_either_order() {
             vec!["source"],
             vec!["--rev", "v1"],
             vec!["--as", "alias"],
+            vec!["--build-input", "main.omg"],
+            vec!["--optional-build-input", "settings.cfg"],
             vec!["--target", "linux_x86_64"],
         ] {
             let mut before = vec![control];

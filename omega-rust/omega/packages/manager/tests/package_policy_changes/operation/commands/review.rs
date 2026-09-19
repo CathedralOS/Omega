@@ -6,6 +6,42 @@ use super::{
     execute_package_command, fixture, fs, install, lock, pending_install, proposal_path, resume,
     update,
 };
+
+#[test]
+fn resume_and_discard_refuse_input_overrides_before_opening_project() {
+    let tree = fixture(PURE);
+    let missing = tree.path("missing-project");
+    for command in [
+        PackageCommand::Resume {
+            kind: PackageCommandKind::Install,
+        },
+        PackageCommand::Resume {
+            kind: PackageCommandKind::Update,
+        },
+        PackageCommand::DiscardReview,
+    ] {
+        let error = execute_package_command(
+            command,
+            PackageCommandOptions {
+                project_root: missing.clone(),
+                targets: Vec::new(),
+                offline: true,
+                build_inputs: Some(
+                    package_compilation::BuildSourceCaptureRequest::new([]).unwrap(),
+                ),
+            },
+            None,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            error.contains("cannot override the pending input inventory"),
+            "{error}"
+        );
+        assert!(!missing.exists());
+    }
+}
+
 #[test]
 fn initial_assumption_install_stays_pending_then_rejected_until_accepting_resume() {
     let tree = fixture(ASSUMPTION);
@@ -147,6 +183,7 @@ fn discard_does_not_decode_project_or_proposal_contents() {
             project_root: tree.path("sources/root"),
             targets: Vec::new(),
             offline: true,
+            build_inputs: None,
         },
         None,
     )

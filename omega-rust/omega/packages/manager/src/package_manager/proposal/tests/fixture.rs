@@ -12,6 +12,7 @@ pub(super) fn pending() -> PendingPackageChange {
         proposed_build: "machine build(builder: &mut Build) {}\n".into(),
         source: source(TargetProfile::CrossPlatformCli),
         targets: vec![TargetProfile::CrossPlatformCli],
+        build_inputs: None,
     }
 }
 

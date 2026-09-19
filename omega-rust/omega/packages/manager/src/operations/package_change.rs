@@ -128,6 +128,7 @@ pub fn review_package_change(
         target,
         accepted,
         build_root,
+        None,
         &mut CandidateSourcePreparation::new(),
     )
 }
@@ -135,11 +136,15 @@ pub fn review_package_change(
 /// The same candidate review, retaining binding-independent source preparation
 /// in the caller's store. A command reviewing several targets of this resolved
 /// closure prepares each package once.
+/// A caller-selected snapshot applies only to the root and is rechecked in
+/// both discovery and final review. The command owner retains that selection
+/// across pending review; this operation grants no output publication authority.
 pub fn review_package_change_reusing(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
     build_root: &Path,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<PackageChangeReview, PackageChangeError> {
     if accepted.is_some_and(|accepted| accepted.target() != target) {
@@ -152,7 +157,7 @@ pub fn review_package_change_reusing(
         &target_closure,
         build_root,
         SemanticBindingReview::Discover,
-        None,
+        root_build_snapshot,
         preparation,
     )
     .map_err(PackageChangeError::Compilation)?;

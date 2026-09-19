@@ -43,6 +43,16 @@ pub fn execute_package_command(
     options: PackageCommandOptions,
     storage: Option<&SourceResolverStorage>,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
+    if options.build_inputs.is_some()
+        && matches!(
+            command,
+            PackageCommand::Resume { .. } | PackageCommand::DiscardReview
+        )
+    {
+        return Err(failure(
+            "--resume and --discard-review cannot override the pending input inventory",
+        ));
+    }
     let mut transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
             .map_err(failure)?;
@@ -65,6 +75,7 @@ pub fn execute_package_command(
     let PackageCommandOptions {
         targets: requested_targets,
         offline,
+        build_inputs,
         ..
     } = options;
     let files = transaction.command_state_files().map_err(failure)?;
@@ -154,6 +165,15 @@ pub fn execute_package_command(
         replacement,
         updates,
     } = plan;
+    // Resuming repeats fresh capture and checking, but it must not silently
+    // fall back to the complete package inventory. Proposal data retains the
+    // caller's selection, not a completed build or an acceptance grant.
+    let build_inputs = recovered
+        .as_ref()
+        .map_or(build_inputs, |proposal| proposal.build_inputs.clone());
+    let build_snapshot = build_inputs
+        .clone()
+        .map(|inputs| build_evaluation::BuildSnapshotRequest::scoped(Vec::new(), inputs));
     let stage = stage_build_dependency_edit(&replacement, storage, LocalSourceLimits::default())
         .map_err(failure)?;
     if recovered.as_ref().is_some_and(|proposal| {
@@ -215,6 +235,7 @@ pub fn execute_package_command(
                 *target,
                 accepted.as_ref().and_then(|lock| lock.target(*target)),
                 &build_root,
+                build_snapshot.as_ref(),
                 &mut preparation,
             )
             .map_err(failure)?,
@@ -231,6 +252,7 @@ pub fn execute_package_command(
                 proposed_build: replacement.replacement_source().to_owned(),
                 source,
                 targets,
+                build_inputs,
             }
             .encode()
             .map_err(failure)?,
