@@ -322,7 +322,9 @@ impl<'program> Evaluator<'program> {
                             .symbols
                             .symbol_source_span(definition.symbol)
                             .is_some_and(|span| {
-                                self.program.symbols.same_source_package(span, occurrence)
+                                self.program
+                                    .symbols
+                                    .same_product_package_instance(occurrence, span)
                             })
                 })
                 .collect::<Vec<_>>(),

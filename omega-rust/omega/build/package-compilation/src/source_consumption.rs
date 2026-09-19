@@ -341,12 +341,18 @@ pub fn derive_consumed_source_units(
         )]);
     }
     units.sort();
+    // Two checked instances of one path (product scope and build scope)
+    // consume identical source bytes: they project to the same canonical
+    // unit, and the byte-level projection keeps it once. A coordinate
+    // collision between *different* bytes is still the pathology this
+    // guard exists to reject.
+    units.dedup();
     if units
         .windows(2)
         .any(|pair| same_source_coordinate(&pair[0], &pair[1]))
     {
         return Err(vec![Diagnostic::error(
-            "final checked closure contains duplicate canonical source coordinates",
+            "final checked closure contains distinct sources at duplicate canonical coordinates",
         )]);
     }
     Ok(units)

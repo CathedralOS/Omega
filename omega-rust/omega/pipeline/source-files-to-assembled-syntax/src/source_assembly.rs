@@ -5,10 +5,9 @@ use crate::frontend::{
 use crate::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
-use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
@@ -202,13 +201,17 @@ pub fn retain_generated_syntax_extension(
                 ))]
             })?;
         let root_item_count = parsed.root_item_count();
-        let added = sources.add_with_metadata_and_resolution_stratum(
+        // Generated extension sources are the producing activation's
+        // product-context handoff; they keep the base compilation's product
+        // instance semantics rather than growing a second checked instance.
+        let added = sources.add_checked_instance(
             logical_path.clone(),
             source.to_owned(),
             package_root.to_path_buf(),
             package_identity,
             source::SourceOrigin::User,
             source::SourceResolutionStratum::CurrentActivationExtension,
+            source::DependencyScope::Product,
         );
         debug_assert_eq!(added.source_id, source_id);
         units.push(RetainedGeneratedSyntaxUnit {
@@ -232,7 +235,6 @@ fn append_dependency_generated_sources_to_storage(
     imports: &mut ImportQueue,
     target_name: Option<&str>,
     package_inputs: &PackageCompilationInputs,
-    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
     timings: &mut CompileTimings,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let selected_target = target_name
@@ -247,6 +249,12 @@ fn append_dependency_generated_sources_to_storage(
                 .map(|error| Diagnostic::error(error.to_string()))
                 .collect::<Vec<_>>()
         })?;
+    // A generated bundle joins the checked instance of the context that
+    // produced it: a build-only package's handoff is host-context source,
+    // while a dual-purpose or product package's bundle embodies product-
+    // target decisions and stays product scope — it is never checked a
+    // second time under the other scope.
+    let build_only = build_only_packages(package_inputs);
     let mut entries = Vec::new();
     for bundle in package_inputs.dependency_generated_source_bundles() {
         let package_root = package_inputs
@@ -275,12 +283,21 @@ fn append_dependency_generated_sources_to_storage(
     }
 
     for (logical_path, _, _) in &entries {
-        imports.mark_loaded(logical_path.as_ref().map_err(Clone::clone)?.clone());
+        let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
+        // The single retained instance answers imports from either scope, so
+        // no scope may re-dispatch the virtual path for a physical load.
+        imports.mark_loaded(logical_path, source::DependencyScope::Product);
+        imports.mark_loaded(logical_path, source::DependencyScope::Build);
     }
 
     let mut retained = Vec::with_capacity(entries.len());
     for (logical_path, source, package) in entries {
         let logical_path = logical_path?;
+        let scope = if build_only.contains(&package) {
+            source::DependencyScope::Build
+        } else {
+            source::DependencyScope::Product
+        };
         let text = std::str::from_utf8(source.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "included generated source `{}` is not UTF-8 Omega source",
@@ -293,6 +310,7 @@ fn append_dependency_generated_sources_to_storage(
                 logical_path,
                 text,
                 source_id.0,
+                scope,
             ))
         })?;
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
@@ -306,7 +324,6 @@ fn append_dependency_generated_sources_to_storage(
             Some(package),
             &mut source_storage.resolved_imports,
             &contract_custody,
-            import_scopes,
         )?;
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
@@ -366,7 +383,6 @@ fn load_pending_imports(
     imports: &mut ImportQueue,
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
-    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     while imports.has_pending() {
@@ -394,7 +410,6 @@ fn load_pending_imports(
                 None,
                 &mut source_storage.resolved_imports,
                 &contract_custody,
-                import_scopes,
             )?,
             None => discover_imports(
                 &parsed,
@@ -509,15 +524,15 @@ fn hosted_entry_contract_seed(
 }
 
 fn validate_package_source_frontier(
-    frontier: Vec<PathBuf>,
+    frontier: Vec<(PathBuf, source::DependencyScope)>,
     package_inputs: &PackageCompilationInputs,
     source_storage: &SourceStorage,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
     let toolchain_root = crate::frontend::bundled_core_root();
     let mut validated = Vec::with_capacity(frontier.len());
     let mut diagnostics = Vec::new();
 
-    for source in frontier {
+    for (source, scope) in frontier {
         let canonical = match source.canonicalize() {
             Ok(canonical) => canonical,
             Err(error) => {
@@ -531,7 +546,7 @@ fn validate_package_source_frontier(
         if canonical.starts_with(&toolchain_root)
             || source_storage.is_toolchain_contract_source(&canonical)
         {
-            validated.push(canonical);
+            validated.push((canonical, scope));
             continue;
         }
 
@@ -551,7 +566,7 @@ fn validate_package_source_frontier(
             )));
             continue;
         }
-        validated.push(canonical);
+        validated.push((canonical, scope));
     }
 
     if diagnostics.is_empty() {
@@ -938,31 +953,16 @@ fn assemble_syntax(
     application: Option<build_declarations::ApplicationDeclaration>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    import_scopes: &BTreeMap<PathBuf, DependencyPurpose>,
-    package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
-    let build_only_packages = package_inputs.map(build_only_packages).unwrap_or_default();
-    // Package ownership reads the source path for physical and generated
-    // sources alike: a generated source is mounted under its producing
-    // package's root (`generated_source_logical_path`), so a build-only
-    // package's handoff joins the build scope with that package's files.
+    // Each loaded instance already carries the scope it was checked under:
+    // the build entry, the root-local helpers its build-scope instance
+    // transitively imported, and every source of a build-only package
+    // (physical and generated alike, stamped at retention).
     let build_scope_sources = sources
-        .files
-        .iter()
-        .filter_map(|(_, file)| {
-            let claimed_purpose = import_scopes.get(&file.path).copied().or_else(|| {
-                file.path
-                    .canonicalize()
-                    .ok()
-                    .and_then(|canonical| import_scopes.get(&canonical).copied())
-            });
-            let claimed_by_build_entry = claimed_purpose == Some(DependencyPurpose::Build);
-            let owned_by_build_only_package = !build_only_packages.is_empty()
-                && package_inputs
-                    .and_then(|packages| packages.package_for_source(&file.path))
-                    .is_some_and(|package| build_only_packages.contains(&package));
-            (claimed_by_build_entry || owned_by_build_only_package).then_some(file.source_id)
-        })
+        .sources
+        .files()
+        .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+        .map(|file| file.source_id)
         .collect();
     Ok(AssembledSyntax {
         syntax_trees: sources.syntax_trees,

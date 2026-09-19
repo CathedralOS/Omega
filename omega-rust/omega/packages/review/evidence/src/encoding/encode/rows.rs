@@ -479,6 +479,11 @@ pub(crate) fn encode_rows_with_limits(
             .cmp(&right.kind)
             .then(left.key_bytes.cmp(&right.key_bytes))
     });
+    // A source checked in both the product scope and the build scope emits
+    // the same canonical fact twice; the review is a fact set, so identical
+    // rows (kind, risk, key, value, and source locations) collapse. Same key
+    // with different content or provenance stays an error below.
+    rows.dedup_by(|row, kept| row == kept && row.source == kept.source);
     if rows
         .windows(2)
         .any(|pair| pair[0].kind == pair[1].kind && pair[0].key_bytes == pair[1].key_bytes)

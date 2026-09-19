@@ -169,6 +169,11 @@ pub fn project_checked_callable_policy<'a>(
             .cmp(&right.identity)
             .then(left.role.cmp(&right.role))
     });
+    // A source checked in both the product scope and the build scope yields
+    // two machine instances with identical policy facts; the projection is a
+    // fact set, so identical rows collapse. Same identity with different
+    // content still fails canonical-structure validation below.
+    callables.dedup();
     let policy = PackagePolicyCallables {
         package,
         target,

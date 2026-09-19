@@ -4,18 +4,15 @@ use super::{
     validate_selected_build_role,
 };
 use crate::frontend::{
-    PackageImportPhase, PendingPackageImport, claim_import_scope, discover_imports,
-    discover_package_imports, extend_source_storage, lex_sources, load_sources, parse_sources,
-    source_import_scope,
+    PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
+    extend_source_storage, lex_sources, load_sources, parse_sources,
 };
 use crate::source::project::project_roots;
 use crate::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
-use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -33,11 +30,6 @@ pub struct ImmutableSourceParseCheckpoint {
     application: Option<build_declarations::ApplicationDeclaration>,
     package_imports: Arc<[PendingPackageImport]>,
     package_source_inputs: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
-    /// The dependency scope each compilation-root source participates in.
-    /// Seeded with product scope for every project root and build scope for
-    /// the selected build entry; import reconciliation then propagates claims
-    /// to the root-local files those entries import.
-    import_scopes: BTreeMap<PathBuf, DependencyPurpose>,
 }
 
 /// One exact-target child consuming its checkpoint reference. Cloned checkpoints
@@ -68,21 +60,20 @@ impl ImmutableSourceParseCheckpoint {
             })
             .transpose()?;
         let mut imports = ImportQueue::default();
-        // Every project root resolves product-scope imports. The selected
-        // build entry is then claimed for the build scope: it and the
-        // root-local files it transitively imports resolve `build_depend`/
-        // `build_depend_as` edges, never product edges.
-        let mut import_scopes = BTreeMap::new();
+        // Every project root joins as a product-scope instance except the
+        // selected build entry, which joins as a build-scope instance only:
+        // it and the root-local files its instance transitively imports
+        // resolve `build_depend`/`build_depend_as` edges, never product
+        // edges. A root-local file imported from both contexts loads one
+        // checked instance per scope.
         for root in &project_roots.sources {
-            if let Ok(canonical) = root.canonicalize() {
-                import_scopes
-                    .entry(canonical)
-                    .or_insert(DependencyPurpose::Product);
-            }
-            imports.seed(root.clone());
-        }
-        if let Some(selected) = &selected_build_path {
-            import_scopes.insert(selected.clone(), DependencyPurpose::Build);
+            let canonical = root.canonicalize().ok();
+            let scope = if canonical.is_some() && canonical == selected_build_path {
+                source::DependencyScope::Build
+            } else {
+                source::DependencyScope::Product
+            };
+            imports.seed(root.clone(), scope);
         }
 
         let mut source_storage = initialize_source_storage(root_path, package_inputs)?;
@@ -91,7 +82,6 @@ impl ImmutableSourceParseCheckpoint {
             &mut imports,
             root_path,
             package_inputs,
-            &mut import_scopes,
             timings,
         )?;
         let build_source_id = selected_build_path
@@ -104,6 +94,12 @@ impl ImmutableSourceParseCheckpoint {
                         file.path
                             .canonicalize()
                             .is_ok_and(|loaded| loaded == selected)
+                            && source_storage
+                                .sources
+                                .get(file.source_id)
+                                .is_some_and(|source| {
+                                    source.dependency_scope == source::DependencyScope::Build
+                                })
                     })
                     .map(|(_, file)| file.source_id)
                     .ok_or_else(|| {
@@ -122,7 +118,6 @@ impl ImmutableSourceParseCheckpoint {
             application,
             package_imports: package_imports.into(),
             package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
-            import_scopes,
         })
     }
 
@@ -175,10 +170,14 @@ impl ImmutableSourceParseCheckpoint {
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
-        let mut import_scopes = self.import_scopes;
         let mut imports = ImportQueue::default();
         for (_, source) in source_storage.files.iter() {
-            imports.mark_loaded(source.path.clone());
+            let scope = source_storage
+                .sources
+                .get(source.source_id)
+                .map(|file| file.dependency_scope)
+                .unwrap_or(source::DependencyScope::Product);
+            imports.mark_loaded(&source.path, scope);
         }
         let generated_source_custody = match package_inputs {
             Some(package_inputs) => append_dependency_generated_sources_to_storage(
@@ -186,7 +185,6 @@ impl ImmutableSourceParseCheckpoint {
                 &mut imports,
                 target_name,
                 package_inputs,
-                &mut import_scopes,
                 timings,
             )?,
             None => Vec::new(),
@@ -194,23 +192,11 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
                 let resolved = request.resolve_for_exact_target(package_inputs)?;
-                // A retained request keeps its importer's scope: the exact
-                // resolution joins under the same dependency authority that
-                // discovered it.
-                let purpose = source_import_scope(
-                    package_inputs,
-                    &import_scopes,
-                    request.requesting_source(),
-                );
-                claim_import_scope(
-                    package_inputs,
-                    &mut import_scopes,
-                    request.requesting_source(),
-                    request.target_package(),
-                    &resolved.path,
-                    purpose,
-                )?;
-                imports.enqueue(vec![resolved.path.clone()])?;
+                // A retained request joins its target under the importer's
+                // own checked instance — the same scope its discovery ran
+                // under, so a dual-purpose path loads a second instance
+                // rather than failing a scope claim.
+                imports.enqueue(vec![(resolved.path.clone(), request.importer_scope())])?;
                 source_storage.resolved_imports.push(resolved);
             }
         }
@@ -219,7 +205,6 @@ impl ImmutableSourceParseCheckpoint {
             &mut imports,
             &self.root_path,
             package_inputs,
-            &mut import_scopes,
             timings,
         )?;
         if let Some(seed) =
@@ -233,13 +218,12 @@ impl ImmutableSourceParseCheckpoint {
                     .register_toolchain_contract_root(seed.source.clone(), seed.root.clone());
                 source_storage.register_toolchain_contract_dir(seed.root);
             }
-            imports.seed(seed.source);
+            imports.seed(seed.source, source::DependencyScope::Product);
             load_pending_imports(
                 &mut source_storage,
                 &mut imports,
                 &self.root_path,
                 package_inputs,
-                &mut import_scopes,
                 timings,
             )?;
         }
@@ -259,8 +243,6 @@ impl ImmutableSourceParseCheckpoint {
             self.application.clone(),
             source_scoped_top_level_bindings,
             generated_source_custody,
-            &import_scopes,
-            package_inputs,
         )?;
         Ok((source_file_count, syntax))
     }
@@ -324,7 +306,6 @@ fn load_target_independent_imports(
     imports: &mut ImportQueue,
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
-    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
     timings: &mut CompileTimings,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
@@ -354,7 +335,6 @@ fn load_target_independent_imports(
                     PackageImportPhase::TargetIndependent,
                     &mut source_storage.resolved_imports,
                     &contract_custody,
-                    import_scopes,
                 )?;
                 retained_requests.append(&mut requests);
                 discovered
