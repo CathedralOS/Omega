@@ -402,6 +402,46 @@ pub struct ExecutedRootBinding {
     pub described: Option<DescribedProductEntry>,
 }
 
+/// One `builder.exclude_crash`/`builder.exclude_service` selection that
+/// actually evaluated against the activation's original Build value
+/// (wiki/spec/build/behavior_exclusions.md): exclusions are evaluated Build
+/// selections, so a call present in the static call scope but never executed
+/// selects nothing. The coordinate rejoins the authored call in the exact
+/// evaluated program; the crash case is the EVALUATED value's exact variant
+/// symbol, not the spelled argument shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedBehaviorExclusion {
+    /// The machine whose state body evaluated the exclusion call.
+    pub machine: symbols::SymbolHandle,
+    /// The executed call's coordinate in the evaluated program.
+    pub site: ExecutedBehaviorExclusionSite,
+    /// The evaluated selection.
+    pub kind: ExecutedBehaviorExclusionKind,
+}
+
+/// Where an executed exclusion call sat in the evaluated program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutedBehaviorExclusionSite {
+    /// A `StatementNode::Call` statement.
+    Statement(typed_trees::statement::StatementHandle),
+    /// An `ExpressionNode::Call` at any expression position.
+    Expression(typed_trees::expression::ExpressionHandle),
+}
+
+/// The exclusion one evaluated call selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutedBehaviorExclusionKind {
+    /// `builder.exclude_crash(cause)`: the exact toolchain `CrashCause`
+    /// variant symbol the evaluated argument carried. The argument is a
+    /// value here — a bound local or a computed case selects as much as a
+    /// literal spelling.
+    CrashCause { case_symbol: symbols::SymbolHandle },
+    /// `builder.exclude_service<Trait>()`: the marker executed; the retained
+    /// call node still carries the resolved trait identity admission
+    /// validates.
+    Service,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildMachineEvaluationFailureKind {
     InvalidFilesystemGrant,
@@ -674,6 +714,7 @@ pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) observations: EvaluationObservations,
     pub(crate) executed_root_bindings: Vec<ExecutedRootBinding>,
+    pub(crate) executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
 }
 
 impl<T> MeasuredBuildMachineEvaluation<T> {
@@ -682,11 +723,13 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         usage: EvaluationUsage,
         observations: EvaluationObservations,
         executed_root_bindings: Vec<ExecutedRootBinding>,
+        executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
     ) -> Self {
         Self {
             measured: MeasuredEvaluation::new(value, usage),
             observations,
             executed_root_bindings,
+            executed_behavior_exclusions,
         }
     }
 
@@ -697,6 +740,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             measured,
             observations: EvaluationObservations::default(),
             executed_root_bindings: Vec::new(),
+            executed_behavior_exclusions: Vec::new(),
         }
     }
 
@@ -721,6 +765,15 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         &self.executed_root_bindings
     }
 
+    /// Executed exclusion selections in the exact evaluated program: each
+    /// `exclude_crash`/`exclude_service` call that ran against the
+    /// activation's original Build. Callers rejoin the coordinates and
+    /// validate the retained argument identities — an unexecuted call left
+    /// no selection.
+    pub fn executed_behavior_exclusions(&self) -> &[ExecutedBehaviorExclusion] {
+        &self.executed_behavior_exclusions
+    }
+
     pub fn into_value(self) -> T {
         self.measured.into_value()
     }
@@ -737,9 +790,16 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         EvaluationUsage,
         EvaluationObservations,
         Vec<ExecutedRootBinding>,
+        Vec<ExecutedBehaviorExclusion>,
     ) {
         let (value, usage) = self.measured.into_parts();
-        (value, usage, self.observations, self.executed_root_bindings)
+        (
+            value,
+            usage,
+            self.observations,
+            self.executed_root_bindings,
+            self.executed_behavior_exclusions,
+        )
     }
 }
 

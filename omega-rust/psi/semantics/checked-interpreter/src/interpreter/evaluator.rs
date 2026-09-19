@@ -75,6 +75,7 @@ mod statements_and_calls;
 mod wire_codec;
 
 // Build-machine facets.
+mod behavior_exclusions;
 mod build_log;
 mod build_paths;
 mod output_obligations;
@@ -282,6 +283,9 @@ pub(crate) struct Evaluator<'program> {
     /// The activation's original Build cell, never an authored copy.
     root_build: Option<Cell>,
     pub(super) executed_root_bindings: Vec<crate::ExecutedRootBinding>,
+    /// Executed `exclude_crash`/`exclude_service` selections on the root
+    /// Build, in evaluation order.
+    pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,
     /// Compiler-issued product-entry descriptions handed to evaluated code as
     /// opaque `ProductEntryRef` markers. The marker value indexes this table;
     /// evaluated code can copy the marker but cannot read or fabricate the

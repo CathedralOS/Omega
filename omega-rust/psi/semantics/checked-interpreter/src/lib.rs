@@ -154,6 +154,7 @@ pub use evaluation::{
     CURRENT_EVALUATION_USAGE_SCHEMA, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EvaluationObservations, EvaluationSemanticsIdentity,
     EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
+    ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
     ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
 };

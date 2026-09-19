@@ -333,6 +333,7 @@ fn evaluate_observed_arguments(
                             usage,
                             observations,
                             std::mem::take(&mut evaluator.executed_root_bindings),
+                            std::mem::take(&mut evaluator.executed_behavior_exclusions),
                         ))
                     }
                     Err(Halt::Exit(code)) => Err(format!(
@@ -478,6 +479,7 @@ fn evaluate_granted_arguments(
                             usage,
                             observations,
                             std::mem::take(&mut evaluator.executed_root_bindings),
+                            std::mem::take(&mut evaluator.executed_behavior_exclusions),
                         ))
                     }
                     Err(Halt::Exit(code)) => Err(BuildMachineEvaluationFailure::with_evidence(

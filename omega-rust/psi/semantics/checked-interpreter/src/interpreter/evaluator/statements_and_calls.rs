@@ -241,10 +241,11 @@ impl<'program> Evaluator<'program> {
                 frame.bind_type(local.name.as_str(), local.type_reference);
                 Ok(())
             }
-            StatementNode::Call(call) => {
-                self.eval_call_statement(call, frame)?;
-                Ok(())
-            }
+            // Executed in run_state_collect_inner, where the statement handle
+            // is known — an executed exclusion call records its coordinate.
+            StatementNode::Call(_) => Err(Halt::Trap(
+                "call statement requires its executed statement identity".to_owned(),
+            )),
             StatementNode::Expression(expression) => {
                 let _ = self.eval_expression(*expression, frame)?;
                 Ok(())
@@ -397,7 +398,12 @@ impl<'program> Evaluator<'program> {
 
     // ---- calls --------------------------------------------------------------
 
-    fn eval_call_statement(&mut self, call: &TableCall, frame: &Frame) -> EvalResult<Value> {
+    pub(super) fn eval_call_statement(
+        &mut self,
+        statement: typed_trees::statement::StatementHandle,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
         if let Some(dispatch) = self.selected_boundary_adapter(
             call.receiver_symbol,
             call.target_symbol,
@@ -446,10 +452,15 @@ impl<'program> Evaluator<'program> {
         if call.target.as_str().starts_with("accept_boundary#")
             || call.target.as_str() == "select_provider"
             || call.target.as_str() == "select_representation"
-            || call.target.as_str() == "exclude_service"
             || call.target.as_str().starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);
+        }
+        // Build behavior exclusions are EVALUATED selections: the executed
+        // call against the activation's root Build records the selection;
+        // a spelled call that never runs is not a selection.
+        if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
+            return Ok(value);
         }
         if self
             .try_build_facet_filesystem_statement(call, frame)?

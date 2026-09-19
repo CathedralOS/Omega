@@ -1,8 +1,8 @@
 //! End-to-end coverage for `builder.exclude_crash(CrashCause::X)`
 //! (wiki/spec/build/behavior_exclusions.md): the authored exclusion is a
-//! product-admission requirement harvested statically from the root build
-//! machine's checked call scope, retaining the exact toolchain `CrashCause`
-//! case identity and the authored source span.
+//! product-admission requirement recorded when the checked build evaluation
+//! actually executes the call against the root `Build`, retaining the exact
+//! toolchain `CrashCause` case identity and the authored source span.
 
 use compiler::CheckedCompileRequest;
 use compiler::{
@@ -197,7 +197,10 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
-fn an_exclusion_outside_the_build_scope_rejects_rather_than_dropping() {
+fn a_spelled_exclusion_that_never_executes_selects_nothing() {
+    // Exclusions are EVALUATED selections: `unused` spells the call but the
+    // build entry never calls it, so nothing is admitted. The spelled text
+    // alone cannot select a behavior requirement.
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     project.write(
@@ -212,20 +215,39 @@ machine build(builder: &mut Build) {
 "#,
     );
 
-    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
-        .expect_err("a selection the admission check cannot see must reject");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("outside the root build machine's checked call scope")
-        }),
-        "unexpected diagnostics: {diagnostics:#?}"
-    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("a call that never executes selects nothing rather than rejecting");
+    assert!(checked.behavior_exclusions().is_empty());
 }
 
 #[test]
-fn the_exclusion_argument_must_name_the_exact_toolchain_case() {
+fn a_selection_inside_an_untaken_branch_selects_nothing() {
+    // The exclusion sits in a transition arm the evaluation never takes:
+    // an untaken branch is not an executed selection even though the call
+    // site is spelled inside the live build machine itself.
+    let project = TempProject::new();
+    project.write("main.omg", "const ANSWER: u32 = 42;\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("behavior-exclusion-untaken");
+    let flag: bool = false;
+    transition flag { true -> exclude(builder) false -> done() }
+    state exclude(builder: &mut Build) { builder.exclude_crash(CrashCause::Trap); }
+    state done() { }
+}
+"#,
+    );
+
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("an untaken branch selects nothing rather than rejecting");
+    assert!(checked.behavior_exclusions().is_empty());
+}
+
+#[test]
+fn the_exclusion_argument_is_the_evaluated_cause_value() {
+    // The selection carries the EVALUATED cause: a bound local carrying an
+    // exact toolchain case selects exactly like the literal spelling.
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     project.write(
@@ -238,16 +260,18 @@ fn the_exclusion_argument_must_name_the_exact_toolchain_case() {
 "#,
     );
 
-    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
-        .expect_err("an indirect value must not stand in for the exact case");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("does not name an exact compiler-owned CrashCause case")
-        }),
-        "unexpected diagnostics: {diagnostics:#?}"
-    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("the evaluated CrashCause value is the selection");
+    let [exclusion] = checked.behavior_exclusions() else {
+        panic!("the evaluated cause must record exactly one exclusion");
+    };
+    let build_evaluation::AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol } =
+        exclusion.kind
+    else {
+        panic!("the authored exclusion is a crash cause");
+    };
+    assert_eq!(cause, terminal_psi::CrashCause::Trap);
+    assert_eq!(case_symbol, toolchain_crash_cause_case(&checked, "Trap"));
 }
 
 #[test]
