@@ -3795,7 +3795,7 @@ Owners include
   `LiveCarryDemand` (c1b16cb063, afda8fbe16), and settles `Cancelled` only
   against a recorded then observed cancellation request (fe9e63735b).
   Routed source `Task<T>` establishment exists:
-  `lifecycle_ledger/claim_route.rs` (f9b5bb6ced) mints the exact
+  `lifecycle_ledger/claim_route.rs` (1fedf20882) mints the exact
   `provider`/`activation` field pair a `Task<T>` value carries onto every
   accepted claim, resolves the pair to its live claim on the minting
   instance only, and drives every value-carrying transition —
