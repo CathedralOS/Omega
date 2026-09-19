@@ -15,6 +15,8 @@ mod callback_slots;
 mod field_reflection_and_materialization;
 #[path = "fixture_rosters/layout_plans.rs"]
 mod fixture_roster;
+#[path = "layout_plans/interrupt_descriptor_tables.rs"]
+mod interrupt_descriptor_tables;
 #[path = "../../../../../tests/native-differential/tests/common/native_function.rs"]
 #[allow(dead_code)]
 mod native_function;

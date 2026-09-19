@@ -1,0 +1,192 @@
+// INTERRUPT-TABLE-CANARY: the descriptor-table leg of Cathedral's
+// exception-roots-and-timer boundary, authored as ordinary source layout
+// data and build-time layout policies.
+//
+// The interrupt descriptor table is a Cathedral-owned data structure: the
+// package decides which vectors are members, which gate kind each member
+// carries, and which IST slot reaches its dedicated critical stack. What
+// the package does not own is the wire encoding's authority -- the
+// compiler validates this policy's returned Plan (a bad plan is a compile
+// error, never unsafety), derives the post-handoff writer that seals each
+// member's entry address into the split offset fields, and the package's
+// validator decodes produced slots through this same layout before the
+// established table value exists. A source layout replacing the
+// compiler-owned Rust `interrupt_table` staging/writer/validator triple is
+// the migration this canary anchors: the authored shapes below carry the
+// same semantic content that model declares by hand.
+//
+// The gate record is SEMANTIC fields only. The wire's split encoding --
+// entry offset bits [15:0] at bytes 0..2, [31:16] at bytes 6..8, and
+// [63:32] at bytes 8..12 -- lives entirely in `InterruptGateLayout`'s
+// `Bits` fragments, so `entry` remains one semantic field the writer
+// resolves once while the produced bytes tile three disjoint containers.
+// Bytes 12..16 stay deliberately unplaced: they are the descriptor's
+// reserved range, owned by the staged image's zero base, and a validator
+// rejects any produced slot whose reserved bytes are not still zero. The
+// same discipline covers byte 4 bits 3..=7 and byte 5 bit 4: unplaced
+// bits are reserved bits, not absent validation.
+//
+// `InterruptDescriptorTable` spells the table as one fixed array of gate
+// slots -- vectors 0..=0x20 cover the board item's declared membership
+// (three fatal-exception entries and the timer vector) exactly, with the
+// unused vectors remaining architecturally absent gates (all-zero slots).
+// The per-element `At` placements make each vector's slot base a plain
+// stride product the writer composes with the gate's interior plan; the
+// package never spells a numeric slot offset itself.
+
+use omega::language::core::layout;
+
+// One x86-64 long-mode interrupt or trap gate descriptor, as the semantic
+// record the package stages and validates. `entry` is the sealed entry
+// target the checked writer materializes -- it is never staged content --
+// and the remaining fields are the member's declared constants: the
+// consumer's code-segment selector, the descriptor privilege level, the
+// present bit, the gate type code, and the interrupt-stack-table slot (0
+// spells the architectural no-switch value; dedicated critical stacks take
+// 1..=7). The record's natural extent is exactly one 16-byte wire slot.
+pub data InterruptGate {
+    entry: u64;
+    selector: u16;
+    ist: u8 [0..=7];
+    gate_kind: u8 [0..=15];
+    privilege: u8 [0..=3];
+    present: bool;
+}
+
+// The gate's wire policy: each semantic field's placement on the x86-64
+// descriptor encoding. `Bits` fragments keep the shared-byte claim checks
+// honest -- the compiler's plan validation rejects any policy whose
+// fragments overlap a neighbor's destination bits or fail to tile a
+// scalar's declared source width exactly.
+pub data InterruptGateLayout {
+}
+machine InterruptGateLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    // `entry` (fields[0], u64): the sealed offset, split across the wire's
+    // three disjoint destination containers.
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 0, container_width: 16,
+            destination_lsb: 0, source_lsb: 0, width: 16,
+        },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 6, container_width: 16,
+            destination_lsb: 0, source_lsb: 16, width: 16,
+        },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 8, container_width: 32,
+            destination_lsb: 0, source_lsb: 32, width: 32,
+        },
+    };
+    // `selector` (fields[1], u16): the code-segment selector at bytes 2..4.
+    entries[3] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 2 },
+    };
+    // `ist` (fields[2], u8[0..=7]): byte 4 bits 0..=2; the byte's upper
+    // bits are reserved and stay unplaced.
+    entries[4] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 4, container_width: 8,
+            destination_lsb: 0, source_lsb: 0, width: 3,
+        },
+    };
+    // `gate_kind` (fields[3], u8[0..=15]): byte 5 bits 0..=3 -- the wire's
+    // gate type code (0x0e interrupt, 0x0f trap) as semantic data.
+    entries[5] = FieldEntry {
+        key: schema.fields[3].key,
+        placement: FieldPlan::Bits {
+            container: 5, container_width: 8,
+            destination_lsb: 0, source_lsb: 0, width: 4,
+        },
+    };
+    // `privilege` (fields[4], u8[0..=3]): byte 5 bits 5..=6, the
+    // descriptor privilege level. Bit 4 is the storage-segment bit the
+    // long-mode encoding keeps clear; it stays unplaced.
+    entries[6] = FieldEntry {
+        key: schema.fields[4].key,
+        placement: FieldPlan::Bits {
+            container: 5, container_width: 8,
+            destination_lsb: 5, source_lsb: 0, width: 2,
+        },
+    };
+    // `present` (fields[5], bool): byte 5 bit 7.
+    entries[7] = FieldEntry {
+        key: schema.fields[5].key,
+        placement: FieldPlan::Bits {
+            container: 5, container_width: 8,
+            destination_lsb: 7, source_lsb: 0, width: 1,
+        },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 8,
+        size_fixed: 16,
+        size_is_dynamic: false,
+        align: 8,
+    }
+}
+
+// The table: one gate slot per vector the package's declared membership
+// covers. The board item's profile admits vectors 0, 13, 14 and 0x20, so
+// the declared image spans 33 slots; absent vectors remain all-zero
+// entries the validator refuses to mistake for members.
+pub data InterruptDescriptorTable {
+    gates: [InterruptGate; 33];
+}
+
+// The table policy places every vector's slot at its stride offset -- a
+// straight repeated-array layout. The loop shape keeps the same spelling
+// usable when the package widens coverage to the full 256-entry table:
+// only the bound and the size change. `fill` carries the loop guard, so
+// the `index < 33` bound reaches `place` as proved discharge for the
+// `entries` write, and the non-copy entry array travels by value through
+// the state parameters rather than on `self`.
+pub data DescriptorTableLayout {
+}
+machine DescriptorTableLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.evaluate(schema, 128)
+}
+machine DescriptorTableLayout::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+terminates by fuel;
+{
+    let entries: [FieldEntry; 64];
+    transition { _ -> fill(schema, entries, fuel, 0) }
+
+    state fill(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
+        transition fuel > 1 && index < 33 {
+            true -> place(schema, entries, fuel - 1, index)
+            _ -> done(schema, entries)
+        }
+    }
+
+    state place(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
+        let mut updated: [FieldEntry; 64] = entries;
+        updated[index] = FieldEntry {
+            key: schema.fields[0].key,
+            placement: FieldPlan::At { offset: (index * 16) as u64 },
+        };
+        transition fuel > 1 {
+            true -> fill(schema, updated, fuel - 1, index + 1)
+            _ -> done(schema, updated)
+        }
+    }
+
+    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
+        Plan {
+            entries: entries,
+            entry_count: 33,
+            size_fixed: 528,
+            size_is_dynamic: false,
+            align: 8,
+        }
+    }
+}
