@@ -710,10 +710,6 @@ pub(crate) fn physical_evidence_gap_identity(
     let mut digest = Sha256::new();
     digest.update(b"omega.native-physical-evidence-gap.sha256.v1\0");
     match subject {
-        NativePhysicalEvidenceGapSubject::RankedMachine { machine } => {
-            digest.update([1]);
-            digest.update(machine.get().to_le_bytes());
-        }
         NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
             digest.update([2]);
             digest.update(machine.get().to_le_bytes());

@@ -639,9 +639,6 @@ pub struct NativePhysicalEvidenceParts {
 /// object record independently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceGapSubject {
-    /// A Terminal machine still carries its ranked SCC decomposition, which
-    /// the surviving-occurrence projection does not replay.
-    RankedMachine { machine: MachineId },
     /// A normalized foreign call is owned by a cleanup action rather than an
     /// operation, so no surviving boundary occurrence can claim it.
     ForeignCallSiteOwner {
@@ -700,8 +697,7 @@ impl NativePhysicalEvidenceGap {
     /// retained-record and machine-level subjects.
     pub const fn occurrence(&self) -> Option<NativePhysicalOccurrence> {
         match self.subject {
-            NativePhysicalEvidenceGapSubject::RankedMachine { .. }
-            | NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { .. }
+            NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { .. }
             | NativePhysicalEvidenceGapSubject::UnownedPortEffect { .. } => None,
             NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence }
             | NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence }
@@ -722,10 +718,6 @@ impl NativePhysicalEvidenceGap {
 impl std::fmt::Display for NativePhysicalEvidenceGap {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.subject {
-            NativePhysicalEvidenceGapSubject::RankedMachine { machine } => write!(
-                formatter,
-                "machine {machine} still carries its ranked SCC decomposition"
-            ),
             NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
                 match owner {
                     CallSiteOwner::Operation(operation) => write!(

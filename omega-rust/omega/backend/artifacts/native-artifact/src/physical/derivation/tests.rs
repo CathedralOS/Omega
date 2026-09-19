@@ -1928,7 +1928,6 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
     let machine = semantic_vocabulary::MachineId::new(9).expect("machine");
 
     let subjects = [
-        NativePhysicalEvidenceGapSubject::RankedMachine { machine },
         NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
             machine,
             owner: CallSiteOwner::CleanupAction {
@@ -1988,9 +1987,9 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
         operation_ordinal,
         code_offset,
         ..
-    } = subjects[6]
+    } = subjects[5]
     else {
-        unreachable!("subjects[6] is an unowned port effect");
+        unreachable!("subjects[5] is an unowned port effect");
     };
     let moved = NativePhysicalEvidenceGapSubject::UnownedPortEffect {
         machine: moved_machine,
@@ -2003,15 +2002,18 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
         byte_count: 4,
     };
     assert_ne!(
-        physical_evidence_gap_identity(&subjects[6]),
+        physical_evidence_gap_identity(&subjects[5]),
         physical_evidence_gap_identity(&moved)
     );
-    let other_machine = NativePhysicalEvidenceGapSubject::RankedMachine {
-        machine: semantic_vocabulary::MachineId::new(10).expect("machine"),
+    let other_owner = NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+        machine,
+        owner: CallSiteOwner::Operation(
+            semantic_vocabulary::OperationId::new(13).expect("operation"),
+        ),
     };
     assert_ne!(
         physical_evidence_gap_identity(&subjects[0]),
-        physical_evidence_gap_identity(&other_machine)
+        physical_evidence_gap_identity(&other_owner)
     );
 }
 
@@ -2020,6 +2022,8 @@ fn physical_evidence_gap_names_the_blocking_occurrence() {
     use crate::physical::derivation::hashing::physical_evidence_gap_identity;
     use crate::physical::model::NativePhysicalEvidenceGapSubject;
     use crate::physical::model::native_physical_evidence_gap;
+    use semantic_vocabulary::EdgeId;
+    use target_operations::CallSiteOwner;
 
     let projection = physical_projection();
     let boundary = projection.boundary_occurrences()[0];
@@ -2046,7 +2050,14 @@ fn physical_evidence_gap_names_the_blocking_occurrence() {
     );
     // Machine-level and retained-record subjects carry no occurrence.
     assert_eq!(
-        gap(NativePhysicalEvidenceGapSubject::RankedMachine { machine }).occurrence(),
+        gap(NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+            machine,
+            owner: CallSiteOwner::CleanupAction {
+                edge: EdgeId::new(11).expect("edge"),
+                action_ordinal: 2,
+            },
+        })
+        .occurrence(),
         None
     );
     assert_eq!(

@@ -54,7 +54,7 @@ use compiler::{
     RequestedCompileProduct, RetainedNativeRealizationRequest, compile, compile_to_checked,
     realize_retained_native_artifact,
 };
-use native_artifact::{NativeArtifact, NativeArtifactParts, NativePhysicalEvidenceGapSubject};
+use native_artifact::{NativeArtifact, NativeArtifactParts};
 use package_compilation::{
     BuildDeclarationKind, ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationInputs,
     PackageCompilationSubject, PackageDependencyBinding, PackageDependencyClosure,
@@ -1784,21 +1784,20 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
 }
 
 /// A retained native artifact whose Terminal module still carries a measured
-/// self cycle (`Main::spin` under `terminates by`) cannot mint complete
-/// physical evidence: ranked machines are retained derivation subjects the
-/// surviving-occurrence projection does not replay. The artifact must carry
-/// the exact ranked-machine gap — derivation-owned and hashed into its
-/// identity — and the production manifest must surface it as
-/// `NativePhysicalEvidenceBlocked` rather than the generic unavailable
-/// rejection.
+/// self cycle (`Main::spin` under `terminates by`) mints complete physical
+/// evidence: the surviving-occurrence projection and the exact
+/// survivor/physical-child bijection are occurrence-coordinate keyed, so a
+/// ranked SCC decomposition is not a custody subject of its own. The ranked
+/// machine's cycles stay bound through the Terminal artifact identity; any
+/// occurrence-level failure inside one still surfaces as a named gap subject.
 #[test]
-fn blocked_native_physical_evidence_names_the_ranked_machine() {
+fn ranked_machine_mints_complete_native_physical_evidence() {
     let tree = TempTree::new();
     let root = tree.package("ranked-gap");
     // `Main::spin` is a measured self cycle: `terminates by` admits it through
     // the Unit-plan path and termination analysis retains its ranked SCC on
-    // the Terminal machine — the first subject physical derivation cannot
-    // replay. `Main::main` forwards through an admitted scalar call.
+    // the Terminal machine. `Main::main` forwards through an admitted scalar
+    // call.
     TempTree::write(
         root.join("main.omg"),
         "data Main { }\nmachine Main::spin(&mut self, n: u64) terminates by n; {\n    transition n == 0 { true -> done() _ -> self.spin(n - 1) }\n    state done(&mut self) { }\n}\nmachine Main::main(&mut self) {\n    self.spin(3);\n}\n",
@@ -1833,15 +1832,16 @@ fn blocked_native_physical_evidence_names_the_ranked_machine() {
         .retained_native_artifact()
         .expect("the report retains its native artifact");
     assert!(
-        artifact.physical_evidence().is_none(),
-        "the retained ranked machine must block complete physical evidence"
+        artifact.physical_evidence_gap().is_none(),
+        "the retained ranked machine no longer blocks physical evidence derivation"
     );
-    let gap = artifact
-        .physical_evidence_gap()
-        .expect("the blocked derivation names its exact subject");
+    let evidence = artifact
+        .physical_evidence()
+        .expect("the ranked machine derives complete physical evidence");
 
-    // The gap names the exact retained machine: `Main::spin` is the module's
-    // only machine still carrying a ranked SCC.
+    // The derivation replays over the exact retained machine: `Main::spin` is
+    // the module's only machine still carrying a ranked SCC, and the complete
+    // evidence binds every survivor to exactly one physical child.
     let module = terminal_codec::decode_module(artifact.psi_artifact().semantic_bytes())
         .expect("the retained Terminal artifact decodes");
     let ranked = module
@@ -1854,26 +1854,18 @@ fn blocked_native_physical_evidence_names_the_ranked_machine() {
         1,
         "the fixture retains exactly one ranked machine"
     );
-    let NativePhysicalEvidenceGapSubject::RankedMachine { machine } = gap.subject() else {
-        panic!("the first blocking subject must be the ranked machine, not {gap}");
-    };
-    assert_eq!(machine, ranked[0].id);
-    assert!(
-        gap.occurrence().is_none(),
-        "a machine-level gap names no single occurrence"
-    );
 
     let manifest = report
         .production_manifest()
         .expect("the retained-native report carries its production manifest");
     assert_eq!(
         manifest.require_native_physical_evidence(artifact),
-        Err(FinalRealizationEvidenceError::NativePhysicalEvidenceBlocked(*gap)),
-        "the manifest surfaces the exact derivation gap, not a bare absence"
+        Ok(evidence),
+        "the manifest replays the artifact's own derived evidence"
     );
     assert_eq!(
         report.require_package_native_physical_evidence(),
-        Err(FinalRealizationEvidenceError::NativePhysicalEvidenceBlocked(*gap)),
-        "the report-level requirement surfaces the same gap"
+        Ok(evidence),
+        "the report-level requirement replays the same evidence"
     );
 }
