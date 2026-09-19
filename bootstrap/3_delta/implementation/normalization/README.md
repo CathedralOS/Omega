@@ -263,11 +263,11 @@ not from a resource lower bound or compiler-produced count:
 
 | Component | Bytes |
 | --- | ---: |
-| Original unnormalized payload, including fixed runtime and adapter | 4,446,892 |
+| Original unnormalized payload, including bound support members | 4,448,550 |
 | 774 helper wrappers and decimal helper-name digits | 19,904 |
 | 516 captures of the eight-byte payload binding | 12,384 |
 | 16,909,062 captures of ten-byte field bindings | 473,453,736 |
-| Total requested payload | 477,932,916 |
+| Total requested payload | 477,934,574 |
 
 Three match-wrapper lets leave budget 252. Projection helpers have even IDs
 0..514; binding-chain helpers have odd IDs 1..515 and capture field prefixes
@@ -280,17 +280,25 @@ including its definition LF. Capture order changes none of these lengths.
 
 The [opt-in resource control](../../../../tests/delta/resource-boundary/README.md)
 uses this exact source and a literal 40-byte DCOUT resource-12 expectation:
-coordinate and limit 16,777,212, requested 477,932,916. Its host watchdog is
+coordinate and limit 16,777,212, requested 477,934,574. Its host watchdog is
 not a language limit. A successful refusal still does not close allocation
 containment for all admitted programs or the Delta refinement edge.
 
 Canonical compiler SHA-256
-`7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`
-completed this exact DCREQ/profile-1 fixture on macOS arm64 in 4,855.704 seconds:
-status 2, exactly the expected 40-byte frame, and empty stderr. The frame's
-SHA-256 is `e968f867c7a64e64a9340320dafb7b925487e7d7aad6567c38b10ae51966d155`.
-This is completion evidence for one stress source, not a measured arena peak,
-bootstrap-chain duration, or controlled speedup comparison.
+`fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929`
+completed this exact DCREQ/profile-1 fixture on macOS arm64 under an lldb
+halt breakpoint: status 2, exactly the expected 40-byte frame, and empty
+stderr. The frame's SHA-256 is
+`c95d55ef5b5c741bad050d7b870bb66fa9989c44e8e4b5a1e15f6276e74d47d5`. The same
+observation read the evaluator's immutable-pair cursor at halt — 36,033,367
+cumulative pairs, 89.5% of the 40,265,318-pair arena — recorded in the
+[whole-producer study](../boundary/execution_storage.md#whole-producer-pair-study-measured).
+The instrumented run took about 30.5 hours on a heavily loaded host, so it is
+completion and allocation evidence for one stress source, not a
+bootstrap-chain duration or a controlled speedup comparison. The earlier
+direct run of the previous canonical closure finished the identical fixture
+in 4,855.704 seconds; the support-member manifest change moved the expected
+frame, so that duration does not carry to this compiler.
 
 ### Static validation-environment bound
 

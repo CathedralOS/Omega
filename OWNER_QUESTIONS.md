@@ -100,6 +100,53 @@ it instantiates. A reviewer verifies those citations before the framing.
    assumption carries, so the missing piece is the ruling, not the
    plumbing.
 
+2. **How does the Delta compiler's cumulative pair allocation receive a
+   fail-closed profile under the selected Gamma evaluator?** (named
+   decision: `delta-compiler-pair-arena-profile`). The product requirement
+   is the Delta edge's observation contract, independent of this study:
+   every admitted `DCREQ` must end in a defined compiler observation — the
+   Epsilon evaluator closure already compiles through it, and every later
+   chain edge inherits it. The measured
+   [whole-producer pair study](bootstrap/3_delta/implementation/boundary/execution_storage.md#whole-producer-pair-study-measured)
+   drove every admitted extent to its selected boundary on the unchanged
+   chain. The real Epsilon closure customer compiles at 1,864,697
+   cumulative pairs, but the pair-maximizing admitted corner — ledger-capped
+   checked arithmetic (240 pairs per `+` node, at most about 129,000 nodes)
+   composed with ledger-free identifier bytes (three pairs per source byte)
+   — exceeded the retired 40,265,318-pair immutable arena: a
+   4,194,288-byte source
+   (SHA-256 `0b588a5376cefaecd8b7556d61464f857f0326df248607f8b6bc0285d605d89a`)
+   inside every authored provision halted 252 with empty stdout at exactly
+   40,265,318 pairs. That exhaustion is the evaluator's
+   `application_heap_failure`, not a compiler-owned DCOUT row. The
+   contracts checked and found silent:
+   [LANGUAGE.md](bootstrap/3_delta/LANGUAGE.md) fixes the DCOUT coordinate
+   vocabulary (none, Delta source, emitted payload, internal row, DCREQ,
+   bound support section) with no cumulative-allocation identity, and
+   states that evaluator failures do not substitute for the open
+   compiler-owned resource/internal outcomes;
+   [EVALUATOR_PROFILE.md](bootstrap/2_gamma/EVALUATOR_PROFILE.md) owns
+   status 252 as the pair-exhaustion evaluator observation, which exposes
+   no stdout; and the
+   [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer)
+   carries no resource row for cumulative pairs, while its
+   [arithmetic probe](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
+   bars inventing a general DCOUT heap code. Decision needed: (a) enlarge
+   the selected evaluator's pair arena and re-derive its containment
+   argument — the 20,132,659-to-40,265,318 increase already set that
+   precedent for the complete-D parser customer, and the profile has since
+   adopted a 3,422,453,760-pair extent under which the
+   [measured worst-shape study](tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+   projects 417,063,339 pairs at full admitted extents; (b) add a
+   compiler-owned allocation ledger with its own DCOUT resource, making
+   the bound fail-closed at a threshold chosen below the arena; or (c)
+   accept the raw status-252 observation as the contract for
+   cumulative-pair overflow and record it explicitly at the request
+   boundary. The arena enlargement was taken without the named decision
+   being recorded, so until it is answered **DELTA-COMPILER**'s
+   containment obligation stays open and a sufficiently large admitted
+   compile can still end without a compiler-owned observation.
+
 ## Squalr scalar-scan port: surface-driven shape choices
 
 The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced

@@ -232,7 +232,21 @@ prerequisite to every lower-rung milestone.
   evaluator's 3,422,453,760-pair arena — so an admitted source does not end
   in a raw Gamma heap failure. (The closed envelope alone still exceeds the
   arena from `N = 238`; measurement, not the envelope, is the containment
-  evidence.)
+  evidence.) An independent measurement on the unchanged canonical closure —
+  the [whole-producer pair
+  study](bootstrap/3_delta/implementation/boundary/execution_storage.md#whole-producer-pair-study-measured),
+  reading the evaluator's own immutable-pair cursor at halt under lldb —
+  drove each admitted extent to its boundary under the retired
+  40,265,318-pair profile: the real Epsilon closure customer compiled at
+  1,864,697 cumulative pairs, the 65,535-field reconstruction control
+  completed at 36,033,367 pairs (89.5% of that arena), and the
+  pair-maximizing admitted corner halted 252 with empty stdout at exactly
+  40,265,318 pairs — the evaluator's `application_heap_failure`, not a
+  compiler-owned DCOUT row. Which route owns the cumulative bound — the
+  larger evaluator arena since adopted, a compiler-owned allocation ledger
+  with its own DCOUT resource, or explicit contract acceptance of the raw
+  observation — is the owner decision `delta-compiler-pair-arena-profile`
+  in `OWNER_QUESTIONS.md`.
 
   Remaining work:
 
@@ -241,6 +255,10 @@ prerequisite to every lower-rung milestone.
     the closed envelope below the arena is not needed; keep cumulative
     compiler allocation distinct from receipt size and from
     generated-application runtime exhaustion, which is not a compiler outcome.
+  - Record the `delta-compiler-pair-arena-profile` owner decision: the
+    retired-profile exhaustion above was measured and escalated, the arena
+    enlargement was adopted without the named decision being taken, and the
+    ruling still owes the contract reading for cumulative-pair overflow.
   - For a witnessed evaluator exhaustion during compilation, trace its
     allocation owner and observation contract first. A Gamma-owned failure is
     not DCOUT, and the
@@ -254,13 +272,7 @@ prerequisite to every lower-rung milestone.
   - Keep the existing controls instead of rediscovering them or scaling source
     arbitrarily: `sh tests/delta/normalization/run.sh`, the
     `tests/delta/resource-boundary/run.sh` selections, and the Epsilon
-    checking receipt under `sh tests/epsilon/checking/run.sh`. Both measured
-    stress families refuse in existing rows before post-frontend allocation
-    is stressed: the
-    [full-width reconstruction](bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
-    at resource 12 after 4,856 seconds and the
-    [wide constructor](bootstrap/3_delta/implementation/boundary/README.md#wide-constructor-allocation-probe)
-    at resource 7 after 651 seconds. Neither exercises the open question.
+    checking receipt under `sh tests/epsilon/checking/run.sh`.
 
   Retain original binding atoms, immutable scopes, and matched
   parameter/argument order. No renaming maps, additional lookup subsystem,
