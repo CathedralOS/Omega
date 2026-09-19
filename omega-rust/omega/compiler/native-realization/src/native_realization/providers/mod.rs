@@ -41,10 +41,9 @@ pub(crate) fn admit_native_providers<'request>(
     proof_bytes: &[u8],
     terminal_artifact_identity: [u8; 32],
     request: &NativeRealizationRequest<'request>,
-    filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let (settlements, executions, mut mechanisms, cohort_rows) =
-        settlements::settle_provider_executions(input, request, filesystem_release_contracts)?;
+        settlements::settle_provider_executions(input, request)?;
     let mut settlements = settlements;
     let (builtin_settlements, builtin_mechanisms) =
         compiler_builtins::settle_compiler_builtins(input, request)?;

@@ -32,7 +32,6 @@ pub(super) fn validate_source_evaluated_import_coverage(
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     settlements: &[NativeProviderSettlement<'_>],
     native_callbacks: &[abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
-    filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
 ) -> Result<
     (
         Vec<AdmittedTerminalMechanism>,
@@ -119,12 +118,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     ))]
                 })?;
                 let cohort_row = settled_filesystem_cohort_row(provider_plan, row, mechanism);
-                let mechanism = match classify_terminal_mechanism(
-                    policy,
-                    mechanism,
-                    ordinary_release_cohort(provider_plan, row),
-                    filesystem_release_contracts,
-                ) {
+                let mechanism = match classify_terminal_mechanism(policy, mechanism) {
                     Ok(mechanism) => mechanism,
                     Err(unclassified) if cohort_row.is_some() => {
                         // The toolchain-settled cohort classifies this leaf:
@@ -139,9 +133,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         ))]);
                     }
                 };
-                if let Some(row) =
-                    cohort_row.filter(|row| !cohort_rows.contains(row))
-                {
+                if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
                     cohort_rows.push(row);
                 }
                 admitted_mechanisms.push(AdmittedTerminalMechanism {
@@ -203,12 +195,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     ))]
                 })?;
                 let cohort_row = settled_filesystem_cohort_row(provider_plan, row, mechanism);
-                let mechanism = match classify_terminal_mechanism(
-                    policy,
-                    mechanism,
-                    ordinary_release_cohort(provider_plan, row),
-                    filesystem_release_contracts,
-                ) {
+                let mechanism = match classify_terminal_mechanism(policy, mechanism) {
                     Ok(mechanism) => mechanism,
                     Err(unclassified) if cohort_row.is_some() => unclassified.mechanism(),
                     Err(unclassified) => {
@@ -219,9 +206,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         ))]);
                     }
                 };
-                if let Some(row) =
-                    cohort_row.filter(|row| !cohort_rows.contains(row))
-                {
+                if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
                     cohort_rows.push(row);
                 }
                 if rows.boundary_count != 1 {
@@ -300,58 +285,21 @@ fn settled_filesystem_cohort_row(
     .ok()
 }
 
-/// Whether the selected row serves a canonical `FilesystemHost`
-/// ordinary-release cohort method. Only those requirements may carry an
-/// occurrence-specific release contract into a mechanism key: the coordinate
-/// is evidence of a proved constrained open/query/close occurrence, and no
-/// other cohort can bind it.
-fn ordinary_release_cohort(provider_plan: &ProviderPlan, row: &ProviderPlanRow) -> bool {
-    provider_plan
-        .schema
-        .methods
-        .iter()
-        .find(|method| method.name == row.method)
-        .and_then(|method| {
-            crate::native_realization::terminal_authority_policy::settled_filesystem_cohort(
-                &method.name,
-            )
-        })
-        == Some(crate::native_realization::FilesystemCohortDisposition::OrdinaryReleaseContract)
-}
-
-/// Classify one demanded mechanism, preferring an occurrence-bound key when a
-/// retained ordinary-release contract narrows this mechanism's checked
-/// argument-contract coordinate and the receiving policy classified that
-/// bound key.
+/// Classify one demanded mechanism under the receiving policy's own keys.
 ///
-/// The proved constrained occurrence uses its own evidence-bound mechanism
-/// identity, so each retained contract's bound key is consulted before the
-/// unconstrained conservative key: a caller row for the generic key never
-/// widens a covered occurrence back. A contract whose bound key has no
-/// explicit row cannot classify, and a record absent from this compile's
-/// custody contributes no candidates, so the unconstrained fallback fails
-/// closed exactly as before. Non-release cohorts never consult bound keys:
-/// no retained release occurrence can narrow them.
+/// Retained ordinary-release contracts never consult here: they describe the
+/// compile's own build replay — a different execution — so no bound key they
+/// mint may narrow a demanded program mechanism. Release narrowing arrives
+/// with the program's own checked-flow derivation, rejoined per call site;
+/// until it exists the conservative key classifies or the demand fails
+/// closed exactly as before.
 fn classify_terminal_mechanism(
     policy: &crate::native_realization::TerminalAuthorityPolicy,
     mechanism: effects::TerminalMechanismIdentity,
-    release_cohort: bool,
-    filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
 ) -> Result<
     effects::TerminalMechanismIdentity,
     crate::native_realization::terminal_authority_policy::UnclassifiedTerminalMechanism,
 > {
-    if release_cohort {
-        for bound in filesystem_release_contracts.iter().filter_map(|contract| {
-            crate::native_realization::terminal_authority_policy::filesystem_release_bound_mechanism(
-                mechanism, *contract,
-            )
-        }) {
-            if policy.classify(bound).is_ok() {
-                return Ok(bound);
-            }
-        }
-    }
     policy.classify(mechanism).map(|_| mechanism)
 }
 

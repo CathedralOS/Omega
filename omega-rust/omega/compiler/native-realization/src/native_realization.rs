@@ -80,30 +80,78 @@ pub fn realize_native_artifact(
 ///
 /// `filesystem_release_contracts` carries exactly the contracts derived from
 /// this compilation's own verified build filesystem replay record through
-/// [`filesystem_native_handle_query_release_contracts`]. Settlement consults
-/// each contract before the unconstrained mechanism key: a demanded
-/// syscall/import mechanism whose bound key has an explicit receiving-policy
-/// row admits under that occurrence's evidence, while a contract the policy
-/// never rowed cannot classify. An empty slice preserves the conservative
-/// path exactly; a record absent from this compile's custody is never
-/// inferred.
+/// [`filesystem_native_handle_query_release_contracts`]. Each contract emits
+/// its evidence-bound explicit-empty row into the artifact's terminal-authority
+/// policy — retained proof that this compile's own constrained open/query/close
+/// occurrences happened. Settlement never consults these contracts to classify
+/// a demanded program mechanism: they describe a different execution, and the
+/// spec binds the constraint identity "to the derivation and exact
+/// occurrence". Release narrowing arrives only with the program's own
+/// checked-flow derivation, rejoined per call site; until it exists a demanded
+/// release-cohort mechanism classifies under the receiving policy's own keys
+/// or fails closed.
 pub fn realize_native_artifact_with_release_contracts(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
     filesystem_release_contracts: &[FilesystemOrdinaryReleaseContract],
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    realize_image(artifact, &request, filesystem_release_contracts).map_err(|diagnostics| {
-        RequestedNativeArtifactError {
-            image_request: request.image_request,
-            diagnostics,
+    let mut request = request;
+    if !filesystem_release_contracts.is_empty() {
+        let merged = (|| -> Result<TerminalAuthorityPolicy, Vec<Diagnostic>> {
+            let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
+                |error| {
+                    vec![Diagnostic::error(format!(
+                        "native-artifact release evidence could not replay canonical Terminal semantics: {error}"
+                    ))]
+                },
+            )?;
+            let demanded =
+                provider_planning::compiler_intrinsics::demanded_boundary_identities(&module)?;
+            let release_rows = filesystem_release_occurrence_mechanism_rows(
+                filesystem_release_contracts,
+                &demanded,
+                request.selected_provider_plans,
+                request.external_binding_rows,
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "native-artifact retained filesystem release evidence did not realize its mechanism rows: {error}"
+                ))]
+            })?;
+            let mut rows = request.terminal_authority_policy.explicit_rows().to_vec();
+            for row in release_rows {
+                if rows
+                    .iter()
+                    .all(|existing| existing.mechanism() != row.mechanism())
+                {
+                    rows.push(row);
+                }
+            }
+            terminal_authority_policy_with_rows(rows).map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "native-artifact retained filesystem release rows do not form one exact mechanism policy: {error:?}"
+                ))]
+            })
+        })();
+        match merged {
+            Ok(policy) => request.terminal_authority_policy = policy,
+            Err(diagnostics) => {
+                return Err(RequestedNativeArtifactError {
+                    image_request: request.image_request.clone(),
+                    diagnostics,
+                });
+            }
         }
+    }
+    realize_image(artifact, &request).map_err(|diagnostics| RequestedNativeArtifactError {
+        image_request: request.image_request,
+        diagnostics,
     })
 }
 
 fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
-    filesystem_release_contracts: &[FilesystemOrdinaryReleaseContract],
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     if let Some(scope) = request.checked_scope {
         scope
@@ -154,7 +202,6 @@ fn realize_image(
         proof_bytes,
         terminal_artifact_identity,
         request,
-        filesystem_release_contracts,
     )?;
     let emitted = emit_realization_object(
         input,

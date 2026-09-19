@@ -138,7 +138,6 @@ fn coverage_rejects_missing_and_duplicate_external_rows_before_policy_lookup() {
             &rows,
             &[],
             &[],
-            &[],
         )
         .expect_err("external multiplicity is independently checked");
         assert_eq!(
@@ -169,7 +168,6 @@ fn coverage_counts_uncalled_boundary_aliases_and_preserves_error_precedence() {
             &policy,
             profile.native_target(),
             &[external(profile, number)],
-            &[],
             &[],
             &[],
         )
@@ -235,7 +233,6 @@ fn coverage_callback_join_counts_duplicate_operations_and_keeps_callback_order()
         &[],
         &[],
         std::slice::from_ref(&callback),
-        &[],
     )
     .expect("one occurrence joins; this does not claim callback publication admission");
     let duplicate = plan.functions[0].operations[0].clone();
@@ -253,7 +250,6 @@ fn coverage_callback_join_counts_duplicate_operations_and_keeps_callback_order()
             &[],
             &[],
             &callbacks,
-            &[],
         )
         .expect_err("callback rows retain input-order diagnostics despite sorted lookup keys");
         assert_eq!(
@@ -299,7 +295,6 @@ fn import_coverage_preserves_callback_multiplicity_and_registrar_plan_rejection(
             std::slice::from_ref(&external),
             &[],
             &callbacks,
-            &[],
         )
         .expect_err("one matching registrar plan remains mandatory after occurrence joins");
         assert_eq!(
@@ -330,7 +325,6 @@ fn uncalled_selected_import_needs_no_settlement_but_cannot_hide_an_orphan_callba
         &[],
         &[],
         &[],
-        &[],
     )
     .expect("unreachable selection retains identity without execution inputs")
     .0;
@@ -344,7 +338,6 @@ fn uncalled_selected_import_needs_no_settlement_but_cannot_hide_an_orphan_callba
         &[],
         &[],
         &[callback],
-        &[],
     )
     .expect_err("empty demand cannot hide an orphan callback occurrence");
     assert_eq!(
@@ -488,7 +481,6 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         std::slice::from_ref(&external),
         &[],
         &[],
-        &[],
     )
     .expect("provider settlement derives the checked syscall identity")
     .0;
@@ -535,7 +527,6 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &[wrong_number],
         &[],
         &[],
-        &[],
     )
     .expect_err("retained external number substitution rejects");
     assert!(
@@ -554,7 +545,6 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &[wrong_target],
         &[],
         &[],
-        &[],
     )
     .expect_err("retained external target substitution rejects");
     assert!(
@@ -569,7 +559,6 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &crate::native_realization::current_terminal_authority_policy(),
         target,
         &[external],
-        &[],
         &[],
         &[],
     )
@@ -613,8 +602,12 @@ fn retained_release_contracts(
     .expect("retained occurrences realize their contracts")
 }
 
+/// The build replay's retained release contracts mint bound mechanism keys for
+/// occurrences of a different execution. Settlement must never consult them to
+/// narrow a demanded program mechanism — the program's own checked-flow
+/// derivation, rejoined per call site, is the only admissible narrowing.
 #[test]
-fn settlement_admits_the_occurrence_bound_release_key() {
+fn settlement_never_narrows_a_release_cohort_from_build_replay_evidence() {
     let profile = target::TargetProfile::LinuxX64;
     let target = profile.native_target();
     let plan = abstract_plan();
@@ -625,6 +618,10 @@ fn settlement_admits_the_occurrence_bound_release_key() {
             profile, 1, &plan, boundary,
         )
         .expect("verified boundary supplies the conservative checked contract");
+    // Contracts derived from this compile's own build replay mint bound keys
+    // for a different execution's occurrences — no amount of that evidence may
+    // classify the program's demanded mechanism, even when the receiving
+    // policy rows every bound key.
     let contracts = retained_release_contracts(&[(b"pkg/main.omg", 7), (b"pkg/lib.omg", 8)]);
     let [first, second] = contracts.as_slice() else {
         panic!("two retained occurrences derive two contracts")
@@ -636,7 +633,7 @@ fn settlement_admits_the_occurrence_bound_release_key() {
         crate::native_realization::filesystem_release_bound_mechanism(conservative, *second)
             .expect("a syscall accepts the checked release coordinate");
     assert_ne!(first_bound, second_bound);
-    let policy = crate::native_realization::terminal_authority_policy_with_rows(vec![
+    let bound_only = crate::native_realization::terminal_authority_policy_with_rows(vec![
         crate::native_realization::TerminalAuthorityPolicyRow::new(
             first_bound,
             effects::TerminalAuthorityDisposition::from_filesystem_facets([]),
@@ -649,6 +646,35 @@ fn settlement_admits_the_occurrence_bound_release_key() {
     .expect("exact release-bound policy rows");
     let external = external(profile, 1);
 
+    let error = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &bound_only,
+        target,
+        std::slice::from_ref(&external),
+        &[],
+        &[],
+    )
+    .expect_err("retained build-replay evidence cannot classify a program mechanism");
+    assert!(
+        error[0]
+            .message
+            .contains("does not classify syscall mechanism")
+    );
+
+    // The release-cohort demand classifies only under the conservative key the
+    // receiving policy itself rows — the bound coordinate never substitutes.
+    let policy = crate::native_realization::terminal_authority_policy_with_rows(vec![
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            first_bound,
+            effects::TerminalAuthorityDisposition::from_filesystem_facets([]),
+        ),
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            conservative,
+            effects::TerminalAuthorityDisposition::from_classes([]),
+        ),
+    ])
+    .expect("conservative and bound rows coexist");
     let admitted = validate_source_evaluated_import_coverage(
         &plan,
         &selected,
@@ -657,58 +683,18 @@ fn settlement_admits_the_occurrence_bound_release_key() {
         std::slice::from_ref(&external),
         &[],
         &[],
-        &contracts,
     )
-    .expect("a demanded release-cohort mechanism admits under its bound key")
+    .expect("the receiving policy's own conservative key admits the demand")
     .0;
     assert_eq!(
         admitted,
         vec![
             crate::native_realization::providers::AdmittedTerminalMechanism {
                 boundary,
-                mechanism: first_bound,
+                mechanism: conservative,
             }
         ],
-        "settlement binds the first retained occurrence's key in authored order"
-    );
-
-    // Without this compile's retained evidence the bound keys are inert: the
-    // conservative mechanism was never rowed, so the demand stays fail-closed.
-    let error = validate_source_evaluated_import_coverage(
-        &plan,
-        &selected,
-        &policy,
-        target,
-        std::slice::from_ref(&external),
-        &[],
-        &[],
-        &[],
-    )
-    .expect_err("no retained release evidence keeps the generic key unclassified");
-    assert!(
-        error[0]
-            .message
-            .contains("does not classify syscall mechanism")
-    );
-
-    // A stale record's contracts mint different bound keys, none of which the
-    // receiving policy rows; the unconstrained fallback has no row either.
-    let stale = retained_release_contracts(&[(b"pkg/other.omg", 7)]);
-    let error = validate_source_evaluated_import_coverage(
-        &plan,
-        &selected,
-        &policy,
-        target,
-        std::slice::from_ref(&external),
-        &[],
-        &[],
-        &stale,
-    )
-    .expect_err("stale release evidence cannot classify the retained bound key");
-    assert!(
-        error[0]
-            .message
-            .contains("does not classify syscall mechanism")
+        "settlement admits the conservative key, never a build-replay bound coordinate"
     );
 }
 
@@ -754,7 +740,6 @@ fn settlement_never_binds_release_contracts_into_non_release_cohorts() {
         &[external(profile, 1)],
         &[],
         &[],
-        &contracts,
     )
     .expect("the conservative key still admits a non-release cohort")
     .0;
@@ -825,7 +810,6 @@ fn settled_filesystem_cohort_emits_and_forged_substitutions_reject() {
         std::slice::from_ref(&external_row),
         &[],
         &[],
-        &[],
     )
     .expect("the toolchain-settled cohort classifies the demanded leaf");
     assert_eq!(
@@ -852,7 +836,6 @@ fn settled_filesystem_cohort_emits_and_forged_substitutions_reject() {
         std::slice::from_ref(&external_row),
         &[],
         &[],
-        &[],
     )
     .expect("a confirming supplied row admits the cohort leaf");
     let effective = merge_cohort_rows(&confirming, cohort_rows)
@@ -876,7 +859,6 @@ fn settled_filesystem_cohort_emits_and_forged_substitutions_reject() {
         &forged,
         target,
         std::slice::from_ref(&external_row),
-        &[],
         &[],
         &[],
     )
@@ -905,7 +887,6 @@ fn settled_filesystem_cohort_emits_and_forged_substitutions_reject() {
         &crate::native_realization::current_terminal_authority_policy(),
         target,
         &[external(profile, 1)],
-        &[],
         &[],
         &[],
     )
