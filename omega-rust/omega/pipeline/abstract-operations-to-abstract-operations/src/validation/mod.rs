@@ -2725,12 +2725,16 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
 
 /// Structural-result machine calls — `CallStructural` — are the call family's
 /// fourth admitted member: an exact internal callee invocation returning a
-/// fresh structural place. The admitted shape is the one the cyclic
+/// fresh structural place. The admitted shapes are the ones the cyclic
 /// eligibility fence already confines: an affine, claim-free result the
 /// producing member block dispatches through a `StructuralCase` or returns
 /// outright, so the verifier's per-traversal custody — produce inside the
 /// member, discard on every dispatch edge — is exactly what the relocation
-/// re-expresses. The node must keep its own operation identity as the first
+/// re-expresses; or an unrestricted claim-free result spelling one of the
+/// frontier's plain-source shapes — a copy payload that never enters
+/// `owned_places`, so the relocation re-expresses no custody for it at all
+/// and the persistent preheader place simply reads the same value every
+/// traversal. The node must keep its own operation identity as the first
 /// provenance row, define no scalar, use exactly its scalar `arguments` in
 /// operand order, carry no successors, and keep no crash-route custody.
 /// `claim_transfers` and `returned_claim_transfers` must both be empty — the
@@ -2781,7 +2785,11 @@ pub(crate) fn admissible_invariant_structural_call(
             .zip(arguments.iter())
             .all(|(value_use, argument)| value_use.value == *argument)
         && node.successors.is_empty()
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && matches!(
+            result.multiplicity,
+            terminal_psi::StructuralMultiplicity::Affine
+                | terminal_psi::StructuralMultiplicity::Unrestricted
+        )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
@@ -2919,13 +2927,16 @@ pub(crate) fn invariant_structural_scalar_call_admission(
 /// The complete structural-result call admission shared by the proposal and
 /// the relocation freeze replay: `node` must carry the source-owned call
 /// shape ([`admissible_invariant_structural_call`]) — which yields the exact
-/// internal callee and its affine claim-free result — then the affine result
-/// place must stay inside the member roster spelled only through positions
-/// the relocation's custody rewrite re-expresses
+/// internal callee and its claim-free result. An affine result place must
+/// stay inside the member roster spelled only through positions the
+/// relocation's custody rewrite re-expresses
 /// ([`scalar_case_result_contained`]): the producing call itself, the
 /// member-block dispatch or structural return consuming it, and the edges
-/// whose discard rosters the rewrite adjusts. Every remaining evidence half
-/// is the borrow calls' shared surface
+/// whose discard rosters the rewrite adjusts. An unrestricted result needs
+/// neither bound: the place is a custody-free copy payload that never
+/// enters `owned_places`, so no discard roster spells it and nothing about
+/// its membership re-times. Every remaining evidence half is the borrow
+/// calls' shared surface
 /// ([`borrow_call_admission`]): the pure transitive callee, the unobservable
 /// member roster, the shared scalar-operand substitution, the borrow and
 /// copyable-owned argument whitelist, and each argument root's landing —
@@ -2936,8 +2947,8 @@ pub(crate) fn invariant_structural_scalar_call_admission(
 /// `Owned` argument requiring the landed root to declare an unrestricted
 /// copyable shape.
 ///
-/// The place-custody bound runs with the run's relocating roots plus this
-/// call's own result tolerated: a borrow argument lets the callee observe a
+/// The place-custody bound runs with the run's relocating roots plus an
+/// affine result tolerated: a borrow argument lets the callee observe a
 /// caller place the containment bound alone does not freeze, so the bound
 /// must prove no member-visible place mutates or moves across traversals —
 /// while the tolerated discards are exactly the confined results'
@@ -2953,8 +2964,12 @@ pub(crate) fn invariant_structural_call_admission(
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let (callee, result) = admissible_invariant_structural_call(node)?;
-    if !scalar_case_result_contained(function, component, result.place) {
-        return None;
+    let mut tolerated = relocating_roots.clone();
+    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+        if !scalar_case_result_contained(function, component, result.place) {
+            return None;
+        }
+        tolerated.insert(result.place);
     }
     let O::CallStructural {
         structural_arguments,
@@ -2963,8 +2978,6 @@ pub(crate) fn invariant_structural_call_admission(
     else {
         return None;
     };
-    let mut tolerated = relocating_roots.clone();
-    tolerated.insert(result.place);
     borrow_call_admission(
         function,
         component,
@@ -2989,7 +3002,7 @@ pub(crate) fn invariant_structural_call_admission(
 /// preserve member-visible place contents and custody
 /// ([`component_preserves_place_observations`], run with `tolerated` member
 /// discards — empty for the unit and scalar-result callers, the run's
-/// relocating roots plus the call's own confined result for a
+/// relocating roots plus the call's own confined result for an affine
 /// structural-result call, whose dispatch edges discard the fresh place the
 /// relocation makes persistent) — only then does the
 /// relocated call observe and return on every traversal exactly what the

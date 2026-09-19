@@ -481,19 +481,25 @@ fn admit_member_node(
         // A structural-result call keeps the borrow call family's whole
         // evidence surface — the non-speculative gate, the pure transitive
         // callee, the unobservable member roster, the whole-component
-        // place-custody bound run with the run's relocating roots plus the
-        // call's own confined result tolerated, and every borrow or
+        // place-custody bound, and every borrow or
         // copyable-owned argument
-        // root landing where the run can see it — and then adds the
+        // root landing where the run can see it — and then splits on the
+        // result's multiplicity. An affine claim-free result adds the
         // custody-rewriting half the scalar-case establishment introduced:
-        // the cyclic eligibility fence already confines its affine
-        // claim-free result to the member block that dispatches or returns
-        // it, so hoisting the call keeps the one persistent result live
-        // through the whole component while member-internal edges stop
-        // discarding it and every exit edge and member return disposes it
-        // instead. Each scalar argument obeys the shared member-parameter
-        // substitution and each borrowed or copyable-owned root rebinds like a
-        // `CallStructuralScalar`'s. Its declared place joins
+        // the cyclic eligibility fence already confines it to the member
+        // block that dispatches or returns it, so hoisting the call keeps
+        // the one persistent result live through the whole component while
+        // member-internal edges stop discarding it and every exit edge and
+        // member return disposes it instead — the bound runs with the run's
+        // relocating roots plus the call's own confined result tolerated.
+        // An unrestricted result is a custody-free copy payload: the
+        // verifier admits it only in a plain-source shape that never enters
+        // `owned_places`, so it carries no disposal roster at all, the
+        // containment bound does not apply, and the persistent preheader
+        // place simply reads the same value every traversal. Each scalar
+        // argument obeys the shared member-parameter substitution and each
+        // borrowed or copyable-owned root rebinds like a
+        // `CallStructuralScalar`'s. The declared place joins
         // `relocating_roots`, so a member node anchored on the persistent
         // result relocates behind it in the same run.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {

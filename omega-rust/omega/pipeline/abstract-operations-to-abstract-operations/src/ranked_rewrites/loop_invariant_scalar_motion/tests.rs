@@ -10055,6 +10055,332 @@ fn stale_structural_call_frontier_catalog_is_rejected() {
     ));
 }
 
+/// A `CallStructural` whose unrestricted claim-free record result is a copy
+/// payload: `pick(s)` inside `step` returns the unrestricted `picked` that
+/// `v` reads once in the same member. The cyclic eligibility fence admits
+/// the producer in its plain-source form — the copy payload never enters
+/// `owned_places`, so no disposal roster exists — so the relocation needs
+/// neither the scalar-case containment bound nor the member-edge custody
+/// rewrite: it rebinds `s` to `scale`'s anchor and leaves the persistent
+/// result's declared place for the member read to keep spelling byte-exact.
+const UNRESTRICTED_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u64; b: u64; }
+
+    machine pick(seed: u64) -> Pair { Pair { a: seed, b: seed } }
+
+    machine Root::scan(scale: u64, remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u64, pending: u64 [0..=5]) {
+            let picked: Pair = pick(s);
+            let v: u64 = picked.a;
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u64) {}
+    }
+"#;
+
+/// Same `pick(s)` shape, but `step` stores through the machine's `&mut self`
+/// receiver: a member mutates a place every traversal, so the whole-component
+/// place-custody bound the call's relocation replays refuses — the persistent
+/// preheader result could not reproduce the traversal's observed storage —
+/// and the call stays inside.
+const MUTATED_MEMBER_UNRESTRICTED_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root { ticks: u32 in Wrapping }
+    data Pair [copy] { a: u64; b: u64; }
+
+    machine pick(seed: u64) -> Pair { Pair { a: seed, b: seed } }
+
+    machine Root::scan(&mut self, scale: u64, remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(&mut self, s: u64, pending: u64 [0..=5]) {
+            let picked: Pair = pick(s);
+            let v: u64 = picked.a;
+            self.ticks = self.ticks + 1;
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(&mut self, r: u64) {}
+    }
+"#;
+
+#[test]
+fn unrestricted_structural_call_result_relocates_without_custody_rewrite() {
+    let session = lowered_session_entry(
+        UNRESTRICTED_STRUCTURAL_CALL_SOURCE,
+        "unrestricted structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let (call_operation, picked, arguments) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            result,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
+            ..
+        } => {
+            assert!(
+                structural_arguments.is_empty()
+                    && claim_transfers.is_empty()
+                    && returned_claim_transfers.is_empty()
+                    && requirement_obligations.is_empty()
+                    && crash_continuations.is_empty()
+                    && selected_evidence.is_empty(),
+                "the admitted call shape carries no structural surface beyond its result"
+            );
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                "the result is the unrestricted copy payload"
+            );
+            (*psi_operation, result.place, arguments.clone())
+        }
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    assert_eq!(arguments.len(), 1, "the call carries one scalar argument");
+    // The unrestricted result carries no disposal roster anywhere in the
+    // seed: the copy payload never enters `owned_places`.
+    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+        for edge in &node.successors {
+            assert!(
+                !edge.trivial_affine_discards.contains(&picked),
+                "the copy payload is never disposal custody"
+            );
+        }
+    }
+    let reads = member_field_reads(function, component);
+    let [(_, read)] = reads.as_slice() else {
+        panic!("one member field read of the unrestricted result")
+    };
+    let read_operation = operation_of(read);
+    if let AbstractOperation::IntegerStructuralField { source, .. } = &read.operation {
+        assert_eq!(*source, picked, "the member read observes the result place");
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the structural call is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the structural call relocates its structural result")
+    };
+    assert_eq!(result.place, picked, "the declared place is byte-exact");
+    assert_eq!(relocation.destination().block, entry.source);
+    let rewrites = relocation.node().operand_rewrites();
+    assert_eq!(
+        rewrites.len(),
+        1,
+        "the single scalar argument carries one member-parameter rewrite"
+    );
+    assert_eq!(
+        rewrites[0].0, arguments[0],
+        "the rewrite spells the call's scalar argument"
+    );
+    let anchor = function
+        .parameters
+        .iter()
+        .find(|parameter| parameter.value == rewrites[0].1)
+        .expect("the argument representative is the machine's `scale` parameter")
+        .value;
+    // The member read of the persistent copy payload relocates behind its
+    // producer in the same run.
+    let read_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the member field read relocates behind the call");
+    assert_eq!(read_relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::CallStructural {
+            result, arguments, ..
+        } => {
+            assert_eq!(result.place, picked, "the declared place is byte-exact");
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                "the moved result keeps its unrestricted multiplicity"
+            );
+            for argument in arguments {
+                assert_eq!(
+                    *argument, anchor,
+                    "the moved call rebinds its scalar argument to the preheader anchor"
+                );
+            }
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    // No custody rewrite applies to the copy payload: every retained edge —
+    // member-internal and exit alike — keeps its seed discard roster
+    // byte-exact, and no roster ever names `picked`.
+    for block in applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function
+                .blocks
+                .iter()
+                .filter(|block| member_targets.contains(&block.id))
+        })
+    {
+        for node in &block.nodes {
+            for edge in &node.successors {
+                assert!(
+                    !edge.trivial_affine_discards.contains(&picked),
+                    "no edge disposes the custody-free result"
+                );
+            }
+        }
+    }
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn member_mutation_keeps_unrestricted_structural_call_inside() {
+    let session = lowered_session_entry(
+        MUTATED_MEMBER_UNRESTRICTED_STRUCTURAL_CALL_SOURCE,
+        "mutated member unrestricted structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "a member mutating a place keeps the copy-payload call inside"
+    );
+}
+
+#[test]
+fn forged_unrestricted_result_multiplicity_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        UNRESTRICTED_STRUCTURAL_CALL_SOURCE,
+        "unrestricted structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let call_operation = operation_of(call);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the unrestricted structural call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved result's multiplicity to linear invents custody the
+    // relocation never re-expressed — the replayed operation comparison
+    // retains every source-owned field, so the drifted spelling rejects
+    // byte-exact.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::CallStructural { result, .. } = &mut forged.operation {
+        result.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
 /// Two-state cycle whose `step` member establishes `marker`, the
 /// field-free affine record the composed-control lowering emits for a
 /// trivial affine local: the cyclic eligibility fence already confined the

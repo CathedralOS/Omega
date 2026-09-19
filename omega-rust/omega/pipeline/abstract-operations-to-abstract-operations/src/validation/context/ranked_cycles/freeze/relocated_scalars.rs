@@ -56,15 +56,19 @@
 //! parameter, or produced in the same run, while a mutable or write-only
 //! borrow may name only a uniquely member-produced root the same run already
 //! relocated and no other member observes), an admissible
-//! structural-result call — `CallStructural` — whose affine claim-free
-//! result the cyclic eligibility fence already confined to the producing
-//! member block's dispatch or return (the same effect and observability
-//! bars, the same place-custody bound — tolerating the run's confined-result
+//! structural-result call — `CallStructural` — in either form the cyclic
+//! eligibility fence confines (an affine claim-free
+//! result the producing member block dispatches or returns: the same effect
+//! and observability bars, the same place-custody bound — tolerating the
+//! run's confined-result
 //! discards, which the relocation re-expresses — the same borrowed-root
 //! landing rule, the scalar-case containment bound on the result place, the
 //! scalar argument substitution, and the same member-internal discard
 //! stripping and exit disposal the establishment's custody rewrite
-//! performs), or
+//! performs; or an unrestricted claim-free result spelling one of the
+//! frontier's plain-source shapes: a custody-free copy payload that moves
+//! byte-exact under the shared no-member-stores bound, with no discard
+//! roster to tolerate and no containment bound), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -472,12 +476,16 @@ pub(super) fn validate(
             // A structural-result call replays the borrow calls' whole
             // admission from the seed — the pure transitive callee, the
             // unobservable member roster, the place-custody bound run with
-            // this component's relocated roots plus the call's own result
+            // this component's relocated roots plus the call's own affine
+            // result
             // tolerated, the borrow and copyable-owned argument whitelist,
             // and each argument
-            // root's landing — plus the affine result's containment: the
+            // root's landing — plus, for an affine result, the containment
+            // bound: the
             // result place must stay inside the member roster spelled only
-            // through positions the custody rewrite re-expresses. A forged
+            // through positions the custody rewrite re-expresses, while an
+            // unrestricted result is a custody-free copy payload the
+            // containment bound does not govern. A forged
             // result, scalar argument, argument-root rebind, or claim
             // spelling rejects here or in `same_relocated_node`'s operation
             // comparison, and a kept internal discard or missing exit
