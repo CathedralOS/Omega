@@ -441,11 +441,20 @@ have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-foreign/generic constant attachments and specialized template normalization,
-trait defaults,
-operator homes, qualified case membership in declared-domain proof facts,
-and the remaining declaration forms still need exact
-namespace-aware resolution.
+foreign/generic constant attachments, operator homes and qualified case
+membership in declared-domain proof facts have resolution probes but still
+need end-to-end selection coverage.
+
+Trait defaults keep two distinct owners: the synthesized implementation and
+its states belong to the conforming package, while copied body operands retain
+the lexical author's source context. Generated state names inherit implementation
+provenance instead of borrowing the foreign requirement's declaration span.
+This preserves private helper/import access inside a default without granting it
+access to the consumer's private names. The
+`module_machine_indices::trait_defaults` integration tests follow ordinary,
+inherited and specialized defaults through checked compilation and independently
+decoded Terminal execution, with same-leaf competitors, local overrides and
+private/file-local/direct-dependency rejection controls.
 Executable case membership and bare case values select the full module/package
 carrier path before retaining the exact data and case symbols. Local bindings
 still shadow value-position paths; a dependency alias is not a runtime value or
