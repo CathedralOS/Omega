@@ -157,6 +157,28 @@ fn operations_land_under(
                 return false;
             }
         }
+        // Exact signed remainder shares division's quotient-formation
+        // obligation: MIN % -1 is invalid even though its remainder is zero.
+        // The arithmetic engine admits only constant moduli here; every other
+        // nonzero divisor has a representable quotient for a landed dividend.
+        if binary.operator == BinaryOperator::Modulo && minimum.is_negative() {
+            let Some(divisor) = engine.normalize(binary.right) else {
+                return false;
+            };
+            let Some(divisor) = engine.substituted(&divisor).constant_value() else {
+                return false;
+            };
+            if divisor == BigInt::from_i64(-1) {
+                let Some(dividend) = engine.normalize(binary.left) else {
+                    return false;
+                };
+                let above_minimum =
+                    engine.substituted(&dividend.sub(&Polynomial::constant(minimum.clone())));
+                if !engine.prove_at_least(&above_minimum, &BigInt::from_i64(1)) {
+                    return false;
+                }
+            }
+        }
         let Some(result) = engine.normalize(node) else {
             return false;
         };
@@ -560,6 +582,10 @@ impl<'program> FieldCoordinate<'program> {
     /// declaration. Every carrier route still requires the exact record this
     /// coordinate's chain starts at: a same-shaped record elsewhere in the
     /// actual's projection is not its carrier.
+    /// Resolving a source coordinate also installs its store-enforced field
+    /// bounds. A caller may forward a whole record without spelling this leaf;
+    /// the callee's demanded projection must still read the source's bounded
+    /// value. These are caller declaration facts, never callee requirements.
     pub(super) fn arrived(
         &self,
         program: &'program TypedTrees,
@@ -577,7 +603,10 @@ impl<'program> FieldCoordinate<'program> {
             current = borrow.target;
         }
         if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {
-            return Some(self.through_carrier(program, carrier, &prefix)?.value());
+            let coordinate = self.through_carrier(program, carrier, &prefix)?;
+            return engine
+                .install_hypotheses(coordinate.comparisons(program))
+                .then(|| coordinate.value());
         }
         let mut owner = self.root;
         for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
@@ -588,9 +617,11 @@ impl<'program> FieldCoordinate<'program> {
                 // record through a carrier's projection prefix; the prefix
                 // must land on the record this chain expects at this step
                 // before the remaining steps resume under its declaration.
-                return self
-                    .through_carrier_at(program, carrier, &prefix, owner, depth)
-                    .map(|coordinate| coordinate.value());
+                let coordinate =
+                    self.through_carrier_at(program, carrier, &prefix, owner, depth)?;
+                return engine
+                    .install_hypotheses(coordinate.comparisons(program))
+                    .then(|| coordinate.value());
             }
             current = unique_literal_field(program, current, owner, field)?;
             if let Some((next, _)) = record_referent(program, field.type_reference) {

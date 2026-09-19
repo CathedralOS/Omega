@@ -771,9 +771,17 @@ fn endpoint_inputs<'program>(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
             ) =>
         {
+            // Conservation follows both operand dependencies, not the
+            // operation's spelling or its output interval. Selected meaning,
+            // defined division and carrier formation are separate call-range
+            // obligations; this traversal grants none of them.
             endpoint_inputs(
                 program,
                 machine,

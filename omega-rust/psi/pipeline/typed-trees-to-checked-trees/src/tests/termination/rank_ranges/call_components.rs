@@ -1,5 +1,154 @@
 use super::{lower_typed_trees, typed};
 
+const QUOTIENT_PAIR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/quotient_endpoint_call_component/main.omg"
+));
+
+#[test]
+fn quotient_endpoints_cross_recursive_calls_and_unranged_members() {
+    for omitted in ["", " in 0..(cap / 5 + 6)", " in 0..(limit / 5 + 6)"] {
+        let source = if omitted.is_empty() {
+            QUOTIENT_PAIR.to_owned()
+        } else {
+            QUOTIENT_PAIR.replace(omitted, "")
+        };
+        prove(&source);
+        reject(&source.replace("self.second(cap, remaining)", "self.second(0, remaining)"));
+        reject(&source.replace(
+            "self.first(pending - 1, limit)",
+            "self.first(pending - 1, 0)",
+        ));
+        reject(&source.replace("pending - 1", "pending"));
+    }
+}
+
+#[test]
+fn recursive_quotient_endpoints_preserve_selection_and_formation() {
+    for operation in ["/", "%"] {
+        let source = QUOTIENT_PAIR.replace("/ 5", &format!("{operation} 5"));
+        prove(&source);
+        reject(&source.replace(&format!("{operation} 5"), &format!("{operation} 0")));
+        reject(&format!(
+            "operator {operation} u64::selected(left: u64, right: u64) -> u64; {source}"
+        ));
+        let signed_minimum = source
+            .replace("cap: u64 [0..=20]", "cap: i8 [-128..=-128]")
+            .replace("limit: u64 [0..=20]", "limit: i8 [-128..=-128]")
+            .replace(
+                &format!("cap {operation} 5 + 6"),
+                &format!("(cap {operation} -1) / 2 + 6"),
+            )
+            .replace(
+                &format!("limit {operation} 5 + 6"),
+                &format!("(limit {operation} -1) / 2 + 6"),
+            );
+        reject(&signed_minimum);
+        prove(&signed_minimum.replace("[-128..=-128]", "[-127..=-127]"));
+    }
+    reject(&QUOTIENT_PAIR.replace("/ 5", "/ 5u8"));
+    let bounded = QUOTIENT_PAIR
+        .replace("cap: u64 [0..=20]", "cap: u64")
+        .replace("limit: u64 [0..=20]", "limit: u64")
+        .replace(
+            "terminates by remaining",
+            "requires cap <= 20; terminates by remaining",
+        )
+        .replace(
+            "terminates by pending",
+            "requires limit <= 20; terminates by pending",
+        )
+        .replace("cap / 5", "(cap + 1) / 5")
+        .replace("limit / 5", "(limit + 1) / 5");
+    prove(&bounded);
+    reject(&bounded.replace("requires cap <= 20;", ""));
+}
+
+#[test]
+fn recursive_remainder_endpoint_formation_uses_live_quotient_bounds() {
+    let source = QUOTIENT_PAIR
+        .replace("cap: u64 [0..=20]", "cap: i8")
+        .replace("limit: u64 [0..=20]", "limit: i8")
+        .replace(
+            "terminates by remaining",
+            "requires cap > -128; terminates by remaining",
+        )
+        .replace(
+            "terminates by pending",
+            "requires limit > -128; terminates by pending",
+        )
+        .replace("cap / 5", "cap % -1")
+        .replace("limit / 5", "limit % -1");
+    prove(&source);
+    reject(&source.replace("requires cap > -128;", ""));
+    reject(&source.replace("requires limit > -128;", ""));
+}
+
+#[test]
+fn recursive_quotient_endpoints_need_live_prefixes_and_named_arrivals() {
+    prove(&QUOTIENT_PAIR.replace(
+        "transition remaining > 0",
+        "self.observed = remaining; transition remaining > 0",
+    ));
+    reject(&QUOTIENT_PAIR.replace("cap: u64", "mut cap: u64").replace(
+        "transition remaining > 0",
+        "cap = 0; transition remaining > 0",
+    ));
+    let named = QUOTIENT_PAIR.replace(
+        "    transition remaining > 0 {\n        true -> self.second(cap, remaining)\n        false -> remaining\n    }",
+        "    transition { _ -> hold(cap, remaining) }\n    state hold(bound: u64 [0..=20], amount: u64 [0..=5]) {\n        transition amount > 0 { true -> self.second(bound, amount) false -> amount }\n    }",
+    );
+    prove(&named);
+    prove(&named.replace(" in 0..(limit / 5 + 6)", ""));
+    reject(&named.replace("hold(cap, remaining)", "hold(0, remaining)"));
+    reject(&named.replace("self.second(bound, amount)", "self.second(0, amount)"));
+}
+
+#[test]
+fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
+    prove(
+        &QUOTIENT_PAIR
+            .replace("cap / 5", "(cap / 2) / 3")
+            .replace("limit / 5", "(limit / 2) / 3"),
+    );
+    let source = format!(
+        "data Limits {{ bound: u64 [0..=20]; other: u64 [0..=20]; }} {}",
+        QUOTIENT_PAIR
+            .replace("cap: u64 [0..=20]", "cap: Limits")
+            .replace("limit: u64 [0..=20]", "limit: Limits")
+            .replace("cap / 5", "cap.bound / 5")
+            .replace("limit / 5", "limit.bound / 5")
+            .replace(
+                "self.second(cap, remaining)",
+                "self.second(Limits { bound: cap.bound, other: 0 }, remaining)",
+            )
+    );
+    prove(&source);
+    prove(&source.replace(" in 0..(limit.bound / 5 + 6)", ""));
+    reject(&source.replace("bound: cap.bound, other: 0", "bound: cap.other, other: 0"));
+    let partial = format!(
+        "data Limits {{ bound: u64 [0..=20]; other: u64 [0..=20]; }}
+         data Envelope {{ inner: Limits; sibling: Limits; }} {}",
+        QUOTIENT_PAIR
+            .replace("cap: u64 [0..=20]", "cap: Envelope")
+            .replace("limit: u64 [0..=20]", "limit: Envelope")
+            .replace("cap / 5", "cap.inner.bound / 5")
+            .replace("limit / 5", "limit.inner.bound / 5")
+            .replace(
+                "self.second(cap, remaining)",
+                "self.second(Envelope { inner: cap.inner, sibling: cap.sibling }, remaining)",
+            )
+    );
+    for omitted in [
+        " in 0..(cap.inner.bound / 5 + 6)",
+        " in 0..(limit.inner.bound / 5 + 6)",
+    ] {
+        let mixed = partial.replace(omitted, "");
+        prove(&mixed);
+        reject(&mixed.replace("inner: cap.inner", "inner: cap.sibling"));
+    }
+}
+
 const PAIR: &str = r#"
 data Main { observed: u64; }
 machine Main::first(&mut self, floor: u64, remaining: u64, ceiling: u64)
@@ -28,7 +177,9 @@ fn prove(source: &str) {
 }
 
 fn reject(source: &str) {
-    let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
+    let Err(diagnostics) = lower_typed_trees(typed(source)) else {
+        panic!("invalid call component accepted:\n{source}");
+    };
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("machine call cycle")
