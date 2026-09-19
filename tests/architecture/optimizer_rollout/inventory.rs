@@ -13,7 +13,12 @@ const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/resolv
 const INVENTORY_START: &str = "<!-- exact-rule-inventory:start -->";
 const INVENTORY_END: &str = "<!-- exact-rule-inventory:end -->";
 
-pub(super) fn check(audit: &mut Audit) -> BTreeMap<String, ReleaseRow> {
+pub(super) fn check(
+    audit: &mut Audit,
+) -> (
+    BTreeMap<String, ReleaseRow>,
+    BTreeMap<String, CanonicalRule>,
+) {
     let canonical = canonical_rules(audit);
     let published = published_rules(audit);
     if canonical.keys().collect::<Vec<_>>() != published.keys().collect::<Vec<_>>() {
@@ -24,8 +29,8 @@ pub(super) fn check(audit: &mut Audit) -> BTreeMap<String, ReleaseRow> {
         ));
     }
 
-    for (name, expected) in canonical {
-        let Some(row) = published.get(&name) else {
+    for (name, expected) in &canonical {
+        let Some(row) = published.get(name) else {
             continue;
         };
         if row.phase != expected.phase {
@@ -61,7 +66,7 @@ pub(super) fn check(audit: &mut Audit) -> BTreeMap<String, ReleaseRow> {
             ));
         }
     }
-    published
+    (published, canonical)
 }
 
 fn canonical_rules(audit: &mut Audit) -> BTreeMap<String, CanonicalRule> {
@@ -239,9 +244,9 @@ fn published_rules(audit: &mut Audit) -> BTreeMap<String, ReleaseRow> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct CanonicalRule {
-    phase: String,
-    applicability: String,
+pub(super) struct CanonicalRule {
+    pub(super) phase: String,
+    pub(super) applicability: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
