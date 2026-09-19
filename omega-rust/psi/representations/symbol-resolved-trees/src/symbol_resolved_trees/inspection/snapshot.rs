@@ -17,8 +17,10 @@ mod type_snapshots;
 pub use declaration_snapshots::{
     ConstDeclarationSnapshot, DataDefinitionSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
     DomainAliasConstituentSnapshot, DomainDefinitionSnapshot, DomainEstablishmentRouteSnapshot,
-    DomainSemanticRolesSnapshot, MeasureDefinitionSnapshot, OperatorDefinitionSnapshot,
-    ProofFactSnapshot, PropositionBinderSnapshot, PropositionBodySnapshot, PropositionSnapshot,
+    DomainSemanticRolesSnapshot, MathematicalBinderSnapshot, MathematicalBodySnapshot,
+    MathematicalDefinitionSnapshot, MathematicalParameterSnapshot, MathematicalTypeSnapshot,
+    MeasureDefinitionSnapshot, OperatorDefinitionSnapshot, ProofFactSnapshot,
+    PropositionBinderSnapshot, PropositionBodySnapshot, PropositionSnapshot,
     QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
 };
 pub use machine_snapshots::{
@@ -40,6 +42,7 @@ pub use type_snapshots::{
 use crate::SymbolResolvedTrees;
 use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::data_definition_snapshot;
 use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::domain_definition_snapshot;
+use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::mathematical_definition_snapshot;
 use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::measure_snapshot;
 use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::operator_snapshot;
 use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::proposition_snapshot;
@@ -108,6 +111,13 @@ impl SymbolResolvedTreesSnapshot {
                     .machines
                     .iter()
                     .map(|machine| machine_snapshot(symbol_resolved_trees, machine))
+                    .collect(),
+                mathematical_definitions: symbol_resolved_trees
+                    .mathematical_definitions
+                    .iter()
+                    .map(|definition| {
+                        mathematical_definition_snapshot(symbol_resolved_trees, definition)
+                    })
                     .collect(),
                 measures: symbol_resolved_trees
                     .measures
@@ -189,6 +199,8 @@ pub struct SymbolResolvedRootsSnapshot {
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mathematical_definitions: Vec<MathematicalDefinitionSnapshot>,
     pub measures: Vec<MeasureDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub propositions: Vec<PropositionSnapshot>,

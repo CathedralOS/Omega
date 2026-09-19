@@ -3,6 +3,7 @@
 
 mod generated_invocations;
 mod machine_contracts;
+mod mathematical_declarations;
 mod quotients_and_domains;
 mod retained_constants;
 mod seeded_continuations;

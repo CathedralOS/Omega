@@ -21,6 +21,7 @@ mod domain_facts;
 mod expression_paths;
 mod expressions;
 mod lookup;
+mod mathematical;
 mod measures;
 mod propositions;
 mod scope;
@@ -334,6 +335,7 @@ pub(crate) fn assign_symbols(
     assign_type_reference_symbols(program, &symbols);
     type_references::assign_data_type_value_expression_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
+    mathematical::assign_mathematical_expression_symbols(program, &symbols);
     measures::assign_measure_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
@@ -376,6 +378,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     assign_type_reference_symbols(program, &symbols);
     type_references::assign_data_type_value_expression_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
+    mathematical::assign_mathematical_expression_symbols(program, &symbols);
     measures::assign_measure_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
