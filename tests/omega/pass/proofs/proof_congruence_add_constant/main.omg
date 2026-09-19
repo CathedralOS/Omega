@@ -1,12 +1,14 @@
 // Ladder rung L3 (congruence): equality is preserved by applying the same
 // operation to both sides. Lean analog: `congrArg (· + 1)`. Needs the checker
 // to rewrite under an equation, not just match stored facts.
+// The operation is mathematical addition after embedding, including when the
+// equal runtime inputs are u64::MAX; no runtime addition is performed.
 
 machine add_one_congruence(a: u64, b: u64)
 requires
     a == b
 ensures
-    a + 1 == b + 1
+    embed(a) + 1 == embed(b) + 1
 {
 }
 
