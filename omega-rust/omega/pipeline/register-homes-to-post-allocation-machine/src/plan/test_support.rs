@@ -3,7 +3,9 @@ use super::model::ValidatedPostAllocationMachinePlan;
 /// One substitutable field of [`PostAllocationMachineReceipt`](super::PostAllocationMachineReceipt). The custody matrix substitutes
 /// exactly one field per leg so a rejection attributes to that claim alone.
 /// Every field is representable in memory; the receipt has no wire form, so
-/// no field is canonical-encoding-closed.
+/// no field is canonical-encoding-closed. The independent checker is
+/// `validate_optimized_post_allocation_machine_plan_custody`: it rebuilds the
+/// receipt from the retained source stage and rejects the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum PostAllocationMachinePlanReceiptFieldForTest {
     Identity,

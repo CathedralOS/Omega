@@ -30,7 +30,10 @@ fn alternate_budget() -> optimization_core::OptimizationWorkBudget {
 /// declare exactly one variant, so no foreign in-vocabulary value exists to
 /// substitute. Those fields are named closed by the policy vocabulary; the
 /// mutation-matrix test pins their exhaustiveness with a compile-time match
-/// so any new variant forces this matrix to grow.
+/// so any new variant forces this matrix to grow. The independent checker is
+/// `validate_optimized_active_resident_rematerialization`, and joined
+/// `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::ActiveResidentRematerialization`.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedActiveResidentRematerializationCustodyFieldForTest {
     Source,
@@ -147,7 +150,10 @@ impl StagedOptimizedActiveResidentRematerialization {
 /// declare exactly one variant, so no foreign in-vocabulary value exists to
 /// substitute. Those fields are named closed by the policy vocabulary; the
 /// mutation-matrix test pins their exhaustiveness with a compile-time match
-/// so any new variant forces this matrix to grow.
+/// so any new variant forces this matrix to grow. The independent checker is
+/// `validate_optimized_active_resident_rematerialization_pressure`, and
+/// joined `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::ActiveResidentRematerialization`.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedActiveResidentRematerializationPressureCustodyFieldForTest {
     Source,

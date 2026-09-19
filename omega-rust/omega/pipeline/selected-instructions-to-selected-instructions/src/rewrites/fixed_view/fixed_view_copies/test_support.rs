@@ -18,7 +18,10 @@ fn other_fixed_view_copy_policy(policy: FixedViewCopyPolicy) -> FixedViewCopyPol
 /// One substitutable field of [`StagedOptimizedFixedViewCopyCustodyReceipt`](super::StagedOptimizedFixedViewCopyCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that
 /// claim alone. Every field is representable in memory; the receipt has no
-/// wire form, so no field is canonical-encoding-closed.
+/// wire form, so no field is canonical-encoding-closed. The independent
+/// checker is `validate_optimized_fixed_view_copy_custody`: it replays the
+/// copy plan against the retained segment-home stage and rejects the
+/// substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedFixedViewCopyCustodyFieldForTest {
     Psi,

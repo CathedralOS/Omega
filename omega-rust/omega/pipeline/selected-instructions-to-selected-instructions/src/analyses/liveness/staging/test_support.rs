@@ -3,7 +3,9 @@ use super::model::StagedOptimizedLiveness;
 /// One substitutable field of [`StagedOptimizedLivenessCustodyReceipt`](super::StagedOptimizedLivenessCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that
 /// claim alone. Every field is representable in memory; the receipt has no
-/// wire form, so no field is canonical-encoding-closed.
+/// wire form, so no field is canonical-encoding-closed. The independent
+/// checker is `validate_optimized_liveness_custody`: it recomputes the
+/// receipt from the staged liveness evidence and rejects the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedLivenessCustodyFieldForTest {
     Psi,

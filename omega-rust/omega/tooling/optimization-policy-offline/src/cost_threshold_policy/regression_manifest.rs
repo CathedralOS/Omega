@@ -6,6 +6,8 @@
 mod codec;
 mod identity;
 mod model;
+#[cfg(test)]
+pub(super) mod test_support;
 mod validate;
 
 pub use identity::OfflinePolicyRegressionManifestIdentity;
