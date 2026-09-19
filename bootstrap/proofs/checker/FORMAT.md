@@ -211,9 +211,9 @@ reserve enough evaluator space to publish an owned refusal. Validate counts
 before resource-dependent loops, and resource availability before the operation.
 An outer trap, timeout, or evaluator refusal is never a checker judgment.
 
-The existing 8 MiB request provision is not evidence that the complete encoding
-certificate fits. Measure that certificate, not just this format's small
-examples; adjust private provisions or sharing as needed without weakening the
+The 130 MiB request provision was selected from the measured complete encoding
+certificate, not the other way around; the certificate, not this format's
+small examples, set it. Private provisions were adjusted without weakening the
 owner root or introducing trusted arithmetic. Rule retention remains conditional
 on actual use and mutation controls in that complete certificate.
 

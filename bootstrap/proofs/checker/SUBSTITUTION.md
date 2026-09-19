@@ -49,7 +49,8 @@ is evaluated. Template and ground identities are different spaces: equal scalar
 row numbers are never an identity shortcut. Use a separate completed-equal memo
 scoped to exactly this invocation, hence this clause and binding environment.
 With ground count `N`, keys are `(template-1)*N+(ground-1)` in `[0,T*N)`.
-The admitted extents give `T < 2^20`, `N < 2^19`, and at most 39 tree levels.
+The admitted extents give `T < 2^20`, `N < 8,519,680` (< 2^24), and at most 44
+tree levels for the `[0,T*N)` key space.
 Reuse the shared Empty/Present constants but never the ground memo root.
 
 Insert only after a variable's structural comparison or an application's whole
@@ -78,7 +79,7 @@ context/ground memo and consumed work `used+amount`. Exhaustion returns resource
 Invalid amounts precede exhaustion. Neither amounts nor sessions are untrusted
 wire state. Zero reservations cannot create uncharged result carriers.
 
-The 655,360-unit provision covers both ground comparisons and
+The 67,108,864-unit provision covers both ground comparisons and
 substitution work in the same session. Resource 4 is `checking_work`; the numeric
 code and `comparison_steps` accessor remain unchanged. Each template visit and
 resume, including the terminal empty resume, reserves one unit before work.
@@ -88,21 +89,21 @@ clause-scan reservation uses the clause coordinate. No reset or old-session reus
 is allowed between calls, even after Compared false. Stop after owned failure.
 
 The [amortized traversal bound](COMPARISON.md#amortized-allocation-argument)
-allows 48 cumulative pairs per unit plus one bounded unfinished-prefix deficit;
-it does not claim each individual transition allocates at most 48. A bulk
+allows 50 cumulative pairs per unit plus one bounded unfinished-prefix deficit;
+it does not claim each individual transition allocates at most 50. A bulk
 reservation uses four result/session pairs. The `T+1` reservation covers its
 result, the `3T-1` index pairs, and bounded invocation context. Ground comparison
 charges separately without resetting credit. The fixed 128-pair allowance is
 once per request, including the deficit, not once per unfolding. The combined
-upper bound is `7,864,346 + 655,360*48 + 128 = 39,321,754` pairs, below the selected
-40,265,318-pair arena, including unreachable allocations.
+upper bound is `31,850,522 + 67,108,864*50 + 128 = 3,387,293,850` pairs,
+the selected arena provision, including unreachable allocations.
 
 The implementation's clause walk is scalar-only; a case-mismatch rejection adds
 four pairs to its four-pair reservation. Index setup uses exactly `3T+7` pairs:
 four reservation carriers, `3T-1` index pairs, and four context pairs. A template
-transition uses four reservation carriers followed by at most 78 memo pairs,
+transition uses four reservation carriers followed by at most 88 memo pairs,
 four pending-frame pairs, or four final-result pairs; those branches are
-exclusive. Thus its maximum is 82 pairs. Variable ground-comparison allocations
+exclusive. Thus its maximum is 92 pairs. Variable ground-comparison allocations
 belong to the ground transitions; its successful local insertion belongs to
 the suspended template visit. Bindings and all other projections allocate none.
 
