@@ -783,6 +783,86 @@ fn program_representations_have_named_roots_and_concept_owners() {
 }
 
 #[test]
+fn shared_vocabulary_representations_need_no_program_root() {
+    // Shared vocabulary is exempt from the named-root rule
+    // (omega-rust/pipeline.md#placement-and-semantic-ownership): these crates
+    // hold records, identities and codecs consumed across stages and no
+    // current program lives here. Each row pins the crate's root files beside
+    // lib.rs so adding another root or growing a program aggregate is a
+    // deliberate edit of this table.
+    for (package, roots) in [
+        // The optimization name registry, selections, contracts, identities
+        // and decision-record schemas shared by every optimization stage and
+        // report; the crate runs no optimizer and holds no optimized program.
+        (
+            "optimization-core",
+            &["decisions.rs", "report_request.rs", "selection.rs"][..],
+        ),
+        // Declarative per-architecture register facts — units, views, classes,
+        // the operand constraint catalog, reservation profiles and
+        // preservation storage — declared by ISA owners. The sealed catalogs
+        // are independent artifacts, not areas of one current program.
+        (
+            "register-model",
+            &[
+                "constraint_catalog.rs",
+                "identities.rs",
+                "physical_register_model.rs",
+                "register_vocabulary.rs",
+                "reservation_profiles.rs",
+                "tests.rs",
+            ][..],
+        ),
+        // Task activation plans are a checked-compilation sidecar, and the
+        // stack leases, provider admission gate, lifecycle ledger and
+        // invocation receipts beside them are runtime authority and evidence
+        // carriers, not a program representation.
+        (
+            "task-plans",
+            &[
+                "activation_plans.rs",
+                "provider_admission.rs",
+                "stack_leases.rs",
+            ][..],
+        ),
+        // Retained evidence carriers — terminal authority dispositions,
+        // provider plans, executable scopes and component eras — each with a
+        // canonical encoding downstream hashing depends on. Evidence, not a
+        // program.
+        (
+            "effects",
+            &[
+                "authority.rs",
+                "capabilities.rs",
+                "component_eras.rs",
+                "executable_scopes.rs",
+                "selected_provider_plans.rs",
+            ][..],
+        ),
+    ] {
+        let directory = repository()
+            .join("omega-rust/omega/representations")
+            .join(package)
+            .join("src");
+        let mut files = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        files.sort();
+        let mut expected = vec!["lib.rs".to_owned()];
+        expected.extend(roots.iter().map(|root| (*root).to_owned()));
+        expected.sort();
+        assert_eq!(files, expected, "vocabulary root set changed in {package}");
+        assert!(
+            !rust_source(&directory).contains("StagedOptimized"),
+            "{package} contains stage ancestry"
+        );
+    }
+}
+
+#[test]
 fn every_psi_representation_has_one_named_entry() {
     let root = repository().join("omega-rust/psi/representations");
     let entries = [
