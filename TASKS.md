@@ -2236,8 +2236,9 @@ Owners include
   allocator semantics to the compiler.
 
   `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a guarded
-  fallible request, a one-buffer `BumpVec` reservation and one resident
-  place/read/retire; five `fail/memory/bump_allocator_*` controls pin the
+  fallible request, a one-buffer `BumpVec` reservation, content-free growth
+  (`grow` rebuffers via `merge` + `split`) and one resident
+  place/read/retire; six `fail/memory/bump_allocator_*` controls pin the
   rejections. Its header records the contract edges found so far (the note that
   an indexed domain application does not parse in proof-fact position is stale
   since `pass/contracts/proof_fact_indexed_domain_application`). This is source
@@ -2249,13 +2250,18 @@ Owners include
 
   Remaining work:
 
-  - Container. A `Vec<T>`-style owner needs elements, a length and growth.
-    Elements need the source `Initialize`/view/retire route of
+  - Container. A `Vec<T>`-style owner needs elements, a length and
+    content-preserving growth. Elements need the source
+    `Initialize`/view/retire route of
     [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)
     (evaluated plan of `P` over `T`, Stable-supply admission), which
     `PLAN-LAID-VIEWS` owns. `source/library` declares neither that family nor
     `ResidentContentTransfer<P, T>`; the fixture's `ResidentStorage` is a
-    stand-in to replace when the route exists.
+    stand-in to replace when the route exists. Growth is currently
+    content-free rebuffering only: `merge` demands `Vacant` parts, so a
+    buffer with a live resident cannot fold back for a resize — pinned by
+    `fail/memory/bump_allocator_grow_with_live_resident`. Element transfer
+    across the fold waits on the same placed-access route as elements.
   - Custody-carrying sums. A destructured case payload and a call-result
     record's fields do not surface their declared `in Granted` domains. A
     sum-typed fallible request, an optional retired slot and a retired-buffer
@@ -2267,6 +2273,11 @@ Owners include
     `requires` bound neither carries a subtraction's lower bound nor survives
     consumption of the backing. Each request's residual is a caller-stated
     premise, and post-reset reuse is reachable only through a runtime guard.
+    A second edge surfaced in `grow`: the requires discharger does not
+    reduce an inline constructor's field to the caller premise when a
+    sibling field binds a call-result local (`Bump { tail: widened, ... }`
+    leaves `... .remaining` unreduced), so `grow` re-carves through the
+    boundary `split` rather than reusing `allocate`.
   - Partition theorems. No checked body splits one `Granted` extent into two;
     the fixture delegates that step to a boundary. Returning `Granted` custody
     from two consumed qualified inputs rejects as ambiguous at a boundary and
