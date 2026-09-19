@@ -2548,9 +2548,19 @@ Owners include
   Remaining work:
 
   - Owned arms that forward or move existing affine custody through a call,
-    receiver-bearing and subject calls, and record arms whose fields move
-    existing affine children still need their exact residual transport; they
-    reject today.
+    receiver-bearing and subject calls still need their exact residual
+    transport; they reject today. Record arms whose fields move existing
+    affine children now check: each projected field leaf joins the transfer
+    roster under its arm and source root carrying its own declared member
+    type, overlapping moved paths on one arm reject as double consumption,
+    and the lowering receipt verifies each projected leaf's claim frontier
+    against its leaf type rather than the result type. What remains is leaf
+    emission — `RecordFieldValue::Structural` arguments must carry an empty
+    `path`, so leaf fields need per-arm extraction into whole places (edge
+    arguments to block parameters to `EstablishRecord`), which sits in
+    `src/unit`/`src/emission`;
+    `owned_match_record_arm_children_check_but_await_leaf_emission` pins the
+    boundary.
   - Claim-bearing bodies do not lower. The checker joins a whole affine root
     with linear children by naming each frontier claim, but lowering stops at
     "machine has no source-independent checked scalar control plan" for a
