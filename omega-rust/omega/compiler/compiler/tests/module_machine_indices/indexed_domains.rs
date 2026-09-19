@@ -22,6 +22,233 @@ fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
+fn generic_carrier_qualified_fields_keep_their_owner_after_specialization() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("tags.omg"),
+        "module tags; pub domain<T> T::Marked;",
+    );
+    Sources::write(
+        library.join("holders.omg"),
+        "module holders; use tags; pub data Holder<T [copy]> [copy] { value: T in T::Marked; }",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::holders; use library::tags;
+         machine read() -> u64 {
+             let holder: holders::Holder<u64> = holders::Holder {
+                 value: 7
+             };
+             holder.value as u64
+         }",
+    );
+    let checked = compile(&root, package_inputs(&root, &library));
+    assert!(!selections(&checked, "tags::Marked", identity(2)).is_empty());
+    // The runtime record-local route additionally needs structural lowering.
+    // Constant field projection already has a source-independent scalar route.
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; use holders;
+         pub const SELECTED: holders::Holder<u64> = holders::Holder { value: 7 };",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings; machine read() -> u64 { settings::SELECTED.value as u64 }",
+    );
+    assert_source_free_seven(compile(&root, package_inputs(&root, &library)));
+}
+
+#[test]
+fn generic_carrier_domain_keeps_the_exposed_package_when_logical_paths_collide() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    for package in [&root, &library] {
+        Sources::write(
+            package.join("tags.omg"),
+            "module tags; pub domain<Element> Element::Marked;",
+        );
+    }
+    Sources::write(
+        root.join("main.omg"),
+        "use holders; use tags; machine read() -> u64 { 7 }",
+    );
+    for import in ["library::tags", "library::tags::Marked"] {
+        Sources::write(
+            root.join("holders.omg"),
+            &format!(
+                "module holders; use {import};
+             pub data Holder<T> {{ value: T in T::Marked; }}"
+            ),
+        );
+        let checked = compile(&root, package_inputs(&root, &library));
+        assert!(!selections(&checked, "tags::Marked", identity(2)).is_empty());
+        assert!(selections(&checked, "tags::Marked", identity(1)).is_empty());
+    }
+    Sources::write(
+        library.join("tags.omg"),
+        "module tags; domain<Element> Element::Marked;",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(
+        error.contains("public interface selects private domain `tags::Marked`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn generic_carrier_qualification_survives_array_specialization() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain<T> T::Marked;
+         data Holder<T [copy]> [copy] { value: T in T::Marked; }
+         const SELECTED: Holder<[u64; 1]> = Holder { value: [7] };
+         machine read() -> u64 { 7 }",
+    );
+    let checked = compile(&root, super::root_inputs(&root));
+    let instance = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str().starts_with("Holder<"))
+        .expect("closed array instance");
+    let typed_trees::data::DataMember::Field(field) = &checked.typed.data_members(instance)[0]
+    else {
+        panic!("qualified field");
+    };
+    let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("field retains qualification");
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(*base_type),
+        typed_trees::types::TypeReferenceNode::FixedArray { .. }
+    ));
+}
+
+#[test]
+fn qualified_record_projection_rejects_unproven_constructor_membership() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for selected_field in ["value", "other"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain<T> T::Marked requires false;
+             data Config<T [copy]> [copy] {{ value: T in T::Marked; other: u64; }}
+             const CONFIG: Config<u64> = Config {{ value: 9, other: 7 }};
+             machine read() -> u64 {{ CONFIG.{selected_field} as u64 }}"
+            ),
+        );
+        let error = rejection(&root, super::root_inputs(&root));
+        assert!(
+            error.contains("Marked") && error.contains("not proven"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn generic_carrier_domain_selection_is_lexical_and_requires_exposure() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("tags.omg"),
+        "module tags; pub domain<Element> Element::Marked;",
+    );
+    Sources::write(
+        library.join("other.omg"),
+        "module other; pub domain<Element> Element::Marked;",
+    );
+    // Loading a module named T must never reinterpret a lexical T prefix.
+    Sources::write(
+        library.join("T.omg"),
+        "module T; pub domain<Element> Element::Marked;",
+    );
+    Sources::write(library.join("relay.omg"), "module relay; use tags;");
+    // A sibling file's imports cannot expose a domain in holders.omg.
+    Sources::write(library.join("sibling.omg"), "module holders; use tags;");
+    Sources::write(
+        root.join("main.omg"),
+        "use library::holders; use library::tags; use library::other; use library::T;
+         machine read() -> u64 { 7 }",
+    );
+    for (imports, parameters, carrier, expected) in [
+        (
+            "",
+            "T",
+            "T",
+            "does not select one exposed generic-carrier family",
+        ),
+        (
+            "use relay;",
+            "T",
+            "T",
+            "does not select one exposed generic-carrier family",
+        ),
+        (
+            "use tags; use other;",
+            "T",
+            "T",
+            "does not select one exposed generic-carrier family",
+        ),
+        (
+            "use tags; pub domain<Element> Element::Marked;",
+            "T",
+            "T",
+            "does not select one exposed generic-carrier family",
+        ),
+        (
+            "use tags;",
+            "T, U",
+            "U",
+            "must name this field's carrier type binder",
+        ),
+        (
+            "use tags;",
+            "const T: u64",
+            "u64",
+            "must name this field's carrier type binder",
+        ),
+    ] {
+        Sources::write(
+            library.join("holders.omg"),
+            &format!(
+                "module holders; {imports} pub data Holder<{parameters}> {{ value: {carrier} in T::Marked; }}"
+            ),
+        );
+        let error = rejection(&root, package_inputs(&root, &library));
+        assert!(
+            error.contains(expected),
+            "{imports}, {parameters}, {carrier}: {error}"
+        );
+    }
+    // Both exact and declaring-module imports select the same family despite
+    // unrelated same-leaf declarations, and binder names are not identities.
+    for imports in ["use tags;", "use tags::Marked;"] {
+        Sources::write(
+            library.join("holders.omg"),
+            &format!("module holders; {imports} pub data Holder<T> {{ value: T in T::Marked; }}"),
+        );
+        let checked = compile(&root, package_inputs(&root, &library));
+        assert!(!selections(&checked, "tags::Marked", identity(2)).is_empty());
+        assert!(selections(&checked, "other::Marked", identity(2)).is_empty());
+        assert!(selections(&checked, "T::Marked", identity(2)).is_empty());
+    }
+}
+
+#[test]
 fn qualified_domain_selection_keeps_distinct_same_leaf_owners_through_terminal() {
     let tree = Sources::new();
     let root = tree.package("root");

@@ -230,6 +230,10 @@ pub fn scalar_array_elements(
     })
 }
 
+/// Check closed literal payloads in their declared primitive carriers. Scalar
+/// qualifications add no evaluation or storage; this does not establish their
+/// predicates or routed authority. Constructor and destination checking retain
+/// those obligations on the complete declared type before lowering.
 pub fn closed_literal_array_elements(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -270,7 +274,10 @@ pub fn closed_literal_array_elements(
                         .map(|element| (*element, *element_type, false)),
                 );
             }
-            (ExpressionNode::Integer(literal), TypeReferenceNode::Named { .. }) => {
+            (
+                ExpressionNode::Integer(literal),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Constrained { .. },
+            ) => {
                 let primitive = program.primitive_type_reference(reference)?;
                 if let Some(landing) = literal.landing() {
                     if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
@@ -291,13 +298,18 @@ pub fn closed_literal_array_elements(
                 }
                 leaves.push((expression, primitive));
             }
-            (ExpressionNode::Boolean(_), TypeReferenceNode::Named { .. })
-                if program.primitive_type_reference(reference)
-                    == Some(typed_trees::types::PrimitiveType::Bool) =>
+            (
+                ExpressionNode::Boolean(_),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Constrained { .. },
+            ) if program.primitive_type_reference(reference)
+                == Some(typed_trees::types::PrimitiveType::Bool) =>
             {
                 leaves.push((expression, typed_trees::types::PrimitiveType::Bool))
             }
-            (ExpressionNode::Float(literal), TypeReferenceNode::Named { .. }) => {
+            (
+                ExpressionNode::Float(literal),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Constrained { .. },
+            ) => {
                 let primitive = program.primitive_type_reference(reference)?;
                 // A projection may discard siblings only after every leaf is
                 // a closed value in its declared format, never a conversion.

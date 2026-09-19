@@ -468,6 +468,19 @@ execute through source-free Terminal in `module_machine_indices::indexed_domains
 Mutable recasts independently reject exchanging their obligations. Unmanaged
 sources have no portable package commitment, so cross-owner name collisions
 remain rejected; host paths and load-order numbers are not replacement identities.
+Generic data fields spelled `T in T::Domain` select an exposed carrier-polymorphic
+family in the template author's scope before substituting `T`. Normalization
+retains the authored occurrence and an address that ordinary lookup verifies
+against the exact selected declaration; colliding logical paths retain their
+certified dependency prefix. Closed scalar constant-record projections reach
+source-free Terminal with these qualified fields, while array specialization
+retains the qualified carrier structurally. Constructor membership, private and
+file-local exposure, lexical shadowing and package collision checks remain
+independent. Runtime record locals still need structural lowering; non-Exact
+arithmetic-policy projections remain rejected until scalar production and source
+replay carry that policy together. These boundaries are covered by
+`module_machine_indices::indexed_domains` and validation's
+`qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy`.
 Scalar result annotations still need the independent body-proof obligation
 tracked by `SCALAR-DOMAIN-RETURN-PROOF`; distinct identities alone do not prove a
 returned value satisfies its declared predicates.

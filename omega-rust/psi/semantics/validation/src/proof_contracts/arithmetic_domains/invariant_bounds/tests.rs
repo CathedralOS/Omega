@@ -22,6 +22,39 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy() {
+    for (field_type, accepted) in [("u64 in Tag", true), ("u64 in Wrapping", false)] {
+        let program = typed(&format!(
+            "domain u64::Tag;
+             data Config [copy] {{ size: {field_type}; }}
+             const CONFIG: Config = Config {{ size: 7 }};
+             machine read() -> u64 {{ CONFIG.size }}"
+        ));
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let StatementNode::Expression(projection) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("field projection");
+        };
+        let scalar = crate::closed_record_scalar_projection(&program, projection);
+        let integer =
+            crate::value_custody::literals::closed_record_integer_projection(&program, projection);
+        assert_eq!(scalar.is_some(), accepted, "{field_type}");
+        assert_eq!(integer.is_some(), accepted, "{field_type}");
+        if let Some(integer) = integer {
+            assert_eq!(integer.value.to_u64(), Some(7));
+            assert!(matches!(
+                program
+                    .type_reference_table
+                    .type_reference(integer.type_reference.expect("declared field type")),
+                TypeReferenceNode::Constrained { .. }
+            ));
+        }
+    }
+}
+
+#[test]
 fn closed_record_fields_share_exact_bounds_and_keep_projection_custody() {
     let original = typed(
         "data Config [copy] { size: u64; enabled: bool; }

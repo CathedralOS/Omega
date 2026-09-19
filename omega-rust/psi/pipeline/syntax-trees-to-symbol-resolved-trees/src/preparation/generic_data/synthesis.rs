@@ -62,6 +62,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
     warnings: &mut Vec<Diagnostic>,
     selection: Option<&super::constant_selection::ConstantSelection>,
 ) -> Result<(), Vec<Diagnostic>> {
+    super::domain_heads::normalize(syntax, selection)?;
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
     let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> = HashMap::new();

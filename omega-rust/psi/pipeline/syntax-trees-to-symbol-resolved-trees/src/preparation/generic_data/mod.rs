@@ -24,6 +24,7 @@ mod arguments;
 mod const_evaluation;
 pub(crate) mod constant_selection;
 mod discovery;
+mod domain_heads;
 mod eligibility;
 pub(crate) use crate::preparation::type_equations as equations;
 pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
