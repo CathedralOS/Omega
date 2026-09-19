@@ -1,0 +1,40 @@
+// FAIL CANARY. The caller member's proven range invariant supplies exactly
+// the comparisons it establishes: `0 <= pending <= bounds.cap` at `hold`
+// does not prove `inner`'s strictly stronger `requires n < current.cap`, so
+// the subordinate call still rejects on the ordinary contract side.
+
+data Limits {
+    cap: u64 [0..=9];
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(4, Limits { cap: 6 }) }
+}
+
+machine Main::outer(&mut self, remaining: u64, limits: Limits)
+requires remaining <= limits.cap;
+terminates by remaining in 0..=limits.cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> hold(remaining, limits)
+        false -> remaining
+    }
+    state hold(pending: u64, bounds: Limits) {
+        transition pending > 0 {
+            true -> self.inner(pending, bounds)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, current: Limits)
+requires n < current.cap;
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= current.cap {
+        true -> self.outer(n - 1, current)
+        false -> n
+    }
+}
