@@ -3,10 +3,12 @@
 //! admission. Every result retains its exact placed-view input roster.
 
 mod error;
+mod establishment;
 mod native;
 mod retention;
 
 pub use error::ArtifactLoweringError;
+pub use establishment::TerminalPlacedViewEstablishment;
 pub use native::{AdmittedNativeArtifact, VerifiedNativeArtifactInput};
 pub use retention::AdmittedOptimizationArtifact;
 

@@ -13,8 +13,9 @@ mod provider_installation;
 
 pub use artifact_admission::{
     AdmittedArtifactPlan, AdmittedNativeArtifact, AdmittedOptimizationArtifact,
-    ArtifactLoweringError, ArtifactSections, VerifiedNativeArtifactInput, lower_artifact,
-    lower_artifact_for_native_realization, lower_artifact_for_optimization,
+    ArtifactLoweringError, ArtifactSections, TerminalPlacedViewEstablishment,
+    VerifiedNativeArtifactInput, lower_artifact, lower_artifact_for_native_realization,
+    lower_artifact_for_optimization,
 };
 pub use lowering::LoweringError;
 pub use optimization::{

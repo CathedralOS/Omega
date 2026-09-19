@@ -893,6 +893,82 @@ machine Inspector::inspect(
         native_replayed.placed_view_inputs(),
         native.placed_view_inputs()
     );
+
+    // The executable input boundary owns the ordinary provider establishment
+    // route: each declared direct-entry roster row joins exactly one supply —
+    // the provider's loan of the exact qualified backing — bound at admission
+    // so the realized entry boundary can lend it for the invocation's
+    // duration. The bound set is invocation-scoped evidence; custody of the
+    // supply stays with the provider.
+    let native_established = native_replayed
+        .try_into_native_input_with_placed_view_establishments(&establishments)
+        .expect("exact provider establishments bind the declared roster");
+    assert_eq!(native_established.plan(), &codec_plan.plan);
+    assert_eq!(
+        native_established.placed_view_establishments(),
+        establishments.as_slice()
+    );
+    assert_eq!(
+        native_established.context().module().placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+    // Optimizer authority remains recoverable; the invocation-scoped
+    // establishment binding does not transfer into it.
+    assert_eq!(
+        native_established
+            .into_optimization_input()
+            .context()
+            .module()
+            .placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+
+    // Rejection legs at the executable boundary. An unanswered row keeps
+    // failing custody exactly like the establishment-less entrance; a supply
+    // answering no declared row — stale layout, qualified backing, range,
+    // rights, or occurrence all move the sealed row identity — or one row
+    // answered twice rejects before access, as does a noncanonical referent
+    // qualification list.
+    let readmit_native = || {
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .expect("native re-admission for the establishment rejection legs")
+    };
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    let mut stale_native_supply = establishments[0].clone();
+    stale_native_supply.input.placement_commitment[0] ^= 1;
+    assert!(matches!(
+        readmit_native()
+            .try_into_native_input_with_placed_view_establishments(&[stale_native_supply]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentUnexpected { .. })
+    ));
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+            establishments[0].clone(),
+            establishments[0].clone()
+        ]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentDuplicate { .. })
+    ));
+    let mut noncanonical_supply = establishments[0].clone();
+    noncanonical_supply.referent.qualifications = vec![
+        semantic_vocabulary::StructuralDomainId::new(2).expect("nonzero domain"),
+        semantic_vocabulary::StructuralDomainId::new(1).expect("nonzero domain"),
+    ];
+    assert!(matches!(
+        readmit_native()
+            .try_into_native_input_with_placed_view_establishments(&[noncanonical_supply]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentQualificationsNonCanonical)
+    ));
+
     let native_input = native.into_optimization_artifact();
     assert_eq!(native_input.plan(), &codec_plan.plan);
     assert_eq!(
@@ -1397,9 +1473,10 @@ machine Inspector::inspect(
 
     // The image-emitting realization boundary stays fail-closed. The host leg
     // above lends the referent from a C caller; an executable image's entry
-    // shim has no such caller, and no provider establishment route supplies
-    // the address yet, so executable realization rejects a nonempty roster
-    // instead of silently erasing the declared input.
+    // shim has no such caller, and the realization input does not yet carry
+    // the bound provider establishments the admission boundary now supplies,
+    // so executable realization rejects a nonempty roster instead of silently
+    // erasing the declared input.
     let realization_error = native_realization::prepare_native_realization_input(
         &canonical_artifact(),
         &profile,
