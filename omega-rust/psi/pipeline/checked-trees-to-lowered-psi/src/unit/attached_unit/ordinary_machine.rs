@@ -481,7 +481,7 @@ pub(super) fn emit(
     if next_literal_argument != call_literal_count {
         return unsupported("byte-sequence literal argument consumption is incomplete");
     }
-    let controlled_result = if plan.scalar_control.is_some() {
+    let controlled_result = if let Some(control) = &plan.scalar_control {
         // Prefix values and structural locals are already established. The
         // completion adds only the selected guard/arm evaluation and join.
         let mut scalar_calls = CallEmissionContext {
@@ -492,7 +492,9 @@ pub(super) fn emit(
         };
         let result = evaluation.scalar_control_result(
             checked,
-            plan,
+            plan.machine,
+            plan.state,
+            control,
             &mut scalar_result_values,
             &mut next_value_identity,
             &mut next_block,

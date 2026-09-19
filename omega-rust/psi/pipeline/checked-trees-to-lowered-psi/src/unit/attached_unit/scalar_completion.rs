@@ -7,7 +7,7 @@ use super::{
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
-mod control;
+pub(super) mod control;
 
 pub(super) fn validate(
     checked: &CheckedTrees,

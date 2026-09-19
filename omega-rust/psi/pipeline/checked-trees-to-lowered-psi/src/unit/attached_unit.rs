@@ -54,6 +54,7 @@ mod reference_results;
 pub(crate) mod scalar_arrays;
 mod scalar_boundaries;
 mod scalar_completion;
+pub(crate) use scalar_completion::control::validate_tail as validate_scalar_control_tail;
 mod scalar_structural_calls;
 mod selected_operator;
 pub(crate) mod shared_closure;

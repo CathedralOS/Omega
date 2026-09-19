@@ -373,6 +373,8 @@ pub enum CheckedDynamicDescriptorTransferSource {
 /// repeat conformance discovery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedDynamicScalarCallPlan {
+    /// Complete ordered scalar bodies of the parameter helpers, outermost first.
+    pub forwarding_helpers: Vec<CheckedDynamicScalarHelperPlan>,
     /// Exact authored route by which the selected descriptor reaches this
     /// scalar dispatch. The surrounding stored-call wrapper owns aggregate
     /// lineage; forwarded routes retain every transparent parameter transfer.
@@ -446,6 +448,16 @@ pub struct CheckedDynamicScalarCallPlan {
     /// begins at the authored guard and therefore cannot be lowered as an
     /// independent machine or silently discarded.
     pub unit_continuation: Option<CheckedDynamicUnitContinuationPlan>,
+}
+
+/// Scalar sequencing around one exact descriptor call, with ordinary completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicScalarHelperPlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub call_result: CheckedUnitScalarResultBindingPlan,
+    pub scalar_locals: Vec<(CheckedUnitScalarResultBindingPlan, CheckedScalarExpression)>,
+    pub scalar_control: crate::CheckedUnitScalarControlPlan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

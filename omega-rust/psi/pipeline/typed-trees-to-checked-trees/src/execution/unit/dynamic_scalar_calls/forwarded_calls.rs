@@ -3,9 +3,8 @@
 use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::CheckedDynamicScalarCall;
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::build_checked_dynamic_scalar_call;
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedBoundaryMachinePlan, CheckedUnitCallCoordinate, ExpressionNode,
-    ShapeCollector, StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-    TypedTrees, state_flow,
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedUnitCallCoordinate, ShapeCollector,
+    StatementNode, TypedTrees, state_flow,
 };
 
 pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
@@ -125,6 +124,7 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
 ) -> Option<ForwardedDynamicCall<'program, 'facts>> {
     let mut current = root_transfer.clone();
     let mut prior_transfers = Vec::new();
+    let mut helpers = Vec::new();
     let mut visited = Vec::new();
     loop {
         if visited.iter().any(|&(machine, state)| {
@@ -153,47 +153,68 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
         {
             return None;
         }
-        let [
-            StatementNode::LocalData(helper_result),
-            StatementNode::Transition(ret),
-        ] = program
-            .statement_table
-            .statements(target_state.statement_nodes)
-        else {
-            return None;
-        };
-        let TransitionTargetNode::Value(return_value) =
-            program.statement_table.transition_target(ret.target)
-        else {
-            return None;
-        };
-        let ExpressionNode::Name(return_path) = program.expression_table.expression(*return_value)
-        else {
-            return None;
-        };
-        let [return_name] = program
-            .expression_table
-            .name_path_members(return_path.members)
-        else {
-            return None;
-        };
-        if helper_result.is_mutable
-            || !helper_result.symbol.is_valid()
-            || ret.exit != TransitionExit::Ordinary
-            || ret.guard != TransitionGuardNode::Always
-            || ret.continuation.is_valid()
-            || return_path.symbol != helper_result.symbol
-            || return_name != &helper_result.name
-        {
-            return None;
-        }
         let helper_flow = state_flow(facts, target_machine.symbol, target_state.symbol)?;
         let [inner_call] = facts.flow.control.calls.span_or_empty(helper_flow.calls) else {
             return None;
         };
-        if inner_call.statement_index != 0 || inner_call.call_ordinal != 0 {
+        if inner_call.call_ordinal != 0 {
             return None;
         }
+        let (scalar_control, prefix_count) =
+            crate::execution::terminal_unit::control::scalar_control(
+                program,
+                facts,
+                target_machine,
+                target_state,
+            )?;
+        if inner_call.statement_index >= prefix_count {
+            return None;
+        }
+        let statements = program
+            .statement_table
+            .statements(target_state.statement_nodes);
+        let mut scalar_locals = Vec::new();
+        let mut call_result = None;
+        for (ordinal, statement) in statements.iter().take(prefix_count).enumerate() {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            if local.is_mutable || !local.symbol.is_valid() {
+                return None;
+            }
+            let coordinate = u32::try_from(ordinal).ok()?;
+            if ordinal == inner_call.statement_index {
+                let primitive_type = program.primitive_type_reference(local.type_reference)?;
+                if primitive_type != scalar_control.primitive_type {
+                    return None;
+                }
+                call_result = Some(checked_trees::CheckedUnitScalarResultBindingPlan {
+                    statement_index: coordinate,
+                    binding_ordinal: coordinate,
+                    primitive_type,
+                });
+            } else {
+                scalar_locals.push(crate::execution::terminal_unit::scalar_expression_local_at(
+                    program,
+                    facts,
+                    target_state,
+                    coordinate,
+                    coordinate,
+                    local,
+                )?);
+            }
+        }
+        let StatementNode::LocalData(helper_result) = &statements[inner_call.statement_index]
+        else {
+            return None;
+        };
+        helpers.push(checked_trees::CheckedDynamicScalarHelperPlan {
+            machine: target_machine.symbol,
+            state: target_state.symbol,
+            call_result: call_result?,
+            scalar_locals,
+            scalar_control,
+        });
         let inner_site = crate::semantic_calls::find_call_site(
             program,
             target_machine.symbol,
@@ -228,6 +249,7 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
                 call_site: inner_site,
                 transfer: root_transfer,
                 prior_transfers,
+                helpers,
             });
         }
         let coordinate = CheckedUnitCallCoordinate {
@@ -256,6 +278,7 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
 }
 
 pub(crate) struct ForwardedDynamicCall<'program, 'facts> {
+    pub(crate) helpers: Vec<checked_trees::CheckedDynamicScalarHelperPlan>,
     pub(crate) machine: &'program typed_trees::machine::Machine,
     pub(crate) state: &'program typed_trees::state::State,
     pub(crate) flow_call: &'facts checked_trees::FlowCallFact,

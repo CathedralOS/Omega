@@ -22,38 +22,10 @@ pub(super) fn validate(
     if machine.scalar_result.is_some() || machine.structural_result.is_some() {
         return unsupported("ordinary body has conflicting completion owners");
     }
-    let (source, state) =
+    let prefix = validate_tail(checked, machine.machine, machine.state, control)?;
+    let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
-    if source.symbol != machine.machine
-        || checked.machine_states(source).len() != 1
-        || checked.primitive_type_reference(state.return_type) != Some(control.primitive_type)
-        || !checked.machine_contracts(source).is_empty()
-        || !checked.state_contracts(state).is_empty()
-    {
-        return unsupported("ordered scalar control lost its exact source signature");
-    }
-    crate::scalar_graph::scalar_contracts::with_result_range(
-        checked,
-        machine.state,
-        0,
-        &checked_trees::ClosedScalarValueContractPlan::default(),
-    )?;
     let statements = checked.statement_table.statements(state.statement_nodes);
-    let prefix = match &control.terminator {
-        CheckedScalarStateTerminator::Return { statement_ordinal } => {
-            unconditional(checked, machine, control, *statement_ordinal)?
-        }
-        CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-            crate::expression_preparation::source_custody::guarded_exits::validate(
-                checked,
-                machine.state,
-                *arms,
-                fallback.as_ref(),
-            )?
-        }
-        CheckedScalarStateTerminator::Conditional { .. } => conditional(checked, machine, control)?,
-        _ => return unsupported("ordered scalar completion requires a returning tail"),
-    };
     if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         statement_index, ..
     }) if *statement_index as usize == statements.len())
@@ -80,14 +52,58 @@ pub(super) fn validate(
     Ok(())
 }
 
+/// Completion is independent of how a body establishes its prefix values.
+/// Descriptor calls and ordinary effects must replay the same authored exits.
+pub(crate) fn validate_tail(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<usize, LoweringError> {
+    let (source, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    if source.symbol != machine
+        || checked.machine_states(source).len() != 1
+        || checked.primitive_type_reference(state.return_type) != Some(control.primitive_type)
+        || !checked.machine_contracts(source).is_empty()
+        || !checked.state_contracts(state).is_empty()
+    {
+        return unsupported("ordered scalar control lost its exact source signature");
+    }
+    crate::scalar_graph::scalar_contracts::with_result_range(
+        checked,
+        state_symbol,
+        0,
+        &checked_trees::ClosedScalarValueContractPlan::default(),
+    )?;
+    let prefix = match &control.terminator {
+        CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            unconditional(checked, state_symbol, control, *statement_ordinal)?
+        }
+        CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            crate::expression_preparation::source_custody::guarded_exits::validate(
+                checked,
+                state_symbol,
+                *arms,
+                fallback.as_ref(),
+            )?
+        }
+        CheckedScalarStateTerminator::Conditional { .. } => {
+            conditional(checked, state_symbol, control)?
+        }
+        _ => return unsupported("ordered scalar completion requires a returning tail"),
+    };
+    Ok(prefix)
+}
+
 fn unconditional(
     checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
+    state_symbol: symbols::SymbolHandle,
     control: &checked_trees::CheckedUnitScalarControlPlan,
     statement_ordinal: u32,
 ) -> Result<usize, LoweringError> {
     let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let prefix = statement_ordinal as usize;
     let tail = statements.get(prefix..).ok_or(LoweringError::Unsupported(
@@ -117,7 +133,7 @@ fn unconditional(
     }
     let located = crate::expression_preparation::source_custody::locate(
         checked,
-        machine.state,
+        state_symbol,
         statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
@@ -129,11 +145,11 @@ fn unconditional(
 
 fn conditional(
     checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
+    state_symbol: symbols::SymbolHandle,
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
     let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let CheckedScalarStateTerminator::Conditional {
         guard_statement_ordinal,
@@ -182,7 +198,7 @@ fn conditional(
                 && (fallback.guard == TransitionGuardNode::Always
                     || crate::expression_preparation::source_custody::guarded_exits::complementary(
                         checked,
-                        machine.state,
+                        state_symbol,
                         *guard_statement_ordinal,
                     )?)
         }
@@ -206,7 +222,7 @@ fn conditional(
         };
         let located = crate::expression_preparation::source_custody::locate(
             checked,
-            machine.state,
+            state_symbol,
             *statement_ordinal,
             role,
         )?;
