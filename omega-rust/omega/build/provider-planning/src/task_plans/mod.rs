@@ -7,7 +7,12 @@
 //! crossing's exact live frontier of places, claims and carry demands,
 //! `start_selections.rs` selects task start targets and `stack_graphs.rs`
 //! derives the whole-call-graph WCSU demand behind every fixed task stack.
+//! `call_target_bindings.rs` turns a provider's admission-time callee
+//! assignment into the `CallTargetBinding` rows `bind_call_targets`
+//! consumes, deriving each bound subtree and its canonical crossings through
+//! the same call-graph derivation a resolved call would have used.
 
+mod call_target_bindings;
 mod carry_crossings;
 mod runtime_requirements;
 mod specialization_commitments;
@@ -15,6 +20,8 @@ mod stack_graphs;
 mod start_selections;
 #[cfg(test)]
 mod tests;
+
+pub use call_target_bindings::{CallTargetAssignment, derive_call_target_bindings};
 
 use crate::task_plans::carry_crossings::{
     activation_carry_crossings, canonical_suspension_crossing, carry_obligations,
