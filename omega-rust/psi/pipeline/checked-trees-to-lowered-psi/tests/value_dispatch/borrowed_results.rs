@@ -4,9 +4,9 @@
 //! the retained plan is replayed against the authored `&place` expressions,
 //! and the join is emitted as a `SharedBorrow` block parameter rather than a
 //! fabricated owned transfer. The terminal verifier admits the record-shaped
-//! join against the exact root and projected path, keeps the referent pinned
-//! for the block that observes it, and the interpreter binds the same view
-//! without copying the payload.
+//! join and the canonical `PrimitiveScalar` leaf join against the exact root
+//! and projected path, keeps the referent pinned for the block that observes
+//! it, and the interpreter binds the same view without copying the payload.
 
 use std::collections::BTreeMap;
 
@@ -187,14 +187,12 @@ const RECORD_UNREAD_SOURCE: &str = "data Payload { left: u64; right: u64; }
     }";
 
 /// Passing the join result to a call is the only consumer a borrowed primitive
-/// local could ever have, so the record referent is asked the same question.
-/// The primitive call lane is now admitted end to end: `read`'s `&u64` body
-/// plans a source-independent `PrimitiveScalarRead` and `read(view)` rejoins
-/// `view` as a whole `PrimitiveScalar` shared argument. What still stops the
-/// program is the same boundary an unread `&u64` view hits — the selection's
-/// join would be a `PrimitiveScalar` block structural parameter, a shape the
-/// Terminal verifier does not admit — so forwarding is proven by the checked
-/// plan while the established primitive view remains unpublished.
+/// local can have today, so the record referent is asked the same question.
+/// `read`'s `&u64` body plans a source-independent `PrimitiveScalarRead`,
+/// `read(view)` rejoins `view` as a whole `PrimitiveScalar` shared argument,
+/// and the selection's join is itself a `PrimitiveScalar` shared-borrow block
+/// parameter — the canonical referent shape the verifier admits — so the
+/// whole program lowers and verifies without copying the leaf.
 const PRIMITIVE_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
     machine read(value: &u64) -> u64 { value }
     machine choose(other: bool) -> u64 {
@@ -265,6 +263,30 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
     (arms, lowering)
 }
 
+/// Lowers `choose`, round-trips the semantic module through the codec, and
+/// verifies the decoded copy — the produced-module evidence for a shape the
+/// interpreter has no executable lane for yet.
+fn verify_lowered(source: &str) -> TerminalModule {
+    let checked =
+        check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
+    let semantic_bytes =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
+    let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
+    let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the produced module verifies independently");
+    module
+}
+
 /// The checked arm planner builds a carrier for a primitive referent. It
 /// previously built none at all: `shared_record_reference` resolved the
 /// referent through its data declaration, and `u64` has none, so a `&u64`
@@ -272,12 +294,9 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
 /// record. Both arms now keep their authored root and field, which is what the
 /// lowering replay and the terminal verifier each re-derive independently.
 ///
-/// The record control now lowers end to end — an established join needs no
-/// reader to be valid. The `&u64` view still cannot publish: its join would
-/// be a `PrimitiveScalar` block structural parameter, a shape Terminal has no
-/// representable parameter for, so the module's own validity check stops it
-/// before any artifact exists. That — not the carrier plan — is the remaining
-/// primitive boundary.
+/// The `&u64` join is a `PrimitiveScalar` shared-borrow block parameter — the
+/// canonical referent shape the verifier now admits beside the record shape —
+/// so the unread view lowers end to end exactly like the record control.
 #[test]
 fn borrowed_selection_plans_a_primitive_referent_carrier() {
     let (arms, lowering) = planned_borrow_arms(PRIMITIVE_REFERENT_SOURCE);
@@ -289,30 +308,52 @@ fn borrowed_selection_plans_a_primitive_referent_carrier() {
         ],
         "each primitive arm keeps its authored root and field"
     );
+    assert_eq!(
+        lowering, None,
+        "a `&u64` join is a `PrimitiveScalar` shared-borrow block parameter"
+    );
+    let module = verify_lowered(PRIMITIVE_REFERENT_SOURCE);
+    let choose = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry choose");
+    let join = choose
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+        .collect::<Vec<_>>();
+    let [join] = join.as_slice() else {
+        panic!("one shared-borrow join parameter: {join:?}");
+    };
+    let referent = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == join.structural_type)
+        .expect("the join's declared type exists");
+    assert!(
+        matches!(referent.shape, StructuralTypeShape::PrimitiveScalar(_)),
+        "the `&u64` join declares the canonical scalar referent: {referent:?}"
+    );
     let (record_arms, record_lowering) = planned_borrow_arms(RECORD_UNREAD_SOURCE);
     assert_eq!(record_arms.len(), 2, "the record control plans both arms");
     assert_eq!(
         record_lowering, None,
         "an established `&Payload` join lowers even unread"
     );
-    let Some(lowering) = lowering else {
-        panic!("a `&u64` join has no representable shared-borrow parameter");
-    };
-    assert!(
-        lowering.starts_with("InvalidTerminalModule(InvalidBlockStructuralParameter"),
-        "the primitive referent stops at the block parameter boundary: {lowering}"
-    );
 }
 
 /// A `&Payload` local forwards the referent it already loans to a shared
 /// formal: the callee observes the exact joined place rather than a copied
-/// record. The primitive referent now plans the identical call: `read`'s
-/// `&u64` body is an admitted source-independent `PrimitiveScalarRead` plan
-/// and `read(view)` retains `view` as a whole `PrimitiveScalar`
-/// `StructuralLocal` `SharedBorrow` argument. Only the established `&u64`
-/// carrier's own join remains closed — a `PrimitiveScalar` block structural
-/// parameter is not a representable Terminal shape — so the checked call plan
-/// is what this side asserts.
+/// record. The primitive referent runs the identical call through lowering
+/// and verification: `read`'s `&u64` body is an admitted source-independent
+/// `PrimitiveScalarRead` plan, `read(view)` retains `view` as a whole
+/// `PrimitiveScalar` `StructuralLocal` `SharedBorrow` argument, and the
+/// established `&u64` carrier's own join is the same canonical
+/// `PrimitiveScalar` shared-borrow block parameter the callee formal
+/// declares — no owned scalar copy of the referent exists anywhere in
+/// between.
 #[test]
 fn borrowed_selection_call_consumer_forwards_the_established_view() {
     let (record_arms, record_lowering) = planned_borrow_arms(RECORD_CALL_SOURCE);
@@ -374,12 +415,11 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
         );
     }
 
-    // The primitive referent now plans the same call: `read(view)` retains a
+    // The primitive referent plans the same call: `read(view)` retains a
     // `StructuralLocal` `SharedBorrow` argument for `view`, and `read` itself
     // is an admitted source-independent `PrimitiveScalarRead` callee. The
-    // remaining rejection is the established `&u64` join's own representable
-    // boundary — a `PrimitiveScalar` block structural parameter — not the
-    // call consumer.
+    // established `&u64` join is now admitted too, so the lowered module is
+    // asserted directly below.
     let checked = check_source(PRIMITIVE_CALL_SOURCE).expect("primitive borrowed call checks");
     let (_, view_symbol) = local(&checked, "view");
     let machine = checked
@@ -440,11 +480,60 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
         checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert!(argument.path.is_empty());
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect_err("the `&u64` join itself is still not a representable parameter");
+
+    // The same `&u64` view now lowers and verifies end to end: the
+    // selection's join declares the canonical `PrimitiveScalar` referent
+    // under `SharedBorrow`, and `read` observes that exact place whole. The
+    // interpreter's own operand lane for a primitive-typed block parameter is
+    // a separate consumer boundary — this test pins the produced module, not
+    // execution.
+    let module = verify_lowered(PRIMITIVE_CALL_SOURCE);
+    let choose = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry choose");
+    let join = choose
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+        .collect::<Vec<_>>();
+    let [join] = join.as_slice() else {
+        panic!("one shared-borrow join parameter: {join:?}");
+    };
+    let referent = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == join.structural_type)
+        .expect("the join's declared type exists");
     assert!(
-        format!("{error:?}").starts_with("InvalidTerminalModule(InvalidBlockStructuralParameter"),
-        "the primitive referent stops at the block parameter boundary: {error:?}"
+        matches!(referent.shape, StructuralTypeShape::PrimitiveScalar(_)),
+        "the `&u64` join declares the canonical scalar referent: {referent:?}"
+    );
+    let calls = choose
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::CallStructuralScalar {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call_arguments] = calls.as_slice() else {
+        panic!("choose invokes read exactly once: {calls:?}");
+    };
+    let [call_argument] = call_arguments.as_slice() else {
+        panic!("read takes one structural argument: {call_arguments:?}");
+    };
+    assert_eq!(call_argument.access, StructuralAccess::SharedBorrow);
+    assert!(call_argument.path.is_empty());
+    assert_eq!(
+        call_argument.place, join.place,
+        "the callee observes the join's exact shared place"
     );
 }
 

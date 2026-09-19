@@ -75,7 +75,8 @@ pub(super) fn validate_declarations(
                                 )
                             )
                             || (declaration.access == StructuralAccess::SharedBorrow
-                                && super::record::plain_type(module, row.id)))
+                                && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
+                                    || super::record::plain_type(module, row.id))))
                 })
                 || machine
                     .entry_claims
@@ -165,7 +166,8 @@ pub(super) fn validate_successor(
             // type. No custody moves on this edge — the joined parameter can
             // only read — and the frontier walk separately proves the root is
             // still held when the edge completes. A borrowed byte view is a
-            // whole-view loan; only record joins carry a projection.
+            // whole-view loan; record and primitive-scalar joins carry the
+            // projection that resolves to their declared referent type.
             let byte_view_parameter = module.structural_types.iter().any(|row| {
                 row.id == expected.structural_type
                     && matches!(

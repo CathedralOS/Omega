@@ -604,7 +604,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/block_views.rs",
-        sha256: Some("4d6b149d0fcbde2a714613e0f1c618da1517cef499a354b4feee50614a476480"),
+        sha256: Some("3a402d9ec7210d78c64d3cbf0eb8a1cb8f5f8b84d8b70850694f50daf999faa3"),
         inventory_machinery: false,
     },
     ImplementationSite {
