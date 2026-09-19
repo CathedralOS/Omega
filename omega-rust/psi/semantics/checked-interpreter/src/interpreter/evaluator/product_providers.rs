@@ -263,9 +263,9 @@ impl<'program> Evaluator<'program> {
         // plain data and non-data names never qualify. A qualified
         // `alias::rest` spelling resolves `alias` through the occurrence
         // package's retained product dependencies and selects a `pub`
-        // declaration in that exact target package; a helper borrowing Build
-        // keeps its operational capability but cannot enumerate the caller's
-        // product namespace, and a build-scope alias authorizes nothing. A
+        // declaration in that exact target package's product checked instance.
+        // A helper borrowing Build keeps its operational capability, not the
+        // caller's product namespace, and a build-scope alias authorizes nothing. A
         // bare leaf keeps the same-package scan; a first segment that is no
         // product alias leaves only the occurrence's own package path
         // reading of the full spelling.
@@ -298,7 +298,7 @@ impl<'program> Evaluator<'program> {
                         && self
                             .program
                             .symbols
-                            .symbol_package_identity(definition.symbol)
+                            .symbol_product_package_identity(definition.symbol)
                             == Some(target)
                 })
                 .collect::<Vec<_>>(),

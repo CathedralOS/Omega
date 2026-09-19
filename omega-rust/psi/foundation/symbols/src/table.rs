@@ -416,6 +416,21 @@ impl SymbolTable {
             .flatten()
     }
 
+    /// Reconciled package identity only for its product checked instance.
+    /// A product dependency authorizes selection from that instance, not from
+    /// an independently checked build copy of the same package/source bytes.
+    /// Generated symbols retain the scope of their authored derivation origin.
+    pub fn symbol_product_package_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<PackageKeyIdentity> {
+        let source_span = self.provenance_source_span(symbol)?;
+        let source_file = self.source_file(source_span)?;
+        (source_file.dependency_scope == source::DependencyScope::Product)
+            .then(|| self.symbol_package_identity(symbol))
+            .flatten()
+    }
+
     pub fn has_source_metadata(&self) -> bool {
         self.sources.is_some()
     }

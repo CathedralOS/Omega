@@ -18,6 +18,111 @@ fn resolves_managed_authored_symbol_package_identity() {
 }
 
 #[test]
+fn product_package_identity_excludes_the_build_checked_instance() {
+    let package_identity =
+        PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");
+    let mut sources = SourceMap::default();
+    let spans = [
+        source::DependencyScope::Product,
+        source::DependencyScope::Build,
+    ]
+    .map(|scope| {
+        let source_id = sources
+            .add_checked_instance(
+                PathBuf::from("package/shared.omg"),
+                String::from("launch"),
+                PathBuf::from("package"),
+                Some(package_identity),
+                SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                scope,
+            )
+            .source_id;
+        SourceSpan::new(source_id, Span::new(0, 6))
+    });
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        spans.map(|span| (SymbolKind::Machine, SymbolNameRef::Source(span))),
+    ))
+    .collect::<Vec<_>>();
+    let implicit_states = declarations
+        .iter()
+        .map(|declaration| {
+            SymbolTableBuilder::child_handles(builder.insert_children(
+                *declaration,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            ))
+            .next()
+            .expect("implicit state")
+        })
+        .collect::<Vec<_>>();
+    let mut symbols = builder.finish();
+    for ((declaration, implicit_state), expected) in declarations
+        .into_iter()
+        .zip(implicit_states)
+        .zip([Some(package_identity), None])
+    {
+        assert_eq!(
+            symbols.symbol_package_identity(declaration),
+            Some(package_identity)
+        );
+        assert_eq!(
+            symbols.symbol_product_package_identity(declaration),
+            expected
+        );
+        let generated =
+            symbols.insert_generated_root_from(declaration, SymbolKind::Machine, "specialized");
+        assert_eq!(symbols.symbol_product_package_identity(generated), expected);
+        assert_eq!(
+            symbols.symbol_product_package_identity(implicit_state),
+            expected
+        );
+        let generated_child = SymbolTableBuilder::child_handles(
+            symbols.insert_generated_children(generated, [(SymbolKind::State, "entry")]),
+        )
+        .next()
+        .expect("generated state");
+        assert_eq!(
+            symbols.symbol_product_package_identity(generated_child),
+            expected
+        );
+    }
+    assert_eq!(
+        symbols.symbol_product_package_identity(symbols.root()),
+        None
+    );
+    assert_eq!(
+        symbols.symbol_product_package_identity(crate::SymbolHandle::invalid()),
+        None
+    );
+}
+
+#[test]
+fn product_package_identity_requires_retained_source_metadata() {
+    for retained_sources in [None, Some(Arc::new(SourceMap::default()))] {
+        let mut builder = SymbolTableBuilder::with_sources(retained_sources);
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declaration = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(
+                SymbolKind::Machine,
+                SymbolNameRef::Source(SourceSpan::new(source::SourceId(5), Span::new(0, 6))),
+            )],
+        ))
+        .next()
+        .expect("declaration with unavailable source");
+        assert_eq!(
+            builder
+                .finish()
+                .symbol_product_package_identity(declaration),
+            None
+        );
+    }
+}
+
+#[test]
 fn source_free_structural_children_inherit_authored_parent_provenance() {
     let package_identity =
         PackageKeyIdentity::from_digest([4; 32]).expect("nonzero package identity");
@@ -110,6 +215,8 @@ fn unmanaged_and_toolchain_symbols_have_no_package_identity() {
 
     assert_eq!(symbols.symbol_package_identity(authored[0]), None);
     assert_eq!(symbols.symbol_package_identity(authored[1]), None);
+    assert_eq!(symbols.symbol_product_package_identity(authored[0]), None);
+    assert_eq!(symbols.symbol_product_package_identity(authored[1]), None);
 }
 
 #[test]

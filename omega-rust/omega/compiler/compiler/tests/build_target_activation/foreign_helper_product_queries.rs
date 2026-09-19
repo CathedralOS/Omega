@@ -5,6 +5,160 @@ use compiler::{
 };
 use std::fs;
 
+fn dual_context_product_query(
+    build_body: &str,
+    build_only_declarations: bool,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"dual-context-helper\"); }",
+    );
+    // A provider description names nominal data with a conformance; querying
+    // it does not select or execute a boundary implementation.
+    let declarations = "module setup;
+        pub machine launch() { }
+        pub data LaunchConfig { value: u8; }
+        pub trait Pick { machine choose() -> i32; }
+        pub data AudioProvider { }
+        pub machine AudioProvider::choose() -> i32 satisfies Pick::choose {
+            transition { _ -> (1) }
+        }";
+    fs::write(helper.0.join("setup.omg"), declarations).expect("shared helper source");
+    fs::write(
+        helper.0.join("product.omg"),
+        "module product; pub data ProductOnly { }",
+    )
+    .expect("independent product source");
+    let product_import = if build_only_declarations {
+        "product"
+    } else {
+        "setup"
+    };
+    let project = TempProject::with_main(
+        &format!("use support::{product_import};"),
+        &format!(
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"dual-context-owner\"); {build_body} }}"
+        ),
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(
+        package_compilation::PackageCompilationInputs::new(
+            super::package_identity(1),
+            package_compilation::BuildDeclarationKind::Application,
+            vec![
+                package_compilation::PackageSourceBinding::new(
+                    super::package_identity(1),
+                    "dual-context-owner",
+                    project.0.clone(),
+                ),
+                package_compilation::PackageSourceBinding::new(
+                    super::package_identity(2),
+                    "dual-context-helper",
+                    helper.0.clone(),
+                ),
+            ],
+            [
+                build_declarations::DependencyPurpose::Build,
+                build_declarations::DependencyPurpose::Product,
+            ]
+            .into_iter()
+            .map(|purpose| {
+                package_compilation::PackageDependencyBinding::for_purpose(
+                    super::package_identity(1),
+                    "support",
+                    super::package_identity(2),
+                    purpose,
+                )
+            })
+            .collect(),
+        )
+        .expect("distinct build and product edges to the same package"),
+    );
+    compile_to_checked(request)
+}
+
+#[test]
+fn product_entry_query_distinguishes_two_checked_instances_of_one_dependency() {
+    let checked = dual_context_product_query(
+        "let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry);",
+        false,
+    ).expect("entry query selects only the product checked instance");
+    let entry = checked
+        .selected_program_entry()
+        .expect("selected product entry");
+    let symbol = entry.source_signature().machine_symbol();
+    let program = &checked;
+    let span = program
+        .symbols
+        .symbol_source_span(symbol)
+        .expect("entry declaration");
+    assert_eq!(
+        program
+            .symbols
+            .source_file(span)
+            .expect("entry source")
+            .dependency_scope,
+        source::DependencyScope::Product
+    );
+}
+
+#[test]
+fn product_schema_query_distinguishes_two_checked_instances_of_one_dependency() {
+    let checked = dual_context_product_query(
+        "let schema: ProductTypeSchema = builder.product.schema(\"support::setup::LaunchConfig\"); builder.log.write_line(schema.path());",
+        false,
+    ).expect("schema query selects only the product checked instance");
+    assert_eq!(
+        checked
+            .build_observation_summary()
+            .expect("query observation")
+            .build_log(),
+        b"setup::LaunchConfig\n"
+    );
+}
+
+#[test]
+fn product_provider_query_distinguishes_two_checked_instances_of_one_dependency() {
+    let checked = dual_context_product_query(
+        "let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\"); builder.log.write_line(provider.path());",
+        false,
+    ).expect("provider query selects only the product checked instance");
+    assert_eq!(
+        checked
+            .build_observation_summary()
+            .expect("query observation")
+            .build_log(),
+        b"setup::AudioProvider\n"
+    );
+}
+
+#[test]
+fn product_queries_cannot_select_build_only_declarations_through_a_product_edge() {
+    for (query, rejection) in [
+        (
+            "let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry);",
+            "not a product declaration visible",
+        ),
+        (
+            "let schema: ProductTypeSchema = builder.product.schema(\"support::setup::LaunchConfig\"); builder.log.write_line(schema.path());",
+            "not a product declaration visible",
+        ),
+        (
+            "let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\"); builder.log.write_line(provider.path());",
+            "not a provider declaration visible",
+        ),
+    ] {
+        let Err(diagnostics) = dual_context_product_query(query, true) else {
+            panic!("a product edge must not authorize build-context declarations: {query}");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(rejection)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
 #[test]
 fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
     let helper = TempProject::new(
