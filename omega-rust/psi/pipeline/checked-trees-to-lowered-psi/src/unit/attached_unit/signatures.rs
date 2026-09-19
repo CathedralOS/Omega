@@ -212,10 +212,11 @@ pub(super) fn lower(
         signature
             .requires
             .extend(signature.runtime_requirements.iter().cloned());
-        // The codec publishes requires rows in canonical order, so merge then
-        // normalize rather than exposing clause/runtime ordering accidents.
-        signature.requires.sort();
-        signature.requires.dedup();
+        // The codec publishes requires rows in canonical byte order, so merge
+        // then normalize rather than exposing clause/runtime ordering
+        // accidents. `Proposition`'s derived `Ord` is Rust declaration order,
+        // not the canonical key; the shared helper orders by encoded bytes.
+        crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut signature.requires)?;
     }
     Ok(signatures)
 }

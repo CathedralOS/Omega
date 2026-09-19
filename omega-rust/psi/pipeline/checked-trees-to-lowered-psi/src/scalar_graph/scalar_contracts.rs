@@ -90,6 +90,31 @@ pub(crate) fn clauses(
     Ok(combined)
 }
 
+/// Sort and deduplicate a published `requires` roster by the codec-owned
+/// canonical proposition order. The derived `Ord` on `Proposition` follows
+/// Rust declaration order, which is not the canonical byte order (a
+/// field-rooted scalar term encodes after an integer literal while sorting
+/// before it), so ordering the values directly still emits a roster the codec
+/// rejects.
+pub(crate) fn canonicalize_requires(requires: &mut Vec<Proposition>) -> Result<(), LoweringError> {
+    let mut keyed = requires
+        .drain(..)
+        .map(|proposition| {
+            terminal_codec::canonical_proposition_order_key(&proposition)
+                .map(|key| (key, proposition))
+                .map_err(|_| {
+                    LoweringError::Unsupported(
+                        "published requires proposition is not canonically encodable",
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    keyed.dedup_by(|left, right| left.0 == right.0);
+    requires.extend(keyed.into_iter().map(|(_, proposition)| proposition));
+    Ok(())
+}
+
 /// Allocate terminal value declarations for a checked plan's proof-only erased
 /// scalar formals, in authored order. Callers pass the same `next_value`
 /// counter that allocated the dense scalar parameters so erased identities
