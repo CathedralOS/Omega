@@ -125,12 +125,15 @@ prerequisite to every lower-rung milestone.
 
   Remaining work:
 
-  - Rederive the ground, index, memo and allocation bounds at the selected
-    extent, then select the three coupled provisions: an evaluator frame that
-    holds the request (about 129 MiB against 16,777,216 bytes), the work
-    counter (about 45-52M against 655,360), and the arena this ledger implies
-    for that work (about 2.17-2.50 billion pairs against 40,265,318). A larger
-    request is not a candidate before those bounds exist.
+  - Done: the ground, index, memo and allocation bounds were rederived at the
+    measured extent and the three coupled provisions selected, recorded in the
+    [checking ledger](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
+    with the second-platform reproduction of every measured figure in
+    [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md). Selected:
+    136,314,880-byte request extent (130 MiB) inside a 137,363,456-byte
+    (131 MiB) evaluator frame, a 67,108,864-unit (2^26) work counter, and a
+    3,387,293,850-pair arena — the deeper memo key spaces moved the amortized
+    ledger constant to 50 pairs per unit.
   - Supply that extent from the Alpha realization. `M` is the static
     container's zero-filled section today, a 1.766 GiB image sized under
     [PE32+'s 2 GiB bound](bootstrap/0_alpha/README.md), so the seeds must

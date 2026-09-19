@@ -72,11 +72,12 @@ Rejection codes are 1 `short_header` (coordinate input extent), 2
 `identity_or_reserved` (first offending byte), 3 `length_high_bit` (offending high
 byte), 4 `section_extent` (the section's length-field start), and 5
 `trailing_input` (first trailing byte). Resource code 1 is `request_bytes`:
-coordinate and limit 8,388,608; requested is the exact sealed-input length.
+coordinate and limit 136,314,880; requested is the exact sealed-input length.
 These are admission-layer outcomes, not compiler-boundary or proof judgments.
 
-The initial provision is 8 MiB, leaving room within the selected Gamma
-evaluator's 16 MiB request for checker source and framing. This is a private
+The provision is 130 MiB, the least whole-MiB extent above the measured
+135,451,492-byte complete certificate request, and sits within the selected
+Gamma evaluator frame of 131 MiB together with checker source and framing. This is a private
 implementation provision, adjustable with measured certificate requirements;
 it does not restrict the calculus. Its exact and adjacent extents are tested.
 The [generic checking profile](CHECKING.md#complete-generic-execution-provision)

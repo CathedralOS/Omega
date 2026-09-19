@@ -98,22 +98,28 @@ encoding certificate; these generic tests do not complete P1.
 
 ## Complete generic execution provision
 
-Outer admission limits the exact checker request to 8,388,608 bytes. It leaves
-room in Gamma's 16,777,216-byte evaluator frame for the pinned checker source and
-four-byte source length. The canonical closure and diagnostic compositions are
-measured by their manifests/pins; the whole artifact owner must retain its exact
-entry composition and verify this framing requirement.
+Outer admission limits the exact checker request to 136,314,880 bytes (130
+MiB), the least whole-MiB extent above the measured complete certificate
+request of 135,451,492. It leaves room in Gamma's 137,363,456-byte (131 MiB)
+evaluator frame for the pinned checker source and four-byte source length. The
+canonical closure and diagnostic compositions are measured by their
+manifests/pins; the whole artifact owner must retain its exact entry
+composition and verify this framing requirement.
 The [checking diagnostic](../../../tests/gamma/derivation-checking/source.tsv)
-is 1,391 lines and 63,504 bytes; even an exact-limit checker input yields only
-`4 + 63,504 + 8,388,608 = 8,452,116` framed bytes.
+is 1,391 lines and 63,504 bytes; an exact-limit checker input yields
+`4 + 63,504 + 136,314,880 = 136,382,488` framed bytes.
 
 Formation retains its independent 65,536-sort and 8,388,608-work-estimate
-preflights. The physical extent bounds payload words below 2^21, global ground
-terms and proof rows below 2^19, and a clause's templates below 2^20. Arity and
+preflights. The physical extent bounds payload words below 34,078,720 (< 2^26),
+global ground terms and proof rows below 8,519,680 (< 2^24), and
+— since the estimate's `4W` term still bounds theory words `W <= 2^21` — a
+clause's templates below 2^20. Arity and
 all child/premise counts are physically bounded before loops; there is no extra
 arbitrary arity or logical-depth cutoff. Ground/template/proof references are
 indexed, not repeatedly found in linked tables. Index building uses at most
-21 native levels; memo insertion at most 39. Row and premise scans and explicit
+24 native levels; memo insertion at most 47, the ground memo's `[0,N*N)` key
+space, while a clause's template memo stays within 44 levels. Row and premise
+scans and explicit
 comparison/substitution continuations are tail calls. A variable's ground
 comparison adds one bounded suspension, not recursion through template depth;
 the finite helper nesting remains below Gamma's 256 call-context rows.
@@ -121,25 +127,26 @@ the finite helper nesting remains below Gamma's 256 call-context rows.
 The selected diagnostic composition has 208 functions, at most 15 nested body
 lists, arity 10, and 11 simultaneously active bindings per function. These are
 source measurements, not input-dependent provisions. A source call-path audit
-allows 49 call-context rows and 50 active function frames, including `main`.
+allows 57 call-context rows and 58 active function frames, including `main`.
 It counts pending outer calls during argument evaluation as well as suspended
 non-tail calls. The longest conservative path allows three proof/premise
 suspensions, two contexts entering ground comparison, two entering memo insertion,
-39 recursive memo levels, two deepest preparation contexts, and the one `main`
-suspension. Other positive-depth cycles are bounded index building (21), sort
+47 recursive memo levels, two deepest preparation contexts, and the one `main`
+suspension. Other positive-depth cycles are bounded index building (24), sort
 marking (16), and fixed function/clause/template layout nesting (four).
 All proof scans and logical term traversals have tail-only cycles.
 
-Thus active environments need at most `50*11 = 550` binding rows, below 65,536.
+Thus active environments need at most `58*11 = 638` binding rows, below 65,536.
 For temporary values, allow 16 entries per expression level (ten arguments plus
 helper saves), 16 levels per frame (15 body lists plus return handling), and
-32 fixed entries: `50*16*16+32 = 12,832`, below 524,288. The evaluator resets
+32 fixed entries: `58*16*16+32 = 14,880`, below 524,288. The evaluator resets
 argument temporaries and environments on tail-frame reuse. These conservative
 source/evaluator bounds are not claimed runtime peak measurements. A different
 checker entry or changed implementation must recheck its function, syntax,
 binding, context, and temporary-value bounds before artifact acceptance.
 
-All work after Grounded shares the same 655,360-unit counter: proof-index setup,
+All work after Grounded shares the same 67,108,864-unit counter (2^26):
+proof-index setup,
 row checks, congruence premises, clause/index setup, and every comparison and
 substitution transition. No rule restarts or rolls back the session. Live
 pending frames and completed memo insertions are bounded by consumed units;
@@ -151,23 +158,33 @@ backing over a checker composition rule for the complete Beta-encoding
 certificate. The five rules of [FORMAT.md](FORMAT.md#certificate-section-gce1)
 stay as they are and admission grows the provisions instead, so no certificate
 is admitted under a premise the checker did not derive in its own table.
-The measured certificate needs an evaluator frame holding its request at about
-129 MiB against 16,777,216 bytes today, about 45-52M work against 655,360, and
-the arena this ledger implies for that work at about 2.17-2.50 billion pairs
-against the selected 40,265,318. Those are measurement targets, not selected
-provisions: each requires rederived ground, index, memo and allocation bounds
-first, and the resulting extent no longer fits a static image, so the Alpha
-realization supplies it. **GAMMA-DERIVATION-CHECKER** owns that work.
+**GAMMA-DERIVATION-CHECKER** rederived the bounds of this ledger at the
+measured extent and selects the three coupled provisions: the 136,314,880-byte
+request extent and the 137,363,456-byte evaluator frame that holds it with the
+63,508-byte source framing; the 67,108,864-unit work counter, ~28% above the
+44.2-52.5M projection (the measured 13.9-16.5 work/row over 3,182,484 rows);
+and the 3,387,293,850-pair arena this ledger implies. The deeper memo key
+spaces move the amortized constant to 50 pairs per unit. The ~129 MiB frame,
+~45-52M work, and ~2.17-2.50G-pair figures were measurement targets; these are
+the selected provisions. They no longer fit a static image, so the Alpha
+realization supplies the extents — the `M` startup extent, and in the same
+leg a buffered-output provision covering the 134,800,268-byte certificate
+against 16,777,212 today. The provisions take effect there; the recorded
+bounds already hold at the selected extent.
 
 The complete cumulative pair bound is
-`7,864,346 + 655,360*48 + 128 = 39,321,754`, below the selected Gamma arena of
-40,265,318 pairs. The first term covers formation and Grounded. `P+1` units pay
+`31,850,522 + 67,108,864*50 + 128 = 3,387,293,850` — the selected arena
+provision. The first term covers formation and Grounded:
+`2W+3N+32S+26` under `W <= 2^21`, `N < 8,519,680`, `S <= 65,536`. `P+1` units pay
 for `3P-1` index pairs, reservation carriers, and bounded proof context setup.
 Each row/premise unit pays for its own reservation and any constant coordination
 carriers; structural comparison and substitution charge their own operations.
 The [amortized traversal argument](COMPARISON.md#amortized-allocation-argument)
-establishes 48 pairs per unit across charged operations, not per individual
-transition. The once-per-request 128-pair allowance covers the at-most-34-pair
+establishes 50 pairs per unit across charged operations, not per individual
+transition: a memo-path insertion allocates at most 94 pairs over its one
+charged unit, and the at-least-42-credit entry per pending level keeps
+completed calls nonnegative. The once-per-request 128-pair allowance covers the
+at-most-44-pair
 unfinished-prefix deficit, session setup, final Checked or failure publication,
 and constant boundary carriers, not repeated row costs. The implementation must
 enumerate its allocations against this ledger.

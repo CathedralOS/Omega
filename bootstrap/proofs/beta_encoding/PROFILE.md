@@ -138,7 +138,12 @@ derivation in 24.1 seconds at ~2.8GB peak RSS on macOS arm64:
 The derivation value is exactly `Success(T)` for the real tape. Every figure
 above was reproduced exactly from the checked-in stepper at `6a1751fe08` on
 macOS arm64 (24.2 seconds), including owner/witness counts, the per-rule row
-totals — which contain no symmetry rows — and the 204 maximum premise depth.
+totals — which contain no symmetry rows — and the 204 maximum premise depth
+(a premise-free row counts depth one). The same figures were reproduced a
+second time on Linux x86-64 at `87d8b22713ff` under Python 3.10: the
+sha256-pinned host-side theory reconstruction, the midpoint-split owner
+proposition, and the full emission completed in 23.8 seconds at ~2.3 GiB peak
+RSS with byte-identical section sizes and per-rule totals.
 The same gap blocks production through the selected chain: the certificate
 is ~8 times the evaluator's 16,777,212-byte buffered-output provision.
 Owner decision `beta-encoding-certificate-admission` settles admission on the
@@ -148,7 +153,11 @@ the buffered-output provision is one of the extents that grows with it.
 The request
 cannot be admitted by the selected checker; the projected work uses the
 measured 13.9-16.5 work/row across the checked encoder batches, not an
-executed run. This is one straightforward producer shape, not a lower bound;
+executed run. That ledger now selects the coupled provisions — the
+136,314,880-byte request extent, the 137,363,456-byte evaluator frame, the
+67,108,864-unit work counter, and the 3,387,293,850-pair arena — pending the
+Alpha extent-supply leg that realizes them.
+This is one straightforward producer shape, not a lower bound;
 the [cost review](../../../wiki/drafts/bootstrap_cost_review.md) records the
 named reduction levers and confirms the remaining shortfall is structural.
 

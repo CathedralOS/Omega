@@ -255,9 +255,10 @@ equations across all encoder functions 58..108, including tiny end-to-end
 encodes, through the ordinary checker. The generic stepper has also
 independently reconstructed the owner-fixed proposition over the complete
 selected subject and produced the full untrusted derivation — 3,182,484
-rows and 135,451,492 request bytes, 16.1 times the request provision — so
-the certificate is produced and measured but cannot be admitted under the
-selected resource profile. [PROFILE.md](PROFILE.md) records the complete
+rows and 135,451,492 request bytes, 16.1 times the 8,388,608-byte provision it
+was measured against — so
+the certificate is produced and measured and the provisions to admit it are
+now selected, pending the Alpha extent-supply leg. [PROFILE.md](PROFILE.md) records the complete
 measurements; the residual routes are the owner-level decisions named in the
 cost review. Do not let producer-supplied definitions choose the
 meaning of the artifact being accepted.

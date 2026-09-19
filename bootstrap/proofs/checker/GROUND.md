@@ -60,10 +60,11 @@ escapes on failure.
 ## Work, allocation, and depth
 
 There is no additional arbitrary term-count or logical-depth cutoff in this
-stage. The admitted 8 MiB physical request already bounds `N=R+V` below 2^19:
-each ground record has at least four words including its length. Thus the global
+stage. The admitted request extent already bounds `N=R+V` below 8,519,680
+(< 2^24): each ground record has at least four words including its length.
+Thus the global
 identity sum fits the administrative u31 word. A physical index is built once;
-row and child scans are tail calls. Index descent has at most 19 edges, and
+row and child scans are tail calls. Index descent has at most 24 edges, and
 symbol lookup at most the formation index bound of 21. Logical term depth does
 not consume native recursion or allocate an expanded tree.
 
@@ -79,8 +80,9 @@ carriers; one shared checking context uses two pairs, and success or rejection
 uses at most four. Thus this stage adds at most `3N+10` cumulative pairs. Together
 with formation's actual ledger, the request uses at most
 `2W+3N+32S+26`, where `W` and `S` retain their formation meanings. This is below
-7,864,346 pairs under the independent admitted bounds, within the selected Gamma
-arena of 40,265,318. Unreachable pairs still count. The
+31,850,522 pairs under the independent admitted bounds (`W <= 2^21`,
+`N < 8,519,680`, `S <= 65,536`), within the selected Gamma
+arena of 3,387,293,850. Unreachable pairs still count. The
 [combined checking ledger](CHECKING.md#complete-generic-execution-provision)
 includes later comparison, substitution, and proof stages.
 The provisions remain adjustable implementation choices, not calculus laws.

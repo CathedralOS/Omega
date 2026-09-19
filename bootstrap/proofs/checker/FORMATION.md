@@ -32,8 +32,9 @@ definitions, ordinary indexing/validation passes, and a final sort scan. A
 visit may include bounded indexed lookup; `E` is not a count of Gamma or Alpha
 instructions, elapsed time, or every internal tree-descent iteration.
 
-The admitted request bounds `W`, `C`, `F`, and `A` below 2^21; the separate sort
-check bounds `S` by 2^16. The entire estimate fits signed 64-bit arithmetic,
+The admitted request bounds `W`, `C`, `F`, and `A` below 2^26 by raw size, and
+the estimate's `4W` term then keeps `W <= 2^21` regardless of the request
+extent; the separate sort check bounds `S` by 2^16. The entire estimate fits signed 64-bit arithmetic,
 including requests that exceed the provision. No wrapping estimate or truncated
 diagnostic is permitted. These provisions are adjustable implementation choices,
 not restrictions on conservative definitions. The whole-Beta certificate still
@@ -132,7 +133,7 @@ belong to the fixed allocation allowance.
 The implementation's cumulative allocation must stay below
 `8W + 32S + 128` pairs, including indexes, clause contexts, pass results, and
 terminal outcomes. This is below 18,874,496 pairs for the admitted extents,
-within the selected Gamma arena of 40,265,318. Scalar field validation must not
+within the selected Gamma arena of 3,387,293,850. Scalar field validation must not
 allocate a result tuple per visit. Balanced-tree recursion follows logarithmic
 index height; row, argument, constructor, and pass scans are tail calls.
 The [complete generic checking ledger](CHECKING.md#complete-generic-execution-provision)
