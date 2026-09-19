@@ -3391,16 +3391,19 @@ Owners include
     `BuildSource::{open, read}` already opens with arbitrary flags and reads
     contents. `compiler/tests/terminal_authority/filesystem_release_witness.rs`
     pins the stop until the program-side leg below lands.
-  - Unbind the cross-execution join the flag below records.
-    `classify_terminal_mechanism`
-    (`native-realization/src/native_realization/providers/settlements/source_imports.rs`)
-    narrows any mechanism in the release cohort from
-    `filesystem_release_contracts` derived from the compile's own `build.omg`
-    replay, with no program call occurrence joined. Those contracts describe a
-    confined build activation, so no amount of build-side evidence can settle
-    a claim about the emitted program. Remove that preference and take the
-    release narrowing only from the program's own checked-flow derivation,
-    rejoined per call site at realization.
+  - ~~Unbind the cross-execution join the flag below records.~~ Done:
+    `classify_terminal_mechanism` now consults only the artifact's own
+    `terminal_authority_policy` rows, and the
+    `filesystem_release_contracts` parameter is gone from
+    `validate_source_evaluated_import_coverage`,
+    `admit_native_providers` and `settle_provider_executions`.
+    `realize_native_artifact_with_release_contracts` keeps its signature but
+    merges contract-derived evidence rows into the request's
+    `terminal_authority_policy` internally, so build-replay contracts stay
+    visible as evidence while settlement never reads them. Release narrowing
+    now comes only from the program's own checked-flow derivation carried as
+    policy rows, rejoined per call site at realization — which remains the
+    unbuilt program-side leg above.
   - Program-side native acceptance through
     `tests/omega/pass/filesystem/windows_canonicalize_exit`. It stops at
     `structural field store: scalar field type`
@@ -3421,16 +3424,16 @@ Owners include
     `filesystem/native_close` is past the scalar call-result store; rerun it
     before assuming a stop.
 
-  Flag: the landed join narrows the emitted program's release mechanism from
-  evidence about a different execution. The contracts come from the compile's
-  own build filesystem replay record, an interpreter trace of `build.omg`.
-  `providers/settlements/source_imports.rs::classify_terminal_mechanism` then
-  prefers the bound explicit-empty key for every demanded mechanism whose
-  provider method is named `close`, `find_close` or `close_handle`, whenever
-  any contract exists. No program call occurrence, handle flow or accepted
-  `FilesystemHostService` binding is joined. The spec requires the constraint
-  identity bound "to the derivation and exact occurrence". The general
-  mechanism is a checked-flow derivation over the program's own occurrence,
+  Flag: the unbound join previously narrowed the emitted program's release
+  mechanism from evidence about a different execution — the compile's own
+  build filesystem replay record, an interpreter trace of `build.omg`.
+  `classify_terminal_mechanism` preferred the bound explicit-empty key for
+  every demanded mechanism whose provider method was named `close`,
+  `find_close` or `close_handle`, whenever any contract existed. That
+  preference is removed: settlement classifies only from the artifact's own
+  policy. The spec still requires the constraint identity bound "to the
+  derivation and exact occurrence"; that derivation is the remaining
+  program-side leg — a checked-flow proof over the program's own occurrence,
   carried as Terminal evidence and rejoined per call site at realization.
 
   Acceptance: a constrained ordinary close has one evidence-bound empty row.
