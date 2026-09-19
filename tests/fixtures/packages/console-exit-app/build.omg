@@ -3,7 +3,7 @@
 
 machine build(builder: &mut Build) {
     builder.application("console-exit-app");
-    builder.depend(Source::Path { location: "../../../source/library/std" });
+    builder.depend(Source::Path { location: "../../../../source/library/std" });
     builder.select_provider<Console, ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

@@ -17,13 +17,24 @@ Expected package evidence on `macos_arm64`:
   `FilesystemHost` `dangerous_capability` rows;
 - each row is a decision, never a grant: leaving the exit row pending while
   accepting every other row keeps the lock unpublished;
-- an accepted lock retains the three rows, and the accepted package permission
-  policy projected for native realization contains exactly those rows, so
-  ordinary compilation must pass package acceptance without an ecosystem
-  receiving policy. The misplaced gate is removed: the receiving permission
-  policy is optional through native realization, and an artifact emitted
-  without it binds no admission claim. Explicit receiver admission still
-  rejects the emitted artifact under an insufficient independent policy.
+- an accepted lock retains the three rows for replay of package acceptance.
+  Ordinary compilation requires no ecosystem receiving policy and must not
+  construct one from those accepted rows. An artifact emitted without a
+  receiving policy carries no receiver-admission claim. Explicit receiver
+  admission separately checks an independently supplied policy.
 
-The package CLI test copies this fixture and rewrites the std location to the
-repository checkout; the relative location above resolves from this directory.
+After package acceptance, native production currently reaches physical
+legalization and rejects with `Selection(Legalization(SourceCustodyMismatch))`.
+The CLI regression pins that exact failure. A successful compile must instead
+report a nonempty executable in the requested output directory and preserve the
+accepted project files.
+
+From the repository root, inspect the fixture without accepting its review:
+
+```sh
+omega audit packages --project tests/fixtures/packages/console-exit-app --target macos_arm64 --offline
+```
+
+This command also works in PowerShell. The package CLI test verifies the original
+relative std location, then copies the fixture and rewrites that location to the
+repository checkout.

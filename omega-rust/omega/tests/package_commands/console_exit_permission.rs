@@ -15,6 +15,7 @@ const APP_BUILD: &str =
     include_str!("../../../../tests/fixtures/packages/console-exit-app/build.omg");
 const APP_SOURCE: &str =
     include_str!("../../../../tests/fixtures/packages/console-exit-app/main.omg");
+const STANDARD_LIBRARY_LOCATION: &str = "../../../../source/library/std";
 const EXIT_REQUIREMENT: &str = "path(Console::exit_process)";
 /// Every compiler-intrinsic leaf of the selected std Console provider, with
 /// the permission tag the review proposes for it.
@@ -31,8 +32,15 @@ fn console_exit_fixture() -> Fixture {
     let standard_library =
         fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library/std"))
             .expect("bundled standard library checkout");
+    let checked_in_project = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/packages/console-exit-app");
+    assert_eq!(
+        fs::canonicalize(checked_in_project.join(STANDARD_LIBRARY_LOCATION))
+            .expect("the checked-in fixture's dependency resolves before it is copied"),
+        standard_library,
+    );
     let build = APP_BUILD.replace(
-        "\"../../../source/library/std\"",
+        &format!("{STANDARD_LIBRARY_LOCATION:?}"),
         &format!("{:?}", standard_library.to_str().unwrap()),
     );
     assert_ne!(build, APP_BUILD);
@@ -176,28 +184,57 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
             .count()
     );
 
-    // Native production no longer treats ordinary artifact emission as an
-    // explicit receiver-admission request: the accepted package permission
-    // rows rejoin the retained proposal, and with no receiving policy the
-    // realization makes no receiver-admission claim at all — it is neither
-    // denied nor allowed by a policy that was never supplied. The compile must
-    // therefore not surface the receiving-policy gate for any accepted row.
-    let output = fixture.omega(&["--accept-admissions", "--target", "macos_arm64", "main.omg"]);
+    // Package acceptance supplies no receiver-admission policy. Pin the native
+    // outcome as well: merely excluding the retired permission diagnostics
+    // would let any later compiler failure silently satisfy this witness.
+    let accepted_files = fixture.accepted_files();
+    let native_directory = fixture.path("root/build/native-production");
+    assert!(!native_directory.exists());
+    let output = fixture.omega(&[
+        "--accept-admissions",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        native_directory.to_str().unwrap(),
+        "main.omg",
+    ]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    for (requirement, _) in PERMISSIONS {
-        assert!(
-            !stderr.contains(&format!(
-                "receiving terminal-authority policy omits the accepted permission for `named-callable({requirement}"
-            )),
-            "{requirement}: {stderr}"
+    if output.status.success() {
+        let mut publications = stdout
+            .lines()
+            .filter_map(|line| line.strip_prefix("published native output to "));
+        let published = Path::new(
+            publications
+                .next()
+                .unwrap_or_else(|| panic!("missing native publication: {stdout}")),
         );
+        assert!(publications.next().is_none(), "{stdout}");
+        assert!(published.starts_with(&native_directory), "{stdout}");
+        let metadata = fs::metadata(published).expect("reported native output exists");
+        assert!(
+            metadata.is_file() && metadata.len() > 0,
+            "published native output is a nonempty file: {stdout}"
+        );
+    } else {
+        // The current customer reaches physical legalization and stops at its
+        // custody check. This exact blocker is the remaining native obligation;
+        // no other rejection establishes successful package-to-native handoff.
+        assert_status(&output, 1);
+        assert_eq!(
+            stderr.trim(),
+            concat!(
+                "cannot realize accepted package production: [Diagnostic { severity: Error, ",
+                "message: \"native artifact identity physical pipeline failed: ",
+                "common physical staging failed: Selection(Legalization(SourceCustodyMismatch))\", ",
+                "source_span: None }]",
+            ),
+        );
+        assert!(stdout.trim().is_empty(), "{stdout}");
     }
-    assert!(
-        !stderr.contains("receiving terminal-authority permission policy has no exact row"),
-        "{stderr}"
+    assert_eq!(
+        fixture.accepted_files(),
+        accepted_files,
+        "native compilation preserves the accepted project",
     );
-    // Emission itself is witnessed by the compiler-level regressions. Any
-    // residual failure at a later, policy-independent stage is a separate
-    // defect and must not masquerade as the removed admission gate, so this
-    // witness deliberately owns only the receiving-policy assertion above.
 }
