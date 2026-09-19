@@ -233,8 +233,18 @@ resource, transport, or request refusal publishes an Epsilon observation. The
 envelope binds the exact evaluator artifact, the exact source closure, the
 sealed stdin, this profile, and the complete
 `RunEpsilon` observation without host parsing or policy, within the construct
-coverage the evaluator currently implements. Still open under
-EPSILON-EVALUATOR: witnessed checking/runtime conformance gaps, complete D
-composition, and independent `RunEpsilon` refinement — section 11's final
-acceptance still requires the evaluator to execute every Epsilon construct
-and Console effect for the exact D source.
+coverage the evaluator currently implements. The last two legs are now
+exercised gates on this unchanged composition:
+[`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md)
+checks and executes the whole 509,267-byte D closure — all eight manifested
+members — through this canonical edge, including D's own
+`OmegaScalarCompiler::compile` publishing the exact emitted Alpha tape, and
+records the checking-versus-execution allocation split (8e63b21300), while
+[`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md)
+refines `RunEpsilon` over the exact D closure member sources: the
+contract-derived model's observations agree with this edge byte-for-byte on
+the same eight customers, with discriminating member mutations spanning
+every member (fc23c46e4f). What remains under EPSILON-EVALUATOR is the
+standing conformance clause: witnessed checking/runtime defects are
+corrected when a D slice or contract control witnesses one, and none is
+recorded.
