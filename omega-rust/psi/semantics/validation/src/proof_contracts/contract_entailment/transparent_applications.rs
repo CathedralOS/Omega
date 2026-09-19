@@ -59,6 +59,15 @@ pub fn transparent_proposition_application_entailed(
                 .data_definitions()
                 .iter()
                 .find(|data| data.symbol == data_symbol)?;
+            // Product eta reconstructs plain records only. A sum's common
+            // fields do not identify its case or active payload.
+            if program
+                .data_members(data)
+                .iter()
+                .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+            {
+                return structural_term(program, expression);
+            }
             let arguments = program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -125,7 +134,9 @@ pub fn transparent_proposition_application_entailed(
         let ExpressionNode::Binary(binary) = program.expression_table.expression(formula) else {
             return None;
         };
-        if binary.operator != BinaryOperator::Equal {
+        if binary.operator != BinaryOperator::Equal
+            || super::structural_terms::is_case_observation(program, formula)
+        {
             return None;
         }
         Some((

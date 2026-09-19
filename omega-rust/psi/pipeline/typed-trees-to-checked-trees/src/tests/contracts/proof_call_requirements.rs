@@ -292,6 +292,257 @@ fn omitted_constructor_fields_do_not_prove_equality_to_nonzero_fields() {
 }
 
 #[test]
+fn omitted_constructor_runtime_field_establishes_its_zero_value() {
+    let source = r#"
+        data Tree { case Empty; case Node(child: Tree, flag: bool); }
+        machine restricted(left: Tree, right: Tree) -> Tree
+        requires left == right;
+        terminates;
+        { left }
+        machine caller()
+        requires restricted(Tree::Node { child: Tree::Empty }, Tree::Node { child: Tree::Empty, flag: false })
+            == restricted(Tree::Node { child: Tree::Empty }, Tree::Node { child: Tree::Empty, flag: false });
+        {}
+    "#;
+    crate::lower_typed_trees(parse_typed_trees(source))
+        .expect("the omitted runtime bool field denotes false");
+}
+
+#[test]
+fn constructor_body_guarantees_compare_omitted_runtime_fields() {
+    for (flag, accepted) in [("true", false), ("false", true)] {
+        let source = format!(
+            r#"
+            data Tree {{ case Empty; case Node(child: Tree, flag: bool); }}
+            machine construct() -> Tree
+            ensures result == (Tree::Node {{ child: Tree::Empty, flag: {flag} }});
+            {{ transition {{ _ -> Tree::Node {{ child: Tree::Empty }} }} }}
+        "#
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{flag}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn constructor_zero_fields_compose_in_common_nested_and_integer_positions() {
+    for (declarations, omitted, supplied, changed) in [
+        (
+            "data Tree { flag: bool; case Empty; case Node(child: Tree); }",
+            "Tree::Empty {}",
+            "Tree::Empty { flag: false }",
+            "Tree::Empty { flag: true }",
+        ),
+        (
+            "data Tree { flag: bool; case Empty; case Node(child: Tree); }",
+            "Tree::Empty",
+            "Tree::Empty { flag: false }",
+            "Tree::Empty { flag: true }",
+        ),
+        (
+            "data Bits { flag: bool; } data Tree { case Empty; case Node(child: Tree, bits: Bits); }",
+            "Tree::Node { child: Tree::Empty }",
+            "Tree::Node { child: Tree::Empty, bits: Bits { flag: false } }",
+            "Tree::Node { child: Tree::Empty, bits: Bits { flag: true } }",
+        ),
+        (
+            "data Tree { case Empty; case Node(child: Tree, count: u64); }",
+            "Tree::Node { child: Tree::Empty }",
+            "Tree::Node { child: Tree::Empty, count: 0x0 }",
+            "Tree::Node { child: Tree::Empty, count: 1 }",
+        ),
+    ] {
+        for (explicit, accepted) in [(supplied, true), (changed, false)] {
+            for (left, right) in [(omitted, explicit), (explicit, omitted)] {
+                let source = format!(
+                    r#"
+                    {declarations}
+                    machine restricted(left: Tree, right: Tree) -> Tree
+                    requires left == right;
+                    terminates;
+                    {{ left }}
+                    machine caller()
+                    requires restricted({left}, {right}) == restricted({left}, {right});
+                    {{}}
+                "#
+                );
+                let result = crate::lower_typed_trees(parse_typed_trees(&source));
+                assert_eq!(
+                    result.is_ok(),
+                    accepted,
+                    "{left} == {right}: {:?}",
+                    result.err()
+                );
+            }
+            let source = format!(
+                r#"
+                {declarations}
+                machine construct() -> Tree
+                ensures result == ({explicit});
+                {{ transition {{ _ -> {omitted} }} }}
+            "#
+            );
+            let result = crate::lower_typed_trees(parse_typed_trees(&source));
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "body {omitted} == {explicit}: {:?}",
+                result.err()
+            );
+        }
+    }
+}
+
+#[test]
+fn zero_value_case_observation_keeps_common_fields_distinct_from_the_tag() {
+    for (observation, accepted) in [("in Flags::First", true), ("in Flags::Second", false)] {
+        let source = format!(
+            r#"
+        data Flags {{ ready: bool; case First; case Second; }}
+        machine zero_case()
+        ensures zero_value<Flags>() {observation};
+        {{}}
+    "#
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{observation}: {:?}",
+            result.err()
+        );
+    }
+    for (ready, accepted) in [("false", true), ("true", false)] {
+        let source = format!(
+            r#"
+            data Flags {{ ready: bool; case First; case Second; }}
+            data Tree {{ case Empty; case Node(child: Tree, flags: Flags); }}
+            machine zero_value_fields()
+            ensures (Tree::Node {{ child: Tree::Empty, flags: zero_value<Flags>() }})
+                == (Tree::Node {{ child: Tree::Empty, flags: Flags::First {{ ready: {ready} }} }});
+            {{}}
+        "#
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{ready}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn membership_guarantees_do_not_fix_the_returned_common_fields() {
+    for (other, accepted) in [("true", true), ("false", false)] {
+        let source = format!(
+            r#"
+            data Tree {{ flag: bool; case Empty; case Node(child: Tree); }}
+            machine make(flag: bool) -> Tree
+            ensures result in Tree::Empty;
+            {{ transition {{ _ -> Tree::Empty {{ flag: flag }} }} }}
+            machine compare()
+            ensures make(true) == make({other});
+            {{}}
+        "#
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{other}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn nested_first_case_defaults_must_establish_their_predicate() {
+    // Positive predicate evidence is not yet transported into implicit zero
+    // construction. A valid but unestablished predicate remains unknown, not
+    // an excuse to accept the false predicate beside it.
+    for (condition, accepted) in [
+        ("", true),
+        (" where count > 0", false),
+        (" where count >= 0", false),
+    ] {
+        let source = format!(
+            r#"
+            data Choice {{ case First(count: u64){condition}; case Later; }}
+            data Tree {{ case Empty; case Node(child: Tree, choice: Choice); }}
+            machine restricted(left: Tree, right: Tree) -> Tree
+            requires left == right;
+            terminates;
+            {{ left }}
+            machine caller()
+            requires restricted(Tree::Node {{ child: Tree::Empty }}, Tree::Node {{ child: Tree::Empty }})
+                == restricted(Tree::Node {{ child: Tree::Empty }}, Tree::Node {{ child: Tree::Empty }});
+            {{}}
+        "#
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{condition}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_membership_requires_does_not_establish_zero_common_fields() {
+    let source = r#"
+        data Tree { flag: bool; case Empty; case Node(child: Tree); }
+        machine false_default(value: Tree)
+        requires value in Tree::Empty;
+        ensures value == Tree::Empty;
+        {}
+    "#;
+    crate::lower_typed_trees(parse_typed_trees(source))
+        .map(|_| ())
+        .expect_err("a tag hypothesis says nothing about common fields");
+}
+
+#[test]
+fn case_matching_preserves_common_field_values_without_zeroing_them() {
+    for (common_fields, accepted) in [("", false), ("flag: value.flag", true)] {
+        let node_fields = if common_fields.is_empty() {
+            "child: child".to_owned()
+        } else {
+            format!("child: child, {common_fields}")
+        };
+        let source = format!(
+            r#"
+            data Tree {{ flag: bool; case Empty; case Node(child: Tree); }}
+            machine reconstruct(value: Tree) -> Tree
+            ensures result == value;
+            {{
+                transition value {{
+                    Tree::Empty -> Tree::Empty {{ {common_fields} }}
+                    Tree::Node {{ child }} -> Tree::Node {{ {node_fields} }}
+                }}
+            }}
+        "#
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{common_fields}: {:?}",
+            result.err()
+        );
+    }
+}
+
+#[test]
+fn omitted_constructor_fields_do_not_invent_proof_inhabitants_or_gated_values() {
+    for field in ["child: Tree", "flag [erased]: bool", "count: u64 [1..=10]"] {
+        let source = format!(
+            r#"
+            data Tree {{ case Empty; case Node({field}); }}
+            machine restricted(left: Tree, right: Tree) -> Tree
+            requires left == right;
+            terminates;
+            {{ left }}
+            machine caller()
+            requires restricted(Tree::Node {{}}, Tree::Node {{}}) == restricted(Tree::Node {{}}, Tree::Node {{}});
+            {{}}
+        "#
+        );
+        crate::lower_typed_trees(parse_typed_trees(&source))
+            .map(|_| ())
+            .expect_err("omission cannot manufacture an established value or erased proof");
+    }
+}
+
+#[test]
 fn mathematical_value_call_requires_established_premises() {
     let source = format!(
         "{RESTRICTED}

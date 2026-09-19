@@ -403,6 +403,9 @@ pub(crate) fn intake_citation_for_edge(
             .collect::<Vec<_>>()
     };
     for fact in facts(typed_trees::signature::SignatureContractKind::Requires) {
+        if super::structural_terms::is_case_observation(program, fact) {
+            return;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             return;
         };
@@ -435,6 +438,9 @@ pub(crate) fn intake_citation_for_edge(
         }
     }
     for fact in facts(typed_trees::signature::SignatureContractKind::Ensures) {
+        if super::structural_terms::is_case_observation(program, fact) {
+            continue;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             continue;
         };
@@ -520,6 +526,9 @@ pub(crate) fn intake_statement_citation_for_edge(
             .collect::<Vec<_>>()
     };
     for fact in collect(typed_trees::signature::SignatureContractKind::Requires) {
+        if super::structural_terms::is_case_observation(program, fact) {
+            return;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             return;
         };
@@ -542,6 +551,9 @@ pub(crate) fn intake_statement_citation_for_edge(
         }
     }
     for fact in collect(typed_trees::signature::SignatureContractKind::Ensures) {
+        if super::structural_terms::is_case_observation(program, fact) {
+            continue;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             continue;
         };
@@ -713,6 +725,9 @@ pub(crate) fn instantiated_fact_established(
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
 ) -> bool {
+    if super::structural_terms::is_case_observation(program, fact) {
+        return false;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
         return false;
     };

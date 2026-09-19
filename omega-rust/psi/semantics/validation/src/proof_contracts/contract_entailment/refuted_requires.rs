@@ -111,6 +111,9 @@ pub(super) fn instantiated_fact_judgment(
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
 ) -> StructuralJudgment {
+    if super::structural_terms::is_case_observation(program, fact) {
+        return StructuralJudgment::Unknown;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
         return StructuralJudgment::Unknown;
     };
@@ -164,6 +167,9 @@ pub(crate) fn collect_instantiated_conjuncts(
     map: &[(String, StructuralTerm)],
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
 ) {
+    if super::structural_terms::is_case_observation(program, fact) {
+        return;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
         return;
     };

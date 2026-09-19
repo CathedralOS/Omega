@@ -190,7 +190,7 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
         StructuralTerm::CallProjection { arguments, .. } => arguments
             .iter()
             .any(|argument| term_mentions_variable(argument, variable)),
-        StructuralTerm::Opaque(_) => false,
+        StructuralTerm::Opaque(_) | StructuralTerm::Integer(_) => false,
     }
 }
 
@@ -250,6 +250,7 @@ pub(crate) fn diagnostic_shape_match(
                     })
         }
         (StructuralTerm::Opaque(left), StructuralTerm::Opaque(right)) => left == right,
+        (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => left == right,
         (
             StructuralTerm::CallProjection {
                 target,
@@ -288,6 +289,7 @@ pub(crate) fn diagnostic_shape_match(
 pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
     match term {
         StructuralTerm::Variable(name) => name.clone(),
+        StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Constructor { data, case, fields } => {
             if fields.is_empty() {
                 format!("{data}::{case}")

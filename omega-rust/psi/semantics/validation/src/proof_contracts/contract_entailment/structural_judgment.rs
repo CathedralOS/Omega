@@ -19,8 +19,10 @@ pub(super) enum StructuralJudgment {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(super) enum StructuralTerm {
     Variable(String),
-    /// data name, case name, named payload fields (sorted by field name;
-    /// empty for a nullary classifier like `Nat::Zero`). Payload-carrying
+    /// Exact literal value, independent of radix or authored spelling.
+    Integer(numerics::bignum::BigInt),
+    /// Data name, case name, and complete common/payload fields (sorted by
+    /// field name; empty for a fieldless value like `Nat::Zero`). Payload-carrying
     /// terms spell as parenthesized case literals in fact position
     /// (`(Nat::Succ { prev: a })` -- the parens re-enable struct literals in
     /// the contract grammar), and both lowering fences stand down for
@@ -190,6 +192,7 @@ struct SemiringLicense {
 
 pub(super) struct StructuralJudge<'program> {
     program: &'program TypedTrees,
+    machine_symbol: SymbolHandle,
     pub(super) substitutions: Vec<(String, StructuralTerm)>,
     /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
     /// equations with an application side orient REDUCING -- the inductive
@@ -210,6 +213,7 @@ impl Clone for StructuralJudge<'_> {
     fn clone(&self) -> Self {
         Self {
             program: self.program,
+            machine_symbol: self.machine_symbol,
             substitutions: self.substitutions.clone(),
             rewrites: self.rewrites.clone(),
             hypotheses_contradictory: self.hypotheses_contradictory,
@@ -228,6 +232,7 @@ impl<'program> StructuralJudge<'program> {
     ) -> Self {
         let mut judge = Self {
             program,
+            machine_symbol: judged_machine.symbol,
             substitutions: Vec::new(),
             rewrites: Vec::new(),
             hypotheses_contradictory: false,
@@ -245,6 +250,27 @@ impl<'program> StructuralJudge<'program> {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             return;
         };
+        if super::structural_terms::is_case_observation(program, fact) {
+            if !self.is_case_membership(fact, binary) {
+                return;
+            }
+            let Some((definition, variant)) =
+                super::structural_terms::case_classifier(program, binary.right)
+            else {
+                return;
+            };
+            // A tag fact alone establishes a complete value only when there
+            // are no common or payload fields. Other arm refinements retain
+            // their symbolic fields at the case-flow owner.
+            if program
+                .data_members(definition)
+                .iter()
+                .any(|member| matches!(member, typed_trees::data::DataMember::Field(_)))
+                || !program.data_payload_fields(variant).is_empty()
+            {
+                return;
+            }
+        }
         match binary.operator {
             BinaryOperator::And => {
                 self.intake(program, binary.left);
@@ -427,7 +453,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
-                StructuralTerm::Opaque(_) => return term,
+                StructuralTerm::Opaque(_) | StructuralTerm::Integer(_) => return term,
             }
         }
         term
@@ -678,35 +704,35 @@ impl<'program> StructuralJudge<'program> {
                     else {
                         return None;
                     };
-                    if comparison.operator != BinaryOperator::Equal {
+                    if !matches!(
+                        comparison.operator,
+                        BinaryOperator::Equal | BinaryOperator::CaseMembership
+                    ) {
                         return None;
                     }
                     let subject = structural_term(program, comparison.left)?;
                     let StructuralTerm::Variable(subject_name) = subject else {
                         return None;
                     };
-                    let case = structural_term(program, comparison.right)?;
-                    let StructuralTerm::Constructor {
-                        case: arm_case,
-                        fields: arm_fields,
-                        ..
-                    } = case
-                    else {
-                        return None;
-                    };
-                    if !arm_fields.is_empty() {
-                        return None;
-                    }
+                    let (arm_data, arm_case) = super::structural_terms::case_guard_classifier(
+                        program,
+                        machine,
+                        Some(state),
+                        guard,
+                    )?;
                     let (_, subject_term) =
                         environment.iter().find(|(name, _)| name == &subject_name)?;
-                    let StructuralTerm::Constructor { case: got_case, .. } =
-                        self.resolve_at(subject_term.clone(), depth + 1)
+                    let StructuralTerm::Constructor {
+                        data: got_data,
+                        case: got_case,
+                        ..
+                    } = self.resolve_at(subject_term.clone(), depth + 1)
                     else {
                         // The matched argument is not (yet) a constructor:
                         // arm selection is undecidable, no unfold.
                         return None;
                     };
-                    got_case == arm_case
+                    got_data == arm_data.name.as_str() && got_case == arm_case.name.as_str()
                 }
             };
             if !fires {
@@ -738,6 +764,9 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
     ) -> Option<StructuralTerm> {
         let program = self.program;
+        if super::structural_terms::is_case_observation(program, ensures_fact) {
+            return None;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(ensures_fact)
         else {
             return None;
@@ -797,15 +826,7 @@ impl<'program> StructuralJudge<'program> {
                         .iter()
                         .find(|(name, _)| name == single.as_str())
                         .map(|(_, term)| term.clone()),
-                    [first, second] => program
-                        .data_definitions()
-                        .iter()
-                        .any(|definition| definition.name.as_str() == first.as_str())
-                        .then(|| StructuralTerm::Constructor {
-                            data: first.as_str().to_owned(),
-                            case: second.as_str().to_owned(),
-                            fields: Vec::new(),
-                        }),
+                    [_, _, ..] => super::structural_terms::case_value_term(program, expression),
                     _ => None,
                 }
             }
@@ -892,37 +913,24 @@ impl<'program> StructuralJudge<'program> {
                         "{inner}.{}",
                         member.member.as_str()
                     ))),
-                    StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => {
-                        None
-                    }
+                    StructuralTerm::Integer(_)
+                    | StructuralTerm::Application { .. }
+                    | StructuralTerm::CallProjection { .. } => None,
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
-                // Records (no case name) term as empty-case constructors,
-                // mirroring the caller-side termifier.
-                let case = literal
-                    .case_name
-                    .as_ref()
-                    .map(|case| case.as_str())
-                    .unwrap_or("");
-                let mut fields: Vec<(String, StructuralTerm)> = Vec::new();
-                for field in program.expression_table.struct_fields(literal.fields) {
-                    fields.push((
-                        field.name.as_str().to_owned(),
-                        self.callee_term_with_machines(
-                            field.value,
-                            environment,
-                            machine_environment,
-                            depth + 1,
-                        )?,
-                    ));
-                }
-                fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-                Some(StructuralTerm::Constructor {
-                    data: literal.type_name.as_str().to_owned(),
-                    case: case.to_owned(),
-                    fields,
+                super::structural_terms::constructor_literal_term(program, literal, |value| {
+                    self.callee_term_with_machines(
+                        value,
+                        environment,
+                        machine_environment,
+                        depth + 1,
+                    )
                 })
+            }
+            ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
+            ExpressionNode::ZeroValue(type_reference) => {
+                super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
                 if call.receiver.is_valid() {
@@ -957,7 +965,7 @@ impl<'program> StructuralJudge<'program> {
             // retain it as an opaque operand so the self-application has the
             // correct arity and identity.  The separate arithmetic recursion
             // validator is solely responsible for proving the edge decreases.
-            ExpressionNode::Binary(_) | ExpressionNode::Integer(_) => Some(StructuralTerm::Opaque(
+            ExpressionNode::Binary(_) => Some(StructuralTerm::Opaque(
                 program.expression_table.display_name(expression),
             )),
             _ => None,
@@ -972,6 +980,7 @@ impl<'program> StructuralJudge<'program> {
         map: &[(String, StructuralTerm)],
     ) -> StructuralTerm {
         match term {
+            StructuralTerm::Integer(_) => term.clone(),
             StructuralTerm::Variable(name) => map
                 .iter()
                 .find(|(variable, _)| variable == name)
@@ -1027,6 +1036,7 @@ impl<'program> StructuralJudge<'program> {
                         continue;
                     };
                     return match replacement {
+                        StructuralTerm::Integer(_) => term.clone(),
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
@@ -1098,6 +1108,30 @@ impl<'program> StructuralJudge<'program> {
                 _ => StructuralJudgment::Unknown,
             };
         };
+        if super::structural_terms::is_case_observation(program, fact) {
+            if !self.is_case_membership(fact, binary) {
+                return StructuralJudgment::Unknown;
+            }
+            let Some((definition, variant)) =
+                super::structural_terms::case_classifier(program, binary.right)
+            else {
+                return StructuralJudgment::Unknown;
+            };
+            let Some(subject) = structural_term(program, binary.left) else {
+                return StructuralJudgment::Unknown;
+            };
+            let StructuralTerm::Constructor { data, case, .. } = self.resolve(subject) else {
+                return StructuralJudgment::Unknown;
+            };
+            if data != definition.name.as_str() {
+                return StructuralJudgment::Unknown;
+            }
+            return if case == variant.name.as_str() {
+                StructuralJudgment::Proven
+            } else {
+                StructuralJudgment::Refuted
+            };
+        }
         match binary.operator {
             BinaryOperator::And => {
                 match (
@@ -1135,6 +1169,26 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    fn is_case_membership(
+        &self,
+        expression: ExpressionHandle,
+        comparison: &typed_trees::expression::TableBinaryExpression,
+    ) -> bool {
+        self.program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == self.machine_symbol)
+            .is_some_and(|machine| {
+                crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                    self.program,
+                    machine,
+                    None,
+                    expression,
+                    comparison,
+                )
+            })
+    }
+
     /// Judge one resolved structural equation: identical terms prove,
     /// same-case constructors decompose pairwise (all fields prove =>
     /// proven, any refutes => refuted), distinct cases refute. A stuck
@@ -1154,6 +1208,12 @@ impl<'program> StructuralJudge<'program> {
         }
         if left == right {
             return StructuralJudgment::Proven;
+        }
+        if matches!(
+            (&left, &right),
+            (StructuralTerm::Integer(_), StructuralTerm::Integer(_))
+        ) {
+            return StructuralJudgment::Refuted;
         }
         let (
             StructuralTerm::Constructor {
@@ -1187,6 +1247,12 @@ impl<'program> StructuralJudge<'program> {
         }
         if case_l != case_r {
             return StructuralJudgment::Refuted;
+        }
+        // Constructor equality compares complete values, not a left-side
+        // pattern. In particular a case-tag term with no fields cannot prove
+        // equality to a constructed value with common fields or payload.
+        if fields_l.len() != fields_r.len() {
+            return StructuralJudgment::Unknown;
         }
         let mut verdict = StructuralJudgment::Proven;
         for (name_l, value_l) in fields_l {
