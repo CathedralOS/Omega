@@ -2056,17 +2056,26 @@ Owners include
   `MachineSemanticKind::NormalizedForeignCall` with the
   `DirectExternalNormalReturnV1` effect, per-ISA encoding states and fixup
   kinds, and text placement's `unresolved_normalized_foreign_calls` producing
-  import relocations. The emitted image still carries no foreign-call custody
-  record, so independent replay rejects the artifact's admitted provider
-  execution (`native artifact provider execution reports disagree with its
-  image`, pinned by
+  import relocations. Object import plans now carry those rows into the
+  artifact (`96516e2fff`): OMGTRO v2's canonical `normalized_imports` table
+  binds each distinct `{boundary, ordinal}` roster coordinate to a declared
+  `__omega_terminal_normalized_foreign_import_{boundary}_{ordinal}` symbol,
+  `unresolved_normalized_foreign_calls` rows replay each placed resolution
+  verbatim against its symbol, `relocation_record_count` counts them, and
+  `UnresolvedNormalizedForeignImportFieldsV1` flows through manifest
+  publication, custody, and statistics. The emitted image still carries no
+  foreign-call custody record, so independent replay rejects the artifact's
+  admitted provider execution (`native artifact provider execution reports
+  disagree with its image`, pinned by
   `efb3_flat_record_probe.rs::flat_record_via_call_native_realization_probe`).
 
   Remaining work:
 
-  - Emit normalized foreign calls: selection, register homes and machine
-    emission landed at `d5e8ceef51`; the remaining stages are object import
-    plans, image custody, and physical derivation, in that order.
+  - Emit normalized foreign calls: selection, register homes, machine
+    emission, and object import plans landed at `d5e8ceef51` and
+    `96516e2fff`; the remaining stages are image custody and physical
+    derivation, in that order. `image-emission/src` stays fenced to the
+    wave claiming it.
     `compiler/tests/efb3_flat_record_probe.rs` pins the Terminal precondition
     and the image-custody rejection; **EVALUATED-FOREIGN-BINDINGS** owns
     locators and import evidence.
