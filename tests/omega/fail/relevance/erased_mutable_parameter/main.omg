@@ -1,0 +1,15 @@
+// An `[erased]` binding owns no runtime storage, so qualifying it `mut` is a
+// contradiction: there is no slot to write through. Check-time validation
+// refuses the qualifier by name instead of letting the calling plan drop the
+// formal silently.
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    self.record(3, 4);
+}
+
+machine Main::record(&mut self, mut x [erased]: i32, y: i32) {
+    self.value = y;
+}

@@ -1003,6 +1003,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     // The `&dyn` descriptor lane carries `self` arity only: a requirement
     // declaring an erased formal rejects the dynamic call at check time.
     "relevance/dynamic_erased_formal_lane",
+    // `mut`/`const` qualify runtime storage or custody; an erased binding owns
+    // neither, so the qualifier combination refuses by name.
+    "relevance/erased_mutable_parameter",
     "operators/operand_requires_invalidated",
     "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",
