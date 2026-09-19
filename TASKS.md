@@ -1558,21 +1558,30 @@ Owners include
   semantics, Terminal evidence/codec/replay, and core mathematical traits.
   Only Rust-built kernel legs of cases 3-5 exist, in `proof-admission`, and
   `terminal-codec`'s mathematical certificate wire has no production caller.
-  The parser (`tokens-to-syntax-trees/src/declarations/parse_declaration.rs`)
-  has no top-level `let`, `boundary let` or arrow type, no `core::Level`,
-  `Type`, `Strict` or `Squash` declaration exists, and the dedicated
-  `proposition` declaration with its named-witness call lanes
+  Top-level `let`/`boundary let` declarations with binders, dependent arrows
+  and prefix applications now parse
+  (`tokens-to-syntax-trees/src/declarations/let_definition.rs`), resolve, and
+  type into the typed-tree mirror
+  (`typed-trees/src/typed_trees/evidence/mathematical.rs`); checked-tree
+  elaboration into `CheckedMathematicalDeclaration` refuses loudly in
+  `typed-trees-to-checked-trees/src/checking.rs`. No `core::Level`, `Type`,
+  `Strict` or `Squash` declaration exists, and the dedicated `proposition`
+  declaration with its named-witness call lanes
   (`typed-trees-to-checked-trees/src/proof/proof_output_calls.rs`) still
   carries `core/int.omg` and 37 files under `tests/`.
 
   Remaining work:
 
-  - Parse, resolve, type and elaborate closed parameterized top-level `let`,
-    dependent function types, curried prefix application, core-named
-    universes/level binders and `boundary let` assumptions. Preserve ordinary
-    local bindings, complete machine calls and executable callback selection.
-    Add no quantifier keywords, and do not substitute declaration enumeration
-    or an optional-returning decider for mathematical quantification.
+  - Parse, resolve and type of the top-level `let`/`boundary let` grammar —
+    closed parameterized declarations, dependent function types, curried
+    prefix application, parameter binders and named assumptions — has landed
+    structurally. Remaining here: elaborate typed mathematical definitions to
+    `PROOF-KERNEL-CORE` terms through `CheckedMathematicalDeclaration`,
+    classify core-named universe/level binders, and interpret arrows,
+    applications and assumptions. Preserve ordinary local bindings, complete
+    machine calls and executable callback selection. Add no quantifier
+    keywords, and do not substitute declaration enumeration or an
+    optional-returning decider for mathematical quantification.
   - Replace formula declarations and hidden-witness calls with ordinary
     contracts and named witness/law bundles, preserving exact substitution,
     result/path availability, erasure, validity and transitive assumptions

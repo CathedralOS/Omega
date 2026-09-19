@@ -40,8 +40,8 @@ pub use placed_plans::{
 };
 
 use crate::{
-    data, domain, expression, machine, measure, proposition, signature, snapshot, trait_definition,
-    types, wire,
+    data, domain, expression, machine, mathematical, measure, proposition, signature, snapshot,
+    trait_definition, types, wire,
 };
 use arena::{Arena, Handle, HandleSpan};
 use diagnostics::PhaseSnapshot;
@@ -196,6 +196,12 @@ pub struct TypedTreeTables {
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
     pub propositions: Arena<proposition::PropositionDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
+    /// Typed mathematical `let`/`boundary let` declarations
+    /// (PROOF-CONTRACT-MIGRATION) with their telescope and declaration-local
+    /// mathematical type grammar.
+    pub mathematical_definitions: Arena<mathematical::MathematicalDefinition>,
+    pub mathematical_parameters: Arena<mathematical::MathematicalParameter>,
+    pub mathematical_types: Arena<mathematical::MathematicalType>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
     pub machines: Arena<machine::Machine>,
@@ -234,6 +240,11 @@ pub struct TypedTreeRoots {
     /// [`crate::operator::resolve_spelling`] for why the view exists.
     pub machine_token_bindings: HandleSpan<crate::operator::OperatorDefinition>,
     pub propositions: HandleSpan<proposition::PropositionDefinition>,
+    /// Typed mathematical `let`/`boundary let` declarations
+    /// (PROOF-CONTRACT-MIGRATION): a distinct root category carrying a
+    /// dependent result type and a transparent term or named assumption, with
+    /// no executable body.
+    pub mathematical_definitions: HandleSpan<mathematical::MathematicalDefinition>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
     pub conformances: HandleSpan<trait_definition::Conformance>,
     pub wire_schemas: HandleSpan<wire::WireSchema>,
@@ -256,6 +267,7 @@ impl TypedTreeRoots {
             operators,
             machine_token_bindings: HandleSpan::default(),
             propositions: HandleSpan::default(),
+            mathematical_definitions: HandleSpan::default(),
             traits,
             conformances: HandleSpan::default(),
             wire_schemas: HandleSpan::default(),

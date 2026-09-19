@@ -27,6 +27,20 @@ fn check_program(
     selected_boundary_families: &[crate::SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    // Mathematical `let`/`boundary let` declarations now reach typed trees;
+    // checked-tree elaboration into the proof surface is a separate
+    // PROOF-CONTRACT-MIGRATION leg. Refuse at the checking boundary rather
+    // than silently dropping a declaration the author wrote.
+    if let Some(definition) = program.mathematical_definitions().first() {
+        let mut diagnostic = diagnostics::Diagnostic::error(
+            "mathematical `let`/`boundary let` declarations are typed but checked-tree \
+                 elaboration for them is not implemented yet (PROOF-CONTRACT-MIGRATION)",
+        );
+        if let Some(span) = program.symbols.symbol_source_span(definition.symbol) {
+            diagnostic = diagnostic.with_source_span(span);
+        }
+        return Err(vec![diagnostic]);
+    }
     // A deferred range endpoint is pre-check-continuation custody: the
     // semantic evaluation owner marks it when its fold must wait for selected
     // execution and clears the mark as it lands the integer. Only the
@@ -370,5 +384,29 @@ mod tests {
         assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
         assert!(!CheckingMode::SettledPackage.allows_pending_const_range_endpoints());
         assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
+    }
+
+    #[test]
+    fn mathematical_declarations_refuse_at_checked_lowering() {
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+        use tokens_to_syntax_trees::parse_syntax_trees;
+
+        let tokens = Lexer::new("let double(x: u64): u64 = x;")
+            .tokenize()
+            .expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+        let diagnostics =
+            crate::lower_typed_trees(typed).expect_err("checked elaboration is pending");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("PROOF-CONTRACT-MIGRATION")),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
     }
 }

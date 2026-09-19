@@ -19,7 +19,7 @@ pub use typed_trees::declarations::{
     constant, data, domain, measure, operator, trait_definition, visibility, wire,
 };
 pub use typed_trees::evidence::{
-    byte_predicates, dependent_ranges, proof_only, proposition, ranking,
+    byte_predicates, dependent_ranges, mathematical, proof_only, proposition, ranking,
 };
 pub use typed_trees::inspection::snapshot;
 pub use typed_trees::names::{identity, name};
