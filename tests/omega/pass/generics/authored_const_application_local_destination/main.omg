@@ -1,0 +1,26 @@
+// A generic-application call `size(4)` occupies each declared const argument
+// destination: the data field, the machine-local `let` annotation, and the
+// helper's return type. Pre-resolution const evaluation folds each authored
+// call through the provider body into the closed argument `4`, so every
+// `Buffer<size(4)>` lands on `Buffer<4>` and the literals check against
+// `[_; 4]` in the ordinary pipeline.
+
+machine size(n: u64) -> u64 {
+    transition { _ -> n }
+}
+
+data Buffer<const N: u64> {
+    values: [u8; N];
+}
+
+data Main {
+    value: Buffer<size(4)>;
+}
+
+machine make() -> Buffer<size(4)> {
+    Buffer { values: [1, 2, 3, 4] }
+}
+
+machine Main::main(&mut self) {
+    let folded: Buffer<size(4)> = Buffer { values: [1, 2, 3, 4] };
+}
