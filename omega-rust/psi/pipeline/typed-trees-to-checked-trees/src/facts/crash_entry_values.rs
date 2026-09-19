@@ -502,6 +502,31 @@ fn entry_operand_at(
                 )?),
             })
         }
+        ExpressionNode::Range(range) => {
+            // A range bound is an evaluated operand like any other leaf:
+            // each bound must independently resolve at entry, while the
+            // inclusivity flag transports verbatim since bounds alone do
+            // not distinguish `..` from `..=`.
+            Some(CrashPredicateExpression::Range {
+                start: Box::new(entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    range.start,
+                    depth + 1,
+                )?),
+                end: Box::new(entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    range.end,
+                    depth + 1,
+                )?),
+                end_inclusive: range.end_inclusive,
+            })
+        }
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -1013,8 +1038,8 @@ pub(super) fn substitute_entry(
             member: member.clone(),
         },
         // An indexed read substitutes inside both children: `left[0]` keeps
-        // its exact route with `left`'s actual, and an opaque child — a
-        // `start..end` range or flattened projection — keeps refusing
+        // its exact route with `left`'s actual, and a range index's bounds
+        // substitute the same way. A flattened `Opaque` child still refuses
         // because its display may hide formals.
         CrashPredicateExpression::Indexed { collection, index } => {
             CrashPredicateExpression::Indexed {
@@ -1022,6 +1047,18 @@ pub(super) fn substitute_entry(
                 index: Box::new(substitute_entry(index, operands)?),
             }
         }
+        // A `start..end` operand substitutes inside both bounds: a bound
+        // carrying a formal binds that bound's actual, while the inclusivity
+        // flag transports verbatim.
+        CrashPredicateExpression::Range {
+            start,
+            end,
+            end_inclusive,
+        } => CrashPredicateExpression::Range {
+            start: Box::new(substitute_entry(start, operands)?),
+            end: Box::new(substitute_entry(end, operands)?),
+            end_inclusive: *end_inclusive,
+        },
         // A call leaf transports its authored target and substitutes inside
         // its receiver and arguments: `floor()` keeps its parameter-free
         // shape while `offset(left)` still requires `left`'s actual. The
@@ -1113,6 +1150,18 @@ pub(super) fn substitute_entry_projected(
                 index: Box::new(substitute_entry_projected(index, resolve)?),
             }
         }
+        // A range operand's bounds carry no member projection of their own:
+        // each substitutes under the same resolver, so a bound naming a
+        // formal resolves at that formal's whole operand.
+        CrashPredicateExpression::Range {
+            start,
+            end,
+            end_inclusive,
+        } => CrashPredicateExpression::Range {
+            start: Box::new(substitute_entry_projected(start, resolve)?),
+            end: Box::new(substitute_entry_projected(end, resolve)?),
+            end_inclusive: *end_inclusive,
+        },
         CrashPredicateExpression::Call {
             target,
             receiver,
