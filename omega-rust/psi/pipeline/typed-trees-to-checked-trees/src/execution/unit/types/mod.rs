@@ -979,6 +979,17 @@ pub(super) fn attached_data_identity(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Option<String> {
+    // A machine attached to generic data retains the exact owner application
+    // its binder scope resolved: a receiver-specialized clone's `Task<Token>`
+    // is the call edge's checked evidence where the declared `Task<T>` data
+    // still names the open parameter.
+    if machine.attached_data_application.is_valid() {
+        return Some(
+            program
+                .normalized_type_identity(machine.attached_data_application)
+                .into_string(),
+        );
+    }
     let data = program.data_definitions().iter().find(|data| {
         machine.attached_data_symbol.is_valid() && data.symbol == machine.attached_data_symbol
     })?;
@@ -986,6 +997,32 @@ pub(super) fn attached_data_identity(
         return None;
     }
     Some(closed_data_identity(program, data, &[]))
+}
+
+/// An attached `self` formal carries `Named { machine, "Self" }`, the
+/// machine's alias for its owner application. Resolve it through the
+/// retained application so a receiver-specialized callee's concrete
+/// `Task<Token>` — not the alias — supplies multiplicity and claim-path
+/// evidence. Only a `self` formal may carry the alias; anything else, or a
+/// machine predating retained applications, declines to expand.
+pub(super) fn attached_self_application(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    if name.as_str() != "Self" || !symbol.is_valid() {
+        return None;
+    }
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == *symbol)
+        .map(|machine| machine.attached_data_application)
+        .filter(|application| application.is_valid() && *application != type_reference)
 }
 
 fn closed_data_identity(
@@ -1123,6 +1160,28 @@ impl<'program> ShapeCollector<'program> {
         }
         self.domains.push(plan);
         Some(())
+    }
+
+    /// A machine attached to generic data retains the exact owner application
+    /// its binder scope resolved — `Task<Token>` on a receiver-specialized
+    /// clone where the declared `Task<T>` data still names the open
+    /// parameter. Collect that applied shape like any other carrier; the
+    /// declared-data fallback still serves attachments that named no generic
+    /// actuals.
+    pub(super) fn add_attached_application(
+        &mut self,
+        machine: &typed_trees::machine::Machine,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        if machine.attached_data_application.is_valid() {
+            return self.add_type(machine.attached_data_application, binders, &[]);
+        }
+        let data = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == machine.attached_data_symbol)?;
+        self.add_attached_data(data, binders)
     }
 
     pub(super) fn add_attached_data(
@@ -1334,6 +1393,11 @@ impl<'program> ShapeCollector<'program> {
                         .rev()
                         .find(|(parameter, _)| parameter == symbol)
                     {
+                        // A substitution can bind a parameter to its own
+                        // reference; rewriting it again only loops.
+                        if *replacement == type_reference {
+                            break;
+                        }
                         type_reference = *replacement;
                         continue;
                     }
@@ -1876,6 +1940,11 @@ pub(super) fn scalar_type(
                     .rev()
                     .find(|(parameter, _)| parameter == symbol)
                 {
+                    // A substitution can bind a parameter to its own
+                    // reference; rewriting it again only loops.
+                    if *replacement == type_reference {
+                        return PrimitiveType::from_name(name.as_str());
+                    }
                     type_reference = *replacement;
                     continue;
                 }
@@ -1903,6 +1972,11 @@ pub(crate) fn byte_sequence_carrier(
                 else {
                     break;
                 };
+                // A substitution can bind a parameter to its own reference;
+                // rewriting it again only loops.
+                if *replacement == type_reference {
+                    break;
+                }
                 type_reference = *replacement;
             }
             TypeReferenceNode::Constrained {

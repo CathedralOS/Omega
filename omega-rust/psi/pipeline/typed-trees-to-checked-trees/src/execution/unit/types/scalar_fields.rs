@@ -61,6 +61,11 @@ pub(super) fn retain_scalar_field(
                 else {
                     break;
                 };
+                // A substitution can bind a parameter to its own reference;
+                // rewriting it again only loops.
+                if *replacement == type_reference {
+                    break;
+                }
                 type_reference = *replacement;
             }
             _ => return None,

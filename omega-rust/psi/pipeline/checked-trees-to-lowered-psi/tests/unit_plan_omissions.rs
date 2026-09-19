@@ -121,17 +121,22 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
     );
 }
 
-// TR3-TR8 pin: routed `TaskRuntime::start<Worker::run>` establishment. The
-// source below is the smallest program that calls the generic boundary
-// requirement with a concrete target machine through a runtime capability
-// carried on `self`. Checking retains the call's admitted specialization as
-// a checked fact (`T = Token`, `Arguments = Token`, `Target = Worker::run`),
-// and `build_call_operation` now substitutes it into the requirement's
-// formals, so the `start` call produces its checked boundary structural
-// call. The remaining omission frontier is the following statement's
-// ordinary call on the generic attached `Task<T>`: `Task::settle(task)`
-// named no static machine argument, so no substitution was retained and
-// `Task<T>` carries no closed structural identity for the argument replay.
+// TR3-TR8 pin: routed `TaskRuntime::start<Worker::run>` establishment and the
+// ordinary generic-receiver consumer behind it. The source below is the
+// smallest program that calls the generic boundary requirement with a
+// concrete target machine through a runtime capability carried on `self`,
+// then settles the returned `Task<Token>` through the generic attached
+// `Task::settle<T>(self)`. Checking retains the `start` call's admitted
+// specialization as a checked fact, and monomorphization retargets the
+// `settle` edge at a receiver-specialized `Task::settle$specialized` clone
+// whose retained owner application is the concrete `Task<Token>`: the
+// specialized machine's signature, self argument, and claim path all replay
+// that application instead of the open `Task<T>`. Both calls now produce
+// checked operations. The remaining omission frontier is independent of the
+// receiver specialization: a provider-backed receiver carrying a second
+// structural parameter (`token`) stops at provider attachment requirements,
+// and the owned-`self` `settle` bodies stop at entry claims because a linear
+// owned receiver establishes no `StateEntry` claim event.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -241,14 +246,15 @@ fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
             .any(|call| call.target_symbol == start_requirement),
         "the start call is retained as a checked flow call fact"
     );
-    // The routed `start` call now plans: the retained requirement-call
-    // specialization substitutes `Arguments`/`T` with `Token`, discharges the
-    // generic telescope through `Target`'s selected `Worker::run` entry, and
-    // produces the checked boundary structural call. The remaining frontier
-    // is statement 1: `Task::settle(task)` is an ordinary call on a generic
-    // attached data type whose inferred `T` was dropped at checking — the
-    // call named no static machine argument, so no specialization was
-    // retained for it, and `Task<T>` has no closed structural identity.
+    // Both calls in `Main::probe` now plan: the routed `start` call produces
+    // its checked boundary structural call, and `Task::settle(task)` produces
+    // an ordinary `CallUnit` whose owned `self` argument replays the boundary
+    // result's `Task<Token>` custody through the specialized callee's retained
+    // owner application. Statement 1 no longer stops call operations; the
+    // remaining frontier is the provider roster: `Main` backs `runtime` with
+    // the `TaskRuntime` boundary, and a receiver carrying a provider field
+    // alongside a second structural parameter (`token`) is outside the
+    // checked provider requirement surface.
     let omission = checked
         .facts
         .flow
@@ -258,13 +264,65 @@ fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
     assert!(matches!(
         omission.stage,
         checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "call operations",
-            statement_index: Some(1),
+            phase: "provider attachment requirements",
+            ..
+        }
+    ));
+    // The specialized `settle` edge is real — checking emitted
+    // `Task::settle$specialized` for the `Task<Token>` receiver — but an owned
+    // `self` on `[linear]` data establishes no `StateEntry` claim event, so
+    // both `settle` bodies still stop at entry claims. That wall is about
+    // owned linear receivers in general, not the receiver specialization.
+    let settle_omission_phase = |name: &str| {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} is declared"))
+            .symbol;
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine)
+            .unwrap_or_else(|| panic!("{name} has an omission row"))
+            .stage
+    };
+    assert!(matches!(
+        settle_omission_phase("Task::settle"),
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+            phase: "entry claims",
+            ..
+        }
+    ));
+    let specialized = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine
+                .name
+                .as_str()
+                .starts_with("Task::settle$specialized$")
+        })
+        .expect("the Task<Token> receiver specialization is emitted")
+        .symbol;
+    assert!(matches!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(specialized)
+            .expect("the specialized settle body has an omission row")
+            .stage,
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+            phase: "entry claims",
             ..
         }
     ));
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the generic Task::settle call has no checked Unit operation");
+        .expect_err("the provider-attached receiver has no checked Unit plan");
     let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
         machine,
         reason,
@@ -282,7 +340,7 @@ fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
         omission.as_deref(),
         Some(
             "`Main::probe` has no admitted body \
-             (local construction stopped at call operations, statement 1)"
+             (local construction stopped at provider attachment requirements)"
         )
     );
 }

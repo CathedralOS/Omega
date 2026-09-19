@@ -111,6 +111,20 @@ pub(super) fn argument(
         });
     }
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+    // An attached method's owned `self` formal carries `Named { machine,
+    // "Self" }`, the machine's alias for its retained owner application. A
+    // receiver-specialized callee's application is already concrete
+    // (`Task<Token>`), so it supplies the formal's real multiplicity and
+    // claim-path carrier below; a non-self formal keeps its authored type.
+    let formal_type = if parameter.is_self {
+        crate::execution::terminal_unit::attached_self_application(
+            program,
+            parameter.type_reference,
+        )
+        .unwrap_or(parameter.type_reference)
+    } else {
+        parameter.type_reference
+    };
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
@@ -203,7 +217,7 @@ pub(super) fn argument(
         Vec::new()
     };
     let (value_expression, referent) = match access {
-        CheckedStructuralAccess::Owned => (expression, parameter.type_reference),
+        CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
             let referee = shared_plain_affine_referent(program, parameter.type_reference)?;
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
@@ -235,8 +249,7 @@ pub(super) fn argument(
             return None;
         }
     };
-    if parameter.is_self
-        || (!projected && result.type_identity != target_identity)
+    if (!projected && result.type_identity != target_identity)
         || program.type_multiplicity(referent) != result.multiplicity
         || (!unrestricted
             && !linear
@@ -445,11 +458,22 @@ pub(super) fn argument(
                             == place.segments.as_slice())
             });
         let event = events.next()?;
-        // Non-self owned parameters transfer custody even at direct or
-        // nominal boundaries. Consume events describe terminal self/claim
-        // settlement, not an ordinary value handoff. Linear handoffs retain a
-        // known live claim; affine handoffs have neither a claim identity nor
-        // a live obligation.
+        // `permission_kind_for_move` settles an owned `self` move as Consume
+        // when the callee's return carries no linear obligation — the
+        // receiver's terminal settlement, not an ordinary value handoff.
+        // Non-self owned parameters always transfer custody. Linear handoffs
+        // retain a known live claim; affine handoffs have neither a claim
+        // identity nor a live obligation.
+        let expected_move_kind = if parameter.is_self
+            && crate::semantic_calls::find_state(program, call.target_symbol).is_some_and(
+                |target| {
+                    !crate::checks::type_carries_linear_obligation(program, target.return_type)
+                },
+            ) {
+            PermissionEventKind::Consume
+        } else {
+            PermissionEventKind::Transfer
+        };
         if linear {
             // Moving one whole aggregate transfers every live claim below it.
             // This operand check establishes typed source events; the enclosing
@@ -458,25 +482,20 @@ pub(super) fn argument(
             let mut claims = Vec::new();
             for event in std::iter::once(event).chain(events) {
                 let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-                if event.kind != PermissionEventKind::Transfer
+                if event.kind != expected_move_kind
                     || event.multiplicity != Multiplicity::Linear
                     || event.claim_identity == PermissionClaimIdentity::Unknown
                     || !event.obligation_live
                     || segments.len() != event.segments.len()
                     || claims.contains(&event.claim_identity)
-                    || validation::structural_claim_path(
-                        program,
-                        parameter.type_reference,
-                        segments,
-                    )
-                    .is_err()
+                    || validation::structural_claim_path(program, formal_type, segments).is_err()
                 {
                     return None;
                 }
                 claims.push(event.claim_identity);
             }
         } else if events.next().is_some()
-            || event.kind != PermissionEventKind::Transfer
+            || event.kind != expected_move_kind
             || event.multiplicity != result.multiplicity
             || event.claim_identity != PermissionClaimIdentity::Unknown
             || event.obligation_live
