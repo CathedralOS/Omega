@@ -129,6 +129,40 @@ pub(crate) fn lower_unit_scalar_argument(
     )
 }
 
+/// Indexing consumes an integer value, not an expected u64 expression. Keep
+/// typed arithmetic in its authored carrier; only wholly anonymous arithmetic
+/// lands directly in the general count carrier. Terminal emission performs the
+/// exact coordinate conversion after evaluating this expression.
+pub(crate) fn lower_index_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedScalarExpression> {
+    if let Some(value) =
+        land_anonymous_scalar_expression(program, operators, expression, PrimitiveType::U64)
+    {
+        return Some(value);
+    }
+    let (expression, _) = lower_scalar_expression(
+        program,
+        operators,
+        expression,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    )?;
+    scalar_expression_type(&expression)
+        .is_some_and(|primitive| primitive != PrimitiveType::Addr && is_integer(primitive))
+        .then_some(expression)
+}
+
 pub(crate) fn lower_return_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,

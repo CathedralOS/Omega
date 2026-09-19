@@ -25,6 +25,31 @@ pub(super) fn expression_is_unsigned_integer(
     )
 }
 
+/// Carrier bounds hold under every arithmetic policy. This is deliberately
+/// separate from declared refinements: Wrapping does not enforce a declared
+/// interval, but its u8 result still cannot exceed 255. Signed nonnegativity
+/// remains a separate obligation at the access.
+pub(super) fn expression_integer_carrier_maximum(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<u64> {
+    let reference =
+        validation::expression_result_type_reference(program, machine, state, expression)?;
+    match program.primitive_type_reference(reference)? {
+        PrimitiveType::U8 => Some(u64::from(u8::MAX)),
+        PrimitiveType::U16 => Some(u64::from(u16::MAX)),
+        PrimitiveType::U32 => Some(u64::from(u32::MAX)),
+        PrimitiveType::U64 => Some(u64::MAX),
+        PrimitiveType::I8 => u64::try_from(i8::MAX).ok(),
+        PrimitiveType::I16 => u64::try_from(i16::MAX).ok(),
+        PrimitiveType::I32 => u64::try_from(i32::MAX).ok(),
+        PrimitiveType::I64 => u64::try_from(i64::MAX).ok(),
+        PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::F32 | PrimitiveType::F64 => None,
+    }
+}
+
 /// Resolves a type reference (through references and constraints) to its
 /// underlying primitive, when it names one.
 fn primitive_of_type_reference(

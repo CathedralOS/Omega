@@ -237,20 +237,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   across the required hosted matrix. Record unavailable hosts explicitly;
   scoped reruns do not establish a new complete baseline.
 
-  `calendar` checks successfully (macOS ARM64, `099f6c8d45`,
-  `omega --check --target macos_arm64 samples/cli/simulation/calendar/main.omg`)
-  after the **NOMINAL-FIELD-FLOW** repair; the former `self.line` `Utf8`
-  failures at `advance` and `clear_loop` no longer reproduce. Preserve its
-  qualified capacity-21 buffers and 20-byte live header; padding the header or
-  dropping encoding qualification is not a repair. The native probe on
-  `b336531455` with the unchanged-delivery repair
-  (`RUST_MIN_STACK=67108864 omega run --target macos_arm64
-  samples/cli/simulation/calendar/main.omg`, stdin EOF) exits 200 at the
-  package-review gate with six pending policy rows, including a filesystem
-  capability. Complete the ordinary package review before rerunning; do not
-  bypass it. Native grid/output acceptance remains unverified. Check all five
-  week rows and the live 20-byte header: the existing `contains: 30` oracle
-  also matches the banner without proving the grid rendered.
+  `calendar`'s next native dependency is **ARITHMETIC-POLICY-REALIZATION**:
+  its numeric helpers reach `checked trapping conversion requires runtime
+  policy realization` in `checked-trees-to-lowered-psi/src/expression_preparation/`.
+  The unchanged sample's macOS ARM64 native harness (`691e2346b8` plus the
+  byte-index repair, `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=calendar
+  cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail
+  -E 'test(=samples_with_documented_exit_run_correctly)'`) must advance past
+  that refusal. `compiler --test byte_index_carriers` pins original integer
+  arithmetic, exact coordinate conversion, live bounds and caller-visible byte
+  writes; these do not substitute for calendar execution. Preserve its qualified
+  capacity-21 buffers and 20-byte live header.
+
+  Ordinary CLI review remains separate: the last
+  `RUST_MIN_STACK=67108864 omega run --target macos_arm64
+  samples/cli/simulation/calendar/main.omg` probe (stdin EOF, `b336531455`
+  plus the unchanged-delivery repair) exited 200 with six pending package
+  policy rows, including a filesystem capability. Complete that review without
+  automatic admissions. Native grid/output acceptance remains unverified:
+  check all five week rows and the live header, since `contains: 30` also
+  matches the banner without proving the grid rendered.
 
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and their
   `compiler/tests/canary_suite/` owners to the promised checked/native stages.

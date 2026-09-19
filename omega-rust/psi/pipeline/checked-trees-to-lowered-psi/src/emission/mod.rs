@@ -91,3 +91,48 @@ pub(crate) fn byte_store_scalar_value(
         }
     }
 }
+
+/// Evaluate the authored integer before converting to Terminal's count
+/// coordinate. Widening the expression itself would change narrow or wrapping
+/// arithmetic. The ordinary exact-cast obligation proves fit (including signed
+/// nonnegativity); the consuming store separately proves the current live bound.
+pub(crate) fn emit_byte_index(
+    expression: &operation_emission::expressions::LoweredDirectExpression,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
+    next_obligation: &mut u64,
+    operations: &mut operation_emission::buffer::OperationBuffer,
+) -> Result<ValueId, LoweringError> {
+    let ScalarType::Integer(source_type) = expression.scalar_type() else {
+        return unsupported("byte index requires an integer carrier");
+    };
+    let operand = emit_direct_expression(expression, values, next_value, operations);
+    let coordinate_type = terminal_scalar_type(PrimitiveType::U64)?;
+    if expression.scalar_type() == coordinate_type {
+        return Ok(operand);
+    }
+    let ScalarType::Integer(target_type) = coordinate_type else {
+        return unsupported("byte coordinate requires an integer carrier");
+    };
+    let kind = if source_type.can_widen_to(target_type) {
+        OperationKind::IntegerWiden { operand }
+    } else {
+        OperationKind::IntegerExactCast {
+            operand,
+            obligation: obligation_id(allocate_dense(next_obligation)?),
+        }
+    };
+    let coordinate = value_id(allocate_dense(next_value)?);
+    let id = operations.allocate();
+    operations.push(Operation {
+        static_reach_binding: None,
+        id,
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: coordinate,
+            scalar_type: coordinate_type,
+        }),
+        kind,
+    });
+    Ok(coordinate)
+}
