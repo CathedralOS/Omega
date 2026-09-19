@@ -81,6 +81,14 @@ pub enum BorrowCompatibilityPremiseRelation {
 /// The establishment point replay must reconstruct before using a premise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorrowCompatibilityPremiseSource {
+    /// A callee-owned conclusion available after this exact invocation.
+    /// The zero result handle means no immutable whole-result binding.
+    CallEnsures {
+        fact: Handle<typed_trees::domain::ProofFact>,
+        statement_index: usize,
+        call_ordinal: usize,
+        result: SymbolHandle,
+    },
     Requires(Handle<crate::ContractProofFact>),
     RequiresDomain {
         membership: Handle<crate::ContractProofFact>,
@@ -95,8 +103,8 @@ pub enum BorrowCompatibilityPremiseSource {
 
 /// One exact ordering premise consumed by a `Premised` derivation.
 ///
-/// `source` identifies the requires row, its domain predicate, or incoming
-/// guard the relation was decomposed from; `left`/`right` are its normalized
+/// `source` identifies the requires row, domain predicate, incoming guard,
+/// or call guarantee the relation was decomposed from; `left`/`right` are its normalized
 /// immutable-bound operands at establishment. Replay reconstructs availability and parameter
 /// transport from typed source and consumes recorded tokens positionally.
 /// A token the current program does not reproduce is drift, not evidence. A

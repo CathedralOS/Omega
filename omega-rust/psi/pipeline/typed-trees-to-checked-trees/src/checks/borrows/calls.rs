@@ -23,7 +23,13 @@ pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts:
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = IncomingGuardIndex::build(program, call_frames.as_ref());
-    let certificates = collect_compatibility(program, facts, &incoming_guards, &mut diagnostics);
+    let certificates = collect_compatibility(
+        program,
+        facts,
+        &incoming_guards,
+        call_frames.as_ref(),
+        &mut diagnostics,
+    );
     // Initial construction retains successful comparisons, not an admission.
     // The ordinary check pass repeats every obligation and aggregates failures
     // with statement/resource diagnostics before checked trees can be returned.
@@ -41,9 +47,11 @@ pub(super) fn validate_compatibility(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<Diagnostic> {
-    let reconstructed = collect_compatibility(program, facts, incoming_guards, diagnostics);
+    let reconstructed =
+        collect_compatibility(program, facts, incoming_guards, call_frames, diagnostics);
     let mut retained_diagnostics = Vec::new();
     // Rebuild every invocation's comparisons in semantic order. Exact equality
     // verifies the full roster as well as each frozen selector and premise:
@@ -66,6 +74,7 @@ fn collect_compatibility(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<checked_trees::CheckedBorrowCallCompatibilityCertificate> {
     let mut certificates = Vec::new();
@@ -107,6 +116,15 @@ fn collect_compatibility(
         for (ordinal, call) in (0..borrow_state.calls.count())
             .zip(facts.borrow.calls.span_or_empty(borrow_state.calls))
         {
+            let mut available_premises = premises.clone();
+            super::overlap::append_call_premises(
+                program,
+                facts,
+                state_flow,
+                call.statement_index,
+                call_frames,
+                &mut available_premises,
+            );
             let Some(call_index) = borrow_state
                 .calls
                 .start()
@@ -130,7 +148,7 @@ fn collect_compatibility(
                 facts,
                 state_flow,
                 call,
-                &premises,
+                &available_premises,
                 diagnostics,
                 &mut recording,
             );

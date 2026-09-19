@@ -16,6 +16,7 @@ use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from
 
 mod boolean_results;
 pub(crate) mod calls;
+mod result_bounds;
 mod result_fields;
 mod static_calls;
 
@@ -169,6 +170,9 @@ impl ExitScalars<'_, '_> {
 
     fn proves_immutable_result_comparison(&self, expression: ExpressionHandle) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode};
+        if self.proves_result_bounds(expression) {
+            return true;
+        }
         let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
         else {
             return false;

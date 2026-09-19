@@ -12,7 +12,7 @@ pub(super) use scalars::{
     has_builtin_operators,
 };
 mod booleans;
-mod call_guarantees;
+pub(in crate::checks) mod call_guarantees;
 mod field_actuals;
 #[cfg(test)]
 mod tests;

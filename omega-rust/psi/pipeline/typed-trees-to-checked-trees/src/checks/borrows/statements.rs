@@ -55,6 +55,7 @@ pub(super) fn check_statement_borrows(
     retained_mutation_certificates: &[CheckedBorrowMutationCertificate],
     retained_mutation_certificates_consumed: &mut [bool],
     state_mutation_summaries: &StateMutationSummaryCache,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     let Some(state) =
         find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
@@ -77,6 +78,16 @@ pub(super) fn check_statement_borrows(
         .statements
         .span_or_empty(state_flow.statements)
     {
+        let mut available_premises = stated_premises.to_vec();
+        super::overlap::append_call_premises(
+            program,
+            facts,
+            state_flow,
+            statement.statement_index,
+            call_frames,
+            &mut available_premises,
+        );
+        let stated_premises = available_premises.as_slice();
         let Some(statement_node) = program
             .statement_table
             .statements(state.statement_nodes)
@@ -364,6 +375,7 @@ pub(super) fn check_statement_borrows(
         stated_premises,
         diagnostics,
         state_mutation_summaries,
+        call_frames,
     );
 }
 
@@ -394,6 +406,7 @@ fn check_call_mutation_borrows(
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     summary_cache: &StateMutationSummaryCache,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
         let mutated_places = call_write_accesses(
@@ -407,6 +420,16 @@ fn check_call_mutation_borrows(
         if mutated_places.is_empty() {
             continue;
         }
+        let mut available_premises = stated_premises.to_vec();
+        super::overlap::append_call_premises(
+            program,
+            facts,
+            state_flow,
+            borrow_call.statement_index,
+            call_frames,
+            &mut available_premises,
+        );
+        let stated_premises = available_premises.as_slice();
 
         let exiting_source =
             source_exiting_without_carried_borrows(program, state_flow, borrow_call);

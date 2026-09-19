@@ -2304,9 +2304,16 @@ Owners include
 
   Remaining work:
 
-  - Extend establishment beyond authored preconditions and incoming guards to
-    callee `ensures`, broader domain membership and theorem-call conclusions, valid
-    for the captured value and place versions at formation. Guard-derived
+  - Extend establishment to broader callee/domain predicates and theorem-call
+    conclusions, valid for the captured value and place versions at formation.
+    Ordinary scalar `ensures` now use the contract checker's shared
+    `call_guarantees/availability.rs` reader at each statement entry. Exact
+    source facts, invocation coordinates and live assignment provenance bind
+    immutable whole results; immutable actuals use the existing bound normalizer.
+    Preserve `pass/borrows/borrow_returned_window_write_and_call` and
+    `certificates/call_premises.rs`. Mutable results, result-field selectors,
+    same-statement nested establishment and theorem-only calls still require
+    their exact version/substitution evidence. Guard-derived
     window writes and calls use the range checker's shared
     `incoming_guards.rs` and `requirements.rs` readers; immutable owned
     scalar parameters survive renaming and forwarding only with preservation
@@ -2359,6 +2366,13 @@ Owners include
   forwarding, backedge, and tampered-source controls in `certificates/guarded_premises.rs`.
   Existing compatibility certificates are checked-stage records; their
   relation enum is not a persisted Terminal wire format.
+  Broader independent replay also needs authenticated call-prerequisite rosters
+  and copy provenance. Source inspection of `checks/contracts/calls.rs` and
+  `prover/call_guarantees.rs::captured_place` finds retained payload/context
+  trust; adversarial prerequisite replacement/removal and cross-call copy
+  substitution probes remain unrun. The immutable borrow-result join additionally
+  checks the original assignment's exact call occurrence; do not remove that
+  check while generalizing copies.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Realize target-owned private callback
   slots natively under the

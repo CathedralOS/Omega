@@ -676,6 +676,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "borrows/borrow_guarded_window_write_and_call",
     "borrows/borrow_premised_call_argument",
     "borrows/borrow_premised_sum_index_mut",
+    "borrows/borrow_returned_window_write_and_call",
     "borrows/borrow_stated_index_disequality_mut",
     "borrows/borrow_unique",
     "borrows/local_alias_boolean_transfer",

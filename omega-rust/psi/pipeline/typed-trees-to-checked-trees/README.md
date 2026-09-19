@@ -583,6 +583,17 @@ nested membership transport, and interpreted domain arithmetic still need
 their substitution/meaning evidence. The source witness
 `tests/omega/pass/borrows/borrow_domain_window_write_and_call/main.omg`
 exercises separated loans, writes, and call arguments.
+Ordinary scalar call guarantees use the contract checker's shared
+`call_guarantees/availability.rs` reader. The exact use's live flow contexts
+must retain the callee's declared `ensures` and its operand captures.
+Whole immutable result bindings additionally rejoin live assignment provenance
+to the exact supplying call; a same-spelled or repeated call is not its result.
+The common Boolean decomposer binds formals to immutable actuals and reserved
+`result` to that capture. Tokens retain the source fact, call coordinates, and
+result binding; replay reconstructs statement-local availability. The source
+witness is `tests/omega/pass/borrows/borrow_returned_window_write_and_call/main.omg`.
+Mutable results, result-field selectors, same-statement nested call establishment,
+and theorem-only invocations need their own version/substitution support.
 Call comparisons retain a separate ledger naming the exact state-owned call,
 argument-access ordinal, receiver, transferred place, or live loan. Replay
 recollects the call/access roster from typed source, checks the call-entry loan
@@ -591,7 +602,7 @@ in order. Construction and replay are distinct: deleting a ledger cannot ask
 replay to regenerate it. Lexical calls omitted by short-circuit flow still
 receive the conservative statement-entry check. These records are visible in
 state and statement admissibility; they are not a Terminal wire format.
-Callee-established premises, mutable/computed guard transport, general proof
+Broader callee establishment, mutable/computed guard transport, general proof
 admission, and portable compatibility evidence remain unfinished.
 
 Direct reference-local reborrows require one exact prior parent. Resource rows
