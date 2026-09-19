@@ -110,7 +110,15 @@ fn replay(target: target::NativeTarget, maximum: usize) {
                 for mutation in 0..corruption::SOURCE_COUNT {
                     let mut changed = source.clone();
                     corruption::source(&mut changed, scalar_count, mutation);
-                    if mutation == 21 && !conditional {
+                    if mutation == 19 {
+                        // Raw selection transports requirements; it has no proof
+                        // source to admit them. Public legalization checks their
+                        // exact source roster before granting selection custody.
+                        let changed_selected =
+                            construct(&changed).expect("supported call requirement transport");
+                        validate(&changed, &changed_selected)
+                            .expect("replay exact call requirements");
+                    } else if mutation == 21 && !conditional {
                         // Signed and unsigned 64-bit results share this ABI. The
                         // raw graph can select either exact carrier; legalization
                         // separately rejoins it to the callee declaration. An

@@ -13,6 +13,9 @@ mod parameters;
 #[path = "record_reads/byte_lengths.rs"]
 mod byte_lengths;
 
+#[path = "record_reads/call_requirements.rs"]
+mod call_requirements;
+
 #[test]
 fn immutable_record_local_field_reaches_native_execution() {
     let artifact = produce_source(

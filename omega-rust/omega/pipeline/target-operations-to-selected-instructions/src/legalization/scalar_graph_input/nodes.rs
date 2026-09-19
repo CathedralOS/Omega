@@ -111,14 +111,15 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             claim_transfers,
-            requirement_obligations,
             crash_continuations,
             ..
         } if scalar_shape(result.scalar_type).is_some()
             && claim_transfers.is_empty()
-            && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
         {
+            // Requirements are proof-only: source projection retains their
+            // ordered roster, and legalization/selection replay checks it.
+            // They need no carrier, unlike claim transfers or crash routes.
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::ByteSequenceRead {
