@@ -82,13 +82,14 @@ pub(crate) fn validate_checked_write_only_slice(
                     }),
             );
             // Declared `&write` parameters and locals are the state's
-            // write-only roots. Mutable parameters and `&mut` locals are not:
-            // ordinary reads through them stay legal, but each one is still a
-            // formation source for `&write` borrows — an `&mut`→`&write`
-            // attenuation is sound only when the lent place keeps every
-            // declared constraint atom. The walk therefore runs whether or
-            // not any write-only root exists, so `&write` formations from
-            // mutable places take the same exact-atom gate in every state.
+            // write-only roots. `&mut` parameters, `&mut` locals, and `mut`
+            // value bindings are not: ordinary reads through them stay legal,
+            // but each one is still a formation source for `&write` borrows —
+            // an attenuation onto write-only access is sound only when the
+            // lent place keeps every declared constraint atom. The walk
+            // therefore runs whether or not any write-only root exists, so
+            // `&write` formations from mutable places take the same exact-atom
+            // gate in every state.
             if !roots.is_empty() {
                 if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody) {
                     diagnostics.push(Diagnostic::error(format!(
@@ -498,12 +499,17 @@ fn write_only_record_field_assignment(
 }
 
 /// Mutable-authority bindings that may source a `&write` formation alongside
-/// the state's declared write-only roots: `&mut` state parameters and the
-/// immutable `&mut` locals declared before `stop_before_local` (or every such
-/// local when `None`). Mutable parameters may attenuate at formation, and an
-/// earlier immutable carrier preserves mutable authority until attenuation —
-/// but neither is a write-only root: ordinary reads through them stay legal,
-/// so they join the walk only where a `&write` borrow is being formed.
+/// the state's declared write-only roots: `&mut` state parameters, `mut`
+/// value parameters, and the eligible locals declared before
+/// `stop_before_local` (or every such local when `None`) — immutable `&mut`
+/// carriers plus `let mut` value bindings. A `&mut` parameter may attenuate
+/// at formation, an earlier immutable `&mut` carrier preserves mutable
+/// authority until attenuation, and a `mut` value binding owns writable
+/// storage outright — but none is a write-only root: ordinary reads through
+/// them stay legal, so they join the walk only where a `&write` borrow is
+/// being formed. A mutable binding of reference type is never a source: the
+/// binding could be reseated beneath the loan. An erased binding owns no
+/// runtime storage at all.
 fn mutable_formation_sources(
     program: &TypedTrees,
     machine: &Machine,
@@ -516,25 +522,46 @@ fn mutable_formation_sources(
             .state_parameters(state)
             .iter()
             .filter_map(|parameter| {
-                let TypeReferenceNode::Reference {
-                    referee,
-                    access: ReferenceAccess::Mutable,
-                    ..
-                } = program
+                let (referee, receiver_machine) = match program
                     .type_reference_table
                     .type_reference(parameter.type_reference)
-                else {
-                    return None;
+                {
+                    // A `&mut` parameter lends its referent.
+                    TypeReferenceNode::Reference {
+                        referee,
+                        access: ReferenceAccess::Mutable,
+                        ..
+                    } => (
+                        *referee,
+                        if parameter.is_self {
+                            machine.symbol
+                        } else {
+                            SymbolHandle::invalid()
+                        },
+                    ),
+                    // A `mut` value parameter lends its own storage — `mut
+                    // self` included, as a consuming receiver with declared
+                    // mutable authority.
+                    _ if parameter.is_mutable
+                        && !parameter.is_const
+                        && !parameter.relevance.is_erased() =>
+                    {
+                        (
+                            parameter.type_reference,
+                            if parameter.is_self {
+                                machine.symbol
+                            } else {
+                                SymbolHandle::invalid()
+                            },
+                        )
+                    }
+                    _ => return None,
                 };
                 Some(WriteOnlyRoot {
                     symbol: parameter.symbol,
-                    receiver_machine: if parameter.is_self {
-                        machine.symbol
-                    } else {
-                        SymbolHandle::invalid()
-                    },
+                    receiver_machine,
                     name: parameter.name.as_str().to_owned(),
-                    referee: *referee,
+                    referee,
                 })
             }),
     );
@@ -554,24 +581,27 @@ fn mutable_formation_sources(
                 let StatementNode::LocalData(source) = statement else {
                     return None;
                 };
-                if source.is_mutable || !source.symbol.is_valid() {
+                if !source.symbol.is_valid() || source.relevance.is_erased() {
                     return None;
                 }
-                let TypeReferenceNode::Reference {
-                    referee,
-                    access: ReferenceAccess::Mutable,
-                    ..
-                } = program
+                let referee = match program
                     .type_reference_table
                     .type_reference(source.type_reference)
-                else {
-                    return None;
+                {
+                    TypeReferenceNode::Reference {
+                        referee,
+                        access: ReferenceAccess::Mutable,
+                        ..
+                    } if !source.is_mutable => *referee,
+                    TypeReferenceNode::Reference { .. } => return None,
+                    _ if source.is_mutable => source.type_reference,
+                    _ => return None,
                 };
                 Some(WriteOnlyRoot {
                     symbol: source.symbol,
                     receiver_machine: SymbolHandle::invalid(),
                     name: source.name.as_str().to_owned(),
-                    referee: *referee,
+                    referee,
                 })
             }),
     );
@@ -611,12 +641,12 @@ fn write_only_call_subloan(
         }
     });
 
-    // `&write` formation is also the `&mut`→`&write` attenuation boundary:
-    // a borrow lent from a mutable place faces the same exact-atom gate as a
-    // write-only reborrow, so the subloan rungs resolve the lent place over
-    // the state's write-only roots plus its mutable formation sources. The
-    // added bindings never become write-only roots elsewhere — expression
-    // validation keeps reading through them.
+    // `&write` formation is also the attenuation boundary for every mutable
+    // place: a borrow lent from a `&mut` reference or a `mut` value binding
+    // faces the same exact-atom gate as a write-only reborrow, so the subloan
+    // rungs resolve the lent place over the state's write-only roots plus its
+    // mutable formation sources. The added bindings never become write-only
+    // roots elsewhere — expression validation keeps reading through them.
     let mut sources = roots.to_vec();
     sources.extend(mutable_formation_sources(program, machine, state, None));
     let roots = &sources;
@@ -1365,7 +1395,13 @@ fn validate_expression(
         }
         ExpressionNode::Borrow(borrow) => match borrow.access {
             ReferenceAccess::WriteOnly => {
-                if !is_direct_name(program, borrow.target) {
+                if let Some(binding) =
+                    binding_without_write_authority(program, state, borrow.target)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{machine_name}` state `{state_name}` forms `&write` on `{binding}`, a binding without mutable authority; `&write` formation requires a declared `&write` root, a `&mut` place, or a `mut` value binding — a plain `let` or immutable parameter cannot lend write access"
+                    )));
+                } else if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or one eligible content-independent common-field path optionally followed by a finite nonempty suffix of in-bounds literal fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type"
                     )));
@@ -1515,6 +1551,65 @@ fn is_direct_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
         ExpressionNode::Name(path)
             if program.expression_table.name_path_members(path.members).len() == 1
     )
+}
+
+/// A bare-name `&write` target naming a binding that holds no write
+/// authority: an immutable `let` value local, a non-`mut` value parameter,
+/// or a `const`. Reference-typed bindings stay outside — `&write` on a
+/// reference is a reborrow of the referent, and the borrow lattice owns its
+/// authority question — and receivers stay outside as well: `self` answers
+/// to the owned-place rules, not to this binding check.
+fn binding_without_write_authority(
+    program: &TypedTrees,
+    state: &State,
+    target: ExpressionHandle,
+) -> Option<String> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
+        return None;
+    };
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+        || !path.head_symbol.is_valid()
+    {
+        return None;
+    }
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == path.head_symbol)
+    {
+        return (!parameter.is_self
+            && !parameter.is_mutable
+            && !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference { .. }
+            ))
+        .then(|| parameter.name.as_str().to_owned());
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            if local.symbol != path.head_symbol || local.is_mutable {
+                return None;
+            }
+            (!matches!(
+                program
+                    .type_reference_table
+                    .type_reference(local.type_reference),
+                TypeReferenceNode::Reference { .. }
+            ))
+            .then(|| local.name.as_str().to_owned())
+        })
 }
 
 fn direct_write_only_root<'a>(

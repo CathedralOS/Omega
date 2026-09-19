@@ -1138,6 +1138,332 @@ fn mut_rooted_write_only_reads_stay_legal() {
 }
 
 #[test]
+fn mut_value_binding_exact_atom_write_only_subloans_are_forwardable() {
+    // A `mut` value parameter or a `let mut` local owns writable storage, so
+    // it may source a `&write` formation on the same terms as an `&mut`
+    // place: the lent place carries the callee's declared referee
+    // atom-for-atom. The gate runs whether or not the state declares a
+    // `&write` root — the same calls that once walked past the gate with
+    // their atoms dropped are admitted on their exact atoms.
+    for (name, source) in [
+        (
+            "mutable local",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward() {
+                    let mut x: u8 [0..=10] = 0;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(mut x: u8 [0..=10]) {
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter beside a write-only root",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(mut x: u8 [0..=10], pad: &write u16) {
+                    pad = 3;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable local record field",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward() {
+                    let mut outer: Outer = Outer { value: 1 };
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter record field",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(mut outer: Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "attached field under a mutable consuming receiver",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine Boxed::forward(mut self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+        (
+            "write-only local formed from a mutable value binding",
+            r#"
+                machine forward() {
+                    let mut x: u8 [0..=10] = 0;
+                    let held: &write u8 [0..=10] = &write x;
+                    held = 7;
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!(
+                "{name}: an exact-atom `&write` subloan lent from a `mut` value binding should lower: {errors:?}"
+            )
+        });
+    }
+}
+
+#[test]
+fn mut_value_binding_write_only_subloans_reject_non_exact_referees() {
+    // The `mut` value binding faces the identical atom-exact gate an `&mut`
+    // place takes: shedding the place's range onto a wider referee and
+    // strengthening it onto a narrower one are the same mismatch, reported
+    // by the directed subloan diagnostic rather than the generic projection
+    // fence — with and without an unrelated declared `&write` root.
+    for (name, place, source) in [
+        (
+            "mutable local sheds its range",
+            "lends `x` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                machine replace(value: &write u8) {}
+
+                machine forward() {
+                    let mut x: u8 [0..=10] = 0;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable local takes a stronger range",
+            "lends `x` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8[0..=5]`",
+            r#"
+                machine replace(value: &write u8 [0..=5]) {}
+
+                machine forward() {
+                    let mut x: u8 [0..=10] = 0;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter sheds its range",
+            "lends `x` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                machine replace(value: &write u8) {}
+
+                machine forward(mut x: u8 [0..=10]) {
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter sheds it beside a write-only root",
+            "lends `x` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                machine replace(value: &write u8) {}
+
+                machine forward(mut x: u8 [0..=10], pad: &write u16) {
+                    pad = 3;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "mutable local record field sheds its range",
+            "lends `outer.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine forward() {
+                    let mut outer: Outer = Outer { value: 1 };
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter record field sheds its range",
+            "lends `outer.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine forward(mut outer: Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(place)
+                && rendered.contains("must preserve the callee-declared constraint atoms exactly"),
+            "{name}: a `mut`-value-rooted `&write` subloan with a non-exact referee must take the directed diagnostic: {rendered}"
+        );
+        assert!(
+            !rendered.contains("unsupported projection"),
+            "{name}: the directed atom diagnostic, not the generic projection fence, should report the mismatch: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn immutable_value_bindings_cannot_form_write_only_borrows() {
+    // `&write` formation needs a place with mutable authority: a declared
+    // `&write` root, a `&mut` place, or a `mut` value binding. A plain `let`
+    // or an immutable parameter holds none — before this gate the same
+    // formation walked past every source check and compiled with the
+    // write-only contract invented out of thin air. A shared-reference
+    // binding is a different rejection: `&write` there is a reborrow of the
+    // referent, and the writability/borrow lattice — not this gate — answers
+    // its authority question.
+    for (name, expected, source) in [
+        (
+            "immutable local",
+            "a binding without mutable authority",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {}
+
+                machine forward() {
+                    let x: u8 [0..=10] = 0;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "immutable value parameter",
+            "a binding without mutable authority",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {}
+
+                machine forward(x: u8 [0..=10]) {
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "immutable local beside a write-only root",
+            "a binding without mutable authority",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {}
+
+                machine forward(pad: &write u16) {
+                    let x: u8 [0..=10] = 0;
+                    pad = 3;
+                    replace(&write x);
+                }
+            "#,
+        ),
+        (
+            "immutable local behind a write-only local formation",
+            "a binding without mutable authority",
+            r#"
+                machine forward() {
+                    let x: u8 = 0;
+                    let held: &write u8 = &write x;
+                }
+            "#,
+        ),
+        (
+            "shared reference parameter",
+            "is not writable in this state",
+            r#"
+                machine replace(value: &write u8) {}
+
+                machine forward(x: &u8) {
+                    replace(&write x);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(expected),
+            "{name}: `&write` on this binding must be rejected: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn mut_value_sources_stay_readable_beside_write_only_formation() {
+    // A `mut` value binding is a formation source, never a write-only root:
+    // ordinary reads through it in a state that forms `&write` subloans keep
+    // passing expression validation unchanged.
+    for (name, source) in [
+        (
+            "mutable local",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine inspect() -> u8 {
+                    let mut x: u8 [0..=10] = 0;
+                    replace(&write x);
+                    x
+                }
+            "#,
+        ),
+        (
+            "mutable value parameter",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine inspect(mut outer: Outer) -> u8 {
+                    replace(&write outer.value);
+                    outer.value
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!(
+                "{name}: reading through a `mut` value binding beside a `&write` formation must stay legal: {errors:?}"
+            )
+        });
+    }
+}
+
+#[test]
 fn sum_case_payload_cannot_form_a_write_only_subloan() {
     let rendered = rendered_rejection(
         r#"

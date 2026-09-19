@@ -38,10 +38,11 @@ pub(super) fn admitted(
     {
         return false;
     }
-    // Mutable parameters may attenuate at formation, and earlier immutable
-    // `&mut` carriers preserve mutable authority until attenuation. Neither is
-    // a write-only root for ordinary expression validation, where reading
-    // remains legal — the same sources the checked-call subloan gate uses.
+    // Mutable parameters and earlier `let mut` bindings may attenuate at
+    // formation, and earlier immutable `&mut` carriers preserve mutable
+    // authority until attenuation. None is a write-only root for ordinary
+    // expression validation, where reading remains legal — the same sources
+    // the checked-call subloan gate uses.
     let mut sources = roots.to_vec();
     sources.extend(super::mutable_formation_sources(
         program,
