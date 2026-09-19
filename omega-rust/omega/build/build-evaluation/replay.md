@@ -7,13 +7,17 @@ defines the claims a successful replay may publish.
 
 ## Owners and common checks
 
-[src/replay_record.rs](src/replay_record.rs) bounds, encodes, and rehydrates
-records. Its [submodules](src/replay_record) own operation-specific conversions.
+[src/evidence/replay_record.rs](src/evidence/replay_record.rs) bounds, encodes, and
+rehydrates records. Its [submodules](src/evidence/replay_record) own
+operation-specific conversions.
 The [checked interpreter](../../../psi/semantics/checked-interpreter/src/interpreter.rs)
 executes provider-free replay; its
 [filesystem replay modules](../../../psi/semantics/checked-interpreter/src/filesystem_replay)
 validate directories, links, duplicates, locks, ownership, and exact failures.
-The broader legacy sequence dispatcher remains in the interpreter entrance.
+Output replay follows the chronological event stream. Descriptor lifetimes
+associate operations with files; per-file projections validate content without
+reordering execution. The Source prefix and failure-only routes retain their
+bounded sequence restrictions below.
 
 Replay starts with a fresh virtual Output tree, never a live filesystem provider.
 It compares exact ordered attempts, operands, authorization/refusal records,
@@ -41,13 +45,15 @@ filesystem support.
 | `read_link` | Exact Source root and no-follow grant, count, full carrier, meaningful target bytes, and complete/limited disposition. No authority to follow the returned spelling. |
 | `open(flags = 0); read_dir+; close` | Closed directory sequence, exact count, byte carrier and `i64` cursor at resolution/pre/post phases, and packed regions. Records are inert bytes, not an exhaustive namespace or new path grants. Failed enumeration is not covered. |
 
-## Output tree and file chains
+## Output tree and descriptor lifetimes
 
 Output is an ordered mixture of directory, file, symlink, and hard-link creation.
 Parents precede children; collisions and files used as parents reject. Individual
-file chains are contiguous. Retain the complete tree, not just selected generated
-source. Handoffs are an ordered subset after each corresponding close; absence
-of handoffs is valid for ordinary artifacts.
+file lifetimes may overlap, with writes and other supported operations
+interleaved across descriptors. Retain the complete tree, not just selected
+generated source. Handoffs are an ordered subset after each file's actual close
+ordinal in the original stream; summing grouped file lengths is not sufficient.
+Absence of handoffs is valid for ordinary artifacts.
 
 | Operation | Supported form |
 | --- | --- |
@@ -58,12 +64,12 @@ of handoffs is valid for ordinary artifacts.
 | `seek` | Checked offset with origin 0, 1, or 2; exact nonnegative result and resulting position. |
 | Descriptor permissions | Exact `u32` mode; executable bits determine ordinary/executable output mode. No operation and an explicit reset are distinct traces. |
 | Descriptor times | Unchanged input carrier, at least 32 bytes, exact result/error. Host timestamps do not enter tree identity. |
-| `duplicate` | Fresh duplicate immediately closed; subsequent operations use the original. No duplicate graph, operations through the duplicate, or delayed close. |
-| `lock_file` | Adjacent successful operations 6 then 8 (exclusive/nonblocking, then unlock), on the original descriptor. No shared, blocking, contended, delayed, or native range-lock success. |
+| `duplicate` | Fresh duplicate closed before the next operation on that file; unrelated files may interleave. Subsequent operations use the original. No duplicate graph or operations through the duplicate. |
+| `lock_file` | Successful operations 6 then 8 (exclusive/nonblocking, then unlock), consecutive for that file on the original descriptor; unrelated files may interleave. No shared, blocking, contended, intervening same-file operation, or native range-lock success. |
 | `change_file_owner` (49) | Exact `i32` user/group operands, success or failure under the virtual non-root model, and result/error state. Later operations and close preserve the observed error rather than clearing it by convention. This grants no host ownership authority. Path-based ownership is not covered. |
 | Directory creation | Mode 493 (0755), parent first, including empty directory trees. |
 | Symlink creation | Nonempty canonical relative UTF-8 target; no NUL, absolute target, or escape from the tree. Target is payload operand 0, link location rooted operand 1. |
-| Hard-link creation | Portable operation 19 or Windows operation 27, with exact provider operand order and both write grants in the same Output root. Source is an earlier file or hard link. Virtual topology is retained for replay; the canonical tree represents the resulting files without inode identity. |
+| Hard-link creation | Portable operation 19 or Windows operation 27, with exact provider operand order and both write grants in the same Output root. Source is an earlier closed file or a hard link to one. Virtual topology is retained for replay; the canonical tree represents the resulting files without inode identity. |
 
 Output mutation is checked against the virtual tree and sponsor, not inferred
 from a claimed final digest. The package's admitted root/grant decisions remain
@@ -140,7 +146,7 @@ cannot be silently ignored or turned into package authority. Runtime filesystem
 support and ambient differential tests are separate. A new build facet requires
 a concrete customer and an explicit scoped contract.
 
-Schema constants in [observations.rs](src/observations.rs) and
-[replay_record.rs](src/replay_record.rs) own exact version gates. Current notes
+Schema constants in [observations.rs](src/evidence/observations.rs) and
+[replay_record.rs](src/evidence/replay_record.rs) own exact version gates. Current notes
 describe one grammar; old schema numbers, landing milestones, and test-count
 diaries belong in Git history.

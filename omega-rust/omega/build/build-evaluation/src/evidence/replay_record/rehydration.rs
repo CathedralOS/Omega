@@ -16,8 +16,8 @@ use crate::evidence::replay_record::native_mutation_failures::{
 use crate::evidence::replay_record::read_links::rehydrate_source_read_link_shape;
 use crate::evidence::replay_record::record::{MAGIC, VERSION, clone_bytes};
 use crate::evidence::replay_record::shape_validation::{
-    OutputShapeRange, output_tree_ranges, validate_first_rung, validate_included_source_shapes,
-    validate_source_write_refusal_shape,
+    OutputEntryAttempts, output_tree_membership, validate_first_rung,
+    validate_included_source_shapes, validate_source_write_refusal_shape,
 };
 use crate::evidence::replay_record::symlinks::rehydrate_output_symlink_shape;
 use crate::evidence::replay_record::{
@@ -372,17 +372,36 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
-    let output_ranges = output_tree_ranges(&shapes, operation_suffix_start)?;
-    let mut output_entries = Vec::new();
-    output_entries
-        .try_reserve_exact(output_ranges.len())
+    let output_stream = output_tree_membership(&shapes, operation_suffix_start)?;
+    let mut ordered_attempts = Vec::new();
+    ordered_attempts
+        .try_reserve_exact(shapes.len())
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new("filesystem replay Output-tree allocation failed")
         })?;
-    for range in output_ranges {
-        output_entries.push(match range {
-            OutputShapeRange::Directory(index) => {
-                let [rooted] = shapes[index].rooted_paths.as_slice() else {
+    ordered_attempts.resize_with(shapes.len(), || None);
+    if let Some(source) = typed_source_record {
+        let source = checked_interpreter::FilesystemReplay::from_source_input_record(source)
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new("filesystem replay Source prefix is invalid")
+            })?;
+        if source.attempts().len() != operation_suffix_start {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Source prefix coverage differs",
+            ));
+        }
+        for (slot, attempt) in ordered_attempts.iter_mut().zip(source.attempts()) {
+            *slot = Some(attempt.clone());
+        }
+    } else if operation_suffix_start != 0 {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay Output record has a malformed non-Source prefix",
+        ));
+    }
+    for range in output_stream {
+        let entry = match &range {
+            OutputEntryAttempts::Directory(index) => {
+                let [rooted] = shapes[*index].rooted_paths.as_slice() else {
                     unreachable!("validated Output directory has one rooted path")
                 };
                 checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Directory(
@@ -397,22 +416,39 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                     })?,
                 )
             }
-            OutputShapeRange::File { start, end } => {
+            OutputEntryAttempts::File { attempts } => {
+                let chain = attempts
+                    .iter()
+                    .map(|position| &shapes[*position])
+                    .collect::<Vec<_>>();
                 checked_interpreter::FilesystemOutputTreeEntryReplayRecord::File(
-                    rehydrate_output_file_shape(&shapes[start..end])?,
+                    rehydrate_output_file_shape(&chain)?,
                 )
             }
-            OutputShapeRange::HardLink(index) => {
+            OutputEntryAttempts::HardLink(index) => {
                 checked_interpreter::FilesystemOutputTreeEntryReplayRecord::HardLink(
-                    rehydrate_output_hard_link_shape(&shapes[index])?,
+                    rehydrate_output_hard_link_shape(&shapes[*index])?,
                 )
             }
-            OutputShapeRange::Symlink(index) => {
+            OutputEntryAttempts::Symlink(index) => {
                 checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Symlink(
-                    rehydrate_output_symlink_shape(&shapes[index])?,
+                    rehydrate_output_symlink_shape(&shapes[*index])?,
                 )
             }
-        });
+        };
+        let regenerated = entry.into_attempts();
+        if regenerated.len() != range.attempt_indices().len() {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output event coverage differs",
+            ));
+        }
+        for (position, attempt) in range.attempt_indices().iter().zip(regenerated) {
+            if ordered_attempts[*position].replace(attempt).is_some() {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Output event is owned twice",
+                ));
+            }
+        }
     }
     let mut expected_included_sources = Vec::new();
     expected_included_sources
@@ -440,38 +476,21 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             })?,
         );
     }
-    let typed_record = match typed_source_record {
-        Some(typed_source_record) => {
-            checked_interpreter::FilesystemInputOutputTreeReplayRecord::new(
-                typed_source_record,
-                output_entries,
-                expected_included_sources,
-            )
-        }
-        None if operation_suffix_start == 0 => {
-            checked_interpreter::FilesystemInputOutputTreeReplayRecord::output_only(
-                output_entries,
-                expected_included_sources,
-            )
-        }
-        None => {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "filesystem replay Output record has a malformed non-Source prefix",
-            ));
-        }
-    }
+    let attempts = ordered_attempts
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| {
+            BuildFilesystemReplayRecordError::new("filesystem replay event coverage is incomplete")
+        })?;
+    checked_interpreter::FilesystemReplay::from_input_output_attempts(
+        attempts,
+        expected_included_sources,
+    )
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new(
-            "filesystem replay input/Output-tree record could not be rehydrated",
+            "filesystem replay input/Output-tree record exceeds retained replay policy",
         )
-    })?;
-    checked_interpreter::FilesystemReplay::from_input_output_tree_record(typed_record).map_err(
-        |_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay input/Output-tree record exceeds retained replay policy",
-            )
-        },
-    )
+    })
 }
 
 fn rehydrate_source_directory_shape(
@@ -546,7 +565,7 @@ fn rehydrate_source_directory_shape(
 }
 
 fn rehydrate_output_file_shape(
-    chain: &[AttemptShape<'_>],
+    chain: &[&AttemptShape<'_>],
 ) -> Result<checked_interpreter::FilesystemOutputFileReplayRecord, BuildFilesystemReplayRecordError>
 {
     let create = &chain[0];

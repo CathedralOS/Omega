@@ -16,7 +16,7 @@ use crate::evidence::replay_record::shape_validation::path_and_descriptor_shapes
 
 pub(crate) fn validate_output_file(
     create: &AttemptShape<'_>,
-    operations: &[AttemptShape<'_>],
+    operations: &[&AttemptShape<'_>],
     close: &AttemptShape<'_>,
 ) -> Result<usize, BuildFilesystemReplayRecordError> {
     let Some(output) = create.output else {

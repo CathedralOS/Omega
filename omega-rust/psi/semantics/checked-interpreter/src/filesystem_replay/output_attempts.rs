@@ -1,18 +1,15 @@
-//! Reconstructing output file records, tree entries and attempts from the
-//! retained output operation attempts.
+//! Exact per-file operation decoding and canonical attempt construction.
+//! `output_stream.rs` supplies borrowed operations in that file's own order;
+//! unrelated files need not be adjacent in the retained execution stream.
 
-use crate::filesystem_replay::directories::output_directory_record_from_attempt;
 use crate::filesystem_replay::duplicates::{
     output_duplicate_attempts, output_duplicate_record_from_attempts,
 };
-use crate::filesystem_replay::hard_links::output_hard_link_record_from_attempt;
 use crate::filesystem_replay::locks::{output_lock_attempts, output_lock_record_from_attempts};
 use crate::filesystem_replay::output_ownership::{
     output_change_file_owner_attempt, output_change_file_owner_record_from_attempt,
 };
-use crate::filesystem_replay::output_tree::FilesystemOutputTreeEntryReplayRecord;
 use crate::filesystem_replay::replay_records::output_file_operation_attempt_count;
-use crate::filesystem_replay::symlinks::output_symlink_record_from_attempt;
 use crate::filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE, FilesystemOutputFileOperationReplayRecord,
     FilesystemOutputFileReplayRecord, FilesystemOutputWriteReplayKind,
@@ -30,7 +27,7 @@ use crate::{
 };
 
 pub(crate) fn output_file_record_from_attempts(
-    attempts: &[FilesystemOperationAttempt],
+    attempts: &[&FilesystemOperationAttempt],
 ) -> Result<FilesystemOutputFileReplayRecord, String> {
     let Some((create, remainder)) = attempts.split_first() else {
         return Err("bounded filesystem replay requires a complete Output file".to_owned());
@@ -94,7 +91,7 @@ pub(crate) fn output_file_record_from_attempts(
         .map_err(|_| "filesystem replay Output operation allocation failed".to_owned())?;
     let mut operation_cursor = 0;
     while operation_cursor < operations.len() {
-        let operation = &operations[operation_cursor];
+        let operation = operations[operation_cursor];
         if operation.operation_tag == 45 {
             let close_duplicate = operations.get(operation_cursor + 1).ok_or_else(|| {
                 "filesystem replay Output duplicate is not immediately retired".to_owned()
@@ -494,116 +491,8 @@ pub(crate) fn output_write_record_from_attempt(
     }
 }
 
-pub(crate) fn output_file_attempt_end(
-    attempts: &[FilesystemOperationAttempt],
-    start: usize,
-) -> Result<usize, String> {
-    if attempts
-        .get(start)
-        .is_none_or(|attempt| attempt.operation_tag() != 1)
-    {
-        return Err("filesystem replay Output file must begin with create".to_owned());
-    }
-    let Some(root_identity) = attempts[start]
-        .logical_handle_output
-        .map(|output| output.identity)
-    else {
-        return Err("filesystem replay Output create has no descriptor identity".to_owned());
-    };
-    let mut cursor = start + 1;
-    loop {
-        if cursor == attempts.len() {
-            return Err(
-                "bounded filesystem replay requires complete create-operation*-close Output files"
-                    .to_owned(),
-            );
-        }
-        if matches!(
-            attempts[cursor].operation_tag(),
-            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44 | 49
-        ) {
-            cursor += 1;
-            continue;
-        }
-        if attempts[cursor].operation_tag() == 45 {
-            if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 8 {
-                return Err(
-                    "filesystem replay Output duplicate must be immediately retired".to_owned(),
-                );
-            }
-            cursor += 2;
-            continue;
-        }
-        if attempts[cursor].operation_tag() == 46 {
-            if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 46 {
-                return Err("filesystem replay Output lock must be immediately released".to_owned());
-            }
-            cursor += 2;
-            continue;
-        }
-        let closes_root = attempts[cursor].operation_tag() == 8
-            && matches!(
-                attempts[cursor].logical_handle_inputs.as_slice(),
-                [FilesystemLogicalHandleInput {
-                    resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
-                    ..
-                }] if *identity == root_identity
-            );
-        if closes_root {
-            return Ok(cursor + 1);
-        }
-        return Err(
-            "bounded filesystem replay requires complete create-operation*-close Output files"
-                .to_owned(),
-        );
-    }
-}
-
 pub(crate) fn filesystem_output_attempt_tag(operation_tag: u16) -> bool {
     matches!(operation_tag, 1 | 9 | 11 | 12 | 19 | 20 | 27)
-}
-
-pub(crate) fn output_tree_entries_from_attempts(
-    attempts: &[FilesystemOperationAttempt],
-) -> Result<Vec<FilesystemOutputTreeEntryReplayRecord>, String> {
-    if attempts.is_empty() {
-        return Err("bounded filesystem replay requires Output entries".to_owned());
-    }
-    let mut entries = Vec::new();
-    let mut cursor = 0;
-    while cursor < attempts.len() {
-        match attempts[cursor].operation_tag() {
-            11 => {
-                entries.push(FilesystemOutputTreeEntryReplayRecord::Directory(
-                    output_directory_record_from_attempt(&attempts[cursor])?,
-                ));
-                cursor += 1;
-            }
-            1 => {
-                let end = output_file_attempt_end(attempts, cursor)?;
-                entries.push(FilesystemOutputTreeEntryReplayRecord::File(
-                    output_file_record_from_attempts(&attempts[cursor..end])?,
-                ));
-                cursor = end;
-            }
-            20 => {
-                entries.push(FilesystemOutputTreeEntryReplayRecord::Symlink(
-                    output_symlink_record_from_attempt(&attempts[cursor])?,
-                ));
-                cursor += 1;
-            }
-            19 | 27 => {
-                entries.push(FilesystemOutputTreeEntryReplayRecord::HardLink(
-                    output_hard_link_record_from_attempt(&attempts[cursor])?,
-                ));
-                cursor += 1;
-            }
-            _ => {
-                return Err("bounded filesystem replay requires ordered Output entries".to_owned());
-            }
-        }
-    }
-    Ok(entries)
 }
 
 pub(crate) fn output_file_attempts(

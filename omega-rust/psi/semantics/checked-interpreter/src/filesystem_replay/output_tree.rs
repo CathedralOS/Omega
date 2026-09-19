@@ -1,10 +1,12 @@
+use super::output_stream::ObservedOutputTree;
 use super::{
     FilesystemOutputDirectoryReplayRecord, FilesystemOutputHardLinkReplayRecord,
     FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES, output_logical_handle_identities,
-    source_attempts_use_root, validate_output_directory_records, validate_output_duplicate_replay,
-    validate_output_lock_replay,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES, output_directory_attempt,
+    output_file_attempts, output_hard_link_attempt, output_logical_handle_identities,
+    output_symlink_attempt, source_attempts_use_root, validate_output_directory_records,
+    validate_output_duplicate_replay, validate_output_lock_replay,
 };
 use crate::{
     BuildIncludedSource, FilesystemGrantRootIdentity, FilesystemOperationAttempt,
@@ -15,10 +17,9 @@ use crate::{
 
 /// One authored entry in a bounded receipted Output tree.
 ///
-/// Directory creation occupies one filesystem attempt. A file occupies its
-/// complete create/operation*/close chain. Entries retain authored order so a
-/// nested child can be admitted only after its exact parent directory has
-/// actually been created.
+/// A file describes its complete lifetime, not its position in the event stream.
+/// Entries retain creation order so a nested child can be admitted only after
+/// its exact parent directory has actually been created.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilesystemOutputTreeEntryReplayRecord {
     Directory(FilesystemOutputDirectoryReplayRecord),
@@ -28,6 +29,18 @@ pub enum FilesystemOutputTreeEntryReplayRecord {
 }
 
 impl FilesystemOutputTreeEntryReplayRecord {
+    /// Expand one typed entry into its canonical operations. This does not admit
+    /// a tree or an execution order; the complete stream must still be checked
+    /// by `FilesystemReplay::from_input_output_attempts` before replay.
+    pub fn into_attempts(self) -> Vec<FilesystemOperationAttempt> {
+        match self {
+            Self::Directory(directory) => vec![output_directory_attempt(directory)],
+            Self::File(file) => output_file_attempts(file),
+            Self::HardLink(link) => vec![output_hard_link_attempt(link)],
+            Self::Symlink(link) => vec![output_symlink_attempt(link)],
+        }
+    }
+
     pub const fn output_root(&self) -> FilesystemGrantRootIdentity {
         match self {
             Self::Directory(directory) => directory.output_root(),
@@ -170,21 +183,47 @@ pub(crate) fn validate_output_tree_records(
     entries: &[FilesystemOutputTreeEntryReplayRecord],
     included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
-    validate_output_tree_shape(source_attempts, entries, included_sources)
+    validate_output_tree_shape(source_attempts, entries)?;
+    let mut output_attempt_count = 0usize;
+    let mut completion_ordinals = Vec::with_capacity(entries.len());
+    for entry in entries {
+        output_attempt_count = output_attempt_count
+            .checked_add(
+                entry
+                    .attempt_count()
+                    .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?,
+            )
+            .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
+        completion_ordinals.push(output_attempt_count);
+    }
+    validate_tree_included_sources(
+        entries,
+        &completion_ordinals,
+        included_sources,
+        source_attempts.len(),
+        output_attempt_count,
+    )
 }
 
 pub(crate) fn validate_observed_output_tree_records(
     source_attempts: &[FilesystemOperationAttempt],
-    entries: &[FilesystemOutputTreeEntryReplayRecord],
+    output: &ObservedOutputTree,
+    output_attempt_count: usize,
     included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
-    validate_output_tree_shape(source_attempts, entries, included_sources)
+    validate_output_tree_shape(source_attempts, &output.entries)?;
+    validate_tree_included_sources(
+        &output.entries,
+        &output.completion_ordinals,
+        included_sources,
+        source_attempts.len(),
+        output_attempt_count,
+    )
 }
 
 fn validate_output_tree_shape(
     source_attempts: &[FilesystemOperationAttempt],
     entries: &[FilesystemOutputTreeEntryReplayRecord],
-    included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
     // Observed records do not need to reconstruct the already validated typed
     // Source prefix. Validate the same tree invariants directly.
@@ -313,37 +352,24 @@ fn validate_output_tree_shape(
             output_identities.push(identity);
         }
     }
-    validate_tree_included_sources(entries, included_sources, source_attempts.len())
+    Ok(())
 }
 
 fn validate_tree_included_sources(
     entries: &[FilesystemOutputTreeEntryReplayRecord],
+    completion_ordinals: &[usize],
     included_sources: &[BuildIncludedSource],
     source_attempt_count: usize,
+    output_attempt_count: usize,
 ) -> Result<(), String> {
     if included_sources.len() > MAX_INCLUDED_BUILD_SOURCES {
         return Err(format!(
             "filesystem replay exceeds its {MAX_INCLUDED_BUILD_SOURCES}-source handoff ceiling"
         ));
     }
-    let mut close_ordinals = Vec::new();
-    let mut total_attempt_count = source_attempt_count;
-    for entry in entries {
-        total_attempt_count = total_attempt_count
-            .checked_add(
-                entry
-                    .attempt_count()
-                    .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?,
-            )
-            .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
-        if let Some(file) = entry.as_file() {
-            close_ordinals.push((
-                file.output_root(),
-                file.output_relative_path(),
-                total_attempt_count,
-            ));
-        }
-    }
+    let total_attempt_count = source_attempt_count
+        .checked_add(output_attempt_count)
+        .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
     let mut previous_ordinal = source_attempt_count;
     for (handoff_index, included) in included_sources.iter().enumerate() {
         if included.filesystem_attempt_ordinal() < previous_ordinal {
@@ -361,15 +387,21 @@ fn validate_tree_included_sources(
                     .to_owned(),
             );
         }
-        let Some((_, _, close_ordinal)) = close_ordinals
-            .iter()
-            .find(|(root, path, _)| *root == included.root() && *path == included.relative_path())
+        let Some((_, close_ordinal)) =
+            entries.iter().zip(completion_ordinals).find(|(entry, _)| {
+                entry.as_file().is_some()
+                    && entry.output_root() == included.root()
+                    && entry.output_relative_path() == included.relative_path()
+            })
         else {
             return Err(
                 "filesystem replay included-source handoff has no matching output file".to_owned(),
             );
         };
-        if included.filesystem_attempt_ordinal() < *close_ordinal
+        let close_ordinal = source_attempt_count
+            .checked_add(*close_ordinal)
+            .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
+        if included.filesystem_attempt_ordinal() < close_ordinal
             || included.filesystem_attempt_ordinal() > total_attempt_count
         {
             return Err(
