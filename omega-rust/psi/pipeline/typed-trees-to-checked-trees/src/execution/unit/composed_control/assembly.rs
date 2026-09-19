@@ -9,8 +9,6 @@ use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::composed_control::closed_sum;
-use crate::execution::terminal_unit::composed_control::nested_control;
-use crate::execution::terminal_unit::composed_control::prefixed_control;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::state_flow;
 use checked_trees::CheckedUnitPlanOmissionStage;
@@ -67,8 +65,6 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
             call_frames,
         )
         .or_else(|| build(program, facts, shapes, boundaries, machine))
-        .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
-        .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
         .or_else(|| {
             super::super::state_graph::build_traced(
                 program,

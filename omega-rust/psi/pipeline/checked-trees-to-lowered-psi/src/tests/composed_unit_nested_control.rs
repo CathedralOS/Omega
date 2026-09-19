@@ -427,13 +427,23 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
         panic!("provider boundary graph emits one machine")
     };
     assert_eq!(machine.parameters.len(), 2);
-    assert_eq!(machine.structural_places.len(), 2);
-    assert!(
+    assert_eq!(machine.structural_places.len(), 3);
+    assert_eq!(
         machine
             .structural_places
             .iter()
-            .all(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
+            .filter(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
+            .count(),
+        2
     );
+    assert_eq!(machine.structural_parameters.len(), 1);
+    assert!(machine.structural_places.iter().any(|place| matches!(
+        place.kind,
+        StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: true
+        }
+    )));
     assert!(matches!(
         machine.blocks[0].operations.as_slice(),
         [Operation {
@@ -487,6 +497,23 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
         .scalar_expressions
         .expressions
         .remove(scalar_fact);
+    // Parameter handoffs rejoin the authored binding directly; a duplicated
+    // scalar-expression fact is not their authority.
+    lower_machine(&missing_scalar_fact, "Main::main")
+        .expect("parameter handoff checks without a redundant expression fact");
+    let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
+        &mut missing_scalar_fact
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines[0]
+            .states[0]
+            .terminator
+    else {
+        panic!("entry remains conditional");
+    };
+    when_true.scalar_arguments[0].source =
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     assert!(matches!(
         lower_machine(&missing_scalar_fact, "Main::main"),
         Err(LoweringError::Unsupported(_))

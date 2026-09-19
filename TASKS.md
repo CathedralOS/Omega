@@ -3752,7 +3752,7 @@ Owners include
     must retain authored selection across helper calls instead of folding
     builtin meaning. Controls: `fail/generics/authored_const_operator_requires_selection`,
     `fail/generics/authored_const_call_operator_requires_selection` and
-    `pass/generics/authored_const_call_operator_selected_provider`.
+    `fail/generics/authored_const_call_operator_unselected_provider`.
     **OPERATOR-MACHINE-SUPPLY** owns executable supply. Nonconstant proof
     `Int` terms need independent evidence beyond source entailment in
     `validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
@@ -3768,18 +3768,18 @@ Owners include
   Stale writes, mismatched result origins and wrong normal-exit guarantees
   reject; callee-local IDs and rereads cannot replace captured values.
 
-  Flag: the checked-to-lowered seam is still organized as source-shape
-  producer families. `checked_trees/flow/terminal/*_plans.rs` declares 14
-  `Checked*MachinePlan` structs, most named for one source shape (for example
-  `CheckedPayloadlessGuardedCallReturnMachinePlan`), and
-  `checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/routing.rs`
-  picks among five producers by state count and first terminator kind
-  (`closed_sum`, `prefixed_control` for four or more states that start with a
-  Jump, `nested_control` for four or more states, the shared `state_graph`
-  closure, and a default route for fewer states). No board item names their
-  removal. The
-  general mechanism is one checked evaluation/control graph lowered by one
-  producer, with each family deleted as the graph covers it.
+  Delete the remaining source-shape producers as ordinary graph operations
+  cover their semantics. `checked_trees/flow/terminal/*_plans.rs` still has
+  whole-machine shapes such as `CheckedPayloadlessGuardedCallReturnMachinePlan`.
+  `machine_lowering/machine_dispatch.rs` rejects simultaneous scalar and Unit
+  dynamic joins; `composed_control/routing.rs` still has closed-sum and basic
+  conditional routes beside the shared graph. Preserve compile-known receiver
+  attachment authority and claim transport when consolidating those routes;
+  a failed source/custody rejoin must never fall back to a weaker recognizer.
+  Acceptance: one caller combines those ordinary operations, with reordered
+  state declarations and inserted computations, while forged edge bindings,
+  missing provider authority and conflicting loans still reject. Do not add a
+  producer family for the combination.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Ordinary generic
   `drop<T>` now checks, lowers, and invokes the exact owner-attached hook

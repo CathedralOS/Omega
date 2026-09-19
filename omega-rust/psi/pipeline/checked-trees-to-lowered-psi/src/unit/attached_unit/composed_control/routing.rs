@@ -4,7 +4,7 @@ use super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::finalize_operation_proofs;
 use super::{
     CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, closed_sum, emission,
-    nested_control, prefixed_control, state_graph,
+    state_graph,
 };
 pub(super) fn lower(
     checked: &CheckedTrees,
@@ -21,17 +21,6 @@ pub(super) fn lower(
         Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. })
     ) {
         return closed_sum::lower(checked, plan);
-    }
-    if plan.states.len() >= 4
-        && matches!(
-            plan.states[0].terminator,
-            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
-        )
-    {
-        return prefixed_control::lower(checked, plan);
-    }
-    if plan.states.len() >= 4 {
-        return nested_control::lower(checked, plan);
     }
     let admitted = admission::admit_composed_unit_control(checked, plan)?;
     let catalogs = catalogs::lower_composed_catalogs(checked, plan, &admitted)?;
