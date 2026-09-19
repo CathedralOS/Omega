@@ -1959,11 +1959,9 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
             &[
                 "admission",
                 "catalogs",
-                "closed_sum",
                 "dynamic_result",
                 "emission",
                 "internal_calls",
-                "routing",
                 "state_graph",
             ][..],
         ),
@@ -2013,20 +2011,21 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
         }
     }
     for owner in [&typed, &terminal] {
-        for retired in ["nested_control", "prefixed_control"] {
+        for retired in ["nested_control", "prefixed_control", "closed_sum"] {
             let path = owner.join("composed_control").join(retired);
             assert!(!path.with_extension("rs").exists());
             // An empty checkout directory is harmless; no route may survive.
             assert!(!path.join("mod.rs").exists());
         }
     }
-    let routing = std::fs::read_to_string(terminal.join("composed_control/routing.rs"))
-        .expect("read composed control routing");
+    let routing = std::fs::read_to_string(terminal.join("composed_control.rs"))
+        .expect("read composed control entry");
     assert!(
         !routing.contains("states.len()"),
         "state count is not a lowering strategy"
     );
     assert!(!routing.contains("admit_composed_unit_control"));
+    assert!(!terminal.join("composed_control/routing.rs").exists());
     assert!(!terminal.join("composed_control/custody.rs").exists());
     let graph_admission =
         std::fs::read_to_string(terminal.join("composed_control/state_graph/admission.rs"))

@@ -869,7 +869,10 @@ fn retains_arm_local_boundary_result_discard_on_each_closed_sum_return() {
         let [(result, discard)] = reads.as_slice() else {
             panic!("one arm-local read")
         };
-        assert!(**discard);
+        assert!(
+            !**discard,
+            "the return edge owns disposal, not the producing call"
+        );
         assert_eq!(result.statement_index, statement_index);
         assert_eq!(
             result.binding_ordinal, 0,

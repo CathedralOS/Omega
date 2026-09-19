@@ -10,11 +10,19 @@ pub(super) fn validate_receiver(
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
     access: language_core::ReferenceAccess,
 ) -> Result<(), LoweringError> {
+    let expected_access = match access {
+        language_core::ReferenceAccess::Shared => {
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+        }
+        language_core::ReferenceAccess::Mutable => {
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+        }
+        _ => return unsupported("Unit graph receiver requires readable borrowed access"),
+    };
     if !source.is_self
         || source.is_const
-        || !source.is_mutable
-        || access != language_core::ReferenceAccess::Mutable
-        || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+        || source.is_mutable != (access == language_core::ReferenceAccess::Mutable)
+        || parameter.access != expected_access
         || parameter.multiplicity != Multiplicity::Unrestricted
         || !parameter.qualifications.is_empty()
         || parameter.fused_service_erasure.is_some()

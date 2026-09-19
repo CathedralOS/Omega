@@ -394,6 +394,109 @@ const CLOSED_SUM_UNIT_SOURCE: &str = r#"
         "#;
 
 #[test]
+fn closed_sum_calls_share_the_ordinary_structural_result_namespace() {
+    let source = CLOSED_SUM_UNIT_SOURCE
+        .replace("data Main {", "data Scratch { value: i32; } data Main {")
+        .replace(
+            "self.console.exit_process(value);",
+            "let scratch: Scratch = Scratch { value: 7 }; let second: ByteRead = self.console.read_byte(); self.console.exit_process(value);",
+        );
+    let checked = checked_source(&source);
+    let lowered = roundtrip(&checked);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    assert_eq!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(
+                operation.result,
+                terminal_psi::OperationResult::Structural(_)
+            ))
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn closed_sum_graph_keeps_shared_and_mutable_receiver_custody() {
+    for (receiver, access, terminal_access) in [
+        (
+            "&self",
+            checked_trees::CheckedStructuralAccess::SharedBorrow,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ),
+        (
+            "&mut self",
+            checked_trees::CheckedStructuralAccess::MutableBorrow,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        ),
+    ] {
+        let checked = checked_source(&CLOSED_SUM_UNIT_SOURCE.replace("&mut self", receiver));
+        let plan_index = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .position(|plan| {
+                checked.machines().iter().any(|machine| {
+                    machine.symbol == plan.machine && machine.name.as_str() == "Main::main"
+                })
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "ordinary graph plan for {receiver}: {:?}",
+                    checked.facts.flow.terminal_unit_effects.omissions
+                )
+            });
+        let plan = &checked.facts.flow.terminal_unit_effects.composed_machines[plan_index];
+        assert_eq!(plan.states.len(), 3);
+        for state in &plan.states {
+            let [parameter] = state.structural_parameters.as_slice() else {
+                panic!("every state retains the receiver");
+            };
+            assert!(parameter.is_self);
+            assert_eq!(parameter.access, access);
+        }
+        let lowered = roundtrip(&checked);
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        assert_eq!(entry.structural_parameters.len(), 1);
+        assert_eq!(entry.structural_parameters[0].access, terminal_access);
+
+        for mutation in 0..2 {
+            let mut changed = checked.clone();
+            let state = &mut changed.facts.flow.terminal_unit_effects.composed_machines[plan_index]
+                .states[1];
+            if mutation == 0 {
+                state.structural_parameters.clear();
+            } else {
+                state.structural_parameters[0].access = match access {
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                    }
+                    _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                };
+            }
+            assert!(
+                lower_machine(&changed, "Main::main").is_err(),
+                "receiver custody mutation {mutation} must reject"
+            );
+        }
+    }
+}
+
+#[test]
 fn closed_sum_payload_calls_an_observable_ordinary_unit_body() {
     let checked = checked_source(CLOSED_SUM_UNIT_SOURCE);
     let lowered = roundtrip(&checked);
@@ -460,6 +563,72 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
     result_places.dedup();
     assert_eq!(result_places.len(), 3, "state-local results do not alias");
 
+    let arm_states = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .flat_map(|plan| plan.states.iter().skip(1).map(|state| state.state))
+        .collect::<Vec<_>>();
+    let (drop_handle, _) = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            arm_states.contains(&event.state_symbol)
+                && event.kind == language_semantics::PermissionEventKind::AffineDrop
+                && event.source == language_semantics::PermissionEventSource::StateExit
+        })
+        .expect("source-owned arm-local result disposal");
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let event = changed
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(drop_handle);
+        if mutation == 0 {
+            event.machine_symbol = Default::default();
+        } else {
+            event.provenance = language_semantics::PermissionProvenance::Unknown;
+        }
+        assert!(
+            lower_machine(&changed, "Main::main").is_err(),
+            "missing or substituted return disposal must reject"
+        );
+    }
+    let mut missing_cleanup = lowered.semantic_module.clone();
+    let return_block = missing_cleanup
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .find(|block| matches!(block.terminator, Terminator::ReturnUnit { .. }))
+        .unwrap();
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut return_block.terminator
+    else {
+        unreachable!();
+    };
+    trivial_affine_discards.clear();
+    assert!(
+        terminal_verifier::verify_module(
+            &missing_cleanup,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default()
+        )
+        .is_err(),
+        "portable checking must reject omitted cleanup"
+    );
+
     let (plan_index, state_index, operation_index) = checked
         .facts
         .flow
@@ -498,7 +667,7 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
             panic!("result call")
         };
         match mutation {
-            0 => *discard_result_on_return = false,
+            0 => *discard_result_on_return = true,
             1 => result.statement_index += 1,
             2 => coordinate.statement_index += 1,
             3 => result.binding_ordinal += 1,

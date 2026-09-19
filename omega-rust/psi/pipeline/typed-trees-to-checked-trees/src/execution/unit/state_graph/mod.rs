@@ -174,7 +174,10 @@ pub(super) fn build_traced(
                 return None;
             }
             match (parameter.is_self, &parameter.access) {
-                (true, CheckedStructuralAccess::MutableBorrow) => {}
+                (
+                    true,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow,
+                ) => {}
                 (true, _) => {
                     trace.phase(
                         "state graph: state signature: parameter custody shape: persistent receiver access",

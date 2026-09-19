@@ -1,13 +1,11 @@
 //! Atomic assembly after topology, guard, leaf, and provider admission.
 use super::super::{
-    CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan,
-    CheckedComposedUnitControlStatePlan, CheckedProviderAttachmentRequirementPlan,
-    MachineSupplyMode, TypedTrees,
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,
 };
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
-use crate::execution::terminal_unit::composed_control::closed_sum;
 use crate::execution::terminal_unit::control;
 use checked_trees::CheckedUnitPlanOmissionStage;
 use std::collections::BTreeMap;
@@ -19,7 +17,6 @@ pub(in crate::execution::terminal_unit) fn build_all(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    boundaries: &[CheckedBoundaryMachinePlan],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedComposedUnitControlMachinePlan> {
     build_all_traced(
@@ -27,22 +24,17 @@ pub(in crate::execution::terminal_unit) fn build_all(
         facts,
         scalar_callees,
         shapes,
-        boundaries,
         call_frames,
         &mut BTreeMap::new(),
     )
 }
 
-/// `build_all` that also records, for every checked-body machine no composed
-/// builder admitted, where the general state-graph route stopped (keyed by
-/// the machine symbol's arena index and generation). The shape-specialized
-/// builders decline by shape; the state graph's phase is the informative one.
+/// Records where state-graph construction stopped for each declined machine.
 pub(in crate::execution::terminal_unit) fn build_all_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    boundaries: &[CheckedBoundaryMachinePlan],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     declined: &mut BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
 ) -> Vec<CheckedComposedUnitControlMachinePlan> {
@@ -53,26 +45,15 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
     {
         let trace = control::LocalConstructionTrace::default();
-        let plan = closed_sum::build(
+        let plan = super::super::state_graph::build_traced(
             program,
             facts,
             scalar_callees,
             shapes,
-            boundaries,
             machine,
             call_frames,
-        )
-        .or_else(|| {
-            super::super::state_graph::build_traced(
-                program,
-                facts,
-                scalar_callees,
-                shapes,
-                machine,
-                call_frames,
-                &trace,
-            )
-        });
+            &trace,
+        );
         match plan {
             Some(plan) => plans.push(plan),
             None => {

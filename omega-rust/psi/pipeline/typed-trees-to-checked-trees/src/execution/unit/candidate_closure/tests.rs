@@ -120,7 +120,6 @@ fn complete_unit_body_owns_overlap_before_dependency_closure() {
             structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
         },
         &mut shapes,
-        &effects.boundary_machines,
         None,
     );
     assert!(
