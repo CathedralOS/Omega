@@ -178,6 +178,7 @@ pub(crate) fn validate_exact_stored_plan(
         || destination_field_identity != stored.destination_field_identity
         || plan.caller_structural_scalar_field_store.is_some()
         || !plan.forwarding_transfers.is_empty()
+        || !plan.forwarding_helpers.is_empty()
         || !matches!(
             plan.origin,
             checked_trees::CheckedDynamicScalarCallOrigin::Local

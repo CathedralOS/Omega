@@ -255,12 +255,19 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
         &mut next_value,
         &mut next_edge,
     )?;
+    let mut source_call_occurrences =
+        dynamic_source_call_occurrences_for_chain(plan, call_operation, &forwarded_helpers)?;
     let forwarded_helper_machines = materialize_forwarded_helper_chain(
         checked,
         plan,
         &application,
         &selected_row,
         &forwarded_helpers,
+        &mut next_block,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+        &mut source_call_occurrences,
     )?;
 
     let lowered = LoweredPsi {
@@ -360,11 +367,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences: dynamic_source_call_occurrences_for_chain(
-            plan,
-            call_operation,
-            &forwarded_helpers,
-        )?,
+        source_call_occurrences,
         selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),

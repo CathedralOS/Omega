@@ -52,6 +52,10 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         .as_ref()
         .map(|forwarded| forwarded.prior_transfers.clone())
         .unwrap_or_default();
+    let forwarding_helpers = forwarded
+        .as_ref()
+        .map(|forwarded| forwarded.helpers.clone())
+        .unwrap_or_default();
     let (
         dispatch_state,
         dispatch_flow_call,
@@ -163,6 +167,12 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         return None;
     }
     let result_type = program.primitive_type_reference(result_local.type_reference)?;
+    if forwarding_helpers.iter().any(|helper| {
+        helper.call_result.primitive_type != result_type
+            || helper.scalar_control.primitive_type != result_type
+    }) {
+        return None;
+    }
     let result_binding_ordinal = statements[..flow_call.statement_index]
         .iter()
         .filter(|statement| {
@@ -447,6 +457,7 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     let mut plan = checked_trees::CheckedDynamicScalarCallPlan {
         origin,
         forwarding_transfers,
+        forwarding_helpers,
         caller_machine: machine.symbol,
         caller_state: state.symbol,
         caller_attachment_type_identity,

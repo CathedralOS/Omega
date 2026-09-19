@@ -343,6 +343,11 @@ pub(super) fn lower(
         &application,
         &selected_row,
         &forwarded_helpers,
+        &mut next_block,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+        &mut source_call_occurrences,
     )?;
 
     let source_machine_ids = catalogs.scalar_calls.machine_ids.clone();

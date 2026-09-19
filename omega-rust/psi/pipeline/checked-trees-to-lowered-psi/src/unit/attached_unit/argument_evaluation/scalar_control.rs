@@ -1,7 +1,6 @@
 //! The ordered prefix completes before its authored scalar return or dispatch.
 //! Returns use the existing selective evaluator and rejoin with one result;
 //! structural places keep their dominating producers across guarded arms.
-use super::super::CheckedUnitEffectMachinePlan;
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, Evaluation, LoweringError, ValueDeclaration,
     prepare_shared_qualifications, terminal_scalar_type, unsupported,
@@ -18,7 +17,9 @@ impl Evaluation {
     pub(crate) fn scalar_control_result(
         &mut self,
         checked: &CheckedTrees,
-        machine: &CheckedUnitEffectMachinePlan,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        control: &checked_trees::CheckedUnitScalarControlPlan,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -26,12 +27,6 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let control = machine
-            .scalar_control
-            .as_ref()
-            .ok_or(LoweringError::Unsupported(
-                "ordered scalar body has no control completion",
-            ))?;
         let bindings = self
             .scalar_bindings
             .clone()
@@ -43,7 +38,7 @@ impl Evaluation {
             .with_structural_locals(&self.structural_locals)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
-        let qualifications = prepare_shared_qualifications(checked, machine.machine, values)?;
+        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
             .iter()
             .map(|value| value.value_type())
@@ -52,7 +47,7 @@ impl Evaluation {
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
             &qualifications,
-            machine.machine,
+            machine,
             1,
         )
         .with_arrays(&self.arrays)
@@ -80,13 +75,13 @@ impl Evaluation {
                 .roots
                 .iter()
                 .any(|(_, root)| {
-                    root.state == machine.state
+                    root.state == state
                         && root.statement_ordinal == *statement_ordinal
                         && root.role == role
                 })
             {
                 expansion.retained_value(
-                    machine.state,
+                    state,
                     *statement_ordinal,
                     role,
                     symbols::SymbolHandle::invalid(),
@@ -97,7 +92,7 @@ impl Evaluation {
                 )
             } else {
                 expansion.retained_pure_value(
-                    machine.state,
+                    state,
                     *statement_ordinal,
                     role,
                     &bindings,
@@ -130,7 +125,7 @@ impl Evaluation {
                 let false_target = arm(when_false)?;
                 crate::scalar_graph::scalar_graph_lowering::guards::lower(
                     checked,
-                    machine.state,
+                    state,
                     *guard_statement_ordinal,
                     &bindings,
                     &source_types,
@@ -151,7 +146,7 @@ impl Evaluation {
             CheckedScalarStateTerminator::Guarded { arms, fallback } => {
                 crate::expression_preparation::source_custody::guarded_exits::validate(
                     checked,
-                    machine.state,
+                    state,
                     *arms,
                     fallback.as_ref(),
                 )?;
@@ -181,7 +176,7 @@ impl Evaluation {
                 for (guard, target) in arms.iter().zip(targets).rev() {
                     let terminator = crate::scalar_graph::scalar_graph_lowering::guards::evaluate(
                         checked,
-                        machine.state,
+                        state,
                         guard.guard_statement_ordinal,
                         &bindings,
                         &source_types,

@@ -1,5 +1,7 @@
-//! Forwarded helper chains: their identities, catalog entries and
-//! materialization.
+//! Forwarded helper chains retain descriptor custody separately from scalar
+//! execution. A helper's call result is one binding in its authored sequence,
+//! not necessarily its returned value. Ordinary scalar evaluation and exit
+//! replay therefore own the surrounding calculations and returning branches.
 
 use crate::unit::dynamic_composed_unit::applications::{
     exact_machine_service_summary, validate_empty_contract, validate_empty_service_summary,
@@ -34,7 +36,7 @@ pub(crate) fn forwarded_helper_chain_ids(
         plan.origin,
         checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
     ) {
-        if !plan.forwarding_transfers.is_empty() {
+        if !plan.forwarding_transfers.is_empty() || !plan.forwarding_helpers.is_empty() {
             return unsupported("local dynamic call retained forwarding transfers");
         }
         return Ok(Vec::new());
@@ -112,6 +114,12 @@ fn materialize_forwarded_helper_for_source(
     ids: ForwardedHelperIds,
     source_machine: symbols::SymbolHandle,
     next_helper: Option<semantic_vocabulary::MachineId>,
+    body: &checked_trees::CheckedDynamicScalarHelperPlan,
+    next_block: &mut u64,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    next_edge: &mut u64,
+    source_calls: &mut [LoweredSourceCallOccurrence],
 ) -> Result<TerminalMachine, LoweringError> {
     let checked_contract = checked
         .facts
@@ -144,6 +152,20 @@ fn materialize_forwarded_helper_for_source(
     )?;
     let (_, requirement_slot) = dynamic_parameter_interface(application, selected_row)?;
     let scalar_type = terminal_scalar_type(plan.result.primitive_type)?;
+    let blocks = materialize_helper_body(
+        checked,
+        body,
+        ids,
+        source_machine,
+        next_helper,
+        requirement_slot,
+        scalar_type,
+        next_block,
+        next_operation,
+        next_value,
+        next_edge,
+        source_calls,
+    )?;
     Ok(TerminalMachine {
         closed_reach_application: None,
         declared_service_reach: Vec::new(),
@@ -164,19 +186,211 @@ fn materialize_forwarded_helper_for_source(
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: ids.block,
-        blocks: vec![Block {
-            structural_parameters: Vec::new(),
-            id: ids.block,
-            parameters: Vec::new(),
-            erased_scalar_formals: Vec::new(),
-            operations: vec![Operation {
+        blocks,
+        contract: empty_terminal_contract(ids.machine.get()),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn materialize_forwarded_helper_chain(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    application: &ClosedConformanceApplication,
+    selected_row: &ClosedConformanceRow,
+    helpers: &[ForwardedHelperIds],
+    next_block: &mut u64,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    next_edge: &mut u64,
+    source_calls: &mut [LoweredSourceCallOccurrence],
+) -> Result<Vec<TerminalMachine>, LoweringError> {
+    if helpers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+        machine: final_source_machine,
+        ..
+    } = plan.origin
+    else {
+        return unsupported("forwarded helper chain requires a forwarded checked origin");
+    };
+    if plan.forwarding_transfers.len() + 1 != helpers.len()
+        || plan.forwarding_helpers.len() != helpers.len()
+    {
+        return unsupported("forwarded helper chain length drifted from checked custody");
+    }
+    helpers
+        .iter()
+        .enumerate()
+        .map(|(index, ids)| {
+            let source_machine = plan
+                .forwarding_transfers
+                .get(index)
+                .map(|transfer| transfer.caller_machine)
+                .unwrap_or(final_source_machine);
+            let next_helper = helpers.get(index + 1).map(|next| next.machine);
+            let body = &plan.forwarding_helpers[index];
+            let (state, coordinate) = if let Some(transfer) = plan.forwarding_transfers.get(index) {
+                (transfer.caller_state, transfer.coordinate)
+            } else if let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+                state,
+                coordinate,
+                ..
+            } = plan.origin
+            {
+                (state, coordinate)
+            } else {
+                return unsupported("forwarded helper has no source call");
+            };
+            if body.machine != source_machine
+                || body.state != state
+                || body.call_result.statement_index != coordinate.statement_index
+                || body.call_result.primitive_type != plan.result.primitive_type
+            {
+                return unsupported("forwarded helper body changed its source call");
+            }
+            materialize_forwarded_helper_for_source(
+                checked,
+                plan,
+                application,
+                selected_row,
+                *ids,
+                source_machine,
+                next_helper,
+                body,
+                next_block,
+                next_operation,
+                next_value,
+                next_edge,
+                source_calls,
+            )
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn materialize_helper_body(
+    checked: &CheckedTrees,
+    body: &checked_trees::CheckedDynamicScalarHelperPlan,
+    ids: ForwardedHelperIds,
+    source_machine: symbols::SymbolHandle,
+    next_helper: Option<semantic_vocabulary::MachineId>,
+    requirement_slot: u32,
+    scalar_type: semantic_vocabulary::ScalarType,
+    next_block: &mut u64,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    next_edge: &mut u64,
+    source_calls: &mut [LoweredSourceCallOccurrence],
+) -> Result<Vec<Block>, LoweringError> {
+    use crate::emission::operation_emission::buffer::OperationBuffer;
+    use crate::emission::operation_emission::calls::CallEmissionContext;
+    use crate::unit::attached_unit::argument_evaluation::Evaluation;
+    use checked_trees::CheckedScalarExpressionRole;
+    use checked_trees::statement::StatementNode;
+
+    let prefix = crate::unit::attached_unit::validate_scalar_control_tail(
+        checked,
+        source_machine,
+        body.state,
+        &body.scalar_control,
+    )?;
+    if body.scalar_locals.len().checked_add(1) != Some(prefix)
+        || body.call_result.statement_index as usize >= prefix
+        || terminal_scalar_type(body.scalar_control.primitive_type)? != scalar_type
+    {
+        return unsupported("forwarded helper omitted or changed its scalar body");
+    }
+    let (_, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, body.state)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let mut reserved_entry = ids.block.get();
+    let mut evaluation = Evaluation::new(&mut reserved_entry)?;
+    let mut operations = OperationBuffer::new(next_operation.checked_sub(1).ok_or(
+        LoweringError::Unsupported("forwarded helper operation identities are absent"),
+    )?);
+    let mut values = Vec::new();
+    let mut locals = body.scalar_locals.iter();
+    let mut calls = CallEmissionContext {
+        machine_ids: &[],
+        requirement_counts: &[],
+        next_obligation_identity: 1,
+        obligation_limit: 1,
+    };
+    for (ordinal, statement) in statements.iter().take(prefix).enumerate() {
+        let StatementNode::LocalData(local) = statement else {
+            return unsupported("forwarded helper lost an ordered scalar binding");
+        };
+        if local.is_mutable
+            || !local.symbol.is_valid()
+            || !checked
+                .expression_table
+                .expression_is_valid(local.initial_value)
+        {
+            return unsupported("forwarded helper cannot erase storage or an absent initializer");
+        }
+        let (binding, value) = if ordinal == body.call_result.statement_index as usize {
+            (&body.call_result, None)
+        } else {
+            let (binding, value) = locals.next().ok_or(LoweringError::Unsupported(
+                "forwarded helper omitted a scalar initializer",
+            ))?;
+            (binding, Some(value))
+        };
+        if binding.statement_index as usize != ordinal
+            || binding.binding_ordinal as usize != values.len()
+            || checked.primitive_type_reference(local.type_reference)
+                != Some(binding.primitive_type)
+        {
+            return unsupported("forwarded helper binding order or type drifted");
+        }
+        let value = if let Some(value) = value {
+            evaluation.source_value(
+                checked,
+                source_machine,
+                body.state,
+                binding.statement_index,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: binding.binding_ordinal,
+                },
+                &checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
+                values.len(),
+                &mut values,
+                next_value,
+                next_block,
+                next_edge,
+                &mut operations,
+                &mut calls,
+            )?
+        } else {
+            let occurrence = source_calls
+                .iter_mut()
+                .find(|call| call.terminal_operation == ids.operation)
+                .ok_or(LoweringError::Unsupported(
+                    "forwarded helper lost its source call occurrence",
+                ))?;
+            let checked_trees::expression::ExpressionNode::Call(call) =
+                checked.expression_table.expression(local.initial_value)
+            else {
+                return unsupported("forwarded helper substituted its call initializer");
+            };
+            if occurrence.source_state != body.state
+                || occurrence.statement_index != ordinal
+                || occurrence.call_ordinal != 0
+                || occurrence.source_target != call.target_symbol
+            {
+                return unsupported("forwarded helper call coordinate drifted");
+            }
+            occurrence.source_values_before_call = values.clone();
+            let result = ValueDeclaration {
+                qualifications: Default::default(),
+                id: ids.operation_value,
+                scalar_type,
+            };
+            operations.push(Operation {
                 static_reach_binding: None,
                 id: ids.operation,
-                result: OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: ids.operation_value,
-                    scalar_type,
-                }),
+                result: OperationResult::Scalar(result),
                 kind: match next_helper {
                     Some(callee) => OperationKind::CallStructuralScalar {
                         callee,
@@ -194,58 +408,50 @@ fn materialize_forwarded_helper_for_source(
                         crash_continuations: Vec::new(),
                     },
                 },
-            }],
-            terminator: Terminator::Return {
-                edge: ids.edge,
-                value: ids.operation_value,
-                cleanup_actions: Vec::new(),
-            },
-        }],
-        contract: empty_terminal_contract(ids.machine.get()),
-    })
-}
-
-pub(crate) fn materialize_forwarded_helper_chain(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-    application: &ClosedConformanceApplication,
-    selected_row: &ClosedConformanceRow,
-    helpers: &[ForwardedHelperIds],
-) -> Result<Vec<TerminalMachine>, LoweringError> {
-    if helpers.is_empty() {
-        return Ok(Vec::new());
+            });
+            result
+        };
+        if value.scalar_type != terminal_scalar_type(binding.primitive_type)? {
+            return unsupported("forwarded helper changed a scalar initializer type");
+        }
+        values.push(value);
     }
-    let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-        machine: final_source_machine,
-        ..
-    } = plan.origin
-    else {
-        return unsupported("forwarded helper chain requires a forwarded checked origin");
-    };
-    if plan.forwarding_transfers.len() + 1 != helpers.len() {
-        return unsupported("forwarded helper chain length drifted from checked custody");
+    let result = evaluation.scalar_control_result(
+        checked,
+        source_machine,
+        body.state,
+        &body.scalar_control,
+        &mut values,
+        next_value,
+        next_block,
+        next_edge,
+        &mut operations,
+        &mut calls,
+    )?;
+    // Pure expressions may expand to branches, but must not invent additional
+    // calls, selected providers or proof obligations outside this helper plan.
+    if !operations.source_calls.is_empty()
+        || !operations.selected_ieee_float_fmas.is_empty()
+        || !operations.selected_ieee_float_comparisons.is_empty()
+        || !operations.selected_integer_comparisons.is_empty()
+    {
+        return unsupported("forwarded helper introduced an unretained scalar call");
     }
-    helpers
-        .iter()
-        .enumerate()
-        .map(|(index, ids)| {
-            let source_machine = plan
-                .forwarding_transfers
-                .get(index)
-                .map(|transfer| transfer.caller_machine)
-                .unwrap_or(final_source_machine);
-            let next_helper = helpers.get(index + 1).map(|next| next.machine);
-            materialize_forwarded_helper_for_source(
-                checked,
-                plan,
-                application,
-                selected_row,
-                *ids,
-                source_machine,
-                next_helper,
-            )
-        })
-        .collect()
+    evaluation.blocks.push(Block {
+        id: evaluation.current,
+        parameters: evaluation.parameters,
+        structural_parameters: evaluation.block_structural_parameters,
+        erased_scalar_formals: Vec::new(),
+        operations: operations[evaluation.operation_start..].to_vec(),
+        terminator: Terminator::Return {
+            edge: ids.edge,
+            value: result.id,
+            cleanup_actions: Vec::new(),
+        },
+    });
+    *next_operation = operations.next_identity;
+    evaluation.blocks.sort_by_key(|block| block.id);
+    Ok(evaluation.blocks)
 }
 
 pub(crate) fn dynamic_source_call_occurrences_for_chain(

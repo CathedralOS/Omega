@@ -115,13 +115,6 @@ pub(super) fn lower(
     let first_helper = *helper_ids.first().ok_or(LoweringError::Unsupported(
         "joined dynamic control has no forwarded helper",
     ))?;
-    let helpers = materialize_forwarded_helper_chain(
-        checked,
-        first,
-        &first_application,
-        &first_row,
-        &helper_ids,
-    )?;
     let result_type = terminal_scalar_type(first.result.primitive_type)?;
     let call_kind = || OperationKind::CallStructuralScalar {
         callee: first_helper.machine,
@@ -282,6 +275,19 @@ pub(super) fn lower(
         }],
     };
     extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &helper_ids)?;
+    let mut source_call_occurrences = joined_source_call_occurrences(plan, &helper_ids)?;
+    let helpers = materialize_forwarded_helper_chain(
+        checked,
+        first,
+        &first_application,
+        &first_row,
+        &helper_ids,
+        &mut next_block,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+        &mut source_call_occurrences,
+    )?;
     let mut applications = vec![first_application, second_application];
     applications.sort_by(|left, right| {
         (
@@ -383,7 +389,7 @@ pub(super) fn lower(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences: joined_source_call_occurrences(plan, &helper_ids)?,
+        source_call_occurrences,
         selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),
@@ -644,6 +650,7 @@ fn joined_source_call_occurrences(
 ) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
     if helpers.len() != plan.when_true.call.forwarding_transfers.len() + 1
         || plan.when_true.call.forwarding_transfers != plan.when_false.call.forwarding_transfers
+        || plan.when_true.call.forwarding_helpers != plan.when_false.call.forwarding_helpers
     {
         return unsupported("joined source-call helper chain drifted from checked custody");
     }

@@ -100,6 +100,25 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
 }
 
 #[test]
+fn joined_descriptor_helpers_reject_disagreeing_body_custody() {
+    let mut checked = checked_source(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .joined_scalar_calls[0]
+        .when_false
+        .call
+        .forwarding_helpers
+        .pop();
+    assert_eq!(
+        unsupported_message(&checked),
+        "joined source-call helper chain drifted from checked custody"
+    );
+}
+
+#[test]
 fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
     let mut checked = checked_source(JOINED_DYNAMIC_UNIT_FORWARD_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
@@ -338,6 +357,192 @@ fn retains_multi_hop_forwarded_scalar_result_control() {
         unsupported_message(&checked),
         "direct dynamic call drifted from checked flow custody"
     );
+}
+
+#[test]
+fn forwarded_descriptor_helper_preserves_scalar_computation_and_branch() {
+    let source = MULTI_HOP_DYNAMIC_INTEGER_SOURCE.replace(
+        "let result: i32 = finish(erased);\n        transition { _ -> result }",
+        "let before: i32 = 3;\n        let result: i32 = finish(erased);\n        let combined: i32 = result ^ before;\n        transition combined == 0 { true -> 7 _ -> combined }",
+    );
+    assert_ne!(source, MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
+    let checked = checked_source(&source);
+    let lowered = lower_machine(&checked, "Main::run")
+        .expect("descriptor forwarding retains the helper's actual scalar body");
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("composed forwarding independently verifies");
+    let parameter = &lowered.semantic_module.dynamic_dispatch.parameters[0];
+    let helper = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == parameter.owner)
+        .expect("first forwarding helper");
+    assert!(
+        helper
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+    );
+}
+
+fn composed_helper_source() -> String {
+    MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE
+        .replace("transition result == 0", "transition result == 7")
+        .replace(
+            "let result: i32 = finish(erased);\n        transition { _ -> result }",
+            "let before: i32 = 3;\n        let result: i32 = finish(erased);\n        let combined: i32 = result ^ before;\n        transition combined == 0 { true -> 7 _ -> combined }",
+        )
+}
+
+#[test]
+fn forwarded_descriptor_calculations_execute_through_verified_artifact() {
+    use terminal_interpreter::{
+        TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalScalarValue,
+    };
+    #[derive(Default)]
+    struct Observe(Vec<TerminalScalarValue>);
+    impl TerminalEffectHandler for Observe {
+        fn handle_effect(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<(), TerminalEffectRejection> {
+            let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+                panic!("Console effect")
+            };
+            self.0.extend(arguments.iter().copied());
+            Ok(())
+        }
+    }
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Signed,
+            32,
+        )
+        .unwrap(),
+        value: semantic_vocabulary::IntegerValue::Signed(value),
+    };
+    // The second body also computes after the actual parameter dispatch,
+    // exercising both helper roles through the same evaluator.
+    for final_computation in [false, true] {
+        let source = if final_computation {
+            composed_helper_source().replace(
+                "let result: i32 = erased.measure();\n        transition { _ -> result }",
+                "let result: i32 = erased.measure();\n        let mask: i32 = 1;\n        let combined: i32 = result ^ mask;\n        transition { _ -> combined }",
+            )
+        } else {
+            composed_helper_source()
+        };
+        let checked = checked_source(&source);
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_artifact()
+            .expect("composed helper source publishes canonical verified artifact");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let parameter = &entry.structural_parameters[0];
+        let field = module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation.kind {
+                OperationKind::IntegerStructuralField { field, .. } => Some(field),
+                _ => None,
+            })
+            .expect("original receiver integer field");
+        for (input, expected) in [(if final_computation { 2 } else { 3 }, 70), (6, 71)] {
+            let argument = terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            };
+            let field_value = terminal_interpreter::TerminalStructuralScalarFieldValue {
+                argument_index: 0,
+                path: module.dynamic_dispatch.selections[0].source.path.clone(),
+                field,
+                value: integer(input),
+            };
+            let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &[argument],
+                    scalar_fields: &[field_value],
+                    ..Default::default()
+                },
+            )
+            .expect("source-rooted helper artifact starts");
+            let mut observe = Observe::default();
+            assert_eq!(
+                execution
+                    .resume(
+                        &mut terminal_fuel::TerminalFuelMeter::unbounded(),
+                        &mut observe
+                    )
+                    .unwrap(),
+                terminal_interpreter::TerminalExecutionStatus::Complete(
+                    terminal_interpreter::TerminalExecutionResult::Unit
+                )
+            );
+            assert_eq!(
+                observe.0,
+                [integer(expected)],
+                "final computation {final_computation}, input {input}"
+            );
+        }
+    }
+}
+
+#[test]
+fn forwarded_descriptor_helper_rejects_substituted_body_custody() {
+    let checked = checked_source(&composed_helper_source());
+    for mutation in 0..6 {
+        let mut changed = checked.clone();
+        let helper = &mut changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .direct_scalar_calls[0]
+            .forwarding_helpers[0];
+        match mutation {
+            0 => {
+                helper.scalar_locals.remove(0);
+            }
+            1 => helper.scalar_locals[0].0.binding_ordinal += 1,
+            2 => helper.scalar_locals[0].1 = helper.scalar_locals[1].1.clone(),
+            3 => helper.call_result.statement_index = 0,
+            4 => {
+                helper.scalar_control.terminator =
+                    checked_trees::CheckedScalarStateTerminator::Return {
+                        statement_ordinal: 3,
+                    }
+            }
+            5 => {
+                let checked_trees::CheckedScalarStateTerminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } = &mut helper.scalar_control.terminator
+                else {
+                    panic!("conditional helper")
+                };
+                std::mem::swap(when_true, when_false);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, "Main::run").is_err(),
+            "mutation {mutation}"
+        );
+    }
 }
 
 #[test]
