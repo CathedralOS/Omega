@@ -83,11 +83,15 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
         for statement in statements {
             collect_statement_expression_handles(syntax, statement, &mut reachable);
         }
-        let replacements = syntax
-            .expressions
-            .iter_expressions()
-            .filter(|(handle, _)| reachable.contains(handle))
-            .filter_map(|(handle, expression)| {
+        // Collection already identifies this state's work. Scanning the whole
+        // expression arena again makes each unrelated state multiply preparation
+        // cost. Retain arena order so synthesized paths stay deterministic.
+        let mut reachable = reachable.into_iter().collect::<Vec<_>>();
+        reachable.sort_unstable_by_key(|handle| handle.arena_index());
+        let replacements = reachable
+            .into_iter()
+            .filter_map(|handle| {
+                let expression = syntax.expressions.expression(handle);
                 let ExpressionNode::Membership(membership) = expression else {
                     return None;
                 };
@@ -289,6 +293,56 @@ mod tests {
     use source::{SourceId, SourceSpan, Span};
     use source_files_to_tokens::Lexer;
     use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+
+    #[test]
+    fn closed_sum_memberships_keep_each_states_parameter_local_and_receiver_context() {
+        let source = "data Maybe<T> { case None; case Some(value: T); }
+            data Holder { value: Maybe<u8>; }
+            machine integer(value: Maybe<i32>) -> bool { value in Maybe::Some }
+            machine boolean(value: Maybe<bool>) -> bool { value in Maybe::Some }
+            machine local(value: Maybe<i32>) -> bool {
+                let copy: Maybe<i32> = value;
+                copy in Maybe::Some
+            }
+            machine Holder::present(&self) -> bool { self.value in Maybe::Some }";
+        let source_id = SourceId(0);
+        let tokens = Lexer::new(source).tokenize().expect("tokenize memberships");
+        let syntax = parse_syntax_trees_with_id(source_id, &tokens)
+            .expect("parse distinct membership contexts");
+        let syntax = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("select closed carriers from their own state");
+        let resolved = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("resolve distinct closed memberships");
+        for ((start, _), expected) in source.match_indices("Maybe::Some").zip([
+            "Maybe<i32>::Some",
+            "Maybe<bool>::Some",
+            "Maybe<i32>::Some",
+            "Maybe<u8>::Some",
+        ]) {
+            let span = SourceSpan::new(source_id, Span::new(start + 7, start + 11));
+            let selections = resolved
+                .authored_declaration_selections()
+                .iter()
+                .filter(|selection| {
+                    selection.kind() == AuthoredDeclarationSelectionKind::CaseMembership
+                        && selection.source_span() == span
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(selections.len(), 1, "one case selection for {expected}");
+            let AuthoredDeclarationSelectionTarget::Resolved(target) = selections[0].target()
+            else {
+                panic!("membership selects a closed case");
+            };
+            assert_eq!(
+                resolved
+                    .symbols
+                    .display_path(target.selected_symbol(), "::"),
+                expected
+            );
+        }
+    }
 
     #[test]
     fn closed_sum_membership_retains_both_authored_selection_spans() {
