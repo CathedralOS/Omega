@@ -427,7 +427,7 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
     shapes: &mut ShapeCollector<'_>,
     binding_facts: &checked_trees::DynamicConformanceBindingFacts,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
-) -> Option<()> {
+) {
     for machine in program.machines() {
         if !machine.attached_data_symbol.is_valid() {
             continue;
@@ -440,9 +440,15 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
                 if outer_call.has_receiver || outer_call.call_ordinal != 0 {
                     continue;
                 }
+                let Ok(statement_index) = u32::try_from(outer_call.statement_index) else {
+                    continue;
+                };
+                let Ok(call_ordinal) = u32::try_from(outer_call.call_ordinal) else {
+                    continue;
+                };
                 let coordinate = CheckedUnitCallCoordinate {
-                    statement_index: u32::try_from(outer_call.statement_index).ok()?,
-                    call_ordinal: u32::try_from(outer_call.call_ordinal).ok()?,
+                    statement_index,
+                    call_ordinal,
                 };
                 let matching_transfers = plans
                     .transfers
@@ -507,7 +513,6 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
             }
         }
     }
-    Some(())
 }
 
 fn resolve_forwarded_dynamic_unit_call<'program, 'facts>(
