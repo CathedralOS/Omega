@@ -709,6 +709,213 @@ machine Inspector::inspect(
 }
 
 #[test]
+fn placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap() {
+    // A direct-entry machine may declare several placed-view inputs at once:
+    // each roster row still joins exactly one provider establishment, the
+    // bound set comes back in roster order regardless of supply order, and
+    // every declared row must be answered before the executable input can
+    // carry custody.
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-multi-row",
+        r#"
+data Inspector {}
+machine Inspector::inspect(
+    &mut self,
+    first: &mut Placed<UartPlacement, Registers>,
+    second: &Placed<UartPlacement, Registers>
+) {}
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("multi-row placed-view consumer should compile");
+    let lowered = lower_machine(&checked, "Inspector::inspect")
+        .expect("lower multi-row placed-view consumer");
+    assert_eq!(lowered.semantic_module.placed_view_inputs.len(), 2);
+
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode multi-row Terminal module");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode multi-row proof bundle");
+    let profile = proof_admission::AdmissionProfile::default();
+    let readmit_native = || {
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .expect("multi-row artifact replays at native admission")
+    };
+    let referent = |identity: u64, path: Vec<terminal_psi::StructuralPathSegment>| {
+        terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: identity,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1)
+                .expect("nonzero structural type"),
+            qualifications: Vec::new(),
+            path,
+        }
+    };
+    let establishment_for =
+        |row: usize, referent: terminal_interpreter::TerminalStructuralValue| {
+            terminal_interpreter::TerminalPlacedViewEstablishment {
+                input: lowered.semantic_module.placed_view_inputs[row].clone(),
+                referent,
+            }
+        };
+
+    // The supply must answer the whole declared roster: an empty supply and a
+    // partial supply both leave an entry row unanswered and keep failing
+    // custody exactly like the single-row entrance.
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+            establishment_for(0, referent(0x5a17, Vec::new()))
+        ]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    // A supply answering no declared row still rejects before access even
+    // when a sibling row is answered correctly.
+    let mut stale_row_supply = establishment_for(1, referent(0xbeef, Vec::new()));
+    stale_row_supply.input.placement_commitment[0] ^= 1;
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+            establishment_for(0, referent(0x5a17, Vec::new())),
+            stale_row_supply
+        ]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentUnexpected { .. })
+    ));
+
+    // Distinct referents bind in roster order — the bound set is executable
+    // entry evidence keyed by the declared rows, not by supply order.
+    let first_supply = establishment_for(0, referent(0x5a17, Vec::new()));
+    let second_supply = establishment_for(1, referent(0xbeef, Vec::new()));
+    let established = readmit_native()
+        .try_into_native_input_with_placed_view_establishments(&[
+            second_supply.clone(),
+            first_supply.clone(),
+        ])
+        .expect("each declared row binds its exact establishment");
+    assert_eq!(
+        established.placed_view_establishments(),
+        [first_supply, second_supply].as_slice()
+    );
+
+    // An exclusive-borrow referent may not overlap another established
+    // referent: the same qualified backing lent to the mutable row and the
+    // shared row rejects before either is bound, and sub-path containment
+    // counts as overlap rather than only exact-path equality.
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+            establishment_for(0, referent(0x5a17, Vec::new())),
+            establishment_for(1, referent(0x5a17, Vec::new()))
+        ]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentAliasing(
+            0x5a17
+        ))
+    ));
+    assert!(matches!(
+        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+            establishment_for(0, referent(0x5a17, Vec::new())),
+            establishment_for(
+                1,
+                referent(0x5a17, vec![terminal_psi::StructuralPathSegment::Field(
+                    "status".to_owned()
+                )])
+            )
+        ]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentAliasing(
+            0x5a17
+        ))
+    ));
+    // Disjoint sub-paths under one identity do not overlap, so the exclusive
+    // row and the shared row may each lend a different part of the same
+    // backing.
+    assert!(
+        readmit_native()
+            .try_into_native_input_with_placed_view_establishments(&[
+                establishment_for(
+                    0,
+                    referent(
+                        0x5a17,
+                        vec![terminal_psi::StructuralPathSegment::Field(
+                            "status".to_owned()
+                        )]
+                    )
+                ),
+                establishment_for(
+                    1,
+                    referent(
+                        0x5a17,
+                        vec![terminal_psi::StructuralPathSegment::Field(
+                            "counter".to_owned()
+                        )]
+                    )
+                )
+            ])
+            .is_ok()
+    );
+
+    // Two shared-borrow rows overlap freely: neither is exclusive, so the
+    // same qualified backing may answer both without tripping the aliasing
+    // gate that protects exclusive custody.
+    let (shared_main, shared_inputs) = write_cross_package_program(
+        "placed-view-shared-row",
+        r#"
+data Inspector {}
+machine Inspector::inspect(
+    &mut self,
+    first: &Placed<UartPlacement, Registers>,
+    second: &Placed<UartPlacement, Registers>
+) {}
+"#,
+    );
+    let shared_checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(shared_inputs),
+        ..CheckedCompileRequest::new(&shared_main, None)
+    })
+    .expect("shared-row placed-view consumer should compile");
+    let shared_lowered = lower_machine(&shared_checked, "Inspector::inspect")
+        .expect("lower shared-row placed-view consumer");
+    let shared_semantic = terminal_codec::encode_module(&shared_lowered.semantic_module)
+        .expect("encode shared-row Terminal module");
+    let shared_proof = terminal_codec::encode_proof_section(
+        &shared_lowered.semantic_module,
+        &shared_lowered.proof_bundle,
+    )
+    .expect("encode shared-row proof bundle");
+    let shared_establishment_for =
+        |row: usize| terminal_interpreter::TerminalPlacedViewEstablishment {
+            input: shared_lowered.semantic_module.placed_view_inputs[row].clone(),
+            referent: referent(0x5a17, Vec::new()),
+        };
+    assert!(
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &shared_semantic,
+                proof_bytes: &shared_proof,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .expect("shared-row artifact replays at native admission")
+        .try_into_native_input_with_placed_view_establishments(&[
+            shared_establishment_for(0),
+            shared_establishment_for(1),
+        ])
+        .is_ok()
+    );
+}
+
+#[test]
 fn direct_placed_view_input_survives_codec_and_native_replay() {
     let (main, inputs) = write_cross_package_program(
         "placed-view-replay",
