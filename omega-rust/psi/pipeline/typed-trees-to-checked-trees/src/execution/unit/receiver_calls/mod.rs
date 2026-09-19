@@ -546,15 +546,10 @@ fn receiver_place(
         .find(|candidate| candidate.symbol == machine)?;
     let authored_state = crate::semantic_calls::find_state_in_machine(program, machine, state)?;
     if let Some(aliases) =
-        receiver_aliases::prefix(program, facts, authored_machine, authored_state)
-        && let Some(alias) = aliases
-            .iter()
-            .find(|alias| place.root == facts::PlaceRoot::Symbol(alias.owner))
+        receiver_aliases::aliases(program, facts, authored_machine, authored_state)
+        && let Some(resolved) = receiver_aliases::resolve(&aliases, &place)
     {
-        place.root = facts::PlaceRoot::Symbol(alias.root);
-        let mut segments = alias.segments.clone();
-        segments.extend_from_slice(&place.segments);
-        place.segments = segments;
+        place = resolved;
     }
     Some(place)
 }
@@ -633,7 +628,7 @@ fn receiver_argument(
             || !parameter.qualifications.is_empty()
             || !place.segments.iter().all(|segment| {
                 matches!(segment, facts::PlaceSegment::Field { .. })
-                    || (target.access == WriteOnlyBorrow
+                    || (matches!(target.access, WriteOnlyBorrow | MutableBorrow)
                         && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
             })
         {

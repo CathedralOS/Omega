@@ -46,6 +46,16 @@ pub(crate) fn structural_call_arguments(
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
+    // Erased borrow carriers name their captured referent's storage: the
+    // checked alias roster substitutes that referent for the authored root
+    // while the authored spelling still joins the borrow-access evidence.
+    let borrow_aliases = crate::execution::terminal_unit::receiver_aliases::aliases(
+        program,
+        facts,
+        caller_machine,
+        caller_state,
+    )
+    .unwrap_or_default();
     let explicit_arguments =
         crate::semantic_calls::call_site_argument_expressions(program, call_site);
     let explicit_self = explicit_arguments.len()
@@ -171,8 +181,17 @@ pub(crate) fn structural_call_arguments(
                 &authored_place,
             )
         });
+        let resolved_alias = if restored_alias.is_none() {
+            crate::execution::terminal_unit::receiver_aliases::resolve(
+                &borrow_aliases,
+                &authored_place,
+            )
+        } else {
+            None
+        };
         let place = restored_alias
             .clone()
+            .or_else(|| resolved_alias.clone())
             .unwrap_or_else(|| authored_place.clone());
         let target_identity = if target.is_self {
             attached_data_identity(program, target_machine)?
@@ -548,15 +567,32 @@ pub(crate) fn structural_call_arguments(
             access: if restored_alias.is_some() {
                 structural_access_for_type_reference(program, target.type_reference)?
             } else {
-                exact_structural_argument_access(
+                let target_access =
+                    structural_access_for_type_reference(program, target.type_reference)?;
+                let authored_access = exact_structural_argument_access(
                     program,
                     facts,
                     caller_machine.symbol,
                     caller_state.symbol,
                     call,
                     &authored_place,
-                    structural_access_for_type_reference(program, target.type_reference)?,
-                )?
+                    target_access,
+                )?;
+                if authored_access == target_access {
+                    authored_access
+                } else {
+                    // A borrow carrier passed bare moves its reference: the
+                    // call records only a Read of that value, while the erased
+                    // loan's own kind is the authority the argument forwards.
+                    // The alias's exact last use pins the move to this call.
+                    alias_forwarded_access(
+                        &borrow_aliases,
+                        &authored_place,
+                        authored_access,
+                        target_access,
+                        call.statement_index,
+                    )?
+                }
             },
         });
     }
@@ -564,6 +600,40 @@ pub(crate) fn structural_call_arguments(
         return None;
     }
     Some(output)
+}
+
+/// The access a moved borrow-carrier argument actually forwards. The authored
+/// call records a Read of the carrier's reference value, so the ordinary
+/// access evidence reports SharedBorrow while the erased loan itself supplies
+/// the target's exclusive access. Admission requires exactly that shape: a
+/// bare, segment-free alias root, only a carrier read at the call, the alias's
+/// terminal use at this statement, and the loan kind matching the target
+/// access exactly.
+fn alias_forwarded_access(
+    aliases: &[crate::execution::terminal_unit::receiver_aliases::ReceiverAlias],
+    authored_place: &crate::flow::CanonicalPlace,
+    authored_access: CheckedStructuralAccess,
+    target_access: CheckedStructuralAccess,
+    statement_index: usize,
+) -> Option<CheckedStructuralAccess> {
+    if authored_access != CheckedStructuralAccess::SharedBorrow
+        || !authored_place.segments.is_empty()
+    {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(owner) = authored_place.root else {
+        return None;
+    };
+    let alias = aliases.iter().find(|alias| alias.owner == owner)?;
+    if alias.last_use != statement_index {
+        return None;
+    }
+    let forwarded = match alias.kind {
+        checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
+        checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
+        checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+    };
+    (forwarded == target_access).then_some(target_access)
 }
 
 /// Translate the one bare reference carrier admitted by the checked

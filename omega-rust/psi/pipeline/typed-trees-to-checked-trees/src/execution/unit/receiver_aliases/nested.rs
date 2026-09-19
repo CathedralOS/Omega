@@ -140,36 +140,44 @@ pub(super) fn formation(
     let (_, parent_weakening) = lifecycle(facts, flow, parent_loan)?;
     let activation_source = FlowInvalidationSource::Statement { statement_index };
     let boundary = loan.last_use_statement_index.checked_add(1)?;
-    let weakening_source = FlowInvalidationSource::Statement {
-        statement_index: boundary,
-    };
-    let weakening_reason = if boundary == statement_count {
-        FlowBorrowWeakeningReason::StateExit
+    let expiry = (
+        FlowInvalidationSource::Statement {
+            statement_index: boundary,
+        },
+        if boundary == statement_count {
+            FlowBorrowWeakeningReason::StateExit
+        } else {
+            FlowBorrowWeakeningReason::LastUseExpired
+        },
+    );
+    // A store through the child carrier is its terminal use; the assignment
+    // records the loan's LocalReassigned weakening at that statement. Every
+    // other use retires one statement after its last occurrence.
+    let reassigned = (
+        FlowInvalidationSource::Statement {
+            statement_index: loan.last_use_statement_index,
+        },
+        FlowBorrowWeakeningReason::LocalReassigned,
+    );
+    let child_weakening_row = facts.flow.borrow_lifetimes.weakenings.get(child_weakening);
+    let (weakening_source, weakening_reason) = if boundary <= statement_count
+        && (child_weakening_row.source, &child_weakening_row.reason) == (expiry.0, &expiry.1)
+    {
+        expiry
+    } else if (child_weakening_row.source, &child_weakening_row.reason)
+        == (reassigned.0, &reassigned.1)
+    {
+        reassigned
     } else {
-        FlowBorrowWeakeningReason::LastUseExpired
+        return None;
     };
-    if boundary > statement_count
-        || facts
-            .flow
-            .borrow_lifetimes
-            .activations
-            .get(child_activation)
-            .source
-            != activation_source
-        || facts
-            .flow
-            .borrow_lifetimes
-            .weakenings
-            .get(child_weakening)
-            .source
-            != weakening_source
-        || facts
-            .flow
-            .borrow_lifetimes
-            .weakenings
-            .get(child_weakening)
-            .reason
-            != weakening_reason
+    if facts
+        .flow
+        .borrow_lifetimes
+        .activations
+        .get(child_activation)
+        .source
+        != activation_source
     {
         return None;
     }
