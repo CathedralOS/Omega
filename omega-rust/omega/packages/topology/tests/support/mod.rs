@@ -17,8 +17,8 @@ use std::collections::BTreeSet;
 
 use component_description::test_support::{bare_module, describe_module, module_subject};
 use component_description::{
-    verify_component, AdmissionProfile, ComponentVerificationRequest,
-    COMPONENT_DESCRIPTION_SCHEMA_V2,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentVerificationRequest,
+    verify_component,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,

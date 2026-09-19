@@ -27,7 +27,10 @@ const BUILD_BIND_ALPHA: &str = r#"machine build(builder: &mut Build) {
 }
 "#;
 
-fn check(project: &std::path::Path, target: &str) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+fn check(
+    project: &std::path::Path,
+    target: &str,
+) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
     compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: project.join("main.omg"),

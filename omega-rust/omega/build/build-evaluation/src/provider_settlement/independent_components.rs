@@ -16,8 +16,8 @@
 use std::collections::BTreeSet;
 
 use component_description::{
-    verify_component, AdmissionProfile, ComponentVerificationRequest, VerifiedComponent,
-    COMPONENT_DESCRIPTION_SCHEMA_V2,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentVerificationRequest,
+    VerifiedComponent, verify_component,
 };
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageCompilationInputs};

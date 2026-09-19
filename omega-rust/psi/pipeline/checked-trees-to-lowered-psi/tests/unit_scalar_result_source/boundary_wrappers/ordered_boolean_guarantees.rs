@@ -926,8 +926,7 @@ fn ordered_qualified_scalar_result_carries_its_range_refinement() {
                 .machines
                 .iter()
                 .find(|machine| {
-                    !machine.contract.ensures.is_empty()
-                        && !machine.contract.requires.is_empty()
+                    !machine.contract.ensures.is_empty() && !machine.contract.requires.is_empty()
                 })
                 .unwrap();
             // The authored guarantee and the replayed range refinement share
@@ -938,8 +937,7 @@ fn ordered_qualified_scalar_result_carries_its_range_refinement() {
                 terminal_psi::TerminalMachineResult::Scalar(result) => result.id,
                 _ => panic!("qualified scalar wrapper"),
             };
-            let Proposition::Conjunction(conjuncts) =
-                &wrapper.contract.ensures[0].proposition
+            let Proposition::Conjunction(conjuncts) = &wrapper.contract.ensures[0].proposition
             else {
                 panic!("the refined ensures clause is a conjunction")
             };
@@ -974,9 +972,7 @@ fn ordered_qualified_scalar_result_carries_its_range_refinement() {
             let mut missing = proof.clone();
             missing
                 .evidence
-                .retain(|evidence| {
-                    evidence.obligation != wrapper.contract.ensures[0].obligation
-                });
+                .retain(|evidence| evidence.obligation != wrapper.contract.ensures[0].obligation);
             assert!(
                 terminal_verifier::verify_module(&module, &missing, &AdmissionProfile::default())
                     .is_err()
