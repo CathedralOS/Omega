@@ -6,15 +6,17 @@
 //! checked component's exact semantic subject, entry roster, outgoing
 //! authority, custody constraints, retained providers, and installation
 //! obligations. It embeds the canonical Terminal artifact and nothing from
-//! native realization: the crate depends on the Terminal codec, the selected
-//! provider-plan facts, and the shared semantic vocabulary only, so build
-//! planning may consume verified components without importing image
-//! emission, native artifacts, or any installation owner.
+//! native realization: the crate depends on the Terminal codec, the Terminal
+//! verifier and its admission profile, the selected provider-plan facts, and
+//! the shared semantic vocabulary only, so build planning may consume
+//! verified components without importing image emission, native artifacts,
+//! or any installation owner.
 //!
 //! Start at `component_description.rs` for the carrier, its producer
 //! `describe_component_facts`, and the canonical codec. The independent
 //! consumer `verify_component` in `component_verification.rs` re-decodes the
-//! embedded artifact and re-derives every module-evident row, returning the
+//! embedded artifact, verifies the module under the caller's admission
+//! profile, and re-derives every module-evident row, returning the
 //! evidence-only `VerifiedComponent` whose `realizes_selected_plan` joins a
 //! build-selected provider plan to the component's exported realizations.
 //! The native-realization producer that fills these facts from a
@@ -38,6 +40,6 @@ pub use component_description::{
     requirement_export_identity,
 };
 pub use component_verification::{
-    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
-    VerifiedComponent, verify_component,
+    AdmissionProfile, ComponentVerificationRejection, ComponentVerificationRequest,
+    IndependentRealizationMismatch, VerifiedComponent, verify_component,
 };

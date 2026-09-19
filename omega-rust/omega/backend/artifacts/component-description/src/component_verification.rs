@@ -3,10 +3,13 @@
 //! `verify_component` is the verified-description consumer for independent
 //! component admission, replacement, and topology checks. It re-decodes the
 //! embedded canonical artifact, reconstructs the component subject itself,
-//! replays the subject-bound proof section decode, and re-derives every
-//! module-evident description row rather than trusting producer claims.
-//! Module proof *admission* remains purpose-specific and stays with the
-//! existing Terminal verifier's own distinct carriers; this consumer is
+//! replays the subject-bound proof section decode, and runs the Terminal
+//! verifier on the decoded module under the caller's admission profile: the
+//! code-to-inventory claim is the verifier's, so a module that merely decodes
+//! and subject-matches is not a verified component. Every module-evident
+//! description row is then re-derived from the verified module rather than
+//! trusting producer claims. Execution admission remains purpose-specific and
+//! stays with the verifier's own distinct carriers; this consumer is
 //! deliberately neutral about which execution admission a caller will need.
 //!
 //! The result carrier is deliberately inert: it exposes checked evidence
@@ -21,6 +24,8 @@ use sha2::{Digest, Sha256};
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
+
+pub use proof_admission::AdmissionProfile;
 
 use crate::component_description::{
     ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
@@ -38,7 +43,8 @@ const VERIFICATION_PROFILE_DOMAIN: &[u8] = b"omega-component-verification-profil
 ///
 /// Everything here is supplied by the consumer and never read from the
 /// description itself: the component subject to admit, the description
-/// schemas this consumer understands, and the assumption digests it accepts.
+/// schemas this consumer understands, the assumption digests it accepts, and
+/// the module-proof admission profile the embedded module must verify under.
 #[derive(Debug, Clone)]
 pub struct ComponentVerificationRequest {
     /// The exact component subject this admission expects.
@@ -48,6 +54,11 @@ pub struct ComponentVerificationRequest {
     /// Assumption digests this consumer accepts for declared rows and
     /// physical mechanisms. Any digest outside this set rejects.
     pub accepted_assumptions: BTreeSet<[u8; 32]>,
+    /// The admission profile `terminal-verifier` discharges the embedded
+    /// module's proof obligations under. An empty profile admits only modules
+    /// whose obligations are kernel-dischargeable; each acceptance names one
+    /// site, its evidence identity, and the profile decision that admitted it.
+    pub admission_profile: AdmissionProfile,
 }
 
 impl ComponentVerificationRequest {
@@ -65,6 +76,13 @@ impl ComponentVerificationRequest {
         digest.update((self.accepted_assumptions.len() as u64).to_le_bytes());
         for assumption in &self.accepted_assumptions {
             digest.update(assumption);
+        }
+        let acceptances: Vec<_> = self.admission_profile.acceptances().collect();
+        digest.update((acceptances.len() as u64).to_le_bytes());
+        for acceptance in acceptances {
+            digest.update(acceptance.site.get().to_le_bytes());
+            digest.update(acceptance.evidence_identity.get().to_le_bytes());
+            digest.update(acceptance.profile_decision.get().to_le_bytes());
         }
         digest.finalize().into()
     }
@@ -93,8 +111,9 @@ pub enum ComponentVerificationRejection {
     ArtifactInvalid(String),
     /// The embedded proof section could not be decoded for the exact subject.
     ProofSection(String),
-    /// The embedded module failed canonical or representation validation.
-    ModuleValidation(String),
+    /// The embedded module failed Terminal validation or proof discharge
+    /// under the request's admission profile.
+    ModuleVerification(String),
     /// The description names a frontier earlier than a closed artifact.
     EarlyFrontier(DescriptionFrontier),
     /// The description carries an assumption the request does not accept.
@@ -157,8 +176,8 @@ impl std::fmt::Display for ComponentVerificationRejection {
             Self::ProofSection(detail) => {
                 write!(formatter, "embedded proof section failed: {detail}")
             }
-            Self::ModuleValidation(detail) => {
-                write!(formatter, "embedded module failed validation: {detail}")
+            Self::ModuleVerification(detail) => {
+                write!(formatter, "embedded module failed verification: {detail}")
             }
             Self::EarlyFrontier(frontier) => write!(
                 formatter,
@@ -240,10 +259,11 @@ impl std::error::Error for ComponentVerificationRejection {}
 /// replayed and accepted under the caller's request.
 ///
 /// This carrier is evidence, not authority: it proves the embedded artifact
-/// is canonical, subject-bound to its proof section, and exactly covered by
-/// the description's entries, outgoing authority, custody, retained
-/// providers, and installation obligations. It cannot be executed,
-/// installed, or used to discharge any obligation it describes.
+/// is canonical, subject-bound to its proof section, its module verified
+/// under the request's admission profile, and exactly covered by the
+/// description's entries, outgoing authority, custody, retained providers,
+/// and installation obligations. It cannot be executed, installed, or used
+/// to discharge any obligation it describes.
 #[derive(Debug)]
 pub struct VerifiedComponent {
     description: ComponentDescription,
@@ -535,9 +555,10 @@ impl std::error::Error for IndependentRealizationMismatch {}
 /// The description is trusted for nothing: the codec enforces canonical
 /// bounds and ordering, the embedded artifact is re-decoded with its
 /// subject-bound proof section, the component subject is reconstructed
-/// rather than read, and every module-evident roster is re-derived and
-/// compared row for row. Installation obligations are checked for presence
-/// and left undischarged.
+/// rather than read, the module is verified under the request's admission
+/// profile, and every module-evident roster is re-derived from the verified
+/// module and compared row for row. Installation obligations are checked for
+/// presence and left undischarged.
 pub fn verify_component(
     description_bytes: &[u8],
     request: &ComponentVerificationRequest,
@@ -568,11 +589,16 @@ pub fn verify_component(
         });
     }
     // The component artifact's proof section must be sealed to this exact
-    // module: a bare bundle or a section sealed to another subject cannot
-    // underwrite this component's description.
-    let _proof_bundle =
-        terminal_codec::decode_proof_section_for(&module, artifact.proof_bytes())
-            .map_err(|error| ComponentVerificationRejection::ProofSection(error.to_string()))?;
+    // module, and the module must verify against it under the request's
+    // admission profile: a decoded, subject-matched module whose obligations
+    // go undischargeable is not a verified component.
+    let proof_bundle = terminal_codec::decode_proof_section_for(&module, artifact.proof_bytes())
+        .map_err(|error| ComponentVerificationRejection::ProofSection(error.to_string()))?;
+    let verified_module =
+        terminal_verifier::verify_module(&module, &proof_bundle, &request.admission_profile)
+            .map_err(|error| {
+                ComponentVerificationRejection::ModuleVerification(error.to_string())
+            })?;
     if description.frontier != DescriptionFrontier::TerminalArtifactClosure {
         return Err(ComponentVerificationRejection::EarlyFrontier(
             description.frontier,
@@ -586,7 +612,7 @@ pub fn verify_component(
         }
     }
 
-    let inventory = derive_component_inventory(&module).map_err(|error| {
+    let inventory = derive_component_inventory(verified_module.module()).map_err(|error| {
         ComponentVerificationRejection::ArtifactInvalid(format!(
             "verified module did not admit a component inventory: {error}"
         ))

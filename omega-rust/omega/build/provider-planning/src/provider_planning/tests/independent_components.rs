@@ -17,8 +17,9 @@ use crate::provider_planning::{
 };
 use crate::{CompositionMode, SelectedProviderPlanWithProvenance};
 use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescriptionFacts, ComponentVerificationRequest,
-    VerifiedComponent, describe_component_facts, encode_component_description, verify_component,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescriptionFacts,
+    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
+    encode_component_description, verify_component,
 };
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
@@ -329,6 +330,7 @@ fn verified_component(module: &TerminalModule) -> VerifiedComponent {
         expected_subject: terminal_codec::terminal_psi_identity(module).expect("module identity"),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
         accepted_assumptions: BTreeSet::new(),
+        admission_profile: AdmissionProfile::default(),
     };
     verify_component(&encode_component_description(&description), &request)
         .expect("the provider component verifies")

@@ -16,8 +16,8 @@
 use std::collections::BTreeSet;
 
 use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentVerificationRequest, VerifiedComponent,
-    verify_component,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentVerificationRequest,
+    VerifiedComponent, verify_component,
 };
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageCompilationInputs};
@@ -30,6 +30,9 @@ use package_compilation::{IndependentComponentDescription, PackageCompilationInp
 /// digests: the build program has no vocabulary yet for accepting a declared
 /// physical mechanism, so a description that binds one rejects as an
 /// unaccepted assumption rather than being admitted on the producer's word.
+/// The module-proof admission profile is likewise empty: only a module whose
+/// obligations are kernel-dischargeable verifies, until the build grows the
+/// vocabulary to accept site-bound admission evidence.
 fn verification_request(
     description: &IndependentComponentDescription,
 ) -> ComponentVerificationRequest {
@@ -37,6 +40,7 @@ fn verification_request(
         expected_subject: description.expected_subject(),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
         accepted_assumptions: BTreeSet::new(),
+        admission_profile: AdmissionProfile::default(),
     }
 }
 
