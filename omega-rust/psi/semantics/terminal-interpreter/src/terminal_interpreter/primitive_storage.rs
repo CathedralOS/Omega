@@ -14,12 +14,17 @@ use terminal_psi::{
 use super::{
     TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
 };
+use crate::terminal_interpreter::custody::resolve_structural_path_type;
 use crate::terminal_interpreter::execution::ExecutableMachine;
 use crate::terminal_interpreter::scalar_operations::terminal_scalar_belongs_to_type;
-use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use crate::terminal_interpreter::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 
 enum PrimitiveStorage {
     Scalar(StructuralRuntimePlace),
+    /// One scalar leaf inside a shared referent's containing record. The key
+    /// addresses `structural_scalar_fields` directly: primitive root storage
+    /// only ever backs whole primitive referents and locals.
+    ScalarField(StructuralScalarRuntimeField),
     ArrayElement {
         array: StructuralRuntimePlace,
         index: usize,
@@ -335,10 +340,72 @@ impl TerminalExecution {
         }) {
             return Err(invalid());
         }
+        // A shared `&T` parameter can bind one scalar leaf inside the pinned
+        // referent's containing record. That leaf's content lives in
+        // `structural_scalar_fields` under the parent runtime place and the
+        // field's declared identity — not in primitive root storage.
+        if let Some((StructuralPathSegment::Field(identity), parent_path)) = view.path.split_last()
+        {
+            let field = self.scalar_leaf_field(view, identity, parent_path, scalar_type)?;
+            return Ok((PrimitiveStorage::ScalarField(field), scalar_type));
+        }
         Ok((
             PrimitiveStorage::Scalar(StructuralRuntimePlace::from(view)),
             scalar_type,
         ))
+    }
+
+    /// Map a bound scalar-leaf view's spelled field tip back to its declared
+    /// `structural_scalar_fields` key. The view's runtime path names the leaf;
+    /// the containing record's declared type is recovered from the referent
+    /// root, which the pinned owner keeps bound whole in the current frame or
+    /// a suspended caller while any view of it is live.
+    fn scalar_leaf_field(
+        &self,
+        view: &TerminalStructuralValue,
+        identity: &str,
+        parent_path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let root = self
+            .structural_values
+            .values()
+            .chain(
+                self.call_stack
+                    .iter()
+                    .flat_map(|frame| frame.structural_values.values()),
+            )
+            .filter(|value| value.path.is_empty())
+            .find_map(|value| {
+                (value.opaque_identity == view.opaque_identity).then_some(value.structural_type)
+            })
+            .ok_or_else(invalid)?;
+        let parent = resolve_structural_path_type(&self.structural_types, root, parent_path)?;
+        let declaration = self.structural_types.get(&parent).ok_or_else(invalid)?;
+        let fields = match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Record { fields }
+            | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+            _ => return Err(invalid()),
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == *identity && !field.relevance.is_erased())
+            .ok_or_else(invalid)?;
+        if field.field_type.canonical_leaf_shape()
+            != Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                scalar_type,
+            ))
+        {
+            return Err(invalid());
+        }
+        Ok(StructuralScalarRuntimeField {
+            parent: StructuralRuntimePlace {
+                opaque_identity: view.opaque_identity,
+                path: parent_path.to_vec(),
+            },
+            field: field.id,
+        })
     }
 
     pub(super) fn execute_primitive_establishment(
@@ -409,9 +476,24 @@ impl TerminalExecution {
                 .scalar_array_values
                 .get(&place)
                 .and_then(|array| array.elements.get(index))
-                .copied(),
-            PrimitiveStorage::Scalar(storage) => {
-                self.structural_primitive_storage.get(&storage).copied()
+                .copied()
+                .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                    source,
+                )),
+            PrimitiveStorage::Scalar(storage) => self
+                .structural_primitive_storage
+                .get(&storage)
+                .copied()
+                .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                    source,
+                )),
+            PrimitiveStorage::ScalarField(field) => {
+                self.structural_scalar_fields.get(&field).copied().ok_or(
+                    TerminalInterpretError::StructuralScalarFieldMissing {
+                        source,
+                        field: field.field,
+                    },
+                )
             }
             PrimitiveStorage::ArrayElement { array, index } => {
                 let ScalarType::Integer(integer) = scalar_type else {
@@ -424,11 +506,11 @@ impl TerminalExecution {
                         scalar_type: integer,
                         value: IntegerValue::Unsigned(u128::from(*byte)),
                     })
+                    .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                        source,
+                    ))
             }
-        }
-        .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
-            source,
-        ))?;
+        }?;
         if result.scalar_type != scalar_type
             || scalar.scalar_type() != scalar_type
             || !terminal_scalar_belongs_to_type(scalar)
@@ -472,6 +554,15 @@ impl TerminalExecution {
             PrimitiveStorage::Scalar(storage) => {
                 let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
+                )?;
+                *stored = scalar;
+            }
+            PrimitiveStorage::ScalarField(field) => {
+                let stored = self.structural_scalar_fields.get_mut(&field).ok_or(
+                    TerminalInterpretError::StructuralScalarFieldMissing {
+                        source: destination,
+                        field: field.field,
+                    },
                 )?;
                 *stored = scalar;
             }

@@ -366,12 +366,20 @@ impl TerminalExecution {
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                    } else if self.plain_record_type(parameter.structural_type) {
-                        // A shared record loan binds the exact projected
-                        // view: the argument path extends the root's stored
-                        // path and must resolve to the parameter's declared
-                        // referent type. The loan moves no custody — the
-                        // root either stays untracked or is still held as
+                    } else if self.plain_record_type(parameter.structural_type)
+                        || matches!(
+                            self.structural_types
+                                .get(&parameter.structural_type)
+                                .map(|declaration| &declaration.shape),
+                            Some(StructuralTypeShape::PrimitiveScalar(_))
+                        )
+                    {
+                        // A shared loan binds the exact projected view: the
+                        // argument path extends the root's stored path and
+                        // must resolve to the parameter's declared referent
+                        // type — a plain record subtree or one canonical
+                        // primitive-scalar leaf. The loan moves no custody —
+                        // the root either stays untracked or is still held as
                         // one whole frontier entry.
                         let view = resolve_structural_arguments(
                             &self.structural_types,
