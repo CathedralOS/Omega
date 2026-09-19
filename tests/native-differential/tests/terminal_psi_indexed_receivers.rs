@@ -42,6 +42,9 @@ mod cyclic_receivers;
 #[path = "terminal_psi_indexed_receivers/borrowed_arguments.rs"]
 mod borrowed_arguments;
 
+#[path = "terminal_psi_indexed_receivers/owned_subloans.rs"]
+mod owned_subloans;
+
 #[path = "terminal_psi_indexed_receivers/indexed_stores.rs"]
 mod indexed_stores;
 

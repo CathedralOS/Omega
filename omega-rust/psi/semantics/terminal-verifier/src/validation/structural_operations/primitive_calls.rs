@@ -128,7 +128,8 @@ pub(crate) fn validate_primitive_structural_call(
         .iter()
         .zip(&callee.structural_parameters)
         .all(|(argument, expected)| {
-            argument.path.is_empty() || is_unrestricted_mutable_subloan(machine, expected, argument)
+            argument.path.is_empty()
+                || is_unrestricted_mutable_subloan(module, machine, expected, argument)
         });
     validate_structural_arguments(
         module,

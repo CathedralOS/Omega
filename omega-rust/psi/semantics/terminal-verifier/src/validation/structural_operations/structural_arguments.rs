@@ -366,10 +366,15 @@ pub(crate) fn is_unrestricted_write_only_subloan(
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
         && matches!(
             actual.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         )
         && actual.multiplicity == StructuralMultiplicity::Unrestricted
         && indexed_path_is_material
+        && (actual.access != StructuralAccess::Owned
+            || resolve_structural_path(module, actual.structural_type, &argument.path)
+                == Some(expected.structural_type))
 }
 
 pub(crate) fn is_unrestricted_shared_subloan(
@@ -396,6 +401,7 @@ pub(crate) fn is_unrestricted_shared_subloan(
 }
 
 pub(crate) fn is_unrestricted_mutable_subloan(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
@@ -411,6 +417,12 @@ pub(crate) fn is_unrestricted_mutable_subloan(
         && argument.access == StructuralAccess::MutableBorrow
         && expected.access == StructuralAccess::MutableBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
-        && actual.access == StructuralAccess::MutableBorrow
+        // Owned storage can lend its exact subtree. Do not let this also
+        // authorize inline byte-field presentation: that field has no
+        // standalone type, and this predicate also gates the view adapter.
+        && (actual.access == StructuralAccess::MutableBorrow
+            || (actual.access == StructuralAccess::Owned
+                && resolve_structural_path(module, actual.structural_type, &argument.path)
+                    == Some(expected.structural_type)))
         && actual.multiplicity == StructuralMultiplicity::Unrestricted
 }

@@ -705,7 +705,7 @@ fn byte_field_boundary_loan(
         .is_some();
     }
     let mutable_subloan = super::super::structural_operations::is_unrestricted_mutable_subloan(
-        machine, expected, argument,
+        module, machine, expected, argument,
     );
     if mutable_subloan {
         return terminal_semantics::boundary_buffer_capacity(
