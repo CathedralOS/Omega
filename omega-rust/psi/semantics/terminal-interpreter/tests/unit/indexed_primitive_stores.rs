@@ -211,7 +211,7 @@ fn runtime_indexed_write_only_store_mutates_the_selected_element_only() {
                     .unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
-            let mut expected = vec![11, 128, 255];
+            let mut expected = [11, 128, 255];
             expected[index as usize] = 7;
             assert_eq!(
                 execution.structural_byte_array(700, &[]),
