@@ -2364,3 +2364,340 @@ machine Main::main(&mut self) { }
         }
     });
 }
+
+#[test]
+fn generic_instance_symbolic_materialization_realizes_on_both_linux_isas() {
+    // The fenced non-literal array length is, in source, a const-generic
+    // template: `Neighbor<const M: u64>` spells `cells: [Choice; M]`.
+    // Checking substitutes every applied instance into one closed `[copy]`
+    // record carrying literal lengths — `Neighbor<two()>` binds a machine
+    // call, `Neighbor<1>` and `Neighbor<0>` bind literals — so the recursive
+    // owner admits each instance like an authored record, while the unbound
+    // template and a zero-count instance stay fenced.
+    let main_path = write_program(
+        "generic-instance-symbolic-field",
+        r#"
+machine two() -> u64 { 2 }
+data Choice [copy] {
+    case #1 Empty;
+    case #2 Run(#3 callback: u64, #4 clock: u64);
+}
+data Neighbor<const M: u64> [copy] {
+    #1 cells: [Choice; M];
+    #2 pad: u64;
+}
+data ZeroCell [copy] {
+    #1 z: Neighbor<0>;
+}
+data Outer [copy] {
+    #1 header: u64;
+    #2 grid: Neighbor<two()>;
+    #3 grids: [Neighbor<1>; 2];
+    #4 route: Choice;
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a generic-instance record should check");
+    let plan = build_layout_plan(&checked, NativeTarget::linux_x64(), &[])
+        .expect("the generic-instance record should lay out");
+    let arm_plan = build_layout_plan(&checked, NativeTarget::linux_arm64(), &[])
+        .expect("the generic-instance record should lay out for linux_arm64");
+    // The template still carries `M` symbolically, so it keeps the closed
+    // owner fence; only fully-applied instances qualify.
+    let template = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Neighbor")
+        .expect("the unapplied const-generic record");
+    let template_error =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            template.symbol,
+        )
+        .expect_err("the const-generic template itself must refuse projection");
+    assert!(
+        template_error
+            .message
+            .contains("must be one closed non-generic `[copy]` record"),
+        "{template_error:?}"
+    );
+    // `Neighbor<0>` is closed but binds `M` to zero, so its `cells` field
+    // keeps the nonzero literal-length fence the literal hops already carry.
+    let zero_cell = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "ZeroCell")
+        .expect("the zero-length instance holder");
+    let zero_error =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            zero_cell.symbol,
+        )
+        .expect_err("a zero-count instance must stay fenced");
+    assert!(
+        zero_error
+            .message
+            .contains("must have nonzero literal length"),
+        "{zero_error:?}"
+    );
+    // The single-hop standalone rungs keep their fences: `grid` is a record
+    // path the direct-sum owner does not lift.
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .expect("the outer record");
+    let direct_error = layout::project_conventional_record_with_sum_materialization_layout(
+        &checked,
+        &plan,
+        owner.symbol,
+    )
+    .expect_err("the direct-sum owner must refuse a record path");
+    assert!(
+        direct_error
+            .message
+            .contains("does not lift the nested record path through `grid`"),
+        "{direct_error:?}"
+    );
+    let paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            owner.symbol,
+        )
+        .expect("const-generic instances reaching sums should project");
+    let arm_paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &arm_plan,
+            owner.symbol,
+        )
+        .expect("the same recursive projection closes on linux_arm64");
+    assert_eq!(
+        paths, arm_paths,
+        "both Linux ISAs retain the same recursive path geometry"
+    );
+    assert_eq!(
+        paths
+            .outer_layout()
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("grid", LayoutPlacementReport::At { offset: 8 }),
+            ("grids", LayoutPlacementReport::At { offset: 64 }),
+            ("route", LayoutPlacementReport::At { offset: 128 }),
+        ]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) = &paths else {
+        panic!("`grid` and `grids` carry record paths below the outer level");
+    };
+    assert_eq!(
+        report
+            .child_sum_layouts
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        vec![("route", Some(4))]
+    );
+    assert_eq!(
+        report
+            .paths
+            .iter()
+            .map(|path| (path.outer_field.as_str(), path.outer_member_identity))
+            .collect::<Vec<_>>(),
+        vec![("grid", Some(2))]
+    );
+    // `grid: Neighbor<2>` — the instantiated record carries its own literal
+    // `cells` row: count 2 at the Choice stride 24, beside `pad` at 48.
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_array_layouts: grid_arrays,
+        ..
+    } = &report.paths[0].inner
+    else {
+        panic!("the instantiated record is a leaf level");
+    };
+    assert_eq!(
+        grid_arrays
+            .iter()
+            .map(|row| {
+                (
+                    row.field.as_str(),
+                    row.member_identity,
+                    row.element_count,
+                    row.element_stride,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("cells", Some(1), 2, 24)]
+    );
+    // `grids: [Neighbor<1>; 2]` is the record-array channel with an instance
+    // element: count 2 at the `Neighbor<1>` extent 32, every index sharing
+    // the element's own leaf report (its `cells` row packs one Choice).
+    assert_eq!(
+        report
+            .child_record_array_layouts
+            .iter()
+            .map(|row| {
+                (
+                    row.field.as_str(),
+                    row.member_identity,
+                    row.element_count,
+                    row.element_stride,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("grids", Some(3), 2, 32)]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_array_layouts: element_arrays,
+        ..
+    } = &report.child_record_array_layouts[0].inner
+    else {
+        panic!("the instantiated record-array element is a leaf level");
+    };
+    assert_eq!(
+        element_arrays
+            .iter()
+            .map(|row| (row.field.as_str(), row.element_count, row.element_stride))
+            .collect::<Vec<_>>(),
+        vec![("cells", 1, 24)]
+    );
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
+        .expect("the recursive report folds the generic-instance carriers");
+
+    let header_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let grid_clock_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0xbeef).expect("normalized data identity"),
+    );
+    let grid_callback_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x0bad).expect("normalized data identity"),
+    );
+    let grids_zero_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x7ea7).expect("normalized data identity"),
+    );
+    let grids_one_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let route_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x77ee).expect("normalized entry identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new_numbered("header", 1, 64, header_target)
+            .expect("numbered scalar field"),
+        SymbolicFieldValue::new_numbered("grid", 2, 64, grid_clock_target)
+            .expect("numbered record-path field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed_numbered("cells", 1, 0).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("clock", 4)),
+                ),
+            ),
+        SymbolicFieldValue::new_numbered("grid", 2, 64, grid_callback_target)
+            .expect("numbered record-path field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed_numbered("cells", 1, 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+                ),
+            ),
+        SymbolicFieldValue::new_indexed_numbered("grids", 3, 0, 64, grids_zero_target)
+            .expect("indexed packed record-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed_numbered("cells", 1, 0).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+                ),
+            ),
+        SymbolicFieldValue::new_indexed_numbered("grids", 3, 1, 64, grids_one_target)
+            .expect("indexed packed record-array field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed_numbered("cells", 1, 0).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("Run", 2)
+                        .with_inner_segment(SymbolicFieldPathSegment::new_numbered("clock", 4)),
+                ),
+            ),
+        SymbolicFieldValue::new_numbered("route", 4, 64, route_target)
+            .expect("numbered direct sum field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("Run", 2)
+                    .with_inner_segment(SymbolicFieldPathSegment::new_numbered("callback", 3)),
+            ),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("generic-instance paths fold into the packed hop vocabulary");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved generic-instance paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    // `grid` spans 8..64 at the `Neighbor<2>` extent; `cells` packs two
+    // Choices at stride 24 inside it. `grids` spans 64..128 at stride 32 —
+    // `Neighbor<1>` is cells(24) + pad(8) — each element's own `cells[0]`
+    // hop then composes inside the record interior.
+    assert_eq!(
+        writes,
+        [
+            ("header", 0),
+            ("grid.cells[0].Run.clock", 24),
+            ("grid.cells[1].Run.callback", 40),
+            ("grids[0].cells[0].Run.callback", 72),
+            ("grids[1].cells[0].Run.clock", 112),
+            ("route.Run.callback", 136),
+        ]
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the generic-instance boundary writes derive a writer");
+    let mut expected = vec![0xa5_u8; 152];
+    expected[0..8].copy_from_slice(&0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    expected[24..32].copy_from_slice(&0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    expected[40..48].copy_from_slice(&0x0bad_f00d_c001_d00d_u64.to_le_bytes());
+    expected[72..80].copy_from_slice(&0x7ea7_a55a_5aa5_a5a5_u64.to_le_bytes());
+    expected[112..120].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    expected[136..144].copy_from_slice(&0xcafe_babe_face_feed_u64.to_le_bytes());
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &expected, |resolved| {
+        if resolved == grids_one_target {
+            0x1122_3344_5566_7788
+        } else if resolved == grid_clock_target {
+            0xdead_beef_cafe_f00d
+        } else if resolved == grid_callback_target {
+            0x0bad_f00d_c001_d00d
+        } else if resolved == grids_zero_target {
+            0x7ea7_a55a_5aa5_a5a5
+        } else if resolved == route_target {
+            0xcafe_babe_face_feed
+        } else {
+            assert_eq!(resolved, header_target);
+            0x99aa_bbcc_ddee_ff00
+        }
+    });
+}
