@@ -83,8 +83,8 @@ fn check_program(
         &program,
         selected_generic_operator_providers,
     );
-    let mut nominal_machine_uses =
-        specialize_static_machine_calls_with_nominal_uses(&mut program, true)?;
+    let mut static_machine_selections =
+        specialize_static_machine_calls_with_selections(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
     loop {
         let mut materialized = match &selected_provider_templates {
@@ -104,8 +104,8 @@ fn check_program(
         if materialized == 0 {
             break;
         }
-        nominal_machine_uses =
-            specialize_static_machine_calls_with_nominal_uses(&mut program, true)?;
+        static_machine_selections =
+            specialize_static_machine_calls_with_selections(&mut program, true)?;
         normalize_open_index_identities(&mut program)?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
@@ -149,7 +149,7 @@ fn check_program(
         validated.operational,
         validated.service_reaches,
         &validated.validation_facts,
-        nominal_machine_uses,
+        static_machine_selections,
         &mutation_summaries,
     )?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
@@ -329,28 +329,28 @@ pub fn normalize_open_index_identities(
 pub fn specialize_static_machine_calls(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    specialize_static_machine_calls_with_nominal_uses(program, false).map(|_| ())
+    specialize_static_machine_calls_with_selections(program, false).map(|_| ())
 }
 
-pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
+pub(crate) fn specialize_static_machine_calls_with_selections(
     program: &mut typed_trees::TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<Vec<::validation::ValidatedNominalMachineUse>, Vec<diagnostics::Diagnostic>> {
+) -> Result<::validation::ValidatedStaticMachineSelections, Vec<diagnostics::Diagnostic>> {
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;
     crate::conformance::conformance_applications::validate_conformance_applications(program)?;
-    let mut nominal_uses = ::validation::validate_static_machine_selections_with_facts(program)?;
+    let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
     ::validation::validate_generic_machine_contract_entailment(program)?;
-    crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses(
+    crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(
         program,
-        &mut nominal_uses,
+        &mut selections,
         enforce_complete_concrete_selections,
     )?;
     let operational = ::validation::infer_operational_may(program);
     ::validation::validate_static_machine_call_contracts(program, &operational)
         .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(nominal_uses)
+    Ok(selections)
 }
 
 #[cfg(test)]

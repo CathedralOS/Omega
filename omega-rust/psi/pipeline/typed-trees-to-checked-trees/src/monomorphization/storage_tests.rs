@@ -3,7 +3,7 @@ use crate::monomorphization::selection::contract_expression_handles;
 use crate::monomorphization::{
     CallSelection, apply_call_specializations, candidate, candidate_for_selection,
     canonical_template_contract_bytes, cloned_runtime_call_subjects, collect_call_selections,
-    collect_statement_expression_trees, monomorphize_generic_machine_value_calls_with_nominal_uses,
+    collect_statement_expression_trees, monomorphize_generic_machine_value_calls_with_selections,
     runtime_value_subjects,
 };
 
@@ -191,13 +191,9 @@ fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_temp
     "#,
     );
     let original = program.clone();
-    let mut nominal_uses = Vec::new();
-    monomorphize_generic_machine_value_calls_with_nominal_uses(
-        &mut program,
-        &mut nominal_uses,
-        true,
-    )
-    .expect("mutual recursion closes both concrete tuples");
+    let mut selections = validation::ValidatedStaticMachineSelections::default();
+    monomorphize_generic_machine_value_calls_with_selections(&mut program, &mut selections, true)
+        .expect("mutual recursion closes both concrete tuples");
     assert_eq!(program.machine_specializations.len(), 4);
     for name in ["ping", "pong"] {
         assert_template_unchanged(&original, &program, name);
@@ -241,12 +237,8 @@ fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_temp
         .iter()
         .map(|receipt| receipt.instance)
         .collect::<Vec<_>>();
-    monomorphize_generic_machine_value_calls_with_nominal_uses(
-        &mut program,
-        &mut nominal_uses,
-        true,
-    )
-    .expect("repeated specialization is a fixed point");
+    monomorphize_generic_machine_value_calls_with_selections(&mut program, &mut selections, true)
+        .expect("repeated specialization is a fixed point");
     assert_eq!(
         program
             .machine_specializations
@@ -269,8 +261,12 @@ fn nested_generic_reference_forwarding_only_specializes_the_closed_caller() {
     "#,
     );
     let original = program.clone();
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
-        .expect("nested reference argument closes in the cloned caller");
+    monomorphize_generic_machine_value_calls_with_selections(
+        &mut program,
+        &mut Default::default(),
+        true,
+    )
+    .expect("nested reference argument closes in the cloned caller");
     assert_template_unchanged(&original, &program, "relay");
     assert_template_unchanged(&original, &program, "inspect");
     assert_eq!(program.machine_specializations.len(), 2);
