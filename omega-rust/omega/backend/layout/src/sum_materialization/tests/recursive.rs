@@ -1866,3 +1866,37 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
         );
     }
 }
+
+#[test]
+fn symbolic_length_spelling_fences_the_owner_until_checking_substitutes_it() {
+    // The crate-local `checked()` path skips the orchestration const-eval
+    // pass, so a machine-call array length stays `ConstCall` here — exactly
+    // the shape the non-literal-length fence exists for. On the connected
+    // pipeline the same program arrives already substituted (the compiler
+    // test spells `Neighbor<two()>` into the closed `Neighbor<2>` instance).
+    let checked = checked(
+        r#"
+        machine two() -> u64 { 2 }
+        data Choice [copy] { case Empty; case Number(value: u8); }
+        data CallLen [copy] { items: [Choice; two()]; }
+        "#,
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "CallLen")
+        .unwrap();
+    let error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        owner.symbol,
+    )
+    .expect_err("an unsubstituted machine-call length stays fenced");
+    assert!(
+        error
+            .message
+            .contains("reaches a sum through a non-literal-length array"),
+        "{error:?}"
+    );
+}

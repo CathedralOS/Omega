@@ -1477,6 +1477,11 @@ fn symbol_identity(symbol: SymbolHandle) -> Result<(u32, u32), Diagnostic> {
     Ok((symbol.arena_index(), symbol.generation()))
 }
 
+/// A fully-applied generic instance qualifies here: instantiation already
+/// bound every parameter and substituted its members, so it stands closed
+/// beside an authored record. The unapplied template is the shape
+/// `type_parameters` still rejects — its `ConstParameter` lengths are the
+/// non-literal array lengths this chain cannot lay out.
 fn validate_closed_copy_record(
     program: &CheckedTrees,
     definition: &DataDefinition,
@@ -1487,7 +1492,6 @@ fn validate_closed_copy_record(
         || definition.properties.multiplicity != Multiplicity::Unrestricted
         || !definition.type_parameters.is_empty()
         || !definition.lifetime_parameters.is_empty()
-        || definition.generic_instance.is_some()
         || definition.quotient.is_some()
         || DataDefinition::shape_kind_from_members(program.data_members(definition))
             != DataShapeKind::Record
