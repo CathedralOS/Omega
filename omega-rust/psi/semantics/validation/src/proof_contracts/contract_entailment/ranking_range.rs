@@ -991,6 +991,21 @@ fn prove_edge(
             strictly_decreases: true,
         });
     }
+    // Normalization may cancel an undefined destination operation. Endpoint
+    // equality alone cannot transport its formation, so replay every node
+    // with the same simultaneous mapping used by the arrival's value proof.
+    for endpoint in [range.start, range.end] {
+        if !fields::endpoint_operations_land_after_arrival(
+            &mut engine,
+            program,
+            machine,
+            root,
+            endpoint,
+            &substitutions,
+        ) {
+            return None;
+        }
+    }
     let prove = |difference: Polynomial, minimum: i64| {
         engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
     };

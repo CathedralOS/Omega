@@ -293,9 +293,9 @@ fn pow(base: &BigInt, power: u32) -> BigInt {
     result
 }
 
-/// The operand one opaque atom was minted from, retained so a later
+/// The operands one opaque atom was minted from, retained so a later
 /// simultaneous substitution can re-mint the same shape under the
-/// transported operand rather than dropping the term.
+/// transported operands rather than dropping the term.
 #[derive(Clone)]
 enum OpaqueTerm {
     /// `(operand) % modulus`, the truncating remainder.
@@ -306,10 +306,11 @@ enum OpaqueTerm {
         /// interval; re-mints reuse it rather than re-deriving it.
         tight_interval: bool,
     },
-    /// `\0integer-quotient:{dividend:?}/{divisor}`, the truncating quotient.
+    /// A truncating quotient retains both inputs, not just the dividend:
+    /// a runtime divisor is an independently transported value too.
     Quotient {
         dividend: Polynomial,
-        divisor: BigInt,
+        divisor: Polynomial,
     },
 }
 
@@ -619,7 +620,6 @@ impl<'program> Engine<'program> {
         }
         let dividend = self.normalize(binary.left)?;
         let divisor = self.normalize(binary.right)?;
-        let divisor = self.substituted(&divisor).constant_value()?;
         let quotient = self.integer_quotient(dividend, divisor)?;
         self.bind_strict_occurrence(expression, quotient)
             .then_some(())
@@ -728,37 +728,104 @@ impl<'program> Engine<'program> {
     }
 
     /// The interval a truncating quotient atom takes from its dividend's.
-    fn quotient_interval(&self, dividend: &Polynomial, divisor: &BigInt) -> Interval {
+    fn quotient_interval(&self, dividend: &Polynomial, divisor: &Polynomial) -> Interval {
         let dividend_interval = self.polynomial_interval(&self.substituted(dividend));
+        let divisor = self.substituted(divisor);
+        if let Some(divisor) = divisor.constant_value() {
+            return Self::constant_quotient_interval(dividend_interval, &divisor);
+        }
+        let divisor_interval = self.polynomial_interval(&divisor);
+        Self::bounded_quotient_interval(&dividend_interval, &divisor_interval)
+    }
+
+    fn constant_quotient_interval(dividend: Interval, divisor: &BigInt) -> Interval {
         let quotient_bound = |bound: Option<BigInt>| {
             bound.and_then(|value| value.div_rem(divisor).map(|(quotient, _)| quotient))
         };
         if divisor.is_negative() {
             Interval {
-                low: quotient_bound(dividend_interval.high),
-                high: quotient_bound(dividend_interval.low),
+                low: quotient_bound(dividend.high),
+                high: quotient_bound(dividend.low),
             }
         } else {
             Interval {
-                low: quotient_bound(dividend_interval.low),
-                high: quotient_bound(dividend_interval.high),
+                low: quotient_bound(dividend.low),
+                high: quotient_bound(dividend.high),
             }
+        }
+    }
+
+    fn bounded_quotient_interval(dividend: &Interval, divisor: &Interval) -> Interval {
+        let (Some(dividend_low), Some(dividend_high)) = (&dividend.low, &dividend.high) else {
+            return Interval::unbounded();
+        };
+        // On a rectangle whose denominator has one strict sign, real
+        // division reaches its extrema at corners. Truncation toward zero
+        // is monotone, so the same corners bound the integer quotient.
+        // A zero-inclusive interval supplies no quotient bounds, even if an
+        // enclosing polynomial cancels the opaque term.
+        if !divisor
+            .low
+            .as_ref()
+            .is_some_and(|low| low > &BigInt::zero())
+            && !divisor
+                .high
+                .as_ref()
+                .is_some_and(|high| high < &BigInt::zero())
+        {
+            return Interval::unbounded();
+        }
+        // When the denominator extends to infinity on its admitted side,
+        // the quotient tends to zero. Include that limit, not an invented
+        // finite cap or the source carrier's analysis-window approximation.
+        let corner = |numerator: &BigInt, denominator: &Option<BigInt>| match denominator {
+            Some(denominator) => numerator.div_rem(denominator).map(|(quotient, _)| quotient),
+            None => Some(BigInt::zero()),
+        };
+        let [
+            Some(low_low),
+            Some(low_high),
+            Some(high_low),
+            Some(high_high),
+        ] = [
+            corner(dividend_low, &divisor.low),
+            corner(dividend_low, &divisor.high),
+            corner(dividend_high, &divisor.low),
+            corner(dividend_high, &divisor.high),
+        ]
+        else {
+            return Interval::unbounded();
+        };
+        let quotients = [low_low, low_high, high_low, high_high];
+        Interval {
+            low: quotients.iter().min().cloned(),
+            high: quotients.iter().max().cloned(),
         }
     }
 
     /// Normalize an independently admitted truncating integer quotient. The
     /// caller owns selected operator meaning and each operand/result's carrier
     /// formation; this mathematical term supplies neither of those judgments.
-    /// Retaining the dividend makes state substitution reach the opaque atom.
-    fn integer_quotient(&mut self, dividend: Polynomial, divisor: BigInt) -> Option<Polynomial> {
-        if divisor.is_zero() {
+    /// Retain both operands even before nonzero/formation hypotheses are live.
+    /// In particular, `0 / divisor` must not erase a still-unproved operation.
+    fn integer_quotient(
+        &mut self,
+        dividend: Polynomial,
+        divisor: Polynomial,
+    ) -> Option<Polynomial> {
+        if divisor
+            .constant_value()
+            .is_some_and(|value| value.is_zero())
+        {
             return None;
         }
-        if let Some(value) = dividend.constant_value() {
-            return Some(Polynomial::constant(value.div_rem(&divisor)?.0));
+        if let (Some(dividend), Some(divisor)) =
+            (dividend.constant_value(), divisor.constant_value())
+        {
+            return Some(Polynomial::constant(dividend.div_rem(&divisor)?.0));
         }
         let interval = self.quotient_interval(&dividend, &divisor);
-        let atom = format!("\0integer-quotient:{dividend:?}/{divisor}");
+        let atom = format!("\0integer-quotient:{dividend:?}/{divisor:?}");
         self.register_opaque_term(atom.clone(), OpaqueTerm::Quotient { dividend, divisor });
         self.arithmetic_intervals.insert(atom.clone(), interval);
         Some(Polynomial::atom(atom))
@@ -790,8 +857,8 @@ impl<'program> Engine<'program> {
     }
 
     /// Extend a simultaneous argument map across this engine's opaque atoms:
-    /// a remainder or quotient atom whose operand substitutes completely is
-    /// re-minted under the transported operand and mapped to that fresh atom,
+    /// a remainder or quotient atom whose operands substitute completely is
+    /// re-minted under the transported inputs and mapped to that fresh atom,
     /// its interval registered like any minted term. An operand whose leaf
     /// the map does not cover keeps its atom unmapped, so the consuming
     /// substitution still fails closed on it. Mint order transports an inner
@@ -825,8 +892,13 @@ impl<'program> Engine<'program> {
                     else {
                         continue;
                     };
+                    let Some(divisor) =
+                        super::inductive_judgment::apply_argument_map(&divisor, argument_map)
+                    else {
+                        continue;
+                    };
                     (
-                        format!("\0integer-quotient:{dividend:?}/{divisor}"),
+                        format!("\0integer-quotient:{dividend:?}/{divisor:?}"),
                         self.quotient_interval(&dividend, &divisor),
                     )
                 }
@@ -1604,7 +1676,7 @@ impl<'program> Engine<'program> {
                         let divisor = self.substituted(&divisor).constant_value()?;
                         // Structural polynomial identity keeps distinct dividends
                         // separate; the private prefix cannot be an authored name.
-                        return self.integer_quotient(dividend, divisor);
+                        return self.integer_quotient(dividend, Polynomial::constant(divisor));
                     }
                     let operand = dividend;
                     let modulus = self.substituted(&divisor).constant_value()?;

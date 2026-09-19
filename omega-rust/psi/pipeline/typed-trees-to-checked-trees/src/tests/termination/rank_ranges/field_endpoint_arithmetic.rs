@@ -10,8 +10,111 @@ fn accepts_named(source: &str) {
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
+const SYMBOLIC_QUOTIENT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/symbolic_quotient_endpoints/main.omg"
+));
+
+#[test]
+fn symbolic_quotient_endpoint_preserves_both_operands_at_named_arrivals() {
+    accepts_named(SYMBOLIC_QUOTIENT);
+    rejects_named(&SYMBOLIC_QUOTIENT.replace("iterate(width, limit - 0", "iterate(1, limit - 0"));
+    rejects_named(&SYMBOLIC_QUOTIENT.replace("iterate(width, limit - 0", "iterate(width, 0"));
+    rejects_named(&SYMBOLIC_QUOTIENT.replace("pending - 1", "pending"));
+}
+
+#[test]
+fn symbolic_quotient_endpoint_formation_keeps_each_operation() {
+    let unbounded = SYMBOLIC_QUOTIENT
+        .replace("u64 [1..=5]", "u64")
+        .replace("terminates by", "requires divisor > 0; terminates by");
+    accepts_named(&unbounded);
+    rejects_named(&unbounded.replace("requires divisor > 0;", ""));
+    rejects_named(&SYMBOLIC_QUOTIENT.replace("/ divisor", "/ (divisor - divisor)"));
+    rejects_named(&format!(
+        "operator / u64::chosen(left: u64, right: u64) -> u64; {SYMBOLIC_QUOTIENT}"
+    ));
+    rejects_named(&SYMBOLIC_QUOTIENT.replace("u64 [1..=5]", "u8 [1..=5]"));
+    let nested = SYMBOLIC_QUOTIENT.replace("/ divisor", "/ (divisor / 2)");
+    accepts_named(&nested.replace("[1..=5]", "[2..=5]"));
+    rejects_named(&nested);
+    let canceled =
+        SYMBOLIC_QUOTIENT.replace("cap / divisor + 6", "cap / divisor - cap / divisor + 6");
+    rejects_named(&canceled.replace("[1..=5]", "[0..=5]"));
+    rejects_named(&canceled.replace("/ divisor", "/ (divisor / 2)"));
+    let signed = canceled
+        .replace("cap: u64 [0..=20]", "cap: i8 [-128..=-128]")
+        .replace("limit: u64 [0..=20]", "limit: i8 [-128..=-128]")
+        .replace("u64 [1..=5]", "i8 [-1..=-1]");
+    rejects_named(&signed);
+    accepts_named(&signed.replace("[-128..=-128]", "[-127..=-127]"));
+}
+
+#[test]
+fn symbolic_quotient_endpoint_uses_signed_truncation_bounds() {
+    let signed = SYMBOLIC_QUOTIENT
+        .replace("cap: u64 [0..=20]", "cap: i8 [-7..=-5]")
+        .replace("limit: u64 [0..=20]", "limit: i8 [-7..=-5]")
+        .replace("u64 [1..=5]", "i8 [-3..=-2]")
+        .replace("cap / divisor + 6", "cap / divisor + 5");
+    accepts_named(&signed);
+    rejects_named(&signed.replace("cap / divisor + 5", "cap / divisor + 4"));
+    accepts_named(&signed.replace("[-3..=-2]", "[2..=3]").replace("+ 5", "+ 9"));
+}
+
+#[test]
+fn symbolic_quotient_endpoint_tracks_projected_denominators() {
+    let source = r#"
+        data Limits { cap: u64 [0..=20]; divisor: u64 [1..=5]; }
+        machine walk(remaining: u64 [0..=5], limits: Limits)
+        terminates by remaining in 0..(limits.cap / limits.divisor + 6);
+        -> u64 {
+            transition { _ -> iterate(limits, remaining) }
+            state iterate(held: Limits, pending: u64 [0..=5]) {
+                transition pending > 0 {
+                    true -> iterate(Limits { cap: held.cap, divisor: held.divisor }, pending - 1)
+                    false -> pending
+                }
+            }
+        }
+    "#;
+    accepts_named(source);
+    rejects_named(&source.replace("divisor: held.divisor", "divisor: 1"));
+    rejects_named(
+        &source
+            .replace("state iterate(held:", "state iterate(mut held:")
+            .replace(
+                "transition pending > 0",
+                "held.divisor = 1; transition pending > 0",
+            ),
+    );
+}
+
+#[test]
+fn symbolic_quotient_endpoint_rechecks_formation_after_arrival() {
+    let source = r#"
+        machine walk(remaining: u64 [0..=5], cap: u64 [0..=20], divisor: u64)
+        requires divisor > 0;
+        terminates by remaining in 0..(cap / divisor - cap / divisor + 6);
+        -> u64 {
+            transition remaining > 0 && divisor > 0 && cap <= 20 {
+                true -> walk(remaining - 1, cap - 0, divisor - divisor)
+                false -> remaining
+            }
+        }
+    "#;
+    // The rank-only invariant can justify descent, but no zero-divisor
+    // arrival. Reject in the rank judgment itself, independently of ordinary
+    // call-contract replay also rejecting the lost `requires` premise.
+    rejects_named(source);
+    rejects_named(&source.replace("&& divisor > 0", "&& divisor == 1"));
+    accepts_named(&source.replace("divisor - divisor", "divisor - 0"));
+}
+
 fn rejects_named(source: &str) {
-    let diagnostics = lower_typed_trees(typed(source)).expect_err("invalid rank range");
+    let Err(diagnostics) = lower_typed_trees(typed(source)) else {
+        panic!("invalid rank range accepted:\n{source}");
+    };
     assert!(
         diagnostics
             .iter()

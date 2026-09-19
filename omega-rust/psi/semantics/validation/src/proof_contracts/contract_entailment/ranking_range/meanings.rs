@@ -173,7 +173,7 @@ pub(super) fn builtin(
 /// Bind only the exact integer divisions admitted by this ranking query. The
 /// general strict arithmetic engine deliberately does not infer executable
 /// division from a token. Anonymous rational subtrees still fold as rationals;
-/// each landed quotient retains its operand for simultaneous state transport.
+/// each landed quotient retains both operands for simultaneous state transport.
 /// This is meaning, not formation: the range owner still checks every operation
 /// before using the endpoint, including an overflowing intermediate quotient.
 pub(super) fn install_integer_quotients(
