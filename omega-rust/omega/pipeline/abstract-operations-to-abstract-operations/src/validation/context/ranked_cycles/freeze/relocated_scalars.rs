@@ -402,13 +402,17 @@ pub(super) fn validate(
             // A unit-result call replays the scalar call's whole admission
             // plus its structural halves from the seed: the pure callee,
             // the unobservable member roster, the whole-component
-            // place-custody bound, the non-owned borrow whitelist, and each
+            // place-custody bound, the borrow and copyable-owned argument
+            // whitelist, and each
             // argument root's landing — already preheader-visible, resolved
             // through an invariant member structural parameter, or produced
             // by a node this component's run already relocated; a mutable or
             // write-only borrow additionally requires that root's unique
-            // member producer among the relocated set. A forged
-            // move that skipped the root rebind, kept an owned argument,
+            // member producer among the relocated set, and an `Owned`
+            // argument requires the landed root to declare an unrestricted
+            // copyable shape. A forged
+            // move that skipped the root rebind, kept an uncopyable owned
+            // argument,
             // or left the literal's producer behind rejects here or in
             // `same_relocated_node`'s operation comparison.
             let effects = call_effects
@@ -437,7 +441,8 @@ pub(super) fn validate(
         {
             // A scalar-result structural call replays the unit call's whole
             // admission from the seed — the pure callee, the unobservable
-            // member roster, the place-custody bound, the non-owned borrow
+            // member roster, the place-custody bound, the borrow and
+            // copyable-owned argument
             // whitelist, and each argument root's landing — and additionally
             // preserves its scalar result identity, so a forged result or a
             // skipped scalar-argument or borrow rebind rejects here or in
@@ -468,11 +473,12 @@ pub(super) fn validate(
             // admission from the seed — the pure transitive callee, the
             // unobservable member roster, the place-custody bound run with
             // this component's relocated roots plus the call's own result
-            // tolerated, the non-owned borrow whitelist, and each argument
+            // tolerated, the borrow and copyable-owned argument whitelist,
+            // and each argument
             // root's landing — plus the affine result's containment: the
             // result place must stay inside the member roster spelled only
             // through positions the custody rewrite re-expresses. A forged
-            // result, scalar argument, borrowed-root rebind, or claim
+            // result, scalar argument, argument-root rebind, or claim
             // spelling rejects here or in `same_relocated_node`'s operation
             // comparison, and a kept internal discard or missing exit
             // disposal rejects in the retained-member normalization.

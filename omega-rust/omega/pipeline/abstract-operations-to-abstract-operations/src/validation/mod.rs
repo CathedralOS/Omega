@@ -1068,9 +1068,10 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// bindings hand a mutating parameter exactly the argument root — so its
 /// writes land in a place no other member reads, borrows, or moves, which
 /// leaves every member observation of every other root loop-invariant. An
-/// `Owned` argument is tolerated on the same terms when its root is a
-/// member-produced unrestricted scalar array: the argument copies the
-/// payload into the callee, so nothing the caller still holds changes hands.
+/// `Owned` argument is tolerated on the same terms when its root declares a
+/// copyable shape — an unrestricted owned parameter or an unrestricted
+/// claim-free scalar-array result: the argument copies the payload into the
+/// callee, so nothing the caller still holds changes hands.
 /// When
 /// this holds, every member place observation is loop-invariant — no
 /// traversal can change what it observes — so an admitted read relocates
@@ -1284,14 +1285,17 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 /// `CallStructuralScalar`, or `CallStructural` that moves no claims, whose
 /// borrow arguments —
 /// `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow` — are confined as
-/// below, and whose `Owned` arguments each name a member-produced
-/// unrestricted scalar-array root. An owned whole-root argument over an
-/// unrestricted payload copies the elements into the callee — the caller's
-/// place keeps its contents, so the argument is an observation, not custody
-/// movement — and the member-produced requirement keeps the copied root one
-/// this roster alone controls; a caller root or a root of any other kind
-/// still refuses. Mutating borrows each name a root no other member can
-/// observe. The callee's caller-visible write authority is exactly its
+/// below, and whose `Owned` arguments each name a whole root whose declared
+/// custody is copyable ([`copyable_owned_argument_root`]): an `Unrestricted`
+/// owned parameter or an unrestricted claim-free scalar-array result. An
+/// owned whole-root argument over an unrestricted payload copies the
+/// elements into the callee — the caller's place keeps its contents, so the
+/// argument is an observation, not custody movement — while an `Owned`
+/// argument over an affine or linear root moves the caller's place into the
+/// callee outright and refuses, as does any produced kind the cyclic
+/// owned-argument fence does not recognize. Mutating borrows each name a
+/// root no other member can observe. The callee's caller-visible write
+/// authority is exactly its
 /// mutable and write-only parameter roots — verified call bindings cannot
 /// hand it another place — so confining those roots to the one call leaves
 /// the bound's guarantee intact: no member observation of any place another
@@ -1335,13 +1339,16 @@ fn exclusive_borrow_call_preserves_place_observations(
             | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
                 borrowed.insert(argument.place);
             }
-            // An owned whole-root argument over a member-produced
-            // unrestricted scalar array copies the payload into the callee —
-            // a read of the fresh root, not custody movement. Any other owned
-            // argument moves the caller's place into the callee outright.
+            // An owned whole-root argument over a copyable unrestricted
+            // root copies the payload into the callee — a read of the
+            // root's contents, not custody movement. An owned argument
+            // over an affine or linear root, a projected owned argument,
+            // or a produced kind outside the cyclic owned-argument fence's
+            // admitted shapes moves the caller's place into the callee
+            // outright.
             terminal_psi::StructuralAccess::Owned => {
                 if !argument.path.is_empty()
-                    || !member_unrestricted_scalar_array_root(function, component, argument.place)
+                    || !copyable_owned_argument_root(function, argument.place)
                 {
                     return false;
                 }
@@ -1743,37 +1750,63 @@ fn member_root_producer_count(
         .count()
 }
 
-/// Whether `root` is declared by exactly one member node and that producer is
-/// an `EstablishScalarArray` whose result is unrestricted and claim-free —
-/// the one produced-root shape an `Owned` structural argument may copy into
-/// a callee without moving caller custody: the unrestricted payload carries
-/// value semantics, so the argument observes the root rather than moving it.
-/// A second member producer, a non-array producer, or a restricted or
-/// claim-carrying result all fail — their `Owned` spellings genuinely
-/// transfer custody.
-fn member_unrestricted_scalar_array_root(
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    root: PlaceId,
-) -> bool {
-    let producers = component
-        .members
+/// Whether `root`'s declared custody makes an `Owned` whole-root argument a
+/// copy rather than a custody move. The verifier binds an argument's declared
+/// multiplicity equal to its callee parameter's, and the interpreter copies
+/// an `Unrestricted` argument's payload into the callee's activation while
+/// the caller keeps its place — where an affine or linear root spelled
+/// `Owned` genuinely transfers custody. The admitted shapes are exactly the
+/// ones the cyclic owned-argument fence recognizes, narrowed to the
+/// copy-only multiplicities: a machine or block structural parameter
+/// declared `!is_self`, `Owned`, `Unrestricted`, and qualification-free —
+/// the fence's `plain_owned` shape without its `Affine` arm — and a
+/// whole-root `EstablishScalarArray` result that is unrestricted,
+/// claim-free, and qualification-free, produced by any block in the
+/// function. Every other produced kind — and any root with restricted
+/// custody — keeps the refusal: their `Owned` spellings genuinely transfer
+/// custody or carry alias structure this boundary has not spelled out. Of
+/// the three call families sharing this rule, only `CallStructuralScalar`
+/// spells `Owned` arguments in a verified source unit today — attached
+/// units confine call arguments to borrows, scalar-graph `CallUnit`
+/// callees carry plain primitive parameters only, and a `CallStructural`
+/// affine result confined to its own case terminator can never sit behind
+/// an owned root — but the fence still answers for the other families:
+/// the freeze replay independently re-derives admission on hand-moved
+/// units, where no source grammar prunes the spellings first.
+fn copyable_owned_argument_root(function: &PsiOptimizationFunction, root: PlaceId) -> bool {
+    function
+        .structural_parameters
         .iter()
-        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
-        .flat_map(|block| block.nodes.iter())
-        .filter(|node| produced_place_root(&node.operation) == Some(root))
-        .collect::<Vec<_>>();
-    let [producer] = producers.as_slice() else {
-        return false;
-    };
-    matches!(
-        &producer.operation,
-        O::EstablishScalarArray { result, .. }
-            if result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
-    )
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| block.structural_parameters.iter()),
+        )
+        .any(|parameter| {
+            parameter.place == root
+                && !parameter.is_self
+                && parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        })
+        || function
+            .blocks
+            .iter()
+            .flat_map(|block| block.nodes.iter())
+            .any(|node| {
+                matches!(
+                    &node.operation,
+                    O::EstablishScalarArray { result, .. }
+                        if result.place == root
+                            && result.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Unrestricted
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.claims.is_empty()
+                )
+            })
 }
 
 /// The complete invariant place-read admission shared by the proposal and the
@@ -2591,9 +2624,14 @@ pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Optio
 /// structural argument with `MutableBorrow` or `WriteOnlyBorrow` access hands
 /// the callee write authority over a caller place — admitted only through
 /// [`invariant_unit_call_admission`]'s exclusive member-produced-root
-/// evidence — while `Owned` access would move the caller's place into the
-/// callee outright, custody movement this boundary cannot re-express, so it
-/// stays refused.
+/// evidence — while `Owned` access admits only when the argument names a
+/// whole root whose declared multiplicity is `Unrestricted`: the verifier
+/// binds argument and callee parameter multiplicities equal, so the copy
+/// shapes the cyclic owned-argument fence recognizes — an unrestricted
+/// owned parameter or an unrestricted claim-free scalar-array result —
+/// copy the payload into the callee's activation rather than moving
+/// custody. An `Owned` argument over an affine or linear root genuinely
+/// transfers the caller's place and stays refused.
 /// `claim_transfers` must be empty: the node then carries exactly one
 /// vacuous `ClaimTransfer` ownership row — the custody mirror of the empty
 /// roster — which relocates byte-exact inside the moved operation.
@@ -2608,7 +2646,6 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
         psi_operation,
         callee,
         arguments,
-        structural_arguments,
         claim_transfers,
         crash_continuations,
         ..
@@ -2627,10 +2664,7 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
         && node.successors.is_empty()
         && claim_transfers.is_empty()
         && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
-        && crash_continuations.is_empty()
-        && structural_arguments
-            .iter()
-            .all(|argument| argument.access != terminal_psi::StructuralAccess::Owned))
+        && crash_continuations.is_empty())
     .then_some(*callee)
 }
 
@@ -2645,8 +2679,9 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
 /// whitelist verbatim: borrow arguments admit — a `MutableBorrow` or
 /// `WriteOnlyBorrow` argument still needs
 /// [`invariant_structural_scalar_call_admission`]'s exclusive
-/// member-produced-root evidence, and `Owned` access moves the caller's place
-/// into the callee outright so it stays refused — and `claim_transfers` must
+/// member-produced-root evidence, and an `Owned` argument admits only over
+/// a whole root whose declared multiplicity is `Unrestricted`, the copy
+/// shapes the cyclic owned-argument fence recognizes — while `claim_transfers` must
 /// be empty, so the node
 /// carries exactly one vacuous `ClaimTransfer` ownership row that relocates
 /// byte-exact inside the moved operation. `requirement_obligations` move
@@ -2664,7 +2699,6 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
         result,
         callee,
         arguments,
-        structural_arguments,
         claim_transfers,
         crash_continuations,
         ..
@@ -2685,10 +2719,7 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
         && node.successors.is_empty()
         && claim_transfers.is_empty()
         && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
-        && crash_continuations.is_empty()
-        && structural_arguments
-            .iter()
-            .all(|argument| argument.access != terminal_psi::StructuralAccess::Owned))
+        && crash_continuations.is_empty())
     .then_some(*callee)
 }
 
@@ -2705,13 +2736,17 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
 /// `claim_transfers` and `returned_claim_transfers` must both be empty — the
 /// node then carries exactly one vacuous `ClaimTransfer` ownership row, which
 /// relocates byte-exact inside the moved operation. `structural_arguments`
-/// obeys the borrow whitelist the unit and scalar-result calls share: a
+/// obeys the argument whitelist the unit and scalar-result calls share: a
 /// borrow argument lets the callee observe — and for a mutating borrow,
 /// write — a caller place, so
 /// [`invariant_structural_call_admission`] replays the whole-component
-/// place-custody bound and each argument root's landing rule, while `Owned`
-/// access would move the caller's place into the callee outright — custody
-/// movement this boundary cannot re-express — and stays refused.
+/// place-custody bound and each argument root's landing rule, while an
+/// `Owned` argument admits only over a whole root whose declared
+/// multiplicity is `Unrestricted` — an unrestricted owned parameter or an
+/// unrestricted claim-free scalar-array result copies its payload into the
+/// callee — and an `Owned` argument over an affine or linear root moves the
+/// caller's place outright, custody movement this boundary cannot
+/// re-express, so it stays refused.
 /// `requirement_obligations`, `crash_continuations`, and
 /// `selected_evidence` must be empty: the admitted contract carries
 /// none of them, and a call that does stays inside rather than re-expressing
@@ -2727,12 +2762,12 @@ pub(crate) fn admissible_invariant_structural_call(
         result,
         callee,
         arguments,
-        structural_arguments,
         claim_transfers,
         returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
         selected_evidence,
+        ..
     } = &node.operation
     else {
         return None;
@@ -2750,9 +2785,6 @@ pub(crate) fn admissible_invariant_structural_call(
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
-        && structural_arguments
-            .iter()
-            .all(|argument| argument.access != terminal_psi::StructuralAccess::Owned)
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
@@ -2776,7 +2808,7 @@ pub(crate) fn admissible_invariant_structural_call(
 /// traversal, exactly what the in-loop invocation observed.
 ///
 /// The callee's `structural_state` axis stays exempt under the same argument
-/// the scalar call uses, tightened by the borrow whitelist: every place the
+/// the scalar call uses, tightened by the argument whitelist: every place the
 /// callee could mutate is either activation-internal or reached through a
 /// borrow the admission already gated — a shared borrow hands it no write
 /// authority, and a mutable or write-only borrow may only name a
@@ -2786,8 +2818,8 @@ pub(crate) fn admissible_invariant_structural_call(
 /// bindings, not caller custody.
 ///
 /// Each scalar `arguments` operand then obeys the shared use-site invariance
-/// rule ([`member_scalar_operand_substitution`]). Each shared-borrow
-/// structural argument's root must land somewhere the relocated run can see
+/// rule ([`member_scalar_operand_substitution`]). Each structural
+/// argument's root must land somewhere the relocated run can see
 /// it: already visible at the unique preheader insertion point, the
 /// representative an invariant member structural parameter resolves to
 /// ([`invariant_member_place_parameters`]), or a root a node earlier in the
@@ -2798,7 +2830,14 @@ pub(crate) fn admissible_invariant_structural_call(
 /// — refuses the relocation. A mutable or write-only borrow's root instead
 /// must be member-produced and already relocated by the same run: the callee
 /// may write — and for a mutable borrow read — the cell, so only a fresh
-/// per-traversal initializer keeps the invocation's view identical.
+/// per-traversal initializer keeps the invocation's view identical. An
+/// `Owned` whole-root argument takes the same landing and additionally
+/// requires the landed root to be copyable
+/// ([`copyable_owned_argument_root`]) — an unrestricted owned parameter or
+/// an unrestricted claim-free scalar-array result — so the relocated
+/// invocation copies exactly the payload every in-loop invocation copied;
+/// an `Owned` argument over affine or linear custody would move the
+/// caller's place outright and stays refused.
 ///
 /// Returns the scalar substitution plus the `(member parameter or
 /// member-produced root, preheader-visible root)` rewrites the relocated
@@ -2840,8 +2879,9 @@ pub(crate) fn invariant_unit_call_admission(
 /// exact internal callee — and then passes the unit call's whole evidence
 /// surface unchanged: the pure transitive callee summary, the unobservable
 /// member roster, the whole-component place-custody bound, the shared
-/// scalar-operand substitution, and each shared-borrow structural
-/// argument's root landing somewhere the relocated run can see it. The
+/// scalar-operand substitution, and each structural argument's root —
+/// borrow or copyable owned — landing somewhere the relocated run can see
+/// it. The
 /// place-custody bound carries one additional weight here: the relocated
 /// call's scalar result is whatever the callee computed from those
 /// arguments and borrows, so only when no member mutates or moves a place
@@ -2887,12 +2927,14 @@ pub(crate) fn invariant_structural_scalar_call_admission(
 /// whose discard rosters the rewrite adjusts. Every remaining evidence half
 /// is the borrow calls' shared surface
 /// ([`borrow_call_admission`]): the pure transitive callee, the unobservable
-/// member roster, the shared scalar-operand substitution, the non-owned
-/// borrow whitelist, and each argument root's landing — already
-/// preheader-visible, resolved through an invariant member structural
-/// parameter, or produced by a node this component's run already relocated,
-/// with a mutable or write-only borrow additionally requiring that root's
-/// unique member producer among the relocated set.
+/// member roster, the shared scalar-operand substitution, the borrow and
+/// copyable-owned argument whitelist, and each argument root's landing —
+/// already preheader-visible, resolved through an invariant member
+/// structural parameter, or produced by a node this component's run already
+/// relocated — with a mutable or write-only borrow additionally requiring
+/// that root's unique member producer among the relocated set and an
+/// `Owned` argument requiring the landed root to declare an unrestricted
+/// copyable shape.
 ///
 /// The place-custody bound runs with the run's relocating roots plus this
 /// call's own result tolerated: a borrow argument lets the callee observe a
@@ -2961,11 +3003,19 @@ pub(crate) fn invariant_structural_call_admission(
 /// source traversal established. Each scalar `arguments` operand obeys the
 /// shared use-site invariance rule
 /// ([`member_scalar_operand_substitution`]), and
-/// each shared-borrow structural argument's root must be already visible at
-/// the unique preheader insertion point, the representative an invariant
-/// member structural parameter resolves to
+/// each structural argument's root must land where the relocated run can
+/// see it — already visible at the unique preheader insertion point, the
+/// representative an invariant member structural parameter resolves to
 /// ([`invariant_member_place_parameters`]), or a root a node earlier in the
-/// same run produced — `relocating_roots`.
+/// same run produced — `relocating_roots`. Access refines the landing: a
+/// shared borrow names any landed root, a mutable or write-only borrow only
+/// a uniquely member-produced one the run already relocated, and an `Owned`
+/// whole-root argument additionally requires the landed root to declare one
+/// of the copyable shapes [`copyable_owned_argument_root`] recognizes — an
+/// unrestricted owned parameter or an unrestricted claim-free scalar-array
+/// result — because `Owned` over an unrestricted payload copies it into the
+/// callee while `Owned` over affine or linear custody would move the
+/// caller's place outright.
 fn borrow_call_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -3027,31 +3077,87 @@ fn borrow_call_admission(
                 }
             }
             terminal_psi::StructuralAccess::SharedBorrow => {
-                let resolved =
-                    if place_observation_root_visible(function, preheader, argument.place)
-                        || (relocating_roots.contains(&argument.place)
-                            && member_root_producer_count(function, component, argument.place) == 1)
-                    {
-                        argument.place
-                    } else {
-                        let representative = *representatives.get(&argument.place)?;
-                        (place_observation_root_visible(function, preheader, representative)
-                            || (relocating_roots.contains(&representative)
-                                && member_root_producer_count(function, component, representative)
-                                    == 1))
-                            .then_some(representative)?
-                    };
+                let resolved = call_argument_root_landing(
+                    function,
+                    component,
+                    preheader,
+                    &representatives,
+                    relocating_roots,
+                    argument.place,
+                )?;
                 if resolved != argument.place {
                     rewrites.push((argument.place, resolved));
                 }
             }
-            // `Owned` moves the caller's place into the callee — the shape
-            // gate already refused it; reaching one here means the plan
-            // drifted.
-            terminal_psi::StructuralAccess::Owned => return None,
+            // An `Owned` whole-root argument over a copyable root is the
+            // observation a shared borrow is, spelled with value semantics:
+            // the callee receives a copy of the payload, so the relocated
+            // invocation copies — on the one traversal that runs — exactly
+            // what every in-loop invocation copied. The root obeys the same
+            // landing rule a borrow's does, then must declare one of the
+            // copy shapes the cyclic owned-argument fence recognizes
+            // ([`copyable_owned_argument_root`]): an unrestricted owned
+            // parameter, or an unrestricted claim-free scalar-array result
+            // — for a member-produced root, the landing rule already
+            // required its unique producer to relocate in the same run
+            // ahead of the call. An `Owned` argument over an affine or
+            // linear root moves the caller's place into the callee — the
+            // per-traversal transfer this boundary cannot re-express — and
+            // a projected `Owned` argument or any other produced kind keeps
+            // the refusal.
+            terminal_psi::StructuralAccess::Owned => {
+                if !argument.path.is_empty() {
+                    return None;
+                }
+                let resolved = call_argument_root_landing(
+                    function,
+                    component,
+                    preheader,
+                    &representatives,
+                    relocating_roots,
+                    argument.place,
+                )?;
+                if !copyable_owned_argument_root(function, resolved) {
+                    return None;
+                }
+                if resolved != argument.place {
+                    rewrites.push((argument.place, resolved));
+                }
+            }
         }
     }
     Some((substitution, rewrites))
+}
+
+/// The root an admitted call argument may name once the call relocates:
+/// `place` itself when it is already visible at the unique preheader
+/// insertion point ([`place_observation_root_visible`]) or produced by a
+/// node the same relocation run covers, else the representative an
+/// invariant member structural parameter resolves to
+/// ([`invariant_member_place_parameters`]) when that lands the same way —
+/// the place-level analog of [`member_scalar_operand_substitution`]. A
+/// member-produced root qualifies only when its member producer is unique:
+/// a second producer would re-establish the cell each traversal behind the
+/// relocated call's single invocation.
+fn call_argument_root_landing(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    preheader: &OptimizationBlock,
+    representatives: &BTreeMap<PlaceId, PlaceId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+    place: PlaceId,
+) -> Option<PlaceId> {
+    if place_observation_root_visible(function, preheader, place)
+        || (relocating_roots.contains(&place)
+            && member_root_producer_count(function, component, place) == 1)
+    {
+        return Some(place);
+    }
+    let representative = *representatives.get(&place)?;
+    (place_observation_root_visible(function, preheader, representative)
+        || (relocating_roots.contains(&representative)
+            && member_root_producer_count(function, component, representative) == 1))
+        .then_some(representative)
 }
 
 /// The complete scalar-call admission shared by the proposal and the

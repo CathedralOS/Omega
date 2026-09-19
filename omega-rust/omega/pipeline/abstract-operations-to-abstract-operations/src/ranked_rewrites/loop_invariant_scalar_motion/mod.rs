@@ -36,7 +36,8 @@ pub use model::{
 /// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, pure-callee
-/// scalar-signature, borrow unit, and borrow scalar-result
+/// scalar-signature, borrow-and-copyable-owned unit, and
+/// borrow-and-copyable-owned scalar-result
 /// structural calls, byte-sequence-literal, primitive-local, record, and
 /// scalar-array establishments, and
 /// side-effect-free scalar
@@ -83,10 +84,14 @@ pub use model::{
 /// family's second call relocation on top of that evidence: the component
 /// must additionally preserve member-visible place custody (the callee can
 /// observe caller places through its borrows), every structural argument
-/// must be a borrow — owned access would move the caller's place into the
-/// callee outright, so it stays refused — its claim roster must be empty
+/// must be a borrow or a copyable owned whole-root spelling — `Owned` over
+/// an affine or linear root would move the caller's place into the callee
+/// outright, so it stays refused, while `Owned` over an unrestricted owned
+/// parameter or an unrestricted claim-free scalar-array result copies the
+/// payload into the callee, the same observation a shared borrow makes —
+/// its claim roster must be empty
 /// (the vacuous `ClaimTransfer` ownership row moves byte-exact with the
-/// operation), and each shared-borrow argument's root must be visible at the
+/// operation), and each argument's root must be visible at the
 /// preheader insertion point either directly, through an invariant member
 /// structural parameter's representative (rebound on the moved node), or
 /// through a node earlier in the same run that produced the root (the
@@ -105,8 +110,10 @@ pub use model::{
 /// the admitted form is the one the cyclic eligibility fence already
 /// confines, an affine claim-free result the producing member block
 /// dispatches through a `StructuralCase` or returns outright, carrying no
-/// structural arguments, claims, obligations, crash routes, or selected
-/// evidence. The callee passes the same purity bar and the member roster
+/// claims, obligations, crash routes, or selected
+/// evidence and structural arguments confined to the same borrow or
+/// copyable-owned whitelist the other structural-signature calls obey. The
+/// callee passes the same purity bar and the member roster
 /// stays unobservable; the result place obeys the scalar-case containment
 /// bound, so hoisting the call keeps the one persistent preheader place
 /// live across member-internal edges while every exit edge and member
@@ -160,9 +167,11 @@ pub use model::{
 /// and result custody move byte-exact inside the moved operation. The
 /// custody bound carries the array's own wrinkle: a member call may spell
 /// the fresh root as an `Owned` argument — copying an unrestricted payload
-/// into the callee is an observation, not custody movement — so the staying
+/// into the callee is an observation, not custody movement — so a staying
 /// call keeps reading the persistent place each traversal while the
-/// establishment it consumes relocates once into the preheader. The same
+/// establishment it consumes relocates once into the preheader, and the
+/// consuming call itself relocates behind its producer when the array is
+/// the run-covered root its `Owned` argument names. The same
 /// bound makes the hoist sound: only when no member stores to the declared
 /// place does a payload established once still read its elements on every
 /// traversal.

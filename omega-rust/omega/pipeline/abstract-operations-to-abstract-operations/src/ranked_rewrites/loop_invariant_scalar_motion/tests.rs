@@ -7510,9 +7510,9 @@ fn forged_record_field_copy_root_is_rejected_by_the_freeze_fence() {
 /// resolves transitively to the machine's `scale` anchor, so the
 /// establishment relocates rebinding every element to that representative
 /// while its declared place stays byte-exact. The owned-argument call is a
-/// copy of the persistent member-produced root — custody-preserving under
-/// the whole-component bound — and stays inside the loop spelling the same
-/// place.
+/// copy of the member-produced root — custody-preserving under the
+/// whole-component bound — and relocates behind its producer in the same
+/// run, still spelling the persistent place byte-exact.
 const MEMBER_SCALAR_ARRAY_SOURCE: &str = r#"
     machine first(row: [u64; 2]) -> u64 { 0 }
     machine scan(remaining: u64 [0..=5], scale: u64 [0..=10]) -> u64
@@ -7569,7 +7569,7 @@ fn member_scalar_array_establishments<'function>(
 }
 
 #[test]
-fn invariant_scalar_array_establishment_relocates_preserving_its_place() {
+fn invariant_scalar_array_and_its_owned_argument_call_relocate_together() {
     let session = lowered_session_entry(
         MEMBER_SCALAR_ARRAY_SOURCE,
         "member scalar-array loop",
@@ -7581,6 +7581,7 @@ fn invariant_scalar_array_establishment_relocates_preserving_its_place() {
     let [entry] = component.entries.as_slice() else {
         panic!("one entry edge")
     };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
     let function = session
         .unit()
         .functions
@@ -7600,17 +7601,51 @@ fn invariant_scalar_array_establishment_relocates_preserving_its_place() {
         operation => panic!("the member node is an array establishment: {operation:?}"),
     };
     assert_eq!(elements.len(), 2, "the array declares two scalar elements");
+    // The consuming call spells the fresh array root as an `Owned`
+    // argument: the unrestricted payload copies into the callee, so the
+    // argument is the observation a shared borrow is, and the call
+    // relocates behind its producer in the same run.
+    let (call_operation, call_result) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .find_map(|node| match &node.operation {
+            AbstractOperation::CallStructuralScalar {
+                psi_operation,
+                result,
+                ..
+            } => Some((*psi_operation, result.value)),
+            _ => None,
+        })
+        .expect("the member block holds the owned-argument scalar call");
 
     let candidates =
         propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
     let [candidate] = candidates.as_slice() else {
         panic!("one component yields one atomic candidate")
     };
-    let relocation = candidate
+    let array_position = candidate
         .relocations()
         .iter()
-        .find(|relocation| relocation.node().psi_operation() == array_operation)
+        .position(|relocation| relocation.node().psi_operation() == array_operation)
         .expect("the array establishment is a planned relocation");
+    let call_position = candidate
+        .relocations()
+        .iter()
+        .position(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the owned-argument call relocates behind its producer");
+    assert!(
+        array_position < call_position,
+        "the run orders the producer ahead of the owned-argument call"
+    );
+    let relocation = &candidate.relocations()[array_position];
     let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
         panic!("the array establishment relocates its structural result")
     };
@@ -7643,33 +7678,23 @@ fn invariant_scalar_array_establishment_relocates_preserving_its_place() {
         .find(|parameter| parameter.value == representative)
         .expect("the element representative is the machine's `scale` parameter")
         .value;
-    // The owned-argument call stays inside: it copies the persistent
-    // member-produced root each traversal and keeps spelling its preserved
-    // place.
-    let call_operation = component
-        .members
-        .iter()
-        .flat_map(|member| {
-            function
-                .blocks
-                .iter()
-                .find(|block| block.id == *member)
-                .into_iter()
-                .flat_map(|block| block.nodes.iter())
-        })
-        .find_map(|node| match &node.operation {
-            AbstractOperation::CallStructuralScalar { psi_operation, .. } => Some(*psi_operation),
-            _ => None,
-        })
-        .expect("the member block holds the owned-argument scalar call");
-    assert!(
-        candidate
-            .relocations()
-            .iter()
-            .all(|relocation| relocation.node().psi_operation() != call_operation),
-        "the owned-argument call stays inside spelling the preserved place"
+    // The call's `Owned` argument names the member-produced root its
+    // producer already covered: the run keeps the declared place identity
+    // byte-exact, so the relocated call needs no argument rewrite, and its
+    // scalar result joins the run's relocated values.
+    let call_relocation = &candidate.relocations()[call_position];
+    let LoopInvariantNodeResult::Scalar { value, .. } = call_relocation.node().result() else {
+        panic!("the owned-argument call relocates its scalar result")
+    };
+    assert_eq!(
+        *value, call_result,
+        "the relocated call preserves its scalar result identity"
     );
-    assert_eq!(relocation.destination().block, entry.source);
+    assert!(
+        call_relocation.node().argument_rewrites().is_empty(),
+        "the run-covered root keeps the argument byte-exact"
+    );
+    assert_eq!(call_relocation.destination().block, entry.source);
 
     let validated = validate_loop_invariant_scalar_motion(&session, candidate)
         .expect("independent relocation validation");
@@ -7703,26 +7728,47 @@ fn invariant_scalar_array_establishment_relocates_preserving_its_place() {
     }
     assert_eq!(moved.provenance, relocation.node().provenance());
     assert_eq!(moved.fuel, relocation.node().fuel());
-    // The staying call still spells the relocated array's preserved place.
-    let staying_call = applied
-        .session()
-        .unit()
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
-        .find(|node| node.provenance.first() == Some(&PsiProvenance::Operation(call_operation)))
-        .expect("the owned-argument call survives in the member block");
+    // The relocated call still copies the persistent place — `Owned` access
+    // and the declared root move byte-exact inside the operation.
+    let moved_call =
+        &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
     let AbstractOperation::CallStructuralScalar {
         structural_arguments,
         ..
-    } = &staying_call.operation
+    } = &moved_call.operation
     else {
-        panic!("the staying node keeps its call operation")
+        panic!("the relocated node keeps its call operation")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("the owned-argument call carries one structural argument")
     };
     assert_eq!(
-        structural_arguments[0].place, array_place,
-        "the staying call copies the relocated array's preserved place"
+        argument.access,
+        terminal_psi::StructuralAccess::Owned,
+        "the moved call keeps its owned access spelling"
+    );
+    assert_eq!(
+        argument.place, array_place,
+        "the moved call copies the relocated array's preserved place"
+    );
+    assert_eq!(moved_call.provenance, call_relocation.node().provenance());
+    assert!(
+        applied
+            .session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .filter(|block| member_targets.contains(&block.id))
+            .flat_map(|block| &block.nodes)
+            .all(|node| {
+                !matches!(
+                    node.operation,
+                    AbstractOperation::CallStructuralScalar { .. }
+                        | AbstractOperation::EstablishScalarArray { .. }
+                )
+            }),
+        "the member roster keeps neither the establishment nor its consuming call"
     );
     assert!(
         propose_loop_invariant_scalar_motion(applied.session(), 1)
@@ -7824,6 +7870,270 @@ fn forged_scalar_array_element_is_rejected_by_the_freeze_fence() {
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
     assert!(matches!(
         crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+/// A `CallStructuralScalar` spelling an `Owned` whole-root argument over the
+/// machine's own unrestricted record parameter: `first(row)` inside `scan`
+/// copies the parameter's payload into the callee — an observation, not
+/// custody movement — and `row`'s member spelling resolves transitively to
+/// the machine parameter's preheader-visible root, so the relocated call
+/// rebinds its argument to that root. The member-produced counterpart is
+/// [`MEMBER_SCALAR_ARRAY_SOURCE`]'s relocated consumer.
+const OWNED_PARAMETER_SCALAR_CALL_SOURCE: &str = r#"
+    data Pair [copy] { a: u64; b: u64; }
+    machine first(pair: Pair) -> u64 { 0 }
+    machine scan(row: Pair, remaining: u64 [0..=5], scale: u64 [0..=10]) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let v: u64 = first(row);
+        transition remaining > 0 {
+            true -> scan(row, remaining - 1, scale)
+            _ -> v
+        }
+    }
+"#;
+
+#[test]
+fn invariant_owned_parameter_scalar_call_relocates_rebinding_its_root() {
+    let session = lowered_session_entry(
+        OWNED_PARAMETER_SCALAR_CALL_SOURCE,
+        "owned parameter scalar-call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    // `row` is the machine's unrestricted owned parameter — the copyable
+    // shape the `Owned` whitelist admits — spelled inside the member block
+    // through its own parameter place.
+    let row_root = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| {
+            !parameter.is_self
+                && parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        })
+        .map(|parameter| parameter.place)
+        .expect("the machine's `row` parameter declares the copyable owned shape");
+    let member_root = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.structural_parameters.iter())
+        })
+        .find(|parameter| {
+            !parameter.is_self
+                && parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        })
+        .map(|parameter| parameter.place)
+        .expect("the member's `row` parameter declares the copyable owned shape");
+    let (call_operation, call_result) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .find_map(|node| match &node.operation {
+            AbstractOperation::CallStructuralScalar {
+                psi_operation,
+                result,
+                structural_arguments,
+                ..
+            } => {
+                let [argument] = structural_arguments.as_slice() else {
+                    panic!("the owned-argument call carries one structural argument")
+                };
+                assert_eq!(
+                    argument.access,
+                    terminal_psi::StructuralAccess::Owned,
+                    "the call copies the machine's record parameter"
+                );
+                assert_eq!(
+                    argument.place, member_root,
+                    "the owned argument names the member's parameter spelling"
+                );
+                Some((*psi_operation, result.value))
+            }
+            _ => None,
+        })
+        .expect("the member block holds the owned-argument scalar call");
+    let representative = crate::validation::invariant_member_place_parameters(
+        function,
+        component,
+        &std::collections::BTreeSet::new(),
+    )
+    .get(&member_root)
+    .copied()
+    .expect("the member owned parameter resolves to a preheader-visible root");
+    assert_eq!(
+        representative, row_root,
+        "the member parameter resolves to the machine's `row` root"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the owned-parameter call is a planned relocation");
+    let LoopInvariantNodeResult::Scalar { value, .. } = relocation.node().result() else {
+        panic!("the call relocates its scalar result")
+    };
+    assert_eq!(
+        *value, call_result,
+        "the relocated call preserves its scalar result identity"
+    );
+    assert_eq!(
+        relocation.node().argument_rewrites(),
+        &[(member_root, row_root)],
+        "the relocation records the member parameter's rebind to `row`"
+    );
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &moved.operation
+    else {
+        panic!("the relocated node keeps its call operation")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("the moved call keeps one structural argument")
+    };
+    assert_eq!(
+        argument.access,
+        terminal_psi::StructuralAccess::Owned,
+        "the owned access rides byte-exact"
+    );
+    assert_eq!(
+        argument.place, row_root,
+        "the moved call still copies the machine parameter root"
+    );
+    assert!(
+        applied
+            .session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .filter(|block| member_targets.contains(&block.id))
+            .flat_map(|block| &block.nodes)
+            .all(|node| !matches!(
+                node.operation,
+                AbstractOperation::CallStructuralScalar { .. }
+            )),
+        "the member roster keeps no copy of the relocated call"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn owned_argument_call_moved_without_its_producer_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_SCALAR_ARRAY_SOURCE,
+        "member scalar-array loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (call_block, call_operation) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter().map(move |node| (block.id, node)))
+        })
+        .find_map(|(block, node)| match &node.operation {
+            AbstractOperation::CallStructuralScalar { psi_operation, .. } => {
+                Some((block, *psi_operation))
+            }
+            _ => None,
+        })
+        .expect("the member block holds the owned-argument scalar call");
+    let member = call_block;
+    let preheader = entry.source;
+    let (input, mut unit) = session.into_parts();
+    // Hand-move only the call: its `Owned` argument still names the array's
+    // member-produced place, but the producer stayed inside — the freeze
+    // fence re-derives the admission and refuses because no node in the
+    // component's relocated run covered the copied root.
+    let moved = take_operation(&mut unit, call_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
         Err(
             OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
                 machine: rejected_machine,
