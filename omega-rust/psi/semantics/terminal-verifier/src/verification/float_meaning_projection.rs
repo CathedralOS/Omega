@@ -3,11 +3,16 @@
 use numerics::{
     float_projection::{FloatProjectionOperation, FloatProjectionRule},
     float_semantics::{FloatFormat, FloatMeaning},
+    float_semantics_catalog::{
+        FloatSemanticContractIdentity, FloatSemanticOperand, FloatSemanticOperation,
+        FloatSemanticResult, FloatSemanticValueKind,
+    },
 };
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, MachineId, ScalarType, ValueId};
 use terminal_psi::{
     FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionContractIdentity, ProofOnlyValueType, TerminalModule,
+    FloatProjectionContractIdentity, FloatSemanticApplication, FloatSemanticApplicationOperand,
+    ProofOnlyValueType, TerminalModule,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,9 +20,15 @@ pub struct ReconstructedFloatMeaningProjection {
     pub result_type: ProofOnlyValueType,
     pub source: FloatMeaningSource,
     pub source_format: IeeeFloatFormat,
-    /// Exact payload-erased denotation for a literal source. Transitional
+    /// Exact payload-erased denotation for a literal source or a semantic
+    /// application every operand of which already reconstructed a literal
+    /// meaning — the bound catalog kernel is replayed over those operands and
+    /// the discharged meaning is retained here. Transitional and direct
     /// source coordinates cannot populate this field.
     pub literal_meaning: Option<FloatMeaning>,
+    /// The shared catalog row a semantic-application source rejoined to; all
+    /// other source classes leave this empty.
+    pub semantic_operation: Option<&'static FloatSemanticOperation>,
     pub operation: FloatMeaningProjectionOperation,
     pub contract: FloatProjectionContractIdentity,
     pub rule: FloatProjectionRule,
@@ -36,9 +47,13 @@ fn terminal_contract_identity(
     }
 }
 
-/// Reconstruct one projection only from source-independent Terminal fields and
-/// the shared closed catalog. No source declaration or name table participates.
+/// Reconstruct one projection from source-independent Terminal fields and the
+/// shared closed catalogs. `projections` is the module's complete projection
+/// table: a semantic application names its meaning operands by row, and the
+/// operand must precede the applying row, so the dense proof-value order keeps
+/// every recursive rejoin well-founded.
 pub fn reconstruct_float_meaning_projection(
+    projections: &[FloatMeaningProjection],
     projection: &FloatMeaningProjection,
 ) -> Result<ReconstructedFloatMeaningProjection, FloatMeaningProjectionVerificationError> {
     if projection.result.value_type != ProofOnlyValueType::FloatMeaning {
@@ -67,6 +82,7 @@ pub fn reconstruct_float_meaning_projection(
     {
         return Err(FloatMeaningProjectionVerificationError::IncompleteProjectionLaw);
     }
+    let mut semantic_operation = None;
     let literal_meaning = match &projection.source {
         FloatMeaningSource::TransitionalInput(_)
         | FloatMeaningSource::DirectMachineParameter(_)
@@ -81,16 +97,130 @@ pub fn reconstruct_float_meaning_projection(
         FloatMeaningSource::ExactBinary64Literal(bits) => {
             Some(FloatMeaning::from_f64(f64::from_bits(*bits)))
         }
+        FloatMeaningSource::SemanticApplication(application) => {
+            let (operation, meaning) =
+                verify_semantic_application(projections, projection, application)?;
+            semantic_operation = Some(operation);
+            meaning
+        }
     };
     Ok(ReconstructedFloatMeaningProjection {
         result_type: projection.result.value_type,
         source: projection.source.clone(),
         source_format: projection.source.format(),
         literal_meaning,
+        semantic_operation,
         operation: projection.operation,
         contract: projection.contract,
         rule,
     })
+}
+
+/// Rejoin one semantic-application source: the contract identity selects the
+/// catalog row, the operand list must spell that row's signature position by
+/// position, and every `Meaning` operand must name a strictly earlier proof
+/// row — a forward, self, or dangling reference has no well-founded
+/// reconstruction. `Format` parameters admit only a sealed IEEE binary format
+/// and must equal the application's declared result format; on rows without a
+/// `Format` parameter (`minimum`, `maximum`) the result format exists only as
+/// the shared format of the meaning operands, so a mismatched operand format
+/// rejects. When every operand already reconstructs a literal meaning the
+/// bound kernel is discharged and the result meaning retained; the discharge
+/// still cannot outrun the named contract — a kernel result that disagrees
+/// with the row's result kind or contract rejects.
+fn verify_semantic_application(
+    projections: &[FloatMeaningProjection],
+    projection: &FloatMeaningProjection,
+    application: &FloatSemanticApplication,
+) -> Result<
+    (&'static FloatSemanticOperation, Option<FloatMeaning>),
+    FloatMeaningProjectionVerificationError,
+> {
+    let identity = FloatSemanticContractIdentity {
+        row: application.contract.row,
+        catalog_version: application.contract.catalog_version,
+        commitment: application.contract.commitment,
+    };
+    let row = FloatSemanticOperation::for_contract_identity(&identity)
+        .ok_or(FloatMeaningProjectionVerificationError::SemanticApplicationContractMismatch)?;
+    if row.result != FloatSemanticValueKind::Meaning {
+        return Err(FloatMeaningProjectionVerificationError::SemanticApplicationResultKindMismatch);
+    }
+    if application.operands.len() != row.parameters.len() {
+        return Err(
+            FloatMeaningProjectionVerificationError::SemanticApplicationOperandCountMismatch,
+        );
+    }
+    let format_free = !row.parameters.contains(&FloatSemanticValueKind::Format);
+    let mut discharged = Vec::with_capacity(application.operands.len());
+    for (operand_index, (operand, kind)) in application
+        .operands
+        .iter()
+        .zip(row.parameters.iter())
+        .enumerate()
+    {
+        let operand_index = u32::try_from(operand_index).unwrap_or(u32::MAX);
+        match (operand, kind) {
+            (FloatSemanticApplicationOperand::Format(format), FloatSemanticValueKind::Format) => {
+                if *format != application.format {
+                    return Err(
+                        FloatMeaningProjectionVerificationError::SemanticApplicationFormatMismatch,
+                    );
+                }
+                discharged.push(FloatSemanticOperand::Format(match format {
+                    IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
+                    IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
+                }));
+            }
+            (FloatSemanticApplicationOperand::Meaning(value), FloatSemanticValueKind::Meaning) => {
+                let operand_row = if value.0 < projection.result.id.0 {
+                    usize::try_from(value.0)
+                        .ok()
+                        .and_then(|index| projections.get(index))
+                        .filter(|row| row.result.id == *value)
+                } else {
+                    None
+                }
+                .ok_or(
+                    FloatMeaningProjectionVerificationError::SemanticApplicationOperandRow {
+                        operand: operand_index,
+                    },
+                )?;
+                let reconstructed = reconstruct_float_meaning_projection(projections, operand_row)?;
+                if format_free && reconstructed.source_format != application.format {
+                    return Err(
+                        FloatMeaningProjectionVerificationError::SemanticApplicationFormatMismatch,
+                    );
+                }
+                match reconstructed.literal_meaning {
+                    Some(meaning) => {
+                        discharged.push(FloatSemanticOperand::Meaning(meaning));
+                    }
+                    None => {
+                        discharged.clear();
+                        return Ok((row, None));
+                    }
+                }
+            }
+            _ => {
+                return Err(
+                    FloatMeaningProjectionVerificationError::SemanticApplicationOperandKindMismatch {
+                        operand: operand_index,
+                    },
+                );
+            }
+        }
+    }
+    let Some(discharge) = row.kernel_discharge(&discharged) else {
+        return Err(FloatMeaningProjectionVerificationError::SemanticApplicationDischargeMismatch);
+    };
+    if discharge.contract != identity {
+        return Err(FloatMeaningProjectionVerificationError::SemanticApplicationDischargeMismatch);
+    }
+    match discharge.result {
+        FloatSemanticResult::Meaning(meaning) => Ok((row, Some(meaning))),
+        _ => Err(FloatMeaningProjectionVerificationError::SemanticApplicationDischargeMismatch),
+    }
 }
 
 /// Rejoin one structural IEEE source to an owner's direct structural
@@ -521,6 +651,17 @@ pub enum FloatMeaningProjectionVerificationError {
         owner: MachineId,
     },
     DirectStructuralLeafFormatMismatch,
+    SemanticApplicationContractMismatch,
+    SemanticApplicationResultKindMismatch,
+    SemanticApplicationOperandCountMismatch,
+    SemanticApplicationOperandKindMismatch {
+        operand: u32,
+    },
+    SemanticApplicationOperandRow {
+        operand: u32,
+    },
+    SemanticApplicationFormatMismatch,
+    SemanticApplicationDischargeMismatch,
     EqualityCarrierMismatch,
 }
 
@@ -553,7 +694,7 @@ mod tests {
 
     #[test]
     fn verifier_reconstructs_exact_catalog_row_without_names() {
-        let reconstructed = reconstruct_float_meaning_projection(&projection()).unwrap();
+        let reconstructed = reconstruct_float_meaning_projection(&[], &projection()).unwrap();
         assert_eq!(reconstructed.result_type, ProofOnlyValueType::FloatMeaning);
         assert_eq!(reconstructed.source_format, IeeeFloatFormat::Binary32);
         assert_eq!(
@@ -571,7 +712,7 @@ mod tests {
         let mut tampered = projection();
         tampered.operation = FloatMeaningProjectionOperation::Meaning64;
         assert_eq!(
-            reconstruct_float_meaning_projection(&tampered),
+            reconstruct_float_meaning_projection(&[], &tampered),
             Err(FloatMeaningProjectionVerificationError::ContractIdentityMismatch)
         );
 
@@ -581,7 +722,7 @@ mod tests {
             format: IeeeFloatFormat::Binary64,
         });
         assert_eq!(
-            reconstruct_float_meaning_projection(&tampered),
+            reconstruct_float_meaning_projection(&[], &tampered),
             Err(FloatMeaningProjectionVerificationError::SourceFormatMismatch)
         );
     }
@@ -590,7 +731,7 @@ mod tests {
     fn verifier_reconstructs_literal_bits_and_payload_erased_meaning() {
         let mut exact = projection();
         exact.source = FloatMeaningSource::ExactBinary32Literal(0x8000_0000);
-        let reconstructed = reconstruct_float_meaning_projection(&exact).unwrap();
+        let reconstructed = reconstruct_float_meaning_projection(&[], &exact).unwrap();
         assert_eq!(
             reconstructed.source,
             FloatMeaningSource::ExactBinary32Literal(0x8000_0000)
@@ -601,9 +742,9 @@ mod tests {
         );
 
         exact.source = FloatMeaningSource::ExactBinary32Literal(0x7fc0_0001);
-        let first_nan = reconstruct_float_meaning_projection(&exact).unwrap();
+        let first_nan = reconstruct_float_meaning_projection(&[], &exact).unwrap();
         exact.source = FloatMeaningSource::ExactBinary32Literal(0x7fff_ffff);
-        let second_nan = reconstruct_float_meaning_projection(&exact).unwrap();
+        let second_nan = reconstruct_float_meaning_projection(&[], &exact).unwrap();
         assert_ne!(first_nan.source, second_nan.source);
         assert_eq!(first_nan.literal_meaning, Some(FloatMeaning::NaN));
         assert_eq!(first_nan.literal_meaning, second_nan.literal_meaning);

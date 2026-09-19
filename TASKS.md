@@ -4396,10 +4396,18 @@ Owners include
     the complete signature by `from_source_identity` — never the leaf
     spelling. Meaning results compare by payload-erased meaning equality;
     `Bool` results keep the IEEE predicates (`NaN` unordered, `+0` == `-0`).
-    Remaining: no checked obligation cites the binding yet — the
-    semantic-application proof value that would carry the discharged tuple
-    through Terminal is still not threaded checked-trees -> Terminal ->
-    codec -> verifier.
+    The Terminal side now carries the application: `FloatMeaningSource::
+    SemanticApplication` (codec tag 10) spells the catalog
+    `FloatSemanticContractIdentity`, the declared result format, and the
+    operand roster as projection-row references; the verifier rejoins the
+    contract through `for_contract_identity`, checks each operand's kind and
+    (where the signature carries a `Format`) its declared format, resolves
+    meaning operands to strictly earlier rows, and re-runs
+    `kernel_discharge` when every meaning operand is a literal — the
+    discharged result rides the shared proof-value space so equality
+    propositions admit it unchanged (landed 2026-09-19). Remaining: no
+    checked obligation cites the binding yet — the checked-trees -> lowered
+    -> Terminal production of a semantic application is still missing.
   - The non-call operation result and call result
     [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity).
     Terminal carries `DirectOperationResult`/`DirectCallResult` with codec
@@ -4430,8 +4438,9 @@ Owners include
   `validation/src/proof_contracts/float_projection_invocations.rs` records
   equality only between projection invocations, so projection-to-
   `FloatSemantics::*` application contracts lack the required obligation.
-  Carry exact semantic applications and their operand/result relationships
-  through checked facts, Terminal, codec and independent verification. Reuse
+  Terminal, codec and the verifier now carry exact semantic applications and
+  their operand/result relationships; the open leg is producing them from
+  checked facts. Reuse
   `float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract`
   and the signature-selected `numerics::FloatSemanticOperation::kernel_discharge`;
   catalog identity alone is insufficient. An application can produce the

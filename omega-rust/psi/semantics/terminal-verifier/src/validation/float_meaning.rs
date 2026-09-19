@@ -49,12 +49,11 @@ fn validate_equalities(
                     operand: operand.0,
                 })?;
             reconstructed.push(
-                crate::verification::reconstruct_float_meaning_projection(projection).map_err(
-                    |error| ModuleError::InvalidFloatMeaningProjection {
+                crate::verification::reconstruct_float_meaning_projection(projections, projection)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection {
                         index: operand.0,
                         error,
-                    },
-                )?,
+                    })?,
             );
         }
         let [left, right] = reconstructed.as_slice() else {
@@ -126,7 +125,7 @@ fn validate_rows(projections: &[terminal_psi::FloatMeaningProjection]) -> Result
             });
         }
         projection_keys.push(key);
-        crate::verification::reconstruct_float_meaning_projection(projection)
+        crate::verification::reconstruct_float_meaning_projection(projections, projection)
             .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
     }
     Ok(())
@@ -160,7 +159,12 @@ fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
                 crate::verification::verify_direct_structural_float_leaf(module, leaf)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
-            _ => {}
+            // Semantic applications carry no runtime coordinates to rejoin;
+            // their catalog rejoin and operand checks run in validate_rows.
+            terminal_psi::FloatMeaningSource::SemanticApplication(_)
+            | terminal_psi::FloatMeaningSource::TransitionalInput(_)
+            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
+            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_) => {}
         }
     }
     Ok(())
@@ -176,7 +180,8 @@ const fn transitional_source_id(source: &terminal_psi::FloatMeaningSource) -> Op
         | terminal_psi::FloatMeaningSource::DirectCallResult(_)
         | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
         | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-        | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_) => None,
+        | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
+        | terminal_psi::FloatMeaningSource::SemanticApplication(_) => None,
     }
 }
 
@@ -1402,5 +1407,371 @@ mod tests {
             validate_equalities(&projections, &equalities),
             Err(ModuleError::NonDenseFloatMeaningEquality { .. })
         ));
+    }
+
+    fn semantic_contract(
+        name: &str,
+        parameters: &[numerics::float_semantics_catalog::FloatSemanticValueKind],
+        result: numerics::float_semantics_catalog::FloatSemanticValueKind,
+    ) -> terminal_psi::FloatSemanticContractIdentity {
+        let row = numerics::float_semantics_catalog::FloatSemanticOperation::from_source_identity(
+            numerics::float_semantics_catalog::FLOAT_SEMANTICS_NAMESPACE,
+            name,
+            parameters,
+            result,
+        )
+        .expect("catalog row");
+        let identity = row.contract_identity();
+        terminal_psi::FloatSemanticContractIdentity {
+            row: identity.row,
+            catalog_version: identity.catalog_version,
+            commitment: identity.commitment,
+        }
+    }
+
+    fn application(
+        index: u32,
+        identity: terminal_psi::FloatSemanticContractIdentity,
+        format: IeeeFloatFormat,
+        operands: Vec<terminal_psi::FloatSemanticApplicationOperand>,
+    ) -> FloatMeaningProjection {
+        let operation = match format {
+            IeeeFloatFormat::Binary32 => FloatMeaningProjectionOperation::Meaning32,
+            IeeeFloatFormat::Binary64 => FloatMeaningProjectionOperation::Meaning64,
+        };
+        FloatMeaningProjection {
+            result: ProofValueDeclaration {
+                id: ProofValueId(index),
+                value_type: ProofOnlyValueType::FloatMeaning,
+            },
+            source: FloatMeaningSource::SemanticApplication(
+                terminal_psi::FloatSemanticApplication {
+                    contract: identity,
+                    format,
+                    operands,
+                },
+            ),
+            operation,
+            contract: contract(match operation {
+                FloatMeaningProjectionOperation::Meaning32 => {
+                    numerics::float_projection::FloatProjectionOperation::Meaning32
+                }
+                FloatMeaningProjectionOperation::Meaning64 => {
+                    numerics::float_projection::FloatProjectionOperation::Meaning64
+                }
+            }),
+        }
+    }
+
+    #[test]
+    fn semantic_application_rows_rejoin_and_discharge_literal_operands() {
+        use numerics::float_semantics_catalog::FloatSemanticValueKind::{Format, Meaning};
+        use terminal_psi::FloatSemanticApplicationOperand::{
+            Format as FormatOperand, Meaning as MeaningOperand,
+        };
+        let add = semantic_contract("add", &[Format, Meaning, Meaning], Meaning);
+        let projections = vec![
+            exact_binary32_projection(0, 0x3f80_0000),
+            exact_binary32_projection(1, 0x4000_0000),
+            application(
+                2,
+                add,
+                IeeeFloatFormat::Binary32,
+                vec![
+                    FormatOperand(IeeeFloatFormat::Binary32),
+                    MeaningOperand(ProofValueId(0)),
+                    MeaningOperand(ProofValueId(1)),
+                ],
+            ),
+        ];
+        assert_eq!(validate_rows(&projections), Ok(()));
+        let reconstructed = crate::verification::reconstruct_float_meaning_projection(
+            &projections,
+            &projections[2],
+        )
+        .expect("application reconstructs");
+        assert_eq!(
+            reconstructed.literal_meaning,
+            Some(numerics::float_semantics::FloatMeaning::from_f32(3.0))
+        );
+        assert_eq!(
+            reconstructed.semantic_operation.map(|row| row.name),
+            Some("add")
+        );
+        // The application's FloatMeaning result rides the same proof-value
+        // space: an equality joins it to a plain literal carrier unchanged.
+        let equalities = vec![FloatMeaningEqualityProposition {
+            id: ProofPropositionId(0),
+            left: ProofValueId(1),
+            right: ProofValueId(2),
+        }];
+        assert_eq!(validate_equalities(&projections, &equalities), Ok(()));
+    }
+
+    #[test]
+    fn semantic_application_rows_reject_signature_and_contract_tampering() {
+        use crate::verification::FloatMeaningProjectionVerificationError as Error;
+        use numerics::float_semantics_catalog::FloatSemanticValueKind::{
+            Bool, Format, Integer, Meaning,
+        };
+        use numerics::float_semantics_catalog::IntegerCarrier;
+        use terminal_psi::FloatSemanticApplicationOperand::{
+            Format as FormatOperand, Meaning as MeaningOperand,
+        };
+        let add = semantic_contract("add", &[Format, Meaning, Meaning], Meaning);
+        let projections = || {
+            vec![
+                exact_binary32_projection(0, 0x3f80_0000),
+                exact_binary32_projection(1, 0x4000_0000),
+            ]
+        };
+        // A commitment drift, a foreign row ordinal, and a stale catalog
+        // version all strand the contract rejoin.
+        let mutations: [fn(&mut terminal_psi::FloatSemanticContractIdentity); 3] = [
+            |contract| contract.commitment[0] ^= 1,
+            |contract| contract.row = u8::MAX,
+            |contract| contract.catalog_version += 1,
+        ];
+        for mutate in mutations {
+            let mut contract = add;
+            mutate(&mut contract);
+            let mut rows = projections();
+            rows.push(application(
+                2,
+                contract,
+                IeeeFloatFormat::Binary32,
+                vec![
+                    FormatOperand(IeeeFloatFormat::Binary32),
+                    MeaningOperand(ProofValueId(0)),
+                    MeaningOperand(ProofValueId(1)),
+                ],
+            ));
+            assert_eq!(
+                validate_rows(&rows),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    index: 2,
+                    error: Error::SemanticApplicationContractMismatch,
+                })
+            );
+        }
+        // A non-Meaning result row cannot occupy this carrier.
+        let equal = semantic_contract("equal", &[Meaning, Meaning], Bool);
+        let mut rows = projections();
+        rows.push(application(
+            2,
+            equal,
+            IeeeFloatFormat::Binary32,
+            vec![
+                MeaningOperand(ProofValueId(0)),
+                MeaningOperand(ProofValueId(1)),
+            ],
+        ));
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                index: 2,
+                error: Error::SemanticApplicationResultKindMismatch,
+            })
+        );
+        // The operand list spells the signature position by position.
+        let mut rows = projections();
+        rows.push(application(
+            2,
+            add,
+            IeeeFloatFormat::Binary32,
+            vec![
+                FormatOperand(IeeeFloatFormat::Binary32),
+                MeaningOperand(ProofValueId(0)),
+            ],
+        ));
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                index: 2,
+                error: Error::SemanticApplicationOperandCountMismatch,
+            })
+        );
+        let mut rows = projections();
+        rows.push(application(
+            2,
+            add,
+            IeeeFloatFormat::Binary32,
+            vec![
+                MeaningOperand(ProofValueId(0)),
+                FormatOperand(IeeeFloatFormat::Binary32),
+                MeaningOperand(ProofValueId(1)),
+            ],
+        ));
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                index: 2,
+                error: Error::SemanticApplicationOperandKindMismatch { operand: 0 },
+            })
+        );
+        // The from_integer overloads take an Integer parameter no operand
+        // kind carries yet; a spelled application still fails at that slot.
+        let from_integer = semantic_contract(
+            "from_integer",
+            &[Format, Integer(IntegerCarrier::I32)],
+            Meaning,
+        );
+        let mut rows = projections();
+        rows.push(application(
+            2,
+            from_integer,
+            IeeeFloatFormat::Binary32,
+            vec![
+                FormatOperand(IeeeFloatFormat::Binary32),
+                MeaningOperand(ProofValueId(0)),
+            ],
+        ));
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                index: 2,
+                error: Error::SemanticApplicationOperandKindMismatch { operand: 1 },
+            })
+        );
+    }
+
+    #[test]
+    fn semantic_application_operands_must_name_earlier_rows() {
+        use crate::verification::FloatMeaningProjectionVerificationError as Error;
+        use numerics::float_semantics_catalog::FloatSemanticValueKind::{Format, Meaning};
+        use terminal_psi::FloatSemanticApplicationOperand::{
+            Format as FormatOperand, Meaning as MeaningOperand,
+        };
+        let add = semantic_contract("add", &[Format, Meaning, Meaning], Meaning);
+        // A self reference, a forward reference, and a dangling reference all
+        // name no earlier row.
+        for operand in [2, 4, u32::MAX] {
+            let rows = vec![
+                exact_binary32_projection(0, 0x3f80_0000),
+                exact_binary32_projection(1, 0x4000_0000),
+                application(
+                    2,
+                    add,
+                    IeeeFloatFormat::Binary32,
+                    vec![
+                        FormatOperand(IeeeFloatFormat::Binary32),
+                        MeaningOperand(ProofValueId(operand)),
+                        MeaningOperand(ProofValueId(1)),
+                    ],
+                ),
+            ];
+            assert_eq!(
+                validate_rows(&rows),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    index: 2,
+                    error: Error::SemanticApplicationOperandRow { operand: 1 },
+                }),
+                "operand {operand} must reject"
+            );
+        }
+        // A format operand disagreeing with the declared result format
+        // strands the format rejoin.
+        let rows = vec![
+            exact_binary32_projection(0, 0x3f80_0000),
+            exact_binary32_projection(1, 0x4000_0000),
+            application(
+                2,
+                add,
+                IeeeFloatFormat::Binary32,
+                vec![
+                    FormatOperand(IeeeFloatFormat::Binary64),
+                    MeaningOperand(ProofValueId(0)),
+                    MeaningOperand(ProofValueId(1)),
+                ],
+            ),
+        ];
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                index: 2,
+                error: Error::SemanticApplicationFormatMismatch,
+            })
+        );
+    }
+
+    #[test]
+    fn semantic_application_pair_rows_derive_format_from_operands() {
+        use crate::verification::FloatMeaningProjectionVerificationError as Error;
+        use numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning;
+        use terminal_psi::FloatSemanticApplicationOperand::Meaning as MeaningOperand;
+        let minimum = semantic_contract("minimum", &[Meaning, Meaning], Meaning);
+        let mut rows = vec![
+            exact_binary32_projection(0, 0x3f80_0000),
+            exact_binary32_projection(1, 0x4000_0000),
+        ];
+        rows.push(application(
+            2,
+            minimum,
+            IeeeFloatFormat::Binary32,
+            vec![
+                MeaningOperand(ProofValueId(0)),
+                MeaningOperand(ProofValueId(1)),
+            ],
+        ));
+        assert_eq!(validate_rows(&rows), Ok(()));
+        // A binary64 operand mixed into a declared binary32 application has
+        // no honest result-format derivation.
+        rows[1].operation = FloatMeaningProjectionOperation::Meaning64;
+        rows[1].contract =
+            contract(numerics::float_projection::FloatProjectionOperation::Meaning64);
+        rows[1].source = FloatMeaningSource::ExactBinary64Literal(0x3ff0_0000_0000_0000);
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                index: 2,
+                error: Error::SemanticApplicationFormatMismatch,
+            })
+        );
+    }
+
+    #[test]
+    fn semantic_application_rows_deduplicate_on_their_full_payload() {
+        use numerics::float_semantics_catalog::FloatSemanticValueKind::{Format, Meaning};
+        use terminal_psi::FloatSemanticApplicationOperand::{
+            Format as FormatOperand, Meaning as MeaningOperand,
+        };
+        let add = semantic_contract("add", &[Format, Meaning, Meaning], Meaning);
+        let row = |index| {
+            application(
+                index,
+                add,
+                IeeeFloatFormat::Binary32,
+                vec![
+                    FormatOperand(IeeeFloatFormat::Binary32),
+                    MeaningOperand(ProofValueId(0)),
+                    MeaningOperand(ProofValueId(1)),
+                ],
+            )
+        };
+        let mut rows = vec![
+            exact_binary32_projection(0, 0x3f80_0000),
+            exact_binary32_projection(1, 0x4000_0000),
+            row(2),
+            row(3),
+        ];
+        assert_eq!(
+            validate_rows(&rows),
+            Err(ModuleError::DuplicateFloatMeaningProjection {
+                first: 2,
+                duplicate: 3,
+            })
+        );
+        // A distinct operand order is a distinct source and stays admitted.
+        rows[3] = application(
+            3,
+            add,
+            IeeeFloatFormat::Binary32,
+            vec![
+                FormatOperand(IeeeFloatFormat::Binary32),
+                MeaningOperand(ProofValueId(1)),
+                MeaningOperand(ProofValueId(0)),
+            ],
+        );
+        assert_eq!(validate_rows(&rows), Ok(()));
     }
 }

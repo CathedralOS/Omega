@@ -88,7 +88,7 @@ fn comparison_fixture() -> TerminalModule {
 fn operation_crash_contracts_round_trip_and_enter_semantic_identity() {
     let module = comparison_fixture();
     let bytes = encode_module(&module).expect("operation crash contract encodes");
-    assert_eq!(&bytes[8..12], &[102, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[103, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 

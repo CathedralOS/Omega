@@ -149,10 +149,13 @@ pub fn block_local_evidence(module: &TerminalModule) -> BlockLocalEvidence {
                 evidence.operations.insert(result.producer);
                 evidence.values.insert(result.result);
             }
+            // A semantic application references only proof-row operands; it
+            // retains no runtime value, operation, or block evidence.
             terminal_psi::FloatMeaningSource::TransitionalInput(_)
             | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
             | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_) => {}
+            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
+            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
         }
     }
     for machine in &module.machines {
@@ -377,7 +380,8 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
             }
             terminal_psi::FloatMeaningSource::TransitionalInput(_)
             | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_) => {}
+            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
+            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
         }
     }
     for machine in &module.machines {

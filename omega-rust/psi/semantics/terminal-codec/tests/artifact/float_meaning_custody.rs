@@ -6,11 +6,14 @@
 //! declaration, the reconstructible source, the catalog operation, and the
 //! closed contract identity derived from that operation. The fixture carries
 //! every source variant: dense-by-first-use transitional inputs, exact
-//! binary32 and binary64 literals, and one valid carrier for each
+//! binary32 and binary64 literals, one valid carrier for each
 //! artifact-relative direct source — a machine parameter, a machine scalar
 //! result, a non-call operation result, a call-operation result, a block
 //! parameter, and a structural leaf — each rejoined by the module-bound
-//! validation to the owner machine's declared tables. `float_meaning_equalities`
+//! validation to the owner machine's declared tables — and a semantic
+//! application spelling one FloatSemantics kernel application through the
+//! catalog contract identity and its operand roster, discharged by the
+//! module-bound validation when every meaning operand is a literal. `float_meaning_equalities`
 //! is the joined proposition roster: dense proposition identities whose
 //! operands name projection results by index and whose reconstructed carriers
 //! must agree on source format, operation, and contract. Their wire fields —
@@ -30,10 +33,12 @@
 //! literal, a direct machine parameter on the shared machine, one transitional
 //! binary64 input, and an exact binary64 literal, then one row per remaining
 //! direct-source variant bound to a second float-result machine and the shared
-//! machine's float operations. Three equalities join the binary32 rows; the
-//! binary64 rows stay unreferenced so operand retargets exercise the
-//! carrier-mismatch join, while retargets onto the direct carriers stay
-//! representable.
+//! machine's float operations, a semantic application of `add` over two
+//! literal operands, and an exact binary32 literal equal to its discharged
+//! result. Four equalities join the binary32 rows, the last joining the
+//! application result to the equal literal; the binary64 rows stay
+//! unreferenced so operand retargets exercise the carrier-mismatch join,
+//! while retargets onto the direct carriers stay representable.
 
 use std::ops::Range;
 
@@ -56,8 +61,9 @@ use terminal_psi::{
     DirectMachineFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
     DirectStructuralFloatLeaf, FloatMeaningEqualityProposition, FloatMeaningProjection,
     FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
-    FloatProjectionInputId, MachineContract, Operation, OperationKind, OperationResult,
-    ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId, StructuralAccess,
+    FloatProjectionInputId, FloatSemanticApplication, FloatSemanticApplicationOperand,
+    MachineContract, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, StructuralAccess,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
@@ -92,6 +98,12 @@ struct ProjectionSpan {
     field_root: Option<Range<usize>>,
     field_path_count: Option<Range<usize>>,
     field_segment: Option<Range<usize>>,
+    application_row: Option<Range<usize>>,
+    application_version: Option<Range<usize>>,
+    application_commitment: Option<Range<usize>>,
+    application_operand_tag: Option<Range<usize>>,
+    application_operand_format: Option<Range<usize>>,
+    application_operand_id: Option<Range<usize>>,
     operation: Range<usize>,
     contract_format: Range<usize>,
     contract_operation: Range<usize>,
@@ -159,6 +171,12 @@ impl<'bytes> SpanWalker<'bytes> {
         let mut field_root = None;
         let mut field_path_count = None;
         let mut field_segment = None;
+        let mut application_row = None;
+        let mut application_version = None;
+        let mut application_commitment = None;
+        let mut application_operand_tag = None;
+        let mut application_operand_format = None;
+        let mut application_operand_id = None;
         match self.bytes[source_tag.clone()][0] {
             // TransitionalInput: u32 first-use id and a u8 IEEE format.
             1 => {
@@ -198,6 +216,39 @@ impl<'bytes> SpanWalker<'bytes> {
                 }
                 source_format = Some(self.take(1));
             }
+            // SemanticApplication: catalog row ordinal, contract version and
+            // commitment, the declared format, then a counted operand roster
+            // of tagged IEEE-format / proof-value entries.
+            10 => {
+                application_row = Some(self.take(1));
+                application_version = Some(self.take(2));
+                application_commitment = Some(self.take(32));
+                source_format = Some(self.take(1));
+                let (_, operands) = self.take_count();
+                for _ in 0..operands {
+                    let tag = self.take(1);
+                    if application_operand_tag.is_none() {
+                        application_operand_tag = Some(tag.clone());
+                    }
+                    match self.bytes[tag][0] {
+                        1 => {
+                            let format = self.take(1);
+                            if application_operand_format.is_none() {
+                                application_operand_format = Some(format);
+                            }
+                        }
+                        2 => {
+                            let id = self.take(4);
+                            if application_operand_id.is_none() {
+                                application_operand_id = Some(id);
+                            }
+                        }
+                        tag => {
+                            panic!("the fixture carries no application operand tag {tag}")
+                        }
+                    }
+                }
+            }
             tag => panic!("the fixture carries no float-meaning source tag {tag}"),
         }
         let operation = self.take(1);
@@ -221,6 +272,12 @@ impl<'bytes> SpanWalker<'bytes> {
             field_root,
             field_path_count,
             field_segment,
+            application_row,
+            application_version,
+            application_commitment,
+            application_operand_tag,
+            application_operand_format,
+            application_operand_id,
             operation,
             contract_format,
             contract_operation,
@@ -397,6 +454,44 @@ fn literal64(index: u32, bits: u64) -> FloatMeaningProjection {
         operation: FloatMeaningProjectionOperation::Meaning64,
         contract: contract(numerics::float_projection::FloatProjectionOperation::Meaning64),
     }
+}
+
+/// The closed contract identity of one FloatSemantics catalog row: the
+/// module-bound validation rejoins the ordinal, version, and commitment to
+/// exactly this row, so any substitution strands the application.
+fn semantic_application_contract(
+    name: &'static str,
+    parameters: &[numerics::float_semantics_catalog::FloatSemanticValueKind],
+    result: numerics::float_semantics_catalog::FloatSemanticValueKind,
+) -> terminal_psi::FloatSemanticContractIdentity {
+    let contract = numerics::float_semantics_catalog::FloatSemanticOperation::from_source_identity(
+        numerics::float_semantics_catalog::FLOAT_SEMANTICS_NAMESPACE,
+        name,
+        parameters,
+        result,
+    )
+    .expect("catalog row")
+    .contract_identity();
+    terminal_psi::FloatSemanticContractIdentity {
+        row: contract.row,
+        catalog_version: contract.catalog_version,
+        commitment: contract.commitment,
+    }
+}
+
+fn application32(
+    index: u32,
+    identity: terminal_psi::FloatSemanticContractIdentity,
+    operands: Vec<FloatSemanticApplicationOperand>,
+) -> FloatMeaningProjection {
+    meaning32(
+        index,
+        FloatMeaningSource::SemanticApplication(FloatSemanticApplication {
+            contract: identity,
+            format: IeeeFloatFormat::Binary32,
+            operands,
+        }),
+    )
 }
 
 fn equality(index: u32, left: u32, right: u32) -> FloatMeaningEqualityProposition {
@@ -616,8 +711,31 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
                 format: IeeeFloatFormat::Binary32,
             }),
         ),
+        application32(
+            11,
+            semantic_application_contract(
+                "add",
+                &[
+                    numerics::float_semantics_catalog::FloatSemanticValueKind::Format,
+                    numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning,
+                    numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning,
+                ],
+                numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning,
+            ),
+            vec![
+                FloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary32),
+                FloatSemanticApplicationOperand::Meaning(ProofValueId(2)),
+                FloatSemanticApplicationOperand::Meaning(ProofValueId(2)),
+            ],
+        ),
+        literal32(12, 0x4000_0000),
     ];
-    module.float_meaning_equalities = vec![equality(0, 0, 1), equality(1, 0, 2), equality(2, 1, 3)];
+    module.float_meaning_equalities = vec![
+        equality(0, 0, 1),
+        equality(1, 0, 2),
+        equality(2, 1, 3),
+        equality(3, 11, 12),
+    ];
     module
 }
 
@@ -636,10 +754,11 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     let spans = module_spans(&encoded);
     assert_eq!(
         spans.projections.len(),
-        11,
-        "fixture roster: transitional, literal, and one row per direct source variant"
+        13,
+        "fixture roster: transitional, literal, one row per direct source variant, \
+         and one semantic application with its discharged literal"
     );
-    assert_eq!(spans.equalities.len(), 3, "fixture equality roster");
+    assert_eq!(spans.equalities.len(), 4, "fixture equality roster");
 
     // The retained artifact binds the semantic identity into its manifest and
     // the sealed proof section to this exact module; replaying either against
@@ -806,7 +925,7 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     // as a phantom row or starves the walk entirely.
     rejected(
         "a float-projection roster count one over",
-        &put_u32(spans.projection_count.clone(), 12),
+        &put_u32(spans.projection_count.clone(), 14),
         CodecError::InvalidTag("ProofOnlyValueType", 0),
     );
     rejected(
@@ -819,7 +938,7 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     let mut cleared = encoded[..spans.projection_count.start].to_vec();
     cleared.extend_from_slice(&0_u32.to_le_bytes());
     cleared.extend_from_slice(&0_u32.to_le_bytes());
-    cleared.extend_from_slice(&encoded[equalities[2].row.end..]);
+    cleared.extend_from_slice(&encoded[equalities[3].row.end..]);
     divergent("a cleared float-meaning section", &cleared);
     // Clearing only the projection roster strands the retained equality
     // operands at the module-bound join.
@@ -834,12 +953,17 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
             operand: 0,
         }),
     );
-    // The last row is unreferenced: dropping it keeps the roster dense and
-    // diverges. Dropping or duplicating any earlier row strands the dense
-    // proof-value index of every following row.
-    divergent(
+    // The last row is bound to the trailing equality: dropping it keeps the
+    // roster dense but strands the equality operand. Dropping or duplicating
+    // any earlier row strands the dense proof-value index of every following
+    // row.
+    rejected(
         "a dropped trailing float-projection row",
-        &drop_row(spans.projection_count.clone(), projections[10].row.clone()),
+        &drop_row(spans.projection_count.clone(), projections[12].row.clone()),
+        CodecError::InvalidModule(ModuleError::UnknownFloatMeaningEqualityOperand {
+            proposition: 3,
+            operand: 12,
+        }),
     );
     rejected(
         "a dropped first float-projection row",
@@ -887,7 +1011,7 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
 
     // The source tag names one of the closed payload shapes; a same-format
     // retarget on the last transitional row stays representable.
-    for tag in [0, 10, u8::MAX] {
+    for tag in [0, 11, u8::MAX] {
         rejected(
             "an unknown float-meaning source tag",
             &put_u8(projections[0].source_tag.clone(), tag),
@@ -1418,6 +1542,110 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
         ),
     );
 
+    // --- semantic application source ------------------------------------------
+
+    // The application contract rejoins ordinal, version, and commitment to
+    // exactly one FloatSemantics catalog row; each axis substitutes
+    // independently into the same stranded join.
+    rejected(
+        "a substituted application contract row",
+        &put_u8(projections[11].application_row.clone().unwrap(), u8::MAX),
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SemanticApplicationContractMismatch,
+        ),
+    );
+    rejected(
+        "a substituted application contract version",
+        &put_u16(projections[11].application_version.clone().unwrap(), 0),
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SemanticApplicationContractMismatch,
+        ),
+    );
+    rejected(
+        "a substituted application contract commitment",
+        &put_u8(
+            projections[11].application_commitment.clone().unwrap(),
+            0x5A,
+        ),
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SemanticApplicationContractMismatch,
+        ),
+    );
+    // The declared format rejoins to the row's catalog operation before the
+    // signature operands are inspected at all.
+    rejected(
+        "a semantic application declared under another IEEE format",
+        &put_u8(projections[11].source_format.clone().unwrap(), 2),
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SourceFormatMismatch,
+        ),
+    );
+    // A format operand disagreeing with the declared format strands the
+    // format rejoin; a meaning operand naming its own row or a later row
+    // strands the operand-row join.
+    rejected(
+        "a semantic application format operand under another IEEE format",
+        &put_u8(
+            projections[11].application_operand_format.clone().unwrap(),
+            2,
+        ),
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SemanticApplicationFormatMismatch,
+        ),
+    );
+    rejected(
+        "a semantic application operand retargeted to a later row",
+        &put_u32(projections[11].application_operand_id.clone().unwrap(), 12),
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SemanticApplicationOperandRow { operand: 1 },
+        ),
+    );
+    for tag in [0, 3, u8::MAX] {
+        rejected(
+            "an unknown application operand tag",
+            &put_u8(
+                projections[11].application_operand_tag.clone().unwrap(),
+                tag,
+            ),
+            CodecError::InvalidTag("FloatSemanticApplicationOperand", tag),
+        );
+    }
+    // An operand retarget onto a transitional binary64 carrier stays
+    // representable: the format-carrying row constrains only its Format
+    // operand, and a non-literal operand leaves the application undischarged.
+    divergent(
+        "a semantic application operand retargeted to a transitional binary64 carrier",
+        &put_u32(projections[11].application_operand_id.clone().unwrap(), 4),
+    );
+    // A retarget of the discharged literal onto the application source lands
+    // on the identical (source, operation) key and rejects at the module
+    // join; retargeting the application onto a fresh literal stays
+    // representable.
+    rejected(
+        "a literal retargeted onto the semantic application source",
+        &splice(
+            projections[12].source.clone(),
+            &encoded[projections[11].source.clone()],
+        ),
+        CodecError::InvalidModule(ModuleError::DuplicateFloatMeaningProjection {
+            first: 11,
+            duplicate: 12,
+        }),
+    );
+    divergent(
+        "a semantic application retargeted to an exact literal",
+        &splice(
+            projections[11].source.clone(),
+            &[&[2_u8], &0x4080_0000_u32.to_le_bytes()[..]].concat(),
+        ),
+    );
+
     // --- operation and the closed contract identity ---------------------------
 
     // The catalog operation tag admits exactly two operations; a substituted
@@ -1508,7 +1736,7 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     // bytes as an over-long identity string.
     rejected(
         "a float-equality roster count one over",
-        &put_u32(spans.equality_count.clone(), 4),
+        &put_u32(spans.equality_count.clone(), 5),
         CodecError::StringTooLong("quotient static application bindings"),
     );
     rejected(
@@ -1520,11 +1748,11 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     // truncating the roster tail keeps the module representable.
     let mut cleared_equalities = encoded[..spans.equality_count.start].to_vec();
     cleared_equalities.extend_from_slice(&0_u32.to_le_bytes());
-    cleared_equalities.extend_from_slice(&encoded[equalities[2].row.end..]);
+    cleared_equalities.extend_from_slice(&encoded[equalities[3].row.end..]);
     divergent("a cleared float-equality roster", &cleared_equalities);
     divergent(
         "a dropped trailing float-equality row",
-        &drop_row(spans.equality_count.clone(), equalities[2].row.clone()),
+        &drop_row(spans.equality_count.clone(), equalities[3].row.clone()),
     );
     rejected(
         "a dropped first float-equality row",
@@ -1560,10 +1788,10 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     );
     rejected(
         "a float-equality operand outside the projections",
-        &put_u32(equalities[0].right.clone(), 11),
+        &put_u32(equalities[0].right.clone(), 13),
         CodecError::InvalidModule(ModuleError::UnknownFloatMeaningEqualityOperand {
             proposition: 0,
-            operand: 11,
+            operand: 13,
         }),
     );
     // An operand retarget that crosses the format/operation/contract carrier
@@ -1619,6 +1847,17 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     divergent(
         "a float-equality retargeted onto a direct structural-leaf carrier",
         &put_u32(equalities[2].right.clone(), 10),
+    );
+    // The semantic application's result rides the same proof-value space: a
+    // same-format operand retarget onto it stays representable, including a
+    // retarget of the application's own discharged-literal equality.
+    divergent(
+        "a float-equality retargeted onto the semantic application carrier",
+        &put_u32(equalities[0].right.clone(), 11),
+    );
+    divergent(
+        "a second float-equality retargeted onto the application carrier",
+        &put_u32(equalities[2].right.clone(), 11),
     );
 
     // --- producer-side rejections --------------------------------------------
@@ -1835,14 +2074,32 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
         dense_equality_order(),
     );
     let mut changed = module.clone();
-    changed.float_meaning_equalities[0].right = ProofValueId(11);
+    changed.float_meaning_equalities[0].right = ProofValueId(13);
     encode_rejected(
         "a producer-side unknown float-equality operand",
         &changed,
         CodecError::InvalidModule(ModuleError::UnknownFloatMeaningEqualityOperand {
             proposition: 0,
-            operand: 11,
+            operand: 13,
         }),
+    );
+    // A producer-spelled application operand that names no earlier row fails
+    // the same module validation on the way out.
+    let mut changed = module.clone();
+    let mut application = match changed.float_meaning_projections[11].source.clone() {
+        FloatMeaningSource::SemanticApplication(application) => application,
+        _ => unreachable!("the fixture's twelfth row is a semantic application"),
+    };
+    application.operands[1] = FloatSemanticApplicationOperand::Meaning(ProofValueId(12));
+    changed.float_meaning_projections[11].source =
+        FloatMeaningSource::SemanticApplication(application);
+    encode_rejected(
+        "a producer-side forward application operand",
+        &changed,
+        invalid_projection(
+            11,
+            FloatMeaningProjectionVerificationError::SemanticApplicationOperandRow { operand: 1 },
+        ),
     );
     let mut changed = module.clone();
     changed.float_meaning_equalities[0].right = ProofValueId(4);
@@ -1862,7 +2119,8 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     for cut in [
         projections[0].row.end - 1,
         projections[10].row.end - 1,
-        equalities[2].row.end - 1,
+        projections[11].row.end - 1,
+        equalities[3].row.end - 1,
         encoded.len() - 1,
     ] {
         assert!(

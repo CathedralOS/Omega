@@ -51,7 +51,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-102-vocabulary-107"
+    "root:canonical-terminal-bytes-format-103-vocabulary-107"
 }
 
 fn canonical_terminal_bytes_version() -> String {
