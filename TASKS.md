@@ -550,7 +550,7 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     `build_target_activation/foreign_helper_product_queries.rs`'s
     `dual_context_product_query` reproduces duplicate canonical boundary-trait
     and nominal-provider provenance errors after successful query evaluation
-    (`df8954126a` with the query-scope correction, macOS ARM64).
+    on macOS ARM64.
     `provider-planning/src/provider_planning/provenance_replay/` must retain
     checked-instance identity rather than matching the two schemas by name.
     Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
@@ -562,19 +562,21 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     currently requires retained symbol-rooted places. Do not bypass those
     checks with a Build-specific call-result recognizer or grant authority
     from the declared result type alone.
-  - Extend `build-evaluation/src/admission/selection/root_bindings.rs` and
-    the existing provider/description owners, with BUILD-DEPENDENCY-PURPOSES
-    for separate contexts and BUILD-ADMISSION-CHECKPOINT for source custody.
+  - Extend the existing provider/description owners, with
+    BUILD-DEPENDENCY-PURPOSES for separate contexts and
+    BUILD-ADMISSION-CHECKPOINT for source custody.
     Do not add a general compiler-query interface or allow target execution.
 
   Acceptance: a multi-file foreign helper binds an owner's restricted private
   entry description, including one returned by an ordinary checked helper;
-  a qualified query selects a public declaration in an authorized product
-  dependency. Wrong scope/target/slot, stale activation, lookalike operations,
-  sibling-private enumeration, forged descriptions, description-to-callable
+  a qualified query or static root operand selects a public declaration in an
+  authorized product dependency, retaining that exact checked-instance symbol
+  through Terminal production and native publication. Wrong scope/target/slot,
+  stale activation, lookalike operations, sibling-private enumeration,
+  forged descriptions, description-to-callable
   conversion, and same-build generated/layout cycles reject. Preserve
-  `compiler/tests/build_target_activation/foreign_helper_product_queries.rs`.
-  Its computed-result negative returns a forged `ProductEntryRef {}`: it must
+  `compiler/tests/build_target_activation/{foreign_helper_product_queries,qualified_root_bindings}.rs`.
+  The former's computed-result negative returns a forged `ProductEntryRef {}`: it must
   still reject after an independently compiler-issued result becomes supported.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish the

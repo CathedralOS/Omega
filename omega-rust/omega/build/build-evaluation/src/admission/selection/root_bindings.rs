@@ -14,9 +14,10 @@ pub struct RootBinding {
 
 /// Admission is lexical per occurrence package: the `implementation` operand
 /// resolves against the product machines declared in the package containing
-/// the `roots.bind` statement, never the caller's. A borrowed root Build
-/// carries operational authority, not the caller's product namespace, so a
-/// foreign helper can bind its own package's entry while wrong-scope spellings
+/// the `roots.bind` statement, or a public declaration selected through that
+/// package's explicit product dependency alias, never the caller's. A borrowed
+/// root Build carries operational authority, not the caller's product namespace,
+/// so a foreign helper can bind its own package's entry while wrong-scope spellings
 /// reject. Identity leaves here as an exact symbol so later admission never
 /// reselects by spelling.
 ///
@@ -67,29 +68,66 @@ pub(crate) fn collect_root_bindings(
             (described.machine_name.clone(), described.machine_symbol)
         } else {
             let implementation = product_path(&binding.implementation);
-            let candidates = typed
+            // Static root operands share the product query's lexical scope,
+            // not the build helper's import scope. An authorized alias selects
+            // the dependency's product checked instance even when the same
+            // source also has an independently checked build instance.
+            let qualified = implementation.split_once("::");
+            let dependency = qualified.and_then(|(alias, _)| {
+                typed
+                    .symbols
+                    .product_dependency_target(binding.source_span, alias)
+            });
+            let declaration_path = match (qualified, dependency) {
+                (Some((_, path)), Some(_)) => path,
+                _ => implementation.as_str(),
+            };
+            let mut candidates = typed
                 .machines()
                 .iter()
                 .filter(|machine| {
-                    machine.name.as_str() == implementation
-                        && typed
-                            .symbols
-                            .symbol_source_span(machine.symbol)
-                            .is_some_and(|span| {
-                                typed
-                                    .symbols
-                                    .same_product_package_instance(binding.source_span, span)
-                            })
+                    ((dependency.is_none() && machine.name.as_str() == declaration_path)
+                        || typed.symbols.display_path(machine.symbol, "::") == declaration_path)
+                        && match dependency {
+                            Some(package) => {
+                                machine.is_public
+                                    && typed
+                                        .symbols
+                                        .symbol_product_package_identity(machine.symbol)
+                                        == Some(package)
+                            }
+                            None => typed
+                                .symbols
+                                .symbol_source_span(machine.symbol)
+                                .is_some_and(|span| {
+                                    typed
+                                        .symbols
+                                        .same_product_package_instance(binding.source_span, span)
+                                }),
+                        }
                 })
                 .collect::<Vec<_>>();
+            // Prefer complete declaration paths over the existing same-package
+            // relative spelling. Otherwise another module's attached machine
+            // `Entry::launch` can make an exact `Entry::launch` path ambiguous.
+            // Keep the local fallback for roots in a named product module;
+            // dependency operands never inherit these relative spellings.
+            if candidates
+                .iter()
+                .any(|machine| typed.symbols.display_path(machine.symbol, "::") == declaration_path)
+            {
+                candidates.retain(|machine| {
+                    typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                });
+            }
             match candidates.as_slice() {
                 [machine] => (implementation, machine.symbol),
                 [] => {
-                    let message = if typed
-                        .machines()
-                        .iter()
-                        .any(|machine| machine.name.as_str() == implementation)
-                    {
+                    let probe = qualified.map_or(implementation.as_str(), |(_, path)| path);
+                    let message = if typed.machines().iter().any(|machine| {
+                        machine.name.as_str() == probe
+                            || typed.symbols.display_path(machine.symbol, "::") == probe
+                    }) {
                         format!(
                             "root binding names `{implementation}`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace"
                         )
