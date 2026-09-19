@@ -56,6 +56,7 @@ The access relation below uses `Read` for shared access:
 | Read | Release child; no exclusive authority restored. | Reject. | Reject. |
 | Mutable | Freeze mutation until the complete shared cohort ends; restore once. | Suspend that branch; restore original access. | Suspend that branch; restore original access. |
 | Write-only | Reject. | Reject. | Suspend that branch; restore original access. |
+| Owned | Freeze mutation in the loaned subtree until the complete shared cohort ends; restore owned access once. | Suspend that subtree; restore owned access. | Suspend that subtree; restore owned access. |
 
 Compatibility, exclusivity, and lifetime premises still apply to each allowed
 cell. Attenuation never changes the parent's original access. Close exclusive
