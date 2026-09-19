@@ -677,11 +677,6 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/bodyless_internal_state_forwarding",
     "dependent/value_rebinding_cycle_call_frame_preserves_disjoint_fact_compile",
     "generics/const_data_param",
-    // The helper's authored `%` executes its sole `satisfies` provider under
-    // build-time evaluation while builtin `+` in the same closure stays
-    // builtin; the paired fail canaries keep ambiguous and unresolved uses
-    // rejected.
-    "generics/authored_const_call_operator_selected_provider",
     "generics/closed_sum_case_membership",
     "generics/const_machine_value_params",
     "generics/declared_range_endpoint_inference",

@@ -1,8 +1,5 @@
-// A helper machine's authored `boundary machine %` use selects the program's
-// single `satisfies` conformance as its executable provider. Const evaluation
-// retains that authored selection across the `count()` call instead of folding
-// builtin arithmetic, so `Buffer<count()>` lands on the provider's zero result.
-// The unrelated builtin `+` in `sum()` keeps its builtin meaning.
+// One visible satisfier is not an authored provider selection. Early
+// const-generic evaluation must not execute this body or builtin remainder.
 
 data Math {}
 

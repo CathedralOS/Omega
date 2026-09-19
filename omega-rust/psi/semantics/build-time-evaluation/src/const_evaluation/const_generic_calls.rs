@@ -161,14 +161,8 @@ pub fn evaluate_const_generic_calls(
     )?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    // Authored boundary-operator uses inside helper bodies keep their
-    // selection through this probe. A requirement supplied by exactly one
-    // `satisfies` provider is rebound to that provider's entry-state call on
-    // this private typed copy before admission inference, so the provider
-    // joins the ordinary call closure and the interpreter executes its real
-    // body; ambiguous or unresolved uses keep their authored expression and
-    // the ordinary selection-authority rejection.
-    crate::machine_execution::admission::rebind_selected_provider_operators(&mut typed);
+    // This pre-resolution probe has no Omega provider plan. Keep authored
+    // operator uses intact: visible satisfiers cannot authorize execution.
     let admission = crate::BuildTimeAdmissionPlan::infer(&typed, selection_authority.clone());
 
     for (expression, machine_name, source_span) in pending {

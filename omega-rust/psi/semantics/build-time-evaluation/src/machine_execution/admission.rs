@@ -28,8 +28,8 @@ use closure_validation::checked_closure_violation;
 use const_evaluable::require_const_evaluable_result;
 use selection_authority::selection_authority_violation;
 pub(crate) use selection_authority::{
-    rebind_selected_provider_operators, require_call_expression_selection,
-    require_closed_boolean_argument, require_closed_integer_argument,
+    require_call_expression_selection, require_closed_boolean_argument,
+    require_closed_integer_argument,
 };
 
 /// Package-neutral authority consulted before the compiler executes an
