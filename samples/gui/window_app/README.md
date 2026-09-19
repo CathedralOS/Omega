@@ -38,10 +38,20 @@ The receiver uses the settled
 [`Service<R>` entry contract](../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge):
 public boundary requirements, intrinsically established service fields, and no
 authored `in Bound` qualification. The render loop and its storage are unchanged.
-The native harness currently reaches entry establishment but rejects because
-the selected entry rejoins no Terminal attachment identity. It does not launch
-the app. The ordinary CLI also needs checkout-specific package review; test-owned
-acceptance does not complete that review. See
+The ordinary CLI currently rejects during fresh package checking: the receiver's
+`Clock`, `Input`, and `Gui` fields have no selected Fused providers. `Console`
+does have a selected provider. The missing selections prevent checked receiver
+shape construction; the old "0 Terminal attachment identities" diagnostic was
+a downstream symptom, not permission to invent an attachment.
+
+The next step is exact declared conformances and provider selection under the
+[selection contract](../../../wiki/spec/build/provider_selection.md).
+The historical `std/macos_gui.omg` wrapper is not already a selected conformer to
+these sample-owned boundary traits; matching method names do not supply nominal
+satisfaction. Keep the render loop and its actual storage/effects intact.
+After provider wiring, complete any remaining lowering work and ordinary
+checkout-specific package review. Test-owned acceptance does not complete that
+review. No app has launched through this command yet. See
 [MACOS-APPLICATION-PUBLICATION](../../../TASKS.md#immediate-product-closure)
 for resume evidence.
 
