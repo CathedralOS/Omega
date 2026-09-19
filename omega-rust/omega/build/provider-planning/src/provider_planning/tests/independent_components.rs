@@ -11,18 +11,18 @@
 use std::collections::BTreeSet;
 
 use crate::provider_planning::{
-    derive_satisfies_plans, select_derived_provider_plans, selected_provider_plan_facts,
-    selected_provider_plan_facts_with_independent_components, ProviderBinding,
-    ProviderPlanDerivation, TypedTrees,
+    ProviderBinding, ProviderPlanDerivation, TypedTrees, derive_satisfies_plans,
+    select_derived_provider_plans, selected_provider_plan_facts,
+    selected_provider_plan_facts_with_independent_components,
 };
 use crate::{CompositionMode, SelectedProviderPlanWithProvenance};
 use component_description::{
-    describe_component_facts, encode_component_description, verify_component, AdmissionProfile,
-    ComponentDescriptionFacts, ComponentVerificationRequest, VerifiedComponent,
-    COMPONENT_DESCRIPTION_SCHEMA_V2,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts,
+    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
+    encode_component_description, verify_component,
 };
-use effects::provider_plan::ProviderPlan;
 use effects::SelectedProviderPlanFacts;
+use effects::provider_plan::ProviderPlan;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
     StructuralTypeId,

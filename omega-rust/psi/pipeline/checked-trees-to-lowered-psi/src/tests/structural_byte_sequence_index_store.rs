@@ -430,9 +430,8 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
                         .clone()
                 }
                 1 => {
-                    store.value = checked_trees::CheckedByteSequenceStoreValue::Pure(
-                        store.index.clone(),
-                    )
+                    store.value =
+                        checked_trees::CheckedByteSequenceStoreValue::Pure(store.index.clone())
                 }
                 2 => store.field_identity = "Record::other".into(),
                 3 => store
