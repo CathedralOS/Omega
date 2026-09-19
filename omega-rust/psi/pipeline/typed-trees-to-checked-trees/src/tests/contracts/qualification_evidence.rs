@@ -4,6 +4,75 @@ use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
 #[test]
+fn selected_payload_qualification_reaches_direct_return_construction() {
+    let source = r#"
+data Token { identity: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer { machine issue() -> Token in Issued; }
+data Outcome { case Qualified(value: Token in Issued); case Empty; }
+data Receipt { value: Token in Issued; }
+machine rebuild(outcome: Outcome, fallback: Token in Issued) -> Receipt {
+    transition outcome {
+        Outcome::Qualified { value } -> Receipt { value: value }
+        Outcome::Empty -> Receipt { value: fallback }
+    }
+}
+"#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the selected payload's routed qualification reaches its constructor");
+    let wrong_case = source.replace(
+        "Outcome::Empty -> Receipt { value: fallback }",
+        "Outcome::Empty -> Receipt { value: outcome.value }",
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&wrong_case))
+        .expect_err("the sibling arm cannot reuse the qualified arm's selection");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("construction of `Receipt`")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn constructor_qualification_observes_operand_call_order() {
+    let source = r#"
+domain u64::Secret established by Issuer::issue;
+boundary trait Issuer { machine issue() -> u64 in Secret; }
+data Receipt { stamp: u64; value: u64 in Secret; }
+boundary trait Mutator {
+    machine clear(value: &mut u64) -> u64;
+}
+machine rebuild(mutator: &Mutator, input: u64)
+requires input in u64::Secret
+reaches Mutator {
+    let mut value: u64 = input;
+    let receipt: Receipt = Receipt { stamp: mutator.clear(&mut value), value: value };
+}
+"#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an earlier operand call invalidates qualification before capture");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("construction of `Receipt`")),
+        "{diagnostics:#?}"
+    );
+    let selected = source.replace(
+        "stamp: mutator.clear(&mut value), value: value",
+        "stamp: 0, value: value",
+    );
+    lower_typed_trees(parse_typed_trees(&selected))
+        .expect("without mutation the copied value retains qualification");
+    let captured_first = source.replace(
+        "stamp: mutator.clear(&mut value), value: value",
+        "value: value, stamp: mutator.clear(&mut value)",
+    );
+    lower_typed_trees(parse_typed_trees(&captured_first))
+        .expect("a later operand call cannot revoke an already captured scalar field");
+}
+
+#[test]
 fn case_payloads_transport_owned_qualifications_through_return_and_dispatch() {
     let source = r#"
 data Token [linear] { identity: u64; }

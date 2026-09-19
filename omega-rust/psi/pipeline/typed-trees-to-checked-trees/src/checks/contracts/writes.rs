@@ -169,6 +169,77 @@ pub(super) fn check_domain_field_writes(
         // (2) Brace CONSTRUCTION `T { f: X }` of a domain-refined field (the
         // #60-1c parallel for domains): every constructed domain field must be
         // established too, else a later read trusting the field is unsound.
+        let mut contexts = facts
+            .flow
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(
+                facts
+                    .flow
+                    .state_statement(state_flow, statement_index)
+                    .map_or(state_flow.entry_semantic_contexts, |statement| {
+                        statement.entry_semantic_contexts
+                    }),
+            )
+            .iter()
+            .map(|reference| reference.context)
+            .collect::<Vec<_>>();
+        if let StatementNode::Transition(transition) = statement {
+            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                scan_construction_field_domains(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    guard,
+                    &mut contexts,
+                    diagnostics,
+                );
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                let mut branch_contexts = contexts.clone();
+                let point = facts::ProgramPoint::TransitionArm {
+                    machine_symbol: state_flow.machine_symbol,
+                    state_symbol: state_flow.state_symbol,
+                    statement_index,
+                    transition_target: target,
+                };
+                branch_contexts.extend(
+                    facts
+                        .semantic
+                        .contexts
+                        .iter()
+                        .filter_map(|(handle, context)| (context.point == point).then_some(handle)),
+                );
+                let expressions = match program.statement_table.transition_target(target) {
+                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                        program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .to_vec()
+                    }
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        vec![*expression]
+                    }
+                    _ => Vec::new(),
+                };
+                for expression in expressions {
+                    scan_construction_field_domains(
+                        program,
+                        facts,
+                        state_flow,
+                        statement_index,
+                        expression,
+                        &mut branch_contexts,
+                        diagnostics,
+                    );
+                }
+            }
+            continue;
+        }
         for expression in statement_root_expressions(program, statement) {
             scan_construction_field_domains(
                 program,
@@ -176,6 +247,7 @@ pub(super) fn check_domain_field_writes(
                 state_flow,
                 statement_index,
                 expression,
+                &mut contexts,
                 diagnostics,
             );
         }
@@ -198,34 +270,8 @@ fn statement_root_expressions(
             .to_vec(),
         StatementNode::Expression(expression) => vec![*expression],
         StatementNode::LocalData(local_data) => vec![local_data.initial_value],
-        StatementNode::Transition(transition) => {
-            let mut roots = Vec::new();
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
-                roots.push(*guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-                        roots.extend(
-                            program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                        roots.push(*expression);
-                    }
-                    typed_trees::statement::TransitionTargetNode::SelfTarget
-                    | typed_trees::statement::TransitionTargetNode::Terminal => {}
-                }
-            }
-            roots
-        }
+        // Guard and selected targets have separate evaluation contexts.
+        StatementNode::Transition(_) => Vec::new(),
     }
 }
 
@@ -482,6 +528,7 @@ fn scan_construction_field_domains(
     state_flow: &FlowStateFact,
     statement_index: usize,
     expression: ExpressionHandle,
+    contexts: &mut Vec<facts::FactContextHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -494,6 +541,7 @@ fn scan_construction_field_domains(
             state_flow,
             statement_index,
             atomic.value,
+            contexts,
             diagnostics,
         ),
         ExpressionNode::Match(dispatch) => {
@@ -503,9 +551,12 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 dispatch.subject,
+                contexts,
                 diagnostics,
             );
+            let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {
+                let mut arm_contexts = contexts.clone();
                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     scan_construction_field_domains(
                         program,
@@ -513,6 +564,7 @@ fn scan_construction_field_domains(
                         state_flow,
                         statement_index,
                         pattern,
+                        &mut arm_contexts,
                         diagnostics,
                     );
                 }
@@ -522,14 +574,30 @@ fn scan_construction_field_domains(
                     state_flow,
                     statement_index,
                     arm.value,
+                    &mut arm_contexts,
                     diagnostics,
                 );
+                match &mut joined_contexts {
+                    Some(joined) => joined.retain(|context| arm_contexts.contains(context)),
+                    None => joined_contexts = Some(arm_contexts),
+                }
             }
+            // Only contexts surviving every arm remain usable afterwards.
+            *contexts = joined_contexts.unwrap_or_default();
         }
         ExpressionNode::StructLiteral(literal) => {
             let type_name = literal.type_name.clone();
             let case_name = literal.case_name.clone();
             for field in program.expression_table.struct_fields(literal.fields) {
+                scan_construction_field_domains(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    field.value,
+                    contexts,
+                    diagnostics,
+                );
                 for (domain_symbol, semantic_domain) in construction_field_domain_identities(
                     program,
                     type_name.as_str(),
@@ -537,7 +605,7 @@ fn scan_construction_field_domains(
                     field.name.as_str(),
                 ) {
                     // (a) The constructed value must be established in the domain.
-                    if !value_proves_qualification(
+                    if !construction_value_proves_qualification(
                         program,
                         facts,
                         state_flow,
@@ -545,6 +613,7 @@ fn scan_construction_field_domains(
                         field.value,
                         domain_symbol,
                         semantic_domain,
+                        contexts,
                     ) {
                         diagnostics.push(Diagnostic::error(format!(
                             "construction of `{}` field `{}` is not proven in domain `{}`; \
@@ -613,14 +682,6 @@ fn scan_construction_field_domains(
                         }
                     }
                 }
-                scan_construction_field_domains(
-                    program,
-                    facts,
-                    state_flow,
-                    statement_index,
-                    field.value,
-                    diagnostics,
-                );
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
@@ -631,6 +692,7 @@ fn scan_construction_field_domains(
                     state_flow,
                     statement_index,
                     *element,
+                    contexts,
                     diagnostics,
                 );
             }
@@ -642,6 +704,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 binary.left,
+                contexts,
                 diagnostics,
             );
             scan_construction_field_domains(
@@ -650,6 +713,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 binary.right,
+                contexts,
                 diagnostics,
             );
         }
@@ -659,6 +723,7 @@ fn scan_construction_field_domains(
             state_flow,
             statement_index,
             cast.value,
+            contexts,
             diagnostics,
         ),
         ExpressionNode::Call(call) => {
@@ -668,6 +733,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 call.receiver,
+                contexts,
                 diagnostics,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
@@ -677,8 +743,31 @@ fn scan_construction_field_domains(
                     state_flow,
                     statement_index,
                     *argument,
+                    contexts,
                     diagnostics,
                 );
+            }
+            if let Some(call) = facts
+                .flow
+                .control
+                .calls
+                .span_or_empty(state_flow.calls)
+                .iter()
+                .find(|call| {
+                    call.statement_index == statement_index
+                        && call.authored_expression == expression
+                })
+            {
+                *contexts = facts
+                    .flow
+                    .contexts
+                    .semantic_context_refs
+                    .span_or_empty(call.exit_semantic_contexts)
+                    .iter()
+                    .map(|reference| reference.context)
+                    .collect();
+            } else {
+                contexts.clear();
             }
         }
         ExpressionNode::Indexed(indexed) => {
@@ -688,6 +777,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 indexed.collection,
+                contexts,
                 diagnostics,
             );
             scan_construction_field_domains(
@@ -696,6 +786,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 indexed.index,
+                contexts,
                 diagnostics,
             );
         }
@@ -705,6 +796,7 @@ fn scan_construction_field_domains(
             state_flow,
             statement_index,
             member.receiver,
+            contexts,
             diagnostics,
         ),
         ExpressionNode::Borrow(inner) => scan_construction_field_domains(
@@ -713,6 +805,7 @@ fn scan_construction_field_domains(
             state_flow,
             statement_index,
             inner.target,
+            contexts,
             diagnostics,
         ),
         ExpressionNode::Range(range) => {
@@ -722,6 +815,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 range.start,
+                contexts,
                 diagnostics,
             );
             scan_construction_field_domains(
@@ -730,6 +824,7 @@ fn scan_construction_field_domains(
                 state_flow,
                 statement_index,
                 range.end,
+                contexts,
                 diagnostics,
             );
         }
@@ -739,6 +834,7 @@ fn scan_construction_field_domains(
             state_flow,
             statement_index,
             unary.operand,
+            contexts,
             diagnostics,
         ),
         ExpressionNode::Boolean(_)
@@ -976,9 +1072,85 @@ fn value_proves_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
+    let entry_constraints = facts
+        .flow
+        .state_statement(state_flow, statement_index)
+        .map(|statement| statement.entry_constraints)
+        .unwrap_or(state_flow.entry_constraints);
+    let contexts = facts
+        .flow
+        .semantic_constraint_contexts(entry_constraints)
+        .collect::<Vec<_>>();
     if !value_case_path_is_selected(program, facts, state_flow, statement_index, value) {
         return false;
     }
+    value_proves_domain_in_contexts(
+        program,
+        facts,
+        state_flow,
+        statement_index,
+        value,
+        domain_symbol,
+        &contexts,
+    )
+}
+
+fn construction_value_proves_qualification(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+    contexts: &[facts::FactContextHandle],
+) -> bool {
+    let subject = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    );
+    if subject.as_ref().is_some_and(|subject| {
+        !crate::flow::place_cases_are_selected(
+            program,
+            &facts.semantic,
+            contexts,
+            state.machine_symbol,
+            state.state_symbol,
+            statement_index,
+            subject,
+        )
+    }) {
+        return false;
+    }
+    if crate::facts::field_domain::domain_requires_provenance(program, domain) {
+        return subject.as_ref().is_some_and(|subject| {
+            super::exits::exact_scalar_membership(
+                program, facts, contexts, subject, domain, identity,
+            )
+        });
+    }
+    value_proves_domain_in_contexts(
+        program,
+        facts,
+        state,
+        statement_index,
+        value,
+        domain,
+        contexts,
+    )
+}
+
+fn value_proves_domain_in_contexts(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    contexts: &[facts::FactContextHandle],
+) -> bool {
     if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }
@@ -1002,20 +1174,24 @@ fn value_proves_domain(
         && crate::facts::field_domain::domain_is_concat_preserving(program, domain_symbol)
     {
         let (left, right) = (binary.left, binary.right);
-        if value_proves_domain(
+        if construction_value_proves_qualification(
             program,
             facts,
             state_flow,
             statement_index,
             left,
             domain_symbol,
-        ) && value_proves_domain(
+            language_semantics::SemanticDomainId::NULL,
+            contexts,
+        ) && construction_value_proves_qualification(
             program,
             facts,
             state_flow,
             statement_index,
             right,
             domain_symbol,
+            language_semantics::SemanticDomainId::NULL,
+            contexts,
         ) {
             return true;
         }
@@ -1049,70 +1225,60 @@ fn value_proves_domain(
         statement_index,
         value,
     );
-    let entry_constraints = facts
-        .flow
-        .state_statement(state_flow, statement_index)
-        .map(|statement| statement.entry_constraints)
-        .unwrap_or(state_flow.entry_constraints);
-
-    facts
-        .flow
-        .semantic_constraint_contexts(entry_constraints)
-        .any(|context_handle| {
-            let context = facts.semantic.contexts.get(context_handle);
-            facts.semantic.context_view(context).facts().any(|fact| {
-                let fact_domain = match fact.payload {
-                    FactPayload::DomainMembership { domain_symbol, .. }
-                    | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
-                    _ => return false,
-                };
-                if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
-                    return false;
-                }
-                if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                    && !crate::facts::field_domain::domain_membership_implies(
-                        program,
-                        fact_domain,
-                        domain_symbol,
-                    )
-                {
-                    return false;
-                }
-                // Match the fact's subject against the assigned value, by the
-                // fact's place label and (for a contract membership) its declared
-                // `value` expression label -- the same two-pronged match the
-                // statement-transfer propagation uses.
-                let facts::FactPlace::Place(fact_place) = fact.place else {
-                    return false;
-                };
-                if value_place.as_ref().is_some_and(|value_place| {
-                    crate::flow::canonical_place_from_semantic_place(
-                        program,
-                        &facts.semantic,
-                        facts.semantic.places.get(fact_place),
-                    )
-                    .is_some_and(|fact_place| fact_place == *value_place)
-                }) {
-                    return true;
-                }
-                let place_label = canonical_place_label(
+    contexts.iter().any(|context_handle| {
+        let context = facts.semantic.contexts.get(*context_handle);
+        facts.semantic.context_view(context).facts().any(|fact| {
+            let fact_domain = match fact.payload {
+                FactPayload::DomainMembership { domain_symbol, .. }
+                | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                _ => return false,
+            };
+            if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
+                return false;
+            }
+            if !facts.semantic.domain_implies(fact_domain, domain_symbol)
+                && !crate::facts::field_domain::domain_membership_implies(
+                    program,
+                    fact_domain,
+                    domain_symbol,
+                )
+            {
+                return false;
+            }
+            // Match the fact's subject against the assigned value, by the
+            // fact's place label and (for a contract membership) its declared
+            // `value` expression label -- the same two-pronged match the
+            // statement-transfer propagation uses.
+            let facts::FactPlace::Place(fact_place) = fact.place else {
+                return false;
+            };
+            if value_place.as_ref().is_some_and(|value_place| {
+                crate::flow::canonical_place_from_semantic_place(
                     program,
                     &facts.semantic,
                     facts.semantic.places.get(fact_place),
-                );
-                if place_label == value_label {
-                    return true;
+                )
+                .is_some_and(|fact_place| fact_place == *value_place)
+            }) {
+                return true;
+            }
+            let place_label = canonical_place_label(
+                program,
+                &facts.semantic,
+                facts.semantic.places.get(fact_place),
+            );
+            if place_label == value_label {
+                return true;
+            }
+            match fact.payload {
+                FactPayload::DomainMembership { value, .. }
+                | FactPayload::ContractDomainMembership { value, .. } => {
+                    value.is_valid() && program.expression_table.display_name(value) == value_label
                 }
-                match fact.payload {
-                    FactPayload::DomainMembership { value, .. }
-                    | FactPayload::ContractDomainMembership { value, .. } => {
-                        value.is_valid()
-                            && program.expression_table.display_name(value) == value_label
-                    }
-                    _ => false,
-                }
-            })
+                _ => false,
+            }
         })
+    })
 }
 
 /// Whether `value` is a state place whose declared leaf type carries a

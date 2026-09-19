@@ -2,6 +2,9 @@
 //! transition and call argument settles, and the rewrites that follow call
 //! result origins.
 
+mod joins;
+pub(crate) use joins::{publish_conditional_claim_joins, validate_conditional_claim_joins};
+
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
@@ -75,6 +78,50 @@ fn derive_checked_claim_outcome_map(
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
+    // Owned receivers are terminal-consumer inputs and do not enter the
+    // ordinary parameter permission ledger. The exact identity body still
+    // supplies an input/result correspondence: it performs no intervening
+    // operation that could replace or consume the receiver. Do not infer this
+    // from a call's single argument or from its result carrier.
+    if let [StatementNode::Expression(expression)] = statements
+        && let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            0,
+            *expression,
+        )
+        && place.segments.is_empty()
+        && let facts::PlaceRoot::Symbol(parameter_symbol) = place.root
+        && program.state_parameters(state).iter().any(|parameter| {
+            parameter.is_self
+                && parameter.symbol == parameter_symbol
+                && (program.normalized_type_identity(parameter.type_reference)
+                    == program.normalized_type_identity(state.return_type)
+                    || program.machines().iter().any(|machine| {
+                        machine.symbol == machine_symbol
+                            && machine.attached_data_symbol.is_valid()
+                            && matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine_symbol)
+                            && matches!(program.type_reference_table.type_reference(state.return_type),
+                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine.attached_data_symbol)
+                    }))
+        })
+    {
+        return Some(CheckedClaimOutcomeMap {
+            machine_symbol,
+            state_symbol: state.symbol,
+            entries: expected_paths
+                .into_iter()
+                .map(|path| CheckedClaimOutcomeEntry {
+                    output_path: path.clone(),
+                    source: CheckedClaimOutcomeSource::Input {
+                        parameter_symbol,
+                        path,
+                    },
+                })
+                .collect(),
+        });
+    }
     let result_expressions = state_result_expressions(program, statements);
     let named_transitions = state_result_named_transitions(program, statements);
     let mut entries = result_expressions
@@ -805,13 +852,30 @@ fn bind_claim_outcome_source_at_arguments(
         target_state,
         *parameter_symbol,
     )?;
+    let parameter = program
+        .state_parameters(target_state)
+        .iter()
+        .find(|parameter| parameter.symbol == *parameter_symbol)?;
+    // Constructor operands already name the transferred claims. Resolve the
+    // exact typed projection instead of inventing storage below a literal.
+    let mut projections = crate::flow::literal_value_projections(
+        program,
+        argument,
+        parameter.type_reference,
+        path,
+        false,
+    )?;
+    let projection = projections.pop()?;
+    if !projections.is_empty() {
+        return None;
+    }
     let mut place = crate::flow::canonical_place_from_expression_in_state(
         program,
         caller_state.symbol,
         statement_index,
-        argument,
+        projection.expression,
     )?;
-    place.segments.extend_from_slice(path);
+    place.segments.extend_from_slice(&projection.remaining);
     let sources = permission_events
         .iter()
         .filter(|event| {
@@ -960,6 +1024,45 @@ pub(crate) fn call_result_origin_rewrites(
         else {
             continue;
         };
+        // A callee-local result of an unresolved checked call is not an
+        // established root. Wait for its exact correspondence; otherwise a
+        // wrapper would share that unresolved occurrence across invocations.
+        if let CheckedClaimOutcomeSource::Established { provenance, .. } = source {
+            match provenance {
+                PermissionProvenance::Joined { .. } => continue,
+                PermissionProvenance::Established {
+                    state_symbol,
+                    source: PermissionEventSource::Statement { statement_index },
+                    ..
+                } => {
+                    if let Some(source_state) =
+                        crate::semantic_calls::find_state(program, *state_symbol)
+                        && let Some(statement) = program
+                            .statement_table
+                            .statements(source_state.statement_nodes)
+                            .get(*statement_index)
+                    {
+                        let expression = match statement {
+                            StatementNode::LocalData(local) => local.initial_value,
+                            StatementNode::Assignment(assignment) => assignment.value,
+                            _ => typed_trees::expression::ExpressionHandle::invalid(),
+                        };
+                        if expression.is_valid()
+                            && let typed_trees::expression::ExpressionNode::Call(call) =
+                                program.expression_table.expression(expression)
+                            && crate::semantic_calls::find_state(program, call.target_symbol)
+                                .is_some()
+                            && !maps
+                                .iter()
+                                .any(|map| map.state_symbol == call.target_symbol)
+                        {
+                            continue;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
         rewrites.push((
             locally_minted,
             event.claim_identity,

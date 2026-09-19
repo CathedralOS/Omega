@@ -2630,9 +2630,9 @@ Owners include
   allocator semantics to the compiler.
 
   `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a
-  fallible request returning and consuming both `Attempt` cases, a one-buffer
-  `BumpVec` reservation, content-free growth
-  (`grow` rebuffers via `merge` + `split`) and one resident
+  fallible request returning and consuming both `Attempt` cases, a `BumpVec`
+  reservation with one optional retained buffer, fallible growth from the tail,
+  reset through either retained-slot case, and one resident
   place/read/retire; six `fail/memory/bump_allocator_*` controls pin the
   rejections. Its header records the contract edges found so far. This is source
   checking only: the fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster,
@@ -2640,6 +2640,12 @@ Owners include
   fixture-local boundary traits with no conformer or selected provider.
   Split/merge conservation and resident establishment are asserted boundary
   laws, and nothing lowers or executes.
+
+  Resume evidence: macOS ARM64, 2026-09-19, `fb52e50e35` plus this custody
+  change: the focused command below accepts the fixture, and
+  `OMEGA_FAIL_CANARY_FILTER=memory/bump_allocator_` with the
+  `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+  selector rejects all six controls. Both use `RUST_MIN_STACK=67108864`.
 
   Remaining work:
 
@@ -2650,70 +2656,52 @@ Owners include
     (evaluated plan of `P` over `T`, Stable-supply admission), which
     `PLAN-LAID-VIEWS` owns. `source/library` declares neither that family nor
     `ResidentContentTransfer<P, T>`; the fixture's `ResidentStorage` is a
-    stand-in to replace when the route exists. Growth is currently
-    content-free rebuffering only: `merge` demands `Vacant` parts, so a
-    buffer with a live resident cannot fold back for a resize — pinned by
+    stand-in to replace when the route exists. Growth retains backing but
+    still has no elements: `merge` demands `Vacant` parts, so a
+    buffer with a live resident cannot fold back for reset — pinned by
     `fail/memory/bump_allocator_grow_with_live_resident`. Element transfer
-    across the fold waits on the same placed-access route as elements.
-  - Retained buffers. Extend the existing case/claim correspondence to an
-    optional retired slot and a recursively retained buffer list, with a real
-    ranking proof and exact reset recomposition. The source-checked frontier is
-    now `try_allocate -> Attempt`: both the issued allocation and unchanged
-    rejected strategy can be consumed by `exercise_fallible`. The focused
-    canary command below and all six rejection controls pass on macOS ARM64.
-    `flow/transfers/owned_qualifications.rs` carries exact existing domain
-    instances under case/field paths without crossing reference shells;
-    `flow/place/case_access.rs` requires live tag evidence before extracting
-    a payload, independently of multiplicity. Incoming and returned sum field
-    contracts remain conditional, not authority for inactive payloads.
-    `checks/content/call_results.rs` still joins result facts to the exact
-    invocation, claims and conservation theorem. Anonymous linear results
-    without known claim evidence, recursive expansion, unresolved array extents
-    and outcome-specific partition frontiers remain implementation limits.
-    Do not substitute annotations or matching algebra/field names for those
-    joins. Terminal and native allocation remain separate dependencies.
+    waits on the same placed-access route as establishment.
+  - Retained storage. Replace the finite slot with genuinely growable storage,
+    explicit placed-storage indirection, and a ranking proof over that
+    representation. A recursively owned inline `Retired` record has infinite
+    layout; Omega does not implicitly box it. The finite fixture exercises
+    retained backing and rejection, not a fixed-capacity substitute for Squalr.
+    `checks/multiplicity/claim_outcomes/joins.rs` owns exact normal-exit claim
+    alternatives and caller substitution; `linear_validation/recorded_events.rs`
+    reconstructs custody from source before replaying those alternatives.
+    Constructor checks retain selected-case facts and authored operand order.
+    Keep inactive payloads distinct from consumed claims and preserve exact
+    invocation identity through wrappers. Anonymous linear results without
+    known claim evidence, recursive expansion, unresolved array extents and
+    outcome-specific partition frontiers remain implementation limits.
+    Terminal/native execution needs portable exit-alternative correspondence;
+    demanded joined custody currently rejects explicitly in
+    `checked-trees-to-lowered-psi/src/machine_lowering.rs`.
   - Counted residual. `split`'s law never pins `result.taken.length`.
-    Separate scalar and content-conservation guarantees are supported and
-    independently checked (`scalar_and_content_guarantees_are_checked_independently`);
-    content-bearing signatures do not restrict every `ensures` to content
-    grammar. `allocate` now declares and proves
+    `allocate` declares and proves
     `ensures result.strategy.remaining == strategy.remaining - length`;
     `exercise` and `exercise_fallible` use the first allocation's actual returned
     residual for the second request. Its `32 <= remaining` requirement follows
     from the exact decrement and the caller's `48 <= capacity`, without a
     restated `remaining: 32` floor. `check_remaining` consumes both returned
-    equalities, and wrong-call, insufficient-bound and mutation controls reject.
+    equalities. Post-reset reuse still uses a runtime guard: reset's
+    geometry-derived count has no published bound tying it to original capacity.
     Check the actual fixture on macOS ARM64 with
     `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
     cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
     -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
-    Caller import in `checks/contracts/prover/call_guarantees.rs` joins live
-    result provenance to the exact invocation and substitutes declaration
-    identities, not labels. `semantic_places` shares constructor projection
-    with dependency invalidation. The caller tests cover copies, nested
-    subtraction, input/result writes, distinct calls and arithmetic policies.
-    The first caller check proves `16 <= capacity` from the surviving scalar
-    premise after backing consumption. `checks/contracts/call_bounds/context.rs`
-    substitutes only the exact formals used by each goal, retaining all
-    later-argument effects when checking captured values. The sibling
-    `prover/call_guarantees/arithmetic.rs` reads live guaranteed relations and
-    caller facts under the shared scoped arithmetic engine; exact field
-    occurrences receive per-proposition bindings, never label-based equality.
+    `checks/contracts/prover/call_guarantees.rs` imports exact invocation
+    guarantees; `prover/call_guarantees/arithmetic.rs` consumes them through the
+    scoped arithmetic engine, with structural bindings rather than labels.
     Computed actuals, state transfers and reference-bearing owned capture ceilings need
     their exact snapshot/effect evidence, not initializer replay. Exit proving
     remains in `checks/contracts/exits/scalars/result_fields.rs`.
-    This is source checking, not a Terminal/native allocator claim. Post-reset
-    reuse still uses a runtime guard: reset's geometry-derived count has no
-    published bound connecting it to the original capacity.
-    `grow` reuses `allocate` after recomposition; its constructed capacity
-    field reads the surviving caller bound independently of the sibling
-    tail's call-result provenance. Content-preserving growth remains under
-    the container and placed-access dependencies above.
   - Partition theorems. No checked body splits one `Granted` extent into two;
     the fixture delegates that step to a boundary. Returning `Granted` custody
-    from two consumed qualified inputs rejects as ambiguous at a boundary and
-    in a state, so merge takes one `Split` record and folding retained buffers
-    back has no spelling. Settle both with
+    from two consumed qualified inputs still rejects as ambiguous at a boundary,
+    so merge takes one `Split` record. Ordinary checked wrappers can fold
+    retained backing through that boundary; this is not a checked partition
+    implementation. Replace the stand-in through
     `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`' invoked partition route.
   - Strategy borrow. The contract has allocation borrow the strategy
     exclusively; the fixture threads `Bump` by value because a `&mut` carve

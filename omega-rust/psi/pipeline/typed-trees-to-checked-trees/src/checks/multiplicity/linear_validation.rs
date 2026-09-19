@@ -43,7 +43,14 @@ pub(crate) fn validate_linear_permission_events(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    recorded_events::validate_permission_source_replay(program, facts)?;
     let mut diagnostics = Vec::new();
+    super::claim_outcomes::validate_conditional_claim_joins(
+        program,
+        &facts.borrow,
+        &facts.flow.ownership,
+        &mut diagnostics,
+    );
     // `record_statement` consults the borrow ledger and the statement-entry
     // constraint sets to decide whether a once-borrowed source may join a
     // selection. Those are inputs recorded by earlier passes, so the replay
@@ -511,17 +518,63 @@ fn append_unresolved_state_result_mapping_diagnostics(
                             && provenance == event.provenance
                     )
             });
-        if mapped_from_call || mapped_by_checked_outcome {
+        let mapped_by_join = ownership.claim_join_receipts.iter().any(|(_, receipt)| {
+            receipt.machine_symbol == event.machine_symbol
+                && receipt.state_symbol == state.symbol
+                && receipt.statement_index == statement_index
+                && receipt.expression == result_expression
+                && receipt.target_symbol == call.target_symbol
+                && receipt.result_root == event.root
+                && ownership.segments.span_or_empty(receipt.result_segments) == receiving_path
+                && receipt.claim_identity == event.claim_identity
+                && matches!(
+                    event.provenance,
+                    language_semantics::PermissionProvenance::Joined { .. }
+                )
+        });
+        if mapped_from_call || mapped_by_checked_outcome || mapped_by_join {
             continue;
         }
-        if !unresolved_statements.contains(&statement_index) {
-            unresolved_statements.push(statement_index);
+        if !unresolved_statements
+            .iter()
+            .any(|(index, _)| *index == statement_index)
+        {
+            let root = match event.root {
+                facts::PlaceRoot::Symbol(symbol) => program.symbols.name(symbol).to_owned(),
+                other => format!("{other:?}"),
+            };
+            let path = receiving_path
+                .iter()
+                .map(|segment| match segment {
+                    facts::PlaceSegment::Field { symbol } => {
+                        format!(".{}", program.symbols.name(*symbol))
+                    }
+                    facts::PlaceSegment::Case { variant } => {
+                        format!("::{}", program.symbols.name(*variant))
+                    }
+                    facts::PlaceSegment::FixedIndex { index } => format!("[{index}]"),
+                    other => format!("{other:?}"),
+                })
+                .collect::<String>();
+            unresolved_statements.push((statement_index, format!("{root}{path}")));
         }
     }
 
-    for statement_index in unresolved_statements {
+    let machine_name = program
+        .machines()
+        .iter()
+        .find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+        })
+        .map(|machine| machine.name.as_str())
+        .unwrap_or("<unknown machine>");
+    for (statement_index, path) in unresolved_statements {
         diagnostics.push(Diagnostic::error(format!(
-            "linear state-call result at statement {statement_index} has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping"
+            "linear state-call result {path} in {machine_name}::{} at statement {statement_index} has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping",
+            program.symbols.name(state.symbol)
         )));
     }
 }

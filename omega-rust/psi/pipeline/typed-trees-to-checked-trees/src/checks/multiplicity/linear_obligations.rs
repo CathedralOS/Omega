@@ -38,6 +38,9 @@ pub(crate) struct LinearPlace {
     /// false, `live` is unconditional for every established value; when true,
     /// `live` follows the active case.
     pub(crate) conditional: bool,
+    /// Proven absent in the selected case, rather than dead after a move.
+    /// Moving a carrier waives only absent payloads, never consumed claims.
+    pub(crate) case_excluded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

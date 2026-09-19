@@ -99,6 +99,12 @@ fn expression_permission_claim_identity_for_claim(
     if relative_path.is_empty() {
         match program.expression_table.expression(expression) {
             typed_trees::expression::ExpressionNode::Call(call) => {
+                // A checked result is a distinct occurrence until its exact
+                // return map proves forwarding. One owned argument does not
+                // prove that a conditional callee returns that argument.
+                if crate::semantic_calls::find_state(program, call.target_symbol).is_some() {
+                    return None;
+                }
                 let mut candidates = Vec::new();
                 if call.receiver.is_valid() {
                     candidates.push(call.receiver);
@@ -253,6 +259,12 @@ fn expression_permission_provenance_for_claim(
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
+    if let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+        && crate::semantic_calls::find_state(program, call.target_symbol).is_some()
+    {
+        return None;
+    }
     if relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),

@@ -25,6 +25,7 @@ pub(crate) fn apply_statement_permission_production(
     places: &mut [LinearPlace],
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
+    conditional_carrier_transfers: &mut Vec<usize>,
 ) {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
@@ -131,7 +132,7 @@ pub(crate) fn apply_statement_permission_production(
             let claim_path = places[index].path.clone();
             if places[index].ever_established
                 && !places[index].live
-                && places[index].conditional
+                && places[index].case_excluded
                 && !event_path
                     .iter()
                     .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
@@ -141,6 +142,24 @@ pub(crate) fn apply_statement_permission_production(
             let segments = facts.flow.ownership.segments.insert_many(claim_path);
             let place = &mut places[index];
             let obligation_live = place.live && place.multiplicity == Multiplicity::Linear;
+            // This is a move of the carrier, not an extraction of its case
+            // payload. A checked callee may later prove the payload absent.
+            // Keep the occurrence until that correspondence is known; false
+            // duplicate moves and explicit payload projections are not in
+            // this list and must still reject during replay.
+            if obligation_live
+                && place.conditional
+                && place
+                    .path
+                    .strip_prefix(event_path.as_slice())
+                    .is_some_and(|suffix| {
+                        suffix
+                            .iter()
+                            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                    })
+            {
+                conditional_carrier_transfers.push(permission_events.len());
+            }
             permission_events.push(FlowPermissionEventFact {
                 machine_symbol,
                 state_symbol,
@@ -205,6 +224,7 @@ pub(crate) fn apply_statement_permission_production(
             });
         }
         place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
+        place.case_excluded = place.conditional && !obligation_live;
         place.ever_established = true;
         place.claim_identity = Some(claim_identity);
         place.provenance = Some(provenance.unwrap_or_else(|| {
@@ -269,6 +289,7 @@ pub(crate) fn select_static_case_alternative(
             Some(facts::PlaceSegment::Case { .. })
         ) {
             place.live = false;
+            place.case_excluded = true;
         }
     }
 }

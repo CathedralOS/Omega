@@ -579,6 +579,7 @@ pub(super) fn apply_availability(
         .find(|place| place.symbol == receipt.destination && place.path.is_empty())
     {
         place.live = true;
+        place.case_excluded = false;
         place.ever_established = true;
         place.provenance = Some(
             inherited
@@ -623,6 +624,7 @@ pub(super) fn apply_availability(
                 (positions.iter().all(|position| *position == positions[0])).then_some(positions[0])
             });
             place.live = true;
+            place.case_excluded = false;
             place.ever_established = true;
             place.provenance = Some(
                 unanimous

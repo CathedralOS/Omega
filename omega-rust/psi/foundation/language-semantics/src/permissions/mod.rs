@@ -53,6 +53,14 @@ pub enum PermissionProvenance {
         state_symbol: symbols::SymbolHandle,
         source: PermissionEventSource,
     },
+    /// A call-local correspondence, not an introduced resource or a single
+    /// root lineage. Its checked join receipt retains every exact exit source.
+    Joined {
+        machine_symbol: symbols::SymbolHandle,
+        state_symbol: symbols::SymbolHandle,
+        source: PermissionEventSource,
+        ordinal: u32,
+    },
 }
 
 /// Identity of one permission/resource claim, independent of its current place
