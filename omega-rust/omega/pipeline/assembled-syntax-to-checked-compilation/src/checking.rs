@@ -220,7 +220,9 @@ impl PreparedCheckedSource {
 
     /// Check the prepared source for one target. `root_path` must be the
     /// root the checkpoint was prepared from; `build_dir` receives build
-    /// evaluation output.
+    /// evaluation output. An explicit snapshot supplies the caller's inventory
+    /// and output requirements; otherwise canonical package custody selects
+    /// its automatic full-inventory snapshot as before.
     pub fn check(
         self,
         root_path: &std::path::Path,
@@ -228,6 +230,7 @@ impl PreparedCheckedSource {
         build_dir: std::path::PathBuf,
         package_inputs: Option<&PackageCompilationInputs>,
         optimization_rollback: &crate::OptimizationRollback,
+        build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         if root_path != self.root_path {
             return Err(vec![Diagnostic::error(
@@ -247,7 +250,7 @@ impl PreparedCheckedSource {
         // it must rejoin record the same build observation identity. A
         // binding without that index has no validated inventory to capture
         // against and keeps the live root it names.
-        let build_snapshot = package_inputs
+        let automatic_snapshot = package_inputs
             .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
             .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
         self.compile_child_with_replay(CheckedChildExecution {
@@ -258,7 +261,9 @@ impl PreparedCheckedSource {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             replay_record: None,
-            build_snapshot: build_snapshot.as_ref(),
+            // The request narrows authority explicitly. Never replace it with
+            // automatic package membership or silently fall back after failure.
+            build_snapshot: build_snapshot.or(automatic_snapshot.as_ref()),
             optimization_rollback: optimization_rollback.clone(),
         })
     }

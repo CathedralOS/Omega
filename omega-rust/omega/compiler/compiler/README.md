@@ -21,6 +21,16 @@ Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked
 Package inputs, build staging, session sponsors and replay evidence are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
+Ordinary production accepts `CompileRequest::with_build_snapshot`, or distinct
+`TargetCompileConfiguration::with_build_snapshot` requests. Each target captures
+and executes its own caller-declared inventory and required-output roster;
+parsing reuse does not merge those inputs or suppress a sibling's failure.
+An omitted request retains automatic capture of canonical package inputs.
+Standalone scoped inventories must include consumed source files and do not
+expose undeclared siblings. The request supplies no output sponsor and does not
+implement committed companion-artifact publication; required outputs still
+need independently sealed staging custody. See
+[scoped build inputs](../../../../wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
 The [checked entrance](src/pipeline/checked_entry.rs) shows the lifecycle:
 [admit and execute the build, then continue generated source](src/pipeline/checked_entry/build_continuation.rs),
 [check selected execution](src/pipeline/checked_entry/execution_settlement.rs),

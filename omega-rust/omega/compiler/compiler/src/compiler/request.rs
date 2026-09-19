@@ -36,6 +36,7 @@ pub(super) struct SharedCompileInputs {
 pub struct TargetCompileConfiguration {
     target_name: Option<String>,
     build_dir: Option<PathBuf>,
+    pub(super) build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     pub(super) terminal_admission_profile: proof_admission::AdmissionProfile,
     terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
     /// The receiver-admission axis, supplied only by an explicit
@@ -59,6 +60,7 @@ impl TargetCompileConfiguration {
         Self {
             target_name,
             build_dir,
+            build_snapshot: None,
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             // Ordinary production supplies no receiving permission policy: the
@@ -73,6 +75,14 @@ impl TargetCompileConfiguration {
 
     pub fn with_build_dir(mut self, directory: PathBuf) -> Self {
         self.build_dir = Some(directory);
+        self
+    }
+    /// Set this target's caller-authorized build input inventory and required
+    /// outputs. Capture and execution remain child-local; this request does
+    /// not grant output sponsorship or publish completed companion artifacts.
+    /// Omission retains the automatic snapshot for canonical package inputs.
+    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+        self.build_snapshot = Some(snapshot);
         self
     }
     pub fn with_admission_profile(mut self, profile: proof_admission::AdmissionProfile) -> Self {
@@ -157,6 +167,16 @@ impl CompileRequest {
     }
     pub fn with_requested_product(mut self, product: RequestedCompileProduct) -> Self {
         self.shared.requested_product = product;
+        self
+    }
+
+    /// Apply the same capture intent to every current target configuration.
+    /// Each child captures and checks its own occurrence; distinct inventories
+    /// and output rosters belong on their target configurations.
+    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+        for configuration in &mut self.configurations {
+            configuration.build_snapshot = Some(snapshot.clone());
+        }
         self
     }
 

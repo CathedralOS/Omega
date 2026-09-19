@@ -2825,7 +2825,7 @@ fn retained_native_product_enters_only_terminal_realization() {
     let compact_driver = driver.split_whitespace().collect::<String>();
     assert!(
         compact_driver.contains(
-            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
+            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,target.configuration.build_snapshot.as_ref(),)?"
         )
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
             && driver.contains("prepare_native_product(target.into_native_product_request(), checked)")
