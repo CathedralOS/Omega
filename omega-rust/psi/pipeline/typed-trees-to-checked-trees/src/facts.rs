@@ -29,6 +29,7 @@ mod requirement_call_specializations;
 pub(crate) mod review_sources;
 #[cfg(test)]
 mod scalar_contract_tests;
+mod where_requirements;
 
 pub(crate) use canonical_encoding::{domain_is_vacuous, encode_contract_set_canonical};
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};

@@ -66,10 +66,6 @@ pub(super) fn derive(
     if (*symbol != machine.symbol && *symbol != definition.symbol)
         || machine.attached_data.as_ref() != Some(&definition.name)
         || !checked.data_type_parameters(definition).is_empty()
-        || !checked
-            .proof_facts
-            .span_or_empty(definition.where_facts)
-            .is_empty()
         || validation::data_requires_establishment(&checked.typed, definition)
         || validation::data_requires_nominal_drop(&checked.typed, definition)
     {
