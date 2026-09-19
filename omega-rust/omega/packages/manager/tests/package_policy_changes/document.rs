@@ -529,6 +529,82 @@ fn source_replacement_choices_round_trip_for_exact_dependency_aliases() {
     assert_choices_round_trip(&changes);
 }
 
+/// A package whose admitted build machine reaches the filesystem facets
+/// lists its restricted build-host request inside its own package block —
+/// separately from the `change`/`decision` product-authority rows — while a
+/// consumer whose build machine stays pure lists none
+/// (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+#[test]
+fn build_host_requests_render_distinctly_from_product_authority() {
+    let tree = Tree::new();
+    package(
+        &tree.path("sources/dep"),
+        "dep",
+        concat!(
+            " let generated: BuildPath = builder.output.resolve(\"stamp.txt\");\n",
+            " let descriptor: i32 = builder.output.create(generated, 420);\n",
+            " let written: i64 = builder.output.write(descriptor, \"x\");\n",
+            " let closed: i32 = builder.output.close(descriptor);\n",
+        ),
+    );
+    source(
+        &tree,
+        "pub const VALUE: u64 = 7;\n",
+        " builder.depend_as(\"dep\", Source::Path { location: \"../dep\" });\n",
+    );
+    let (closure, reviews) = candidate(&tree, "document-build-request");
+    let changes = compare(None, &closure, &reviews);
+    let dep = changes
+        .packages()
+        .iter()
+        .find(|package| package.key().name().as_str() == "dep")
+        .unwrap();
+    let root = changes
+        .packages()
+        .iter()
+        .find(|package| package.key().name().as_str() == "policy-fixture")
+        .unwrap();
+    assert_eq!(dep.restricted_build_requests().len(), 1);
+    assert!(root.restricted_build_requests().is_empty());
+    assert_eq!(
+        dep.candidate_path()
+            .unwrap()
+            .steps()
+            .last()
+            .unwrap()
+            .alias(),
+        "dep"
+    );
+    let text = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
+    let section = |name: &str| {
+        let start = text.find(&format!("package \"{name}\"")).unwrap();
+        &text[start..start + text[start..].find("end-package\n").unwrap()]
+    };
+    let dep_section = section("dep");
+    assert!(
+        dep_section.contains("-> \"dep\""),
+        "dependency path must name the requesting edge:\n{dep_section}"
+    );
+    assert!(
+        dep_section
+            .contains("build-request scoped-filesystem-execution\nread source-inventory narrowed")
+    );
+    assert!(dep_section.contains("\nwrite staged-output\n"));
+    assert!(dep_section.contains("end-build-request\n"));
+    let block = dep_section
+        .split("build-request ")
+        .nth(1)
+        .unwrap()
+        .split("end-build-request")
+        .next()
+        .unwrap();
+    for line in block.lines() {
+        assert!(!line.starts_with("change ") && !line.starts_with("decision "));
+    }
+    assert!(!section("policy-fixture").contains("build-request"));
+    assert_choices_round_trip(&changes);
+}
+
 #[test]
 fn package_prose_is_excluded_from_generated_findings_and_choices() {
     let tree = Tree::new();

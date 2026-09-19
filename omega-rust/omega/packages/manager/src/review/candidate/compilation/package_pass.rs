@@ -271,6 +271,7 @@ pub(super) fn compile_dependency_closure(
             })?
             .to_owned();
         let build_observation_summary = checked.build_observation_summary().cloned();
+        let restricted_build_requests = checked.restricted_build_requests().to_vec();
         let build_evaluation_usage = checked.build_evaluation_usage();
         let semantic_bindings = checked.resolved_semantic_bindings().cloned().collect();
         let generated_source_bundle =
@@ -377,6 +378,7 @@ pub(super) fn compile_dependency_closure(
             selected_build_machine_identity,
             build_evaluation_usage,
             build_observation_summary,
+            restricted_build_requests,
             semantic_bindings,
             semantic_binding_candidates,
             generated_source_bundle: generated_source_bundle.clone(),

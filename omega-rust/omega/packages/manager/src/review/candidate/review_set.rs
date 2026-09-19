@@ -1,6 +1,6 @@
 use super::rows::RetainedReviewRows;
 use crate::declarations::PackageKey;
-use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
+use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
 use package_compilation::{
     AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
@@ -26,6 +26,11 @@ pub struct CompilerIssuedPackageReview {
     pub(super) selected_build_machine_identity: String,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
+    /// The normalized restricted build-host requests this package's admitted
+    /// build activation asked of the host before it executed. This is
+    /// admission intent, not execution evidence, and remains review
+    /// material — never an accepted grant.
+    pub(super) restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
     pub(super) semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
@@ -66,6 +71,15 @@ impl CompilerIssuedPackageReview {
     /// separate from canonical capability/API comparison bytes.
     pub const fn build_observation_summary(&self) -> Option<&BuildObservationSummary> {
         self.build_observation_summary.as_ref()
+    }
+
+    /// The restricted build-host requests this package's admitted build
+    /// activation asked of the host before it executed. They name the
+    /// restricted operation, logical resource roots, bounds, and activation
+    /// profiles in compiler vocabulary — host paths and live grants never
+    /// enter review material.
+    pub fn restricted_build_requests(&self) -> &[RestrictedBuildRequest] {
+        &self.restricted_build_requests
     }
 
     /// Exact consumer-policy bindings resolved by this package's checked

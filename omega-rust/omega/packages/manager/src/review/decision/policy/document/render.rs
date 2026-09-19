@@ -89,6 +89,9 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
             package.source_association_changed()
         )?;
         writeln!(output, "audit-recommended {}", package.audit_recommended())?;
+        for request in package.restricted_build_requests() {
+            build_request(output, request)?;
+        }
         for row in package.rows() {
             let change = match row.change() {
                 PackagePolicyChangeKind::Added => "added",
@@ -106,6 +109,94 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
         writeln!(output, "end-package")?;
     }
     writeln!(output, "end-review")
+}
+
+fn build_request(
+    output: &mut Output,
+    request: &build_evaluation::RestrictedBuildRequest,
+) -> fmt::Result {
+    use build_evaluation::{
+        RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+    };
+    let operation = match request.operation() {
+        RestrictedBuildOperation::ScopedFilesystemExecution => "scoped-filesystem-execution",
+        RestrictedBuildOperation::UnscopedFilesystemExecution => "unscoped-filesystem-execution",
+    };
+    writeln!(output, "build-request {operation}")?;
+    let grant = |output: &mut Output, access: &str, grant: &RestrictedBuildGrant| {
+        write!(output, "{access} ")?;
+        match grant.root() {
+            RestrictedBuildGrantRoot::SourceInventory => write!(output, "source-inventory")?,
+            RestrictedBuildGrantRoot::StagedOutput => write!(output, "staged-output")?,
+            RestrictedBuildGrantRoot::Other(identity) => write!(output, "grant-root-{identity}")?,
+        }
+        if grant.narrowed() {
+            write!(output, " narrowed")?;
+        }
+        if let Some(captured) = grant.captured() {
+            write!(
+                output,
+                " captured entries={} bytes={}",
+                captured.entry_count(),
+                captured.file_bytes()
+            )?;
+        }
+        writeln!(output)
+    };
+    for entry in request.read_grants() {
+        grant(output, "read", entry)?;
+    }
+    for entry in request.write_grants() {
+        grant(output, "write", entry)?;
+    }
+    let bounds = request.bounds();
+    match bounds.filesystem_sponsor_limits() {
+        Some(limits) => writeln!(
+            output,
+            "bounds filesystem-sponsor entries={} logical-bytes={} extent={}",
+            limits.maximum_entries,
+            limits.maximum_total_logical_bytes,
+            limits.maximum_object_extent
+        )?,
+        None => writeln!(output, "bounds filesystem-sponsor none")?,
+    }
+    match bounds.evaluation_sponsor_limits() {
+        Some(limits) => writeln!(
+            output,
+            "bounds evaluation-sponsor fuel={} log-bytes={} filesystem-attempts={} \
+             filesystem-handles={} live-cells={} live-text-bytes={} result-cells={} \
+             result-text-bytes={}",
+            limits.maximum_fuel_units(),
+            limits.maximum_build_log_bytes(),
+            limits.maximum_filesystem_operation_attempts(),
+            limits.maximum_live_filesystem_handles(),
+            limits.maximum_live_cells(),
+            limits.maximum_live_text_bytes(),
+            limits.maximum_result_cells(),
+            limits.maximum_result_text_bytes()
+        )?,
+        None => writeln!(output, "bounds evaluation-sponsor none")?,
+    }
+    for name in bounds.required_outputs() {
+        writeln!(output, "required-output {}", String::from_utf8_lossy(name))?;
+    }
+    writeln!(output, "artifact-only {}", bounds.artifact_only())?;
+    let profile = |profile: Option<target::TargetProfile>| {
+        profile
+            .map(|profile| profile.target_name())
+            .unwrap_or("none")
+    };
+    writeln!(
+        output,
+        "build-profile {}",
+        profile(request.build_execution_profile())
+    )?;
+    writeln!(
+        output,
+        "target {}",
+        profile(request.selected_target_profile())
+    )?;
+    writeln!(output, "end-build-request")
 }
 
 fn role(role: crate::declarations::BuildDeclarationKind) -> &'static str {
