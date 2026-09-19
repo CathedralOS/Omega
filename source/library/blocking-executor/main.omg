@@ -1,0 +1,43 @@
+// blocking-executor — package-level blocking executor (TASKS.md BLOCKEXEC).
+//
+// Contract-surface stage, following the source/library/core/fixed_vec.omg
+// convention: the generic `data` declarations and `boundary operator`
+// contracts compile today; machine bodies attached to generic data remain
+// blocked on the generic-machine frontier recorded there, so the executable
+// pattern is pinned concretely in a pass canary once the task-runtime canary
+// lane is open.
+//
+// Surface contract pieces and where each spec obligation lands
+// (wiki/spec/build/task_runtime.md):
+//
+//   * Bounded queue — `queue.omg` `BoundedQueue<T, N>`: fixed inline
+//     capacity; `push` requires a discharged spare-room obligation, so
+//     queue admission failure is a proof error, not a trap or realloc.
+//   * Moved custody — submissions and queue payloads move by value on every
+//     edge; `Executor::submit` either accepts custody (vending a linear
+//     `Ticket<T>`) or returns the whole `Submission` in `Rejected`, matching
+//     `StartOutcome::Rejected(arguments, reason)`: no linear value
+//     disappears in a refused call.
+//   * Linear completion claim — `Ticket<T>` is `[linear]` like `Task<T>`:
+//     observe/cancel-request/settle authority that must be discharged
+//     exactly once by `Executor::settle`/`Executor::close`. Copying,
+//     overwriting, or scope drop cannot discharge it.
+//   * Suspension — `Executor::take_one` and `Executor::settle` are
+//     `suspends; blocks`; the parked continuation stays compiler/provider-
+//     owned. `WaitSubstrate` is the small word/value wait + wake-one/
+//     wake-many boundary the spec names as the shared wait direction.
+//   * Provider selection — `executor.omg` declares the package's own
+//     `WorkerProvider` boundary trait (the executor is a package, not a
+//     task-runtime mode) and `Executor` holds the selected slot as a
+//     `Service<WorkerProvider> in Bound` routed capability; applications
+//     pick the provider with `builder.select_provider`. Core's
+//     `TaskRuntime` is deliberately not named here: it is not public
+//     outside the bundled library, and the executor does not widen it.
+//
+// Remaining legs (recorded on the board): worker loops and queue bodies at
+// the generic-machine frontier, `Ticket`/`Task` interoperation with real
+// provider admission (TR4+), and hung-worker recovery — termination of a
+// hung worker MUST use process isolation, never in-address-space teardown;
+// that boundary is not yet declared here.
+use executor;
+use queue;

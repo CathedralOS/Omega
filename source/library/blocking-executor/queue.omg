@@ -1,0 +1,54 @@
+// Bounded FIFO queue — the executor's submission ring.
+//
+// `BoundedQueue<T, N>` is linear because it can hold linear payloads:
+// dropping the queue would strand the moved custody it contains, so the
+// queue itself is an owned claim that must be drained before it dies
+// (`close` requires a provably empty queue — closure preserves a surviving
+// owner for every undelivered linear payload; see task_runtime.md "closure/
+// task death must preserve a surviving owner for every undelivered linear
+// payload").
+//
+// Capacity is type-level like `FixedVec`: `push` carries a discharged
+// spare-room `requires`, so overflow is a proof error at the call site,
+// never a trap or a hidden reallocation — this is the "bounded queues"
+// obligation of BLOCKEXEC.
+//
+// Contracts only; machine-shaped bodies are behind the same generic-machine
+// frontier recorded in source/library/core/fixed_vec.omg.
+
+pub data BoundedQueue<T, const N: u64> [linear] {
+    items: [T; N];
+    head: u64;
+    length: u64;
+}
+
+// Live element count. O(1) measure for `requires`/`ensures`.
+boundary operator BoundedQueue::Length<T, const N: u64>(
+    queue: &BoundedQueue<T, N>
+) -> u64;
+
+// Append `value` at the tail. Custody of `value` moves into the queue;
+// requires provable spare room.
+boundary operator BoundedQueue::push<T, const N: u64>(
+    queue: &mut BoundedQueue<T, N>,
+    value: T
+) -> ()
+requires
+    queue.length < queue.items.len;
+
+// Remove and return the head element of a provably non-empty queue. Custody
+// moves to the caller — the moved-custody edge on the consume side.
+boundary operator BoundedQueue::pop<T, const N: u64>(
+    queue: &mut BoundedQueue<T, N>
+) -> T
+requires
+    queue.length > 0;
+
+// Terminally consume a provably empty queue — `queue` moves in by value,
+// the consume-side custody edge. The emptiness obligation is what keeps a
+// dying queue from orphaning undelivered linear payloads.
+boundary operator BoundedQueue::close<T, const N: u64>(
+    queue: BoundedQueue<T, N>
+) -> ()
+requires
+    queue.length == 0;

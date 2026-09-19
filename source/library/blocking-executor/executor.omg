@@ -1,0 +1,140 @@
+// Executor core — moved-custody submissions, linear completion claims,
+// suspension at the wait substrate, and provider selection.
+//
+// A hosted blocking executor is a package, not a task-runtime mode
+// (wiki/spec/build/task_runtime.md). Its workers are ordinary task
+// activations under the caller-selected `TaskRuntime` provider; this module
+// only owns what the executor adds on top: bounded admission, moved custody
+// of submissions, linear completion claims, and the park/wake contract.
+//
+// The `Executor::*` ops are `boundary requirement`s — satisfy-able contract
+// slots — because `suspends`/`blocks` are part of the contract and only
+// requirements carry effect declarations (`boundary operator` rejects
+// them). The satisfying machine bodies are behind the generic-machine
+// frontier recorded in queue.omg's header.
+use omega::language::core::service;
+use queue;
+
+// Worker execution provider — the executor's own selected-provider
+// contract, not a task-runtime mode (task_runtime.md: an ordinary hosted
+// blocking executor is a package). `execute` carries the same machine-symbol
+// argument shape as `TaskRuntime::start`: the worker body is a compile-time
+// machine selection, never a runtime function value. Concrete providers are
+// picked by ordinary build `select_provider` on this trait — that selection
+// is the "provider selection" leg of the item.
+pub boundary trait WorkerProvider {
+    machine execute<T, Arguments, machine Target>(
+        &self,
+        arguments: Arguments
+    ) -> T
+    where machine Target(arguments: Arguments) -> T suspends; blocks;
+    ensures true;
+}
+
+// The shared wait substrate named by the spec: a small word/value wait plus
+// wake-one/wake-many boundary. `park` suspends the calling activation at a
+// canonical crossing; the parked continuation is compiler/provider-owned.
+// Wake operations are ordinary boundary calls on the same word identity.
+pub boundary data WaitSubstrate;
+boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
+boundary machine WaitSubstrate::wake_one(word: u64);
+boundary machine WaitSubstrate::wake_all(word: u64);
+
+// One unit of moved work. `arguments` arrives by value — custody of the
+// caller's (possibly linear) argument pack moves into the submission and
+// from there into the queue or the worker; nothing is borrowed.
+pub data Submission<T, Arguments> [linear] {
+    arguments: Arguments;
+}
+
+// Linear completion claim for one accepted submission — the package's
+// analogue of `Task<T>`: the owned right and obligation to observe or
+// settle the activation's lifecycle, discharged exactly once. Linear, so it
+// cannot be copied, overwritten, or dropped to discharge the claim.
+pub data Ticket<T> [linear] {
+    executor: u64;
+    slot: u64;
+}
+
+// Lifecycle failure evidence for one settled claim.
+pub data WorkerFailureReceipt {
+    provider: u64;
+    code: i32;
+}
+
+// Terminal outcome of one `Ticket<T>`, mirroring `TaskOutcome<T>`: ordinary
+// sums whose active payload carries any substituted linear debt.
+// Recoverable application errors stay inside `T`; `WorkerFailed` is
+// lifecycle evidence, not a fabricated returned case.
+pub data ExecutorOutcome<T> {
+    case Completed(value: T);
+    case Cancelled;
+    case WorkerFailed(receipt: WorkerFailureReceipt);
+}
+
+// Why a submission was refused.
+pub data SubmissionRejection {
+    code: i32;
+}
+
+// Admission result. `Rejected` returns the whole submission — every moved
+// argument comes back to the caller, matching the transactional-start rule
+// that rejection returns moved arguments or proves transfer to another
+// authorized owner.
+pub data SubmitOutcome<T, Arguments> {
+    case Accepted(ticket: Ticket<T>);
+    case Rejected(submission: Submission<T, Arguments>, reason: SubmissionRejection);
+}
+
+// One executor instance: its bounded submission queue, the wait word
+// producers and workers park on, and the routed worker-provider service
+// worker activations run under. `Service<WorkerProvider> in Bound` is the
+// held selected capability — established by build composition, never
+// package-authored (service.omg), matching the spec rule that selection
+// grants no ambient authority: the executor must hold the capability.
+pub data Executor<T, Arguments, const N: u64> [linear] {
+    queue: BoundedQueue<Submission<T, Arguments>, N>;
+    wait_word: u64;
+    runtime: Service<WorkerProvider> in Bound;
+    open: bool;
+}
+
+// Admit this submission into `executor`. Linear values must move through
+// `self` on a bodyless requirement — a named linear parameter would "reach
+// scope exit" unconsumed — so the moved custody is always the receiver:
+// `submission.submit(&mut executor)`. Accepting moves custody into the
+// executor and vends the linear `Ticket<T>` claim; a refused submission is
+// returned whole inside `Rejected`.
+pub boundary requirement Submission::submit<T, Arguments, const N: u64>(
+    self,
+    executor: &mut Executor<T, Arguments, N>
+) -> SubmitOutcome<T, Arguments>;
+
+// Take the next queued submission as a worker. Suspends on the wait word
+// while the queue is empty and open — blocking creates no semantic safe
+// point, so the park is declared at the boundary, not invented inside.
+// The returned submission's custody moves to the worker.
+pub boundary requirement Executor::take_one<T, Arguments, const N: u64>(
+    &mut self
+) -> Submission<T, Arguments>
+requires
+    self.open
+suspends; blocks;
+
+// Terminally consume this claim against the executor that vended it;
+// blocks until the worker reports a lifecycle outcome. Same shape as
+// `Task::finish(self)`: settlement is the only discharge of the claim.
+pub boundary requirement Ticket::settle<T, Arguments, const N: u64>(
+    self,
+    executor: &Executor<T, Arguments, N>
+) -> ExecutorOutcome<T>
+suspends; blocks;
+
+// Terminally consume an executor with a provably empty queue — reclaiming
+// it requires reconciliation of every outstanding claim first, so close
+// cannot proceed while queued submissions survive.
+pub boundary requirement Executor::close<T, Arguments, const N: u64>(
+    self
+) -> ()
+requires
+    self.queue.length == 0;
