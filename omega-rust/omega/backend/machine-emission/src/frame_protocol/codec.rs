@@ -120,18 +120,16 @@ mod tests {
                     unwind.is_some(),
                     "{target:?}: codec and unwind matrices must declare the same pairs"
                 );
-                let serves = match (codec, unwind.map(|policy| policy.continuation)) {
+                let serves = matches!(
+                    (codec, unwind.map(|policy| policy.continuation)),
                     (
                         Some(FrameProtocolCodec::X86_64),
                         Some(FrameContinuationCustody::CallerActivationStack { .. }),
-                    )
-                    | (
+                    ) | (
                         Some(FrameProtocolCodec::Aarch64),
                         Some(FrameContinuationCustody::LinkRegister { .. }),
-                    ) => true,
-                    (None, None) => true,
-                    _ => false,
-                };
+                    ) | (None, None)
+                );
                 assert!(
                     serves,
                     "{target:?}: the declared codec cannot serve the declared continuation"
