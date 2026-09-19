@@ -948,22 +948,30 @@ Owners include
   Existing `ArtifactSections` admission, codec replay and native-realization
   optimization retain exact rosters; do not rebuild that evidence transport.
 
-  `TerminalExecution::start_verified_module` now binds each direct-entry
-  roster row to one exact `TerminalPlacedViewEstablishment` — the provider's
-  loan of the qualified referent backing, recorded as a live occurrence and
-  retired when the entry invocation completes; missing, duplicated, stale or
+  `TerminalExecution::start_verified_module` binds each direct-entry roster
+  row to one exact `TerminalPlacedViewEstablishment` — the provider's loan of
+  the qualified referent backing, recorded as a live occurrence and retired
+  when the entry invocation completes; missing, duplicated, stale or
   undeclared supplies and overlapping exclusive referents reject at start.
-  `try_into_native_input` still rejects nonempty rosters because no provider
-  establishment binds occurrences at the image entry shim. Continue from
+  The executable input boundary now owns the same ordinary route:
+  `AdmittedNativeArtifact::try_into_native_input_with_placed_view_establishments`
+  joins each direct-entry roster row to exactly one supply and carries the
+  bound set inside `VerifiedNativeArtifactInput`, while
+  `try_into_native_input` and `prepare_native_realization_input` keep
+  rejecting nonempty rosters because no provider establishment reaches the
+  image entry shim yet. Rows on non-entry machines still fail closed at both
+  boundaries — call-bound custody arrives through the caller, a route neither
+  carries. Continue from
   `terminal-psi-to-abstract-operations/src/artifact_admission.rs`,
   `compiler/native-realization` — where the ProgramEntry settlement's fused
-  service establishments are the analog to extend — and the Terminal
-  interpreter's `placed_view_establishments` channel. Add the ordinary
-  source/provider establishment route to executable inputs, preserving exact
-  layout, qualified backing, range, access/profile and lifetime joins; a
-  roster or pointer is not this authority. Keep unsupported consumers
-  rejecting until they carry it. Preserve the verified native-input boundary
-  enforced by architecture checks.
+  service establishments are the analog to extend, now with the bound
+  establishments riding inside `NativeRealizationInput` — and the Terminal
+  interpreter's `placed_view_establishments` channel. Carry the bound
+  establishments through native-realization input preparation to the entry
+  settlement so the realized entry boundary can lend each referent, keeping
+  unsupported consumers rejecting until they carry it; a roster or pointer
+  is not this authority. Preserve the verified native-input boundary enforced
+  by architecture checks.
 
   Extend `compiler/tests/access_plans/source_access_policies.rs`'s
   `direct_placed_view_input_survives_codec_and_native_replay` into a source
