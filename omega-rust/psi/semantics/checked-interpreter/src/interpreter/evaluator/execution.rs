@@ -22,6 +22,7 @@ impl<'program> Evaluator<'program> {
             build_log: Vec::new(),
             root_build: None,
             executed_root_bindings: Vec::new(),
+            executed_behavior_exclusions: Vec::new(),
             product_entry_descriptions: Vec::new(),
             product_schema_descriptions: Vec::new(),
             product_provider_descriptions: Vec::new(),
@@ -979,6 +980,9 @@ impl<'program> Evaluator<'program> {
                     }
                     StatementNode::RootBinding(binding) => {
                         self.execute_root_binding(statement_handle, binding, &frame)?;
+                    }
+                    StatementNode::Call(call) => {
+                        self.eval_call_statement(statement_handle, call, &frame)?;
                     }
                     other => {
                         self.exec_statement(other, &frame)?;

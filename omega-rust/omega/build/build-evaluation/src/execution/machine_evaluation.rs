@@ -132,6 +132,7 @@ pub(super) fn replay_admitted_machine(
     if replayed.value() != measured.value()
         || replayed.observations() != measured.observations()
         || replayed.executed_root_bindings() != measured.executed_root_bindings()
+        || replayed.executed_behavior_exclusions() != measured.executed_behavior_exclusions()
     {
         return Err(vec![Diagnostic::error(format!(
             "build-time replay of `{machine_name}` changed its result or operation record"

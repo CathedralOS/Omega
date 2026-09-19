@@ -553,10 +553,21 @@ impl<'program> Evaluator<'program> {
         if target.starts_with("accept_boundary#")
             || target == "select_provider"
             || target == "select_representation"
-            || target == "exclude_service"
             || target.starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);
+        }
+        // Evaluated behavior exclusions (see the statement-call twin): the
+        // call records the selection only when it actually runs against the
+        // activation's root Build.
+        if let Some(value) = self.try_behavior_exclusion_value_call(handle, call, frame)? {
+            if self.guard_depth > 0 {
+                frame
+                    .guard_call_results
+                    .borrow_mut()
+                    .push((handle, value.clone()));
+            }
+            return Ok(value);
         }
         // The tree walker has no architectural flags register. Preserve the
         // value-flow shape with the architecturally fixed RFLAGS bit 1 set;

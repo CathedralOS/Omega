@@ -54,7 +54,7 @@ fn execute_admitted_build_occurrence(
     let AdmittedBuildProgram {
         prepared,
         machine,
-        operational_plan,
+        operational_plan: _,
         service_reach_plan: _,
         filesystem_scope,
         evaluation_sponsor,
@@ -165,6 +165,7 @@ fn execute_admitted_build_occurrence(
     let output_obligations = measured.observations().build_output_obligations().to_vec();
     let output_receipts = measured.observations().build_output_receipts().to_vec();
     let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
+    let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
 
     // Phase 4: read the augmented `Build` back and harvest the declared
     // grants, selections, demands, and exclusions into the configuration.
@@ -191,7 +192,7 @@ fn execute_admitted_build_occurrence(
     config.opaque_representation_selections =
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
-    config.behavior_exclusions = harvest_behavior_exclusions(typed, &operational_plan, machine)?;
+    config.behavior_exclusions = harvest_behavior_exclusions(typed, &executed_exclusions)?;
     config.root_bindings = root_bindings;
 
     // Phase 5: reconcile staged-output custody with the replay and check the
