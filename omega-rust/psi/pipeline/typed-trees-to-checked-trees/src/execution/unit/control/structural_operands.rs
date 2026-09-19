@@ -351,6 +351,21 @@ pub(in crate::execution::terminal_unit) fn result(
                     projected_qualifications: Vec::new(),
                 });
             }
+            // An owned record carrying borrowed referents is affine through
+            // its captured leaf loans, not through claim-free contents. The
+            // operand's own call operation replays that leaf custody; the
+            // anonymous result only needs its declared identity here.
+            if owner.supply_mode == MachineSupplyMode::CheckedBody
+                && validation::reference_result_custody::is_reference_record(program, return_type)
+                && machine_binders(program, owner).is_empty()
+            {
+                return Some(CheckedStructuralResultPlan {
+                    type_identity: shapes.add_type(return_type, &[], &[])?,
+                    multiplicity: Multiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+            }
             let mut targets = facts
                 .flow
                 .terminal_structural_returns

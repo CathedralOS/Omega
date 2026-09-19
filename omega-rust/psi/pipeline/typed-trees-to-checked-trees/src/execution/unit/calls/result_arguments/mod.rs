@@ -61,11 +61,15 @@ pub(super) fn argument(
         .statements(source_state.statement_nodes)
         .get(result.statement_index as usize)
         && super::super::reference_results::parts(program, local.type_reference).is_some()
+        // Anonymous operand results carry their consuming statement's index,
+        // which may be a `&mut` local binding that does not own this operand
+        // place. Only an operand rooted at that local belongs to this lane;
+        // other roots continue to the general argument checks below.
+        && place.root == facts::PlaceRoot::Symbol(local.symbol)
     {
         let (_, access) =
             super::super::reference_results::parts(program, parameter.type_reference)?;
-        if place.root != facts::PlaceRoot::Symbol(local.symbol)
-            || !place.segments.is_empty()
+        if !place.segments.is_empty()
             || result.type_identity
                 != program
                     .normalized_type_identity(local.type_reference)
@@ -142,7 +146,24 @@ pub(super) fn argument(
                             index,
                             result.statement_index,
                             path,
-                        )
+                        ) || match place.root {
+                            // The projected carrier may be a nested call's
+                            // anonymous result bound at this same statement;
+                            // its returned leaf roster replays the caller's
+                            // captured loans through the nested actuals.
+                            facts::PlaceRoot::Expression(source) => {
+                                validation::reference_result_custody::nested_call_record_argument(
+                                    program,
+                                    facts,
+                                    machine,
+                                    source_state,
+                                    index,
+                                    source,
+                                    path,
+                                )
+                            }
+                            _ => false,
+                        }
                     })
             })
         } else {
@@ -419,9 +440,7 @@ pub(super) fn argument(
                         || facts.flow.ownership.segments.span_or_empty(event.segments)
                             == place.segments.as_slice())
             });
-        let Some(event) = events.next() else {
-            return None;
-        };
+        let event = events.next()?;
         // Non-self owned parameters transfer custody even at direct or
         // nominal boundaries. Consume events describe terminal self/claim
         // settlement, not an ordinary value handoff. Linear handoffs retain a

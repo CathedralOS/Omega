@@ -240,6 +240,146 @@ fn loaned_record_projection(
         })
 }
 
+/// Whether the loaned projections move every declared child out of an
+/// anonymous carrier, leaving no residual for a dying continuation to own.
+/// This mirrors the terminal frontier's `projected_moves::retires` over
+/// checked type plans: fields must stay relevant and no-cleanup-shaped,
+/// each structural child is moved whole or covered by deeper moved paths,
+/// and leaf children need no row at all. A fully covered temporary's place
+/// retires at the consuming call, so a longer operation schedule does not
+/// need a separate residual continuation for it.
+fn projected_moves_cover_result(
+    types: &[checked_trees::CheckedUnitStructuralTypePlan],
+    result_type: &str,
+    moved_paths: &[&[checked_trees::CheckedUnitStructuralPathSegment]],
+) -> bool {
+    if moved_paths.is_empty()
+        || moved_paths.iter().enumerate().any(|(index, path)| {
+            path.is_empty()
+                || moved_paths[..index]
+                    .iter()
+                    .any(|earlier| path.starts_with(earlier) || earlier.starts_with(path))
+        })
+    {
+        return false;
+    }
+    projected_moves_cover_type(types, result_type, moved_paths)
+}
+
+fn projected_moves_cover_type(
+    types: &[checked_trees::CheckedUnitStructuralTypePlan],
+    current_type: &str,
+    moved_paths: &[&[checked_trees::CheckedUnitStructuralPathSegment]],
+) -> bool {
+    let Some(declaration) = types
+        .iter()
+        .find(|declaration| declaration.identity == current_type)
+    else {
+        return false;
+    };
+    match &declaration.shape {
+        checked_trees::CheckedUnitStructuralTypeShape::Record { fields } => {
+            if fields.is_empty()
+                || fields.iter().enumerate().any(|(index, field)| {
+                    field.relevance.is_erased()
+                        || !no_cleanup_residual_field(&field.field_type)
+                        || fields[..index]
+                            .iter()
+                            .any(|earlier| earlier.identity == field.identity)
+                })
+            {
+                return false;
+            }
+            let mut matched = 0_usize;
+            for field in fields.iter().rev() {
+                let matching = moved_paths
+                    .iter()
+                    .filter_map(|path| {
+                        matches!(
+                            path.first(),
+                            Some(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                                identity
+                            )) if identity == &field.identity
+                        )
+                        .then_some(&path[1..])
+                    })
+                    .collect::<Vec<_>>();
+                matched += matching.len();
+                let checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } =
+                    &field.field_type
+                else {
+                    // A moved path may end at a no-cleanup leaf, but it may
+                    // not continue through one.
+                    if matching.iter().any(|tail| !tail.is_empty()) {
+                        return false;
+                    }
+                    continue;
+                };
+                // An untouched structural child leaves a residual the carrier
+                // must still own; covered children are moved whole or covered
+                // by their own deeper moved paths.
+                if matching.is_empty()
+                    || !(matching.len() == 1 && matching[0].is_empty()
+                        || matching.iter().all(|tail| !tail.is_empty())
+                            && projected_moves_cover_type(types, type_identity, &matching))
+                {
+                    return false;
+                }
+            }
+            matched == moved_paths.len()
+        }
+        checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+            element_type_identity,
+            length,
+        } => {
+            if *length == 0 || u128::from(*length) > moved_paths.len() as u128 {
+                return false;
+            }
+            let mut matched = 0_usize;
+            for index in (0..*length).rev() {
+                let matching = moved_paths
+                    .iter()
+                    .filter_map(|path| {
+                        matches!(
+                            path.first(),
+                            Some(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                                touched
+                            )) if *touched == index
+                        )
+                        .then_some(&path[1..])
+                    })
+                    .collect::<Vec<_>>();
+                matched += matching.len();
+                if matching.is_empty()
+                    || !(matching.len() == 1 && matching[0].is_empty()
+                        || matching.iter().all(|tail| !tail.is_empty())
+                            && projected_moves_cover_type(types, element_type_identity, &matching))
+                {
+                    return false;
+                }
+            }
+            matched == moved_paths.len()
+        }
+        _ => false,
+    }
+}
+
+/// `projected_moves`'s field admissibility at the checked level: only plain
+/// no-cleanup leaves may sit beside moved subtrees. Reference and provider
+/// carriers are `Structural` children, so an uncovered one still fails the
+/// coverage check rather than inheriting leaf treatment.
+fn no_cleanup_residual_field(field_type: &checked_trees::CheckedUnitStructuralFieldType) -> bool {
+    matches!(
+        field_type,
+        checked_trees::CheckedUnitStructuralFieldType::Structural { .. }
+            | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | checked_trees::CheckedUnitStructuralFieldType::ByteSequence(
+                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+            )
+            | checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
+    )
+}
+
 impl Producer<'_> {
     fn precedes_consumer(&self, coordinate: checked_trees::CheckedUnitCallCoordinate) -> bool {
         if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
@@ -777,6 +917,16 @@ pub(crate) fn validate_usage(
         || (producer.coordinate.call_ordinal != 0
             && !projected_paths.is_empty()
             && !disposed
+            // A loaned projection may carry the whole carrier: when every
+            // structural child is moved out, no residual remains for a
+            // continuation to own, and the terminal frontier retires the
+            // empty shell at the consuming call.
+            && !(projected_residual_loaned
+                && projected_moves_cover_result(
+                    &checked.facts.flow.terminal_unit_effects.structural_types,
+                    &result.type_identity,
+                    &projected_paths,
+                ))
             && !matches!(
                 caller.operations.as_slice(),
                 [_, _, CheckedUnitEffectOperationPlan::Complete { .. }]

@@ -569,26 +569,45 @@ pub fn reconstruct_structural_call_custody(
             program,
             destination.return_type,
         ) {
-            let Some(typed_trees::statement::StatementNode::LocalData(local)) = program
+            let local_destination = program
                 .statement_table
                 .statements(source_state.statement_nodes)
                 .get(call.statement_index)
-            else {
-                return Err("reference record call has no retained local destination");
-            };
-            if local.initial_value != call.authored_expression
-                || program.normalized_type_identity(local.type_reference)
+                .and_then(|statement| match statement {
+                    typed_trees::statement::StatementNode::LocalData(local)
+                        if local.initial_value == call.authored_expression =>
+                    {
+                        Some(local)
+                    }
+                    _ => None,
+                });
+            if let Some(local) = local_destination {
+                if program.normalized_type_identity(local.type_reference)
                     != program.normalized_type_identity(destination.return_type)
-                || crate::machine_calls::reference_result_custody::local_record_loans(
-                    program,
-                    facts,
-                    caller_machine,
-                    source_state,
-                    u32::try_from(call.statement_index)
-                        .map_err(|_| "reference record call index exceeds u32")?,
-                )
-                .is_none()
-            {
+                    || crate::machine_calls::reference_result_custody::local_record_loans(
+                        program,
+                        facts,
+                        caller_machine,
+                        source_state,
+                        u32::try_from(call.statement_index)
+                            .map_err(|_| "reference record call index exceeds u32")?,
+                    )
+                    .is_none()
+                {
+                    return Err("reference record result has no exact captured leaf loans");
+                }
+            // A nested call result is an anonymous carrier: no local mints
+            // leaf loans for it, so each returned leaf must instead replay
+            // through the call's exact actual to a live caller-side loan.
+            } else if !crate::machine_calls::reference_result_custody::nested_call_result_loans(
+                program,
+                facts,
+                caller_machine,
+                source_state,
+                u32::try_from(call.statement_index)
+                    .map_err(|_| "reference record call index exceeds u32")?,
+                call.authored_expression,
+            ) {
                 return Err("reference record result has no exact captured leaf loans");
             }
         }

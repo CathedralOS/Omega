@@ -760,6 +760,93 @@ fn moved_record_source(
     Some(Some((prior_local.symbol, *handle)))
 }
 
+/// Join one leaf of a call's returned-leaf roster through the call's exact
+/// actual to a caller-side local's captured loan. This is the operand form of
+/// `moved_record_source`: the producing call is named by its authored
+/// expression rather than a `let` statement's initializer, and the consuming
+/// statement's activity or last-use discipline is checked by the caller.
+fn call_actual_leaf_loan(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    call: &typed_trees::expression::TableCallExpression,
+    destination: &typed_trees::state::State,
+    source: &checked_trees::CheckedReferenceResultSourcePlan,
+) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
+    let [
+        path @ ..,
+        checked_trees::CheckedUnitStructuralPathSegment::Referent,
+    ] = source.source.path.as_slice()
+    else {
+        return None;
+    };
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        source.source.source
+    else {
+        return None;
+    };
+    let (position, parameter) = program
+        .state_parameters(destination)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .nth(parameter_index as usize)?;
+    if !is_reference_record(program, parameter.type_reference) {
+        return None;
+    }
+    let actual = *program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(position)?;
+    let ExpressionNode::Name(name) = program.expression_table.expression(actual) else {
+        return None;
+    };
+    if name.head_symbol != name.symbol
+        || program
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let (prior_index, prior_local) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..statement_index as usize)?
+        .iter()
+        .enumerate()
+        .find_map(|(index, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == name.symbol => Some((index, local)),
+            _ => None,
+        })?;
+    if program.normalized_type_identity(prior_local.type_reference)
+        != program.normalized_type_identity(parameter.type_reference)
+    {
+        return None;
+    }
+    let prior = local_record_loans(
+        program,
+        facts,
+        machine,
+        state,
+        u32::try_from(prior_index).ok()?,
+    )?;
+    let mut matching = prior.iter().filter(|(source, _)| source.path == path);
+    let (_, handle) = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    Some(*handle)
+}
+
 fn record_loan_is_active(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -810,7 +897,7 @@ pub fn owned_record_argument(
 /// field-identity path and the projected type. The spelling matches the leaf
 /// paths `formal_record_sources` and `local_record_loans` reconstruct, so one
 /// resolver keeps those joins from drifting.
-fn declared_field_path<'a>(
+pub(crate) fn declared_field_path<'a>(
     program: &TypedTrees,
     mut selected: TypeReferenceHandle,
     members: impl Iterator<Item = &'a typed_trees::expression::TableMemberExpression>,
@@ -879,6 +966,110 @@ pub fn projected_record_argument(
                     })
             },
         )
+}
+
+/// A projected operand may root at a nested call's anonymous result instead
+/// of a named local: `select(forward_outer(outer).inner)`. Every leaf the
+/// nested result publishes under the projected edge must replay one
+/// caller-side local's captured leaf loan through the call's exact actual,
+/// and each such loan must stay live until the consuming call — the same
+/// custody `projected_record_argument` proves for a stored carrier. The
+/// anonymous carrier itself is consumed whole by the projection, so its
+/// entire returned leaf roster must live under the edge.
+pub fn nested_call_record_argument(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some(destination) = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|candidate| candidate.symbol == call.target_symbol)
+    else {
+        return false;
+    };
+    if !is_reference_record(program, destination.return_type) {
+        return false;
+    }
+    let Some(sources) = returned_record_sources(program, destination) else {
+        return false;
+    };
+    !path.is_empty()
+        && !sources.is_empty()
+        && sources.iter().all(|source| {
+            source.path.starts_with(path)
+                && call_actual_leaf_loan(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement_index,
+                    call,
+                    destination,
+                    source,
+                )
+                .is_some_and(|loan| {
+                    record_loan_is_active(facts, machine, state.symbol, statement_index, loan)
+                })
+        })
+}
+
+/// A nested call's anonymous reference-record result has no `let` destination:
+/// `select(forward_outer(outer).inner)` captures `forward_outer`'s returned
+/// leaves directly into the consuming call. Each returned leaf must replay
+/// through the call's exact actual to one caller-side local's captured loan
+/// that stays live at the containing statement — the same leaf join
+/// `nested_call_record_argument` proves under the consumer's projected edge,
+/// here required of the complete returned roster.
+pub fn nested_call_result_loans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some(destination) = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|candidate| candidate.symbol == call.target_symbol)
+    else {
+        return false;
+    };
+    if !is_reference_record(program, destination.return_type) {
+        return false;
+    }
+    let Some(sources) = returned_record_sources(program, destination) else {
+        return false;
+    };
+    !sources.is_empty()
+        && sources.iter().all(|source| {
+            call_actual_leaf_loan(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                call,
+                destination,
+                source,
+            )
+            .is_some_and(|loan| {
+                record_loan_is_active(facts, machine, state.symbol, statement_index, loan)
+            })
+        })
 }
 
 /// A projected argument crosses the stored carrier only after its exact local
@@ -1213,25 +1404,15 @@ pub fn result_loan(
         .expression_handles(expression.arguments)
         .get(position)?;
     // A declared-field projection may select the argument carrier out of an
-    // owned record local: `input.inner` moves the whole `inner` subtree.
-    // Index, case-payload and computed roots stay opaque to leaf custody.
+    // owned record local or out of a nested call's anonymous result:
+    // `input.inner` and `forward_outer(outer).inner` both move the whole
+    // `inner` subtree. Index, case-payload and computed roots stay opaque to
+    // leaf custody.
     let mut members = Vec::new();
     let mut root = argument;
     while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
         members.push(member);
         root = member.receiver;
-    }
-    let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
-        return None;
-    };
-    if actual.head_symbol != actual.symbol
-        || program
-            .expression_table
-            .name_path_members(actual.members)
-            .len()
-            != 1
-    {
-        return None;
     }
     let expected_root = if let Some((_, leaf_source)) = leaf {
         // The argument is an owned record local, possibly through one
@@ -1245,51 +1426,128 @@ pub fn result_loan(
         else {
             return None;
         };
-        let (index, input) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
-            .find_map(|(index, statement)| match statement {
-                StatementNode::LocalData(local) if local.symbol == actual.symbol => {
-                    Some((index, local))
+        match program.expression_table.expression(root) {
+            ExpressionNode::Name(actual) => {
+                if actual.head_symbol != actual.symbol
+                    || program
+                        .expression_table
+                        .name_path_members(actual.members)
+                        .len()
+                        != 1
+                {
+                    return None;
                 }
-                _ => None,
-            })?;
-        if input.is_mutable
-            || index >= call.statement_index
-            || !is_reference_record(program, input.type_reference)
-        {
-            return None;
+                let (index, input) = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| match statement {
+                        StatementNode::LocalData(local) if local.symbol == actual.symbol => {
+                            Some((index, local))
+                        }
+                        _ => None,
+                    })?;
+                if input.is_mutable
+                    || index >= call.statement_index
+                    || !is_reference_record(program, input.type_reference)
+                {
+                    return None;
+                }
+                let (mut selected_path, projected) = declared_field_path(
+                    program,
+                    input.type_reference,
+                    members.iter().rev().copied(),
+                )?;
+                if program
+                    .state_parameters(callee)
+                    .get(position)
+                    .is_none_or(|parameter| {
+                        program.normalized_type_identity(parameter.type_reference)
+                            != program.normalized_type_identity(projected)
+                    })
+                {
+                    return None;
+                }
+                selected_path.extend(path.iter().cloned());
+                let loans =
+                    local_record_loans(program, facts, machine, state, u32::try_from(index).ok()?)?;
+                let mut matching = loans
+                    .iter()
+                    .filter(|(source, _)| source.path == selected_path);
+                let (_, leaf_loan) = matching.next()?;
+                if matching.next().is_some() {
+                    return None;
+                }
+                let leaf_loan = facts.borrow.loans.get(*leaf_loan);
+                if leaf_loan.last_use_statement_index != call.statement_index {
+                    return None;
+                }
+                leaf_loan.root_symbol
+            }
+            ExpressionNode::Call(nested) => {
+                // The carrier is the nested call's anonymous result: its
+                // returned-leaf roster names which caller-side captured loan
+                // the projected leaf replays through the nested actual.
+                let nested_destination = program
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| program.machine_states(machine))
+                    .find(|candidate| candidate.symbol == nested.target_symbol)?;
+                if !is_reference_record(program, nested_destination.return_type) {
+                    return None;
+                }
+                let (mut selected_path, projected) = declared_field_path(
+                    program,
+                    nested_destination.return_type,
+                    members.iter().rev().copied(),
+                )?;
+                if program
+                    .state_parameters(callee)
+                    .get(position)
+                    .is_none_or(|parameter| {
+                        program.normalized_type_identity(parameter.type_reference)
+                            != program.normalized_type_identity(projected)
+                    })
+                {
+                    return None;
+                }
+                selected_path.extend(path.iter().cloned());
+                let sources = returned_record_sources(program, nested_destination)?;
+                let mut matching = sources.iter().filter(|source| source.path == selected_path);
+                let nested_leaf = matching.next()?;
+                if matching.next().is_some() {
+                    return None;
+                }
+                let leaf_loan = call_actual_leaf_loan(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    u32::try_from(call.statement_index).ok()?,
+                    nested,
+                    nested_destination,
+                    nested_leaf,
+                )?;
+                let leaf_loan = facts.borrow.loans.get(leaf_loan);
+                if leaf_loan.last_use_statement_index != call.statement_index {
+                    return None;
+                }
+                leaf_loan.root_symbol
+            }
+            _ => return None,
         }
-        let (mut selected_path, projected) =
-            declared_field_path(program, input.type_reference, members.iter().rev().copied())?;
-        if program
-            .state_parameters(callee)
-            .get(position)
-            .is_none_or(|parameter| {
-                program.normalized_type_identity(parameter.type_reference)
-                    != program.normalized_type_identity(projected)
-            })
-        {
-            return None;
-        }
-        selected_path.extend(path.iter().cloned());
-        let loans = local_record_loans(program, facts, machine, state, u32::try_from(index).ok()?)?;
-        let mut matching = loans
-            .iter()
-            .filter(|(source, _)| source.path == selected_path);
-        let (_, leaf_loan) = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
-        let leaf_loan = facts.borrow.loans.get(*leaf_loan);
-        if leaf_loan.last_use_statement_index != call.statement_index {
-            return None;
-        }
-        leaf_loan.root_symbol
     } else {
-        if !members.is_empty()
+        let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
+            return None;
+        };
+        if actual.head_symbol != actual.symbol
+            || program
+                .expression_table
+                .name_path_members(actual.members)
+                .len()
+                != 1
+            || !members.is_empty()
             || !program.state_parameters(state).iter().any(|parameter| {
                 parameter.symbol == actual.symbol
                     && !parameter.is_const

@@ -85,8 +85,15 @@ pub(crate) fn validate_structural(
             super::authored::target_signature(checked, caller_machine, authored.source_target)?;
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
+            // A reference-bearing record temporary carries its custody in the
+            // call's published leaf-loan roster rather than plain owned
+            // contents; `validate_custody` rejoins that roster separately.
             || !((result.multiplicity == Multiplicity::Affine
-                && validation::has_plain_owned_contents(&checked.typed, target.return_type))
+                && (validation::has_plain_owned_contents(&checked.typed, target.return_type)
+                    || validation::reference_result_custody::is_reference_record(
+                        &checked.typed,
+                        target.return_type,
+                    )))
                 || (result.multiplicity == Multiplicity::Unrestricted
                     && !authored.boundary
                     && validation::is_closed_primitive_array_type(

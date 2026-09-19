@@ -332,7 +332,15 @@ pub(crate) fn nested_structural_call_return_type(
             TypeReferenceNode::Unit
         )
         && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-            && validation::has_plain_owned_contents(program, return_type))
+            && (validation::has_plain_owned_contents(program, return_type)
+                // A checked-body record carrying borrowed referents is affine
+                // through its captured leaf loans; the caller's own operand
+                // scheduling still has to replay that custody exactly.
+                || (ordinary
+                    && validation::reference_result_custody::is_reference_record(
+                        program,
+                        return_type,
+                    ))))
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
