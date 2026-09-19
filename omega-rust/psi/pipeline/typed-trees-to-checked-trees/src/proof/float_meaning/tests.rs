@@ -929,3 +929,123 @@ fn checked_binding_rejects_equality_operand_substitution_transactionally() {
     assert!(proof.float_meaning_projections.is_empty());
     assert!(proof.float_meaning_equalities.is_empty());
 }
+
+#[test]
+fn transported_ensures_result_instantiates_at_the_call_use_site() {
+    let checked = crate::lower_typed_trees(lower_projection_fixture(
+        r#"
+                machine helper(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { value }
+
+                machine caller(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { helper(value) }
+            "#,
+    ))
+    .expect("checked");
+    let proof = &checked.facts.proof;
+    // The transported `ensures` instantiates once at the call: the imported
+    // `result` operand names the exact produced call result, disjoint from
+    // each machine's own machine-result row.
+    let call_row = proof
+        .float_meaning_projections
+        .iter()
+        .find(|projection| {
+            matches!(
+                projection.source,
+                CheckedFloatProjectionSource::DirectCallResult(_)
+            )
+        })
+        .expect("the imported ensures gains a call-result source");
+    let CheckedFloatProjectionSource::DirectCallResult(call_result) = call_row.source else {
+        unreachable!("found by source class")
+    };
+    assert_eq!(
+        checked.symbols.name(call_result.use_site.owner_machine),
+        "caller"
+    );
+    assert_eq!(call_result.use_site.statement_index, 0);
+    assert_eq!(call_result.use_site.call_ordinal, 0);
+    assert_eq!(call_result.fallback.primitive, PrimitiveType::F32);
+    let machine_results = proof
+        .float_meaning_projections
+        .iter()
+        .filter_map(|projection| match projection.source {
+            CheckedFloatProjectionSource::DirectMachineResult(result) => Some(result),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(machine_results.len(), 2);
+    assert!(
+        machine_results
+            .iter()
+            .all(|result| result.fallback.id != call_result.fallback.id),
+        "the call-result identity is disjoint from each machine-result row"
+    );
+    // The imported equality marks its use site and reflexively names the
+    // call-result value; declaration rows keep `use_site: None` so the
+    // (owner, expression, use site) rejoin still discharges authored exits.
+    assert_eq!(proof.float_meaning_equalities.len(), 3);
+    let imported = proof
+        .float_meaning_equalities
+        .iter()
+        .filter(|equality| equality.use_site.is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(imported.len(), 1);
+    assert_eq!(imported[0].use_site, Some(call_result.use_site));
+    assert_eq!(imported[0].left, imported[0].right);
+    assert_eq!(imported[0].left, call_row.result.id);
+    let authored = proof
+        .float_meaning_equalities
+        .iter()
+        .filter(|equality| equality.use_site.is_none())
+        .count();
+    assert_eq!(authored, 2);
+}
+
+#[test]
+fn transported_ensures_result_is_distinct_per_call_site() {
+    let checked = crate::lower_typed_trees(lower_projection_fixture(
+        r#"
+                machine helper(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { value }
+
+                machine first(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { helper(value) }
+
+                machine second(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { helper(value) }
+            "#,
+    ))
+    .expect("checked");
+    let proof = &checked.facts.proof;
+    let sites = proof
+        .float_meaning_projections
+        .iter()
+        .filter_map(|projection| match &projection.source {
+            CheckedFloatProjectionSource::DirectCallResult(result) => {
+                Some((result, projection.result.id))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(sites.len(), 2);
+    assert_ne!(sites[0].0.use_site, sites[1].0.use_site);
+    assert_ne!(sites[0].1, sites[1].1);
+    let imported = proof
+        .float_meaning_equalities
+        .iter()
+        .filter(|equality| equality.use_site.is_some())
+        .count();
+    assert_eq!(imported, 2);
+    let authored = proof
+        .float_meaning_equalities
+        .iter()
+        .filter(|equality| equality.use_site.is_none())
+        .count();
+    assert_eq!(authored, 3);
+}
