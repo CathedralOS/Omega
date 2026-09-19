@@ -31,8 +31,9 @@
 //   against `tail.length`.
 // - `allocate` publishes the decrement as `result.strategy.remaining ==
 //   strategy.remaining - length`. Exit checking proves that nested field's
-//   exact computation; caller import of the relation still needs work before
-//   it can establish the next request's capacity. Scalar and content facts
+//   exact computation, and `check_remaining` consumes the relation from the
+//   exact second allocation. Turning that equality into the next request's
+//   capacity bound still needs arithmetic entailment. Scalar and content facts
 //   remain separate proof obligations.
 // - And the next residual cannot be computed at the call site: the requires
 //   check does not propagate a subtraction's lower bound (`capacity - 16`
@@ -242,6 +243,15 @@ reaches ExtentPartition
     }
 }
 
+// Exercise the published count at an ordinary caller obligation, independently
+// of the extent's custody. This check must use the exact allocation invocation;
+// the source constructor or a second allocation cannot stand in for its result.
+machine check_remaining(remaining: u64, previous: u64, length: u64)
+requires
+    length <= previous;
+    remaining == previous - length
+{}
+
 // Reset after full return. `lower` was issued before `upper`, so the original
 // range is `lower ++ upper ++ tail`. Both returned regions are consumed, and
 // both must still be vacant: a region whose resident has not been retired
@@ -400,6 +410,7 @@ reaches ExtentPartition
         Bump { tail: first_tail, remaining: 32 },
         32,
     );
+    check_remaining(issued_second.strategy.remaining, 32, 32);
     let second_residual: u64 = issued_second.strategy.remaining;
     let second_tail: Extent in Granted & Vacant = issued_second.strategy.tail;
     let second_allocation: Extent in Granted & Vacant = issued_second.allocation;

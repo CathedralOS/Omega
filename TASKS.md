@@ -2592,18 +2592,23 @@ Owners include
     content-bearing signatures do not restrict every `ensures` to content
     grammar. `allocate` now declares and proves
     `ensures result.strategy.remaining == strategy.remaining - length`;
-    a wrong-count guarantee rejects. Check the actual fixture on macOS ARM64
-    with `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
+    `check_remaining` consumes that relation from the exact second allocation,
+    and substituting the first allocation rejects. Check the actual fixture
+    on macOS ARM64 with `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
     cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
     -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
-    The next missing step is caller import under exact result/argument
-    substitution, owned by `facts`/`flow` contract transport and
-    `checks/contracts`. A source probe whose `produce(input) -> Count` proves
-    `result.remaining == input`, then calls `consume(value, input)` requiring
-    `value.remaining == expected`, still rejects that requires clause after
-    `let value: Count = produce(input)`. Exit proving lives in
-    `checks/contracts/exits/scalars/result_fields.rs`; its scalar-exit tests
-    cover nested computation, live fields, mutation, policies, and origins.
+    Caller import in `checks/contracts/prover/call_guarantees.rs` joins live
+    result provenance to the exact invocation and substitutes declaration
+    identities, not labels. `semantic_places` shares constructor projection
+    with dependency invalidation. The caller tests cover copies, nested
+    subtraction, input/result writes, distinct calls and arithmetic policies.
+    Next, feed these equalities into capacity-bound entailment and preserve
+    independent scalar premises when consuming backing; the fixture still
+    rejects `check_remaining(issued_first.strategy.remaining, capacity, 16)`
+    because its earlier `16 <= capacity` premise is unavailable. Computed
+    actuals, state transfers and reference-bearing owned capture ceilings need
+    their exact snapshot/effect evidence, not initializer replay. Exit proving
+    remains in `checks/contracts/exits/scalars/result_fields.rs`.
     This is source checking, not a Terminal/native allocator claim. A `requires`
     bound also neither carries a subtraction's lower bound nor survives
     consumption of the backing. Each request's residual is a caller-stated

@@ -41,6 +41,39 @@ fn instantiate_contract_expression_place(
         return None;
     }
 
+    // A constructor actual captures its selected field, not a fictitious
+    // storage field below the constructor expression. Keep that same source
+    // projection for both contract dependency invalidation and proof use.
+    if result.is_none()
+        && let Some(site) = super::find_call_site(
+            program,
+            call.caller_machine_symbol,
+            call.caller_state_symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        && let Some(parameters) = super::call_target_parameters(program, call.target_state_symbol)
+        && let Some((value, remaining)) = call_contract_argument_projection(
+            program,
+            parameters,
+            super::call_site_argument_expressions(program, &site),
+            expression,
+        )
+    {
+        let mut place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            call.caller_state_symbol,
+            call.statement_index,
+            value,
+        )?;
+        place.segments.extend(remaining);
+        return Some(super::append_place_with_segments(
+            facts,
+            place.root,
+            &place.segments,
+        ));
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
             instantiate_contract_expression_place(program, facts, call, result, inner.target)
@@ -95,6 +128,44 @@ fn instantiate_contract_expression_place(
         }
         _ => None,
     }
+}
+
+/// Select the captured value of an explicit formal projection using exact
+/// nominal fields. Non-constructed actuals retain their remaining field path.
+pub(crate) fn call_contract_argument_projection(
+    program: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
+    let formal = crate::flow::canonical_place_from_expression(program, expression)?;
+    let facts::PlaceRoot::Symbol(symbol) = formal.root else {
+        return None;
+    };
+    let (position, parameter) = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == symbol)?;
+    if formal
+        .segments
+        .iter()
+        .any(|segment| crate::flow::place_segment_has_unresolved_identity(*segment))
+    {
+        return None;
+    }
+    let mut projections = crate::flow::literal_value_projections(
+        program,
+        *arguments.get(position)?,
+        parameter.type_reference,
+        &formal.segments,
+        false,
+    )?;
+    let projection = projections.pop()?;
+    if !projections.is_empty() {
+        return None;
+    }
+    Some((projection.expression, projection.remaining))
 }
 
 fn instantiate_call_contract_name_path_place(
