@@ -7,11 +7,12 @@ use checked_trees::{
 };
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, MachineId, ScalarType};
 use terminal_psi::{
-    DirectBlockFloatParameter, DirectMachineFloatParameter, DirectMachineFloatResult,
-    DirectStructuralFloatLeaf, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionContractIdentity,
-    FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
-    ProofValueDeclaration, ProofValueId, TerminalMachine, TerminalMachineResult,
+    DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
+    DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatMeaningSource, FloatProjectionContractIdentity, FloatProjectionInput,
+    FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, TerminalMachine, TerminalMachineResult,
 };
 
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -124,6 +125,42 @@ pub fn lower_float_meaning_projection(
                 }),
             }
         }
+        CheckedFloatProjectionSource::DirectCallResult(result) => {
+            let format = match result.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+            };
+            match direct_source {
+                Some(FloatMeaningSource::DirectCallResult(direct)) if direct.format == format => {
+                    FloatMeaningSource::DirectCallResult(direct)
+                }
+                Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                    id: FloatProjectionInputId(result.fallback.id.0),
+                    format,
+                }),
+            }
+        }
+        CheckedFloatProjectionSource::DirectOperationResult(result) => {
+            let format = match result.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+            };
+            match direct_source {
+                Some(FloatMeaningSource::DirectOperationResult(direct))
+                    if direct.format == format =>
+                {
+                    FloatMeaningSource::DirectOperationResult(direct)
+                }
+                Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                    id: FloatProjectionInputId(result.fallback.id.0),
+                    format,
+                }),
+            }
+        }
         CheckedFloatProjectionSource::ExactBinary32Literal(bits) => {
             FloatMeaningSource::ExactBinary32Literal(bits)
         }
@@ -168,6 +205,8 @@ pub(crate) fn resolve_direct_float_source_binding(
     machine_bindings: &[(symbols::SymbolHandle, MachineId)],
     terminal_machines: &[TerminalMachine],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+    fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
     projection: CheckedFloatMeaningProjection,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let owner_machine = match &projection.source {
@@ -175,6 +214,10 @@ pub(crate) fn resolve_direct_float_source_binding(
         CheckedFloatProjectionSource::DirectMachineResult(result) => result.owner_machine,
         CheckedFloatProjectionSource::DirectBlockParameter(parameter) => parameter.owner_machine,
         CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => leaf.owner_machine,
+        CheckedFloatProjectionSource::DirectCallResult(result) => result.use_site.owner_machine,
+        CheckedFloatProjectionSource::DirectOperationResult(result) => {
+            result.use_site.owner_machine
+        }
         _ => return Ok(None),
     };
     let Some((_, terminal_owner)) = machine_bindings
@@ -250,6 +293,59 @@ pub(crate) fn resolve_direct_float_source_binding(
                 terminal_machine,
                 *terminal_owner,
                 parameter,
+            )
+        }
+        CheckedFloatProjectionSource::DirectCallResult(result) => {
+            let format = match result.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(invalid_source()),
+            };
+            let mut occurrences = source_call_occurrences.iter().filter(|occurrence| {
+                occurrence.source_state == result.use_site.owner_state
+                    && occurrence.statement_index == result.use_site.statement_index
+                    && occurrence.call_ordinal == result.use_site.call_ordinal
+            });
+            let Some(occurrence) = occurrences.next() else {
+                return Ok(None);
+            };
+            if occurrences.next().is_some() {
+                return Err(invalid_source());
+            }
+            resolve_float_operation_result_source(
+                terminal_machine,
+                *terminal_owner,
+                occurrence.terminal_operation,
+                format,
+                true,
+            )
+        }
+        CheckedFloatProjectionSource::DirectOperationResult(result) => {
+            let format = match result.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(invalid_source()),
+            };
+            let mut occurrences = fma_occurrences.iter().filter(|occurrence| {
+                occurrence.source_state == result.use_site.owner_state
+                    && occurrence.statement_index == result.use_site.statement_index
+                    && occurrence.call_ordinal == result.use_site.call_ordinal
+            });
+            let Some(occurrence) = occurrences.next() else {
+                return Ok(None);
+            };
+            if occurrences.next().is_some() {
+                return Err(invalid_source());
+            }
+            if occurrence.format != format {
+                return Err(invalid_source());
+            }
+            resolve_float_operation_result_source(
+                terminal_machine,
+                *terminal_owner,
+                occurrence.terminal_operation,
+                format,
+                false,
             )
         }
         CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
@@ -445,6 +541,74 @@ fn resolve_direct_block_float_parameter(
             owner: terminal_owner,
             block: block.id,
             parameter: declaration.id,
+            format,
+        },
+    )))
+}
+
+/// Rejoin one checked use-site occurrence to the exact scalar result its
+/// emitted Terminal operation declares. `call` selects the verifier's
+/// producer-kind partition: call uses must join a call-class operation and
+/// operation uses must join a non-call producer.
+fn resolve_float_operation_result_source(
+    terminal_machine: &TerminalMachine,
+    terminal_owner: MachineId,
+    terminal_operation: semantic_vocabulary::OperationId,
+    format: IeeeFloatFormat,
+    call: bool,
+) -> Result<Option<FloatMeaningSource>, LoweringError> {
+    let invalid_source = || {
+        LoweringError::InvalidFloatMeaningProjection(
+            FloatMeaningProjectionLoweringError::InvalidSourceCarrier,
+        )
+    };
+    let mut producers = terminal_machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == terminal_operation);
+    let producer = producers.next().ok_or_else(invalid_source)?;
+    if producers.next().is_some() {
+        return Err(invalid_source());
+    }
+    let call_kind = matches!(
+        producer.kind,
+        terminal_psi::OperationKind::Call { .. }
+            | terminal_psi::OperationKind::CallStructuralScalar { .. }
+            | terminal_psi::OperationKind::CallDynamicScalar { .. }
+            | terminal_psi::OperationKind::CallDynamicParameterScalar { .. }
+            | terminal_psi::OperationKind::BoundaryCall { .. }
+    );
+    if call_kind != call {
+        return Err(invalid_source());
+    }
+    let terminal_psi::OperationResult::Scalar(declaration) = producer.result else {
+        return Err(invalid_source());
+    };
+    if declaration.scalar_type != ScalarType::IeeeFloat(format) {
+        return Err(invalid_source());
+    }
+    if call {
+        return Ok(Some(FloatMeaningSource::DirectCallResult(
+            DirectCallFloatResult {
+                owner: terminal_owner,
+                producer: terminal_operation,
+                result: declaration.id,
+                format,
+            },
+        )));
+    }
+    if !matches!(
+        producer.kind,
+        terminal_psi::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+    ) {
+        return Err(invalid_source());
+    }
+    Ok(Some(FloatMeaningSource::DirectOperationResult(
+        DirectOperationFloatResult {
+            owner: terminal_owner,
+            producer: terminal_operation,
+            result: declaration.id,
             format,
         },
     )))
