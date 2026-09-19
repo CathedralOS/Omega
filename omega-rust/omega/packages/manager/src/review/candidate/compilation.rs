@@ -246,10 +246,13 @@ fn compile_pass(
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
+    let execution_profile = target::TargetProfile::host_if_supported();
+    package_pass::validate_nested_build_activations(target_closure, execution_profile)?;
     let bindings = semantic_bindings_by_consumer(closure, bindings)?;
     let session = ReviewBuildSession::create(build_root)?;
     let result = package_pass::compile_dependency_closure(
         target_closure,
+        execution_profile,
         session.root(),
         session.filesystem_sponsor(),
         session.evaluation_sponsor(),

@@ -46,8 +46,73 @@ pub(super) enum TargetEntryDiscovery {
     Dependencies,
 }
 
+/// Re-rooting already gives each dependency its own build activation and keeps
+/// its build-only imports out of consumers. The current review and generated
+/// bundle tables still have one slot per package, however: they cannot retain
+/// two purpose/profile-specific results for the same package. Admit nested
+/// activations only when that slot is unambiguous, before any build executes.
+/// The graph has already rejected cycles over both kinds of dependency edge.
+pub(super) fn validate_nested_build_activations(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    execution_profile: Option<target::TargetProfile>,
+) -> Result<(), CompileResolvedPackageReviewsError> {
+    use crate::declarations::DependencyPurpose;
+
+    let graph = target_closure.source_closure().graph();
+    let Some(nested) = graph.packages().iter().find(|package| {
+        package.source().key() != graph.root()
+            && package
+                .dependencies()
+                .iter()
+                .any(|dependency| dependency.purpose() == DependencyPurpose::Build)
+    }) else {
+        return Ok(());
+    };
+    if execution_profile != Some(target_closure.target_profile()) {
+        return Err(
+            CompileResolvedPackageReviewsError::UnsupportedNestedBuildActivation {
+                package: nested.source().key().clone(),
+                reason: "cross-profile nested builds require separate execution-profile review and generated-source occurrences",
+            },
+        );
+    }
+    let mut purposes = vec![None; graph.packages().len()];
+    let mut pending = vec![(graph.root(), DependencyPurpose::Product)];
+    while let Some((package, purpose)) = pending.pop() {
+        let Some(position) = graph.package_position(package) else {
+            return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
+                package: package.clone(),
+            });
+        };
+        if let Some(previous) = purposes[position] {
+            if previous != purpose {
+                return Err(
+                    CompileResolvedPackageReviewsError::UnsupportedNestedBuildActivation {
+                        package: package.clone(),
+                        reason: "dual-purpose nested builds require separate build and product review and generated-source occurrences",
+                    },
+                );
+            }
+            continue;
+        }
+        purposes[position] = Some(purpose);
+        for dependency in graph.packages()[position].dependencies() {
+            // An ordinary dependency inherits the library's execution context;
+            // a build edge belongs to that package's separate build activation.
+            let selected_purpose = match dependency.purpose() {
+                DependencyPurpose::Product => purpose,
+                DependencyPurpose::Build => DependencyPurpose::Build,
+            };
+            pending.push((dependency.target(), selected_purpose));
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(super) fn compile_dependency_closure(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
+    execution_profile: Option<target::TargetProfile>,
     build_session_root: &Path,
     filesystem_sponsor: &FilesystemSponsor,
     evaluation_sponsor: &BuildEvaluationSponsor,
@@ -200,6 +265,7 @@ pub(super) fn compile_dependency_closure(
         let build_snapshot =
             build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
         let request = CheckedCompileRequest {
+            build_execution_profile: execution_profile,
             build_dir: Some(
                 package_build_root(build_session_root, &key, custody.resolution()).to_owned(),
             ),

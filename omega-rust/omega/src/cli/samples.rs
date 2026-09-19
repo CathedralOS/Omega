@@ -70,7 +70,16 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
                             continue;
                         }
                     };
-                    let (prepared_entry, package_inputs) = prepared.into_parts();
+                    let (prepared_entry, package_inputs) = match prepared.try_into_parts() {
+                        Ok(parts) => parts,
+                        Err(error) => {
+                            failures
+                                .lock()
+                                .unwrap()
+                                .push(format!("{}: {error}", main_path.display()));
+                            continue;
+                        }
+                    };
                     let options = CompileOptions {
                         root_path: prepared_entry,
                         build_dir: Some(build_dir.clone()),

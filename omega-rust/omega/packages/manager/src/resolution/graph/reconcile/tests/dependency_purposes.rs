@@ -158,7 +158,7 @@ fn rejects_a_duplicate_alias_inside_the_build_scope() {
 }
 
 #[test]
-fn rejects_build_rows_authored_by_a_non_root_package() {
+fn nested_build_rows_retain_their_own_requester_and_purpose() {
     let product = custody_with_scopes(
         "product-lib",
         "product-lib",
@@ -176,19 +176,64 @@ fn rejects_build_rows_authored_by_a_non_root_package() {
         vec![request("product")],
     );
 
-    let error = resolve_package_source_closure(
+    let nested = custody("nested-host", "nested-host", 3, "/snapshots/nested", vec![]);
+    let closure = resolve_package_source_closure(
         git_root_request(&root),
         root,
-        fake_adapter(BTreeMap::from([("product", product)])),
+        fake_adapter(BTreeMap::from([
+            ("product", product.clone()),
+            ("nested-host", nested.clone()),
+        ])),
     )
-    .expect_err("host inputs may only be selected by the root build context");
+    .expect("source acquisition retains a dependency's own build inputs");
+
+    let dependencies = closure
+        .graph()
+        .package(product.key())
+        .unwrap()
+        .dependencies();
+    assert_eq!(dependencies.len(), 1);
+    assert_eq!(dependencies[0].purpose(), DependencyPurpose::Build);
+    assert_eq!(dependencies[0].dependency_index(), 0);
+    assert_eq!(dependencies[0].target(), nested.key());
+    let path = closure.dependency_path(nested.key()).unwrap();
+    assert_eq!(path.steps().len(), 2);
+    assert_eq!(path.steps()[0].purpose(), DependencyPurpose::Product);
+    assert_eq!(path.steps()[1].purpose(), DependencyPurpose::Build);
+}
+
+#[test]
+fn rejects_a_cycle_spanning_product_and_nested_build_dependencies() {
+    let root = custody(
+        "application",
+        "application",
+        1,
+        "/snapshots/application",
+        vec![request("library")],
+    );
+    let library = custody_with_scopes(
+        "library",
+        "library",
+        2,
+        "/snapshots/library",
+        crate::declarations::BuildDeclarationKind::Package,
+        Vec::new(),
+        vec![request("root-again")],
+    );
+    let error = resolve_package_source_closure(
+        git_root_request(&root),
+        root.clone(),
+        fake_adapter(BTreeMap::from([("library", library), ("root-again", root)])),
+    )
+    .expect_err("purpose boundaries do not hide an acquisition cycle");
 
     assert!(matches!(
         error,
-        PackageSourceClosureResolutionError::UnsupportedBuildDependencies {
-            requester,
-            authored_rows: 1,
-        } if requester.name().as_str() == "product-lib"
+        PackageSourceClosureResolutionError::InvalidClosure { ref errors }
+            if errors.iter().any(|error| matches!(
+                error,
+                crate::resolution::graph::PackageClosureValidationError::DependencyCycle { .. }
+            ))
     ));
 }
 

@@ -739,7 +739,9 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
         PackageFileTransaction::open(&root, PackagePublicationLimits::default()).unwrap();
     assert!(!transaction.has_pending().unwrap());
     drop(transaction);
-    let (entry, inputs) = prepared.into_parts();
+    let (entry, inputs) = prepared
+        .try_into_parts()
+        .expect("no nested build activation");
     assert_ne!(entry, root.join("main.omg"));
     assert_eq!(inputs.packages().count(), 1);
     compiler::compile_to_checked(CheckedCompileRequest {

@@ -134,7 +134,9 @@ fn checked_compile_request(
         target_name: None,
     }
     .build_dir();
-    let (entry_path, package_inputs) = prepared.into_parts();
+    let (entry_path, package_inputs) = prepared
+        .try_into_parts()
+        .map_err(InspectTerminalError::Preparation)?;
     let mut checked = CheckedCompileRequest::new(&entry_path, Some(target.target_name()));
     // A packaged binding carrying the compiler-captured canonical Source
     // metadata index is sealed package custody: its build activation runs

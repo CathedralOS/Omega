@@ -37,9 +37,25 @@ pub struct PreparedLocalProject {
 }
 
 impl PreparedLocalProject {
-    #[must_use]
-    pub fn into_parts(self) -> (PathBuf, PackageCompilationInputs) {
-        (self.entry_path, self.package_inputs)
+    /// Extract acquisition-only inputs for a direct compiler consumer. These
+    /// inputs deliberately omit dependencies' private build edges; a nested
+    /// activation must instead use the review-aware check/production route,
+    /// which executes prerequisites and carries their generated source.
+    pub fn try_into_parts(
+        self,
+    ) -> Result<(PathBuf, PackageCompilationInputs), PrepareLocalProjectError> {
+        let graph = self.source_closure.graph();
+        if let Some(package) = graph.packages().iter().find(|package| {
+            package.source().key() != graph.root()
+                && package.dependencies().iter().any(|dependency| {
+                    dependency.purpose() == crate::declarations::DependencyPurpose::Build
+                })
+        }) {
+            return Err(PrepareLocalProjectError::NestedBuildActivationRequired {
+                package: package.source().key().clone(),
+            });
+        }
+        Ok((self.entry_path, self.package_inputs))
     }
 
     pub(super) fn into_review_parts(
@@ -55,6 +71,9 @@ impl PreparedLocalProject {
 
 #[derive(Debug)]
 pub enum PrepareLocalProjectError {
+    NestedBuildActivationRequired {
+        package: crate::declarations::PackageKey,
+    },
     EntryOutsideProject {
         entry: PathBuf,
         project_root: PathBuf,
@@ -70,6 +89,11 @@ pub enum PrepareLocalProjectError {
 impl fmt::Display for PrepareLocalProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NestedBuildActivationRequired { package } => write!(
+                formatter,
+                "package `{}` requires nested build activation; this direct compiler route does not execute dependency builds (use ordinary --check or compilation)",
+                package.name().as_str()
+            ),
             Self::Locked(detail) => write!(
                 formatter,
                 "cannot prepare accepted omega.lock: {detail}; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed"
