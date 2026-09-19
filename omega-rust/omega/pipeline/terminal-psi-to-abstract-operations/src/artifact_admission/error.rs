@@ -12,6 +12,23 @@ pub enum ArtifactLoweringError {
     /// Consumers that do not own the separate plan-laid input carrier may not
     /// silently discard the roster.
     PlacedViewInputsRequireCustodyLowering,
+    /// A supplied provider establishment answered no declared direct-entry
+    /// roster row.
+    PlacedViewEstablishmentUnexpected {
+        machine: semantic_vocabulary::MachineId,
+        position: u32,
+    },
+    /// Two supplied provider establishments answered one roster row.
+    PlacedViewEstablishmentDuplicate {
+        machine: semantic_vocabulary::MachineId,
+        position: u32,
+    },
+    /// Referent domain qualifications must be strictly ordered and
+    /// deduplicated, the same canonical form structural arguments carry.
+    PlacedViewEstablishmentQualificationsNonCanonical,
+    /// An exclusive-borrow referent may not overlap another established
+    /// referent's place.
+    PlacedViewEstablishmentAliasing(u64),
     Lowering(LoweringError),
 }
 
