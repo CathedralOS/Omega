@@ -1617,3 +1617,26 @@ now that the pointer is live — did a wave agent actually invoke it, and did
 the verdict change the next file opened; (b) culprit quality on multi-clause
 contracts (all corpus disagreements so far were single-clause or call-site);
 (c) whether rc==0 fixtures multiply as stale corpus entries accumulate.
+
+## 2026-09-19 (multiclause + scope edges)
+
+Follow-ups to the corpus-scale run, `build/experiments/proof-advisor-multiclause/`:
+
+- Multi-clause culprit: 2/2 exact picks — `x >= 9` as the middle of three
+  ensures facts, `a >= 20` as the first of two. The clause-extraction +
+  choice-question mechanism localizes correctly among plausible neighbors.
+- Vacuity edge: `requires x>=10; x<=4` compiles clean — unsatisfiable
+  premises make the ensures vacuously true and Omega does not lint requires
+  vacuity at check time. No rejection → correctly no advisory. Noted as an
+  Omega diagnostics gap (unsatisfiable requires is a logic bug the checker
+  admits silently), outside advisor scope.
+- Multi-file exposure: 0/299 firing fixtures have sibling .omg files — the
+  advisor's main.omg-only source window covers the entire corpus residue
+  surface. The single-file comment in the tool is validated at scale.
+- The two rc==0 "stale" fixtures are not stale: they pin post-check-stage
+  rejections (target compile / full compile) invisible to the `--check`
+  probe. Real scope boundary: a rejection that only fires under
+  `omega run`/`--target` never reaches the advisor.
+- Capability-gap verdicts on other_rejection sample-reviewed (6/6 correct):
+  proof-only Nat/Peano/Interval layout fences and closed-projection-fragment
+  boundaries — the "stop debugging, machinery is missing" routing class.
