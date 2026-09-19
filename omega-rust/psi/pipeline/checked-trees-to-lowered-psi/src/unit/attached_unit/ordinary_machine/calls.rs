@@ -136,7 +136,7 @@ impl MachineEmission<'_> {
                 lookup_machine_id(self.machine_ids, *target_machine)?,
                 self.type_ids,
                 self.domain_ids,
-                self.claim_bindings,
+                &self.claim_bindings,
                 true,
                 &mut self.next_place,
                 &mut self.operations,
@@ -162,7 +162,7 @@ impl MachineEmission<'_> {
                 .iter()
                 .map(|transfer| {
                     Ok(ClaimTransfer {
-                        claim: lookup_claim_id(self.claim_bindings, transfer.claim_identity)?,
+                        claim: lookup_claim_id(&self.claim_bindings, transfer.claim_identity)?,
                         argument_index: transfer.argument_index,
                     })
                 })
@@ -471,7 +471,7 @@ impl MachineEmission<'_> {
                     .iter()
                     .map(|transfer| {
                         Ok(ClaimTransfer {
-                            claim: lookup_claim_id(self.claim_bindings, transfer.claim_identity)?,
+                            claim: lookup_claim_id(&self.claim_bindings, transfer.claim_identity)?,
                             argument_index: transfer.argument_index,
                         })
                     })

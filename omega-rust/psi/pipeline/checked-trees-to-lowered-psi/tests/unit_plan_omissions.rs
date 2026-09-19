@@ -142,13 +142,13 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // An owned `self` on `[linear]` attached data then establishes its Unit entry
 // claim directly — the checker owns the consumption judgment and records no
 // `StateEntry` event for it, so `entry_claims` mints the established identity
-// — and both `settle` bodies plus `probe` carry full Unit plans. The
-// remaining frontier is in emission: admission now proves that the linear
-// `start` result moving whole into `settle`'s `self` formal is the exact
-// custody the callee's entry claim and the caller's consume event describe,
-// but the `start` boundary mints `task`'s claim fresh at the binding
-// statement, and the completed-result claim rebasing only maps claim
-// identities that persist through the call chain with entry provenance.
+// — and both `settle` bodies plus `probe` carry full Unit plans. In
+// emission the `start` boundary now mints `task`'s caller claim binding
+// from the `Establish` event its binding statement recorded — the minted
+// `ClaimId` is that claim's only binding — and the completed result carries
+// it. The remaining frontier is `settle` itself: moving the claim-carrying
+// result into the `self` formal still has no completed-result custody to
+// validate the consume against.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -387,24 +387,22 @@ fn a_routed_task_start_call_plans_and_owned_settle_stops_at_lowered_custody() {
             .is_none(),
         "Main::probe plans once its specialized settle callee is admitted"
     );
-    // The named frontier moves one edge deeper: admission now admits the
-    // whole owned linear `start` result into `settle`'s `self` formal because
-    // the callee's entry-claim plan and the caller's consume event jointly
-    // prove that exact custody (the corruption pin below keeps that join
-    // evidence-based). Emission stops earlier, on `start` itself: the
-    // boundary establishes `task`'s claim fresh at the binding statement, and
-    // recording that claim under the result place rebases each `Establish`
-    // event's identity through the caller's entry-claim bindings. A
-    // statement-established claim has no caller entry claim to rebase onto —
-    // `probe` declares none — so the completed-result claim channel cannot
-    // yet mint the binding a freshly claimed boundary result needs.
+    // The named frontier moves one edge deeper: `start`'s completed result
+    // now mints `task`'s caller claim binding — a statement-established
+    // claim has no caller entry claim to rebase onto (`probe` declares
+    // none), so the mint allocates the next dense `ClaimId` and the result
+    // carries it. Emission stops on `settle` instead: the claim-carrying
+    // `self` formal consumes the completed linear result, but ordinary call
+    // preparation does not yet hand the completed-result claim frontier to
+    // transfer-shape validation, so the move still has no settled custody
+    // to check against.
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the claimed start result has no caller claim binding to rebase onto");
+        .expect_err("the minted start claim has no settled self-formal custody yet");
     assert!(
         matches!(
             error,
             checked_trees_to_lowered_psi::LoweringError::Unsupported(message)
-                if message == "Unit claim transfer references a non-entry caller claim"
+                if message == "linear result argument has no completed operation custody"
         ),
         "unexpected error: {error:?}"
     );
@@ -460,6 +458,28 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
                 .then_some(handle)
         })
         .expect("probe consumes the task claim at the settle call");
+    let establish = baseline
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.machine_symbol == probe
+                && event.kind == language_semantics::PermissionEventKind::Establish
+                && event.multiplicity == language_semantics::Multiplicity::Linear
+                && event.access == language_semantics::PermissionAccess::Owned
+                && event.claim_identity
+                    == baseline
+                        .facts
+                        .flow
+                        .ownership
+                        .permissions
+                        .get(consume)
+                        .claim_identity)
+                .then_some(handle)
+        })
+        .expect("probe establishes the task claim at the start statement");
     fn settle_plan_mut(
         checked: &mut checked_trees::CheckedTrees,
         machine: symbols::SymbolHandle,
@@ -630,6 +650,64 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
         &stray_transfer,
         "Unit structural result argument has invalid claim-carrying custody",
         "stray claim transfer",
+    );
+
+    // Two claims minted at one coordinate mint sibling custody the consume
+    // never retires.
+    let mut over_minted = baseline.clone();
+    let mut sibling = over_minted
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get(establish)
+        .clone();
+    let language_semantics::PermissionClaimIdentity::Established { ordinal, .. } =
+        &mut sibling.claim_identity
+    else {
+        unreachable!()
+    };
+    *ordinal += 1;
+    over_minted.facts.flow.ownership.permissions.insert(sibling);
+    rejects(
+        &over_minted,
+        "Unit structural result claim custody was not established and consumed exactly once",
+        "second claim minted at the same coordinate",
+    );
+
+    // An establish event cannot re-mint an identity established elsewhere:
+    // the claim the consume retires must be minted at this statement.
+    let mut reminted = baseline.clone();
+    let language_semantics::PermissionClaimIdentity::Established { source, .. } = &mut reminted
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(establish)
+        .claim_identity
+    else {
+        unreachable!()
+    };
+    *source = language_semantics::PermissionEventSource::StateEntry;
+    rejects(
+        &reminted,
+        "Unit structural result claim custody was not established and consumed exactly once",
+        "claim re-minted from an existing binding",
+    );
+
+    // A claim the consume never actually retires dies unclaimed.
+    let mut unclaimed = baseline.clone();
+    unclaimed
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(consume)
+        .obligation_live = false;
+    rejects(
+        &unclaimed,
+        "Unit structural result claim custody lost its exact caller consume event",
+        "claim dies unclaimed",
     );
 }
 

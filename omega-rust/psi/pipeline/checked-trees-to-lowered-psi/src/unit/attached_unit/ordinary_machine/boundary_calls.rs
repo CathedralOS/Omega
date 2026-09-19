@@ -10,10 +10,10 @@ use super::super::{argument_evaluation, byte_subslices, structural_calls};
 use super::{MachineEmission, StepInputs};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::unit::{
-    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, CompletionReceipt,
+    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
     LoweringError, Multiplicity, Operation, OperationKind, OperationResult, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
-    allocate_dense, lookup_claim_id, lookup_domain_id, lookup_type_id, place_id,
+    allocate_dense, claim_id, lookup_claim_id, lookup_domain_id, lookup_type_id, place_id,
     terminal_scalar_type, unsupported, value_id,
 };
 
@@ -104,7 +104,7 @@ impl MachineEmission<'_> {
                 .iter()
                 .map(|settlement| {
                     Ok(CompletionReceipt {
-                        claim: lookup_claim_id(self.claim_bindings, settlement.claim_identity)?,
+                        claim: lookup_claim_id(&self.claim_bindings, settlement.claim_identity)?,
                         argument_index: settlement.argument_index,
                     })
                 })
@@ -206,7 +206,7 @@ impl MachineEmission<'_> {
                 .iter()
                 .map(|settlement| {
                     Ok(CompletionReceipt {
-                        claim: lookup_claim_id(self.claim_bindings, settlement.claim_identity)?,
+                        claim: lookup_claim_id(&self.claim_bindings, settlement.claim_identity)?,
                         argument_index: settlement.argument_index,
                     })
                 })
@@ -364,7 +364,7 @@ impl MachineEmission<'_> {
                 .iter()
                 .map(|settlement| {
                     Ok(CompletionReceipt {
-                        claim: lookup_claim_id(self.claim_bindings, settlement.claim_identity)?,
+                        claim: lookup_claim_id(&self.claim_bindings, settlement.claim_identity)?,
                         argument_index: settlement.argument_index,
                     })
                 })
@@ -439,7 +439,7 @@ impl MachineEmission<'_> {
     /// the `Establish` events checking recorded on the bound local, rebased
     /// onto this machine's claim namespace.
     fn boundary_result_claims(
-        &self,
+        &mut self,
         machine: symbols::SymbolHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
@@ -475,26 +475,74 @@ impl MachineEmission<'_> {
                     && event.root == facts::PlaceRoot::Symbol(local.symbol)
             })
             .map(|event| {
-                Ok(terminal_psi::StructuralResultClaimBinding {
-                    claim: lookup_claim_id(self.claim_bindings, event.claim_identity)?,
-                    path: lower_structural_path(
-                        &validation::structural_claim_path(
-                            &checked.typed,
-                            local.type_reference,
-                            checked
-                                .facts
-                                .flow
-                                .ownership
-                                .segments
-                                .span_or_empty(event.segments),
-                        )
-                        .map_err(LoweringError::Unsupported)?,
-                    ),
-                })
+                let path = lower_structural_path(
+                    &validation::structural_claim_path(
+                        &checked.typed,
+                        local.type_reference,
+                        checked
+                            .facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments),
+                    )
+                    .map_err(LoweringError::Unsupported)?,
+                );
+                self.boundary_result_claim(machine, state.symbol, result, event)
+                    .map(|claim| terminal_psi::StructuralResultClaimBinding { claim, path })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         claims.sort();
         Ok(claims)
+    }
+
+    /// Rebase one completed-result claim occurrence onto this machine's claim
+    /// namespace. An identity the caller already holds — an entry claim, or a
+    /// binding an earlier boundary result minted — resolves through the grown
+    /// table. A claim the checker established at this result's own binding
+    /// statement mints its caller binding here instead: the identity's
+    /// establishment coordinate is exactly this statement, so the minted
+    /// `ClaimId` is that claim's only caller binding, and every later
+    /// receipt, transfer and custody join resolves it the same way. Any
+    /// other identity is custody this caller never held — the boundary
+    /// cannot mint a binding for a claim some other point owns.
+    fn boundary_result_claim(
+        &mut self,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        event: &checked_trees::FlowPermissionEventFact,
+    ) -> Result<ClaimId, LoweringError> {
+        let bound = lookup_claim_id(&self.claim_bindings, event.claim_identity);
+        if bound.is_ok() {
+            return bound;
+        }
+        let established_here = matches!(
+            event.claim_identity,
+            language_semantics::PermissionClaimIdentity::Established {
+                machine_symbol,
+                state_symbol,
+                source: language_semantics::PermissionEventSource::Statement {
+                    statement_index,
+                },
+                ..
+            } if machine_symbol == machine
+                && state_symbol == state
+                && statement_index == result.statement_index as usize
+        ) && event.provenance
+            == (language_semantics::PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: language_semantics::PermissionEventSource::Statement {
+                    statement_index: result.statement_index as usize,
+                },
+            });
+        if !established_here {
+            return bound;
+        }
+        let claim = claim_id(allocate_dense(&mut self.next_claim)?);
+        self.claim_bindings.push((event.claim_identity, claim));
+        Ok(claim)
     }
 
     /// Boundary declarations own no entry-claim roster, so the expected
@@ -544,7 +592,7 @@ impl MachineEmission<'_> {
         StructuralResultCustody {
             results: &self.operations.structural_values,
             domains: self.domain_ids,
-            claims: self.claim_bindings,
+            claims: self.claim_bindings.as_slice(),
             target_entry_claims: &[],
         }
     }
