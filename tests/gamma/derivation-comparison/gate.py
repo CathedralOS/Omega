@@ -44,7 +44,7 @@ def main():
             raise SystemExit(f"Derivation comparison: duplicate fixture {name}")
         names.add(name)
         source = sources[entry]
-        if 4 + len(source) + len(request) > 16777216:
+        if 4 + len(source) + len(request) > 137363456:
             raise SystemExit(f"Derivation comparison {name}: outside evaluator request")
         framed = struct.pack("<I", len(source)) + source + request
         for repetition in range(repetitions):

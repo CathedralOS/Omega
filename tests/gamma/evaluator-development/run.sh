@@ -43,8 +43,8 @@ from function_lookup import (
 from environment_rows import fixtures as environment_fixtures
 
 artifacts = (
-    ("BETA", 47748, "8b4d2b8d27fb6ab23bd732abf6615012b92c739fb6d7cdb220dbd557c1d8925f"),
-    ("TAPE", 8575, "ad55c3f18d3c7bd3e1189635bf34ff6595ca97c34afe85412a6127ed2d29e015"),
+    ("BETA", 47756, "253b42b447fbe1bae28058691d23f794573759fcd3b1ba000d250ef58ac97613"),
+    ("TAPE", 8575, "00c05bedbe0eed665bc165a9165ecf09cd40627bc636034ccb8dbfb24df3919d"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -272,7 +272,7 @@ for name, source, expected in lookup_cases:
 print(f"Direct Beta Gamma evaluator: {len(lookup_cases)} exact function-lookup controls passed")
 
 try:
-    upper_timeout = int(os.environ.get("OMEGA_GAMMA_FUNCTION_UPPER_SECONDS", "20"))
+    upper_timeout = int(os.environ.get("OMEGA_GAMMA_FUNCTION_UPPER_SECONDS", "240"))
 except ValueError:
     raise SystemExit("OMEGA_GAMMA_FUNCTION_UPPER_SECONDS must be a positive integer")
 if upper_timeout <= 0:

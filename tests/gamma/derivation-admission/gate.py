@@ -30,7 +30,7 @@ def main():
     fixtures = 0
     for name, request, output, repetitions in cases():
         # This is framing custody, not a second semantic or resource model.
-        if 4 + len(source) + len(request) > 16777216:
+        if 4 + len(source) + len(request) > 137363456:
             raise SystemExit(f"Derivation admission {name}: outside selected evaluator request")
         framed_input = struct.pack("<I", len(source)) + source + request
         for repetition in range(repetitions):

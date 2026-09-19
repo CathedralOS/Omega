@@ -63,7 +63,10 @@ def fixtures():
 
 
 def upper_capacity_fixtures():
-    """Cross the former census ceiling, bounded now by the complete request."""
+    """Cross the former census ceiling, bounded now by the complete request.
+    The exact/adjacent pair fills the AlphaBootstrapV5 request frame
+    (137,363,456 bytes including the four-byte length), so these witnesses
+    are about eight times heavier than under V4."""
     names = [f"u{index:05d}" for index in range(65535)]
     declarations = [
         f"(def {name} () Int {65 if index == 0 else 66 if index == 65534 else 0})\n"
@@ -76,9 +79,13 @@ def upper_capacity_fixtures():
     exact = b"".join(declarations) + main
     crossed = (exact.replace(b"(u65534)", b"(u65535)")
                + b"(def u65535 () Int 67)\n")
-    # The table's physical capacity cannot be filled by a framed source.
-    # Exercise the actual controlling boundary, not a synthetic row counter.
-    full_request = crossed + b";" + b" " * (16777212 - len(crossed) - 1)
+    # The request frame, not the physical table, is the boundary exercised
+    # here.  At the V5 request extent a framed source can hold more than the
+    # 2,097,152-row physical capacity, so that count preflight is now the
+    # controlling boundary a sufficiently large source would reach; the
+    # quadratic sorted-index insertion keeps such a source outside practical
+    # gate time, and the request extent remains the executable edge.
+    full_request = crossed + b";" + b" " * (137363452 - len(crossed) - 1)
     return (
         ("former exact function census", exact, (0, b"AB")),
         ("duplicate at former function census",

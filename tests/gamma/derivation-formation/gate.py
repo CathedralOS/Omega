@@ -33,7 +33,7 @@ def main():
         if name in names:
             raise SystemExit(f"Derivation formation: duplicate fixture {name}")
         names.add(name)
-        if 4 + len(source) + len(request) > 16777216:
+        if 4 + len(source) + len(request) > 137363456:
             raise SystemExit(f"Derivation formation {name}: outside evaluator request")
         framed = struct.pack("<I", len(source)) + source + request
         for repetition in range(repetitions):

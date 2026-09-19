@@ -23,16 +23,16 @@
 0x0: ; main:
         imm r90 0x0
         imm r91 0x1
-        imm r92 0x100000
-        imm r93 0x1100000
+        imm r92 0x10000000
+        imm r93 0x18300000
         imm r94 0x4000000
         imm r95 0x1100000
         imm r96 0x1500000
         imm r97 0x1d00000
-        imm ra0 0x10000000
-        imm ra1 0x70000000
+        imm ra0 0x20400000
+        imm ra1 0x2000000000
         mov rb0 r90
-        imm rb1 0xfffffc
+        imm rb1 0x8100000
         mov r0 r92
 0x74: ; read_loop:
         jeq r0 r93 0x9b ; -> read_full:
@@ -1237,7 +1237,7 @@
 
 0x196c: ; validate_pair:
         mov r6 r0
-        imm r1 0x10000000
+        imm r1 0x20400000
         jlt r6 r1 0x1ace ; -> authored_trap:
         jlt r6 ra0 0x1998 ; -> validate_pair_extent:
         jmp 0x1ace ; -> authored_trap:
@@ -1370,14 +1370,14 @@
 
 0x1c17: ; buffer_output:
         jeq rb0 rb1 0x1ec5 ; -> output_failure:
-        imm r1 0xe000000
+        imm r1 0x18300000
         add r1 rb0
         storeb r1 r0
         add rb0 r91
         ret
 
 0x1c36: ; flush_output:
-        imm r0 0xe000000
+        imm r0 0x18300000
         mov r1 r0
         add r1 rb0
 0x1c46: ; flush_output_loop:

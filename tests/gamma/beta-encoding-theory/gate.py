@@ -35,7 +35,7 @@ def source_identity(name, source, path):
 
 def invoke(evaluator, name, source, request, timeout=600):
     framed = struct.pack("<I", len(source)) + source + request
-    if len(framed) > 16777216:
+    if len(framed) > 137363456:
         raise SystemExit(f"Beta encoding theory {name}: outside evaluator request")
     started = time.monotonic()
     try:
