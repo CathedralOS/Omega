@@ -429,19 +429,28 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   while preserving exact register-unit aliases, liveness, and target custody.
   Copy-affinity coalescing in home assignment and in fixed/precolored segment
   homes, rematerialization ahead of private storage, and the fixed/precolored
-  interval stages on the default route already exist. Splitting exists only
-  as fixed-use recovery in `selected-instructions-to-selected-instructions`:
-  `src/rewrites/allocation_recovery/fixed_view_copy/` inserts a copy only for
-  a `u64` `EntryParameter` whose entry fixed view differs from the fixed view
-  of a `Return` operand in a non-entry block (`compute.rs`,
-  `compute/preflight.rs::find_leaf_block`). Every other pressure case goes to
-  rematerialization or runtime spill.
+  interval stages on the default route already exist. Fixed-use splitting in
+  `selected-instructions-to-selected-instructions`:
+  `src/rewrites/allocation_recovery/fixed_view_copy/` now has two legs —
+  `LeafLocalBeforeFixedUseV1` copies a `u64` `EntryParameter` live-in before a
+  `Return` operand in a leaf block, and `ImmediateBeforeFixedUseV1` copies any
+  scalar source-value origin in the boundary's own block immediately before
+  each pinned operand-Use site (ordinary or terminator position), admitting
+  chained pinned segments. Allocation legality licenses every operand Use
+  site with all other views pinned on the register as candidate sources, so a
+  value used at two incompatible operand views allocates through recorded
+  split copies and post-copy reanalysis instead of failing
+  `UnresolvedEntryTransitions`; independent replay rebuilds each site copy
+  from current facts. Splitting still fires only on declared fixed-use
+  boundaries — there are no allocation-chosen split points, and other
+  pressure cases go to rematerialization or runtime spill.
 
   Remaining work:
 
   - Split a live range at allocation-chosen points and home each segment
-    independently, for any admitted origin, scalar type and use, not only an
-    entry parameter returned from a leaf. Insert the connecting copies through
+    independently, across a pressure region rather than only at pinned
+    operand uses: choose the split placement (a dominating point when one
+    copy is cheaper than one per use), insert the connecting copies through
     the selected rewrite owner, then accept homes only over fresh liveness,
     ranges and legality.
   - Lift the limits in `src/analyses/fixed_precolored_split_requirements/`.
