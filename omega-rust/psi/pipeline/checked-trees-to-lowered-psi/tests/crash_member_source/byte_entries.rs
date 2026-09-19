@@ -5,9 +5,15 @@ use super::{
 #[test]
 fn byte_content_entry_routes_reject_unknown_actuals_and_unrelated_guards() {
     for source in [
+        // A pristine `let mut` actual still transports its bound value back to
+        // the caller's entry operand, so `let mut current = left` alone would
+        // prove `current` is `left` and the published route would cover the
+        // call. The unknown-actual control must first overwrite the bound
+        // snapshot: the field write leaves `current` unrelated to any entry
+        // operand the published route can name.
         BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE.replace(
             "\n        Helper::inspect(left, right);",
-            "\n        let mut current: Borrowed = left; Helper::inspect(current, right);",
+            "\n        let mut current: Borrowed = left; current.active = right.active; Helper::inspect(current, right);",
         ),
         BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE.replace(
             "machine Root::enter(left: Borrowed, right: Borrowed)\n    crashes Abort\n        left == right",
