@@ -4029,10 +4029,22 @@ Owners include
     (**BOUNDED-INSTALLATION-REACH-ROWS**).
     [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
     names this item for that selection and lineage integration.
-  - External satisfiers. `reject_unselected_direct_requirement_calls` fails
-    closed for every external binding except a compiler intrinsic. Execute
-    `satisfies Owner::name via <binding>` leaves through the same call route
-    with the binding **EVALUATED-FOREIGN-BINDINGS** evaluates.
+  - External satisfiers. `satisfies Owner::name via <binding>` leaves now
+    carry the demand: `selected_requirement_provider_evidence` admits
+    `Import`/`Syscall` bindings alongside `CompilerIntrinsic`,
+    `reject_unselected_direct_requirement_calls` early-returns for them, and
+    the requirement seam is retained through lowering, Terminal and
+    abstract-operation boundary ledgers via the `target_machine ==
+    target_state` / `attachment.is_none()` discriminants
+    (`pass/providers/external_boundary_requirement_via_exit`, seam asserted in
+    `canary_suite/providers_float_and_console/provider_adapters.rs`; verified
+    on Linux x86-64 at this commit via `omega --check` plus the named harness
+    tests). The interpreter fails closed on the bodyless requirement and the
+    native route reaches terminal-authority classification — installed
+    execution still needs `NormalizedForeignCall` construction emission in
+    `target-operations-to-selected-instructions` (held by a live sibling
+    claim) plus a classified normalized-foreign mechanism per
+    **EVALUATED-FOREIGN-BINDINGS**.
   - Terminal identity and era replay. Conformance rows in
     `terminal_module/boundary/conformances.rs` are trait-keyed, and the
     `..._terminal_exit` harness test asserts that the requirement is absent

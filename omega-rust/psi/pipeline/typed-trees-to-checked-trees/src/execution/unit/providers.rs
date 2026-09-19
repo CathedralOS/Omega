@@ -116,6 +116,26 @@ pub(super) fn checked_provider_attachment_requirements(
             return None;
         };
         if !provider_requirements.contains(&call.target_symbol) {
+            // A direct call to a top-level `boundary requirement` (or a
+            // boundary / admission-claim machine) resolves to that machine's
+            // entry state, not to a trait signature: the call settles through
+            // the requirement's own retained boundary seam and consumes no
+            // attached provider field. A boundary call targeting a signature —
+            // any receiver-carried provider use — still requires the field.
+            let targets_machine = match operation {
+                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    target_machine, ..
+                } => program
+                    .machines()
+                    .iter()
+                    .any(|candidate| candidate.symbol == *target_machine),
+                _ => false,
+            };
+            if targets_machine {
+                continue;
+            }
             return None;
         }
         let call_site = crate::semantic_calls::find_call_site(

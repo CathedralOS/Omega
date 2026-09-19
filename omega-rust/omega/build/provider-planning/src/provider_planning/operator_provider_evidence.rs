@@ -127,6 +127,11 @@ pub(crate) fn plan_selected_operator_provider_evidence(
 /// operator-use stamping above. A checked-adapter plan is the direct-call
 /// adapter route; a compiler-intrinsic plan must name a compiler-known
 /// realization that satisfies exactly this requirement as an external leaf.
+/// An evaluated `via` binding keeps the call on the requirement's retained
+/// boundary seam: native realization joins the selected row's normalized
+/// import or syscall to the demanded boundary by requirement identity. Only
+/// mechanisms with a freestanding host-ABI route can serve a direct call —
+/// vtable and table rows have no receiver table here.
 pub(crate) fn plan_selected_requirement_provider_evidence(
     checked: &checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
@@ -222,9 +227,10 @@ fn selected_requirement_provider_evidence(
                 )));
             }
         }
+        ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. } => {}
         binding => {
             return Err(diagnostics::Diagnostic::error(format!(
-                "selected boundary-requirement ProviderPlan `{}` uses unsupported binding `{binding:?}` for a direct call; a directly called requirement takes a checked adapter or compiler intrinsic",
+                "selected boundary-requirement ProviderPlan `{}` uses unsupported binding `{binding:?}` for a direct call; a directly called requirement takes a checked adapter, compiler intrinsic, or evaluated import/syscall binding",
                 plan.name,
             )));
         }

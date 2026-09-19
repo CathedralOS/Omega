@@ -1,0 +1,121 @@
+// The `via` sibling of `checked_boundary_requirement_*`: public top-level
+// boundary requirements whose unique covering satisfiers are external leaves.
+// Selection keeps each direct call ON the requirement — the requirement is
+// itself a boundary declaration, so the call lowers through its retained
+// boundary seam (a demanded Terminal boundary keyed on the requirement's
+// normalized overload identity) rather than redirecting to an adapter. The
+// leaves' evaluated bindings supply the selected plan rows and the retained
+// external-binding rows; native realization joins them by that same
+// requirement identity and delivers the foreign results through the
+// requirements' result places. The interpreter has no provider for authored
+// bindings and fails closed on the requirement calls.
+use omega::language::core::external_binding;
+
+pub data ForeignMath {}
+
+pub boundary requirement ForeignMath::absolute(value: i32) -> i32;
+pub boundary requirement ForeignMath::exit_with(code: i32);
+
+data ForeignMathProvider {}
+
+windows_x86_64 machine foreign_abs_binding() -> Binding<10, 3, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+
+linux_x86_64 machine foreign_abs_binding() -> Binding<9, 3, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+linux_arm64 machine foreign_abs_binding() -> Binding<9, 3, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+macos_arm64 machine foreign_abs_binding() -> Binding<17, 4, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+windows_x86_64 machine foreign_exit_binding() -> Binding<10, 4, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "exit",
+        },
+    }
+}
+
+linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+linux_arm64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+macos_arm64 machine foreign_exit_binding() -> Binding<17, 5, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_exit",
+        },
+    }
+}
+
+windows_x86_64 machine ForeignMathProvider::absolute_leaf(value: i32) -> i32
+satisfies ForeignMath::absolute via foreign_abs_binding();
+linux_x86_64 machine ForeignMathProvider::absolute_leaf(value: i32) -> i32
+satisfies ForeignMath::absolute via foreign_abs_binding();
+linux_arm64 machine ForeignMathProvider::absolute_leaf(value: i32) -> i32
+satisfies ForeignMath::absolute via foreign_abs_binding();
+macos_arm64 machine ForeignMathProvider::absolute_leaf(value: i32) -> i32
+satisfies ForeignMath::absolute via foreign_abs_binding();
+
+windows_x86_64 machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+linux_x86_64 machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+linux_arm64 machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+macos_arm64 machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+
+data Main {}
+
+machine Main::main(&mut self)
+{
+    let magnitude: i32 = ForeignMath::absolute(21);
+    ForeignMath::exit_with(magnitude);
+}

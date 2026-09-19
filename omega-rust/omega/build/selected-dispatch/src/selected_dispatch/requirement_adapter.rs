@@ -10,7 +10,10 @@
 //! including the `_ = call();` explicit discard) — redirects to the adapter's
 //! entry state, journaled as a source edit, so the interpreter and Terminal
 //! execute the ordinary checked body while the retained row, flow facts and
-//! journal keep the requirement.
+//! journal keep the requirement. A requirement satisfied by an external
+//! `via` leaf settles no dispatch row and is deliberately not rewritten:
+//! the call stays on the requirement, whose retained boundary seam is the
+//! identity the native foreign-call join executes against.
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;

@@ -481,7 +481,19 @@ fn validate_provider_attachment_specialization(
                 structural_arguments,
                 ..
             } => {
-                called_boundaries.insert(*boundary);
+                // A call to a boundary-declaration machine — its declaration
+                // retains an attachment — settles through that machine's own
+                // boundary seam and consumes no provider field. Only a call to
+                // a signature boundary (attachment absent) is an obligation the
+                // specialization must cover.
+                if module
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == *boundary)
+                    .is_some_and(|declaration| declaration.attachment.is_none())
+                {
+                    called_boundaries.insert(*boundary);
+                }
                 if structural_arguments.iter().any(|argument| {
                     provider_roots
                         .iter()

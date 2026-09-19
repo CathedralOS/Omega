@@ -445,14 +445,23 @@ pub(super) fn admit_call_targets<'a>(
     for (boundary, _) in &boundaries {
         custody::validate_boundary(custody, boundary)?;
     }
+    // Only signature-directed boundary calls are provider obligations; a
+    // boundary-declaration call (`target_machine != target_state`) settles
+    // through the called machine's own boundary seam.
     let called_boundaries = call_states
         .iter()
         .flat_map(|state| &state.operations)
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-                Some(*target_machine)
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                target_machine,
+                target_state,
+                ..
             }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                target_machine,
+                target_state,
+                ..
+            } => (target_machine == target_state).then_some(*target_machine),
             _ => None,
         })
         .collect::<Vec<_>>();
