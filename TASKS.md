@@ -3709,23 +3709,38 @@ Owners include
   Omega completes with the actual plan. Uniqueness in one program is not that
   selection; **TARGET-SEMANTIC-APPLICATIONS** owns exact selected execution.
 
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
-  `drop<T>` and runtime cleanup invocation after exact owner-attached hook
-  selection, under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup)
-  and [explicit early disposal](wiki/language_guide/chapter_17_drops_and_cleanup.md#explicit-early-disposal).
-  Erased fields remain semantically present but never produce runtime cleanup:
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Ordinary generic
+  `drop<T>` now checks, lowers, and invokes the exact owner-attached hook
+  selection under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup)
+  and [explicit early disposal](wiki/language_guide/chapter_17_drops_and_cleanup.md#explicit-early-disposal):
+  the call transfers the whole value into the `drop<T>` member
+  specialization, and the member's terminator runs the instantiated type's
+  `T::drop` attachment once as a nominal affine cleanup edge or proves the
+  parameter trivially consumed. `ReturnUnitNominalAffine` is now legal on
+  non-entry member machines while the dispatched entry lane keeps its exact
+  module closure
+  (`terminal-verifier/src/validation/affine_cleanup.rs`), and a completion
+  gate rejects checked plans that would return while a nominal-drop local
+  still owns custody
+  (`typed-trees-to-checked-trees/execution/unit/control/checked_machine.rs`).
+  `tests/omega/pass/drops/core_drop_owner_hook` reaches `inspect-terminal`
+  green: `drop<Guard>`'s return invokes `Guard::drop` exactly once and
+  `drop<Carrier>` discards trivially. Erased fields stay semantically
+  present in record shapes and never produce runtime cleanup:
   `data_graph_requires_nominal_drop_with_substitutions`
-  (`validation/src/value_custody/cleanup.rs`) now skips erased record and case
-  members, so an erased-only owner stays an ordinary affine record instead of
-  poisoning every Unit lane. Source selection of a reserved `T::drop` already
-  rejects (same file). `omega::language::core::drop` is declared
-  (`source/library/core/drop.omg`) and a corpus call site checks
-  (`tests/omega/pass/drops/core_drop_explicit_consume`; register it in
-  `compiler/tests/canary_suite.rs` once that file is unclaimed — its owner
-  holds a live claim). The generic `drop<T>` signature is still outside the
-  terminal-Psi source slice, so its parameter's hook edge cannot yet be
-  lowered or invoked at runtime; explicit early disposal discharges by
-  transfer into the consuming machine. **CML4**
+  (`validation/src/value_custody/cleanup.rs`) skips erased record and case
+  members, so an erased-only owner stays an ordinary affine record — even
+  when the erased member's own type carries a `drop` attachment — and a
+  record literal rejects an erased initializer at lowering ("erased record
+  member has no runtime initializer"). Admitting erased-bearing construction
+  needs `terminal-codec`'s `validate_establish_record` to tolerate erased
+  declarations; that file belongs to PROOF-RELEVANCE-MIGRATION's erased
+  formal/contract slice. Source selection of a reserved `T::drop` already
+  rejects (cleanup.rs). The corpus call sites are
+  `tests/omega/pass/drops/core_drop_explicit_consume` (checked-only) and
+  `drops/core_drop_owner_hook`, both registered in
+  `compiler/tests/canary_suite.rs`; the native codec route is not yet
+  realized. **CML4**
   owns residual cleanup order; this item owns the hook target, the generic
   consuming machine and their invocation.
 
