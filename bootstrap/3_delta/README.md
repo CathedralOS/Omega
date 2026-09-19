@@ -52,7 +52,7 @@ against every materialization and by `tests/bootstrap/delta-identity.sh`:
 | `delta_compiler.gamma` request entry | 813 | `f12836610a7d8cb7da7f1288c20d870423cde4497aa8d1a2cf2962e8b24a20f9` |
 | `implementation/implementation.gamma.sources` manifest | 11,137 | `653486437acef2b97fdd0e54a28a77af68fe77485a6816248928b547b7a48bf3` |
 | `support/support.gamma.sources` manifest | 490 | `cf20f4a6331c3af516dbed8bc206298d1d1205b4fb4801d025ad4256a5a6d9f3` |
-| `delta_compiler.composed` record | 298 | `225e025ed0fb0cd8b01c78815f38fd4c5a371b3b71a414d9dbfbc00af4331979` |
+| `delta_compiler.composed` record | 298 | `11c86871fc05f2739eaa7a6a4ba58c2e99edcae71e9af2bf1723498effe83965` |
 | Packed canonical closure | 147,840 | `fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929` |
 | Packed support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
 
