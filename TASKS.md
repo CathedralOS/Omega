@@ -1562,7 +1562,7 @@ Owners include
   `terminal-codec`'s `encode_mathematical_certificate` and
   `decode_mathematical_certificate` have no caller outside tests, and the only
   source customers cover scalar `==` symmetry/transitivity, fixed-literal
-  discreteness and subtraction in a ranked loop
+  discreteness, subtraction rank decrease and its no-underflow obligation
   (`compiler/tests/proof_kernel_canaries.rs`, `kernel_discreteness.rs` and
   `kernel_subtract_order.rs`), not general dependent theorems.
 
@@ -1585,14 +1585,16 @@ Owners include
     Discreteness derives adjacent literal order from five fixed numeral laws
     and composes it with the inclusive premise. Exact scalar subtraction
     applies fixed zero and antitonicity laws; evaluated differences retain
-    canonical numeral identity and use binary order. Contradictory positivity
-    premises use fixed irreflexivity and checked empty elimination. These
-    laws remain explicit assumptions. Still to do: the remaining
-    `rule_axiom` families (the bound-witness rules, multiple-
+    canonical numeral identity and use binary order. The correlated unsigned
+    subtraction witness derives its zero lower bound from fixed self-zero
+    and non-strict antitonicity laws. Contradictory closed premises use fixed
+    irreflexivity and checked empty elimination. These laws remain explicit
+    assumptions. Mathematical subtraction shares that operation; an already
+    admitted open expression stays opaque if composing a child would introduce
+    a resource refusal. Still to do: the other bound-witness forms, multiple-
     equation or nested transport, and transport outside the supported `Int`
-    vocabulary) and open arithmetic — non-closed `IntegerMathTerm`
-    equations still name opaque `Int` constants, so `x + 0 = x` assumes
-    its conclusion.
+    vocabulary. Other open arithmetic still names opaque `Int` constants,
+    so `x + 0 = x` assumes its conclusion.
   - Check indexed-scheme applications produced from source declarations, per
     [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
     exact parameters, indices, payloads, case constraints and recursive uses.
@@ -1631,10 +1633,10 @@ Owners include
   denotes the integer order and equality rules through a fixed roster of
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
-  terms by exact evaluated value. Subtraction order uses fixed arithmetic
-  laws and compositional exact subtraction, but the bound-witness
-  rules and remaining multiple-equation, nested or non-`Int` transport
-  instances remain per-instance `rule_axiom`s whose
+  terms by exact evaluated value. Subtraction order and the correlated
+  unsigned subtraction lower bound use fixed arithmetic laws, but other
+  bound-witness forms and remaining multiple-equation, nested or non-`Int`
+  transport instances remain per-instance `rule_axiom`s whose
   statements carry no arithmetic a receiver could audit, and open
   arithmetic beyond this subtraction route remains opaque.
 
