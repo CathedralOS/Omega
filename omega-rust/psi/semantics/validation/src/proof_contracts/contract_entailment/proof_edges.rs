@@ -115,52 +115,43 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                 judge.intake(program, guard);
                 continue;
             };
-            if comparison.operator != BinaryOperator::Equal {
+            if !matches!(
+                comparison.operator,
+                BinaryOperator::Equal | BinaryOperator::CaseMembership
+            ) {
                 judge.intake(program, guard);
                 continue;
             }
             let Some(subject_term) = structural_term(program, comparison.left) else {
                 continue;
             };
-            let Some(StructuralTerm::Constructor { data, case, fields }) =
-                structural_term(program, comparison.right)
-            else {
+            let Some((definition, variant)) = super::structural_terms::case_guard_classifier(
+                program,
+                machine,
+                Some(other),
+                guard,
+            ) else {
                 judge.intake(program, guard);
                 continue;
             };
-            if !fields.is_empty() {
-                judge.intake(program, guard);
-                continue;
-            }
-            let Some(definition) = program
-                .data_definitions()
+            let data = definition.name.as_str().to_owned();
+            let case = variant.name.as_str().to_owned();
+            let declared_fields = program
+                .data_members(definition)
                 .iter()
-                .find(|definition| definition.name.as_str() == data.as_str())
-            else {
-                judge.intake(program, guard);
-                continue;
-            };
-            let Some(declared_fields) =
-                program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.name.as_str() == case.as_str() =>
-                        {
-                            Some(
-                                program
-                                    .data_payload_fields(variant)
-                                    .iter()
-                                    .map(|field| field.name.as_str().to_owned())
-                                    .collect::<Vec<_>>(),
-                            )
-                        }
-                        _ => None,
-                    })
-            else {
-                continue;
-            };
+                .filter_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) => {
+                        Some(field.name.as_str().to_owned())
+                    }
+                    _ => None,
+                })
+                .chain(
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .map(|field| field.name.as_str().to_owned()),
+                )
+                .collect::<Vec<_>>();
             if declared_fields.is_empty() {
                 judge.intake(program, guard);
                 continue;
@@ -202,7 +193,11 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                     declared_fields.len()
                 );
             }
-            if aliased.len() == declared_fields.len() {
+            if aliased.len() == declared_fields.len()
+                && declared_fields.iter().all(|declared| {
+                    aliased.iter().filter(|(name, _)| name == declared).count() == 1
+                })
+            {
                 aliased.sort_by(|(left, _), (right, _)| left.cmp(right));
                 judge.intake_equation(
                     subject_term,

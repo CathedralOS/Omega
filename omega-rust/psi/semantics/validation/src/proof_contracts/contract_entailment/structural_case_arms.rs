@@ -432,44 +432,43 @@ fn recognize_structural_state_leaves(
                 else {
                     return None;
                 };
-                if comparison.operator != BinaryOperator::Equal {
+                if !matches!(
+                    comparison.operator,
+                    BinaryOperator::Equal | BinaryOperator::CaseMembership
+                ) {
                     return None;
                 }
                 let raw_subject = structural_term(program, comparison.left)?;
                 let subject = judge.callee_term(comparison.left, &branch_environment, 0)?;
-                let Some(StructuralTerm::Constructor { data, case, fields }) =
-                    structural_term(program, comparison.right)
-                else {
-                    return None;
-                };
-                if !fields.is_empty() {
-                    return None;
-                }
-                let definition = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == data.as_str())?;
+                let (definition, variant) = super::structural_terms::case_guard_classifier(
+                    program,
+                    machine,
+                    Some(state),
+                    guard,
+                )?;
+                let data = definition.name.as_str().to_owned();
+                let case = variant.name.as_str().to_owned();
                 let variant_fields: Vec<String> = program
-                    .data_members(definition)
+                    .data_payload_fields(variant)
                     .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.name.as_str() == case.as_str() =>
-                        {
-                            Some(
-                                program
-                                    .data_payload_fields(variant)
-                                    .iter()
-                                    .map(|field| field.name.as_str().to_owned())
-                                    .collect(),
-                            )
-                        }
-                        _ => None,
-                    })?;
+                    .map(|field| field.name.as_str().to_owned())
+                    .collect();
                 let branch_id = *fresh;
                 *fresh += 1;
+                // Matching determines the case, never the values of its common
+                // fields. Keep those fields symbolic beside the active payload.
+                let common_fields = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| match member {
+                        typed_trees::data::DataMember::Field(field) => {
+                            Some(field.name.as_str().to_owned())
+                        }
+                        _ => None,
+                    });
                 let mut fields: Vec<(String, StructuralTerm)> = variant_fields
                     .into_iter()
+                    .chain(common_fields)
                     .map(|field| {
                         let variable =
                             format!("__ih_{}_{}_{}", state.name.as_str(), branch_id, field);

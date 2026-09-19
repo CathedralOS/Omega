@@ -3170,15 +3170,16 @@ Owners include
     and imports core cancellation and `sub_le`. Ordinary statement calls retain
     the exact-site `call_requirements.rs` judgment and separate induction descent.
     Remaining owners: abstract signatures, domain/default-domain predicates,
-    explicit static callable/evidence substitution, and nominal/propositional
-    premises. Structural application/projection premises and incomplete
-    constructor field rosters currently fail closed:
+    explicit static callable/evidence substitution, transported case-membership
+    premises, and nominal/propositional premises. Structural application/projection
+    premises still fail closed:
     `structural_judgment.rs::callee_term_with_machines` can turn a binary body
     into unsubstituted opaque text, and receiver-call opacity cannot substitute
-    arguments. Constructor terms must also materialize omitted ZII fields before
-    comparison (`omitted_constructor_fields_do_not_prove_equality_to_nonzero_fields`
-    witnesses the former false equality). Repair exact selected identity and
-    complete substitution across its consumers before enabling this formation
+    arguments. Constructor normalization still needs unsupported float/array
+    leaves and established qualified defaults; supported Boolean/integer and
+    nested data fields must keep complete value rosters, separate from case
+    classifiers. Repair exact selected identity and complete substitution across
+    its consumers before enabling this formation
     route; never use unrefuted as proved. The source controls
     `application_unfolding_cannot_erase_different_arguments`
     and `opaque_receiver_call_cannot_hide_a_changed_requirement_argument` require

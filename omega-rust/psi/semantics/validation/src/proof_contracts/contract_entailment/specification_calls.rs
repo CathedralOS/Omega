@@ -199,6 +199,9 @@ fn applicable_requirements<'program>(
 }
 
 fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if super::structural_terms::is_case_observation(program, expression) {
+        return false;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
@@ -226,7 +229,7 @@ fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -
         StructuralTerm::Opaque(_)
         | StructuralTerm::Application { .. }
         | StructuralTerm::CallProjection { .. } => false,
-        StructuralTerm::Variable(_) => true,
+        StructuralTerm::Variable(_) | StructuralTerm::Integer(_) => true,
         StructuralTerm::Constructor { data, case, fields } => {
             constructor_fields_are_complete(program, data, case, fields)
                 && fields
@@ -283,9 +286,8 @@ fn constructor_fields_are_complete(
                 .map(|field| field.name.as_str()),
         );
     }
-    // Omitted fields denote ZII values, not absent comparison obligations.
-    // Until the termifier materializes them, an incomplete field roster must
-    // not reach the legacy constructor comparison (which scans one side).
+    // Every value term must retain its complete field roster. A classifier or
+    // partially reconstructed pattern cannot establish a value-call premise.
     fields.len() == declared.len()
         && declared
             .iter()

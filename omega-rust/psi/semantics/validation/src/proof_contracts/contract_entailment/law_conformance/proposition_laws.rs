@@ -259,6 +259,9 @@ pub(crate) fn collect_equality_conjuncts(
     expression: ExpressionHandle,
     out: &mut Vec<ExpressionHandle>,
 ) {
+    if super::super::structural_terms::is_case_observation(program, expression) {
+        return;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return;
     };

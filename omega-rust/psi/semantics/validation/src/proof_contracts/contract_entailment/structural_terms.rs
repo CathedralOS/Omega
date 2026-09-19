@@ -10,6 +10,12 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 
 use super::{StructuralTerm, is_arm_pattern_marker};
 
+mod constructors;
+pub(super) use constructors::{
+    case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
+    is_case_observation, zero_value_structural_term,
+};
+
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
 /// rewrite orientation: a rewrite whose replacement contains its own pattern
 /// would loop; the resolution cap would still bound it, but skipping keeps
@@ -123,6 +129,7 @@ fn constant_machine_constructor(program: &TypedTrees, name: &str) -> Option<Stru
 
     fn is_closed(term: &StructuralTerm) -> bool {
         match term {
+            StructuralTerm::Integer(_) => true,
             StructuralTerm::Constructor { fields, .. } => {
                 fields.iter().all(|(_, value)| is_closed(value))
             }
@@ -181,9 +188,9 @@ pub(super) fn split_structural_machine_name(name: &str) -> (&str, Vec<&str>) {
 }
 
 /// Read an expression as a structural term. Single-segment names are
-/// variables; a two-segment data path is a nullary case constructor; record
-/// and case literals retain sorted fields; unsupported expressions stay
-/// opaque or fail closed.
+/// variables; a resolved payload-free case path constructs its common fields.
+/// Record and case literals retain complete sorted fields, including established
+/// runtime defaults; unsupported expressions stay opaque or fail closed.
 pub(super) fn structural_term(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -193,22 +200,8 @@ pub(super) fn structural_term(
             let members = program.expression_table.name_path_members(path.members);
             match members {
                 [single] => Some(StructuralTerm::Variable(single.as_str().to_owned())),
-                [first, second] => {
-                    if program
-                        .data_definitions()
-                        .iter()
-                        .any(|definition| definition.name.as_str() == first.as_str())
-                    {
-                        Some(StructuralTerm::Constructor {
-                            data: first.as_str().to_owned(),
-                            case: second.as_str().to_owned(),
-                            fields: Vec::new(),
-                        })
-                    } else {
-                        Some(StructuralTerm::Opaque(
-                            program.expression_table.display_name(expression),
-                        ))
-                    }
+                [_, _, ..] if case_classifier(program, expression).is_some() => {
+                    case_value_term(program, expression)
                 }
                 _ => Some(StructuralTerm::Opaque(
                     program.expression_table.display_name(expression),
@@ -216,25 +209,9 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            let case = literal
-                .case_name
-                .as_ref()
-                .map(|case| case.as_str())
-                .unwrap_or("");
-            let mut fields: Vec<(String, StructuralTerm)> = Vec::new();
-            for field in program.expression_table.struct_fields(literal.fields) {
-                fields.push((
-                    field.name.as_str().to_owned(),
-                    structural_term(program, field.value)?,
-                ));
-            }
-            fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-            Some(StructuralTerm::Constructor {
-                data: literal.type_name.as_str().to_owned(),
-                case: case.to_owned(),
-                fields,
-            })
+            constructor_literal_term(program, literal, |value| structural_term(program, value))
         }
+        ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         ExpressionNode::Call(call) => {
             if !call.receiver.is_valid() {
                 let handles = program.expression_table.expression_handles(call.arguments);
@@ -316,54 +293,5 @@ fn call_projection_field_symbol(
             return None;
         };
         (field.name.as_str() == field_name).then_some(field.symbol)
-    })
-}
-
-/// Normalize proof-only `zero_value<T>()` through the same home-
-/// representation rule used by layout.
-fn zero_value_structural_term(
-    program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<StructuralTerm> {
-    use typed_trees::data::DataMember;
-    use typed_trees::types::TypeReferenceNode;
-
-    let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            return zero_value_structural_term(program, *base_type);
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            ..
-        } => (*base_symbol, base_name.as_str()),
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Unit => return None,
-    };
-    let definition = program.data_definitions().iter().find(|definition| {
-        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
-    })?;
-    if crate::value_custody::data::data_requires_establishment(program, definition) {
-        return None;
-    }
-    let variant = program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Variant(variant) => Some(variant),
-            DataMember::Field(_) => None,
-        })?;
-    if !program.data_payload_fields(variant).is_empty() {
-        return None;
-    }
-    Some(StructuralTerm::Constructor {
-        data: definition.name.as_str().to_owned(),
-        case: variant.name.as_str().to_owned(),
-        fields: Vec::new(),
     })
 }

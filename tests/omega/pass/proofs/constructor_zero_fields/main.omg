@@ -1,0 +1,30 @@
+// Constructor terms include common fields and nested runtime zero values.
+data Bits { ready: bool; count: u64; }
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree, bits: Bits);
+}
+
+machine same(left: Tree, right: Tree) -> Tree
+requires left == right;
+terminates;
+{ left }
+
+machine formation()
+requires same(
+    Tree::Node { child: Tree::Empty {} },
+    Tree::Node { marked: false, child: Tree::Empty { marked: false }, bits: Bits { ready: false, count: 0 } }
+) == same(
+    Tree::Node { child: Tree::Empty {} },
+    Tree::Node { marked: false, child: Tree::Empty { marked: false }, bits: Bits { ready: false, count: 0 } }
+);
+{}
+
+machine construct() -> Tree
+ensures result == (Tree::Node {
+    marked: false,
+    child: Tree::Empty { marked: false },
+    bits: Bits { ready: false, count: 0 }
+});
+{ transition { _ -> Tree::Node { child: Tree::Empty {} } } }

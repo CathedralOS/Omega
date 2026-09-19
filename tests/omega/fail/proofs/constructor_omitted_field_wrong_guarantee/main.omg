@@ -1,0 +1,5 @@
+data Tree { case Empty; case Node(child: Tree, flag: bool); }
+
+machine construct() -> Tree
+ensures result == (Tree::Node { child: Tree::Empty, flag: true });
+{ transition { _ -> Tree::Node { child: Tree::Empty } } }
