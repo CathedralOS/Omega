@@ -500,6 +500,156 @@ fn owned_selection_projected_children_record_exact_paths_and_roots() {
     ));
 }
 
+fn lower_record_arm_program(arm: &str) -> checked_trees::CheckedTrees {
+    lower_program(&format!(
+        "data Payload {{ left:u64; right:u64; }}
+         data Pair {{ first:Payload; second:Payload; }}
+         machine choose(selected:bool, a:Pair, b:Pair) -> u64 {{
+             let result: Pair = match selected {{ true -> {arm}, false -> a }};
+             result.first.left ^ result.second.right
+         }}"
+    ))
+    .expect("a record arm moving existing children checks")
+}
+
+#[test]
+fn owned_selection_record_fields_record_each_moved_child() {
+    let checked = lower_record_arm_program("Pair { first: a.first, second: b.second }");
+    let ownership = &checked.facts.flow.ownership;
+    let (_, receipt) = ownership
+        .owned_selections
+        .iter()
+        .next()
+        .expect("selection receipt");
+    let sources = ownership.selection_sources.span_or_empty(receipt.sources);
+    assert_eq!(sources.len(), 2, "both record-field owners join the roster");
+    let transfers = ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers);
+    // Three leaves: the two projected field moves on the record arm and the
+    // whole `a` move on the default arm.
+    assert_eq!(transfers.len(), 3);
+    let projected = transfers
+        .iter()
+        .filter(|transfer| !ownership.segments.span_or_empty(transfer.path).is_empty())
+        .collect::<Vec<_>>();
+    let whole = transfers
+        .iter()
+        .filter(|transfer| ownership.segments.span_or_empty(transfer.path).is_empty())
+        .collect::<Vec<_>>();
+    assert_eq!(projected.len(), 2);
+    assert_eq!(whole.len(), 1);
+    assert_eq!(projected[0].source_arm, projected[1].source_arm);
+    assert_ne!(projected[0].source_arm, whole[0].source_arm);
+    // Each projected leaf carries its own distinct field path under its own
+    // roster source.
+    let projected_fields = projected
+        .iter()
+        .map(
+            |transfer| match ownership.segments.span_or_empty(transfer.path) {
+                [facts::PlaceSegment::Field { symbol }] => *symbol,
+                path => panic!("one exact field segment per leaf: {path:?}"),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_ne!(projected_fields[0], projected_fields[1]);
+    assert_ne!(projected[0].source, projected[1].source);
+    // The record arm's retained value is a Record whose moved fields project
+    // each leaf; the leaf's normalized identity is the field's member type,
+    // not the result type.
+    let values = &checked.facts.values.structural_values;
+    let root = values
+        .root_at(receipt.state, receipt.statement_ordinal)
+        .expect("structural result root");
+    let checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } =
+        &values.nodes.get(root.root).kind
+    else {
+        panic!("selected result is a structural dispatch")
+    };
+    let record_arm = values
+        .dispatch_arms
+        .span(*arms)
+        .expect("arm span")
+        .iter()
+        .find(|arm| {
+            matches!(
+                values.nodes.get(arm.value).kind,
+                checked_trees::CheckedStructuralValueKind::Record { .. }
+            )
+        })
+        .expect("the record arm");
+    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } =
+        &values.nodes.get(record_arm.value).kind
+    else {
+        unreachable!()
+    };
+    let field_values = values.record_fields.span(*fields).expect("field span");
+    assert_eq!(field_values.len(), 2);
+    for field in field_values {
+        let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value
+        else {
+            panic!("each moved field retains a structural value")
+        };
+        let checked_trees::CheckedStructuralValueKind::Projection {
+            path,
+            type_identity,
+            ..
+        } = &values.nodes.get(value).kind
+        else {
+            panic!("each moved field is a projection leaf")
+        };
+        assert_eq!(path.len(), 1);
+        assert_eq!(
+            type_identity.as_str(),
+            checked
+                .normalized_type_identity(field.type_reference)
+                .as_str(),
+            "the leaf identity is the member type, not the result type"
+        );
+    }
+}
+
+#[test]
+fn owned_selection_record_fields_reject_a_whole_name_field() {
+    // A field's moved custody is only expressible through an exact projected
+    // path: a whole name at field position selects the root's whole-place
+    // type, which is the record's own field carrier only by coincidence, so
+    // the roster keeps it on the custody-join rejection.
+    let errors = lower_program(
+        "data Payload { left:u64; right:u64; }
+         data Pair { first:Payload; second:Payload; }
+         data Wrap { inner:Pair; }
+         machine choose(selected:bool, a:Pair, b:Pair) -> u64 {
+             let result: Wrap = match selected {
+                 true -> Wrap { inner: a },
+                 false -> Wrap { inner: b }
+             };
+             result.inner.first.left
+         }",
+    )
+    .expect_err("a whole name at field position stays rejected");
+    assert!(!errors.is_empty());
+}
+
+#[test]
+fn owned_selection_record_fields_reject_overlapping_moved_children() {
+    // Two fields of one record arm cannot name the same projected place: the
+    // arm's edge would consume `a.first` twice.
+    let errors = lower_program(
+        "data Payload { left:u64; right:u64; }
+         data Pair { first:Payload; second:Payload; }
+         machine choose(selected:bool, a:Pair, b:Pair) -> u64 {
+             let result: Pair = match selected {
+                 true -> Pair { first: a.first, second: a.first },
+                 false -> a
+             };
+             result.first.left ^ result.second.right
+         }",
+    )
+    .expect_err("overlapping moved children on one arm reject");
+    assert!(format!("{errors:?}").contains("disjoint moved places"));
+}
+
 #[test]
 fn owned_selection_rejects_reusing_a_partially_moved_source() {
     let errors = lower_program(

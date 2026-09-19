@@ -296,8 +296,7 @@ fn plain_local_owner_selection(
         // uniform-consumption rule keeps the join's frontier identical on
         // every edge.
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            projected_plain_owned_source(program, machine, state, expression)
-                || projected_linear_owned_source(program, machine, state, expression)
+            projected_owned_leaf(program, machine, state, expression)
         }
         // A call's structural product is a fresh independently-owned arm
         // value: its declared return type carries the plain-affine custody the
@@ -315,6 +314,27 @@ fn plain_local_owner_selection(
             }),
         _ => false,
     }
+}
+
+/// An exact projection selecting a moved owned child of an immutable local or
+/// parameter, wherever a selection leaf is admitted: an arm value or a record
+/// field inside one. The projection guard lives here: a bare name satisfies
+/// the root checks below but names the whole place, whose custody joins
+/// through the arm-level and custody-join rules instead.
+fn projected_owned_leaf(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) {
+        return false;
+    }
+    projected_plain_owned_source(program, machine, state, expression)
+        || projected_linear_owned_source(program, machine, state, expression)
 }
 
 /// Walk an exact projection chain to its whole local root when the leaf is a
@@ -598,7 +618,13 @@ fn result_needs_custody_join(
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .any(|field| result_needs_custody_join(program, machine, state, field.value)),
+            .any(|field| {
+                // A projected owned field is a selection leaf: its custody
+                // joins through the transfer roster's exact moved path, not
+                // through a branch custody join of the record itself.
+                !projected_owned_leaf(program, machine, state, field.value)
+                    && result_needs_custody_join(program, machine, state, field.value)
+            }),
         ExpressionNode::ArrayLiteral(elements) => program
             .expression_table
             .expression_handles(*elements)

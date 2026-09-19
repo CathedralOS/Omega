@@ -281,15 +281,18 @@ fn owned_match_call_arm_rejects_forwarded_existing_custody() {
 }
 
 #[test]
-fn owned_match_record_arm_rejects_mixed_fresh_and_existing_children() {
-    // Record fields moving existing affine children still need their exact
-    // residual transport; a fresh call sibling does not admit them, and the
-    // same boundary holds when every field moves an existing child.
+fn owned_match_record_arm_children_check_but_await_leaf_emission() {
+    // Record fields moving existing children now check: the selection receipt
+    // carries each field's exact moved path — a local's child through its
+    // roster source, a call product's child through its once-evaluated
+    // sourceless root — and the residual complements discharge on the same
+    // edge. Emission still needs the leaf extraction edge, so lowering
+    // remains the remaining leg for both leaf kinds.
     for arm in [
         "Pair { first: supply(1, 2).first, second: b.second }",
         "Pair { first: a.first, second: b.second }",
     ] {
-        let errors = check_source(&format!(
+        let checked = check_source(&format!(
             "data Payload {{ left: u64; right: u64; }}
             data Pair {{ first: Payload; second: Payload; }}
             machine supply(first: u64, second: u64) -> Pair {{
@@ -303,8 +306,13 @@ fn owned_match_record_arm_rejects_mixed_fresh_and_existing_children() {
                 result.first.left ^ result.second.right
             }}"
         ))
-        .expect_err("a record arm moving existing children stays rejected");
-        assert!(!errors.is_empty(), "{arm}");
+        .unwrap_or_else(|errors| panic!("{arm} keeps each field's moved child: {errors:#?}"));
+        let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+            .expect_err("record field leaves await their extraction edge");
+        assert!(
+            format!("{error:?}").contains("projected selection"),
+            "{arm}: the leaf emission gap is the remaining boundary: {error:?}"
+        );
     }
 }
 
