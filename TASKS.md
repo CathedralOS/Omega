@@ -1022,18 +1022,23 @@ Owners include
   innermost element extent, the path spells the flat leaf index `field[k]`
   with `k = outer * N + inner` — and per-level arity stays enforced on the
   build-time value. Carry record depth as data and extend that owner rather
-  than adding depth-specific implementations.
+  than adding depth-specific implementations. Outer fields carrying
+  per-element, `IntegerAt`, or `Bits` placements transcribe through the same
+  reports, so a symbolic path crosses the whole
+  [placement vocabulary](wiki/spec/layouts/plans.md#placement-vocabulary),
+  not only whole-field `At` entries. Mixed common-field/case shapes and
+  their literal arrays now run the same compact element row end to end:
+  `ConventionalSumLayoutReport` retains the leading common fields beside the
+  case overlay, the symbolic walker admits the one-hop `field[i].common`
+  leaf beside `field[i].Case.payload`, the ConstMaterializable rungs encode
+  the merged common + case payload spelling per element, and
+  `mixed_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
+  lowers the mixed-element writer on both Linux ISAs (native execution on
+  x86-64).
 
   Remaining work:
 
-  - Target-dependent placement. Both projection entry points in
-    `sum_materialization/mod.rs` reject an outer field carrying a `Bits`,
-    `IntegerAt` or repeated placement ("uses target-dependent fragment,
-    stored-integer, or repeated placement"). A symbolic path must cross the
-    whole [placement vocabulary](wiki/spec/layouts/plans.md#placement-vocabulary),
-    not only whole-field `At` entries.
-  - Shapes the recursion still fences: an array whose element is a mixed
-    common-field/case data definition, and any non-literal array length.
+  - Shapes the recursion still fences: any non-literal array length.
     Consecutive literal element hops now flatten into one packed row under
     the recursive owner; the standalone rungs keep their single-hop fence
     verbatim, so an array-of-arrays reaching sums still rejects outside the
