@@ -55,6 +55,9 @@ impl SelectedDispatchSourceEdits {
             for edit in batch.edits.iter().rev() {
                 *source.expression_table.expression_mut(edit.handle) = edit.original.clone();
             }
+            for edit in batch.statement_edits.iter().rev() {
+                *source.statement_table.statement_mut(edit.handle) = edit.original.clone();
+            }
         }
         Ok(Cow::Owned(source))
     }

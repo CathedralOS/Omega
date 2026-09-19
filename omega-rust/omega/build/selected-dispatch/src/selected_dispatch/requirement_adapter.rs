@@ -5,18 +5,23 @@
 //! public requirement with its selected checked adapter
 //! (`CheckedBoundaryAdapterDispatch`); this bridge is the execution half of
 //! that association, the requirement analogue of the named boundary-operator
-//! adapter rewrite: every direct value-position call `Owner::name(...)` whose
-//! row is settled redirects to the adapter's entry state, journaled as a
-//! source edit, so the interpreter and Terminal execute the ordinary checked
-//! body while the retained row, flow facts and journal keep the requirement.
+//! adapter rewrite: every direct call `Owner::name(...)` whose row is
+//! settled — value position or statement position (`Owner::name(...);`,
+//! including the `_ = call();` explicit discard) — redirects to the adapter's
+//! entry state, journaled as a source edit, so the interpreter and Terminal
+//! execute the ordinary checked body while the retained row, flow facts and
+//! journal keep the requirement.
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RequirementCallRewrite {
-    expression: ExpressionHandle,
+    /// The journaled call site: an expression-table call or a
+    /// statement-table call (`Owner::name(...);`, including `_ = call();`).
+    site: RequirementCallSite,
     /// The caller state and statement the flow occurrence and its checked
     /// scalar-argument facts are keyed on.
     caller_state: symbols::SymbolHandle,
@@ -25,6 +30,12 @@ pub(super) struct RequirementCallRewrite {
     requirement_state: symbols::SymbolHandle,
     machine: String,
     entry_symbol: symbols::SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RequirementCallSite {
+    Expression(ExpressionHandle),
+    Statement(StatementHandle),
 }
 
 /// The settled realization rows keyed on top-level requirements: the row's
@@ -85,21 +96,82 @@ pub(super) fn plan_selected_requirement_rewrites(
             )));
             continue;
         };
-        // A statement-position direct call has no journaled edit shape yet:
-        // it rejects rather than executing the bodyless requirement.
+        // Statement-position direct calls (`Owner::name(...);`, including
+        // `_ = call();`) follow the same settled route. The site carries no
+        // authored expression, so its flow occurrence is the caller state's
+        // call at this statement index with an invalid authored expression;
+        // the statement call takes its statement's first call ordinal ahead
+        // of any nested argument calls, which keeps the match unique.
         for machine in typed.machines() {
             for state in typed.machine_states(machine) {
-                for statement in typed.statement_table.statements(state.statement_nodes) {
-                    if let typed_trees::statement::StatementNode::Call(call) = statement
-                        && call.target_symbol == row.requirement
-                        && call.receiver_symbol == row.receiver
+                for (statement_index, (handle, statement)) in typed
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+                    .enumerate()
+                {
+                    let typed_trees::statement::StatementNode::Call(call) = statement else {
+                        continue;
+                    };
+                    if call.target_symbol != row.requirement || call.receiver_symbol != row.receiver
                     {
+                        continue;
+                    }
+                    let Some(flow_state) = checked
+                        .facts
+                        .flow
+                        .control
+                        .states
+                        .iter()
+                        .map(|(_, flow_state)| flow_state)
+                        .find(|flow_state| flow_state.state_symbol == state.symbol)
+                    else {
                         diagnostics.push(Diagnostic::error(format!(
-                            "statement-position direct call `{}` to public boundary requirement `{}` is not an executable route; bind its result in a local instead",
-                            call.target.as_str(),
+                            "statement-position direct call to public boundary requirement `{}` lost its caller flow state",
                             requirement.name,
                         )));
-                    }
+                        continue;
+                    };
+                    let occurrences = checked
+                        .facts
+                        .flow
+                        .control
+                        .calls
+                        .span_or_empty(flow_state.calls)
+                        .iter()
+                        .filter(|occurrence| {
+                            occurrence.statement_index == statement_index
+                                && !occurrence.authored_expression.is_valid()
+                                && occurrence.target_symbol == row.requirement
+                                && occurrence.receiver_symbol == row.receiver
+                        })
+                        .collect::<Vec<_>>();
+                    let [occurrence] = occurrences.as_slice() else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "statement-position direct call to public boundary requirement `{}` retains {} flow occurrences; expected one",
+                            requirement.name,
+                            occurrences.len(),
+                        )));
+                        continue;
+                    };
+                    let (Ok(statement_ordinal), Ok(call_ordinal)) = (
+                        u32::try_from(occurrence.statement_index),
+                        u32::try_from(occurrence.call_ordinal),
+                    ) else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "statement-position direct call to public boundary requirement `{}` has an unrepresentable occurrence coordinate",
+                            requirement.name,
+                        )));
+                        continue;
+                    };
+                    rewrites.push(RequirementCallRewrite {
+                        site: RequirementCallSite::Statement(handle),
+                        caller_state: state.symbol,
+                        statement_ordinal,
+                        call_ordinal,
+                        requirement_state: row.requirement,
+                        machine: realization.name.as_str().to_owned(),
+                        entry_symbol: row.realization_state,
+                    });
                 }
             }
         }
@@ -156,7 +228,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                 continue;
             };
             rewrites.push(RequirementCallRewrite {
-                expression: handle,
+                site: RequirementCallSite::Expression(handle),
                 caller_state: *caller_state,
                 statement_ordinal,
                 call_ordinal,
@@ -187,38 +259,63 @@ pub(super) fn apply_selected_requirement_rewrites(
 ) {
     use checked_trees::CheckedScalarExpressionRole;
     for rewrite in rewrites {
-        source_edits.expression(&checked.typed, rewrite.expression);
-        let ExpressionNode::Call(mut call) = checked
-            .typed
-            .expression_table
-            .expression(rewrite.expression)
-            .clone()
-        else {
-            unreachable!("planned requirement rewrite ceased to be a call")
-        };
-        debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
-        call.receiver = ExpressionHandle::invalid();
-        call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
-        call.target_symbol = rewrite.entry_symbol;
-        *checked
-            .typed
-            .expression_table
-            .expression_mut(rewrite.expression) = ExpressionNode::Call(call);
+        match rewrite.site {
+            RequirementCallSite::Expression(expression) => {
+                source_edits.expression(&checked.typed, expression);
+                let ExpressionNode::Call(mut call) = checked
+                    .typed
+                    .expression_table
+                    .expression(expression)
+                    .clone()
+                else {
+                    unreachable!("planned requirement rewrite ceased to be a call")
+                };
+                debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
+                call.receiver = ExpressionHandle::invalid();
+                call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
+                call.target_symbol = rewrite.entry_symbol;
+                *checked.typed.expression_table.expression_mut(expression) =
+                    ExpressionNode::Call(call);
+            }
+            RequirementCallSite::Statement(statement) => {
+                source_edits.statement_call(&checked.typed, statement);
+                let typed_trees::statement::StatementNode::Call(mut call) =
+                    checked.typed.statement_table.statement(statement).clone()
+                else {
+                    unreachable!("planned requirement rewrite ceased to be a statement call")
+                };
+                debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
+                call.receiver_root_symbol = symbols::SymbolHandle::invalid();
+                call.receiver_symbol = symbols::SymbolHandle::invalid();
+                call.receiver = arena::HandleSpan::empty();
+                call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
+                call.target_symbol = rewrite.entry_symbol;
+                *checked.typed.statement_table.statement_mut(statement) =
+                    typed_trees::statement::StatementNode::Call(call);
+            }
+        }
 
-        let handles = checked
+        // The retained flow occurrence is the caller state's call at the
+        // recorded statement/call coordinate for both site shapes; a
+        // statement site has no authored-expression handle to match on.
+        let calls = checked
             .facts
             .flow
             .control
-            .calls
+            .states
             .iter()
-            .filter(|(_, call)| call.authored_expression == rewrite.expression)
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        for handle in handles {
-            let call = checked.facts.flow.control.calls.get_mut(handle);
-            call.target_symbol = rewrite.entry_symbol;
-            call.receiver_symbol = symbols::SymbolHandle::invalid();
-            call.has_receiver = false;
+            .find(|(_, state)| state.state_symbol == rewrite.caller_state)
+            .map(|(_, state)| state.calls);
+        if let Some(calls) = calls {
+            for call in checked.facts.flow.control.calls.span_mut_or_empty(calls) {
+                if call.statement_index == rewrite.statement_ordinal as usize
+                    && call.call_ordinal == rewrite.call_ordinal as usize
+                {
+                    call.target_symbol = rewrite.entry_symbol;
+                    call.receiver_symbol = symbols::SymbolHandle::invalid();
+                    call.has_receiver = false;
+                }
+            }
         }
 
         let unit_role = |role: CheckedScalarExpressionRole| match role {
