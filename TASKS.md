@@ -357,23 +357,25 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Remaining work:
 
-  - Carry a ranged member's established invariant into ordinary callee
-    requirement checking at subordinate component-call sites.
-    `checks/contracts/call_bounds/context.rs` currently applies the
-    ranking-to-requires bridge only to self-calls. Do not assume an entry
-    `requires` remains true after internal arrivals or use the callee's
-    requirement as its own proof.
   - Generalize endpoint formation and conservation through exact checked
     value relationships. The independent endpoint fallback still requires one
-    state; it now pins member endpoints through shared-borrow receivers
-    (`bag: &Wrap` in `0..=bag.remaining`) and member chains through stored
-    shared references (`indirect.target: &Wrap` in
+    state; it pins member endpoints through readable borrowed receivers
+    (`bag: &Wrap` or `&mut Wrap` in `0..=bag.remaining`) and member chains through
+    stored readable references (`indirect.target: &mut Wrap` in
     `0..=indirect.target.remaining`) using the referent's store-enforced
-    field bounds plus per-edge referent preservation. Exclusive borrows,
-    mixed-component inputs beyond direct integers/arithmetic trees, and
+    field bounds plus exact per-edge referent and write preservation.
+    Mixed-component inputs beyond direct integers/arithmetic trees and
     non-polynomial substitutions need their actual formation, equality, and
     write-preservation evidence, not polynomial cancellation or positional
     guesses.
+    The stored-exclusive countdown in `compiler/tests/rank_endpoint_borrows.rs`
+    checks and runs in the checked interpreter (macOS ARM64, `a647d6afef` plus
+    the endpoint repair; `RUST_MIN_STACK=67108864 cargo nextest run -p compiler
+    --test rank_endpoint_borrows --no-fail-fast --no-tests fail`). Native
+    acceptance remains open: publishing its `walk` through
+    `TerminalProductionRequest` reaches "machine has no source-independent
+    checked scalar control plan". **STATE-LOCAL-VALUE-FRONTIER** owns that
+    next producer dependency; do not replace the stored loan with copied data.
   - Replace residual rank-role discovery limits with explicit arrival
     correspondence where the program supplies enough evidence. Unique nested
     carriers, borrowed roots, moved scalar/slice/record copies, custom

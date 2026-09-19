@@ -71,16 +71,16 @@ impl<'program> EndpointInput<'program> {
             {
                 owner_type = *base_type;
             }
-            // A shared borrow (`&T`, including a stored reference field) reads
-            // the referent's stored members: declared ranges are
-            // store-enforced and the input's preservation obligation covers
-            // every reseat of the reference binding itself. Exclusive borrows
-            // write through, so they stay outside this input's identity.
+            // Readable borrows expose store-enforced member bounds. Mutable
+            // access is not itself a write: the endpoint owner separately
+            // checks complete prefix frames against this exact path, including
+            // its reference-binding prefixes, on every backedge. Write-only
+            // access cannot contribute an observation of existing contents.
             while let TypeReferenceNode::Reference {
                 referee, access, ..
             } = program.type_reference_table.type_reference(owner_type)
             {
-                if access.is_exclusive() {
+                if !access.is_readable() {
                     return None;
                 }
                 owner_type = *referee;
@@ -115,7 +115,7 @@ impl<'program> EndpointInput<'program> {
         Some(input)
     }
 
-    /// The declared bounds of a member endpoint whose chain traverses a shared
+    /// The declared bounds of a member endpoint whose chain traverses a readable
     /// borrow. The general invariant query stays out of references entirely;
     /// here the endpoint's own preservation judgment supplies the storage
     /// evidence, so the leaf's store-enforced field range bounds the read.
