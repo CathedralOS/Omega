@@ -478,6 +478,22 @@ const SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(14);
 /// byte.
 const DEAD_SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(16);
 
+/// The dead `CopyBytes`'s own source pointer, count register, and
+/// early-clobber scratch registers — distinct from the covering copy's so
+/// two `CopyBytes` fixtures can coexist without sharing a scratch custody.
+const DEAD_SPAN_SOURCE: VirtualRegisterId = VirtualRegisterId(17);
+const DEAD_SPAN_COUNT: VirtualRegisterId = VirtualRegisterId(18);
+const DEAD_SPAN_CURSOR: VirtualRegisterId = VirtualRegisterId(19);
+const DEAD_SPAN_BYTE: VirtualRegisterId = VirtualRegisterId(20);
+
+/// The semantic value the dead `CopyBytes`'s destination `length` and its
+/// count register's `source_value` share. Distinct from `span_length()` so
+/// a covering copy's materialized count never resolves the dead copy's
+/// extent by accident.
+fn dead_span_length() -> ValueId {
+    ValueId::new(13).unwrap()
+}
+
 /// The materialize instruction defining the dead store's index register —
 /// distinct from `MATERIALIZE_COUNT` so two clean definitions can coexist
 /// in one fixture.
@@ -532,6 +548,38 @@ fn span_copy(
     count: VirtualRegisterId,
     length: ValueId,
 ) {
+    span_copy_on(
+        function,
+        environment,
+        id,
+        write_row,
+        byte_offset,
+        SPAN_SOURCE,
+        ValueId::new(11).unwrap(),
+        count,
+        SPAN_CURSOR,
+        SPAN_BYTE,
+        length,
+    );
+}
+
+/// `span_copy` with caller-chosen source, scratch, and count registers, so a
+/// fixture can carry two `CopyBytes` — a dead copy beside the covering one —
+/// without sharing a scratch custody or a source identity.
+#[allow(clippy::too_many_arguments)]
+fn span_copy_on(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    id: SelectedInstructionId,
+    write_row: usize,
+    byte_offset: u32,
+    source: VirtualRegisterId,
+    source_value: ValueId,
+    count: VirtualRegisterId,
+    cursor: VirtualRegisterId,
+    byte: VirtualRegisterId,
+    length: ValueId,
+) {
     let copy = environment
         .constraint(environment.selected_keys().copy_bytes.unwrap())
         .unwrap();
@@ -545,12 +593,12 @@ fn span_copy(
                 id,
                 SelectedInstructionKind::CopyBytes,
                 copy,
-                &[SPAN_SOURCE, POINTER, count, SPAN_CURSOR, SPAN_BYTE],
+                &[source, POINTER, count, cursor, byte],
             );
         }
     }
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    for (register, operand) in [(SPAN_CURSOR, 3), (SPAN_BYTE, 4)] {
+    for (register, operand) in [(cursor, 3), (byte, 4)] {
         function.virtual_registers.push(VirtualRegister {
             id: register,
             scalar_type,
@@ -564,11 +612,11 @@ fn span_copy(
         });
     }
     function.virtual_registers.push(VirtualRegister {
-        id: SPAN_SOURCE,
+        id: source,
         scalar_type,
         class: copy.operands[0].class,
         origin: VirtualRegisterOrigin::EntryParameter {
-            source_value: ValueId::new(11).unwrap(),
+            source_value,
             parameter_index: 1,
         },
         definition_site: None,
@@ -666,4 +714,60 @@ fn define_count_as(
             &[register],
         ),
     );
+}
+
+/// Rewrite the fixture's dead store — instruction `STORE` at roster row 0 —
+/// into a `CopyBytes`: the destination `WriteByteSpan` claims `length`
+/// bytes at `byte_offset` on the dead place, and the source `ReadByteSpan`
+/// rides on the disjoint second place, so the roster grows a second row the
+/// elimination must drop beside the write. `count` is the dead copy's count
+/// register: an added `MaterializeI64` carrying `length` collapses the dead
+/// extent to a constant, while a `runtime_count` entry parameter leaves it
+/// unbounded upward.
+fn dead_span_copy(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    byte_offset: u32,
+    count: VirtualRegisterId,
+    length: ValueId,
+) {
+    span_copy_on(
+        function,
+        environment,
+        STORE,
+        0,
+        byte_offset,
+        DEAD_SPAN_SOURCE,
+        ValueId::new(14).unwrap(),
+        count,
+        DEAD_SPAN_CURSOR,
+        DEAD_SPAN_BYTE,
+        length,
+    );
+}
+
+/// Push `register` as an entry parameter carrying `source_value` — the
+/// count-register shape a `CopyBytes` takes when its `length` has no
+/// materializing producer anywhere in the function, so the span's extent
+/// stays runtime.
+fn runtime_count(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+) {
+    let copy = environment
+        .constraint(environment.selected_keys().copy_bytes.unwrap())
+        .unwrap();
+    function.virtual_registers.push(VirtualRegister {
+        id: register,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class: copy.operands[2].class,
+        origin: VirtualRegisterOrigin::EntryParameter {
+            source_value,
+            parameter_index: 2,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
 }
