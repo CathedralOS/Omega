@@ -15,20 +15,15 @@
 // within length 2` twice, and a reader could not tell which refusal it pins.
 // Do not drop them to "simplify" the fixture.
 //
-// Why it cannot be admitted by ordinary engineering: the premise vocabulary
-// is ordering-only. `BorrowCompatibilityPremiseRelation`
-// (checked-trees/src/checked_trees/borrow.rs) is the closed triple
-// `LessOrEqual`/`StrictlyBefore`/`Equal`, and its own doc scopes it to
-// integer-bound ordering. `decompose_premise_expression`
-// (checks/borrows/overlap/premises.rs) has no `NotEqual` arm, and
-// `premise_orientation_proves` is a total 3x3 match in constant-offset shifts
-// (`left_shift <= right_shift`) -- disequality orders nothing, so it has no
-// cell there. The only other derivation, `Structural`, retains no premises.
-// Admitting this needs a fourth variant on a PERSISTED certificate relation
-// that Terminal replay consumes positionally, which is an owner decision
-// about proof vocabulary rather than a change within it.
+// The current premise vocabulary retains integer ordering, but disequality
+// needs a disjointness derivation for these two singleton elements. This is
+// implementation work under the existing loan contract: retain exact captured
+// indexes and the stated premise, then independently replay the judgment.
+// CheckedBorrowCompatibilityCertificate is currently a checked-stage record;
+// it is not a Terminal wire format. Extending its internal evidence does not
+// require a language-design decision or grant new loan authority.
 //
-// When that decision lands, this canary moves to `pass/` unchanged.
+// When that implementation lands, this canary moves to `pass/` unchanged.
 data Entry {
     value: i32;
 }
