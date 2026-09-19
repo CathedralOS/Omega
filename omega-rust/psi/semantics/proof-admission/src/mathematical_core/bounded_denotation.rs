@@ -31,12 +31,18 @@
 //!   `ClosedIntegerRelation` equality like `2 + 0 = 2` denotes an
 //!   identity the kernel's `refl` genuinely proves rather than an
 //!   admitted atom.
+//! - `Equal` and the `LessThan`/`LessOrEqual` relations over liftable
+//!   integer operands — fixed and `IntegerMath*` alike — instead denote
+//!   into one shared mathematical-integer vocabulary: `Int : Type 0`
+//!   with each `IntegerMathTerm` an `Int` constant interned by exact
+//!   evaluated value (open terms intern by the term itself), `IntLt`
+//!   and `IntLe` the two relation constants `Π(_ : Int). Π(_ : Int).
+//!   Type 0`, and `IntegerMathEqual`/lifted `Equal` the `Id Int`
+//!   identity. A cited `Equal` and its `IntegerMathEqual` form share
+//!   one `Id Int`, so the citation-level `Equal`↔`IntegerMathEqual`
+//!   crossing the bounded matcher licenses denotes to the same type.
 //! - Every other atomic proposition denotes an assumption constant
-//!   `P : Type 0` — the only axiom shape the calculus admits. Atoms are
-//!   interned up to the lift/lower carrier normalization
-//!   `accept_certificate` applies to cited premises, so a cited
-//!   `LessOrEqual` and a claimed `IntegerMathLessOrEqual` share one
-//!   constant.
+//!   `P : Type 0` — the only axiom shape the calculus admits.
 //! - `Conjunction` denotes a right-nested `Σ`, `Disjunction` a tagged sum
 //!   `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, d₀, rest, t)`, and
 //!   `Implication` a non-dependent `Π` — the connective rules become the
@@ -50,18 +56,26 @@
 //! that is not definitionally reflexive becomes a *decision assumption*
 //! in the signature — the bounded kernel's decision is evidence the
 //! judgment commits to — so `certificate_assumption_closure` names
-//! exactly the atoms, scalar carriers, scalar terms and bounded decisions
-//! the judgment depends on, and nothing else.
+//! exactly the atoms, scalar carriers, integer vocabulary, scalar terms
+//! and bounded decisions the judgment depends on, and nothing else.
 //!
 //! The denotation covers every rule family the certificate language
-//! defines. The propositional and scalar-identity fragment — primitive,
+//! defines. The propositional and identity fragment — primitive,
 //! assumption and semantic-axiom leaves, conjunction, disjunction and
 //! implication introduction and elimination, and equality
-//! symmetry/transitivity over `Equal` — denotes the kernel's own
-//! constructions: pairs and projections, `caseTwo`, λ/application and
-//! `J` eliminations. The remaining families — the integer order rules,
-//! the witness-bearing bound rules, the denotation-conversion rules and
-//! the `IntegerMath*`/`ContentConservation` transitivity arms — denote a
+//! symmetry/transitivity over any `Id` carrier, `Id Int` chains
+//! included — denotes the kernel's own constructions: pairs and
+//! projections, `caseTwo`, λ/application and `J` eliminations. The
+//! integer order rules whose instance lands wholly in the `Int`
+//! vocabulary cite a fixed roster of named assumptions — `eq_le`,
+//! `lt_le`, the three strict/mixed transitivity laws and the four
+//! endpoint-substitution laws — each an assumption constant with an
+//! exact `Π` statement authored through `scheme_dsl`, applied to the
+//! denoted endpoints and premise evidence, with a `sym` `J` wrapping
+//! whichever premise the canonical `IntegerMathEqual` order flipped.
+//! The remaining families — order discreteness, subtract-order, the
+//! witness-bearing bound rules, the denotation-conversion rules and
+//! the `ContentConservation` transitivity arms — denote a
 //! *rule-instance decision*: an assumption constant whose type is the
 //! checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`, applied
 //! to the denoted premise evidence (ambient axiom and assumption
@@ -69,25 +83,30 @@
 //! relation is re-decided during denotation by the same shared function
 //! the bounded checker runs — the axiom records the rule instance's
 //! arithmetic or conversion decision in the judgment's assumption
-//! closure, never silently. The one crossing this route still refuses
-//! is the citation-level `Equal`↔`IntegerMathEqual` shape change: an
-//! `Id` and an atom are different types, so a premise cited across
-//! that boundary stays [`BoundedDenotationError::Unsupported`].
+//! closure, never silently — and premises in the `Int` vocabulary give
+//! that axiom an exact arithmetic statement.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
+use numerics::bignum::BigInt;
+use semantic_vocabulary::{
+    IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+};
 
 use super::certificate::{
     MathematicalCertificate, certificate_assumption_closure, run_on_verification_stack,
     verify_mathematical_certificate_on_current_thread,
 };
 use super::conversion::Budget;
+use super::scheme_dsl::{self, Syntax};
 use super::signature::Declaration;
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
 use super::typing::CoreError;
-use crate::kernel::decide_primitive;
-use crate::proof::integer_math_normalization::propositions_match_under_integer_math_normalization;
+use crate::ClosedIntegerEvaluator;
+use crate::kernel::{KernelError, decide_primitive};
+use crate::proof::integer_math_normalization::{
+    lift_fixed_integer_relation, propositions_match_under_integer_math_normalization,
+};
 use crate::proof::{
     AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, ProofError, ProofNode,
     ProofRule, equality_rules, integer_bound_rules, integer_order_rules, order_discreteness,
@@ -152,8 +171,9 @@ pub enum BoundedDenotationError {
     /// payload is the same error `accept_certificate` reports.
     Certificate(ProofError),
     /// A valid bounded certificate construction the denotation does not
-    /// cover — currently the citation-level `Equal`↔`IntegerMathEqual`
-    /// denotation-shape crossing. Refused, never decided false.
+    /// cover. Unreachable for the families this route handles — the
+    /// `Equal`/`IntegerMathEqual` crossing denotes identically — but kept
+    /// so a future shape can refuse rather than decide false.
     Unsupported(&'static str),
     /// The elaborated judgment failed the kernel's re-decision. A
     /// well-formed elaboration never produces this; surfacing it keeps a
@@ -355,6 +375,233 @@ pub(crate) fn verify_bounded_certificate_on_current_thread(
     Ok(denoted)
 }
 
+/// The fixed roster of integer laws the order rules cite. Each member
+/// is one assumption constant with an exact `Π` statement over `Int`,
+/// `IntLt` and `IntLe` — a receiver audits the roster once, instead of
+/// one opaque `Π` implication per rule instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum IntegerLaw {
+    /// `Π(x y : Int). Id Int x y → IntLe x y`.
+    EqualityToLessOrEqual,
+    /// `Π(x y : Int). IntLt x y → IntLe x y`.
+    LessThanToLessOrEqual,
+    /// `Π(x y z : Int). IntLe x y → IntLe y z → IntLe x z`.
+    LessOrEqualTransitivity,
+    /// `Π(x y z : Int). IntLt x y → IntLt y z → IntLt x z`.
+    LessThanTransitivity,
+    /// `Π(x y z : Int). IntLt x y → IntLe y z → IntLt x z`.
+    LessThanLessOrEqualTransitivity,
+    /// `Π(x y z : Int). IntLe x y → IntLt y z → IntLt x z`.
+    LessOrEqualLessThanTransitivity,
+    /// `Π(x y z : Int). Id Int x y → IntLt x z → IntLt y z`.
+    LessThanSubstituteLeft,
+    /// `Π(x y z : Int). Id Int y z → IntLt x y → IntLt x z`.
+    LessThanSubstituteRight,
+    /// `Π(x y z : Int). Id Int x y → IntLe x z → IntLe y z`.
+    LessOrEqualSubstituteLeft,
+    /// `Π(x y z : Int). Id Int y z → IntLe x y → IntLe x z`.
+    LessOrEqualSubstituteRight,
+}
+
+/// The interning key for an `Int` element: the exact evaluated value of
+/// a closed term — `IntegerMathLiteral` magnitudes cap at `u128`, so
+/// values beyond that boundary intern by `BigInt`, not by literal —
+/// and the term itself when an open leaf or an undefined shift leaves
+/// it unevaluated.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum MathTermKey {
+    Closed(BigInt),
+    Open(IntegerMathTerm),
+}
+
+/// The denoted head of a mathematical-integer proposition — the shape
+/// the integer laws quantify over — with endpoints as interned `Int`
+/// element handles.
+#[derive(Debug, Clone, Copy)]
+enum IntegerRelation {
+    /// `Id Int left right`.
+    Equality { left: TermHandle, right: TermHandle },
+    /// `IntLt left right`.
+    LessThan { left: TermHandle, right: TermHandle },
+    /// `IntLe left right`.
+    LessOrEqual { left: TermHandle, right: TermHandle },
+}
+
+/// One roster law's exact `Π` statement, written in `scheme_dsl`
+/// notation over the `Int`, `IntLt` and `IntLe` declaration positions
+/// so binders resolve to de Bruijn indices mechanically. The built term
+/// is a declaration's `ty` — `check_signature` re-decides it under the
+/// roster prefix like any other statement.
+fn integer_law_statement(
+    law: IntegerLaw,
+    integer: u32,
+    less_than: u32,
+    less_or_equal: u32,
+) -> Syntax {
+    use scheme_dsl::{apps, id, pi, scheme_at, v};
+    let carrier = || scheme_at(integer, Vec::new());
+    let lt = |left: Syntax, right: Syntax| apps(scheme_at(less_than, Vec::new()), [left, right]);
+    let le =
+        |left: Syntax, right: Syntax| apps(scheme_at(less_or_equal, Vec::new()), [left, right]);
+    let eq = |left: Syntax, right: Syntax| id(carrier(), left, right);
+    match law {
+        IntegerLaw::EqualityToLessOrEqual => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi("_", eq(v("x"), v("y")), le(v("x"), v("y"))),
+            ),
+        ),
+        IntegerLaw::LessThanToLessOrEqual => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi("_", lt(v("x"), v("y")), le(v("x"), v("y"))),
+            ),
+        ),
+        IntegerLaw::LessOrEqualTransitivity => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        le(v("x"), v("y")),
+                        pi("_", le(v("y"), v("z")), le(v("x"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessThanTransitivity => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        lt(v("x"), v("y")),
+                        pi("_", lt(v("y"), v("z")), lt(v("x"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessThanLessOrEqualTransitivity => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        lt(v("x"), v("y")),
+                        pi("_", le(v("y"), v("z")), lt(v("x"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessOrEqualLessThanTransitivity => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        le(v("x"), v("y")),
+                        pi("_", lt(v("y"), v("z")), lt(v("x"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessThanSubstituteLeft => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        eq(v("x"), v("y")),
+                        pi("_", lt(v("x"), v("z")), lt(v("y"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessThanSubstituteRight => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        eq(v("y"), v("z")),
+                        pi("_", lt(v("x"), v("y")), lt(v("x"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessOrEqualSubstituteLeft => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        eq(v("x"), v("y")),
+                        pi("_", le(v("x"), v("z")), le(v("y"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+        IntegerLaw::LessOrEqualSubstituteRight => pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi(
+                    "z",
+                    carrier(),
+                    pi(
+                        "_",
+                        eq(v("y"), v("z")),
+                        pi("_", le(v("x"), v("y")), le(v("x"), v("z"))),
+                    ),
+                ),
+            ),
+        ),
+    }
+}
+
 /// Proposition and scalar-term denotation state: the arena the judgment's
 /// terms live in, the declaration signature every constant names, and the
 /// interning tables that give each atom, carrier and scalar value exactly
@@ -376,6 +623,20 @@ struct Denotation {
     /// key is the term's evaluated closed literal when it has one, so
     /// decided closed equalities denote reflexive identities.
     terms: BTreeMap<ScalarTerm, u32>,
+    /// The `Int : Type 0` carrier position — one declaration every
+    /// mathematical-integer constant and relation names.
+    integer: Option<u32>,
+    /// `IntLt : Π(_ : Int). Π(_ : Int). Type 0` — the strict order.
+    integer_less_than: Option<u32>,
+    /// `IntLe : Π(_ : Int). Π(_ : Int). Type 0` — the nonstrict order.
+    integer_less_or_equal: Option<u32>,
+    /// The fixed integer-law roster: law → assumption position.
+    integer_laws: BTreeMap<IntegerLaw, u32>,
+    /// Canonical mathematical term → `Int`-typed assumption position.
+    /// Closed terms intern by exact evaluated value — so a decided
+    /// `IntegerMathEqual` on closed operands denotes `refl`-provable
+    /// `Id Int c c` — and open terms intern by the term itself.
+    math_terms: BTreeMap<MathTermKey, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
     /// Bounded rule instance → decision-assumption position. The key is
@@ -408,6 +669,11 @@ impl Denotation {
             atoms: BTreeMap::new(),
             carriers: BTreeMap::new(),
             terms: BTreeMap::new(),
+            integer: None,
+            integer_less_than: None,
+            integer_less_or_equal: None,
+            integer_laws: BTreeMap::new(),
+            math_terms: BTreeMap::new(),
             decisions: HashMap::new(),
             rule_axioms: BTreeMap::new(),
             constants: HashMap::new(),
@@ -432,13 +698,11 @@ impl Denotation {
         handle
     }
 
-    /// The `Type 0` assumption constant an atomic proposition denotes.
-    /// The interning key is the lifted mathematical form, so a retained
-    /// `LessOrEqual` and a requested `IntegerMathLessOrEqual` — which the
-    /// bounded citation matcher equates — denote the same constant.
+    /// The `Type 0` assumption constant an atomic proposition outside
+    /// the integer vocabulary denotes — every atom the certificate's
+    /// cited premises reach, interned once by the proposition itself.
     fn atom(&mut self, proposition: &Proposition) -> Result<TermHandle, BoundedDenotationError> {
-        let key =
-            crate::lift_fixed_integer_relation(proposition).unwrap_or_else(|| proposition.clone());
+        let key = lift_fixed_integer_relation(proposition).unwrap_or_else(|| proposition.clone());
         if let Some(&position) = self.atoms.get(&key) {
             return Ok(self.constant(position));
         }
@@ -480,6 +744,663 @@ impl Denotation {
         self.declarations.push(Declaration::assumption(0, ty));
         self.terms.insert(key, position);
         Ok(self.constant(position))
+    }
+
+    /// `Int : Type 0` — the mathematical-integer carrier assumption
+    /// every `Int` element and integer relation names, pushed once.
+    fn integer(&mut self) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = self.integer {
+            return Ok(position);
+        }
+        let position = self.position()?;
+        self.declarations
+            .push(Declaration::assumption(0, self.type_zero));
+        self.integer = Some(position);
+        Ok(position)
+    }
+
+    /// The `Int` carrier as a term — the `Constant` node every integer
+    /// identity types its endpoints against.
+    fn integer_constant(&mut self) -> Result<TermHandle, BoundedDenotationError> {
+        let position = self.integer()?;
+        Ok(self.constant(position))
+    }
+
+    /// `IntLt`/`IntLe : Π(_ : Int). Π(_ : Int). Type 0` — one shared
+    /// order-relation statement shape, two positions.
+    fn integer_order_relation(&mut self) -> Result<u32, BoundedDenotationError> {
+        let integer = self.integer()?;
+        let ty = scheme_dsl::build(
+            &mut self.arena,
+            &mut Vec::new(),
+            &scheme_dsl::pi(
+                "_",
+                scheme_dsl::scheme_at(integer, Vec::new()),
+                scheme_dsl::pi(
+                    "_",
+                    scheme_dsl::scheme_at(integer, Vec::new()),
+                    scheme_dsl::sort(Level::Constant(0)),
+                ),
+            ),
+        );
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        Ok(position)
+    }
+
+    /// `IntLt`'s declaration position.
+    fn integer_less_than(&mut self) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = self.integer_less_than {
+            return Ok(position);
+        }
+        let position = self.integer_order_relation()?;
+        self.integer_less_than = Some(position);
+        Ok(position)
+    }
+
+    /// `IntLe`'s declaration position.
+    fn integer_less_or_equal(&mut self) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = self.integer_less_or_equal {
+            return Ok(position);
+        }
+        let position = self.integer_order_relation()?;
+        self.integer_less_or_equal = Some(position);
+        Ok(position)
+    }
+
+    /// One roster law's assumption position — pushed with the carrier
+    /// and both relation constants before it, so `check_signature`
+    /// decides its exact `Π` statement under the roster prefix.
+    fn integer_law(&mut self, law: IntegerLaw) -> Result<u32, BoundedDenotationError> {
+        if let Some(&position) = self.integer_laws.get(&law) {
+            return Ok(position);
+        }
+        let integer = self.integer()?;
+        let less_than = self.integer_less_than()?;
+        let less_or_equal = self.integer_less_or_equal()?;
+        let ty = scheme_dsl::build(
+            &mut self.arena,
+            &mut Vec::new(),
+            &integer_law_statement(law, integer, less_than, less_or_equal),
+        );
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.integer_laws.insert(law, position);
+        Ok(position)
+    }
+
+    /// `law a₁ … aₙ` — the roster constant applied to the denoted
+    /// endpoints, then the premise evidence, in statement order.
+    fn integer_law_application(
+        &mut self,
+        law: IntegerLaw,
+        arguments: &[TermHandle],
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let position = self.integer_law(law)?;
+        let mut term = self.constant(position);
+        for &argument in arguments {
+            term = self.arena.insert(Term::Apply {
+                function: term,
+                argument,
+            });
+        }
+        Ok(term)
+    }
+
+    /// The `Int`-typed assumption constant a mathematical term denotes —
+    /// interned by its exact closed value when the shared evaluator has
+    /// one, so `add(1, 1)` and `2` name one constant and a decided
+    /// `IntegerMathEqual` on them is `refl`-provable; open terms intern
+    /// by the term itself.
+    fn math_term(&mut self, term: &IntegerMathTerm) -> Result<TermHandle, BoundedDenotationError> {
+        let key = match ClosedIntegerEvaluator::default().evaluate_closed(term) {
+            Ok(Some(value)) => MathTermKey::Closed(value),
+            Ok(None) => MathTermKey::Open(term.clone()),
+            Err(error) => {
+                // The same refusal the primitive judgment reports —
+                // interning shares the evaluator's budget, so a term
+                // too large to evaluate is refused, never approximated.
+                return Err(BoundedDenotationError::Certificate(
+                    ProofError::PrimitiveJudgment(KernelError::ClosedIntegerEvaluation(error)),
+                ));
+            }
+        };
+        if let Some(&position) = self.math_terms.get(&key) {
+            return Ok(self.constant(position));
+        }
+        let ty = self.integer_constant()?;
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.math_terms.insert(key, position);
+        Ok(self.constant(position))
+    }
+
+    /// `IntLt l r` or `IntLe l r` — the relation constant applied to the
+    /// two interned `Int` endpoints.
+    fn integer_order_term(
+        &mut self,
+        strict: bool,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let position = if strict {
+            self.integer_less_than()?
+        } else {
+            self.integer_less_or_equal()?
+        };
+        let left = self.math_term(left)?;
+        let right = self.math_term(right)?;
+        let relation = self.constant(position);
+        let function = self.arena.insert(Term::Apply {
+            function: relation,
+            argument: left,
+        });
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: right,
+        }))
+    }
+
+    /// The denoted head and endpoints of a proposition in the integer
+    /// vocabulary — `Id Int`, `IntLt` or `IntLe` — or `None` when
+    /// `denoted` lives in another vocabulary (a scalar carrier's `Id`,
+    /// an atom, a connective). Read-only: matching never creates a
+    /// declaration, so a partially-`Int` instance leaves the vocabulary
+    /// unused rather than pushed but uncited.
+    fn integer_relation(&self, denoted: TermHandle) -> Option<IntegerRelation> {
+        match self.arena.get(denoted) {
+            Term::Id { ty, left, right } => match self.arena.get(ty) {
+                Term::Constant { declaration, .. } if Some(declaration) == self.integer => {
+                    Some(IntegerRelation::Equality { left, right })
+                }
+                _ => None,
+            },
+            Term::Apply {
+                function,
+                argument: right,
+            } => match self.arena.get(function) {
+                Term::Apply {
+                    function: relation,
+                    argument: left,
+                } => match self.arena.get(relation) {
+                    Term::Constant { declaration, .. }
+                        if Some(declaration) == self.integer_less_than =>
+                    {
+                        Some(IntegerRelation::LessThan { left, right })
+                    }
+                    Term::Constant { declaration, .. }
+                        if Some(declaration) == self.integer_less_or_equal =>
+                    {
+                        Some(IntegerRelation::LessOrEqual { left, right })
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The `(carrier, left, right)` of an `Id`-denoted proposition, or
+    /// `None` for any other denotation shape.
+    fn identity_parts(&self, denoted: TermHandle) -> Option<(TermHandle, TermHandle, TermHandle)> {
+        if let Term::Id { ty, left, right } = self.arena.get(denoted) {
+            Some((ty, left, right))
+        } else {
+            None
+        }
+    }
+
+    /// `sym p` — `J(λ(y : C). λ(_ : Id C a y). Id C y a, refl C a, b, p)`
+    /// mapping `p : Id C a b` to `Id C b a`, over whichever carrier the
+    /// denoted identity names.
+    fn symmetry(
+        &mut self,
+        ty: TermHandle,
+        from: TermHandle,
+        to: TermHandle,
+        proof: TermHandle,
+    ) -> TermHandle {
+        let bound = self.arena.insert(Term::Variable(0));
+        let identity = self.arena.insert(Term::Id {
+            ty,
+            left: from,
+            right: bound,
+        });
+        let flipped = self.arena.insert(Term::Variable(1));
+        let body = self.arena.insert(Term::Id {
+            ty,
+            left: flipped,
+            right: from,
+        });
+        let inner = self.arena.insert(Term::Lambda {
+            domain: identity,
+            body,
+        });
+        let motive = self.arena.insert(Term::Lambda {
+            domain: ty,
+            body: inner,
+        });
+        let base = self.arena.insert(Term::Refl { ty, value: from });
+        self.arena.insert(Term::IdElim {
+            motive,
+            base,
+            endpoint: to,
+            proof,
+        })
+    }
+
+    /// `q ∘ p` — `J(λ(y : C). λ(_ : Id C m y). Id C l y, p, r, q)`
+    /// composing `p : Id C l m` and `q : Id C m r` to `Id C l r`, over
+    /// whichever carrier the denoted identities share.
+    fn transitivity(
+        &mut self,
+        ty: TermHandle,
+        left: TermHandle,
+        middle: TermHandle,
+        right: TermHandle,
+        first: TermHandle,
+        second: TermHandle,
+    ) -> TermHandle {
+        let bound = self.arena.insert(Term::Variable(0));
+        let identity = self.arena.insert(Term::Id {
+            ty,
+            left: middle,
+            right: bound,
+        });
+        let endpoint = self.arena.insert(Term::Variable(1));
+        let body = self.arena.insert(Term::Id {
+            ty,
+            left,
+            right: endpoint,
+        });
+        let inner = self.arena.insert(Term::Lambda {
+            domain: identity,
+            body,
+        });
+        let motive = self.arena.insert(Term::Lambda {
+            domain: ty,
+            body: inner,
+        });
+        self.arena.insert(Term::IdElim {
+            motive,
+            base: first,
+            endpoint: right,
+            proof: second,
+        })
+    }
+
+    /// Denoted symmetry evidence: the licensed premise and goal share
+    /// one `Id` carrier — canonical `IntegerMathEqual` order may already
+    /// identify them (the premise evidence stands alone), or read them
+    /// swapped (a `sym` `J`); any other denotation stays a per-instance
+    /// axiom.
+    fn symmetry_evidence(
+        &mut self,
+        premise: TermHandle,
+        goal: TermHandle,
+        evidence: TermHandle,
+    ) -> Option<TermHandle> {
+        if self.arena.structurally_equal(premise, goal) {
+            return Some(evidence);
+        }
+        let (carrier, left, right) = self.identity_parts(premise)?;
+        let (goal_carrier, goal_left, goal_right) = self.identity_parts(goal)?;
+        (self.arena.structurally_equal(carrier, goal_carrier)
+            && self.arena.structurally_equal(goal_left, right)
+            && self.arena.structurally_equal(goal_right, left))
+        .then(|| self.symmetry(carrier, left, right, evidence))
+    }
+
+    /// `p₂ ∘ p₁` over the denoted identities: the shared transitivity
+    /// check licensed the chain, so the denoted premises share a carrier
+    /// and one endpoint — the canonical `IntegerMathEqual` order decides
+    /// which side of each premise the shared endpoint sits on, and a
+    /// `sym` `J` reorients whichever premise needs it. `None` keeps the
+    /// per-instance axiom for non-`Id` denotations.
+    fn transitivity_evidence(
+        &mut self,
+        first_ty: TermHandle,
+        first: TermHandle,
+        second_ty: TermHandle,
+        second: TermHandle,
+        goal_ty: TermHandle,
+    ) -> Option<TermHandle> {
+        let (first_carrier, a, b) = self.identity_parts(first_ty)?;
+        let (second_carrier, c, d) = self.identity_parts(second_ty)?;
+        let (goal_carrier, e, f) = self.identity_parts(goal_ty)?;
+        if !(self.arena.structurally_equal(first_carrier, second_carrier)
+            && self.arena.structurally_equal(first_carrier, goal_carrier))
+        {
+            return None;
+        }
+        let (composed, left, right) = if self.arena.structurally_equal(b, c) {
+            (
+                self.transitivity(first_carrier, a, b, d, first, second),
+                a,
+                d,
+            )
+        } else if self.arena.structurally_equal(b, d) {
+            let second = self.symmetry(second_carrier, c, d, second);
+            (
+                self.transitivity(first_carrier, a, b, c, first, second),
+                a,
+                c,
+            )
+        } else if self.arena.structurally_equal(a, c) {
+            let first = self.symmetry(first_carrier, a, b, first);
+            (
+                self.transitivity(first_carrier, b, a, d, first, second),
+                b,
+                d,
+            )
+        } else if self.arena.structurally_equal(a, d) {
+            let first = self.symmetry(first_carrier, a, b, first);
+            let second = self.symmetry(second_carrier, c, d, second);
+            (
+                self.transitivity(first_carrier, b, a, c, first, second),
+                b,
+                c,
+            )
+        } else {
+            return None;
+        };
+        if self.arena.structurally_equal(e, left) && self.arena.structurally_equal(f, right) {
+            Some(composed)
+        } else if self.arena.structurally_equal(e, right) && self.arena.structurally_equal(f, left)
+        {
+            Some(self.symmetry(goal_carrier, left, right, composed))
+        } else {
+            None
+        }
+    }
+
+    /// `eq_le`/`lt_le` on the denoted relations for one
+    /// `IntegerOrderWeakening` instance: `Id Int` evidence is sym'd into
+    /// the conclusion's endpoint order when canonical order flipped it.
+    /// `None` leaves the per-instance axiom.
+    fn weakening_evidence(
+        &mut self,
+        premise_ty: TermHandle,
+        evidence: TermHandle,
+        goal_ty: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some(IntegerRelation::LessOrEqual { left, right }) = self.integer_relation(goal_ty)
+        else {
+            return Ok(None);
+        };
+        match self.integer_relation(premise_ty) {
+            Some(IntegerRelation::LessThan { left: a, right: b })
+                if self.arena.structurally_equal(a, left)
+                    && self.arena.structurally_equal(b, right) =>
+            {
+                self.integer_law_application(IntegerLaw::LessThanToLessOrEqual, &[a, b, evidence])
+                    .map(Some)
+            }
+            Some(IntegerRelation::Equality { left: a, right: b })
+                if self.arena.structurally_equal(a, left)
+                    && self.arena.structurally_equal(b, right) =>
+            {
+                self.integer_law_application(IntegerLaw::EqualityToLessOrEqual, &[a, b, evidence])
+                    .map(Some)
+            }
+            Some(IntegerRelation::Equality { left: a, right: b })
+                if self.arena.structurally_equal(a, right)
+                    && self.arena.structurally_equal(b, left) =>
+            {
+                let integer = self.integer_constant()?;
+                let evidence = self.symmetry(integer, a, b, evidence);
+                self.integer_law_application(IntegerLaw::EqualityToLessOrEqual, &[b, a, evidence])
+                    .map(Some)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// The transitivity law on the denoted `IntLt`/`IntLe` chain — the
+    /// shared check already fixed the exact middle and endpoints, so
+    /// matching denotations is a lookup, and `None` leaves the
+    /// per-instance axiom for any instance outside the vocabulary.
+    fn order_transitivity_evidence(
+        &mut self,
+        first_ty: TermHandle,
+        first: TermHandle,
+        second_ty: TermHandle,
+        second: TermHandle,
+        goal_ty: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        fn strictness(relation: IntegerRelation) -> Option<(bool, TermHandle, TermHandle)> {
+            match relation {
+                IntegerRelation::LessThan { left, right } => Some((true, left, right)),
+                IntegerRelation::LessOrEqual { left, right } => Some((false, left, right)),
+                IntegerRelation::Equality { .. } => None,
+            }
+        }
+        let Some((first_strict, a, b)) = self.integer_relation(first_ty).and_then(strictness)
+        else {
+            return Ok(None);
+        };
+        let Some((second_strict, middle, c)) =
+            self.integer_relation(second_ty).and_then(strictness)
+        else {
+            return Ok(None);
+        };
+        let Some((goal_strict, goal_left, goal_right)) =
+            self.integer_relation(goal_ty).and_then(strictness)
+        else {
+            return Ok(None);
+        };
+        let law = match (first_strict, second_strict, goal_strict) {
+            (false, false, false) => IntegerLaw::LessOrEqualTransitivity,
+            (true, true, true) => IntegerLaw::LessThanTransitivity,
+            (true, false, true) => IntegerLaw::LessThanLessOrEqualTransitivity,
+            (false, true, true) => IntegerLaw::LessOrEqualLessThanTransitivity,
+            _ => return Ok(None),
+        };
+        if !(self.arena.structurally_equal(b, middle)
+            && self.arena.structurally_equal(a, goal_left)
+            && self.arena.structurally_equal(c, goal_right))
+        {
+            return Ok(None);
+        }
+        self.integer_law_application(law, &[a, b, c, first, second])
+            .map(Some)
+    }
+
+    /// The `R`-substitution law for one `IntegerOrderSubstitution`
+    /// instance: the relation and conclusion agree on strictness and the
+    /// unchanged endpoint, and the `Id` evidence reads old→new or its
+    /// `sym` flip. `None` leaves the per-instance axiom.
+    fn order_substitution_evidence(
+        &mut self,
+        relation_ty: TermHandle,
+        relation_evidence: TermHandle,
+        equality_ty: TermHandle,
+        equality_evidence: TermHandle,
+        endpoint: usize,
+        goal_ty: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let (strict, relation_left, relation_right, substitute_left, substitute_right) =
+            match self.integer_relation(relation_ty) {
+                Some(IntegerRelation::LessThan { left, right }) => (
+                    true,
+                    left,
+                    right,
+                    IntegerLaw::LessThanSubstituteLeft,
+                    IntegerLaw::LessThanSubstituteRight,
+                ),
+                Some(IntegerRelation::LessOrEqual { left, right }) => (
+                    false,
+                    left,
+                    right,
+                    IntegerLaw::LessOrEqualSubstituteLeft,
+                    IntegerLaw::LessOrEqualSubstituteRight,
+                ),
+                _ => return Ok(None),
+            };
+        let (goal_left, goal_right) = match self.integer_relation(goal_ty) {
+            Some(IntegerRelation::LessThan { left, right }) if strict => (left, right),
+            Some(IntegerRelation::LessOrEqual { left, right }) if !strict => (left, right),
+            _ => return Ok(None),
+        };
+        let Some(IntegerRelation::Equality { left: s, right: t }) =
+            self.integer_relation(equality_ty)
+        else {
+            return Ok(None);
+        };
+        // The law's (x, y, z) quantifier order, the replaced endpoint's
+        // old→new pair, and the endpoint arguments in statement order.
+        // The other endpoint never moves — denoted equality is canonical,
+        // so the `Id` evidence may read new→old and take a `sym` flip.
+        let (law, old, new, endpoints) = match endpoint {
+            0 if self.arena.structurally_equal(relation_right, goal_right) => (
+                substitute_left,
+                relation_left,
+                goal_left,
+                [relation_left, goal_left, relation_right],
+            ),
+            1 if self.arena.structurally_equal(relation_left, goal_left) => (
+                substitute_right,
+                relation_right,
+                goal_right,
+                [relation_left, relation_right, goal_right],
+            ),
+            _ => return Ok(None),
+        };
+        let equality_evidence = if self.arena.structurally_equal(s, old)
+            && self.arena.structurally_equal(t, new)
+        {
+            equality_evidence
+        } else if self.arena.structurally_equal(s, new) && self.arena.structurally_equal(t, old) {
+            let integer = self.integer_constant()?;
+            self.symmetry(integer, s, t, equality_evidence)
+        } else {
+            return Ok(None);
+        };
+        self.integer_law_application(
+            law,
+            &[
+                endpoints[0],
+                endpoints[1],
+                endpoints[2],
+                equality_evidence,
+                relation_evidence,
+            ],
+        )
+        .map(Some)
+    }
+
+    /// `ValueEqualityTransport` through the integer vocabulary: a single
+    /// proved equation `s ≡ t` moving one `Int` endpoint cites the same
+    /// substitution laws `IntegerOrderSubstitution` uses — an `IntLt`/
+    /// `IntLe` premise matches the roster directly, and an `Id Int`
+    /// premise transports by `J`-composed symmetry and transitivity.
+    /// Every other shape (several equations, a non-integer carrier,
+    /// transport inside a conjunction or bound) keeps the per-instance
+    /// axiom — the roster only spans whole `Int` relations.
+    fn transport_evidence(
+        &mut self,
+        premise_ty: TermHandle,
+        premise_evidence: TermHandle,
+        equality_ty: TermHandle,
+        equality_evidence: TermHandle,
+        goal_ty: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        match (
+            self.integer_relation(premise_ty),
+            self.integer_relation(goal_ty),
+        ) {
+            (
+                Some(IntegerRelation::Equality { .. }),
+                Some(IntegerRelation::Equality {
+                    left: goal_left,
+                    right: goal_right,
+                }),
+            ) => {
+                let Some(IntegerRelation::Equality { left: a, right: b }) =
+                    self.integer_relation(premise_ty)
+                else {
+                    unreachable!("matched above");
+                };
+                let Some(IntegerRelation::Equality { left: s, right: t }) =
+                    self.integer_relation(equality_ty)
+                else {
+                    return Ok(None);
+                };
+                let integer = self.integer_constant()?;
+                // Left endpoint moved `a → goal_left`, or right moved
+                // `b → goal_right`; the equation reads the move in
+                // either direction and `sym` reorients as needed.
+                if self.arena.structurally_equal(b, goal_right) {
+                    let Some(directed) =
+                        self.directed_equality(s, t, a, goal_left, equality_evidence)
+                    else {
+                        return Ok(None);
+                    };
+                    // `Id gl a` then `Id a b` compose to `Id gl b`.
+                    let flipped = self.symmetry(integer, a, goal_left, directed);
+                    Ok(Some(self.transitivity(
+                        integer,
+                        goal_left,
+                        a,
+                        b,
+                        flipped,
+                        premise_evidence,
+                    )))
+                } else if self.arena.structurally_equal(a, goal_left) {
+                    let Some(directed) =
+                        self.directed_equality(s, t, b, goal_right, equality_evidence)
+                    else {
+                        return Ok(None);
+                    };
+                    Ok(Some(self.transitivity(
+                        integer,
+                        a,
+                        b,
+                        goal_right,
+                        premise_evidence,
+                        directed,
+                    )))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => {
+                for endpoint in [0usize, 1usize] {
+                    if let Some(term) = self.order_substitution_evidence(
+                        premise_ty,
+                        premise_evidence,
+                        equality_ty,
+                        equality_evidence,
+                        endpoint,
+                        goal_ty,
+                    )? {
+                        return Ok(Some(term));
+                    }
+                }
+                Ok(None)
+            }
+        }
+    }
+
+    /// The equation evidence oriented as `Id Int old new`, or `None`
+    /// when its denoted endpoints are not `{old, new}` in either order.
+    fn directed_equality(
+        &mut self,
+        s: TermHandle,
+        t: TermHandle,
+        old: TermHandle,
+        new: TermHandle,
+        evidence: TermHandle,
+    ) -> Option<TermHandle> {
+        if self.arena.structurally_equal(s, old) && self.arena.structurally_equal(t, new) {
+            Some(evidence)
+        } else if self.arena.structurally_equal(s, new) && self.arena.structurally_equal(t, old) {
+            let integer = self.integer_constant().ok()?;
+            Some(self.symmetry(integer, s, t, evidence))
+        } else {
+            None
+        }
     }
 
     /// The named decision axiom for one bounded rule instance: an
@@ -553,11 +1474,36 @@ impl Denotation {
                 let right = self.two_one;
                 self.arena.insert(Term::Id { ty, left, right })
             }
-            Proposition::Equal(left, right) => {
-                let ty = self.carrier(left.scalar_type())?;
-                let left = self.scalar_term(left)?;
-                let right = self.scalar_term(right)?;
+            Proposition::Equal(..) | Proposition::LessThan(..) | Proposition::LessOrEqual(..) => {
+                // A relation whose integer operands both lift denotes
+                // the `Int` vocabulary — `Id Int` for `Equal`, the
+                // `IntLt`/`IntLe` application for the orders — so fixed
+                // and `IntegerMath*` forms share one type. An unliftable
+                // operand (a compound or non-integer carrier) stays in
+                // the per-scalar vocabulary: `Id S` for equality, an
+                // atom for the orders.
+                if let Some(lifted) = lift_fixed_integer_relation(proposition) {
+                    self.denote(&lifted)?
+                } else if let Proposition::Equal(left, right) = proposition {
+                    let ty = self.carrier(left.scalar_type())?;
+                    let left = self.scalar_term(left)?;
+                    let right = self.scalar_term(right)?;
+                    self.arena.insert(Term::Id { ty, left, right })
+                } else {
+                    self.atom(proposition)?
+                }
+            }
+            Proposition::IntegerMathEqual(left, right) => {
+                let left = self.math_term(left)?;
+                let right = self.math_term(right)?;
+                let ty = self.integer_constant()?;
                 self.arena.insert(Term::Id { ty, left, right })
+            }
+            Proposition::IntegerMathLessThan(left, right) => {
+                self.integer_order_term(true, left, right)?
+            }
+            Proposition::IntegerMathLessOrEqual(left, right) => {
+                self.integer_order_term(false, left, right)?
             }
             Proposition::Conjunction(conjuncts) => self.conjunction(conjuncts)?,
             Proposition::Disjunction(disjuncts) => self.disjunction(disjuncts)?,
@@ -979,43 +1925,20 @@ impl<'a> Elaboration<'a> {
                     ));
                 }
                 self.rules.insert(AcceptedProofRule::EqualitySymmetry);
-                let carrier = self.denotation.carrier(left.scalar_type())?;
-                let left = self.denotation.scalar_term(left)?;
-                let right = self.denotation.scalar_term(right)?;
-                // `J(λ(y : S). λ(_ : Id S l y). Id S y l, refl S l, r, p)`
-                // — symmetry as the identity eliminator, re-decided.
-                let motive = {
-                    let bound = self.denotation.arena.insert(Term::Variable(0));
-                    let identity = self.denotation.arena.insert(Term::Id {
-                        ty: carrier,
-                        left,
-                        right: bound,
-                    });
-                    let bound = self.denotation.arena.insert(Term::Variable(1));
-                    let body = self.denotation.arena.insert(Term::Id {
-                        ty: carrier,
-                        left: bound,
-                        right: left,
-                    });
-                    let inner = self.denotation.arena.insert(Term::Lambda {
-                        domain: identity,
-                        body,
-                    });
-                    self.denotation.arena.insert(Term::Lambda {
-                        domain: carrier,
-                        body: inner,
-                    })
-                };
-                let base = self.denotation.arena.insert(Term::Refl {
-                    ty: carrier,
-                    value: left,
-                });
-                Ok(self.denotation.arena.insert(Term::IdElim {
-                    motive,
-                    base,
-                    endpoint: right,
-                    proof: proof_term,
-                }))
+                let premise_ty = self.denotation.denote(&equality.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                match self
+                    .denotation
+                    .symmetry_evidence(premise_ty, goal_ty, proof_term)
+                {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::EqualitySymmetry,
+                        vec![equality.conclusion.clone()],
+                        vec![proof_term],
+                        &proof.conclusion,
+                    ),
+                }
             }
             ProofRule::EqualityTransitivity {
                 left_equals_middle,
@@ -1030,61 +1953,18 @@ impl<'a> Elaboration<'a> {
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
                 self.rules.insert(AcceptedProofRule::EqualityTransitivity);
-                match (
-                    &left_equals_middle.conclusion,
-                    &middle_equals_right.conclusion,
-                    &proof.conclusion,
-                ) {
-                    // Two `Id` premises composing to an exact `Equal`
-                    // conclusion is the kernel's own transitivity: `J`.
-                    (
-                        Proposition::Equal(left, first_middle),
-                        Proposition::Equal(second_middle, right),
-                        Proposition::Equal(..),
-                    ) if first_middle == second_middle => {
-                        let carrier = self.denotation.carrier(left.scalar_type())?;
-                        let left = self.denotation.scalar_term(left)?;
-                        let middle = self.denotation.scalar_term(first_middle)?;
-                        let right = self.denotation.scalar_term(right)?;
-                        // `J(λ(y : S). λ(_ : Id S m y). Id S l y, p₁, r, p₂)`
-                        // — transitivity as the identity eliminator.
-                        let motive = {
-                            let bound = self.denotation.arena.insert(Term::Variable(0));
-                            let identity = self.denotation.arena.insert(Term::Id {
-                                ty: carrier,
-                                left: middle,
-                                right: bound,
-                            });
-                            let bound = self.denotation.arena.insert(Term::Variable(1));
-                            let body = self.denotation.arena.insert(Term::Id {
-                                ty: carrier,
-                                left,
-                                right: bound,
-                            });
-                            let inner = self.denotation.arena.insert(Term::Lambda {
-                                domain: identity,
-                                body,
-                            });
-                            self.denotation.arena.insert(Term::Lambda {
-                                domain: carrier,
-                                body: inner,
-                            })
-                        };
-                        Ok(self.denotation.arena.insert(Term::IdElim {
-                            motive,
-                            base: first,
-                            endpoint: right,
-                            proof: second,
-                        }))
-                    }
-                    // Every other licensed shape — mathematical-integer
-                    // and content-conservation transitivity, and the
-                    // normalized `IntegerMathEqual` conclusion of an
-                    // `Equal` chain — is a named rule-instance decision:
-                    // its premises are checked evidence but the
-                    // conclusion is an atom, not an `Id`, so `J` cannot
-                    // reach it.
-                    _ => self.rule_instance(
+                let first_ty = self.denotation.denote(&left_equals_middle.conclusion)?;
+                let second_ty = self.denotation.denote(&middle_equals_right.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                match self
+                    .denotation
+                    .transitivity_evidence(first_ty, first, second_ty, second, goal_ty)
+                {
+                    Some(term) => Ok(term),
+                    // A `ContentConservation` chain, or any instance
+                    // leaving the `Id` vocabulary, stays a named
+                    // rule-instance decision.
+                    None => self.rule_instance(
                         AcceptedProofRule::EqualityTransitivity,
                         vec![
                             left_equals_middle.conclusion.clone(),
@@ -1103,6 +1983,20 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
+                self.rules.insert(AcceptedProofRule::PredicateDenotation);
+                let premise_ty = self.denotation.denote(&premise.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                // Both propositions reach the same normalized denotation
+                // goal; when their terms already agree — a canonical
+                // `Equal`/`IntegerMathEqual` pair — the premise evidence
+                // inhabits the goal with no axiom at all.
+                if self
+                    .denotation
+                    .arena
+                    .structurally_equal(premise_ty, goal_ty)
+                {
+                    return Ok(evidence);
+                }
                 self.rule_instance(
                     AcceptedProofRule::PredicateDenotation,
                     vec![premise.conclusion.clone()],
@@ -1129,6 +2023,21 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
+                self.rules.insert(AcceptedProofRule::ValueEqualityTransport);
+                if equalities.len() == 1 {
+                    let premise_ty = self.denotation.denote(&premise.conclusion)?;
+                    let equality_ty = self.denotation.denote(&equalities[0].conclusion)?;
+                    let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                    if let Some(term) = self.denotation.transport_evidence(
+                        premise_ty,
+                        evidence[0],
+                        equality_ty,
+                        evidence[1],
+                        goal_ty,
+                    )? {
+                        return Ok(term);
+                    }
+                }
                 self.rule_instance(
                     AcceptedProofRule::ValueEqualityTransport,
                     premises,
@@ -1170,12 +2079,21 @@ impl<'a> Elaboration<'a> {
                 let evidence = self.node(relation)?;
                 integer_order_rules::order_weakening(&relation.conclusion, &proof.conclusion)
                     .map_err(BoundedDenotationError::Certificate)?;
-                self.rule_instance(
-                    AcceptedProofRule::IntegerOrderWeakening,
-                    vec![relation.conclusion.clone()],
-                    vec![evidence],
-                    &proof.conclusion,
-                )
+                self.rules.insert(AcceptedProofRule::IntegerOrderWeakening);
+                let premise_ty = self.denotation.denote(&relation.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                match self
+                    .denotation
+                    .weakening_evidence(premise_ty, evidence, goal_ty)?
+                {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::IntegerOrderWeakening,
+                        vec![relation.conclusion.clone()],
+                        vec![evidence],
+                        &proof.conclusion,
+                    ),
+                }
             }
             ProofRule::IntegerLessOrEqualTransitivity {
                 left_less_or_equal_middle,
@@ -1189,15 +2107,30 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
-                self.rule_instance(
-                    AcceptedProofRule::IntegerLessOrEqualTransitivity,
-                    vec![
-                        left_less_or_equal_middle.conclusion.clone(),
-                        middle_less_or_equal_right.conclusion.clone(),
-                    ],
-                    vec![first, second],
-                    &proof.conclusion,
-                )
+                self.rules
+                    .insert(AcceptedProofRule::IntegerLessOrEqualTransitivity);
+                let first_ty = self
+                    .denotation
+                    .denote(&left_less_or_equal_middle.conclusion)?;
+                let second_ty = self
+                    .denotation
+                    .denote(&middle_less_or_equal_right.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                match self
+                    .denotation
+                    .order_transitivity_evidence(first_ty, first, second_ty, second, goal_ty)?
+                {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::IntegerLessOrEqualTransitivity,
+                        vec![
+                            left_less_or_equal_middle.conclusion.clone(),
+                            middle_less_or_equal_right.conclusion.clone(),
+                        ],
+                        vec![first, second],
+                        &proof.conclusion,
+                    ),
+                }
             }
             ProofRule::IntegerStrictOrderTransitivity {
                 left_to_middle,
@@ -1211,15 +2144,26 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
-                self.rule_instance(
-                    AcceptedProofRule::IntegerStrictOrderTransitivity,
-                    vec![
-                        left_to_middle.conclusion.clone(),
-                        middle_to_right.conclusion.clone(),
-                    ],
-                    vec![first, second],
-                    &proof.conclusion,
-                )
+                self.rules
+                    .insert(AcceptedProofRule::IntegerStrictOrderTransitivity);
+                let first_ty = self.denotation.denote(&left_to_middle.conclusion)?;
+                let second_ty = self.denotation.denote(&middle_to_right.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                match self
+                    .denotation
+                    .order_transitivity_evidence(first_ty, first, second_ty, second, goal_ty)?
+                {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::IntegerStrictOrderTransitivity,
+                        vec![
+                            left_to_middle.conclusion.clone(),
+                            middle_to_right.conclusion.clone(),
+                        ],
+                        vec![first, second],
+                        &proof.conclusion,
+                    ),
+                }
             }
             ProofRule::IntegerOrderSubstitution {
                 relation,
@@ -1235,12 +2179,27 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
-                self.rule_instance(
-                    AcceptedProofRule::IntegerOrderSubstitution,
-                    vec![relation.conclusion.clone(), equality.conclusion.clone()],
-                    vec![relation_evidence, equality_evidence],
-                    &proof.conclusion,
-                )
+                self.rules
+                    .insert(AcceptedProofRule::IntegerOrderSubstitution);
+                let relation_ty = self.denotation.denote(&relation.conclusion)?;
+                let equality_ty = self.denotation.denote(&equality.conclusion)?;
+                let goal_ty = self.denotation.denote(&proof.conclusion)?;
+                match self.denotation.order_substitution_evidence(
+                    relation_ty,
+                    relation_evidence,
+                    equality_ty,
+                    equality_evidence,
+                    *endpoint,
+                    goal_ty,
+                )? {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::IntegerOrderSubstitution,
+                        vec![relation.conclusion.clone(), equality.conclusion.clone()],
+                        vec![relation_evidence, equality_evidence],
+                        &proof.conclusion,
+                    ),
+                }
             }
             ProofRule::IntegerAffineBound {
                 root_bound,
@@ -1365,9 +2324,10 @@ impl<'a> Elaboration<'a> {
     /// A premise citation: `Assumption{index}` names `roster[index]`,
     /// which may be an ambient assumption or a discharged branch
     /// hypothesis. The bounded matcher's lift/lower normalization is
-    /// honored only when it leaves the denotation unchanged — an
-    /// `Equal`/`IntegerMathEqual` crossing changes denotation shape and
-    /// stays outside this fragment.
+    /// honored exactly: `Equal`/`IntegerMathEqual` and the order
+    /// relations denote the same `Int`-vocabulary term either side of
+    /// the crossing, so a normalized citation binds its premise's own
+    /// evidence.
     fn cited(
         &mut self,
         index: usize,
@@ -1398,6 +2358,13 @@ impl<'a> Elaboration<'a> {
 
     /// Citation pre-check for the normalized-but-not-equal case: the
     /// retained and requested propositions must denote the same term.
+    /// Every normalized relation the matcher equates denotes identically
+    /// now (`Id Int` either side of `Equal`/`IntegerMathEqual`, the same
+    /// `IntLt`/`IntLe` applications across lifted orders), so the refusal
+    /// below is defensive — the checked denotation fragment no longer
+    /// contains a shape crossing it cannot express.
+    /// `Err(Unsupported)` remains for a hypothetical normalized pair
+    /// whose denotations diverge.
     fn same_denotation(
         &mut self,
         retained: &Proposition,
@@ -1677,9 +2644,12 @@ mod tests {
         )
         .expect("the discharge judgment verifies in the kernel");
 
-        // One `Type 0` assumption for the atom; the judgment is
-        // `P : Type 0; [P] ⊢ p : P` — the term is the bound variable.
-        assert_eq!(denoted.certificate.signature.len(), 1);
+        // `x <= y` over integers lifts to `IntLe m_x m_y`: the
+        // signature is `{Int : Type 0, IntLe : Π(_:Int).Π(_:Int).Type 0,
+        // m_x : Int, m_y : Int}` and the judgment
+        // `Γ; [IntLe m_x m_y] ⊢ p : IntLe m_x m_y` — the term is the
+        // bound variable.
+        assert_eq!(denoted.certificate.signature.len(), 4);
         assert!(denoted.certificate.signature[0].is_assumption());
         assert_eq!(denoted.certificate.context.len(), 1);
         assert_eq!(
@@ -1688,8 +2658,8 @@ mod tests {
         );
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-            BTreeSet::from([0]),
-            "the judgment commits to exactly the cited atom",
+            BTreeSet::from([0, 1, 2, 3]),
+            "the judgment commits to the carrier, the relation and both endpoints",
         );
         assert_eq!(
             denoted.assumptions,
@@ -1805,7 +2775,8 @@ mod tests {
             &mut budget(),
         )
         .expect("transitivity verifies as J");
-        // Carrier `S` plus one assumption constant per scalar endpoint.
+        // `Int` plus one assumption constant per mathematical endpoint;
+        // the lifted `Id Int` chain composes by `J`.
         assert_eq!(denoted.certificate.signature.len(), 4);
         assert_eq!(denoted.certificate.context.len(), 2);
         assert_eq!(
@@ -1833,21 +2804,28 @@ mod tests {
         };
         let denoted =
             verify_bounded_certificate(&context, &flipped, &[source], &[], &proof, &mut budget())
-                .expect("symmetry verifies as J");
+                .expect("symmetry verifies");
+        // `{Int, m_x, m_y}` — canonical `IntegerMathEqual` order makes
+        // the flipped goal's denotation the premise's own, so the cited
+        // variable is the whole evidence.
         assert_eq!(denoted.certificate.signature.len(), 3);
+        assert_eq!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Variable(0),
+        );
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
             BTreeSet::from([0, 1, 2]),
         );
     }
 
-    /// A rule whose conclusion is not a kernel-derivable shape denotes a
-    /// named rule-instance decision: `x < y ⊢ x <= y` elaborates to the
-    /// axiom `Π(_ : ⟦x<y⟧). ⟦x<=y⟧` applied to the cited premise, the
-    /// shared relation check re-decides the instance before the axiom is
-    /// built, and the closure names the axiom exactly.
+    /// An integer order rule whose instance lands wholly in the `Int`
+    /// vocabulary denotes a roster-law application: `x < y ⊢ x <= y`
+    /// elaborates to `lt_le m_x m_y p`, the shared relation check
+    /// re-decides the instance before the law is cited, and the closure
+    /// names the law exactly.
     #[test]
-    fn order_rules_become_named_rule_instances() {
+    fn order_rules_become_named_law_citations() {
         let (x_id, x) = value(1);
         let (y_id, y) = value(2);
         let context = PropositionContext::from_value_types([
@@ -1874,19 +2852,27 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("order weakening verifies as a named rule instance");
-        // Two proposition atoms and the instance axiom; the evidence is
-        // the axiom applied to the cited premise variable.
-        assert_eq!(denoted.certificate.signature.len(), 3);
-        let Term::Apply { function, argument } = denoted.arena.get(denoted.certificate.term) else {
-            panic!("a rule instance is the axiom applied to its premise");
+        .expect("order weakening verifies as a roster citation");
+        // The signature is `{Int, IntLt, m_x, m_y, IntLe, lt_le}`: the
+        // evidence is the roster constant applied to the endpoints and
+        // the cited premise variable — `lt_le m_x m_y p`.
+        assert_eq!(denoted.certificate.signature.len(), 6);
+        let mut head = denoted.certificate.term;
+        for _ in 0..3 {
+            let Term::Apply { function, .. } = denoted.arena.get(head) else {
+                panic!("a roster citation applies endpoints then evidence");
+            };
+            head = function;
+        }
+        assert!(matches!(denoted.arena.get(head), Term::Constant { .. }));
+        let Term::Apply { argument, .. } = denoted.arena.get(denoted.certificate.term) else {
+            unreachable!("checked above");
         };
-        assert!(matches!(denoted.arena.get(function), Term::Constant { .. }));
         assert_eq!(denoted.arena.get(argument), Term::Variable(0));
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-            BTreeSet::from([0, 1, 2]),
-            "the judgment names both atoms and the instance axiom",
+            BTreeSet::from([0, 1, 2, 3, 4, 5]),
+            "the judgment names the vocabulary, both endpoints and the law",
         );
         assert_eq!(
             denoted.rules,
@@ -1922,12 +2908,12 @@ mod tests {
         ));
     }
 
-    /// The remaining licensed transitivity arms — mathematical-integer
-    /// equality and the normalized `IntegerMathEqual` conclusion of an
-    /// `Equal` chain — denote rule-instance axioms too, while the pure
-    /// `Equal` composition stays a `J` elimination.
+    /// Mathematical-integer transitivity — `IntegerMathEqual` premises
+    /// and the normalized `IntegerMathEqual` conclusion of an `Equal`
+    /// chain alike — denotes `J` on the `Int` vocabulary; the
+    /// orientation fixups ride on canonical endpoint order.
     #[test]
-    fn non_scalar_transitivity_becomes_named_rule_instances() {
+    fn integer_math_transitivity_becomes_identity_eliminations() {
         // `IntegerMathEqual` transitivity: `a = b`, `b = c` ⊢ `a = c`
         // over mathematical literals.
         let math = |value: u128| {
@@ -1957,10 +2943,10 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("mathematical-integer transitivity verifies as a rule instance");
+        .expect("mathematical-integer transitivity verifies as J");
         assert!(matches!(
             denoted.arena.get(denoted.certificate.term),
-            Term::Apply { .. },
+            Term::IdElim { .. },
         ));
         assert_eq!(
             denoted.rules,
@@ -2005,10 +2991,10 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("the normalized conclusion verifies as a rule instance");
+        .expect("the normalized conclusion verifies as J");
         assert!(matches!(
             denoted.arena.get(denoted.certificate.term),
-            Term::Apply { .. },
+            Term::IdElim { .. },
         ));
     }
 
@@ -2028,7 +3014,9 @@ mod tests {
         .expect("context");
 
         // `PredicateDenotation`: `y == x` converts to its canonical `x
-        // == y` — different propositions, one normalized goal.
+        // == y` — different propositions, one canonical `Id Int`
+        // denotation, so the cited premise variable is the whole
+        // evidence with no axiom at all.
         let premise = Proposition::Equal(y.clone(), x.clone());
         let goal = Proposition::Equal(x, y);
         let proof = ProofNode {
@@ -2048,15 +3036,15 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("predicate denotation verifies as a rule instance");
-        assert!(matches!(
+        .expect("predicate denotation verifies definitionally");
+        assert_eq!(
             denoted.arena.get(denoted.certificate.term),
-            Term::Apply { .. },
-        ));
+            Term::Variable(0),
+        );
 
         // `ValueEqualityTransport`: `x <= y` under the proved `x == z`
-        // transports to `z <= y`; the equation is a premise of the
-        // instance axiom beside the transported proposition.
+        // transports to `z <= y` — a single integer-order move cites
+        // the same substitution law the order rule uses.
         let premise = Proposition::LessOrEqual(
             ScalarTerm::value(x_id, unsigned64_type()),
             ScalarTerm::value(y_id, unsigned64_type()),
@@ -2084,13 +3072,17 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("value equality transport verifies as a rule instance");
-        // Two `Apply` spines: the axiom applied to the premise and to
-        // the equality evidence.
-        let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
-            panic!("transport denotes the axiom applied to its premises");
-        };
-        assert!(matches!(denoted.arena.get(function), Term::Apply { .. }));
+        .expect("value equality transport verifies as a roster citation");
+        // `le_subst_left m_x m_z m_y eq p` — the roster law applied to
+        // the three endpoints, the equation evidence, and the premise.
+        let mut head = denoted.certificate.term;
+        for _ in 0..5 {
+            let Term::Apply { function, .. } = denoted.arena.get(head) else {
+                panic!("transport cites the substitution law applied to endpoints and evidence");
+            };
+            head = function;
+        }
+        assert!(matches!(denoted.arena.get(head), Term::Constant { .. }));
         assert_eq!(
             denoted.rules,
             vec![
@@ -2100,11 +3092,12 @@ mod tests {
         );
     }
 
-    /// `IntegerOrderSubstitution` denotes a rule instance over the
-    /// relation and equality premises; the substituted endpoint is the
-    /// shared check's decision, not a separate denotation.
+    /// `IntegerOrderSubstitution` cites the roster's substitution law
+    /// over the `Int` denotations of the relation and equality
+    /// premises; the substituted endpoint is the shared check's
+    /// decision, not a separate denotation.
     #[test]
-    fn order_substitution_becomes_a_named_rule_instance() {
+    fn order_substitution_becomes_a_named_law_citation() {
         let (x_id, x) = value(1);
         let (y_id, y) = value(2);
         let (z_id, z) = value(3);
@@ -2139,11 +3132,17 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("order substitution verifies as a rule instance");
-        assert!(matches!(
-            denoted.arena.get(denoted.certificate.term),
-            Term::Apply { .. },
-        ));
+        .expect("order substitution verifies as a roster citation");
+        // `le_subst_left m_x m_z m_y eq p` — five `Apply`s to the law
+        // constant: three endpoints, the equation, the relation.
+        let mut head = denoted.certificate.term;
+        for _ in 0..5 {
+            let Term::Apply { function, .. } = denoted.arena.get(head) else {
+                panic!("a substitution citation applies endpoints then evidence");
+            };
+            head = function;
+        }
+        assert!(matches!(denoted.arena.get(head), Term::Constant { .. }));
 
         // Substituting an endpoint the equality does not license is the
         // shared checker's mismatch, never an axiom.
@@ -2241,11 +3240,14 @@ mod tests {
             &mut budget(),
         )
         .expect("the decided order verifies");
-        assert_eq!(denoted.certificate.signature.len(), 2);
+        // `IntLt` is a relation, not an `Id`, so the decided `1 < 2`
+        // names a decision assumption of type `IntLt m₁ m₂` — the
+        // signature is `{Int, IntLt, m₁, m₂, decision}`.
+        assert_eq!(denoted.certificate.signature.len(), 5);
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-            BTreeSet::from([0, 1]),
-            "atom assumption and the named decision assumption",
+            BTreeSet::from([0, 1, 2, 3, 4]),
+            "carrier, relation, both literal endpoints and the named decision",
         );
 
         // `Truth` is definitional: no signature, no decision assumption.
@@ -2569,16 +3571,12 @@ mod tests {
         ));
     }
 
-    /// The one crossing outside the denoted fragment refuses as
-    /// `Unsupported` — a retained `Equal` cited as its lifted
-    /// `IntegerMathEqual`, where `Id` and the atom are different types —
-    /// never a wrong judgment, never a silent reinterpretation. Rule
-    /// families the denotation does cover are refused nowhere.
+    /// The citation-level `Equal`↔`IntegerMathEqual` crossing denotes
+    /// identically now: both sides name `Id Int` over the shared `Int`
+    /// vocabulary, so the normalized citation binds the premise's own
+    /// variable — the `Id`-versus-atom shape crossing is closed.
     #[test]
-    fn uncovered_denotation_crossings_refuse_unsupported() {
-        // The bounded citation matcher accepts `Equal` cited as its lifted
-        // `IntegerMathEqual`; the denotation refuses the crossing because
-        // `Id` and the atom are different types.
+    fn the_equal_integer_math_crossing_denotes_identically() {
         let (x_id, x) = value(1);
         let (y_id, y) = value(2);
         let context = PropositionContext::from_value_types([
@@ -2597,10 +3595,21 @@ mod tests {
             Ok(()),
             "the bounded checker accepts the normalized citation",
         );
-        assert!(matches!(
-            denote_bounded_certificate(&context, &lifted, &[fixed], &[], &proof),
-            Err(BoundedDenotationError::Unsupported(_)),
-        ));
+        let denoted = verify_bounded_certificate(
+            &context,
+            &lifted,
+            std::slice::from_ref(&fixed),
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("the crossing denotes the same `Id Int` and verifies");
+        // `{Int, m_x, m_y}`; the cited variable is the evidence.
+        assert_eq!(denoted.certificate.signature.len(), 3);
+        assert_eq!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Variable(0),
+        );
     }
 
     /// An uncited ambient premise still belongs to the judgment: the
