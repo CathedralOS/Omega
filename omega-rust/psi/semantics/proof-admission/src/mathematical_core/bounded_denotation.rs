@@ -41,6 +41,14 @@
 //!   identity. A cited `Equal` and its `IntegerMathEqual` form share
 //!   one `Id Int`, so the citation-level `Equal`↔`IntegerMathEqual`
 //!   crossing the bounded matcher licenses denotes to the same type.
+//! - `ContentConservation` — exact equality in one closed content
+//!   algebra — denotes `Id C l' r'` where `C` is that algebra's own
+//!   `Type 0` carrier assumption and `l'`, `r'` are element assumptions
+//!   interned by the canonical content terms. Equalities in different
+//!   algebras can never compose: their carriers are different
+//!   constants. A reflexive conservation `c ≡ c` is then a `refl` the
+//!   kernel proves outright, and the transitivity rule below is a `J`
+//!   composition, not an axiom.
 //! - Every other atomic proposition denotes an assumption constant
 //!   `P : Type 0` — the only axiom shape the calculus admits.
 //! - `Conjunction` denotes a right-nested `Σ`, `Disjunction` a tagged sum
@@ -63,34 +71,35 @@
 //! defines. The propositional and identity fragment — primitive,
 //! assumption and semantic-axiom leaves, conjunction, disjunction and
 //! implication introduction and elimination, and equality
-//! symmetry/transitivity over any `Id` carrier, `Id Int` chains
-//! included — denotes the kernel's own constructions: pairs and
-//! projections, `caseTwo`, λ/application and `J` eliminations. The
-//! integer order rules whose instance lands wholly in the `Int`
-//! vocabulary cite a fixed roster of named assumptions — `eq_le`,
-//! `lt_le`, the three strict/mixed transitivity laws and the four
-//! endpoint-substitution laws — each an assumption constant with an
-//! exact `Π` statement authored through `scheme_dsl`, applied to the
-//! denoted endpoints and premise evidence, with a `sym` `J` wrapping
-//! whichever premise the canonical `IntegerMathEqual` order flipped.
-//! The remaining families — order discreteness, subtract-order, the
-//! witness-bearing bound rules, the denotation-conversion rules and
-//! the `ContentConservation` transitivity arms — denote a
-//! *rule-instance decision*: an assumption constant whose type is the
-//! checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`, applied
-//! to the denoted premise evidence (ambient axiom and assumption
-//! citations bind as further premises). Each rule's premise/conclusion
-//! relation is re-decided during denotation by the same shared function
-//! the bounded checker runs — the axiom records the rule instance's
-//! arithmetic or conversion decision in the judgment's assumption
-//! closure, never silently — and premises in the `Int` vocabulary give
-//! that axiom an exact arithmetic statement.
+//! symmetry/transitivity over any `Id` carrier — `Id Int` chains and
+//! per-algebra content identities alike — denotes the kernel's own
+//! constructions: pairs and projections, `caseTwo`, λ/application and
+//! `J` eliminations. The integer order rules whose instance lands
+//! wholly in the `Int` vocabulary cite a fixed roster of named
+//! assumptions — `eq_le`, `lt_le`, the three strict/mixed transitivity
+//! laws and the four endpoint-substitution laws — each an assumption
+//! constant with an exact `Π` statement authored through `scheme_dsl`,
+//! applied to the denoted endpoints and premise evidence, with a `sym`
+//! `J` wrapping whichever premise the canonical `IntegerMathEqual`
+//! order flipped. The remaining families — order discreteness,
+//! subtract-order, the witness-bearing bound rules and the
+//! denotation-conversion instances outside the `Int` vocabulary —
+//! denote a *rule-instance decision*: an assumption constant whose type
+//! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
+//! applied to the denoted premise evidence (ambient axiom and
+//! assumption citations bind as further premises). Each rule's
+//! premise/conclusion relation is re-decided during denotation by the
+//! same shared function the bounded checker runs — the axiom records
+//! the rule instance's arithmetic or conversion decision in the
+//! judgment's assumption closure, never silently — and premises in the
+//! `Int` vocabulary give that axiom an exact arithmetic statement.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{
-    IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    ContentAlgebra, ContentTerm, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, ValueId,
 };
 
 use super::certificate::{
@@ -623,6 +632,15 @@ struct Denotation {
     /// key is the term's evaluated closed literal when it has one, so
     /// decided closed equalities denote reflexive identities.
     terms: BTreeMap<ScalarTerm, u32>,
+    /// Content algebra → `Type 0` carrier assumption position. Each
+    /// algebra's conservation equations denote `Id` over their own
+    /// carrier, so identities in different algebras can never compose.
+    content_carriers: BTreeMap<ContentAlgebra, u32>,
+    /// `(algebra, content term)` → element assumption position at that
+    /// algebra's carrier. The key is the term itself: `ContentTerm`'s
+    /// constructors already normalize ordering and nesting, so
+    /// syntactic identity is the algebra's own canonical form.
+    content_terms: BTreeMap<(ContentAlgebra, ContentTerm), u32>,
     /// The `Int : Type 0` carrier position — one declaration every
     /// mathematical-integer constant and relation names.
     integer: Option<u32>,
@@ -669,6 +687,8 @@ impl Denotation {
             atoms: BTreeMap::new(),
             carriers: BTreeMap::new(),
             terms: BTreeMap::new(),
+            content_carriers: BTreeMap::new(),
+            content_terms: BTreeMap::new(),
             integer: None,
             integer_less_than: None,
             integer_less_or_equal: None,
@@ -743,6 +763,44 @@ impl Denotation {
         let position = self.position()?;
         self.declarations.push(Declaration::assumption(0, ty));
         self.terms.insert(key, position);
+        Ok(self.constant(position))
+    }
+
+    /// The `Type 0` carrier assumption one closed content algebra
+    /// denotes — its conservation equations are identities over this
+    /// carrier, interned once per algebra.
+    fn content_carrier(
+        &mut self,
+        algebra: &ContentAlgebra,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        if let Some(&position) = self.content_carriers.get(algebra) {
+            return Ok(self.constant(position));
+        }
+        let position = self.position()?;
+        self.declarations
+            .push(Declaration::assumption(0, self.type_zero));
+        self.content_carriers.insert(algebra.clone(), position);
+        Ok(self.constant(position))
+    }
+
+    /// The assumption constant one content term denotes — an element of
+    /// its algebra's carrier, interned by the canonical term. Content
+    /// terms are already normalized at construction, so `a ≡ a` denotes
+    /// a reflexive `Id` the kernel's `refl` proves rather than an
+    /// admitted atom.
+    fn content_term(
+        &mut self,
+        algebra: &ContentAlgebra,
+        term: &ContentTerm,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let key = (algebra.clone(), term.clone());
+        if let Some(&position) = self.content_terms.get(&key) {
+            return Ok(self.constant(position));
+        }
+        let ty = self.content_carrier(algebra)?;
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.content_terms.insert(key, position);
         Ok(self.constant(position))
     }
 
@@ -1515,6 +1573,16 @@ impl Denotation {
                 let codomain = self.denote(conclusion)?;
                 self.arena.insert(Term::Pi { domain, codomain })
             }
+            Proposition::ContentConservation(conservation) => {
+                // `l ≡ r` in one algebra denotes `Id` over that
+                // algebra's carrier: conservation is the algebra's own
+                // equality, so its transitivity and reflexivity are the
+                // kernel's `J` and `refl`, not rule-instance axioms.
+                let ty = self.content_carrier(conservation.algebra())?;
+                let left = self.content_term(conservation.algebra(), conservation.left())?;
+                let right = self.content_term(conservation.algebra(), conservation.right())?;
+                self.arena.insert(Term::Id { ty, left, right })
+            }
             atomic => self.atom(atomic)?,
         })
     }
@@ -1961,9 +2029,11 @@ impl<'a> Elaboration<'a> {
                     .transitivity_evidence(first_ty, first, second_ty, second, goal_ty)
                 {
                     Some(term) => Ok(term),
-                    // A `ContentConservation` chain, or any instance
-                    // leaving the `Id` vocabulary, stays a named
-                    // rule-instance decision.
+                    // Every transitivity instance the shared check
+                    // accepts denotes `Id` — `Equal`/`IntegerMathEqual`
+                    // and `ContentConservation` alike — so `None` is a
+                    // defensive fallback for a hypothetical denotation
+                    // outside the identity vocabulary, not a live path.
                     None => self.rule_instance(
                         AcceptedProofRule::EqualityTransitivity,
                         vec![
@@ -2578,7 +2648,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, PropositionId, ScalarType, ValueId,
+        ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+        ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+        ContentStructuralPlace, ContentTerm, IntegerSign, IntegerType, IntegerValue, PlaceId,
+        PropositionId, ScalarType, StructuralPlaceKind, ValueId,
     };
     use terminal_psi::PrimitiveJudgment;
 
@@ -3644,6 +3717,315 @@ mod tests {
                 proposition: p,
             }],
             "the acceptance projection still records only the cited premise",
+        );
+    }
+
+    fn content_algebra() -> ContentAlgebra {
+        ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: "Byte".to_owned(),
+        }
+    }
+
+    fn content_root() -> PlaceId {
+        PlaceId::new(1).expect("place")
+    }
+
+    fn content_context(root: PlaceId) -> PropositionContext {
+        PropositionContext::from_value_types_and_places(
+            [],
+            [(
+                root,
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            )],
+        )
+        .expect("content context")
+    }
+
+    fn content_term(root: PlaceId, field: &str) -> ContentTerm {
+        ContentTerm::Projection {
+            projection: ContentProjectionIdentity {
+                domain: ContentDomainId::new(2).expect("domain"),
+                projection_report_fingerprint: 3,
+            },
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root,
+                segments: vec![ContentPlaceSegment::Field(field.to_owned())],
+            },
+        }
+    }
+
+    fn conservation(
+        algebra: &ContentAlgebra,
+        left: &ContentTerm,
+        right: &ContentTerm,
+    ) -> Proposition {
+        Proposition::ContentConservation(ContentConservation::new(
+            algebra.clone(),
+            left.clone(),
+            right.clone(),
+        ))
+    }
+
+    /// `ContentConservation` denotes `Id` over its algebra's carrier, so
+    /// its transitivity rule is a `J` composition the kernel re-decides
+    /// in every shared-endpoint orientation the bounded relation check
+    /// licenses — never an interned rule axiom.
+    #[test]
+    fn content_conservation_transitivity_is_a_j_composition() {
+        let root = content_root();
+        let algebra = content_algebra();
+        let terms = |field: &str| content_term(root, field);
+        let context = content_context(root);
+        // Every shared-endpoint arrangement the checker's
+        // `ContentConservation` arm accepts: direct chaining, right-right
+        // and left-left sharing, and the cross-side middle — the `J`
+        // composition wraps the needed premises in `sym`.
+        for (first_pair, second_pair, goal_pair) in [
+            (("a", "b"), ("b", "c"), ("a", "c")),
+            (("a", "c"), ("b", "c"), ("a", "b")),
+            (("a", "c"), ("a", "b"), ("b", "c")),
+            (("b", "c"), ("a", "b"), ("a", "c")),
+        ] {
+            let first = conservation(&algebra, &terms(first_pair.0), &terms(first_pair.1));
+            let second = conservation(&algebra, &terms(second_pair.0), &terms(second_pair.1));
+            let goal = conservation(&algebra, &terms(goal_pair.0), &terms(goal_pair.1));
+            let proof = ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::EqualityTransitivity {
+                    left_equals_middle: Box::new(ProofNode {
+                        conclusion: first.clone(),
+                        rule: ProofRule::SemanticAxiom { index: 0 },
+                    }),
+                    middle_equals_right: Box::new(ProofNode {
+                        conclusion: second.clone(),
+                        rule: ProofRule::SemanticAxiom { index: 1 },
+                    }),
+                },
+            };
+            let denoted = verify_bounded_certificate(
+                &context,
+                &goal,
+                &[],
+                &[first, second],
+                &proof,
+                &mut budget(),
+            )
+            .unwrap_or_else(|error| {
+                panic!("content transitivity {goal_pair:?} verifies as J: {error}")
+            });
+            // `{C, a', b', c'}` — the algebra carrier and one element
+            // constant per distinct content term; the rule cites no
+            // axiom of its own.
+            assert_eq!(denoted.certificate.signature.len(), 4);
+            assert!(
+                denoted
+                    .certificate
+                    .signature
+                    .iter()
+                    .all(|declaration| declaration.is_assumption()),
+            );
+            assert!(
+                matches!(
+                    denoted.arena.get(denoted.certificate.term),
+                    Term::IdElim { .. }
+                ),
+                "content transitivity {goal_pair:?} composes by J",
+            );
+            assert_eq!(
+                certificate_assumption_closure(&denoted.arena, &denoted.certificate),
+                BTreeSet::from([0, 1, 2, 3]),
+            );
+            assert_eq!(
+                denoted.rules,
+                vec![
+                    AcceptedProofRule::SemanticAxiom,
+                    AcceptedProofRule::EqualityTransitivity
+                ],
+            );
+            assert_eq!(denoted.semantic_axioms.len(), 2);
+        }
+    }
+
+    /// A reflexive content conservation denotes `refl` on the algebra
+    /// carrier — kernel-proved, not a named decision — over `Separate`
+    /// endpoints as well as bare projections.
+    #[test]
+    fn reflexive_content_conservation_is_refl_in_the_kernel() {
+        let root = content_root();
+        let algebra = content_algebra();
+        let context = content_context(root);
+        let separate = ContentTerm::separate([content_term(root, "a"), content_term(root, "b")])
+            .expect("separation");
+        let proposition = conservation(&algebra, &separate, &separate);
+        let proof = ProofNode {
+            conclusion: proposition.clone(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+        };
+        let denoted =
+            verify_bounded_certificate(&context, &proposition, &[], &[], &proof, &mut budget())
+                .expect("reflexive conservation verifies as refl");
+        // `{C, s'}` — the carrier and the one endpoint; the evidence is
+        // `refl C s'` with no decision assumption.
+        assert_eq!(denoted.certificate.signature.len(), 2);
+        assert!(matches!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Refl { .. }
+        ));
+        assert_eq!(
+            certificate_assumption_closure(&denoted.arena, &denoted.certificate),
+            BTreeSet::from([0, 1]),
+        );
+    }
+
+    /// Content transitivity still rejects at the shared checker's own
+    /// points: different algebras, no shared endpoint, or a conclusion
+    /// that is not the composed equation.
+    #[test]
+    fn content_conservation_transitivity_rejects_at_the_shared_check() {
+        let root = content_root();
+        let algebra = content_algebra();
+        let terms = |field: &str| content_term(root, field);
+        let context = content_context(root);
+        let transitivity = |first: Proposition, second: Proposition, goal: Proposition| ProofNode {
+            conclusion: goal,
+            rule: ProofRule::EqualityTransitivity {
+                left_equals_middle: Box::new(ProofNode {
+                    conclusion: first,
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                middle_equals_right: Box::new(ProofNode {
+                    conclusion: second,
+                    rule: ProofRule::SemanticAxiom { index: 1 },
+                }),
+            },
+        };
+
+        // A shared endpoint across different algebras is an algebra
+        // mismatch — the denotation would put the equations over
+        // different carriers anyway.
+        let other = ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: "Gram".to_owned(),
+        };
+        let first = conservation(&algebra, &terms("a"), &terms("b"));
+        let second = conservation(&other, &terms("b"), &terms("c"));
+        let goal = conservation(&algebra, &terms("a"), &terms("c"));
+        let proof = transitivity(first.clone(), second.clone(), goal.clone());
+        assert!(matches!(
+            denote_bounded_certificate(&context, &goal, &[], &[first, second], &proof),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::EqualityAlgebraMismatch
+            )),
+        ));
+
+        // No shared endpoint at all.
+        let first = conservation(&algebra, &terms("a"), &terms("b"));
+        let second = conservation(&algebra, &terms("c"), &terms("d"));
+        let proof = transitivity(first.clone(), second.clone(), goal.clone());
+        assert!(matches!(
+            denote_bounded_certificate(&context, &goal, &[], &[first, second], &proof),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::EqualityMiddleMismatch
+            )),
+        ));
+
+        // A shared endpoint but a conclusion that is not the composed
+        // equation.
+        let first = conservation(&algebra, &terms("a"), &terms("b"));
+        let second = conservation(&algebra, &terms("b"), &terms("c"));
+        let proof = transitivity(first.clone(), second.clone(), first.clone());
+        assert!(matches!(
+            denote_bounded_certificate(&context, &first.clone(), &[], &[first, second], &proof),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::EqualityConclusionMismatch
+            )),
+        ));
+    }
+
+    /// A rule-instance axiom with a content premise states the exact
+    /// `Id C` domain: a value-equality transport that cannot rewrite the
+    /// content equation keeps it as an interned `Π` premise, auditable
+    /// rather than atom-shaped.
+    #[test]
+    fn rule_instances_carry_content_identities_exactly() {
+        let root = content_root();
+        let algebra = content_algebra();
+        let premise = conservation(&algebra, &content_term(root, "a"), &content_term(root, "b"));
+        let (x_id, x) = value(1);
+        let (z_id, z) = value(3);
+        let equation = Proposition::Equal(x, z);
+        let context = PropositionContext::from_value_types_and_places(
+            [(x_id, unsigned64_type()), (z_id, unsigned64_type())],
+            [(
+                root,
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            )],
+        )
+        .expect("context");
+        let proof = ProofNode {
+            conclusion: premise.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                equalities: vec![ProofNode {
+                    conclusion: equation.clone(),
+                    rule: ProofRule::SemanticAxiom { index: 1 },
+                }],
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &context,
+            &premise,
+            &[],
+            &[premise.clone(), equation],
+            &proof,
+            &mut budget(),
+        )
+        .expect("the transport instance verifies");
+        // `{C, a', b', Int, m_x, m_z, axiom}`: the axiom's statement is
+        // `Π(_ : Id C a' b'). Π(_ : Id Int m_x m_z). Id C a' b'` — the
+        // content identity appears exactly, not as an opaque atom.
+        assert_eq!(denoted.certificate.signature.len(), 7);
+        let mut head = denoted.certificate.term;
+        for _ in 0..2 {
+            let Term::Apply { function, .. } = denoted.arena.get(head) else {
+                panic!("a rule instance applies the axiom to each premise");
+            };
+            head = function;
+        }
+        let Term::Constant {
+            declaration: axiom_position,
+            ..
+        } = denoted.arena.get(head)
+        else {
+            panic!("the head is the axiom constant");
+        };
+        let Term::Pi { domain, .. } = denoted
+            .arena
+            .get(denoted.certificate.signature[axiom_position as usize].ty)
+        else {
+            panic!("the axiom's statement is a Π over its premises");
+        };
+        assert!(
+            matches!(denoted.arena.get(domain), Term::Id { .. }),
+            "the first premise is the content identity",
+        );
+        assert_eq!(
+            denoted.rules,
+            vec![
+                AcceptedProofRule::SemanticAxiom,
+                AcceptedProofRule::ValueEqualityTransport
+            ],
         );
     }
 }
