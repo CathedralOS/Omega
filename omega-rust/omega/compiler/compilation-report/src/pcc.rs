@@ -1,16 +1,19 @@
 //! Native proof-carrying product admission and the bounded producer sidecar.
 //!
 //! A native `.proof` sidecar carries the placed-image evidence section
-//! (`native_evidence`): the declared executable-text extent inside the
-//! published container plus the complete placed executable-region inventory
-//! over those bytes. Checking replays that leg against the exact artifact
+//! (`native_evidence`): the declared executable-text and initialized-data
+//! extents inside the published container, the complete placed region
+//! inventories over both, and the closed-form realization of every claimed
+//! import thunk. Checking replays those legs against the exact artifact
 //! bytes — region and gap digests, addresses, fingerprints and the inventory
-//! seal — so the section's claims about coverage are verified, not trusted.
+//! seals — so the section's claims about coverage are verified, not trusted,
+//! and each thunk's realized instruction sequence (and on Mach-O the exact
+//! binding slot its decoded pointer loads) is verified, not trusted either.
 //! Producer custody digests, even when self-consistent, still prove nothing
-//! about the behavior of the identified native bytes, so the behavioral legs
+//! about the behavior of compiler-function regions, so the behavioral legs
 //! (instruction rows against the closed target semantics, entries, incoming
-//! edges, indirect targets, premise availability and lowering correspondence)
-//! keep the verdict at `Incomplete` until their standalone checking exists.
+//! edges, premise availability and lowering correspondence) keep the verdict
+//! at `Incomplete` until their standalone checking exists.
 
 mod native_evidence;
 
@@ -23,10 +26,12 @@ use terminal_codec::{
 };
 
 /// The guarantee a bounded native sidecar offers: the published bytes carry
-/// an executable text that is exactly and completely covered by a sealed
-/// placed-region inventory at declared addresses for the declared target.
-/// This is the certificate's byte-coverage leg, which the evidence honestly
-/// establishes — it is deliberately not the behavioral guarantee
+/// an executable text and initialized data that are exactly and completely
+/// covered by sealed placed-region inventories at declared addresses for the
+/// declared target, with every claimed import thunk realized by the target's
+/// closed thunk sequence. This is the certificate's byte-coverage and
+/// thunk-realization legs, which the evidence honestly establishes — it is
+/// deliberately not the behavioral guarantee
 /// (`omega.native-verified-executable`), which a sidecar may not claim until
 /// standalone native semantics and correspondence checking exists. A receiver
 /// policy requiring a guarantee beyond this one rejects at the claim fields,
@@ -82,11 +87,11 @@ impl std::fmt::Display for PccPublicationReceipt {
 /// Build the bounded native `.proof` sidecar for one retained artifact and
 /// the exact bytes about to be published. The bytes are the post-finalization
 /// output; any later byte change invalidates the sidecar's artifact
-/// commitment and the evidence's declared text extent alike. The offered
+/// commitment and the evidence's declared extents alike. The offered
 /// guarantee names only what the placed-image evidence establishes — verified
-/// byte coverage and placement — so the sidecar never asserts the behavioral
-/// claim it cannot yet discharge; checking still reports that remainder
-/// `Incomplete`.
+/// byte coverage and placement plus the closed import-thunk forms — so the
+/// sidecar never asserts the behavioral claim it cannot yet discharge;
+/// checking still reports that remainder `Incomplete`.
 pub fn build_native_proof_sidecar(
     artifact: &crate::RetainedNativeArtifact,
     profile: &proof_admission::AdmissionProfile,
@@ -128,9 +133,11 @@ pub fn build_native_proof_sidecar(
 /// violations. A recognized placed-image section is then replayed against the
 /// exact artifact bytes — a section that lies about those bytes rejects by
 /// name — while an absent or unrecognized section stays `Incomplete`. Even a
-/// fully replayed section only establishes exact byte coverage of the
-/// declared executable text: behavior (instructions, entries, incoming edges,
-/// indirect targets, premise availability, lowering correspondence) remains
+/// fully replayed section only establishes exact byte coverage of both
+/// declared extents plus the closed realization of its import thunks (and on
+/// aarch64 Mach-O the binding slots their decoded pointers load): the
+/// behavioral remainder (instruction rows inside compiler regions, entries,
+/// incoming edges, premise availability, lowering correspondence) stays
 /// `Incomplete` until standalone native semantics and preservation checking
 /// exists.
 pub fn verify_native_proof_sidecar(
@@ -352,6 +359,22 @@ mod tests {
             .expect("the fixture region places")
     }
 
+    /// The honest empty data inventory for a text-only fixture image.
+    fn empty_data_inventory() -> image::PlacedDataRegionInventory {
+        image::place_data_regions(
+            &image::FinalImage::with_capacity(
+                target::NativeTarget::host(),
+                image::FinalImageMemory::default(),
+                Default::default(),
+                0,
+                0,
+                0,
+            ),
+            image::FinalImageLayout::default(),
+        )
+        .expect("the empty data inventory places")
+    }
+
     #[test]
     fn native_checking_replays_recognized_evidence_before_staying_incomplete() {
         let text = [0xabu8; 16];
@@ -364,6 +387,8 @@ mod tests {
             target::NativeTarget::host(),
             text_file_offset,
             placed_inventory(&text),
+            0,
+            empty_data_inventory(),
         );
         let native = sidecar_with_profile(
             PccProductKind::Native,
@@ -387,6 +412,8 @@ mod tests {
             target::NativeTarget::host(),
             text_file_offset - 1,
             placed_inventory(&text),
+            0,
+            empty_data_inventory(),
         );
         let forged = sidecar_with_profile(
             PccProductKind::Native,
@@ -420,7 +447,7 @@ mod tests {
         let malformed = sidecar(
             PccProductKind::Native,
             &executable,
-            b"NPLCIMG1\x01\x00garbage".to_vec(),
+            b"NPLCIMG1\x02\x00garbage".to_vec(),
         );
         let malformed_policy = offered_policy(&malformed);
         assert!(matches!(
