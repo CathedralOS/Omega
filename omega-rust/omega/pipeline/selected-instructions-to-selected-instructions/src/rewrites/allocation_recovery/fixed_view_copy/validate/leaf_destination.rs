@@ -46,6 +46,47 @@ pub(super) fn replay_leaf_block(
     Ok(block.id)
 }
 
+/// The block owning the fixed-use site — the instruction may be an ordinary
+/// block instruction or the block terminator. The operand must still read
+/// `source` under `view`.
+pub(super) fn replay_site_block(
+    function_index: usize,
+    function: &selected_instructions::SelectedFunction,
+    instruction: SelectedInstructionId,
+    operand: u16,
+    source: VirtualRegisterId,
+    view: register_model::RegisterViewId,
+) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| {
+            block.instructions.iter().any(|site| site.id == instruction)
+                || terminator(&block.terminator).id == instruction
+        })
+        .ok_or(FixedViewCopyError::MissingDestination {
+            function: function_index,
+            instruction: instruction.0,
+        })?;
+    let site = block
+        .instructions
+        .iter()
+        .find(|site| site.id == instruction)
+        .unwrap_or_else(|| terminator(&block.terminator));
+    if !site.operands.iter().any(|candidate| {
+        candidate.operand == operand
+            && candidate.virtual_register == source
+            && candidate.access == RegisterOperandAccess::Use
+            && candidate.fixed_view == Some(view)
+    }) {
+        return Err(FixedViewCopyError::MissingDestination {
+            function: function_index,
+            instruction: instruction.0,
+        });
+    }
+    Ok(block.id)
+}
+
 pub(super) fn terminator(
     terminator: &SelectedTerminator,
 ) -> &selected_instructions::SelectedInstruction {

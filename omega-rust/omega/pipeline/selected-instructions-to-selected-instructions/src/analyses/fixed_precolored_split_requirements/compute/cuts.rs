@@ -15,7 +15,6 @@ pub(super) struct CutIndex<'a> {
     fixed: BTreeMap<(u32, u32), Vec<&'a FixedPrecoloredInterval>>,
     transitions: BTreeMap<(SiteKey, u16), BTreeSet<u16>>,
     used: BTreeSet<(SiteKey, u16, u16)>,
-    transition_count: usize,
 }
 
 impl<'a> CutIndex<'a> {
@@ -41,7 +40,6 @@ impl<'a> CutIndex<'a> {
             fixed: fixed_by_point,
             transitions: transition_index,
             used: BTreeSet::new(),
-            transition_count: transitions.len(),
         }
     }
 
@@ -154,12 +152,22 @@ impl<'a> CutIndex<'a> {
         true
     }
 
+    /// Declared transitions license boundaries the legality plan permits; a
+    /// declaration whose site never fires is unused license, not an omitted
+    /// split — the segment openings are the manifest of actual boundaries.
+    /// What still must hold is the closed direction: every boundary the walk
+    /// consumed must resolve back to a declared row.
     pub(super) fn finish(
         self,
         function: usize,
         register: u32,
     ) -> Result<(), FixedPrecoloredSplitRequirementError> {
-        if self.used.len() == self.transition_count {
+        let exhausted = self.used.iter().all(|(site, destination, from)| {
+            self.transitions
+                .get(&(*site, *destination))
+                .is_some_and(|declared| declared.contains(from))
+        });
+        if exhausted {
             Ok(())
         } else {
             Err(

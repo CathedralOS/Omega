@@ -114,10 +114,11 @@ fn successor_transfer_vocabulary_requires_the_current_envelope() {
 }
 
 #[test]
-fn artifact_round_trips_both_policies_and_full_transformed_custody() {
+fn artifact_round_trips_every_policy_and_full_transformed_custody() {
     for policy in [
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+        FixedViewCopyPolicy::ImmediateBeforeFixedUseV1,
     ] {
         let plan = plan(policy);
         let decoded = FixedViewCopyPlan::decode(&plan.encode()).unwrap();

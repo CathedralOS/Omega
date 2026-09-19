@@ -15,7 +15,8 @@ pub(super) fn replay_usage(
     let requirements =
         u64::try_from(boundaries.len()).map_err(|_| FixedViewCopyError::WorkOverflow)?;
     let commits = match policy {
-        FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => requirements,
+        FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+        | FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => requirements,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => boundaries
             .iter()
             .map(|boundary| boundary.function)

@@ -18,7 +18,7 @@ use register_model::{
     RegisterOperandConstraint, RegisterViewId,
 };
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedSuccessor};
-use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId, ValueId};
+use semantic_vocabulary::{BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ValueId};
 
 fn key(variant: u32) -> RegisterConstraintKey {
     RegisterConstraintKey {
@@ -381,5 +381,511 @@ fn shared_entry_copy_is_deterministic_bounded_and_terminal() {
             build_shared_entry_copy(0, &function, &narrowed, &row, row.key, 4, 2),
             Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 }),
         );
+    }
+}
+
+/// An instruction-result register consumed at three incompatible fixed-use
+/// operand sites — two ordinary instructions in the entry block and a return
+/// terminator in the successor — with chained from-views (each site sources
+/// the previous pin), the shape the immediate-site policy exists to admit.
+pub(crate) fn immediate_fixture() -> (
+    SelectedFunction,
+    Vec<super::super::evidence::AuthenticatedFixedViewBoundary>,
+    RegisterInstructionConstraint,
+) {
+    let machine = MachineId::new(1).unwrap();
+    let class = RegisterClassId(0);
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let source_value = ValueId::new(2).unwrap();
+    let producer = instruction(
+        0,
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(7),
+        },
+        Vec::new(),
+    );
+    let site = |instruction: u32| VirtualFixedConstraintSite::Operand {
+        position: LivenessPosition(instruction),
+        point: LiveRangePoint(instruction),
+        instruction: SelectedInstructionId(instruction),
+        operand: 0,
+        access: RegisterOperandAccess::Use,
+    };
+    let function = SelectedFunction {
+        machine,
+        attachment: None,
+        provenance: Default::default(),
+        structural: None,
+        outgoing_arguments: Vec::new(),
+        local_storage_slots: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
+        entry_block: SelectedBlockId(0),
+        virtual_registers: vec![VirtualRegister {
+            id: VirtualRegisterId(0),
+            scalar_type: scalar,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(0),
+                source_value,
+            },
+            definition_site: Some(ValueDefinitionSite::Node {
+                block: BlockId::new(1).unwrap(),
+                node: 0,
+            }),
+            entry_fixed_view: None,
+        }],
+        blocks: vec![
+            SelectedBlock {
+                id: SelectedBlockId(0),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(1).unwrap(),
+                ),
+                instructions: vec![
+                    producer,
+                    instruction(
+                        1,
+                        SelectedInstructionKind::CallScalar {
+                            callee: MachineId::new(2).unwrap(),
+                        },
+                        vec![use_operand(0, class, Some(RegisterViewId(2)))],
+                    ),
+                    instruction(
+                        2,
+                        SelectedInstructionKind::CompareI64Zero,
+                        vec![use_operand(0, class, Some(RegisterViewId(3)))],
+                    ),
+                ],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(3, SelectedInstructionKind::Jump, Vec::new()),
+                    successor: SelectedSuccessor {
+                        role: selected_instructions::SelectedSuccessorRole::Semantic,
+                        structural_case: None,
+                        structural_bindings: Vec::new(),
+                        psi_edge: EdgeId::new(1).unwrap(),
+                        block: SelectedBlockId(1),
+                        source_target: BlockId::new(2).unwrap(),
+                        bindings: Vec::new(),
+                        fuel: Vec::new(),
+                    },
+                },
+            },
+            SelectedBlock {
+                id: SelectedBlockId(1),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(2).unwrap(),
+                ),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(
+                        4,
+                        SelectedInstructionKind::ReturnScalar,
+                        vec![use_operand(0, class, Some(RegisterViewId(4)))],
+                    ),
+                    psi_return_edge: EdgeId::new(2).unwrap(),
+                },
+            },
+        ],
+    };
+    // Each site's from-view is the previous pin, so the third boundary could
+    // never have sourced the register's (absent) entry fixed view.
+    let sites: [(u32, u16, SelectedBlockId); 3] = [
+        (1, 2, SelectedBlockId(0)),
+        (2, 3, SelectedBlockId(0)),
+        (4, 4, SelectedBlockId(1)),
+    ];
+    let boundaries = sites
+        .into_iter()
+        .enumerate()
+        .map(|(index, (site_instruction, to_view, block))| {
+            let index = index as u32;
+            super::super::evidence::AuthenticatedFixedViewBoundary {
+                function: 0,
+                machine,
+                virtual_register: VirtualRegisterId(0),
+                class,
+                source_segment: FixedPrecoloredSourceSegmentId(index),
+                source_domain: FixedPrecoloredHomeDomainId(index),
+                from_view: RegisterViewId(index as u16 + 1),
+                destination_segment: FixedPrecoloredSourceSegmentId(index + 3),
+                destination_domain: FixedPrecoloredHomeDomainId(index + 3),
+                site: site(site_instruction),
+                block,
+                to_view: RegisterViewId(to_view),
+                incoming: None,
+            }
+        })
+        .collect();
+    let row = RegisterInstructionConstraint {
+        id: RegisterConstraintId(9),
+        key: key(9),
+        operands: vec![
+            RegisterOperandConstraint {
+                operand: 0,
+                access: RegisterOperandAccess::Use,
+                class,
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            },
+            RegisterOperandConstraint {
+                operand: 1,
+                access: RegisterOperandAccess::Def,
+                class,
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            },
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    };
+    (function, boundaries, row)
+}
+
+/// The immediate-site policy drops one copy into each boundary's own block
+/// immediately before the fixed-use instruction — an ordinary site takes the
+/// site's position, a terminator site appends to the block — and retargets
+/// only that site's operand onto the fresh segment register.
+#[test]
+fn immediate_site_policy_places_copies_before_each_fixed_use_site() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let mut transformed = function.clone();
+    let copies = super::site::build_site_copies(
+        0,
+        &function,
+        &references,
+        &mut transformed,
+        &row,
+        row.key,
+        false,
+        5,
+        1,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 3);
+    assert_eq!(
+        copies
+            .iter()
+            .map(|copy| copy.before_instruction)
+            .collect::<Vec<_>>(),
+        vec![
+            SelectedInstructionId(1),
+            SelectedInstructionId(2),
+            SelectedInstructionId(4)
+        ]
+    );
+    assert_eq!(
+        copies
+            .iter()
+            .map(|copy| copy.insertion_block)
+            .collect::<Vec<_>>(),
+        vec![SelectedBlockId(0), SelectedBlockId(0), SelectedBlockId(1)]
+    );
+    let block0 = &transformed.blocks[0];
+    assert_eq!(
+        block0
+            .instructions
+            .iter()
+            .map(|instruction| instruction.kind)
+            .collect::<Vec<_>>(),
+        vec![
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(7)
+            },
+            SelectedInstructionKind::CopyI64,
+            SelectedInstructionKind::CallScalar {
+                callee: MachineId::new(2).unwrap()
+            },
+            SelectedInstructionKind::CopyI64,
+            SelectedInstructionKind::CompareI64Zero,
+        ]
+    );
+    assert_eq!(
+        block0.instructions[2].operands[0].virtual_register,
+        VirtualRegisterId(1)
+    );
+    assert_eq!(
+        block0.instructions[4].operands[0].virtual_register,
+        VirtualRegisterId(2)
+    );
+    let block1 = &transformed.blocks[1];
+    assert_eq!(block1.instructions.len(), 1);
+    assert_eq!(
+        block1.instructions[0].kind,
+        SelectedInstructionKind::CopyI64
+    );
+    let SelectedTerminator::Return { instruction, .. } = &block1.terminator else {
+        panic!("successor still returns")
+    };
+    assert_eq!(
+        instruction.operands[0].virtual_register,
+        VirtualRegisterId(3)
+    );
+    assert_eq!(transformed.virtual_registers.len(), 4);
+    for (segment, copy) in copies.iter().enumerate() {
+        let register = &transformed.virtual_registers[segment + 1];
+        assert_eq!(register.id, copy.result_virtual_register);
+        assert_eq!(register.entry_fixed_view, None);
+        assert!(matches!(
+            register.origin,
+            VirtualRegisterOrigin::InstructionResult { instruction, .. }
+                if instruction == copy.copy_instruction
+        ));
+    }
+}
+
+/// The immediate form carries no live-in gate: an `InstructionResult` source
+/// with no entry fixed view, and chained boundaries whose from-views are
+/// earlier pins, admit — while the leaf-local V1 gate still refuses both.
+#[test]
+fn immediate_site_policy_admits_origins_and_chained_sources_leaf_local_refuses() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let mut refused = function.clone();
+    assert!(matches!(
+        super::site::build_site_copies(
+            0,
+            &function,
+            &references,
+            &mut refused,
+            &row,
+            row.key,
+            true,
+            5,
+            1,
+        ),
+        Err(FixedViewCopyError::UnsupportedSourceRegister {
+            function: 0,
+            register: 0
+        })
+    ));
+    let mut transformed = function.clone();
+    assert_eq!(
+        super::site::build_site_copies(
+            0,
+            &function,
+            &references,
+            &mut transformed,
+            &row,
+            row.key,
+            false,
+            5,
+            1,
+        )
+        .unwrap()
+        .len(),
+        3
+    );
+
+    // An entry parameter still carries its live-in pin; a boundary sourcing
+    // a different pinned view is admitted only by the immediate form.
+    let mut entered = function.clone();
+    entered.virtual_registers[0].origin = VirtualRegisterOrigin::EntryParameter {
+        source_value: ValueId::new(2).unwrap(),
+        parameter_index: 0,
+    };
+    entered.virtual_registers[0].entry_fixed_view = Some(RegisterViewId(9));
+    let mut refused = entered.clone();
+    assert!(matches!(
+        super::site::build_site_copies(
+            0,
+            &entered,
+            &references,
+            &mut refused,
+            &row,
+            row.key,
+            true,
+            5,
+            1,
+        ),
+        Err(FixedViewCopyError::UnsupportedSourceRegister {
+            function: 0,
+            register: 0
+        })
+    ));
+    let mut transformed = entered.clone();
+    assert_eq!(
+        super::site::build_site_copies(
+            0,
+            &entered,
+            &references,
+            &mut transformed,
+            &row,
+            row.key,
+            false,
+            5,
+            1,
+        )
+        .unwrap()
+        .len(),
+        3
+    );
+}
+
+/// Moved split points, unauthenticated sites, duplicate destinations, and
+/// out-of-admission sources all reject before any copy is materialized.
+#[test]
+fn immediate_site_copy_rejects_malformed_boundary_and_source_premises() {
+    let (function, boundaries, row) = immediate_fixture();
+    let build = |function: &SelectedFunction,
+                 boundaries: &[super::super::evidence::AuthenticatedFixedViewBoundary],
+                 transformed: &mut SelectedFunction| {
+        let references = boundaries.iter().collect::<Vec<_>>();
+        super::site::build_site_copies(
+            0,
+            function,
+            &references,
+            transformed,
+            &row,
+            row.key,
+            false,
+            5,
+            1,
+        )
+    };
+
+    // A boundary moved onto the wrong block is not the site's own block.
+    let mut moved = boundaries.clone();
+    moved[0].block = SelectedBlockId(1);
+    let mut transformed = function.clone();
+    assert!(matches!(
+        build(&function, &moved, &mut transformed),
+        Err(FixedViewCopyError::SegmentEvidenceMismatch)
+    ));
+
+    // A non-Use site can never be a fixed-use boundary site.
+    let mut defined = boundaries.clone();
+    let VirtualFixedConstraintSite::Operand { access, .. } = &mut defined[0].site else {
+        unreachable!()
+    };
+    *access = RegisterOperandAccess::UseDef;
+    let mut transformed = function.clone();
+    assert!(matches!(
+        build(&function, &defined, &mut transformed),
+        Err(FixedViewCopyError::UnsupportedTransitionSite {
+            function: 0,
+            register: 0
+        })
+    ));
+
+    // Two boundaries on the same operand site cannot produce two copies.
+    let duplicated = vec![boundaries[0], boundaries[0]];
+    let mut transformed = function.clone();
+    assert!(matches!(
+        build(&function, &duplicated, &mut transformed),
+        Err(FixedViewCopyError::NonCanonicalCopies)
+    ));
+
+    // A destination view the operand does not actually pin is not the
+    // recorded boundary's destination.
+    let mut retargeted = boundaries.clone();
+    retargeted[0].to_view = RegisterViewId(99);
+    let mut transformed = function.clone();
+    assert!(matches!(
+        build(&function, &retargeted, &mut transformed),
+        Err(FixedViewCopyError::MissingDestination {
+            function: 0,
+            instruction: 1
+        })
+    ));
+
+    // Origins that never named a scalar source value stay out of admission.
+    for origin in [
+        VirtualRegisterOrigin::InstructionScratch {
+            instruction: SelectedInstructionId(0),
+            operand: 0,
+        },
+        VirtualRegisterOrigin::AbiTransport {
+            instruction: SelectedInstructionId(0),
+            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            byte_offset: 0,
+        },
+    ] {
+        let mut changed = function.clone();
+        changed.virtual_registers[0].origin = origin;
+        let mut transformed = changed.clone();
+        assert!(matches!(
+            build(&changed, &boundaries, &mut transformed),
+            Err(FixedViewCopyError::UnsupportedSourceRegister {
+                function: 0,
+                register: 0
+            })
+        ));
+    }
+}
+
+/// Two derivations over the identical boundary set produce the identical
+/// copies and transformed function — including the site positions each copy
+/// landed at.
+#[test]
+fn immediate_site_copies_are_deterministic() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let mut transformed_a = function.clone();
+    let mut transformed_b = function.clone();
+    let first = super::site::build_site_copies(
+        0,
+        &function,
+        &references,
+        &mut transformed_a,
+        &row,
+        row.key,
+        false,
+        5,
+        1,
+    )
+    .unwrap();
+    let second = super::site::build_site_copies(
+        0,
+        &function,
+        &references,
+        &mut transformed_b,
+        &row,
+        row.key,
+        false,
+        5,
+        1,
+    )
+    .unwrap();
+    assert_eq!(first, second);
+    assert_eq!(transformed_a, transformed_b);
+}
+
+/// The V1 leaf-local gate remains selectable: an entry-pinned source with
+/// return-terminator sites still places one copy per leaf.
+#[test]
+fn leaf_local_policy_still_places_one_copy_per_return_leaf() {
+    let (function, legality, row) = fixture();
+    let boundaries = boundaries(&legality);
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let mut transformed = function.clone();
+    let copies = super::site::build_site_copies(
+        0,
+        &function,
+        &references,
+        &mut transformed,
+        &row,
+        row.key,
+        true,
+        4,
+        2,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 2);
+    for (leaf, copy) in transformed.blocks[1..].iter().zip(&copies) {
+        assert_eq!(leaf.instructions.len(), 1);
+        assert_eq!(leaf.instructions[0].kind, SelectedInstructionKind::CopyI64);
+        let SelectedTerminator::Return { instruction, .. } = &leaf.terminator else {
+            panic!("leaf still returns")
+        };
+        assert_eq!(
+            instruction.operands[0].virtual_register,
+            copy.result_virtual_register
+        );
+        assert_eq!(copy.insertion_block, leaf.id);
     }
 }

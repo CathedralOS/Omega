@@ -231,9 +231,11 @@ fn validate_recovery_selection(
                 crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => {
                     &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
                 }
-                // Leaf-local copies are the default-path recovery for
-                // authenticated entry transitions, not a declared selection.
-                crate::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => &[],
+                // Leaf-local and immediate-site copies are the default-path
+                // recovery for authenticated fixed-site transitions, not a
+                // declared selection.
+                crate::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+                | crate::FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => &[],
             }
         }
         AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_selection {

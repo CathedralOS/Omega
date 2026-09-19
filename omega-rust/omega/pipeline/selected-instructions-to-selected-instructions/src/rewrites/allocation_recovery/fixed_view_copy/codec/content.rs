@@ -31,6 +31,7 @@ fn encode_prefix(
     bytes.push(match plan.policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
+        FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => 2,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
@@ -75,6 +76,7 @@ fn decode_prefix(cursor: &mut Cursor<'_>) -> Result<DecodedPrefix, FixedViewCopy
     let policy = match cursor.byte()? {
         0 => FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
         1 => FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+        2 => FixedViewCopyPolicy::ImmediateBeforeFixedUseV1,
         tag => return Err(FixedViewCopyDecodeError::UnknownPolicy(tag)),
     };
     let budget = optimization_core::OptimizationWorkBudget::decode(cursor.take(40)?)

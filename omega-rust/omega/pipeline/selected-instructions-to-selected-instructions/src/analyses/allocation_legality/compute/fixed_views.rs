@@ -60,25 +60,46 @@ pub(super) fn at_live_point(
     reject_ambiguous(function_index, register, fixed)
 }
 
+/// Licenses every operand `Use` site that can end a pinned segment. The
+/// domain partition reaches each boundary through a singleton pinned view of
+/// the same register — the entry live-in, or the destination view of the
+/// boundary that opened the reaching segment — so each site declares every
+/// other pinned view as a candidate source; `use_transition` accepts exactly
+/// one matching declaration per fired boundary. A boundary whose source is
+/// not a pinned singleton (a residual allocatable domain) finds no matching
+/// declaration, and a boundary that never fires leaves its rows unused —
+/// declarations are licenses, not the split manifest.
 pub(super) fn entry_transitions(register: &VirtualLiveRange) -> Vec<EntryFixedViewTransition> {
-    let Some(entry) = register
+    let pinned = register
         .fixed_constraints
         .iter()
-        .find(|constraint| matches!(constraint.site, VirtualFixedConstraintSite::Entry))
-    else {
+        .map(|constraint| constraint.view)
+        .collect::<BTreeSet<_>>();
+    if pinned.len() < 2 {
         return Vec::new();
-    };
-    register
-        .fixed_constraints
-        .iter()
-        .filter(|constraint| matches!(constraint.site, VirtualFixedConstraintSite::Operand { .. }))
-        .filter(|constraint| constraint.view != entry.view)
-        .map(|constraint| EntryFixedViewTransition {
-            from_view: entry.view,
-            to_site: constraint.site,
-            to_view: constraint.view,
-        })
-        .collect()
+    }
+    let mut transitions = Vec::new();
+    for constraint in &register.fixed_constraints {
+        let site @ VirtualFixedConstraintSite::Operand {
+            access: register_model::RegisterOperandAccess::Use,
+            ..
+        } = constraint.site
+        else {
+            continue;
+        };
+        transitions.extend(
+            pinned
+                .iter()
+                .copied()
+                .filter(|from| *from != constraint.view)
+                .map(|from| EntryFixedViewTransition {
+                    from_view: from,
+                    to_site: site,
+                    to_view: constraint.view,
+                }),
+        );
+    }
+    transitions
 }
 
 fn reject_ambiguous(
