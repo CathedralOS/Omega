@@ -3185,8 +3185,13 @@ Owners include
     and imports core cancellation and `sub_le`. Ordinary statement calls retain
     the exact-site `call_requirements.rs` judgment and separate induction descent.
     Remaining owners: abstract signatures, domain/default-domain predicates,
-    explicit static callable/evidence substitution, transported case-membership
-    premises, and nominal/propositional premises. Structural application/projection
+    explicit static callable/evidence substitution, citation/induction transport
+    of case-membership guarantees, and nominal/propositional premises.
+    `proofs/case_call_premises` covers application-free concrete and symbolic tag premises
+    through contract formation and ordinary state-forwarded calls;
+    `case_call_wrong_subject` rejects a different argument. Tag predicates retain
+    exact classifier identities and must never become zero-valued field equations.
+    Structural application/projection
     premises still fail closed:
     `structural_judgment.rs::callee_term_with_machines` can turn a binary body
     into unsubstituted opaque text, and receiver-call opacity cannot substitute

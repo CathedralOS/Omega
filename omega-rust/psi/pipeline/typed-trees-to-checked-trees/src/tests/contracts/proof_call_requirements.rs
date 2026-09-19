@@ -8,6 +8,147 @@ const RESTRICTED: &str = r#"
     { value }
 "#;
 
+const CASE_RESTRICTED: &str = r#"
+    data Tree { marked: bool; case Empty; case Node(child: Tree); }
+    machine selected(left: Tree, right: Tree) -> Tree
+    requires right in Tree::Empty;
+    terminates;
+    { left }
+"#;
+
+#[test]
+fn case_premise_ignores_common_field_values() {
+    for (argument, accepted) in [
+        ("(Tree::Empty { marked: true })", true),
+        ("(Tree::Empty { marked: false })", true),
+        ("(Tree::Node { child: Tree::Empty, marked: true })", false),
+    ] {
+        let source = format!(
+            "{CASE_RESTRICTED} machine caller()\n\
+             ensures selected(Tree::Empty, {argument}) == selected(Tree::Empty, {argument}); {{}}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{argument}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_premise_substitutes_only_the_selected_subject() {
+    for (arguments, accepted) in [("other, value", true), ("value, other", false)] {
+        let source = format!(
+            "{CASE_RESTRICTED} machine caller(value: Tree, other: Tree)\n\
+             requires value in Tree::Empty;\n\
+             ensures selected({arguments}) == selected({arguments}); {{}}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_premise_cannot_use_a_current_or_later_fact() {
+    for contracts in [
+        "requires selected(value, value) == selected(value, value); requires value in Tree::Empty;",
+        "requires (value in Tree::Empty) && selected(value, value) == selected(value, value);",
+        "ensures value in Tree::Empty; ensures selected(value, value) == selected(value, value);",
+    ] {
+        let source = format!("{CASE_RESTRICTED} machine caller(value: Tree) {contracts} {{}}");
+        let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
+            .map(|_| ())
+            .expect_err("case premises need independently formed prior evidence");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("specification call")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn case_premise_keeps_exact_state_binders() {
+    for (premise, accepted) in [("", false), ("requires value in Tree::Empty;", true)] {
+        let argument = if accepted { "Tree::Empty" } else { "other" };
+        let source = format!(
+            "{CASE_RESTRICTED} machine caller(value: Tree, other: Tree)\n\
+             requires value in Tree::Empty;\n\
+             {{ transition {{ _ -> next({argument}) }}\n\
+               state next(value: Tree) {premise}\n\
+               requires selected(value, value) == selected(value, value); {{}} }}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_premise_survives_ordinary_call_state_forwarding() {
+    for (arguments, accepted) in [("other, value", true), ("value, other", false)] {
+        let source = format!(
+            "{CASE_RESTRICTED} machine caller(value: Tree, other: Tree) -> Tree\n\
+             requires value in Tree::Empty; terminates;\n\
+             {{ transition {{ _ -> next({arguments}) }}\n\
+               state next(unknown: Tree, known: Tree) -> Tree {{\n\
+                 transition {{ _ -> (selected(unknown, known)) }} }} }}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_premise_classifies_payloads_without_equating_them() {
+    for (argument, accepted) in [
+        ("(Tree::Node { child: Tree::Empty, marked: true })", true),
+        ("(Tree::Empty { marked: true })", false),
+    ] {
+        let source = format!(
+            "data Tree {{ marked: bool; case Empty; case Node(child: Tree); }}\n\
+             machine node(value: Tree) -> Tree requires value in Tree::Node; terminates; {{ value }}\n\
+             machine caller() ensures node({argument}) == node({argument}); {{}}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{argument}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_premise_environment_preserves_local_projection_origin() {
+    for (initializer, accepted) in [("Holder { tree: value }", true), ("make(value)", false)] {
+        for forwarding in [false, true] {
+            let body = if forwarding {
+                "transition { _ -> next(candidate) } state next(known: Tree) -> Tree { transition { _ -> (selected(known, known)) } }"
+            } else {
+                "transition { _ -> (selected(candidate, candidate)) }"
+            };
+            let source = format!(
+                "{CASE_RESTRICTED}\n\
+                 data Holder {{ tree: Tree; }}\n\
+                 machine make(value: Tree) -> Holder terminates; {{ transition {{ _ -> Holder {{ tree: value }} }} }}\n\
+                 machine caller(value: Tree) -> Tree requires value in Tree::Empty; terminates; {{\n\
+                     let holder: Holder = {initializer};\n\
+                     let candidate: Tree = holder.tree;\n\
+                     {body} }}"
+            );
+            let result = crate::lower_typed_trees(parse_typed_trees(&source));
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "{initializer}, forwarding={forwarding}: {:?}",
+                result.as_ref().err()
+            );
+            if let Err(diagnostics) = result {
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains("requires")),
+                    "{diagnostics:?}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn contract_only_application_establishes_its_selected_premise() {
     for (premise, accepted) in [("", false), ("requires value == Nat::Zero;", true)] {

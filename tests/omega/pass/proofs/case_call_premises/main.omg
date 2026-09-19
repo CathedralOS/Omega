@@ -1,0 +1,43 @@
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+machine empty_only(value: Tree) -> Tree
+requires value in Tree::Empty;
+terminates;
+{ value }
+
+machine node_only(value: Tree) -> Tree
+requires value in Tree::Node;
+terminates;
+{ value }
+
+// Tag preconditions do not constrain common or payload field values.
+machine concrete()
+ensures empty_only(Tree::Empty { marked: true }) == empty_only(Tree::Empty { marked: true });
+ensures node_only(Tree::Node { marked: true, child: Tree::Empty })
+    == node_only(Tree::Node { marked: true, child: Tree::Empty });
+{}
+
+machine symbolic(value: Tree)
+requires value in Tree::Empty;
+ensures empty_only(value) == empty_only(value);
+{}
+
+machine alias_subject(value: Tree, alias: Tree)
+requires value == alias;
+requires value in Tree::Empty;
+ensures empty_only(alias) == empty_only(alias);
+{}
+
+machine forward(value: Tree, other: Tree) -> Tree
+requires value in Tree::Empty;
+terminates;
+{
+    transition { _ -> next(other, value) }
+    state next(unknown: Tree, known: Tree) -> Tree {
+        transition { _ -> (empty_only(known)) }
+    }
+}

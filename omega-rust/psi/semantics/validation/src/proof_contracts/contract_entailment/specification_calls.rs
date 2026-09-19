@@ -154,7 +154,13 @@ fn validate_expression(
                         .iter()
                         .all(|(_, term)| term_has_complete_substitution(program, term))
                         && matches!(
-                            instantiated_fact_judgment(program, &judge, *required, substitution),
+                            instantiated_fact_judgment(
+                                program,
+                                &judge,
+                                entry,
+                                *required,
+                                substitution
+                            ),
                             StructuralJudgment::Proven
                         )
                 });
@@ -199,12 +205,15 @@ fn applicable_requirements<'program>(
 }
 
 fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    if super::structural_terms::is_case_observation(program, expression) {
-        return false;
-    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
+    if super::structural_terms::is_case_observation(program, expression) {
+        // Classification is not a value operand. Exact selected meaning is
+        // checked at intake/judgment in the declaration's own scope.
+        return structural_term(program, binary.left)
+            .is_some_and(|term| term_has_complete_substitution(program, &term));
+    }
     if binary.operator == BinaryOperator::And {
         return structurally_substitutable_fact(program, binary.left)
             && structurally_substitutable_fact(program, binary.right);
