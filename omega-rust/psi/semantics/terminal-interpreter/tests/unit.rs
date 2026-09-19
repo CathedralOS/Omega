@@ -64,6 +64,8 @@ mod scalar_cases;
 mod scalar_qualifications;
 #[path = "unit/scalar_returns_and_nominal_modules.rs"]
 mod scalar_returns_and_nominal_modules;
+#[path = "unit/shared_scalar_loans.rs"]
+mod shared_scalar_loans;
 #[path = "unit/unit_results_and_fuel.rs"]
 mod unit_results_and_fuel;
 
