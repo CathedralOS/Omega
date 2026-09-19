@@ -1,0 +1,16 @@
+data Wrap { remaining: u64 [4..=500]; }
+data Indirect { target: &Wrap; }
+
+machine walk(remaining: u64 [0..=4], indirect: Indirect, other: Indirect)
+terminates by remaining -> Nat::Descending in 0..=indirect.target.remaining;
+-> u64 {
+    transition { _ -> iterate(indirect, remaining, other) }
+
+    state iterate(held: Indirect, pending: u64 [0..=4], spare: Indirect) {
+        transition pending > 0 {
+            // Equal declared bounds do not preserve the original endpoint.
+            true -> iterate(spare, pending - 1, held)
+            false -> pending
+        }
+    }
+}

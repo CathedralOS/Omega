@@ -1,7 +1,9 @@
 //! An exact field projection is a distinct arithmetic coordinate, never its
 //! record. The projection may descend a nested path of exact declared record
-//! fields, and its root record may be reached through a reference; each step
-//! is resolved against the declaration the previous step named.
+//! fields and readable references; every step resolves against its declaration.
+//! Resolution supplies a coordinate, not a frozen value. State and call edge
+//! owners establish exact arrival equality and complete write-frame preservation
+//! of its reference bindings and referent contents before consuming its bounds.
 use super::identity_views::{MeasureBodyShape, measure_body_shape, unwrap_constraint_shells};
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
@@ -199,7 +201,7 @@ pub(super) struct FieldCoordinate<'program> {
     pub borrowed: bool,
     /// The record the formal's (referent) type declares.
     pub root: SymbolHandle,
-    /// The record-typed fields from `root` down to `field`'s owner, in order.
+    /// Record or readable-reference fields from `root` to `field`'s owner.
     pub steps: Vec<&'program DataField>,
     pub field: &'program DataField,
     pub identity: String,
@@ -276,16 +278,12 @@ impl<'program> FieldCoordinate<'program> {
         let mut steps = Vec::with_capacity(step_symbols.len());
         for symbol in step_symbols {
             let (_, field) = declared_field(program, owner, *symbol)?;
-            // An intermediate step is an owned exact record; a reference
-            // boundary inside the chain needs its own load evidence.
-            let TypeReferenceNode::Named { symbol: next, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            else {
-                return None;
-            };
+            // The coordinate retains the complete declared chain, including
+            // stored readable references. Its edge owner separately proves
+            // that the carrier, reference bindings and pointee stay unwritten.
+            let (next, _) = record_referent(program, field.type_reference)?;
             steps.push(field);
-            owner = *next;
+            owner = next;
         }
         let (_, field) = declared_field(program, owner, *last)?;
         // The independently selected field view produces builtin u64.
@@ -472,11 +470,8 @@ impl<'program> FieldCoordinate<'program> {
                     .map(|coordinate| coordinate.value());
             }
             current = unique_literal_field(program, current, owner, field)?;
-            if let TypeReferenceNode::Named { symbol, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            {
-                owner = *symbol;
+            if let Some((next, _)) = record_referent(program, field.type_reference) {
+                owner = next;
             }
         }
         engine.normalize(current)
@@ -514,8 +509,8 @@ impl<'program> FieldCoordinate<'program> {
     /// The coordinate this chain reads through `carrier`'s member `prefix`:
     /// `p.f` (or a bare formal) denotes a record, and this coordinate's chain
     /// resumes there once the prefix lands on this coordinate's own root
-    /// record. A prefix step through anything but an exact named record -- a
-    /// reference, a slice, or a primitive -- has no carrier coordinate.
+    /// record. Each prefix step must resolve to an exact record, directly
+    /// or through a readable reference; slices and primitives cannot carry it.
     fn through_carrier(
         &self,
         program: &'program TypedTrees,
@@ -543,16 +538,11 @@ impl<'program> FieldCoordinate<'program> {
         let mut owner = carrier_root;
         for (symbol, _) in prefix {
             let (_, field) = declared_field(program, owner, *symbol)?;
-            // A prefix step must land on an exact declared record so this
-            // coordinate's chain resumes at one nominal root.
-            let TypeReferenceNode::Named { symbol: next, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            else {
-                return None;
-            };
+            // Resume only at the exact declared record reached by this
+            // readable projection, preserving the reference-bearing prefix.
+            let (next, _) = record_referent(program, field.type_reference)?;
             chain.push(*symbol);
-            owner = *next;
+            owner = next;
         }
         if owner != expected {
             return None;
@@ -603,11 +593,8 @@ impl<'program> FieldCoordinate<'program> {
                     .map(|coordinate| coordinate.value());
             }
             current = unique_literal_field(program, current, owner, field)?;
-            if let TypeReferenceNode::Named { symbol, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            {
-                owner = *symbol;
+            if let Some((next, _)) = record_referent(program, field.type_reference) {
+                owner = next;
             }
         }
         engine.normalize(current)
@@ -630,13 +617,8 @@ pub(super) fn projected_type(
             return None;
         }
         declared = Some(field.type_reference);
-        match program
-            .type_reference_table
-            .type_reference(unwrap_constraint_shells(program, field.type_reference))
-        {
-            TypeReferenceNode::Named { symbol, .. } => owner = *symbol,
-            _ => owner = SymbolHandle::default(),
-        }
+        owner = record_referent(program, field.type_reference)
+            .map_or(SymbolHandle::default(), |(next, _)| next);
     }
     declared
 }
@@ -692,9 +674,13 @@ pub(super) fn record_referent(
 ) -> Option<(SymbolHandle, bool)> {
     let mut reference = unwrap_constraint_shells(program, type_reference);
     let mut borrowed = false;
-    if let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(reference)
+    if let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(reference)
     {
+        if !access.is_readable() {
+            return None;
+        }
         reference = unwrap_constraint_shells(program, *referee);
         borrowed = true;
     }
