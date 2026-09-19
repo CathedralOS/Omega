@@ -39,6 +39,10 @@ impl CanaryCompileSpec {
     }
 }
 
+// Fixture approval stands in for project review only. Ordinary artifact
+// production does not request receiver admission, so never mirror accepted
+// package permissions into a receiving policy. Explicit admission controls
+// use the dedicated policy-taking helper below.
 fn production_compile(
     spec: CanaryCompileSpec,
 ) -> Result<CompileReport, Vec<diagnostics::Diagnostic>> {
@@ -56,19 +60,6 @@ fn production_compile(
     )?;
     let mut request = CompileRequest::new(options).with_requested_product(requested_product);
     if let Some(package_inputs) = package_inputs {
-        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
-            package_inputs
-                .accepted_semantic_bindings()
-                .flat_map(|binding| binding.terminal_authority_permissions())
-                .cloned()
-                .collect(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "cannot construct repository fixture terminal-authority policy: {error:?}"
-            ))]
-        })?;
-        request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
     let report =
@@ -81,45 +72,7 @@ fn production_compile(
     }
 }
 
-fn compile(spec: CanaryCompileSpec) -> Result<CompileReport, Vec<Diagnostic>> {
-    let (options, product) = spec.into_request_parts();
-    let build_dir = options.build_dir();
-    let requested_product = match product {
-        CanaryCompileProduct::Check => RequestedCompileProduct::Check,
-        CanaryCompileProduct::NativeArtifact | CanaryCompileProduct::NativeArtifactAndPublish => {
-            RequestedCompileProduct::NativeArtifact
-        }
-    };
-    let package_inputs = reviewed_repository_fixture_package_inputs(
-        &options.root_path,
-        options.target_name.as_deref(),
-    )?;
-    let mut request = CompileRequest::new(options).with_requested_product(requested_product);
-    if let Some(package_inputs) = package_inputs {
-        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
-            package_inputs
-                .accepted_semantic_bindings()
-                .flat_map(|binding| binding.terminal_authority_permissions())
-                .cloned()
-                .collect(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "cannot construct repository fixture terminal-authority policy: {error:?}"
-            ))]
-        })?;
-        request = request.with_terminal_authority_permission_policy(permission_policy);
-        request = request.with_package_inputs(package_inputs);
-    }
-    let report =
-        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
-    match product {
-        CanaryCompileProduct::Check | CanaryCompileProduct::NativeArtifact => Ok(report),
-        CanaryCompileProduct::NativeArtifactAndPublish => report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![Diagnostic::error(error)]),
-    }
-}
+use production_compile as compile;
 
 use checked_interpreter::{
     FilesystemServiceBinding, InterpretOptions, InterpretOutcome, interpret_entry,
@@ -202,6 +155,8 @@ mod host_text_filesystem_and_abi;
 mod portable_terminal_reload;
 #[path = "canary_suite/process_exit_status_mapping.rs"]
 mod process_exit_status_mapping;
+#[path = "canary_suite/production_policy.rs"]
+mod production_policy;
 #[path = "canary_suite/providers_float_and_console.rs"]
 mod providers_float_and_console;
 #[path = "canary_suite/ranges_storage_and_entries.rs"]
@@ -2064,40 +2019,7 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
 fn compile_native_canary_without_output(
     canary_dir: &Path,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    let build_dir = unique_no_output_build_dir();
-    let root_path = canary_dir.join("main.omg");
-    // Match the rooted-backend route: fixtures declaring ordinary package
-    // dependencies (for example `Source::Path` on source/library/std, whose
-    // modules spell `omega_language_std::...`) only resolve when the same
-    // package inputs and terminal-authority policy accompany the request.
-    let package_inputs =
-        reviewed_repository_fixture_package_inputs(&root_path, Some(native_hosted_target()))?;
-    let mut request = CompileRequest::new(CompilerOptions {
-        root_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .with_requested_product(RequestedCompileProduct::NativeArtifact);
-    if let Some(package_inputs) = package_inputs {
-        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
-            package_inputs
-                .accepted_semantic_bindings()
-                .flat_map(|binding| binding.terminal_authority_permissions())
-                .cloned()
-                .collect(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "cannot construct repository fixture terminal-authority policy: {error:?}"
-            ))]
-        })?;
-        request = request
-            .with_terminal_authority_permission_policy(permission_policy)
-            .with_package_inputs(package_inputs);
-    }
-    let result = compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report);
-    let _ = fs::remove_dir_all(&build_dir);
-    result
+    compile_rooted_backend_canary_without_output_for_target(canary_dir, native_hosted_target())
 }
 
 fn compile_rooted_backend_canary_without_output(
@@ -2111,35 +2033,12 @@ fn compile_rooted_backend_canary_without_output_for_target(
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let root_path = canary_dir.join("main.omg");
-    let package_inputs = reviewed_repository_fixture_package_inputs(&root_path, Some(target))?;
-    // Use this repository's explicit fixture acceptance policy on both sides
-    // of the package/receiving-policy join, as the artifact-publishing route
-    // does. Tests of a different policy use the explicit-policy helper below.
-    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
-        package_inputs
-            .iter()
-            .flat_map(|inputs| inputs.accepted_semantic_bindings())
-            .flat_map(|binding| binding.terminal_authority_permissions())
-            .cloned()
-            .collect(),
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "cannot construct repository fixture terminal-authority policy: {error:?}"
-        ))]
-    })?;
-    let mut request = CompileRequest::new(CompilerOptions {
-        root_path,
+    let result = production_compile(CanaryCompileSpec {
+        root_path: canary_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some(target.into()),
-    })
-    .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_terminal_authority_permission_policy(permission_policy);
-    if let Some(package_inputs) = package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
-    let result = compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report);
+        product: CanaryCompileProduct::NativeArtifact,
+    });
     let _ = fs::remove_dir_all(&build_dir);
     result
 }

@@ -254,11 +254,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   positive fixtures with real premises and negative controls; do not reclassify
   valid accepted-language programs as checked-only merely to make the suite green.
 
-  The umbrella's `production_compile` still mirrors accepted package permission
-  rows into a receiving policy. Remove that coupling from ordinary-production
-  fixtures, preserving explicit receiver-admission tests and package acceptance
-  under **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**. A test-owned approval is not user
-  project review. Acceptance: the complete corpus reaches its declared stages,
+  Acceptance: the complete corpus reaches its declared stages,
   negative controls reject for the intended reasons, runtime oracles execute on
   their matching hosts, and roster/coverage guards remain intact. Remove this
   item only when those checks pass, not when every failure has an owner.
