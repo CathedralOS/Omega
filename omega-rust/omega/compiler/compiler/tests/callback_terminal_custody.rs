@@ -616,6 +616,7 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
             ieee_float_comparison_occurrences: proposal
                 .ieee_float_comparison_occurrences()
                 .to_vec(),
+            integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
             boundary_application_demands: proposal.boundary_application_demands().clone(),
             boundary_application_realizations: proposal.boundary_application_realizations().clone(),
             checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
@@ -844,6 +845,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ieee_float_comparison_occurrences: proposal
                 .ieee_float_comparison_occurrences()
                 .to_vec(),
+            integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
             boundary_application_demands: proposal.boundary_application_demands().clone(),
             boundary_application_realizations: proposal.boundary_application_realizations().clone(),
             checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
@@ -901,6 +903,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()
@@ -936,6 +939,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()
@@ -980,6 +984,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ieee_float_comparison_occurrences: proposal
                 .ieee_float_comparison_occurrences()
                 .to_vec(),
+            integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
             boundary_application_demands: proposal.boundary_application_demands().clone(),
             boundary_application_realizations: proposal.boundary_application_realizations().clone(),
             checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
@@ -1030,6 +1035,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()
@@ -1077,6 +1083,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ieee_float_comparison_occurrences: proposal
                 .ieee_float_comparison_occurrences()
                 .to_vec(),
+            integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
             boundary_application_demands: proposal.boundary_application_demands().clone(),
             boundary_application_realizations: proposal.boundary_application_realizations().clone(),
             checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
@@ -1116,6 +1123,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ieee_float_comparison_occurrences: proposal
                 .ieee_float_comparison_occurrences()
                 .to_vec(),
+            integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
             boundary_application_demands: proposal.boundary_application_demands().clone(),
             boundary_application_realizations: proposal.boundary_application_realizations().clone(),
             checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),

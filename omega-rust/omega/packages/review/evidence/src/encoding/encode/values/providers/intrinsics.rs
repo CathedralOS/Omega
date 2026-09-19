@@ -37,6 +37,20 @@ pub(crate) fn encode_compiler_intrinsic_execution(
                 Ok(())
             })?;
         }
+        PackageReviewCompilerIntrinsicExecution::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        } => {
+            encoder.tag("primitive_integer_comparison", 7);
+            encoder.field("operation", |encoder| {
+                encode_primitive_integer_comparison_operation(encoder, *operation);
+                Ok(())
+            })?;
+            encoder.field("integer_type", |encoder| {
+                encode_compiler_numeric_type(encoder, *integer_type);
+                Ok(())
+            })?;
+        }
         PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format) => {
             encoder.tag("named_float_negation", 1);
             encoder.field("format", |encoder| {
@@ -84,6 +98,24 @@ fn encode_primitive_float_binary_operation(
         CompilerPrimitiveFloatBinaryOperation::LessOrEqual => encoder.tag("less_or_equal", 7),
         CompilerPrimitiveFloatBinaryOperation::Greater => encoder.tag("greater", 8),
         CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => encoder.tag("greater_or_equal", 9),
+    };
+}
+
+fn encode_primitive_integer_comparison_operation(
+    encoder: &mut Encoder,
+    operation: provider_planning::CompilerPrimitiveIntegerComparisonOperation,
+) {
+    use provider_planning::CompilerPrimitiveIntegerComparisonOperation;
+
+    match operation {
+        CompilerPrimitiveIntegerComparisonOperation::Equal => encoder.tag("equal", 0),
+        CompilerPrimitiveIntegerComparisonOperation::NotEqual => encoder.tag("not_equal", 1),
+        CompilerPrimitiveIntegerComparisonOperation::Less => encoder.tag("less", 2),
+        CompilerPrimitiveIntegerComparisonOperation::LessOrEqual => encoder.tag("less_or_equal", 3),
+        CompilerPrimitiveIntegerComparisonOperation::Greater => encoder.tag("greater", 4),
+        CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual => {
+            encoder.tag("greater_or_equal", 5)
+        }
     };
 }
 

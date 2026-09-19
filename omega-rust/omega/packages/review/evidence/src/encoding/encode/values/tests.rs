@@ -512,6 +512,46 @@ fn primitive_float_binary_encoding_has_explicit_operation_tags() {
 }
 
 #[test]
+fn primitive_integer_comparison_encoding_has_explicit_operation_and_type_tags() {
+    use provider_planning::{CompilerNumericType, CompilerPrimitiveIntegerComparisonOperation};
+
+    let operations = [
+        CompilerPrimitiveIntegerComparisonOperation::Equal,
+        CompilerPrimitiveIntegerComparisonOperation::NotEqual,
+        CompilerPrimitiveIntegerComparisonOperation::Less,
+        CompilerPrimitiveIntegerComparisonOperation::LessOrEqual,
+        CompilerPrimitiveIntegerComparisonOperation::Greater,
+        CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual,
+    ];
+    for (tag, operation) in operations.into_iter().enumerate() {
+        let mut encoder = Encoder::bounded(16);
+        encode_compiler_intrinsic_execution(
+            &mut encoder,
+            &PackageReviewCompilerIntrinsicExecution::PrimitiveIntegerComparison {
+                operation,
+                integer_type: CompilerNumericType::I32,
+            },
+        )
+        .expect("encode primitive integer comparison execution");
+        assert_eq!(
+            encoder.finish().expect("bounded encoding"),
+            [7, tag as u8, 2],
+        );
+    }
+    // The operand carrier is encoded under the shared numeric vocabulary.
+    let mut encoder = Encoder::bounded(16);
+    encode_compiler_intrinsic_execution(
+        &mut encoder,
+        &PackageReviewCompilerIntrinsicExecution::PrimitiveIntegerComparison {
+            operation: CompilerPrimitiveIntegerComparisonOperation::Greater,
+            integer_type: CompilerNumericType::U64,
+        },
+    )
+    .expect("encode primitive integer comparison execution");
+    assert_eq!(encoder.finish().expect("bounded encoding"), [7, 4, 7]);
+}
+
+#[test]
 fn compiler_conversion_encoding_has_explicit_numeric_and_domain_tags() {
     use numerics::arithmetic::ArithmeticDomain;
     use provider_planning::CompilerNumericType;

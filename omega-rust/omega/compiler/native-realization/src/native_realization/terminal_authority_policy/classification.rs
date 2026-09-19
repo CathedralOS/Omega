@@ -2,7 +2,8 @@
 
 use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    TerminalAuthorityClass, TerminalAuthorityDisposition,
+    CompilerPrimitiveIntegerComparisonOperation, TerminalAuthorityClass,
+    TerminalAuthorityDisposition,
 };
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
@@ -28,6 +29,10 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
             classify_primitive_float_binary(operation, format)
         }
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        } => classify_primitive_integer_comparison(operation, integer_type),
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             classify_named_float_negation(format)
         }
@@ -58,6 +63,17 @@ fn classify_primitive_float_binary(
     let _closed_coordinates = (
         primitive_float_operation_tag(operation),
         float_format_tag(format),
+    );
+    empty_disposition()
+}
+
+fn classify_primitive_integer_comparison(
+    operation: CompilerPrimitiveIntegerComparisonOperation,
+    integer_type: CompilerNumericType,
+) -> TerminalAuthorityDisposition {
+    let _closed_coordinates = (
+        primitive_integer_comparison_operation_tag(operation),
+        numeric_type_tag(integer_type),
     );
     empty_disposition()
 }
@@ -180,6 +196,19 @@ const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOp
         CompilerPrimitiveFloatBinaryOperation::LessOrEqual => 7,
         CompilerPrimitiveFloatBinaryOperation::Greater => 8,
         CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => 9,
+    }
+}
+
+const fn primitive_integer_comparison_operation_tag(
+    operation: CompilerPrimitiveIntegerComparisonOperation,
+) -> u8 {
+    match operation {
+        CompilerPrimitiveIntegerComparisonOperation::Equal => 0,
+        CompilerPrimitiveIntegerComparisonOperation::NotEqual => 1,
+        CompilerPrimitiveIntegerComparisonOperation::Less => 2,
+        CompilerPrimitiveIntegerComparisonOperation::LessOrEqual => 3,
+        CompilerPrimitiveIntegerComparisonOperation::Greater => 4,
+        CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual => 5,
     }
 }
 

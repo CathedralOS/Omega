@@ -210,9 +210,11 @@ pub(crate) fn fused_service_custody() -> (
         _,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
+        selected_integer_comparison_occurrences,
     ) = produced.into_parts();
     assert!(selected_ieee_float_fma_occurrences.is_empty());
     assert!(selected_ieee_float_comparison_occurrences.is_empty());
+    assert!(selected_integer_comparison_occurrences.is_empty());
     (
         artifact,
         receipt,

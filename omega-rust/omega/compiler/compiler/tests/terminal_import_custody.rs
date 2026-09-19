@@ -162,6 +162,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
                 ieee_float_comparison_occurrences: proposal
                     .ieee_float_comparison_occurrences()
                     .to_vec(),
+                integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
                 boundary_application_demands: proposal.boundary_application_demands().clone(),
                 boundary_application_realizations: proposal
                     .boundary_application_realizations()

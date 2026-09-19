@@ -1,6 +1,12 @@
 boundary machine == Comparison::equal(left: i32, right: i32) -> bool
 crashes Trap !(right >= 0);
 
+data ComparisonProvider { }
+
+machine ComparisonProvider::equal(left: i32, right: i32) -> bool
+    satisfies Comparison::equal
+    via Binding::CompilerIntrinsic;
+
 pub machine safe(value: i32) -> bool
 requires value >= 0 {
     1 == value

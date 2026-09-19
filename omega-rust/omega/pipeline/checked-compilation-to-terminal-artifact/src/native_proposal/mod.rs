@@ -3,8 +3,8 @@
 //! thunks, IEEE float custody, and the closed external binding rows.
 
 use crate::application_coverage::project_terminal_boundary_application_coverage;
-use crate::float_comparisons;
 use crate::terminal_artifact::verification::verify_terminal_artifact;
+use crate::{float_comparisons, integer_comparisons};
 use assembled_syntax_to_checked_compilation::CheckedCompilation;
 use diagnostics::Diagnostic;
 
@@ -20,6 +20,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     selected_ieee_float_fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
     selected_ieee_float_comparison_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
+    selected_integer_comparison_occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
@@ -110,6 +111,13 @@ pub(crate) fn project_terminal_native_realization_proposal(
         checked.selected_provider_provenance(),
         selected_ieee_float_comparison_occurrences,
     )?;
+    let integer_comparison_occurrences = integer_comparisons::associate(
+        checked,
+        &terminal_module,
+        checked.selected_provider_plans(),
+        checked.selected_provider_provenance(),
+        selected_integer_comparison_occurrences,
+    )?;
     let boundary_application_coverage = project_terminal_boundary_application_coverage(
         checked,
         artifact,
@@ -149,6 +157,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
             callback_occurrences,
             ieee_float_fma_occurrences,
             ieee_float_comparison_occurrences,
+            integer_comparison_occurrences,
             boundary_application_demands,
             boundary_application_realizations,
             checked_boundary_operator_scope,

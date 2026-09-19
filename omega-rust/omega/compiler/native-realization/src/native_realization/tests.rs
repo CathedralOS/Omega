@@ -216,7 +216,7 @@ fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
         "data Child {} machine Child::drop(&mut self) {} data Main { child: Child; } machine Main::launch(&mut self) {}",
     ] {
         let (produced, signature, plans) = entry_fixture(source, target::TargetProfile::WindowsX64);
-        let (artifact, receipt, scope, _, _) = produced.into_parts();
+        let (artifact, receipt, scope, _, _, _) = produced.into_parts();
         assert!(receipt.receiver_eligibility().is_none());
         let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)
             .expect("callable preparation does not provision an entry receiver");
@@ -342,7 +342,7 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
 fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
-    let (artifact, receipt, _, _, _) = produced.into_parts();
+    let (artifact, receipt, _, _, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -492,7 +492,7 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         target::TargetProfile::UefiX64,
     ] {
         let (produced, signature, plans) = entry_fixture(RECEIVER_STORE, target_profile);
-        let (artifact, receipt, scope, _, _) = produced.into_parts();
+        let (artifact, receipt, scope, _, _, _) = produced.into_parts();
         let settlement = crate::validate_native_program_entry_settlement(
             &artifact,
             &receipt,
@@ -580,7 +580,7 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
-    let (artifact, receipt, scope, _, _) = produced.into_parts();
+    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -653,7 +653,7 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
 fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::LinuxX64);
-    let (artifact, receipt, scope, _, _) = produced.into_parts();
+    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -823,7 +823,7 @@ fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (artifact, _, scope, _, _) = produced.into_parts();
+    let (artifact, _, scope, _, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -866,12 +866,12 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (artifact, _, scope, _, _) = produced.into_parts();
+    let (artifact, _, scope, _, _, _) = produced.into_parts();
     let (other, ..) = entry_fixture(
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (other_artifact, _, other_scope, _, _) = other.into_parts();
+    let (other_artifact, _, other_scope, _, _, _) = other.into_parts();
     assert_ne!(
         artifact.manifest().identity(),
         other_artifact.manifest().identity()
@@ -924,7 +924,7 @@ fn program_entry_adapter_does_not_ignore_supplied_scope() {
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (_, _, other_scope, _, _) = other.into_parts();
+    let (_, _, other_scope, _, _, _) = other.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();

@@ -6,7 +6,10 @@ mod tests;
 use super::{Error, reader::Reader};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
-use provider_planning::{CompilerNumericType, CompilerPrimitiveFloatBinaryOperation};
+use provider_planning::{
+    CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerPrimitiveIntegerComparisonOperation,
+};
 
 pub(super) fn execution(
     reader: &mut Reader<'_>,
@@ -30,6 +33,32 @@ pub(super) fn execution(
         4 => Execution::HostedExitProcessI32,
         5 => Execution::HostedWriteByteI32,
         6 => Execution::HostedReadByte,
+        7 => {
+            let operation = integer_comparison(reader)?;
+            let integer_type = numeric_type(reader)?;
+            if integer_type.is_float() {
+                return Err(Error::InvalidTag);
+            }
+            Execution::PrimitiveIntegerComparison {
+                operation,
+                integer_type,
+            }
+        }
+        _ => return Err(Error::InvalidTag),
+    })
+}
+
+fn integer_comparison(
+    reader: &mut Reader<'_>,
+) -> Result<CompilerPrimitiveIntegerComparisonOperation, Error> {
+    use CompilerPrimitiveIntegerComparisonOperation as Operation;
+    Ok(match reader.byte()? {
+        0 => Operation::Equal,
+        1 => Operation::NotEqual,
+        2 => Operation::Less,
+        3 => Operation::LessOrEqual,
+        4 => Operation::Greater,
+        5 => Operation::GreaterOrEqual,
         _ => return Err(Error::InvalidTag),
     })
 }

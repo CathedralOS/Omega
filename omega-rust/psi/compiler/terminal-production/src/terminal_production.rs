@@ -49,9 +49,8 @@ impl ProducedTerminalArtifact {
     }
 
     /// Selected integer comparison joins, the integer counterpart of the IEEE
-    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
-    /// that realizes native output must refuse a nonempty roster rather than
-    /// drop it with the tuple extractors that predate it.
+    /// comparison roster. Omega rejoins each row to its exact selected
+    /// provider before native realization may admit the operation.
     pub fn selected_integer_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
@@ -65,12 +64,14 @@ impl ProducedTerminalArtifact {
         CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         (
             self.artifact,
             self.boundary_operator_scope,
             self.selected_ieee_float_fma_occurrences,
             self.selected_ieee_float_comparison_occurrences,
+            self.selected_integer_comparison_occurrences,
         )
     }
 }
@@ -122,9 +123,8 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
     }
 
     /// Selected integer comparison joins, the integer counterpart of the IEEE
-    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
-    /// that realizes native output must refuse a nonempty roster rather than
-    /// drop it with the tuple extractors that predate it.
+    /// comparison roster. Omega rejoins each row to its exact selected
+    /// provider before native realization may admit the operation.
     pub fn selected_integer_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
@@ -139,6 +139,7 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         C,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         (
             self.artifact,
@@ -146,9 +147,11 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
             self.callback_custody,
             self.selected_ieee_float_fma_occurrences,
             self.selected_ieee_float_comparison_occurrences,
+            self.selected_integer_comparison_occurrences,
         )
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn into_parts_with_source_calls(
         self,
     ) -> (
@@ -158,6 +161,7 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         Vec<LoweredSourceCallOccurrence>,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         (
             self.artifact,
@@ -166,6 +170,7 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
             self.source_call_occurrences,
             self.selected_ieee_float_fma_occurrences,
             self.selected_ieee_float_comparison_occurrences,
+            self.selected_integer_comparison_occurrences,
         )
     }
 }
@@ -221,9 +226,8 @@ impl<C> ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
     }
 
     /// Selected integer comparison joins, the integer counterpart of the IEEE
-    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
-    /// that realizes native output must refuse a nonempty roster rather than
-    /// drop it with the tuple extractors that predate it.
+    /// comparison roster. Omega rejoins each row to its exact selected
+    /// provider before native realization may admit the operation.
     pub fn selected_integer_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
@@ -241,6 +245,7 @@ impl<C> ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
         Vec<LoweredSourceCallOccurrence>,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         (
             self.artifact,
@@ -250,6 +255,7 @@ impl<C> ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
             self.source_call_occurrences,
             self.selected_ieee_float_fma_occurrences,
             self.selected_ieee_float_comparison_occurrences,
+            self.selected_integer_comparison_occurrences,
         )
     }
 }
@@ -317,9 +323,8 @@ impl ProducedProgramEntryTerminalArtifact {
     }
 
     /// Selected integer comparison joins, the integer counterpart of the IEEE
-    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
-    /// that realizes native output must refuse a nonempty roster rather than
-    /// drop it with the tuple extractors that predate it.
+    /// comparison roster. Omega rejoins each row to its exact selected
+    /// provider before native realization may admit the operation.
     pub fn selected_integer_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
@@ -334,6 +339,7 @@ impl ProducedProgramEntryTerminalArtifact {
         CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         (
             self.artifact,
@@ -341,6 +347,7 @@ impl ProducedProgramEntryTerminalArtifact {
             self.boundary_operator_scope,
             self.selected_ieee_float_fma_occurrences,
             self.selected_ieee_float_comparison_occurrences,
+            self.selected_integer_comparison_occurrences,
         )
     }
 }

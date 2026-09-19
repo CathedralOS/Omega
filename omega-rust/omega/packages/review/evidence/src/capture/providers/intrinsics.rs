@@ -65,6 +65,13 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
             PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { operation, format }
         }
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        } => PackageReviewCompilerIntrinsicExecution::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        },
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format)
         }
@@ -99,6 +106,16 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
                 "primitive float binary `{}.{}`",
                 operation.name(),
                 format.name(),
+            )
+        }
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        } => {
+            format!(
+                "primitive integer comparison `{}.{}`",
+                operation.name(),
+                integer_type.name(),
             )
         }
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {

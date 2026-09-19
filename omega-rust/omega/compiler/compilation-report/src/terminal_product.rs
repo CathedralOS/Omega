@@ -174,7 +174,9 @@ impl TerminalX86ScalarFmaAdmission {
 }
 
 mod float_comparisons;
+mod integer_comparisons;
 use float_comparisons::validate_float_comparison_occurrences;
+use integer_comparisons::validate_integer_comparison_occurrences;
 
 /// Source-free join from one canonical Terminal nearest-FMA operation to the
 /// exact selected plan that authored it and, on x86, its admitted deployment
@@ -232,6 +234,115 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
         occurrences: &[Self],
     ) -> Result<(), &'static str> {
         validate_float_comparison_occurrences(module, plans, occurrences)
+    }
+}
+
+/// Source-free custody for one emitted integer comparison and its exact
+/// selected plan. This records semantic association, not native realization
+/// authority. The emitted operation is only `IntegerEqual`, `IntegerLessThan`
+/// or `IntegerLessOrEqual`; `operand_order` and `negated` recover the authored
+/// `==`/`!=`/`<`/`<=`/`>`/`>=` meaning the selected provider committed to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalIntegerComparisonOccurrenceProposal {
+    pub terminal_machine: semantic_vocabulary::MachineId,
+    pub terminal_operation: semantic_vocabulary::OperationId,
+    pub provider_plan_index: usize,
+    pub provider_plan_commitment: effects::provider_plan::ProviderPlanDigest,
+    pub comparison: lowered_psi::LoweredSelectedIntegerComparisonOperation,
+    pub operand_order: lowered_psi::LoweredSelectedIntegerComparisonOperandOrder,
+    pub negated: bool,
+    pub integer_type: semantic_vocabulary::IntegerType,
+}
+
+impl TerminalIntegerComparisonOccurrenceProposal {
+    /// The authored comparison meaning the selected provider committed to,
+    /// recovered from the recorded emission triple. Combinations outside the
+    /// admitted emission roster have no authored meaning and fail closed.
+    pub fn authored_operation(
+        &self,
+    ) -> Option<effects::CompilerPrimitiveIntegerComparisonOperation> {
+        use effects::CompilerPrimitiveIntegerComparisonOperation as Operation;
+        use lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
+        use lowered_psi::LoweredSelectedIntegerComparisonOperation as Emitted;
+        match (self.comparison, self.operand_order, self.negated) {
+            (Emitted::Equal, Order::Authored, false) => Some(Operation::Equal),
+            (Emitted::Equal, Order::Authored, true) => Some(Operation::NotEqual),
+            (Emitted::LessThan, Order::Authored, false) => Some(Operation::Less),
+            (Emitted::LessOrEqual, Order::Authored, false) => Some(Operation::LessOrEqual),
+            (Emitted::LessThan, Order::Swapped, false) => Some(Operation::Greater),
+            (Emitted::LessOrEqual, Order::Swapped, false) => Some(Operation::GreaterOrEqual),
+            _ => None,
+        }
+    }
+
+    /// The exact compiler execution identity required by this semantic
+    /// occurrence. Address-carrier and non-fixed-width integer operands have
+    /// no closed numeric identity and fail closed.
+    pub fn execution_identity(&self) -> Option<effects::CompilerIntrinsicExecutionIdentity> {
+        let operation = self.authored_operation()?;
+        let integer_type = match (
+            self.integer_type.carrier(),
+            self.integer_type.sign(),
+            self.integer_type.bits(),
+        ) {
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Signed,
+                8,
+            ) => effects::CompilerNumericType::I8,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Signed,
+                16,
+            ) => effects::CompilerNumericType::I16,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Signed,
+                32,
+            ) => effects::CompilerNumericType::I32,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Signed,
+                64,
+            ) => effects::CompilerNumericType::I64,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Unsigned,
+                8,
+            ) => effects::CompilerNumericType::U8,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Unsigned,
+                16,
+            ) => effects::CompilerNumericType::U16,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Unsigned,
+                32,
+            ) => effects::CompilerNumericType::U32,
+            (
+                semantic_vocabulary::IntegerCarrier::Fixed,
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            ) => effects::CompilerNumericType::U64,
+            _ => return None,
+        };
+        Some(
+            effects::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                operation,
+                integer_type,
+            },
+        )
+    }
+
+    /// Check complete one-to-one association with the independently verified
+    /// Terminal operation roster. This does not establish source custody.
+    pub fn validate_roster(
+        module: &terminal_psi::TerminalModule,
+        plans: &[effects::provider_plan::ProviderPlan],
+        occurrences: &[Self],
+    ) -> Result<(), &'static str> {
+        validate_integer_comparison_occurrences(module, plans, occurrences)
     }
 }
 
@@ -303,6 +414,7 @@ pub struct TerminalNativeRealizationProposal {
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
+    integer_comparison_occurrences: Vec<TerminalIntegerComparisonOccurrenceProposal>,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
@@ -334,6 +446,7 @@ pub struct TerminalNativeRealizationInputs {
     pub callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     pub ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     pub ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
+    pub integer_comparison_occurrences: Vec<TerminalIntegerComparisonOccurrenceProposal>,
     pub boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
     pub boundary_application_realizations:
         boundary_applications::TerminalBoundaryApplicationRealizations,
@@ -364,6 +477,7 @@ impl TerminalNativeRealizationProposal {
             callback_occurrences,
             ieee_float_fma_occurrences,
             ieee_float_comparison_occurrences,
+            integer_comparison_occurrences,
             boundary_application_demands,
             boundary_application_realizations,
             checked_boundary_operator_scope,
@@ -401,6 +515,7 @@ impl TerminalNativeRealizationProposal {
             callback_occurrences,
             ieee_float_fma_occurrences,
             ieee_float_comparison_occurrences,
+            integer_comparison_occurrences,
             boundary_application_coverage,
             checked_boundary_operator_scope,
             behavior_exclusions,
@@ -640,6 +755,34 @@ impl TerminalNativeRealizationProposal {
                     if *execution == occurrence.execution_identity())
             {
                 return Err("Terminal IEEE comparison changed its selected boundary realization");
+            }
+        }
+        validate_integer_comparison_occurrences(
+            &module,
+            self.selected_provider_plans.plans(),
+            &self.integer_comparison_occurrences,
+        )?;
+        for occurrence in &self.integer_comparison_occurrences {
+            let matching = self
+                .boundary_application_coverage
+                .realizations()
+                .rows()
+                .iter()
+                .filter(|row| row.terminal_operation() == occurrence.terminal_operation)
+                .collect::<Vec<_>>();
+            let [realization] = matching.as_slice() else {
+                return Err(
+                    "Terminal integer comparison requires one exact boundary realization companion",
+                );
+            };
+            if realization.selected_plan_digest() != occurrence.provider_plan_commitment.as_bytes()
+                || !matches!(realization.realization(),
+                    boundary_applications::BoundaryApplicationRealization::ExactCompilerIntrinsic { execution }
+                    if Some(*execution) == occurrence.execution_identity())
+            {
+                return Err(
+                    "Terminal integer comparison changed its selected boundary realization",
+                );
             }
         }
         let terminal_fma_operations = module
@@ -1007,6 +1150,10 @@ impl TerminalNativeRealizationProposal {
         &self,
     ) -> &[TerminalIeeeFloatComparisonOccurrenceProposal] {
         &self.ieee_float_comparison_occurrences
+    }
+
+    pub fn integer_comparison_occurrences(&self) -> &[TerminalIntegerComparisonOccurrenceProposal] {
+        &self.integer_comparison_occurrences
     }
 
     /// Canonical union of the authored behavior exclusions this artifact's

@@ -128,7 +128,7 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 Vec::new(),
             )
             .unwrap();
-        let (artifact, _, scope, _, _) =
+        let (artifact, _, scope, _, _, _) =
             terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
                 .produce_program_entry(signature.identity().bytes())
                 .unwrap()
