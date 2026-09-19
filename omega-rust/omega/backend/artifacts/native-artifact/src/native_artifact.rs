@@ -24,8 +24,9 @@ mod mixed_structural_scalar;
 mod tests;
 
 use crate::physical::{
-    self, NativePhysicalEvidence, ValidatedOptimizedNativePhysicalEvidenceScope,
-    derive_physical_evidence, derive_validated_optimization_scope,
+    self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
+    ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
+    derive_validated_optimization_scope,
 };
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
@@ -56,6 +57,10 @@ pub struct NativeArtifact {
     boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence: Option<NativePhysicalEvidence>,
+    /// The exact subject that stopped the scoped derivation when
+    /// `physical_evidence` is absent. Derived here, never retained as a
+    /// caller claim: `NativeArtifactParts` deliberately has no slot for it.
+    physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: NativeArtifactIdentity,
 }
 
@@ -109,7 +114,7 @@ impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
     /// projection and every currently supported physical child.
     pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
-        let physical_evidence = derive_physical_evidence(
+        let physical_evidence = match derive_physical_evidence(
             &parts.physical_evidence_scope,
             &parts.psi_artifact,
             parts.target,
@@ -119,7 +124,11 @@ impl NativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
-        )?;
+        )? {
+            NativePhysicalEvidenceDerivation::Complete(evidence) => Some(evidence),
+            NativePhysicalEvidenceDerivation::Unavailable
+            | NativePhysicalEvidenceDerivation::Blocked(_) => None,
+        };
         Self::from_replayed_parts(NativeArtifactParts {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
@@ -143,6 +152,24 @@ impl NativeArtifact {
     /// Rejoin already verified proof admission with target artifacts while
     /// replaying every source-free identity and byte relation retained here.
     pub fn from_replayed_parts(parts: NativeArtifactParts) -> Result<Self, &'static str> {
+        // The gap is derivation state, not a retained claim: it is recomputed
+        // from the replayed inputs so a retained artifact can never assert a
+        // blocking subject the derivation would not have produced.
+        let physical_evidence_gap = match derive_physical_evidence(
+            &parts.physical_evidence_scope,
+            &parts.psi_artifact,
+            parts.target,
+            &parts.object,
+            parts.image.output(),
+            *parts.image.final_image_symbol_digest().as_bytes(),
+            &parts.selected_provider_plans,
+            &parts.provider_executions,
+            parts.boundary_application_coverage.as_ref(),
+        )? {
+            NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
+            NativePhysicalEvidenceDerivation::Unavailable
+            | NativePhysicalEvidenceDerivation::Complete(_) => None,
+        };
         let mut artifact = Self {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
@@ -160,6 +187,7 @@ impl NativeArtifact {
             boundary_application_coverage: parts.boundary_application_coverage,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence,
+            physical_evidence_gap,
             identity: NativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
@@ -293,20 +321,30 @@ impl NativeArtifact {
             &self.provider_executions,
             &required_executions,
         )?;
-        let expected_physical_evidence = derive_physical_evidence(
-            &self.physical_evidence_scope,
-            &self.psi_artifact,
-            self.target,
-            &self.object,
-            self.image.output(),
-            *self.image.final_image_symbol_digest().as_bytes(),
-            &self.selected_provider_plans,
-            &self.provider_executions,
-            self.boundary_application_coverage.as_ref(),
-        )?;
+        let (expected_physical_evidence, expected_physical_evidence_gap) =
+            match derive_physical_evidence(
+                &self.physical_evidence_scope,
+                &self.psi_artifact,
+                self.target,
+                &self.object,
+                self.image.output(),
+                *self.image.final_image_symbol_digest().as_bytes(),
+                &self.selected_provider_plans,
+                &self.provider_executions,
+                self.boundary_application_coverage.as_ref(),
+            )? {
+                NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+                NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+            };
         if self.physical_evidence != expected_physical_evidence {
             return Err(
                 "native artifact physical children disagree with its validated identity projection",
+            );
+        }
+        if self.physical_evidence_gap != expected_physical_evidence_gap {
+            return Err(
+                "native artifact physical evidence gap disagrees with exact derivation replay",
             );
         }
         if self.identity != self.recomputed_identity() {
@@ -394,6 +432,10 @@ impl NativeArtifact {
                 .physical_evidence
                 .as_ref()
                 .map(|evidence| *evidence.identity()),
+            physical_evidence_gap_identity: self
+                .physical_evidence_gap
+                .as_ref()
+                .map(|gap| *gap.identity()),
         })
     }
 
@@ -520,6 +562,15 @@ impl NativeArtifact {
     /// yet cover; it grants no final-realization claim for that role.
     pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
         self.physical_evidence.as_ref()
+    }
+
+    /// The exact subject that stopped this artifact's scoped D32 derivation
+    /// when [`Self::physical_evidence`] is absent. `None` means the evidence
+    /// is complete or the scope admits no derivation at all; a `Some` value
+    /// names the first occurrence or retained record the derivation could
+    /// not bind to a physical child.
+    pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
+        self.physical_evidence_gap.as_ref()
     }
 
     pub fn into_parts(self) -> NativeArtifactParts {

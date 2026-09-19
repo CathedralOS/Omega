@@ -1914,3 +1914,153 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
         Err("native physical child swapped or substituted its semantic parent role")
     );
 }
+
+#[test]
+fn physical_evidence_gap_identity_binds_the_exact_subject() {
+    use crate::physical::derivation::hashing::physical_evidence_gap_identity;
+    use crate::physical::model::NativePhysicalEvidenceGapSubject;
+    use semantic_vocabulary::{EdgeId, ServiceId};
+    use target_operations::CallSiteOwner;
+
+    let projection = physical_projection();
+    let boundary = projection.boundary_occurrences()[0];
+    let operator = projection.operator_occurrences()[0];
+    let machine = semantic_vocabulary::MachineId::new(9).expect("machine");
+
+    let subjects = [
+        NativePhysicalEvidenceGapSubject::RankedMachine { machine },
+        NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+            machine,
+            owner: CallSiteOwner::CleanupAction {
+                edge: EdgeId::new(11).expect("edge"),
+                action_ordinal: 2,
+            },
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization {
+            occurrence: boundary,
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall {
+            occurrence: boundary,
+        },
+        NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
+            occurrence: boundary,
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
+            occurrence: operator,
+        },
+        NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+            machine,
+            psi_operation: boundary.operation(),
+            service: ServiceId::new(5).expect("service"),
+            port: 7,
+            value: 9,
+            operation_ordinal: 1,
+            code_offset: 2,
+            byte_count: 3,
+        },
+    ];
+    // The encoding is deterministic.
+    for subject in &subjects {
+        assert_eq!(
+            physical_evidence_gap_identity(subject),
+            physical_evidence_gap_identity(subject)
+        );
+    }
+    // Distinct subjects never share an identity.
+    for (left_index, left) in subjects.iter().enumerate() {
+        for (right_index, right) in subjects.iter().enumerate() {
+            if left_index != right_index {
+                assert_ne!(
+                    physical_evidence_gap_identity(left),
+                    physical_evidence_gap_identity(right),
+                    "subjects {left_index} and {right_index} must not collide"
+                );
+            }
+        }
+    }
+    // A single mutated field inside one variant diverges.
+    let NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+        machine: moved_machine,
+        psi_operation,
+        service,
+        port,
+        value,
+        operation_ordinal,
+        code_offset,
+        ..
+    } = subjects[6]
+    else {
+        unreachable!("subjects[6] is an unowned port effect");
+    };
+    let moved = NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+        machine: moved_machine,
+        psi_operation,
+        service,
+        port,
+        value,
+        operation_ordinal,
+        code_offset,
+        byte_count: 4,
+    };
+    assert_ne!(
+        physical_evidence_gap_identity(&subjects[6]),
+        physical_evidence_gap_identity(&moved)
+    );
+    let other_machine = NativePhysicalEvidenceGapSubject::RankedMachine {
+        machine: semantic_vocabulary::MachineId::new(10).expect("machine"),
+    };
+    assert_ne!(
+        physical_evidence_gap_identity(&subjects[0]),
+        physical_evidence_gap_identity(&other_machine)
+    );
+}
+
+#[test]
+fn physical_evidence_gap_names_the_blocking_occurrence() {
+    use crate::physical::derivation::hashing::physical_evidence_gap_identity;
+    use crate::physical::model::NativePhysicalEvidenceGapSubject;
+    use crate::physical::model::native_physical_evidence_gap;
+
+    let projection = physical_projection();
+    let boundary = projection.boundary_occurrences()[0];
+    let operator = projection.operator_occurrences()[0];
+    let machine = semantic_vocabulary::MachineId::new(9).expect("machine");
+
+    let gap =
+        |subject| native_physical_evidence_gap(subject, physical_evidence_gap_identity(&subject));
+    let blocked = gap(
+        NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization {
+            occurrence: boundary,
+        },
+    );
+    assert_eq!(
+        blocked.occurrence(),
+        Some(NativePhysicalOccurrence::Boundary(boundary.identity()))
+    );
+    let blocked = gap(NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
+        occurrence: operator,
+    });
+    assert_eq!(
+        blocked.occurrence(),
+        Some(NativePhysicalOccurrence::Operator(operator.identity()))
+    );
+    // Machine-level and retained-record subjects carry no occurrence.
+    assert_eq!(
+        gap(NativePhysicalEvidenceGapSubject::RankedMachine { machine }).occurrence(),
+        None
+    );
+    assert_eq!(
+        gap(NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+            machine,
+            psi_operation: boundary.operation(),
+            service: semantic_vocabulary::ServiceId::new(5).expect("service"),
+            port: 7,
+            value: 9,
+            operation_ordinal: 1,
+            code_offset: 2,
+            byte_count: 3,
+        })
+        .occurrence(),
+        None
+    );
+}

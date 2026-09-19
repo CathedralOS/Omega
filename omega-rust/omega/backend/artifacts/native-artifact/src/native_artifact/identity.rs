@@ -7,7 +7,7 @@ use super::{
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 use sha2::{Digest, Sha256};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v7\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v8\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_artifact_identity: [u8; 32],
@@ -38,6 +38,11 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) boundary_application_coverage_identity: Option<[u8; 32]>,
     pub(super) physical_evidence_scope: &'a NativePhysicalEvidenceScope,
     pub(super) physical_evidence_identity: Option<[u8; 32]>,
+    /// Identity of the derivation-owned gap that names where scoped evidence
+    /// stopped; `None` when evidence is complete or the scope admits no
+    /// derivation. A gap and complete evidence never coexist, but the lanes
+    /// stay distinct in the preimage rather than sharing one digest slot.
+    pub(super) physical_evidence_gap_identity: Option<[u8; 32]>,
 }
 
 pub(super) fn derive_native_artifact_identity(
@@ -143,6 +148,7 @@ pub(super) fn derive_native_artifact_identity(
         }
     }
     hash_optional_digest(&mut digest, fields.physical_evidence_identity);
+    hash_optional_digest(&mut digest, fields.physical_evidence_gap_identity);
     NativeArtifactIdentity(digest.finalize().into())
 }
 

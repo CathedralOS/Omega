@@ -7,7 +7,11 @@ use semantic_vocabulary::{IntegerSign, ScalarType};
 use sha2::Digest;
 use sha2::Sha256;
 use target::{Architecture, NativeTarget, ObjectFormat};
-use target_operations::{BoundaryRealization, CompilerBuiltinExecution, CompletionClaimSource};
+use target_operations::{
+    BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
+};
+
+use crate::physical::model::NativePhysicalEvidenceGapSubject;
 
 pub(crate) fn hash_structural_path(
     digest: &mut Sha256,
@@ -694,4 +698,82 @@ pub(crate) fn canonical_usize(value: usize) -> [u8; 8] {
     u64::try_from(value)
         .expect("native physical evidence field fits u64")
         .to_le_bytes()
+}
+
+/// Canonical identity of the one subject that stopped a scoped derivation.
+/// Occurrence subjects hash their exact occurrence identity (which already
+/// commits terminal, machine, operation, boundary, and ordinal); record and
+/// machine subjects hash their retained coordinates directly.
+pub(crate) fn physical_evidence_gap_identity(
+    subject: &NativePhysicalEvidenceGapSubject,
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-physical-evidence-gap.sha256.v1\0");
+    match subject {
+        NativePhysicalEvidenceGapSubject::RankedMachine { machine } => {
+            digest.update([1]);
+            digest.update(machine.get().to_le_bytes());
+        }
+        NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
+            digest.update([2]);
+            digest.update(machine.get().to_le_bytes());
+            match owner {
+                CallSiteOwner::Operation(operation) => {
+                    digest.update([1]);
+                    digest.update(operation.get().to_le_bytes());
+                    digest.update(0_u32.to_le_bytes());
+                }
+                CallSiteOwner::CleanupAction {
+                    edge,
+                    action_ordinal,
+                } => {
+                    digest.update([2]);
+                    digest.update(edge.get().to_le_bytes());
+                    digest.update(action_ordinal.to_le_bytes());
+                }
+            }
+        }
+        NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence } => {
+            digest.update([3]);
+            digest.update(occurrence.identity().bytes());
+        }
+        NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence } => {
+            digest.update([4]);
+            digest.update(occurrence.identity().bytes());
+        }
+        NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
+            digest.update([5]);
+            digest.update(occurrence.identity().bytes());
+        }
+        NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
+            digest.update([6]);
+            digest.update(occurrence.identity().bytes());
+        }
+        NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+            machine,
+            psi_operation,
+            service,
+            port,
+            value,
+            operation_ordinal,
+            code_offset,
+            byte_count,
+        } => {
+            digest.update([7]);
+            digest.update(machine.get().to_le_bytes());
+            hash_port_effect_record(
+                &mut digest,
+                &PortEffectRecord {
+                    psi_operation: *psi_operation,
+                    service: *service,
+                    port: *port,
+                    value: *value,
+                    operation_ordinal: *operation_ordinal,
+                    code_offset: *code_offset,
+                    byte_count: *byte_count,
+                },
+            );
+        }
+    }
+    digest.finalize().into()
 }

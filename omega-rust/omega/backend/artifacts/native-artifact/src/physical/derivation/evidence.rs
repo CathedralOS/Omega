@@ -17,12 +17,14 @@ use crate::physical::derivation::children::{
 };
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
-    hash_relocation_origin, relocation_kind_tag,
+    hash_relocation_origin, physical_evidence_gap_identity, relocation_kind_tag,
 };
 use crate::physical::model::native_optimization_projection;
 use crate::physical::model::native_physical_evidence;
+use crate::physical::model::native_physical_evidence_gap;
 use crate::physical::model::optimized_boundary_occurrence;
 use crate::physical::model::optimized_operator_occurrence;
+use crate::physical::model::{NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject};
 use crate::physical::operator_applications::derive_operator_physical_span;
 use crate::{NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
@@ -38,6 +40,25 @@ use target::NativeTarget;
 use target_operations::{BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution};
 use terminal_psi::OperationKind;
 
+/// How one scoped physical-evidence derivation finished. `Blocked` names the
+/// first subject the derivation could not bind, so an artifact without
+/// complete evidence never fails silently.
+pub(crate) enum NativePhysicalEvidenceDerivation {
+    /// The artifact's scope admits no physical-evidence derivation at all.
+    Unavailable,
+    /// Every surviving occurrence bound exactly one physical child.
+    Complete(NativePhysicalEvidence),
+    /// Derivation stopped at the first subject it could not bind.
+    Blocked(NativePhysicalEvidenceGap),
+}
+
+fn blocked(subject: NativePhysicalEvidenceGapSubject) -> NativePhysicalEvidenceDerivation {
+    NativePhysicalEvidenceDerivation::Blocked(native_physical_evidence_gap(
+        subject,
+        physical_evidence_gap_identity(&subject),
+    ))
+}
+
 pub(crate) fn derive_physical_evidence(
     scope: &NativePhysicalEvidenceScope,
     terminal_artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -48,9 +69,9 @@ pub(crate) fn derive_physical_evidence(
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
-) -> Result<Option<NativePhysicalEvidence>, &'static str> {
+) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
-        return Ok(None);
+        return Ok(NativePhysicalEvidenceDerivation::Unavailable);
     }
     if let NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) = scope
         && let Some(publication) = optimized.fragment_publication()
@@ -59,12 +80,14 @@ pub(crate) fn derive_physical_evidence(
     }
     let module = terminal_codec::decode_module(terminal_artifact.semantic_bytes())
         .map_err(|_| "native physical evidence cannot decode Terminal semantics")?;
-    if module
+    if let Some(machine) = module
         .machines
         .iter()
-        .any(|machine| machine.ranked_scc.is_some())
+        .find(|machine| machine.ranked_scc.is_some())
     {
-        return Ok(None);
+        return Ok(blocked(NativePhysicalEvidenceGapSubject::RankedMachine {
+            machine: machine.id,
+        }));
     }
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
@@ -123,7 +146,12 @@ pub(crate) fn derive_physical_evidence(
     let mut foreign_calls = BTreeMap::new();
     for foreign in object.foreign_calls() {
         let CallSiteOwner::Operation(operation) = foreign.owner else {
-            return Ok(None);
+            return Ok(blocked(
+                NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+                    machine: foreign.machine,
+                    owner: foreign.owner,
+                },
+            ));
         };
         let key = (foreign.machine, operation);
         if foreign_calls.insert(key, foreign).is_some() {
@@ -272,7 +300,11 @@ pub(crate) fn derive_physical_evidence(
                     &mut consumed_port_effects,
                 )?
                 else {
-                    return Ok(None);
+                    return Ok(blocked(
+                        NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization {
+                            occurrence: *occurrence,
+                        },
+                    ));
                 };
                 children.push(child);
             }
@@ -291,11 +323,21 @@ pub(crate) fn derive_physical_evidence(
                     foreign,
                 )?
                 else {
-                    return Ok(None);
+                    return Ok(blocked(
+                        NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall {
+                            occurrence: *occurrence,
+                        },
+                    ));
                 };
                 children.push(child);
             }
-            _ => return Ok(None),
+            _ => {
+                return Ok(blocked(
+                    NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
+                        occurrence: *occurrence,
+                    },
+                ));
+            }
         }
     }
     // Every retained privileged port effect must have been consumed by an
@@ -303,7 +345,27 @@ pub(crate) fn derive_physical_evidence(
     // effect cannot be attributed to a surviving occurrence, so the artifact
     // remains valid without claiming complete physical coverage.
     if consumed_port_effects.len() != object.port_effects().len() {
-        return Ok(None);
+        let Some(effect) = object
+            .port_effects()
+            .iter()
+            .enumerate()
+            .find(|(index, _)| !consumed_port_effects.contains(index))
+            .map(|(_, effect)| effect)
+        else {
+            return Err("native physical evidence port-effect custody count drifted");
+        };
+        return Ok(blocked(
+            NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+                machine: effect.machine,
+                psi_operation: effect.effect.psi_operation,
+                service: effect.effect.service,
+                port: effect.effect.port,
+                value: effect.effect.value,
+                operation_ordinal: effect.effect.operation_ordinal,
+                code_offset: effect.effect.code_offset,
+                byte_count: effect.effect.byte_count,
+            },
+        ));
     }
     for occurrence in projection.operator_occurrences() {
         let matching_references = boundary_application_coverage
@@ -335,8 +397,13 @@ pub(crate) fn derive_physical_evidence(
         )?
         else {
             // Unsupported compiler-intrinsic or call mechanics leave the
-            // artifact valid without claiming complete physical coverage.
-            return Ok(None);
+            // artifact valid, but the gap names the exact surviving
+            // occurrence the span derivation declined.
+            return Ok(blocked(
+                NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
+                    occurrence: *occurrence,
+                },
+            ));
         };
         let parent = PhysicalChildParent::OperatorApplicationCoverage(**reference);
         let physical_occurrence = NativePhysicalOccurrence::Operator(occurrence.identity());
@@ -372,9 +439,9 @@ pub(crate) fn derive_physical_evidence(
     children.sort_by_key(|child| child.occurrence());
     validate_exact_physical_children(&projection, &children)?;
     let identity = physical_evidence_identity(projection.identity(), &children);
-    Ok(Some(native_physical_evidence(
-        projection, children, identity,
-    )))
+    Ok(NativePhysicalEvidenceDerivation::Complete(
+        native_physical_evidence(projection, children, identity),
+    ))
 }
 
 #[derive(Clone, Copy)]

@@ -27,8 +27,9 @@ pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
     NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
     NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallRelocation,
-    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
-    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
+    NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts,
+    NativePhysicalOccurrence, NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
+    NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
+    PhysicalChildParent, PhysicalRelocationDisposition,
+    ValidatedOptimizedNativePhysicalEvidenceScope,
 };
