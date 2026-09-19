@@ -935,6 +935,65 @@ fn incoming_guard_dies_when_value_call_writes_guarded_place() {
 }
 
 #[test]
+fn incoming_guard_survives_the_consuming_assignment_destination_write() {
+    let source = r#"
+        data Main { value: i32 [0..=9]; }
+
+        machine Main::main(&mut self) {
+            transition self.value < 9 {
+                true -> update()
+                false -> done()
+            }
+            state update(&mut self) {
+                self.value = self.value + 1;
+            }
+            state done(&mut self) {}
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the destination is written after the bounded value has been consumed");
+}
+
+#[test]
+fn incoming_guard_dies_under_the_consuming_assignment_value_call() {
+    let source = r#"
+        data Main {
+            value: i32 [0..=9];
+            result: i32 [0..=9];
+        }
+
+        machine Main::main(&mut self) {
+            transition self.value < 9 {
+                true -> update()
+                false -> done()
+            }
+            state update(&mut self) {
+                self.result = self.touch_value() + self.value;
+            }
+            state done(&mut self) {}
+        }
+
+        machine Main::touch_value(&mut self) -> i32 [1..=1] {
+            self.value = 9;
+            1
+        }
+    "#;
+
+    let pure_call = source.replace("self.value = 9;", "");
+    lower_typed_trees(parse_typed_trees(&pure_call))
+        .expect("the same bounded call result preserves the guard when its frame is pure");
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the consuming value call invalidates the incoming guard before addition");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected bounded-assignment rejection, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
     let source = r#"
         boundary trait Sink {
