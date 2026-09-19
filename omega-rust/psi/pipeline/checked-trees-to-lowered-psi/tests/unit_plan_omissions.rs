@@ -134,14 +134,15 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // that application instead of the open `Task<T>`. Both calls produce checked
 // operations, and the routed receiver now clears provider attachment
 // requirements: the `token` parameter stays an ordinary argument while the
-// `self.runtime` receiver supplies the `start` requirement row. The
-// remaining omission frontier is independent of the receiver specialization:
-// the `TaskRuntime::start` requirement signature itself has no static
-// boundary plan — `build_static_boundary_requirements` cannot telescope a
-// `machine Target` binder that is neither a native callback entry nor a
-// nominal use — so candidate closure drops `Main::probe` on its missing
-// boundary target, and the owned-`self` `settle` bodies stop at entry claims
-// because a linear owned receiver establishes no `StateEntry` claim event.
+// `self.runtime` receiver supplies the `start` requirement row. The static
+// boundary roster then resolves the `machine Target` binder from the
+// retained specialization row — `T`/`Arguments` derive `Token` and `Target`
+// selects `Worker::run`'s entry — so `TaskRuntime::start` carries a
+// substituted boundary plan and `probe` clears the boundary target check.
+// The remaining omission frontier is independent of the routed call: the
+// owned-`self` `settle` bodies stop at entry claims because a linear owned
+// receiver establishes no `StateEntry` claim event, so candidate closure
+// drops `Main::probe` on the unavailable `settle` callee.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -251,14 +252,80 @@ fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
             .any(|call| call.target_symbol == start_requirement),
         "the start call is retained as a checked flow call fact"
     );
-    // Both calls in `Main::probe` plan, and the provider roster now admits
-    // the routed receiver: `token` is an ordinary structural argument beside
-    // the `self.runtime` provider field, so the checked requirement row names
-    // `TaskRuntime::start` on `runtime`. `probe` therefore leaves local
-    // construction and is pruned by candidate closure instead: the `start`
-    // requirement signature is generic over a `machine Target` binder, which
-    // `build_static_boundary_requirements` cannot telescope into a static
-    // boundary plan, so the boundary call's target has no plan to call into.
+    // The retained specialization row for `start<Worker::run>` resolves the
+    // requirement's whole telescope — `T` and `Arguments` derive `Token`, and
+    // the `machine Target` binder's selection is `Worker::run`'s entry — so
+    // `build_static_boundary_requirements` plans `TaskRuntime::start` with the
+    // substituted envelope instead of declining an untelescoped binder.
+    let specialized = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine
+                .name
+                .as_str()
+                .starts_with("Task::settle$specialized$")
+        })
+        .expect("the Task<Token> receiver specialization is emitted");
+    let specialized_symbol = specialized.symbol;
+    let specialized_name = specialized.name.as_str().to_owned();
+    let task_token_identity = checked
+        .typed
+        .normalized_type_identity(specialized.attached_data_application)
+        .into_string();
+    let token_identity = {
+        let probe_machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == probe)
+            .expect("Main::probe is declared");
+        let probe_typed_state = checked
+            .typed
+            .machine_states(probe_machine)
+            .first()
+            .expect("probe has a state");
+        let token_parameter = checked
+            .typed
+            .state_parameters(probe_typed_state)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "token")
+            .expect("probe declares token");
+        checked
+            .typed
+            .normalized_type_identity(token_parameter.type_reference)
+            .into_string()
+    };
+    let boundary = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .find(|plan| plan.machine == start_requirement)
+        .expect("TaskRuntime::start has a boundary plan");
+    assert!(
+        boundary
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.type_identity == token_identity),
+        "the substituted `arguments: Token` parameter is planned"
+    );
+    match &boundary.result {
+        checked_trees::CheckedBoundaryMachineResultPlan::Structural {
+            type_identity,
+            multiplicity,
+            ..
+        } => {
+            assert_eq!(type_identity, &task_token_identity);
+            assert_eq!(*multiplicity, language_semantics::Multiplicity::Linear);
+        }
+        result => panic!("unexpected start result plan: {result:?}"),
+    }
+    // `probe` now clears the boundary target check and stops one edge later:
+    // the specialized `settle` callee still has no admitted body because an
+    // owned `self` on `[linear]` data establishes no `StateEntry` claim event.
     let omission = checked
         .facts
         .flow
@@ -267,8 +334,8 @@ fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
         .expect("Main::probe has an omission row");
     assert_eq!(
         omission.stage,
-        checked_trees::CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
-            target: start_requirement,
+        checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
+            target: specialized_symbol,
         }
     );
     // The specialized `settle` edge is real — checking emitted
@@ -299,24 +366,12 @@ fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
             ..
         }
     ));
-    let specialized = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| {
-            machine
-                .name
-                .as_str()
-                .starts_with("Task::settle$specialized$")
-        })
-        .expect("the Task<Token> receiver specialization is emitted")
-        .symbol;
     assert!(matches!(
         checked
             .facts
             .flow
             .terminal_unit_effects
-            .omission_for_machine(specialized)
+            .omission_for_machine(specialized_symbol)
             .expect("the specialized settle body has an omission row")
             .stage,
         checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
@@ -339,10 +394,11 @@ fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
         reason,
         "attached Unit closure is missing a checked transitive machine plan"
     );
-    assert_eq!(
-        omission.as_deref(),
-        Some("`Main::probe` calls boundary `TaskRuntime::start`, which has no boundary plan")
+    let expected_omission = format!(
+        "`Main::probe` calls `{specialized_name}`, which has no plan; \
+         `{specialized_name}` has no admitted body (local construction stopped at entry claims)"
     );
+    assert_eq!(omission.as_deref(), Some(expected_omission.as_str()));
 }
 
 #[test]
