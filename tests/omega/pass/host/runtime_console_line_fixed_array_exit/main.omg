@@ -1,7 +1,8 @@
+use omega::language::core::service;
 use omega_language_std::console;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 16];
 }
 

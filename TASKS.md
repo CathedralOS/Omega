@@ -270,6 +270,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   covers unused scalar case bindings and raw-array lengths separately; it does
   not establish command-reader completion.
 
+  For bounded input, the full-result fixture
+  `host/runtime_console_bounded_line_exit` still omits its entry plan at the
+  first `read_line(&mut self.line[0..0])` call (macOS ARM64 native probe at
+  `d5e62f683d`: `statement sequence: call: call operation`, state 0, statement 4).
+  `execution/unit/calls/structural_arguments.rs` only admits byte subslices for
+  checked Unit-returning callees; value-returning boundary calls need that
+  ordinary view/borrow transport and independent lowering checks under
+  **STATE-LOCAL-VALUE-FRONTIER**. Preserve zero-capacity non-consumption and
+  untouched-tail/count checks; the fixed-array discard-result native test
+  `fixed_array_line_reader_executes_only_until_its_first_completion` does not
+  close that remaining result/subslice composition.
+
   Route verified failures to existing owners:
 
   - Ordinary statements, indexed/aggregate values and stored origins:
