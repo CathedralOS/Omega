@@ -242,6 +242,39 @@ impl Builder<'_, '_> {
                 self.integer_application(expression, value, domain, [operand])
             }
             ExpressionNode::Cast(cast) => {
+                // Numeric conversion of a Boolean is one evaluated condition
+                // followed by a fixed 0/1 landing, not an integer cast: the
+                // operand keeps its authored Boolean computation and the node
+                // owns the cast occurrence. `integer_bit_width` admission in
+                // validation excludes `addr` and non-integer targets here.
+                if let Some(source) =
+                    semantic_casts::result_type(self.program, self.state, cast.value)
+                    && self.program.primitive_type_reference(source) == Some(PrimitiveType::Bool)
+                    && self
+                        .program
+                        .primitive_type_reference(cast.target_type)
+                        .is_some_and(|destination| {
+                            is_integer(destination) && destination != PrimitiveType::Addr
+                        })
+                    && !cast.form.is_recast()
+                    && cast.semantic_domain.is_empty()
+                {
+                    let destination = self.program.primitive_type_reference(cast.target_type)?;
+                    let operand = self.expression(cast.value, PrimitiveType::Bool)?;
+                    let computation = self.insert(
+                        destination,
+                        CheckedScalarComputationKind::BooleanToInteger {
+                            source_expression: expression,
+                            operand,
+                        },
+                    );
+                    return Some(IntegerOperand {
+                        value: parameter(0, destination),
+                        value_source: ExpressionHandle::invalid(),
+                        domain: ArithmeticDomain::Exact,
+                        computation,
+                    });
+                }
                 // A typed result retains its own carrier before conversion.
                 // Only wholly anonymous result leaves receive the cast target;
                 // the match subject and selected evaluation remain computations.

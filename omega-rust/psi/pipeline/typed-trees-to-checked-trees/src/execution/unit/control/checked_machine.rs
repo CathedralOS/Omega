@@ -1520,7 +1520,8 @@ fn computation_observes_primitive_carrier(
                         )
                     })
         }
-        checked_trees::CheckedScalarComputationKind::Qualification { operand, .. } => {
+        checked_trees::CheckedScalarComputationKind::Qualification { operand, .. }
+        | checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             computation_observes_primitive_carrier(facts, *operand, positions, symbols, visited)
         }
         checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. } => subject

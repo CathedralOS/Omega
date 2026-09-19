@@ -177,7 +177,10 @@ pub(super) fn retain_shapes(
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }
-            CheckedScalarComputationKind::Qualification { operand, .. } => pending.push(*operand),
+            CheckedScalarComputationKind::Qualification { operand, .. }
+            | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+                pending.push(*operand)
+            }
             CheckedScalarComputationKind::Value(_)
             | CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {

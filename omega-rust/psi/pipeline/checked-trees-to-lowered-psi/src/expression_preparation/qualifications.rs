@@ -90,6 +90,9 @@ impl PreparedScalarQualifications {
                     references.push(*result_type);
                     pending.push(*operand);
                 }
+                CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+                    pending.push(*operand);
+                }
                 CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. } => {}
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {

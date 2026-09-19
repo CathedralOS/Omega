@@ -165,6 +165,14 @@ pub enum CheckedScalarComputationKind {
     },
     /// Pure source expression in the enclosing state's scalar namespace.
     Value(CheckedScalarExpression),
+    /// Authored Boolean-to-integer conversion at one cast occurrence. Every
+    /// arithmetic domain produces the same payload: `false` becomes 0 and
+    /// `true` becomes 1 in the destination carrier, so this node keeps the
+    /// cast's source occurrence without carrying a policy.
+    BooleanToInteger {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        operand: CheckedScalarComputationHandle,
+    },
     /// Save the subject once, then test arms in order and evaluate one result.
     Dispatch {
         source_expression: typed_trees::expression::ExpressionHandle,

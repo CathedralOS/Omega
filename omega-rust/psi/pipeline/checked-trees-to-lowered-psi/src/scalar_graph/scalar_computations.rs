@@ -6,7 +6,7 @@
 //! selected path's structural effects. The calls and arrays modules own that
 //! mixed schedule and its real structural results.
 use super::{
-    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
+    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError,
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralArgument,
     scalar_carriers, unsupported, validate_direct_parameter_types,
 };
@@ -678,6 +678,60 @@ impl<'a> Expansion<'a> {
                     site,
                     active,
                 )?
+            }
+            CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+                // The conversion is exactly one conditional landing of 0 or 1
+                // in the destination carrier; the authored cast keeps source
+                // custody while the branch shape reuses ordinary selection.
+                let operand = Argument::Computation(operand);
+                if self.argument_type(&operand, site, input_types)? != ScalarType::Boolean.into() {
+                    return unsupported(
+                        "Boolean-to-integer conversion operand is not a scalar Boolean",
+                    );
+                }
+                let ScalarType::Integer(integer_type) = result_type.scalar_type else {
+                    return unsupported(
+                        "Boolean-to-integer conversion result is not an integer carrier",
+                    );
+                };
+                let literal = |value: u128| {
+                    LoweredScalarBinding::Expression(LoweredDirectExpression::IntegerLiteral {
+                        value: match integer_type.sign() {
+                            semantic_vocabulary::IntegerSign::Signed => {
+                                IntegerValue::Signed(value as i128)
+                            }
+                            semantic_vocabulary::IntegerSign::Unsigned => {
+                                IntegerValue::Unsigned(value)
+                            }
+                        },
+                        scalar_type: result_type.scalar_type,
+                    })
+                };
+                let when_true_target =
+                    self.binding(input_types, input_types.len(), target, literal(1));
+                let when_false_target =
+                    self.binding(input_types, input_types.len(), target, literal(0));
+                let mut condition_types = input_types.to_vec();
+                condition_types.push(ScalarType::Boolean.into());
+                let dispatch = self.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    structural_effects: Vec::new(),
+                    parameter_types: condition_types,
+                    erased_formal_types: Vec::new(),
+                    bindings: Vec::new(),
+                    terminator: LoweredScalarBranchTerminator::Conditional {
+                        condition: LoweredBooleanReturnExpression::Parameter {
+                            position: input_types.len(),
+                        },
+                        when_true_target,
+                        when_true_arguments: parameters(input_types),
+                        when_true_erased_arguments: Vec::new(),
+                        when_false_target,
+                        when_false_arguments: parameters(input_types),
+                        when_false_erased_arguments: Vec::new(),
+                    },
+                });
+                self.argument(&operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {
                 source_call,

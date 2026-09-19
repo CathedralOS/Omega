@@ -2,11 +2,13 @@
 //!
 //! `source/library/core/numeric_conversion.omg` publishes one named machine per
 //! conversion policy, and the `tests/omega/pass/core/numeric_*` canaries call
-//! them. Four of those shapes still stop before native execution, and the stop
+//! them. Three of those shapes still stop before native execution, and the stop
 //! is not a Unit control-builder restriction: two are rejected by this crate's
-//! own explicit policy-realization limits, and two have no checked scalar
-//! expression at all, so the ordinary statement sequence finds nothing to
-//! plan.
+//! own explicit policy-realization limits, and the Trapping shift has no
+//! checked scalar expression at all, so the ordinary statement sequence finds
+//! nothing to plan. Boolean-to-integer conversion now composes: a dedicated
+//! `BooleanToInteger` checked computation owns the authored cast occurrence
+//! and lands through the ordinary conditional selection of 0 and 1.
 //!
 //! Each rejection is paired with the admitted neighbour that differs in one
 //! coordinate, so a repair has to move the actual boundary rather than widen a
@@ -163,19 +165,14 @@ fn an_exact_conversion_crosses_the_sign_boundary_with_a_declared_range() {
 }
 
 /// `numeric_conversion_trap_if` opens with `invalid as u32 in Wrapping`.
-/// Checking admits a Boolean source for a numeric target and confines it to
-/// `0..=1`, but no `CheckedScalarExpression` carries the conversion, so the
-/// initializer has no value fact and the Unit body has no plan. Realizing it
-/// is not a local lowering trick: `LoweredDirectExpression` and Terminal Psi
-/// carry no operation consuming a Boolean into an integer, and the branch
-/// joins that could select between the two admitted constants (`Select`,
-/// `Dispatch`) are pinned by source custody to authored `&&`/`||` and `match`
-/// occurrences — a cast-derived selection has no admitted provenance. The
-/// honest spelling is a dedicated checked computation or Terminal operation;
-/// both cross the current ownership lines.
+/// Checking admits a Boolean source for a fixed-integer target and confines it
+/// to `0..=1`; the dedicated `BooleanToInteger` computation carries the
+/// authored cast occurrence and lands through an ordinary conditional, so the
+/// initializer reaches a plan without a new Terminal operation or a
+/// cast-derived `Select` borrowing authored `&&`/`||` provenance.
 #[test]
-fn a_boolean_integer_conversion_leaves_its_initializer_without_a_value_fact() {
-    let (machine, omission) = unit_plan_omission(
+fn a_boolean_integer_conversion_lands_through_its_own_computation() {
+    let checked = checked(
         r#"
         data Main {}
         machine trap_if(invalid: bool) {
@@ -184,17 +181,71 @@ fn a_boolean_integer_conversion_leaves_its_initializer_without_a_value_fact() {
         machine Main::main(invalid: bool) { trap_if(invalid); }
     "#,
     );
-    assert_eq!(machine, "Main::main");
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .find(|root| {
+            matches!(
+                plans.nodes.get(root.root).kind,
+                checked_trees::CheckedScalarComputationKind::BooleanToInteger { .. }
+            )
+        })
+        .expect("the Boolean-to-integer initializer is a computation root");
+    let node = plans.nodes.get(root.root);
+    assert_eq!(node.primitive_type, typed_trees::types::PrimitiveType::U32);
+    let checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } = node.kind
+    else {
+        unreachable!()
+    };
     assert_eq!(
-        omission,
-        "`Main::main` calls `trap_if`, which has no plan; `trap_if` has no admitted body \
-         (local construction stopped at statement sequence: local data: scalar local: \
-         pure initializer, statement 0)"
+        plans.nodes.get(operand).primitive_type,
+        typed_trees::types::PrimitiveType::Bool
     );
+    checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
+        .expect("the conversion lowers through an ordinary conditional landing");
 }
 
-/// The identical initializer over an integer source does reach a plan, so the
-/// Boolean carrier alone decides the stop above.
+/// The operand keeps its authored Boolean computation: a selected comparison
+/// or a call result converts through the same node, and a signed destination
+/// lands the same 0/1 payload in its own carrier.
+#[test]
+fn a_boolean_integer_conversion_keeps_its_operands_evaluation() {
+    for (operand, target) in [
+        ("invalid == false", "u32"),
+        ("invalid", "i8"),
+        ("probe()", "u16"),
+    ] {
+        let checked = checked(&format!(
+            r#"
+            data Main {{}}
+            machine probe() -> bool {{ true }}
+            machine trap_if(invalid: bool) {{
+                let invalid_value: {target} = ({operand}) as {target};
+            }}
+            machine Main::main(invalid: bool) {{ trap_if(invalid); }}
+        "#
+        ));
+        let plans = &checked.facts.values.scalar_computations;
+        assert!(
+            plans
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .any(|root| matches!(
+                    plans.nodes.get(root.root).kind,
+                    checked_trees::CheckedScalarComputationKind::BooleanToInteger { .. }
+                )),
+            "{operand} as {target}: the conversion is a computation root"
+        );
+        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
+            .unwrap_or_else(|error| panic!("{operand} as {target}: {error:?}"));
+    }
+}
+
+/// The identical initializer over an integer source composes through
+/// `IntegerWrappingCast`, so the two carriers now share one working surface.
 #[test]
 fn an_integer_wrapping_conversion_initializer_reaches_a_plan() {
     lowers(
