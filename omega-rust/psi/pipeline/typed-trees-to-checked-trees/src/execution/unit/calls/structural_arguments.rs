@@ -378,6 +378,7 @@ pub(crate) fn structural_call_arguments(
                     projected_type,
                     target.type_reference,
                     &target_identity,
+                    &[],
                 ) && !(caller_parameters[source_index].multiplicity
                     == Multiplicity::Unrestricted
                     && segments
