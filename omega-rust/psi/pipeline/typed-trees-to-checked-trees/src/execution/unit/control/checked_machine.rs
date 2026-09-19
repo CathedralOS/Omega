@@ -23,7 +23,7 @@ use crate::execution::terminal_unit::{
     return_unit_affine_discards, scalar_expression_local_suffix,
     selected_ieee_float_fma_result_locals, selected_operator_scalar_result_local,
     selected_operator_structural_result_local, state_flow, structural_scalar_signature,
-    structural_signature,
+    structural_signature, type_graph_requires_nominal_drop,
 };
 
 /// Test convenience: the traced builder without a trace.
@@ -1033,6 +1033,28 @@ fn build_checked_machine_with_trace(
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();
+    // A cleanup-owned local still owned at return would need its exact
+    // owner-attached `::drop` invoked here; the bounded lane has no per-local
+    // cleanup edge, so the machine stays outside the slice rather than
+    // discarding the owner silently.
+    if operations.iter().any(|operation| {
+        let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            discard_result_on_return,
+            ..
+        } = operation
+        else {
+            return false;
+        };
+        *discard_result_on_return
+            && matches!(
+                statements.get(result.statement_index as usize),
+                Some(StatementNode::LocalData(local))
+                    if type_graph_requires_nominal_drop(program, local.type_reference)
+            )
+    }) {
+        return None;
+    }
     operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
         trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())

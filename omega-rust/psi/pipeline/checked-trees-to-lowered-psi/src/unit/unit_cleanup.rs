@@ -11,13 +11,14 @@ use super::{
     BTreeSet, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError,
-    Multiplicity, NominalAffineCleanup, OperationKind, PrimitiveType, Proposition, ScalarTerm,
-    ScalarType, ServiceReachInterface, ServiceReachPlan, ServiceReachSummary, StructuralFieldType,
-    StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult, Terminator,
-    checked_unit_call_closure_including, dense_identity, lookup_type_id,
-    lower_nominal_cleanup_closure, machine_id, obligation_id, place_id, unique_unit_machine,
-    unsupported,
+    MachineId, Multiplicity, NominalAffineCleanup, OperationKind, PrimitiveType, Proposition,
+    ScalarTerm, ScalarType, ServiceReachInterface, ServiceReachPlan, ServiceReachSummary,
+    StructuralFieldType, StructuralMultiplicity, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalMachineResult, Terminator, checked_unit_call_closure_including,
+    dense_identity, lookup_machine_id, lookup_type_id, lower_nominal_cleanup_closure, machine_id,
+    obligation_id, place_id, unique_unit_machine, unsupported,
 };
+use symbols::SymbolHandle;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
@@ -36,13 +37,17 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal affine Unit cleanup list must be nonempty");
     };
     let plan = &nominal.machine;
-    if checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .any(|candidate| candidate.machine == plan.machine)
+    // A free consuming machine (a `drop<T>` specialization) is seeded into the
+    // ordinary roster so callers can resolve it; only an attached entry doubles
+    // as a trivial-lane body.
+    if plan.attachment_type_identity.is_some()
+        && checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .any(|candidate| candidate.machine == plan.machine)
     {
         return unsupported("nominal affine Unit machine is also published in the trivial lane");
     }
@@ -93,19 +98,19 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     {
         return unsupported("nominal affine Unit structural types are empty or duplicated");
     }
-    let attachment_shape = nominal_types
-        .iter()
-        .find(|candidate| {
-            plan.attachment_type_identity.as_deref() == Some(candidate.identity.as_str())
-        })
-        .ok_or(LoweringError::Unsupported(
-            "nominal affine Unit attachment type is absent from its checked shapes",
-        ))?;
-    if !matches!(
-        &attachment_shape.shape,
-        CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
-    ) {
-        return unsupported("nominal affine Unit attachment is not an empty record");
+    if let Some(attachment_type_identity) = plan.attachment_type_identity.as_deref() {
+        let attachment_shape = nominal_types
+            .iter()
+            .find(|candidate| candidate.identity == attachment_type_identity)
+            .ok_or(LoweringError::Unsupported(
+                "nominal affine Unit attachment type is absent from its checked shapes",
+            ))?;
+        if !matches!(
+            &attachment_shape.shape,
+            CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+        ) {
+            return unsupported("nominal affine Unit attachment is not an empty record");
+        }
     }
     let parameter_shape = nominal_types
         .iter()
@@ -356,7 +361,13 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
             None => staged_unit.structural_types.push(shape.clone()),
         }
     }
-    staged_unit.machines.push(plan.clone());
+    if !staged_unit
+        .machines
+        .iter()
+        .any(|candidate| candidate.machine == plan.machine)
+    {
+        staged_unit.machines.push(plan.clone());
+    }
     let closure =
         checked_unit_call_closure_including(&staged, plan.machine, &[cleanup.cleanup_machine])?;
     let mut expected_closure = vec![plan.machine, cleanup.cleanup_machine];
@@ -670,15 +681,12 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal affine Unit terminal parameter drifted");
     };
     entry.contract.requires = caller_requires.clone();
-    if entry.attachment
-        != Some(lookup_type_id(
-            &type_ids,
-            plan.attachment_type_identity
-                .as_deref()
-                .ok_or(LoweringError::Unsupported(
-                    "nominal cleanup caller is not attached",
-                ))?,
-        )?)
+    let expected_attachment = plan
+        .attachment_type_identity
+        .as_deref()
+        .map(|identity| lookup_type_id(&type_ids, identity))
+        .transpose()?;
+    if entry.attachment != expected_attachment
         || !entry.parameters.is_empty()
         || entry.result != TerminalMachineResult::Unit
         || entry.structural_places.len() != 1
@@ -723,6 +731,83 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
         }],
     };
     Ok(lowered)
+}
+
+/// Rewrite an emitted nominal consuming member inside an ordinary closure.
+/// The seeded `drop<T>` specialization carries the ordinary complete-only
+/// body, and its return edge installs the exact owner-attached `::drop` hook
+/// here, matching the entry path's `ReturnUnitNominalAffine` patch. Hooks
+/// carrying contextual requirements stay on the isolated entry lane, where
+/// caller obligations own a dedicated contract namespace.
+pub(super) fn patch_nominal_cleanup_member(
+    checked: &CheckedTrees,
+    nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
+    machine: &mut TerminalMachine,
+    type_ids: &[(String, StructuralTypeId)],
+    machine_ids: &[(SymbolHandle, MachineId)],
+) -> Result<(), LoweringError> {
+    let plan = &nominal.machine;
+    if plan.attachment_type_identity.is_some()
+        || !nominal.caller_requirements.is_empty()
+        || nominal
+            .cleanups
+            .iter()
+            .any(|cleanup| !cleanup.requirements.is_empty())
+    {
+        return unsupported("member nominal affine Unit cleanup requires the isolated entry lane");
+    }
+    if machine.attachment.is_some() {
+        return unsupported("nominal affine Unit member is unexpectedly attached");
+    }
+    let mut cleanups = Vec::with_capacity(nominal.cleanups.len());
+    for cleanup in &nominal.cleanups {
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.position == cleanup.source_parameter_index)
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup member parameter is absent from its terminal signature",
+            ))?;
+        let cleanup_target = unique_unit_machine(
+            &checked.facts.flow.terminal_unit_effects,
+            cleanup.cleanup_machine,
+        )?;
+        if cleanup_target.state != cleanup.cleanup_state
+            || cleanup_target.contract_report_fingerprint
+                != cleanup.cleanup_contract_report_fingerprint
+            || cleanup_target.attachment_type_identity.as_deref()
+                != Some(cleanup.type_identity.as_str())
+            || lookup_type_id(type_ids, &cleanup.type_identity)? != parameter.structural_type
+        {
+            return unsupported("nominal cleanup member target identity drifted");
+        }
+        cleanups.push(NominalAffineCleanup {
+            place: parameter.place,
+            structural_type: parameter.structural_type,
+            cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
+        });
+    }
+    let entry_block = machine.entry;
+    let [block] = machine.blocks.as_mut_slice() else {
+        return unsupported("nominal affine Unit member terminal control drifted");
+    };
+    if !matches!(
+        &block.terminator,
+        Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } if trivial_affine_discards.is_empty()
+    ) || block.id != entry_block
+        || !block.parameters.is_empty()
+        || !block.operations.is_empty()
+    {
+        return unsupported("nominal affine Unit member body or return drifted");
+    }
+    let edge = block.terminator.edge();
+    block.terminator = Terminator::ReturnUnitNominalAffine { edge, cleanups };
+    Ok(())
 }
 
 fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {

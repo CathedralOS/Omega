@@ -483,6 +483,48 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             }
         }
     }
+    // A free consuming machine (a `drop<T>` specialization) whose parameters
+    // carry an exact owner-attached `::drop` hook has no authored body, so the
+    // ordinary builder omits it at completion. It is still a real call target:
+    // seed its synthetic complete-only plan before closure pruning so callers
+    // transfer custody into it, and the exact hook edge rides the nominal
+    // cleanup roster into lowering. Requirement diagnostics stay owned by the
+    // finalize-time pass over the retained roster.
+    let mut nominal_diagnostics = Vec::new();
+    let nominal_candidates = program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.supply_mode == MachineSupplyMode::CheckedBody
+                && machine.attached_data.is_none()
+                && !candidates.iter().any(|plan| plan.machine == machine.symbol)
+        })
+        .filter_map(|machine| {
+            build_nominal_affine_unit_cleanup_machine(
+                program,
+                facts,
+                &candidates,
+                &mut shapes,
+                machine,
+                &mut nominal_diagnostics,
+            )
+        })
+        .collect::<Vec<_>>();
+    candidates.extend(
+        nominal_candidates
+            .iter()
+            .map(|nominal| nominal.machine.clone()),
+    );
+    let nominal_cleanup_edges = nominal_candidates
+        .iter()
+        .flat_map(|nominal| {
+            nominal
+                .cleanups
+                .iter()
+                .map(|cleanup| (nominal.machine.machine, cleanup.cleanup_machine))
+        })
+        .collect::<Vec<_>>();
+
     let mut composed_construction = BTreeMap::new();
     let mut composed_machines = build_checked_composed_unit_control_machines_traced(
         program,
@@ -552,6 +594,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &boundary_symbols,
         &mut candidates,
         &mut composed_machines,
+        &nominal_cleanup_edges,
     );
     omissions.record_closure(&candidates, &composed_machines, closure_omissions);
     // A claim-free affine structural-return machine already owns its checked
@@ -1046,14 +1089,24 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            build_nominal_affine_unit_cleanup_machine(
+            let plan = build_nominal_affine_unit_cleanup_machine(
                 program,
                 facts,
-                unit_effects,
+                &unit_effects.machines,
                 &mut shapes,
                 machine,
                 diagnostics,
-            )
+            )?;
+            // A free consuming machine — the `drop<T>` specialization — is a
+            // real ordinary roster member: the cleanup roster covers it only
+            // when closure pruning retained that exact body. Missing cleanup
+            // requirements still diagnose above even when the caller-side
+            // pruning dropped the consuming machine.
+            if machine.attached_data.is_none() && unit_effects.for_machine(machine.symbol).is_none()
+            {
+                return None;
+            }
+            Some(plan)
         })
         .collect::<Vec<_>>();
     let retained = machines

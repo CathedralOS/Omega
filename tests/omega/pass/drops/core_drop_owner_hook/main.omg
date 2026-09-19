@@ -1,0 +1,29 @@
+// Terminal-side companion to `core_drop_explicit_consume`: without erased
+// members the whole module lowers, so `inspect-terminal` shows the exact
+// hook invocation — `drop(g)` transfers `g` into the `drop<Guard>`
+// specialization whose return runs `Guard::drop` exactly once, while
+// `drop(c)` transfers `c` into `drop<Carrier>` which consumes it trivially
+// since `Carrier` selects no attached hook.
+
+use omega::language::core::drop;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Carrier {
+    payload: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+    let c: Carrier = Carrier { payload: 1 };
+    drop(g);
+    drop(c);
+}

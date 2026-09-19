@@ -742,6 +742,36 @@ fn assemble_unit_closure(
         selected_integer_comparison_occurrences.extend(emitted.selected_integer_comparisons);
     }
 
+    // A nominal consuming member (a seeded `drop<T>` specialization) emitted
+    // the ordinary complete-only body; its return edge still invokes the exact
+    // owner-attached `::drop` hook the roster selected for each parameter.
+    for nominal in &checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+    {
+        if nominal.machine.machine == entry || nominal.machine.attachment_type_identity.is_some() {
+            continue;
+        }
+        let Ok(terminal_member) = lookup_machine_id(&machine_ids, nominal.machine.machine) else {
+            continue;
+        };
+        let member = machines
+            .iter_mut()
+            .find(|member| member.id == terminal_member)
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup member was not emitted in the terminal closure",
+            ))?;
+        super::unit_cleanup::patch_nominal_cleanup_member(
+            checked,
+            nominal,
+            member,
+            &type_ids,
+            &machine_ids,
+        )?;
+    }
+
     let mut scalar_evidence = Vec::new();
     // Floating entry ranges are machine-local rows keyed by each emitted
     // helper's own identities; they merge into the assembled catalog without

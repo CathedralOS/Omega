@@ -731,9 +731,8 @@ fn rejects_retained_sum_operand_retarget() {
         .expect("certificate")
         .0;
     let certificate = checked.facts.borrow.mutation_certificates.get_mut(row);
-    let checked_trees::BorrowCompatibilitySelectorValue::SymbolSum {
-        first, second, ..
-    } = &mut certificate.premises[0].left
+    let checked_trees::BorrowCompatibilitySelectorValue::SymbolSum { first, second, .. } =
+        &mut certificate.premises[0].left
     else {
         panic!("the summed premise records a two-symbol bound");
     };

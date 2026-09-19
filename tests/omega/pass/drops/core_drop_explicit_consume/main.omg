@@ -4,8 +4,9 @@
 // `value` reaches its checked cleanup edge, which selects the exact
 // owner-attached `Guard::drop` hook for the instantiated type. Erased fields
 // remain semantically present but carry no runtime representation, so
-// `Carrier`'s erased `Evidence` member never produces runtime cleanup and
-// `drop(c)` consumes the record without requiring `Carrier::drop`.
+// `Carrier`'s erased `Evidence` member never produces runtime cleanup — not
+// even its own `Evidence::drop` attachment — and `drop(c)` consumes the
+// record without requiring `Carrier::drop`.
 
 use omega::language::core::drop;
 

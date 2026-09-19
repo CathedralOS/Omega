@@ -49,6 +49,23 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(target);
             }
         }
+        // A nominal consuming machine's return edge invokes its exact
+        // owner-attached `::drop` hook; the hook is roster work, not an
+        // operation in the synthetic body, so it enters the closure here.
+        if let Some(nominal) = checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines
+            .iter()
+            .find(|nominal| nominal.machine.machine == machine_symbol)
+        {
+            for cleanup in &nominal.cleanups {
+                if !closure.contains(&cleanup.cleanup_machine) {
+                    closure.push(cleanup.cleanup_machine);
+                }
+            }
+        }
     }
     Ok(closure)
 }
