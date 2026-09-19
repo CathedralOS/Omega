@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Swarm launcher tests; stdlib only, no network (urlopen is mocked)."""
 
+import argparse
+import contextlib
 import importlib.util
 import io
 import json
@@ -624,6 +626,48 @@ class SwarmTests(unittest.TestCase):
         hints = self.module.partition_hints(self.repository, session,
                                             [session], "skipped")
         self.assertEqual(hints, {})
+
+    def local_manifest(self):
+        record = manifest(sessions=[
+            {"name": "alpha", "board": "TASKS.md", "item": "ITEM-ONE",
+             "host": "local", "owning_paths": ["src/one"]}])
+        path = self.repository / "manifest.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        return path
+
+    def run_local(self, manifest_path):
+        arguments = argparse.Namespace(
+            manifest=str(manifest_path), layer=None, sessions=None,
+            create_worktrees=True, skip_host_gates=True,
+            skip_route_check=True, skip_claims_check=True)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.module.command_local(arguments, self.repository)
+        return json.loads(output.getvalue())
+
+    def test_local_create_worktrees_reports_base_when_fetch_fails(self):
+        # No origin remote: the fetch fails, the launch table must say so,
+        # and the slot still branches from the cached origin/main ref.
+        self.git(self.repository, "update-ref", "refs/remotes/origin/main",
+                 "HEAD")
+        record = self.run_local(self.local_manifest())
+        self.assertIn("fetch failed", record["base"])
+        self.assertTrue((self.repository / ".codex" / "worktrees"
+                         / "w9-alpha").is_dir())
+        self.assertEqual(
+            self.git(self.repository, "rev-parse", "refs/heads/swarm/w9-alpha"),
+            self.git(self.repository, "rev-parse", "HEAD"))
+
+    def test_local_create_worktrees_reports_fetched_base(self):
+        remote = self.root / "origin.git"
+        self.git(self.root, "init", "--bare", str(remote))
+        self.git(self.repository, "remote", "add", "origin", str(remote))
+        self.git(self.repository, "push", "-u", "origin", "main")
+        record = self.run_local(self.local_manifest())
+        self.assertEqual(record["base"],
+                         self.git(self.repository, "rev-parse", "origin/main"))
+        self.assertTrue((self.repository / ".codex" / "worktrees"
+                         / "w9-alpha").is_dir())
 
 
 class OwnershipPathTests(unittest.TestCase):
