@@ -331,22 +331,39 @@ assumptions, scalar `Equal` as `Id` over a carrier assumption, connectives
 as `Σ`/tagged sums/`Π`, a decided non-reflexive primitive as a named
 decision assumption) is argued per connective in
 `mathematical_core/bounded_denotation.rs`'s module documentation. Every
-certificate rule family denotes: the propositional and scalar-identity
-fragment elaborates to the kernel's own constructions, and each remaining
-family — integer order, bound and correlated-root witnesses, denotation
-conversions, `IntegerMath*`/`ContentConservation` transitivity — denotes
+certificate rule family denotes. Propositional constructions and identity
+symmetry/transitivity, including `ContentConservation`, elaborate to kernel
+terms. Liftable scalar integers and `IntegerMath*` share `Int` and its
+identity type, so the supported `Equal`↔`IntegerMathEqual` citation crossing
+does not assume a conversion. Integer order rules apply one fixed roster
+of explicit laws. Single-equation transport between identities uses identity
+elimination; transport of integer order applies fixed endpoint-substitution
+laws.
+
+Fixed scalar literal magnitudes have shared signed binary definitions over
+`zero`, `double`, `odd` and `negate`. Discreteness derives adjacent-literal
+order from five fixed arithmetic laws, then uses mixed transitivity with
+the inclusive premise. These laws remain assumptions with exact statements;
+this establishes neither their consistency nor receiver approval. Larger
+closed values retain opaque exact-value interning, and open arithmetic
+still lacks compositional meaning.
+
+Remaining families, including subtract-order, bound and correlated-root
+witnesses, multiple-equation or nested transport and transports outside the
+supported integer vocabulary, denote
 a *rule-instance decision*: an assumption constant of type
 `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧` whose premise/conclusion relation
 is re-decided during denotation by the same shared function the bounded
 checker runs, applied to the denoted premise evidence. The judgment's
 assumption closure then names the instance's arithmetic or conversion
-content exactly. What still refuses `Unsupported` is the citation-level
-`Equal`↔`IntegerMathEqual` denotation-shape crossing — an `Id` and an
-atom are different types — which is the board's required separation of
-source invalidity, unsupported valid encodings and producer defects.
-*Witnessed:* the `bounded_certificate` wire tests, including a rule
-instance's axiom surviving decode and byte-identical re-encode, and
-`uncovered_denotation_crossings_refuse_unsupported`.
+content exactly. Source invalidity, unsupported valid encodings and producer
+defects remain separate outcomes. *Witnessed:* the bounded-denotation unit
+tests inspect exact law closure and identity compositions;
+`compiler/tests/kernel_discreteness.rs` independently checks a source-produced
+certificate, its mathematical wire roundtrip and its invalid control. The
+`terminal-codec` bounded-certificate tests also exercise retained declarations;
+their older open-term closure and unsupported-crossing expectations still
+need alignment with the shared integer vocabulary.
 
 What the kernel does *not* discharge: faithfulness of the encoding to a
 *source* declaration — positivity, nominal identity and statement fidelity

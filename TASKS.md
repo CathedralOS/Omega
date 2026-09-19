@@ -1533,14 +1533,15 @@ Owners include
     constants. The order/equality rules
     cite one fixed roster (`eq_le`, `lt_le`, `le_trans`/`lt_trans`/
     `lt_le_trans`/`le_lt_trans`, `lt`/`le_subst_left`/`_right`) while
-    `Id` symmetry/transitivity, the `Equal`↔`IntegerMathEqual` citation
-    crossing and single-equation `ValueEqualityTransport` over `Int` are
-    `J`-re-decided, not assumed. Discreteness derives adjacent literal order
-    from five fixed numeral laws and composes it with the inclusive premise;
+    `Id` symmetry/transitivity and single-equation transport between identities
+    use `J`; the `Equal`↔`IntegerMathEqual` citation crossing shares one
+    denotation, and order transport applies the fixed substitution laws.
+    Discreteness derives adjacent literal order from five fixed numeral laws
+    and composes it with the inclusive premise;
     those laws remain explicit assumptions. Still to do: the remaining
-    `rule_axiom` families (subtract-order, the bound-witness rules,
-    `ContentConservation` transitivity, transport inside non-`Int`
-    propositions) and open arithmetic — non-closed `IntegerMathTerm`
+    `rule_axiom` families (subtract-order, the bound-witness rules, multiple-
+    equation or nested transport, and transport outside the supported `Int`
+    vocabulary) and open arithmetic — non-closed `IntegerMathTerm`
     equations still name opaque `Int` constants, so `x + 0 = x` assumes
     its conclusion.
   - Check indexed-scheme applications produced from source declarations, per
@@ -1581,9 +1582,9 @@ Owners include
   denotes the integer order and equality rules through a fixed roster of
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
-  terms by exact evaluated value — but subtract-order, the
-  bound-witness rules, `ContentConservation` transitivity and transport
-  outside the `Int` vocabulary remain per-instance `rule_axiom`s whose
+  terms by exact evaluated value — but subtract-order, the bound-witness
+  rules and remaining multiple-equation, nested or non-`Int` transport
+  instances remain per-instance `rule_axiom`s whose
   statements carry no arithmetic a receiver could audit, and open
   arithmetic has no law roster at all.
 
@@ -3362,10 +3363,9 @@ Owners include
   `FilesystemHost` cohort table and its permission/mechanism row emitters
   exist in
   `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`.
-  Neither is established at a customer. No named customer has been observed
-  emitting without receiving-policy input, only tests call the facet-cohort
+  Customer coverage remains incomplete. Only tests call the facet-cohort
   row emitters, and package review still publishes the broad `Filesystem`
-  class.
+  class; SQUALR-INTEGRATION retains the current native geometry acceptance.
 
   The explicit admission replay is now pinned at the operations join:
   `accepted_lock` shows an accepted project emits an artifact carrying no
@@ -3411,10 +3411,9 @@ Owners include
     Cathedral native smoke after ordinary package acceptance with no
     receiving-policy input, and report each one's next unrelated blocker
     without claiming its end-to-end completion.
-    `samples/cli/basics/cli_mvp/README.md` and
-    `tests/fixtures/packages/console-exit-app/README.md` still describe the
-    removed gate. SAMPLE-CORPUS and CANARY-CORPUS own the harness copies that
-    mirror accepted package rows into an explicit receiving policy.
+    Preserve the ordinary-production harness route without projecting
+    accepted package rows into a receiving policy; explicit admission tests
+    separately supply their receiver policy.
   - Receiver rows for the exact replacement: every admitted leaf has one exact
     mechanism/contract row, unknowns and duplicates reject, exercised classes
     fit independently supplied service permissions, and explicit empties
@@ -3442,12 +3441,16 @@ Owners include
     need not be supported to admit a separately proved constrained
     occurrence.
 
-  Flag: the console-exit-app witness was narrowed when the gate was removed.
-  `omega/tests/package_commands/console_exit_permission.rs` dropped its exit
-  status assertion and now checks only that two gate diagnostics are absent
-  from stderr, so a compile that fails at any later stage still passes it.
-  Assert the emitted artifact or the named next blocker. See also the flag on
-  FILESYSTEM-RELEASE-CONTRACT before extending the release-row settlement.
+  The console CLI witness requires a nonempty reported native output or the
+  exact witnessed physical legalization rejection, preserving the accepted
+  project in both cases. At `4dc602f294` on macOS ARM64, ordinary package
+  review retains all three Console decisions, then compilation without a
+  receiving policy rejects with `Selection(Legalization(SourceCustodyMismatch))`.
+  Resume through `target-operations-to-selected-instructions/src/legalization`;
+  this is an implementation dependency, not a design block. Run
+  `RUST_MIN_STACK=67108864 cargo nextest run -p omega --test package_commands --no-fail-fast -E 'test(=console_exit_permission::console_exit_permission_is_an_explicit_decision_that_the_lock_retains)'`
+  on macOS; the fixture README gives the project audit command. See the flag
+  on FILESYSTEM-RELEASE-CONTRACT before extending release-row settlement.
 
   Acceptance: after ordinary package acceptance the four customers above emit
   with no receiving-policy input. The same program rejects at explicit

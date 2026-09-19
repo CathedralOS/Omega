@@ -88,8 +88,9 @@
 //! then applies mixed transitivity to the cited inclusive bound. Its
 //! numeral laws remain explicit arithmetic assumptions, not a derivation
 //! of integer arithmetic or a claim of assumption consistency. The remaining
-//! families — subtract-order, the witness-bearing bound rules and the
-//! denotation-conversion instances outside the `Int` vocabulary —
+//! families — subtract-order, the witness-bearing bound rules, multiple-
+//! equation or nested transports and denotation-conversion instances
+//! outside the supported `Int` vocabulary —
 //! denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
 //! applied to the denoted premise evidence (ambient axiom and
