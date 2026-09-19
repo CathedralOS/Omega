@@ -1,8 +1,0 @@
-; The asymmetry the continuation encoding relies on: a proper-tail call
-; reuses the current activation and consumes no call context, so depth is
-; bounded by neither the 256-context cap nor the hidden Alpha stack. 4,096
-; tail calls, sixteen times the non-tail bound, complete in constant space.
-(def descend ((n Int)) Int
-  (if (eq n 0) 42 (descend (- n 1))))
-
-(def main () Int (descend 4096))

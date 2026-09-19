@@ -228,6 +228,40 @@ with raw application status 252 before publishing the twelve-invocation result.
 It does not change Gamma meaning, allocate an unbounded heap, or convert an
 outer evaluator failure into an Epsilon observation.
 
+## Nested-call boundary and the Delta checker
+
+`BOOTSTRAP-AUTHORING-READABILITY` asked whether the Gamma-written Delta
+checker's hand-built continuation frames should be replaced by direct
+recursion. The measured boundary of this profile decides it: a non-tail
+`descend` recursion completes at 256 live contexts and is refused at 257
+(status 3, or the generic application status 250), while a proper-tail
+control completes 4,096 levels in constant space. Solving the containment
+inequality above for a raised cap gives `18 * 256 * (N+1) + 512 <=
+2,097,152`, so at most 454 contexts fit the hidden-stack margin — below the
+Delta customer's admitted expression depth of 1,024. No context-cap
+increase under this memory map serves the customer.
+
+The two enabling routes were priced without restructuring the customer.
+Region rebalance (moving buffered output out of the stack margin) admits
+about 2,274 contexts, but requires a rebuilt evaluator tape, re-pinned
+identity records in this profile, `tools/bootstrap/gamma/evaluator_env.sh`,
+`tests/gamma/heap-boundary/evaluator.tsv`, and
+`bootstrap/3_delta/delta_compiler.composed`, re-derived exact/adjacent
+context and environment controls, a new subject for the Beta-encoding
+proof, and a permanent coupling of Delta's `parse_depth` to this profile's
+context cap — an over-depth Delta program would then surface as raw status
+250 rather than a compiler-owned refusal. Evaluator-owned continuation
+records remove the bound entirely at the largest audit burden of the
+three and are dominated for this customer.
+
+The stack comparison is therefore decided on priced costs: the
+source-level explicit continuation frames in the Delta checker are
+retained. They are already built, audited, and passing the complete
+Epsilon closure, and every enabling route must be paid in full before a
+direct-recursion rewrite could even be measured. A source-only
+direct-recursion rewrite of `checking/types/branches.gamma` was already
+attempted and fails at depth 256 under this profile; do not repeat it.
+
 ## Expression scanning
 
 Retain structural scanning for the

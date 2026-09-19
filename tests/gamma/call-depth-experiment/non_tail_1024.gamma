@@ -1,9 +1,0 @@
-; The Delta customer's admitted expression depth: Delta grammar bounds
-; parse_depth at 1,024, so a direct-recursion checker suspends about one live
-; call per level. The selected evaluator's 256-context bound refuses this
-; depth with status 3; it is the gap an evaluator-owned explicit stack would
-; have to close.
-(def descend ((n Int)) Int
-  (if (eq n 0) 1 (+ 0 (descend (- n 1)))))
-
-(def main () Int (descend 1024))

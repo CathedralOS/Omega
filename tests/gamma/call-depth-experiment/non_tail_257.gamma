@@ -1,7 +1,0 @@
-; One non-tail level beyond the 256-context bound: the 257th nested call is
-; refused before its context row is stored. Scalar source observes status 3
-; (incomplete bounded storage) with no output.
-(def descend ((n Int)) Int
-  (if (eq n 0) 1 (+ 0 (descend (- n 1)))))
-
-(def main () Int (descend 257))
