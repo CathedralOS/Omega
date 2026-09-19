@@ -348,6 +348,28 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
         {
             continue;
         }
+        // `ensures true` is the no-op postcondition the structural signature
+        // replay already treats as admissible; it asserts no outbound proof
+        // obligation this call edge could fail to carry.
+        if contract.kind == SignatureContractKind::Ensures
+            && contract.binding.is_none()
+            && program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .all(|fact| {
+                    matches!(
+                        fact,
+                        ProofFact::Expression(expression)
+                            if matches!(
+                                program.expression_table.expression(*expression),
+                                ExpressionNode::Boolean(true)
+                            )
+                    )
+                })
+        {
+            continue;
+        }
         if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
             return false;
         }
@@ -879,8 +901,21 @@ pub(super) fn is_unit(program: &TypedTrees, mut type_reference: TypeReferenceHan
 
 pub(super) fn base_type_identity(
     program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<String> {
+    base_type_identity_with_substitutions(program, type_reference, binders, &[])
+}
+
+/// The same base identity under a call edge's checked generic
+/// substitutions: the callee's `Type` parameters resolve to the actuals its
+/// admitted specialization derived, so a requirement formal's identity
+/// compares against the caller's concrete presentation.
+pub(super) fn base_type_identity_with_substitutions(
+    program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<String> {
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -898,12 +933,44 @@ pub(super) fn base_type_identity(
                     program
                         .type_identity(TypeIdentityRequest {
                             binders,
+                            substitutions,
                             ..TypeIdentityRequest::ordinary(type_reference)
                         })
                         .into_string(),
                 );
             }
             _ => return None,
+        }
+    }
+}
+
+/// A call edge's checked specialization maps a bare `Type` formal to the
+/// actual its admission derived before custody or shape evidence is
+/// replayed against the caller's concrete values. A compound formal keeps
+/// its own reference: the substitution only names a top-level `Type`
+/// parameter, and identity-level substitution covers the generic arguments
+/// inside it.
+pub(super) fn substituted_formal_type(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> TypeReferenceHandle {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some((_, actual)) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)
+                else {
+                    return type_reference;
+                };
+                if *actual == type_reference {
+                    return type_reference;
+                }
+                type_reference = *actual;
+            }
+            _ => return type_reference,
         }
     }
 }

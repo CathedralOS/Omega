@@ -3,7 +3,9 @@
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::{
+    base_type_identity_with_substitutions, byte_sequence_carrier, substituted_formal_type,
+};
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees,
     base_type_identity, is_reference, is_unit, type_graph_requires_nominal_drop,
@@ -29,11 +31,17 @@ pub(crate) fn is_registered_boundary_scalar_target(
         && targets.next().is_none()
 }
 
+/// `substitutions` carries the call edge's admitted specialization: a
+/// generic requirement's `Type` result formal resolves to its derived actual
+/// before shape evidence is replayed, and a compound result such as
+/// `Task<T>` substitutes inside the identity comparison itself.
 pub(crate) fn boundary_value_result_matches(
     program: &TypedTrees,
     return_type: typed_trees::types::TypeReferenceHandle,
     expected: &ExpectedCallValueResult<'_>,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> bool {
+    let return_type = substituted_formal_type(program, return_type, substitutions);
     match expected {
         ExpectedCallValueResult::Scalar(expected) => {
             program.primitive_type_reference(return_type) == Some(*expected)
@@ -44,7 +52,7 @@ pub(crate) fn boundary_value_result_matches(
                 && !is_reference(program, return_type)
                 && !type_graph_requires_nominal_drop(program, return_type)
                 && crate::checks::type_multiplicity(program, return_type) == expected.multiplicity
-                && base_type_identity(program, return_type, &[])
+                && base_type_identity_with_substitutions(program, return_type, &[], substitutions)
                     .is_some_and(|identity| identity == expected.type_identity)
         }
     }
@@ -67,6 +75,7 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
     projected_type: typed_trees::types::TypeReferenceHandle,
     parameter_type: typed_trees::types::TypeReferenceHandle,
     target_identity: &str,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> bool {
     if base_type_identity(program, projected_type, &[])
         .is_some_and(|identity| identity == target_identity)
@@ -76,7 +85,11 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
     matches!(
         (
             byte_sequence_carrier(program, projected_type, &[]),
-            byte_sequence_carrier(program, parameter_type, &[]),
+            byte_sequence_carrier(
+                program,
+                substituted_formal_type(program, parameter_type, substitutions),
+                substitutions,
+            ),
         ),
         (
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),

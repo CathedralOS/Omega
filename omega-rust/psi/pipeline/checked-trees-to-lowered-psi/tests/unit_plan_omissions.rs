@@ -124,14 +124,14 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // TR3-TR8 pin: routed `TaskRuntime::start<Worker::run>` establishment. The
 // source below is the smallest program that calls the generic boundary
 // requirement with a concrete target machine through a runtime capability
-// carried on `self`. Typing, checking and provider admission all succeed —
-// the checked expression table still retains the `start` call and its
-// `machine Worker::run` selection — but checked Unit construction cannot
-// plan the call: no checked representation retains the call site's generic
-// specialization (`T = Token`, `Arguments = Token`, `Target = Worker::run`),
-// so `build_call_operation` compares the concrete argument against the
-// unsubstituted `TaskRuntime::start::Arguments` formal and rejects. The
-// omission records that exact stop, and lowering reports it.
+// carried on `self`. Checking retains the call's admitted specialization as
+// a checked fact (`T = Token`, `Arguments = Token`, `Target = Worker::run`),
+// and `build_call_operation` now substitutes it into the requirement's
+// formals, so the `start` call produces its checked boundary structural
+// call. The remaining omission frontier is the following statement's
+// ordinary call on the generic attached `Task<T>`: `Task::settle(task)`
+// named no static machine argument, so no substitution was retained and
+// `Task<T>` carries no closed structural identity for the argument replay.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -171,7 +171,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 "#;
 
 #[test]
-fn a_routed_task_start_call_stops_in_call_operation_construction() {
+fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
@@ -241,8 +241,14 @@ fn a_routed_task_start_call_stops_in_call_operation_construction() {
             .any(|call| call.target_symbol == start_requirement),
         "the start call is retained as a checked flow call fact"
     );
-    // The omission boundary is call-operation construction: no checked
-    // operation can express the generic requirement specialization yet.
+    // The routed `start` call now plans: the retained requirement-call
+    // specialization substitutes `Arguments`/`T` with `Token`, discharges the
+    // generic telescope through `Target`'s selected `Worker::run` entry, and
+    // produces the checked boundary structural call. The remaining frontier
+    // is statement 1: `Task::settle(task)` is an ordinary call on a generic
+    // attached data type whose inferred `T` was dropped at checking — the
+    // call named no static machine argument, so no specialization was
+    // retained for it, and `Task<T>` has no closed structural identity.
     let omission = checked
         .facts
         .flow
@@ -253,12 +259,12 @@ fn a_routed_task_start_call_stops_in_call_operation_construction() {
         omission.stage,
         checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
             phase: "call operations",
-            statement_index: Some(0),
+            statement_index: Some(1),
             ..
         }
     ));
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("a generic boundary requirement call has no checked Unit operation");
+        .expect_err("the generic Task::settle call has no checked Unit operation");
     let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
         machine,
         reason,
@@ -276,7 +282,7 @@ fn a_routed_task_start_call_stops_in_call_operation_construction() {
         omission.as_deref(),
         Some(
             "`Main::probe` has no admitted body \
-             (local construction stopped at call operations, statement 0)"
+             (local construction stopped at call operations, statement 1)"
         )
     );
 }

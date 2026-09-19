@@ -20,6 +20,9 @@ use crate::execution::terminal_unit::calls::structural_arguments::{
 use crate::execution::terminal_unit::calls::{result_arguments, service_forward};
 use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::{
+    base_type_identity_with_substitutions, substituted_formal_type,
+};
 use crate::execution::terminal_unit::{
     BuiltinFunction, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
@@ -159,6 +162,69 @@ pub(in crate::execution) fn build_call_operation(
             .collect::<Vec<_>>();
         let caller_source_parameters = program.state_parameters(state);
         let signature_type_parameters = program.state_signature_type_parameters(signature);
+        // MP2b's admission of this call's static machine arguments survives
+        // checking as a specialization fact: each `Type` binder's derived
+        // actual and each `machine` binder's admitted provider entry. The
+        // requirement's formals stay generic, so the replay below substitutes
+        // them before comparing argument and result evidence against the
+        // caller's concrete shapes.
+        let specialization = source_site.and_then(|site| {
+            facts
+                .requirement_call_specializations
+                .for_site(site, call.target_symbol)
+        });
+        let substitutions = specialization
+            .map(|specialization| {
+                specialization
+                    .type_bindings
+                    .iter()
+                    .map(|binding| (binding.parameter, binding.actual))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        // The authored static machine arguments the ordinal of each retained
+        // selection indexes: validation filtered the `<>` argument list to
+        // machine-typed members before recording `static_machine_ordinal`.
+        let authored_machine_arguments = match &call_site {
+            crate::semantic_calls::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+            crate::semantic_calls::CallSite::Expression { call, .. } => {
+                call.machine_arguments.as_ref()
+            }
+            crate::semantic_calls::CallSite::TransitionNamed { .. } => &[],
+        }
+        .iter()
+        .filter(|argument| {
+            matches!(
+                program.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::State | symbols::SymbolKind::MachineParameter
+            )
+        })
+        .collect::<Vec<_>>();
+        // A retained specialization discharges the signature telescope the
+        // nominal-use callback admission cannot see: every `Type` binder
+        // carries its derived actual and every `machine` binder's retained
+        // selection is exactly the authored static argument at its ordinal.
+        // Binders the specialization does not cover stay rejected.
+        let specialized_telescope = specialization.is_some_and(|specialization| {
+            signature_type_parameters
+                .iter()
+                .all(|parameter| match &parameter.kind {
+                    typed_trees::data::TypeParameterKind::Type => specialization
+                        .type_bindings
+                        .iter()
+                        .any(|binding| binding.parameter == parameter.symbol),
+                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                        specialization.machine_selections.iter().any(|selection| {
+                            selection.parameter == parameter.symbol
+                                && usize::try_from(selection.static_machine_ordinal)
+                                    .ok()
+                                    .and_then(|ordinal| authored_machine_arguments.get(ordinal))
+                                    .is_some_and(|argument| argument.symbol == selection.selected)
+                        })
+                    }
+                    _ => false,
+                })
+        });
         // Each `machine` signature type parameter is a nominal binder discharged
         // by a `nominal_machine_use` at this exact call site: same registration
         // operation, binder ordinal, and satisfaction row. The callback's
@@ -215,26 +281,36 @@ pub(in crate::execution) fn build_call_operation(
             abi_parameters.iter().zip(arguments.iter()).enumerate()
         {
             let source_position = u32::try_from(abi_position).ok()?;
-            if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
-            {
+            // A retained specialization resolves a bare `Type` formal to the
+            // actual its admission derived; a compound formal keeps its own
+            // reference and substitutes inside the identity checks below.
+            let formal = substituted_formal_type(
+                program,
+                parameter.type_reference,
+                substitutions.as_slice(),
+            );
+            if let Some(primitive_type) = program.primitive_type_reference(formal) {
                 scalar_parameters.push(CheckedStructuralScalarParameterPlan {
                     source_position,
                     primitive_type,
                 });
                 continue;
             }
-            let byte_sequence = byte_sequence_carrier(program, parameter.type_reference, &[]);
-            if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
+            let byte_sequence = byte_sequence_carrier(program, formal, substitutions.as_slice());
+            if validation::is_closed_primitive_array_type(program, formal) {
                 return None;
             }
             let target_identity = if byte_sequence.is_some() {
-                byte_sequence_type_identity(program, parameter.type_reference, &[], &[])?
+                byte_sequence_type_identity(program, formal, &[], substitutions.as_slice())?
             } else {
-                base_type_identity(program, parameter.type_reference, &[])?
+                base_type_identity_with_substitutions(
+                    program,
+                    formal,
+                    &[],
+                    substitutions.as_slice(),
+                )?
             };
-            if let Some(literal) =
-                byte_sequence_literal_argument(program, parameter.type_reference, *argument)
-            {
+            if let Some(literal) = byte_sequence_literal_argument(program, formal, *argument) {
                 structural_arguments.push(literal);
                 continue;
             }
@@ -244,7 +320,7 @@ pub(in crate::execution) fn build_call_operation(
                 machine,
                 state,
                 caller_parameters,
-                parameter.type_reference,
+                formal,
                 *argument,
                 call.statement_index,
                 call.call_ordinal,
@@ -312,7 +388,7 @@ pub(in crate::execution) fn build_call_operation(
                         && fixed_byte_array_mutable_view_is_admitted(
                             program,
                             source_parameter.type_reference,
-                            parameter.type_reference,
+                            formal,
                         ))
                 {
                     return None;
@@ -327,13 +403,11 @@ pub(in crate::execution) fn build_call_operation(
                 if !boundary_argument_presentation_is_admitted(
                     program,
                     projected_type,
-                    parameter.type_reference,
+                    formal,
                     &target_identity,
-                ) && !fixed_byte_array_mutable_view_is_admitted(
-                    program,
-                    projected_type,
-                    parameter.type_reference,
-                ) {
+                    substitutions.as_slice(),
+                ) && !fixed_byte_array_mutable_view_is_admitted(program, projected_type, formal)
+                {
                     return None;
                 }
                 path
@@ -351,62 +425,91 @@ pub(in crate::execution) fn build_call_operation(
                     state.symbol,
                     call,
                     &place,
-                    structural_access_for_type_reference(program, parameter.type_reference)?,
+                    structural_access_for_type_reference(program, formal)?,
                 )?,
             });
         }
-        if !program.trait_type_parameters(definition).is_empty()
-            || (!signature_type_parameters.is_empty() && !admitted_callback_telescope)
-            || program
-                .state_signature_parameters(signature)
-                .iter()
-                // `is_mutable` is set by a `mut` binding and by an exclusive
-                // borrow alike, and the requirement's exclusive borrow is
-                // already carried exactly by the argument's presented access.
-                // An owned mutable scalar is an argument destination, not
-                // mutable storage in this Unit caller. Other owned mutable
-                // carriers remain outside this call surface.
-                .any(|parameter| {
-                    !parameter.is_self
-                        && (parameter.is_const
-                            || (parameter.is_mutable
-                                && !is_reference(program, parameter.type_reference)
-                                && crate::values::mutable_scalar_parameter_type(
-                                    program, parameter,
-                                )
-                                .is_none()))
-                })
-            || arguments.len() != abi_parameters.len()
-            || if let Some((_, qualifier)) = selected_realization {
-                call.has_receiver && call.receiver_symbol != qualifier
-            } else {
-                !call.has_receiver
-                    || (call.receiver_symbol != definition.symbol
-                        && !provider_attachment_receiver_matches(
-                            program,
-                            machine,
-                            &call_site,
-                            definition.symbol,
-                        )
-                        && !routed_service_parameter_receiver)
-            }
-            || validation::is_closed_primitive_array_type(program, signature.return_type)
-            || match expected_call_result {
-                None => !is_unit(program, signature.return_type),
-                Some(ref expected) => {
-                    !boundary_value_result_matches(program, signature.return_type, expected)
-                }
-            }
-            || !signature_contracts_are_exact_parameter_qualifications(program, signature)
-            // Suspension parks the activation, which this synchronous call
-            // shape cannot express. Blocking only occupies the worker while
-            // the boundary waits (effects.md, `blocks;`): the call returns
-            // through the same edge, the site already acknowledged `block`
-            // during checking, and the envelope travels on the target
-            // contract fingerprint below, so a blocking boundary is planned
-            // exactly like a nonblocking one.
-            || signature.suspends
+        if !program.trait_type_parameters(definition).is_empty() {
+            return None;
+        }
+        if !signature_type_parameters.is_empty()
+            && !admitted_callback_telescope
+            && !specialized_telescope
         {
+            return None;
+        }
+        if program
+            .state_signature_parameters(signature)
+            .iter()
+            // `is_mutable` is set by a `mut` binding and by an exclusive
+            // borrow alike, and the requirement's exclusive borrow is
+            // already carried exactly by the argument's presented access.
+            // An owned mutable scalar is an argument destination, not
+            // mutable storage in this Unit caller. Other owned mutable
+            // carriers remain outside this call surface.
+            .any(|parameter| {
+                !parameter.is_self
+                    && (parameter.is_const
+                        || (parameter.is_mutable
+                            && !is_reference(
+                                program,
+                                substituted_formal_type(
+                                    program,
+                                    parameter.type_reference,
+                                    substitutions.as_slice(),
+                                ),
+                            )
+                            && crate::values::mutable_scalar_parameter_type(program, parameter)
+                                .is_none()))
+            })
+        {
+            return None;
+        }
+        if arguments.len() != abi_parameters.len() {
+            return None;
+        }
+        if if let Some((_, qualifier)) = selected_realization {
+            call.has_receiver && call.receiver_symbol != qualifier
+        } else {
+            !call.has_receiver
+                || (call.receiver_symbol != definition.symbol
+                    && !provider_attachment_receiver_matches(
+                        program,
+                        machine,
+                        &call_site,
+                        definition.symbol,
+                    )
+                    && !routed_service_parameter_receiver)
+        } {
+            return None;
+        }
+        let signature_return =
+            substituted_formal_type(program, signature.return_type, substitutions.as_slice());
+        if validation::is_closed_primitive_array_type(program, signature_return) {
+            return None;
+        }
+        if match expected_call_result {
+            None => !is_unit(program, signature_return),
+            Some(ref expected) => !boundary_value_result_matches(
+                program,
+                signature.return_type,
+                expected,
+                substitutions.as_slice(),
+            ),
+        } {
+            return None;
+        }
+        if !signature_contracts_are_exact_parameter_qualifications(program, signature) {
+            return None;
+        }
+        // Suspension parks the activation, which this synchronous call
+        // shape cannot express. Blocking only occupies the worker while
+        // the boundary waits (effects.md, `blocks;`): the call returns
+        // through the same edge, the site already acknowledged `block`
+        // during checking, and the envelope travels on the target
+        // contract fingerprint below, so a blocking boundary is planned
+        // exactly like a nonblocking one.
+        if signature.suspends {
             return None;
         }
         let capsule = facts
@@ -466,7 +569,7 @@ pub(in crate::execution) fn build_call_operation(
         match expected_call_result {
             None => !is_unit(program, target_state.return_type),
             Some(ref expected) => {
-                !boundary_value_result_matches(program, target_state.return_type, expected)
+                !boundary_value_result_matches(program, target_state.return_type, expected, &[])
             }
         }
     } else {
@@ -489,7 +592,7 @@ pub(in crate::execution) fn build_call_operation(
                         != expected.type_identity
             }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
-                !boundary_value_result_matches(program, target_state.return_type, expected)
+                !boundary_value_result_matches(program, target_state.return_type, expected, &[])
             }
         }
     } {
