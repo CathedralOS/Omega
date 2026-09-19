@@ -651,7 +651,19 @@ fn build_structural_field_store_at(
                 CheckedScalarExpressionRole::AssignmentIndex,
             )?;
             if index_binding.expression != byte_index
-                || crate::values::scalar_expression_type(index) != Some(PrimitiveType::U64)
+                || !matches!(
+                    crate::values::scalar_expression_type(index),
+                    Some(
+                        PrimitiveType::I8
+                            | PrimitiveType::I16
+                            | PrimitiveType::I32
+                            | PrimitiveType::I64
+                            | PrimitiveType::U8
+                            | PrimitiveType::U16
+                            | PrimitiveType::U32
+                            | PrimitiveType::U64
+                    )
+                )
             {
                 return None;
             }
@@ -972,7 +984,19 @@ fn build_byte_view_write(
         CheckedScalarExpressionRole::AssignmentIndex,
     )?;
     if index_binding.expression != indexed.index
-        || crate::values::scalar_expression_type(index) != Some(PrimitiveType::U64)
+        || !matches!(
+            crate::values::scalar_expression_type(index),
+            Some(
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+            )
+        )
     {
         return None;
     }

@@ -7,9 +7,10 @@ use semantic_vocabulary::{
 
 use super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::integer_evidence::{closed_integer_relation, projected_facts};
-use super::super::{exact, wrapping};
+use super::super::{bound, exact, wrapping};
 
 mod subtract;
+mod transitive;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -23,6 +24,90 @@ pub(super) fn prove(
         // Strict endpoints traverse checked wrapping-update chains that the
         // non-strict affine selection cannot cite.
         .or_else(|| wrapping::prove(context, goal, assumptions, semantic_axioms, definitions))
+        .or_else(|| {
+            prove_discrete_endpoint(context, goal, assumptions, semantic_axioms, definitions)
+        })
+        .or_else(|| transitive::prove(context, goal, assumptions, semantic_axioms, definitions))
+}
+
+/// A literal endpoint, including a separately observed equal value, turns a
+/// strict goal into an adjacent non-strict bound. Let ordinary bound selection
+/// retain the operand's cast/definition evidence, then replay discreteness and
+/// the exact endpoint equality. No source-specific index facts are introduced.
+fn prove_discrete_endpoint(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    let Proposition::LessThan(left, right) = goal else {
+        return None;
+    };
+    let facts = projected_facts(assumptions, semantic_axioms);
+    let mut literals = Vec::new();
+    for candidate in [left, right].into_iter().chain(
+        facts
+            .iter()
+            .filter_map(|fact| match fact.proposition {
+                Proposition::Equal(left, right) => Some([left, right]),
+                _ => None,
+            })
+            .flatten(),
+    ) {
+        if candidate.integer_value().is_some() && !literals.contains(candidate) {
+            literals.push(candidate.clone());
+        }
+    }
+    for (endpoint, target) in [left, right].into_iter().enumerate() {
+        for literal in &literals {
+            if literal.scalar_type() != target.scalar_type()
+                || exact::prove(
+                    &Proposition::Equal(target.clone(), literal.clone()),
+                    assumptions,
+                    semantic_axioms,
+                )
+                .is_none()
+            {
+                continue;
+            }
+            let Some(adjacent) = adjacent(literal, endpoint == 0) else {
+                continue;
+            };
+            let (nonstrict, strict) = if endpoint == 0 {
+                (
+                    Proposition::LessOrEqual(adjacent, right.clone()),
+                    Proposition::LessThan(literal.clone(), right.clone()),
+                )
+            } else {
+                (
+                    Proposition::LessOrEqual(left.clone(), adjacent),
+                    Proposition::LessThan(left.clone(), literal.clone()),
+                )
+            };
+            // Call the non-strict selector directly: the proposition dispatcher
+            // itself falls back to strict order and would recurse here.
+            let Some(relation) = bound::prove(
+                context,
+                &nonstrict,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            ) else {
+                continue;
+            };
+            let discrete = ProofNode {
+                conclusion: strict,
+                rule: ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(relation),
+                },
+            };
+            if let Some(proof) = complete(goal, discrete, assumptions, semantic_axioms) {
+                return Some(proof);
+            }
+        }
+    }
+    None
 }
 
 fn prove_without_subtract(
@@ -175,6 +260,102 @@ mod tests {
             semantic_axioms,
             &mut DefinitionIndex::new(semantic_axioms),
         )
+    }
+
+    #[test]
+    fn strict_endpoint_composes_integer_conversion_and_live_equality() {
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let target_scalar = ScalarType::Integer(target_type);
+        let target = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), target_scalar);
+        let literal =
+            |number| ScalarTerm::integer(target_type, IntegerValue::Unsigned(number)).unwrap();
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            let source_type = IntegerType::new(sign, 32).unwrap();
+            let source_scalar = ScalarType::Integer(source_type);
+            let source = ScalarTerm::value(ValueId::new(1).unwrap(), source_scalar);
+            let source_literal = |number| {
+                ScalarTerm::integer(
+                    source_type,
+                    match sign {
+                        IntegerSign::Signed => IntegerValue::Signed(number as i128),
+                        IntegerSign::Unsigned => IntegerValue::Unsigned(number),
+                    },
+                )
+                .unwrap()
+            };
+            let context = PropositionContext::from_value_types([
+                (ValueId::new(1).unwrap(), source_scalar),
+                (ValueId::new(2).unwrap(), target_scalar),
+                (ValueId::new(3).unwrap(), target_scalar),
+                (ValueId::new(4).unwrap(), target_scalar),
+            ])
+            .unwrap();
+            let converted = if sign == IntegerSign::Signed {
+                ScalarTerm::integer_exact_cast(source_type, target_type, source.clone()).unwrap()
+            } else {
+                ScalarTerm::integer_widen(source_type, target_type, source.clone()).unwrap()
+            };
+            let assumptions = [Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(source_literal(0), source.clone()),
+                Proposition::LessOrEqual(source.clone(), source_literal(2)),
+            ])];
+            let axioms = [
+                Proposition::Equal(target(2), converted),
+                Proposition::Equal(target(3), target(4)),
+                Proposition::Equal(target(4), literal(3)),
+            ];
+            let goal = Proposition::LessThan(target(2), target(3));
+            let proof = prove_with_definitions(&context, &goal, &assumptions, &axioms)
+                .expect("converted upper bound and current endpoint equality");
+            check_certificate(&context, &goal, &assumptions, &axioms, &proof).unwrap();
+            for missing in 0..axioms.len() {
+                let mut incomplete = axioms.to_vec();
+                incomplete.remove(missing);
+                assert!(
+                    prove_with_definitions(&context, &goal, &assumptions, &incomplete).is_none()
+                );
+                assert!(
+                    check_certificate(&context, &goal, &assumptions, &incomplete, &proof).is_err()
+                );
+            }
+            let past_end = [Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(source_literal(0), source.clone()),
+                Proposition::LessOrEqual(source.clone(), source_literal(3)),
+            ])];
+            assert!(prove_with_definitions(&context, &goal, &past_end, &axioms).is_none());
+            assert!(check_certificate(&context, &goal, &past_end, &axioms, &proof).is_err());
+
+            // A live observation need not equal a constant: its guard supplies
+            // the strict leg, while the index bound still crosses conversion.
+            for guard in [
+                Proposition::LessThan(literal(2), target(4)),
+                Proposition::LessOrEqual(literal(3), target(4)),
+            ] {
+                let guarded = [axioms[0].clone(), axioms[1].clone(), guard];
+                let proof = prove_with_definitions(&context, &goal, &assumptions, &guarded)
+                    .expect("converted bound joins the live strict guard");
+                check_certificate(&context, &goal, &assumptions, &guarded, &proof).unwrap();
+                for missing in 0..guarded.len() {
+                    let mut incomplete = guarded.to_vec();
+                    incomplete.remove(missing);
+                    assert!(
+                        prove_with_definitions(&context, &goal, &assumptions, &incomplete)
+                            .is_none()
+                    );
+                    assert!(
+                        check_certificate(&context, &goal, &assumptions, &incomplete, &proof)
+                            .is_err()
+                    );
+                }
+                let weak = [
+                    axioms[0].clone(),
+                    axioms[1].clone(),
+                    Proposition::LessOrEqual(literal(2), target(4)),
+                ];
+                assert!(prove_with_definitions(&context, &goal, &assumptions, &weak).is_none());
+                assert!(check_certificate(&context, &goal, &assumptions, &weak, &proof).is_err());
+            }
+        }
     }
 
     #[test]

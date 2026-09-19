@@ -89,7 +89,15 @@ pub(crate) fn validate_assignment(
     crate::expression_preparation::source_custody::validate_pure(
         checked,
         binding,
-        terminal_scalar_type(PrimitiveType::U64)?,
+        terminal_scalar_type(
+            crate::expression_preparation::source_custody::locate(
+                checked,
+                state_symbol,
+                write.statement_index,
+                CheckedScalarExpressionRole::AssignmentIndex,
+            )?
+            .primitive_type,
+        )?,
     )?;
     let value_expressions = checked
         .facts
@@ -176,7 +184,10 @@ pub(crate) fn emit(
                     )
                 )
         })
-        || index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)?
+        || !matches!(
+            index.scalar_type(),
+            semantic_vocabulary::ScalarType::Integer(_)
+        )
         || value.scalar_type() != terminal_scalar_type(PrimitiveType::U8)?
         || direct_expression_contains_short_circuit(index)
         || direct_expression_contains_short_circuit(value)
@@ -191,7 +202,7 @@ pub(crate) fn emit(
         .collect::<Vec<_>>();
     validate_direct_parameter_types(index, &types)?;
     validate_direct_parameter_types(value, &types)?;
-    let index = emit_direct_expression(index, values, next_value, operations);
+    let index = super::emit_byte_index(index, values, next_value, next_obligation, operations)?;
     let value = emit_direct_expression(value, values, next_value, operations);
     let length = value_id(allocate_dense(next_value)?);
     let id = operations.allocate();

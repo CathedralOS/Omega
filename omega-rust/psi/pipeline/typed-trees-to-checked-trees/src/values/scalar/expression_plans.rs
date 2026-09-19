@@ -8,7 +8,7 @@ use crate::values::scalar::call_lowering::{
 };
 use crate::values::scalar::expression_facts::operator_is_builtin;
 use crate::values::scalar::machine_parameter_booleans::lower_machine_parameter_boolean_expression;
-use crate::values::scalar::scalar_lowering::lower_return_expression;
+use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_return_expression};
 use crate::values::scalar::semantic_casts;
 use checked_trees::{
     CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedOperatorFacts,
@@ -421,7 +421,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 program.expression_table.expression(indexed.index),
                                 ExpressionNode::Range(_)
                             )
-                            && let Some(expression) = lower_return_expression(
+                            && let Some(expression) = lower_index_expression(
                                 program,
                                 operators,
                                 indexed.index,
@@ -429,7 +429,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 parameters,
                                 &parameter_types,
                                 &locals,
-                                PrimitiveType::U64,
                                 exact_integer_casts,
                             )
                         {

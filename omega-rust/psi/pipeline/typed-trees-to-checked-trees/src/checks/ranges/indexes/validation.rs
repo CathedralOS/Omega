@@ -17,8 +17,8 @@ use super::super::expressions::{
 use super::super::facts::RangeFacts;
 use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
 use super::super::types::{
-    expression_enforced_declared_range, expression_is_slice, expression_is_unsigned_integer,
-    expression_type_reference,
+    expression_enforced_declared_range, expression_integer_carrier_maximum, expression_is_slice,
+    expression_is_unsigned_integer, expression_type_reference,
 };
 
 mod known_ranges;
@@ -344,6 +344,10 @@ fn check_known_length_index(
                 let initializer_label = hoist_temp_initializer_label(program, state, &index_label);
                 let initializer_label = initializer_label.as_deref();
                 let upper_bound_proven = facts.index_is_proven(&collection_label, &index_label)
+                    || expression_integer_carrier_maximum(program, machine, state, index)
+                        .is_some_and(|maximum| {
+                            u64::try_from(length).is_ok_and(|length| maximum < length)
+                        })
                     || facts.index_upper_bound_is_proven(&index_label, length)
                     || facts.index_upper_bound_is_proven_via_ordering(&index_label, length)
                     || declared_range.is_some_and(|(_, high)| {
