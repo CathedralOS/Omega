@@ -168,13 +168,22 @@ fn admit<'a>(
     )?;
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
     boundaries.dedup_by(|left, right| left.1 == right.1);
+    // Only signature-directed boundary calls are provider obligations; a
+    // boundary-declaration call (`target_machine != target_state`) settles
+    // through the called machine's own boundary seam.
     let called = std::iter::once(entry_call)
         .chain(leaves.into_iter().flat_map(|leaf| &leaf.operations))
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-                Some(*target_machine)
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                target_machine,
+                target_state,
+                ..
             }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                target_machine,
+                target_state,
+                ..
+            } => (target_machine == target_state).then_some(*target_machine),
             _ => None,
         })
         .collect::<Vec<_>>();

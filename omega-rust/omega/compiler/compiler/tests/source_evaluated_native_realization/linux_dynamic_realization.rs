@@ -1,6 +1,6 @@
 use super::{
-    Fixture, admit_import, realize_linux_dynamic, terminal_authority_permission_policy,
-    terminal_authority_policy,
+    Fixture, admit_import, realize_linux_dynamic, realize_linux_dynamic_outcome,
+    terminal_authority_permission_policy, terminal_authority_policy,
 };
 use compiler::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
@@ -98,6 +98,28 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
             .message
             .contains("requires an exact normalized interpreter")
     }));
+}
+
+#[test]
+fn external_boundary_requirement_via_leaf_reaches_selected_instruction_stage() {
+    // A top-level `boundary requirement` satisfied by an external `via` leaf:
+    // the direct call is not redirected — it lowers through the requirement's
+    // own retained boundary seam, and the import-settlement join keys on the
+    // requirement machine's normalized overload identity. The legalized
+    // normalized foreign call is reached, then the selection stage stops the
+    // artifact: `NormalizedForeignCall` has no construction emission yet, so
+    // the demanded foreign call fails closed as a custody mismatch instead of
+    // silently dropping the boundary.
+    let fixture = Fixture::new_linux_boundary_requirement_named("external-requirement-via-dynamic");
+    let diagnostics = realize_linux_dynamic_outcome(fixture.compile_terminal(), 0x454c_4600_0100)
+        .expect_err("selection emits no normalized foreign call instruction yet")
+        .1;
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("SourceCustodyMismatch")),
+        "selection stage fails closed on the requirement seam foreign call: {diagnostics:#?}",
+    );
 }
 
 #[test]

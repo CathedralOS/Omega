@@ -575,8 +575,12 @@ fn reject_unselected_direct_requirement_calls(
         reported.push(target_symbol);
         // A selected compiler-intrinsic plan is executed by the named-float
         // intrinsic bridge (the requirement use is stamped with the plan and
-        // rewritten at execution settlement); any other external binding has
-        // no direct-call execution route yet and says so.
+        // rewritten at execution settlement); an evaluated import or syscall
+        // binding keeps the call on the requirement's retained boundary seam,
+        // which native realization joins to the normalized external-binding
+        // row by requirement identity — the `via` leaf executes through that
+        // route without an adapter rewrite. Other bindings have no
+        // direct-call execution route and say so.
         let external = selected_plans
             .plans()
             .iter()
@@ -598,11 +602,13 @@ fn reject_unselected_direct_requirement_calls(
             if matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                    | effects::provider_plan::ProviderBinding::Import { .. }
+                    | effects::provider_plan::ProviderBinding::Syscall { .. }
             ) {
                 return;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "direct call `{target_name}` names public boundary requirement `{}`, whose selected provider `{}` realizes it through external binding {:?} rather than a checked machine body or compiler intrinsic; the direct-call route executes only those",
+                "direct call `{target_name}` names public boundary requirement `{}`, whose selected provider `{}` realizes it through external binding {:?} rather than a checked machine body, compiler intrinsic, or evaluated import/syscall binding; the direct-call route executes only those",
                 requirement.name, plan.name, row.binding,
             )));
             return;

@@ -341,6 +341,48 @@ machine Main::main(&mut self) reaches Process {{
         )
     }
 
+    /// A top-level `boundary requirement` (not a trait member) satisfied by an
+    /// external `via` leaf: the direct call keeps the requirement seam, so the
+    /// demanded boundary is the requirement machine's normalized overload
+    /// identity and the same identity keys the selected import row.
+    fn new_linux_boundary_requirement_named(name: &str) -> Self {
+        Self::with_source(
+            name,
+            "linux_x86_64",
+            r#"use omega::language::core::external_binding;
+
+pub data ForeignMath {}
+
+pub boundary requirement ForeignMath::exit_with(code: i32);
+
+data ForeignMathProvider {}
+
+linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+
+data Main {}
+machine Main::main(&mut self) {
+    ForeignMath::exit_with(70);
+}
+"#,
+            r#"machine build(builder: &mut Build) {
+    builder.application("source-evaluated-linux-requirement-native");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        )
+    }
+
     fn new_macos_u32_argument() -> Self {
         Self::new_macos_u32_argument_named("macho-u32-argument")
     }
@@ -848,6 +890,21 @@ fn realize_linux_dynamic(
     retained: compilation_report::RetainedTerminalArtifact,
     receipt: u64,
 ) -> native::RequestedNativeArtifact {
+    realize_linux_dynamic_outcome(retained, receipt).unwrap_or_else(|(_, diagnostics)| {
+        panic!("import-bearing Linux request should realize: {diagnostics:#?}")
+    })
+}
+
+fn realize_linux_dynamic_outcome(
+    retained: compilation_report::RetainedTerminalArtifact,
+    receipt: u64,
+) -> Result<
+    native::RequestedNativeArtifact,
+    (
+        native::ExecutableImageEmissionRequest,
+        Vec<diagnostics::Diagnostic>,
+    ),
+> {
     let admission = admit_import(
         &retained,
         SameStackContributionAdmissionReceiptId::from_normalized_identity(receipt).unwrap(),
@@ -876,7 +933,4 @@ fn realize_linux_dynamic(
             )],
         },
     )
-    .unwrap_or_else(|(_, diagnostics)| {
-        panic!("import-bearing Linux request should realize: {diagnostics:#?}")
-    })
 }

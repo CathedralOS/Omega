@@ -1409,3 +1409,266 @@ fn checked_boundary_requirement_statement_call_exit_canary_runs() {
         assert_selected_requirement_statement_call,
     );
 }
+
+/// The external-satisfier sibling of `assert_selected_requirement_association`:
+/// the covering plan is a `via` leaf with an evaluated import binding, so
+/// settlement produces no adapter dispatch row and never retargets the direct
+/// call — the requirement is itself a boundary declaration, the settled call
+/// stays on the requirement entry, and the requirement's normalized overload
+/// identity is the join key every downstream stage keys on.
+fn assert_selected_external_requirement(
+    checked: &compiler::CheckedCompilation,
+    label: &str,
+) -> (symbols::SymbolHandle, String) {
+    let requirement_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ForeignMath::absolute")
+        .unwrap_or_else(|| panic!("{label} should retain the requirement machine"));
+    let requirement = checked
+        .typed
+        .machine_states(requirement_machine)
+        .first()
+        .unwrap_or_else(|| panic!("{label} requirement machine has an entry"))
+        .symbol;
+    let requirement_identity = checked
+        .typed
+        .normalized_machine_overload_identity(requirement_machine)
+        .unwrap_or_else(|| panic!("{label} requirement retains a normalized overload identity"))
+        .identity();
+
+    let plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "ForeignMath::absolute")
+        .unwrap_or_else(|| panic!("{label} selects the requirement's `via` plan"));
+    assert_eq!(plan.provider_type, "ForeignMathProvider");
+    assert!(plan.covers_schema());
+    let [row] = plan.rows.as_slice() else {
+        panic!("{label} should settle exactly one requirement row");
+    };
+    assert_eq!(row.method, "absolute");
+    assert_eq!(row.requirement_identity, requirement_identity);
+    let effects::provider_plan::ProviderBinding::Import { evaluated } = &row.binding else {
+        panic!("{label} row is the leaf's evaluated import binding, never an adapter");
+    };
+    assert_eq!(
+        evaluated.locator().locator(),
+        &target::ForeignLocatorCandidate::ElfVersioned {
+            object: b"libc.so.6".to_vec(),
+            symbol: b"abs".to_vec(),
+            version: b"GLIBC_2.2.5".to_vec(),
+        }
+    );
+    assert_eq!(checked.evaluated_via_bindings().rows().len(), 2);
+
+    assert!(
+        checked
+            .facts
+            .boundary_adapter_dispatch
+            .iter()
+            .all(|row| row.requirement != requirement),
+        "{label} settles no adapter dispatch row for the requirement: the call keeps its seam",
+    );
+    let calls = checked
+        .typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_handle, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "absolute" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [settled_call] = calls.as_slice() else {
+        panic!("{label} should retain exactly one `absolute` call site");
+    };
+    assert_eq!(
+        settled_call.target_symbol, requirement,
+        "{label} the settled call still targets the requirement entry, not an adapter",
+    );
+    // The value call is the requirement's own D29 demand, keyed on the
+    // requirement machine symbol — the same row a selected adapter records;
+    // the seam is that the demand now resolves to the requirement boundary
+    // machine itself rather than an adapter-checked occurrence.
+    let demands = checked
+        .facts
+        .operators
+        .boundary_applications
+        .iter()
+        .map(|demand| (demand.requirement_symbol, demand.arguments.len()))
+        .collect::<Vec<_>>();
+    assert!(
+        demands.contains(&(requirement_machine.symbol, 0)),
+        "{label} the direct requirement call is a requirement-keyed D29 demand: {demands:?}",
+    );
+    (requirement, requirement_identity)
+}
+
+/// The Terminal leg of an externally satisfied requirement: opposite of the
+/// adapter route — the requirement IS the retained boundary declaration, and
+/// the entry keeps an exact `BoundaryCall` into it under the requirement's
+/// normalized overload identity.
+fn assert_selected_external_requirement_terminal_call(
+    canary: &std::path::Path,
+    label: &str,
+) -> String {
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("linux_x86_64"),
+    ))
+    .unwrap_or_else(|diagnostics| panic!("{label} should check: {diagnostics:#?}"));
+    let (_requirement, requirement_identity) =
+        assert_selected_external_requirement(&checked, label);
+
+    let package_inputs =
+        crate::reviewed_repository_fixture_package_inputs(&main_path, Some("linux_x86_64"))
+            .unwrap_or_else(|diagnostics| {
+                panic!("{label} should derive package inputs: {diagnostics:#?}")
+            });
+    let mut request = CompileRequest::new(CompilerOptions {
+        root_path: main_path,
+        build_dir: None,
+        target_name: Some("linux_x86_64".into()),
+    })
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report = compiler::compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{label} should produce a canonical Terminal artifact: {diagnostics:#?}")
+        });
+    let retained = report
+        .into_retained_terminal_artifact()
+        .unwrap_or_else(|| panic!("{label} should retain its Terminal artifact"));
+    retained
+        .validate()
+        .unwrap_or_else(|error| panic!("{label} Terminal artifact should replay: {error}"));
+    let module = terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .unwrap_or_else(|error| panic!("{label} Terminal semantics should decode: {error:?}"));
+    let proposal = retained
+        .native_realization_proposal()
+        .unwrap_or_else(|| panic!("{label} should retain its native proposal"));
+
+    let matching = module
+        .boundary_machines
+        .iter()
+        .filter(|declaration| declaration.identity == requirement_identity)
+        .collect::<Vec<_>>();
+    let [boundary] = matching.as_slice() else {
+        panic!("{label} retains exactly one boundary declaration for the requirement");
+    };
+    assert_eq!(
+        boundary.scalar_parameters.len(),
+        1,
+        "{label} boundary declaration keeps the authored scalar signature",
+    );
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap_or_else(|| panic!("{label} Terminal module has its entry machine"));
+    let boundary_calls = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::BoundaryCall { boundary: id, .. } => Some(*id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        boundary_calls.iter().any(|id| *id == boundary.id),
+        "{label} entry keeps an exact BoundaryCall into the requirement boundary",
+    );
+
+    let proposal_rows = proposal
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| plan.rows.iter())
+        .filter(|row| {
+            matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::Import { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        proposal_rows
+            .iter()
+            .any(|row| row.requirement_identity == requirement_identity),
+        "{label} retains the requirement's selected import row",
+    );
+    assert!(
+        proposal
+            .external_binding_rows()
+            .iter()
+            .any(|row| row.requirement_identity == requirement_identity
+                && matches!(
+                    row.binding,
+                    calling_conventions::ExternalBindingKind::Import { .. }
+                )),
+        "{label} retains the external binding row the settlement join keys on",
+    );
+    requirement_identity
+}
+
+#[test]
+fn external_boundary_requirement_via_exit_canary_keeps_requirement_seam() {
+    // The `via` route on a top-level boundary requirement: the selected plan's
+    // binding is the leaf's evaluated import, so the direct call is not
+    // redirected to an adapter — the requirement is itself the boundary
+    // declaration the call lowers through. The checked interpreter has no
+    // provider for authored bindings and fails closed on that call; the
+    // production native route demands the requirement's settlement, which the
+    // no-imports production path reports instead of silently emitting.
+    let canary = pass_canary(fixture_roster::EXTERNAL_BOUNDARY_REQUIREMENT_VIA_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("linux_x86_64"),
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!("external-via requirement canary should check: {diagnostics:#?}")
+    });
+    let (_requirement, _identity) =
+        assert_selected_external_requirement(&checked, "external-via requirement canary");
+
+    let outcome = interpret(&checked, &[]);
+    let error = outcome.error.unwrap_or_else(|| {
+        panic!("interpreter must fail closed on an externally satisfied requirement call")
+    });
+    assert!(
+        error.contains("bodyless requirement") && error.contains("no provider"),
+        "interpreter reports the missing provider instead of running an empty body: {error}",
+    );
+
+    assert_selected_external_requirement_terminal_call(&canary, "external-via requirement canary");
+
+    // The requirement seam survives to the native proposal: the demanded
+    // boundary carries a normalized foreign mechanism the receiving policy
+    // does not classify without an evaluated import settlement, so the
+    // production route fails closed naming the requirement callable rather
+    // than silently emitting the foreign call.
+    let diagnostics =
+        compile_rooted_backend_canary_without_output_for_target(&canary, "linux_x86_64")
+            .expect_err("the production route supplies no import settlements");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("does not classify normalized foreign mechanism")
+                && diagnostic.message.contains("ForeignMath::absolute")
+        }),
+        "the demanded requirement boundary reaches native mechanism classification: {diagnostics:#?}",
+    );
+}

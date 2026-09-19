@@ -193,15 +193,32 @@ pub(super) fn emit(
         &plan.entry_claims,
         claim_bindings,
     )?;
+    // Provider attachment requirements cover signature-directed boundary calls
+    // only. A direct call to a boundary declaration (a top-level boundary
+    // requirement, boundary, or admission-claim machine) settles through that
+    // machine's own retained boundary seam: the operation carries
+    // `target_machine != target_state`, while a signature call records the
+    // signature symbol in both. Machine-directed calls consume no attached
+    // provider field and must not count as provider obligations here.
     let called_boundaries = plan
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-                Some(*target_machine)
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                target_machine,
+                target_state,
+                ..
             }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                target_machine,
+                target_state,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                target_machine,
+                target_state,
+                ..
+            } => (target_machine == target_state).then_some(*target_machine),
             _ => None,
         })
         .collect::<Vec<_>>();

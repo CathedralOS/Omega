@@ -931,6 +931,18 @@ impl<'program> Evaluator<'program> {
         loop {
             self.tick()?;
 
+            // A bodyless declaration — a `boundary requirement`, boundary or
+            // admission-claim machine, or an external `via` leaf — retains no
+            // checked body to execute. A direct call reaching one was settled
+            // for a host-ABI realization the interpreter does not provide;
+            // running an empty statement list would silently return unit.
+            if !machine.body_is_present {
+                return unsupported(format!(
+                    "call target `{}` is a bodyless requirement or external declaration; the interpreter has no provider for its selected realization",
+                    machine.name.as_str(),
+                ));
+            }
+
             let frame = self.bind_frame(
                 state,
                 instance.clone(),

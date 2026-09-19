@@ -40,6 +40,8 @@ pub(crate) const TEST_OWNER_PROVIDER_OVERRIDE_COMPILE: &str =
 pub(crate) const PROVIDER_TYPE_TARGET_DEFAULT_OVERRIDE: &str =
     "providers/provider_type_target_default_override";
 pub(crate) const ADAPTER_SATISFIES_COMPILE: &str = "providers/adapter_satisfies_compile";
+pub(crate) const EXTERNAL_BOUNDARY_REQUIREMENT_VIA_EXIT: &str =
+    "providers/external_boundary_requirement_via_exit";
 pub(crate) const EXTERNAL_LEAF_VIA_COMPILE: &str = "providers/external_leaf_via_compile";
 pub(crate) const EXTERNAL_LEAF_DLLIMPORT_COMPILE: &str =
     "providers/external_leaf_dllimport_compile";
@@ -138,6 +140,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     TEST_OWNER_PROVIDER_OVERRIDE_COMPILE,
     PROVIDER_TYPE_TARGET_DEFAULT_OVERRIDE,
     ADAPTER_SATISFIES_COMPILE,
+    EXTERNAL_BOUNDARY_REQUIREMENT_VIA_EXIT,
     EXTERNAL_LEAF_VIA_COMPILE,
     EXTERNAL_LEAF_DLLIMPORT_COMPILE,
     RUNTIME_ADAPTER_FORWARDING_EXIT,
