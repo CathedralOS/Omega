@@ -1,7 +1,7 @@
 //! Exact unrestricted subloan contracts, independently of native realization.
 
 use crate::tests::{id, refresh_identity, refresh_node_derivatives, structural_call_unit};
-use crate::{validate_psi_optimization_unit, OptimizationUnitValidationError};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
