@@ -12,9 +12,11 @@ use crate::interrupts::interrupt_table::{
 };
 use crate::{
     ExternalRootId, InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId,
-    RootAdmission, RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority,
-    RootSlotId, RootSlotOwnerId, validate_external_root,
+    InterruptEpochTurnReport, InterruptInvocationId, InterruptPreemptionReport, RootAdmission,
+    RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority, RootSlotId,
+    RootSlotOwnerId, validate_external_root,
 };
+use calling_conventions::{ArrivalContextId, EntryStackStage};
 use layout_plans::EntryStubId;
 
 #[test]
@@ -1026,4 +1028,182 @@ fn published_table_dispatch_rejoins_the_receipt_against_the_armed_member() {
             .contains("does not bind the exact installed interrupt root")
     );
     let _ = error.into_receipt();
+}
+
+#[test]
+fn published_fatal_member_preempts_unconditionally_and_halts_on_settle() {
+    let mut admitted = admitted_table();
+    let established = established_for(&admitted, 0x61b);
+    let carrier = admitted
+        .table
+        .begin_interrupt_table_publication(
+            &admitted.ledger,
+            established,
+            publication_id(0x62b),
+            authority_id(0x63a),
+        )
+        .expect("issued publication carrier");
+    let receipt = InterruptTablePublicationReceipt::from_provider(
+        publication_receipt_id(0x64b),
+        &carrier,
+        true,
+    );
+    let outcome = admitted
+        .table
+        .complete_interrupt_table_publication(&admitted.ledger, carrier, receipt)
+        .expect("the exact receipt publishes the table");
+    assert!(matches!(
+        outcome,
+        InterruptTablePublicationOutcome::Published(_)
+    ));
+
+    // The timer member enters first and stays live at its fresh Body stage:
+    // the fixture's arrival context realizes a single Body epoch.
+    let timer_root = admitted
+        .table
+        .member(TIMER_TICK)
+        .expect("admitted timer member")
+        .root()
+        .root();
+    let timer_invocation =
+        crate::tests::root_id(90, InterruptInvocationId::from_normalized_identity);
+    let timer_obligations = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            TIMER_TICK,
+            crate::tests::interrupt_entry_receipt(
+                admitted
+                    .table
+                    .member(TIMER_TICK)
+                    .expect("admitted timer member")
+                    .root(),
+                90,
+                Some(7),
+                Some(91),
+            ),
+        )
+        .expect("the armed timer vector admits the entry");
+    let (timer_pending, timer_control, _) = timer_obligations.into_parts();
+
+    // An acknowledged arrival cannot preempt: the fixture declares no
+    // stack-nesting edges, so a nested timer invocation rejects.
+    let ordinary = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            TIMER_TICK,
+            crate::tests::interrupt_entry_receipt_in_context(
+                admitted
+                    .table
+                    .member(TIMER_TICK)
+                    .expect("admitted timer member")
+                    .root(),
+                ArrivalContextId::new(1).expect("fixture arrival context"),
+                Some(InterruptPreemptionReport::new(
+                    timer_root,
+                    timer_invocation,
+                    EntryStackStage::Body,
+                )),
+                95,
+                Some(7),
+                Some(95),
+            ),
+        )
+        .expect_err("a nested acknowledged entry requires a declared nesting edge");
+    assert!(ordinary.diagnostic().0.contains("stack-nesting edge"));
+
+    // The fatal member preempts unconditionally: the processor fault cannot
+    // wait on a declared edge, and its dedicated critical stack owes no
+    // parent depth bound. The report still names the innermost live
+    // invocation and rejoins its retained stage.
+    let fatal_invocation =
+        crate::tests::root_id(96, InterruptInvocationId::from_normalized_identity);
+    let fatal_obligations = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            DIVIDE_ERROR,
+            crate::tests::interrupt_entry_receipt_in_context(
+                admitted
+                    .table
+                    .member(DIVIDE_ERROR)
+                    .expect("admitted fatal member")
+                    .root(),
+                ArrivalContextId::new(1).expect("fixture arrival context"),
+                Some(InterruptPreemptionReport::new(
+                    timer_root,
+                    timer_invocation,
+                    EntryStackStage::Body,
+                )),
+                96,
+                None,
+                None,
+            ),
+        )
+        .expect("a fatal entry preempts unconditionally on its critical stack");
+    let (fatal_pending, fatal_control, fatal_acknowledgement) = fatal_obligations.into_parts();
+    assert!(fatal_acknowledgement.is_none());
+
+    // Settling the fatal entry halts the ledger: the interrupted chain never
+    // resumes ordinary work.
+    let completed = admitted
+        .ledger
+        .finish_interrupt_entry(fatal_pending, fatal_control, None)
+        .expect("the fatal entry settles at its terminal stage");
+    assert!(completed.fatal);
+    assert_eq!(
+        admitted.ledger.halted_by(),
+        Some((
+            admitted
+                .table
+                .member(DIVIDE_ERROR)
+                .expect("admitted fatal member")
+                .root()
+                .root(),
+            fatal_invocation,
+        ))
+    );
+
+    // The preempted timer cannot settle, cannot turn its epoch, and the
+    // halted ledger admits no further arrivals — the live entry remains
+    // held as halted evidence.
+    let error = admitted
+        .ledger
+        .finish_interrupt_entry(timer_pending, timer_control, None)
+        .expect_err("a halted ledger resumes nothing");
+    assert!(error.diagnostic().0.contains("halted"));
+    let _ = error.into_parts();
+
+    let error = admitted
+        .ledger
+        .turn_interrupt_epoch_stage(
+            admitted
+                .table
+                .member(TIMER_TICK)
+                .expect("admitted timer member")
+                .root(),
+            InterruptEpochTurnReport::new(timer_root, timer_invocation, EntryStackStage::Exit),
+        )
+        .expect_err("a halted ledger turns no epochs");
+    assert!(error.diagnostic().0.contains("halted"));
+
+    let error = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            GENERAL_PROTECTION,
+            crate::tests::interrupt_entry_receipt(
+                admitted
+                    .table
+                    .member(GENERAL_PROTECTION)
+                    .expect("admitted fatal member")
+                    .root(),
+                97,
+                None,
+                None,
+            ),
+        )
+        .expect_err("a halted ledger admits no further arrivals");
+    assert!(error.diagnostic().0.contains("halted"));
 }

@@ -169,6 +169,11 @@ pub struct InstalledRootLedger {
         BTreeMap<(ExternalRootId, InterruptInvocationId), ActiveInterruptEntry>,
     pub(crate) entered_interrupts: BTreeSet<(ProviderExecutionId, InterruptInvocationId)>,
     pub(crate) minted_acknowledgements: BTreeSet<(ProviderExecutionId, InterruptAcknowledgementId)>,
+    /// The fatal entry whose settle halted this ledger. A fatal exception
+    /// records the fault and never resumes ordinary work, so after its
+    /// settle every still-live invocation stays held as halted evidence: no
+    /// further entry, epoch turn, or settle can reach the interrupted chain.
+    pub(crate) halted_by: Option<(ExternalRootId, InterruptInvocationId)>,
 }
 
 impl InstalledRootLedger {
@@ -199,6 +204,7 @@ impl InstalledRootLedger {
             active_interrupts: BTreeMap::new(),
             entered_interrupts: BTreeSet::new(),
             minted_acknowledgements: BTreeSet::new(),
+            halted_by: None,
         })
     }
 
@@ -208,6 +214,13 @@ impl InstalledRootLedger {
 
     pub const fn installed_code(&self) -> InstalledCodeId {
         self.installed_code
+    }
+
+    /// The fatal entry whose settle halted this ledger, when one has
+    /// settled. A halted ledger admits no new entries, epoch turns, or
+    /// settles: the interrupted chain never resumes ordinary work.
+    pub const fn halted_by(&self) -> Option<(ExternalRootId, InterruptInvocationId)> {
+        self.halted_by
     }
 
     /// Compare the complete private installation-registry evidence with one

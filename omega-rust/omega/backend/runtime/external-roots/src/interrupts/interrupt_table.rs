@@ -776,7 +776,11 @@ impl<'code> InterruptTableLedger<'code> {
                 "the reported vector is not an armed member of the published interrupt table",
             ));
         };
-        ledger.begin_interrupt_entry(member.root(), receipt)
+        ledger.begin_interrupt_entry_as(
+            member.root(),
+            receipt,
+            matches!(member.obligation, InterruptTableObligation::FatalException),
+        )
     }
 
     /// Close the table account and return every retained member handle. The
