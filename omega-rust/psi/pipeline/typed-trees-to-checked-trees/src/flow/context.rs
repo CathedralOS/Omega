@@ -18,6 +18,17 @@ pub(super) struct FlowBuildContext<'plans> {
     #[cfg(test)]
     pub(super) state_value_inputs_changed_after_build: bool,
     pub(super) new_state_field_input_height: usize,
+    /// Per (state, carrier field) byte-class evidence of this pass's element
+    /// stores, intersected across the state's stores: the greatest claim the
+    /// state's outgoing edges could carry for the carrier once the carrier's
+    /// own premise is satisfied. Captured at store time; read by field
+    /// capture as each edge's delivery potential and reset when a state
+    /// rebuilds.
+    pub(super) element_store_potentials: Vec<(
+        SymbolHandle,
+        Vec<facts::PlaceSegment>,
+        Vec<crate::facts::field_domain::ByteSequencePredicate>,
+    )>,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
@@ -51,6 +62,7 @@ impl<'plans> FlowBuildContext<'plans> {
             #[cfg(test)]
             state_value_inputs_changed_after_build: false,
             new_state_field_input_height: 0,
+            element_store_potentials: Vec::new(),
             state_mutation_summary_cache,
             contexts: FlowContextFacts::with_roots(
                 arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),

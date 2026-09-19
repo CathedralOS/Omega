@@ -381,29 +381,35 @@ pub(super) fn capture_call<Value: CapturedValue>(
                 && expression.statement_ordinal == statement_ordinal
                 && expression.role == role
         });
-        let expression = &expressions.next()?.expression;
+        let expression = expressions.next()?;
+        let expression = &expression.expression;
         if expressions.next().is_some() {
             return None;
         }
-        // Read the complete RHS against the old storage, then commit the write.
-        // Immutable locals retain their captured values across later assignments.
-        let value = Value::evaluate_local(expression, &mut values)?;
+        // Read the complete RHS against the old storage, then commit the
+        // write. Immutable locals retain their captured values across later
+        // assignments. An immutable local whose selected form produces no
+        // captured value -- a boolean guard row, a shape this value model does
+        // not carry -- still owns its binding position: keeping the slot empty
+        // preserves every later local's ordinal while reads of it simply find
+        // no value, which is conservative.
+        let value = Value::evaluate_local(expression, &mut values);
         match role {
-            CheckedScalarExpressionRole::Return => return Some(value),
+            CheckedScalarExpressionRole::Return => return value,
             CheckedScalarExpressionRole::LocalInitializer { .. } => {
                 symbols.push(destination);
-                values.bindings.push(Some(value));
+                values.bindings.push(value);
                 immutable_local_count = immutable_local_count.checked_add(1)?;
             }
             CheckedScalarExpressionRole::StorageInitializer => {
-                values.storage.push((destination, value));
+                values.storage.push((destination, value?));
             }
             CheckedScalarExpressionRole::AssignmentValue => {
                 let (_, current) = values
                     .storage
                     .iter_mut()
                     .find(|(symbol, _)| *symbol == destination)?;
-                *current = value;
+                *current = value?;
             }
             _ => return None,
         }

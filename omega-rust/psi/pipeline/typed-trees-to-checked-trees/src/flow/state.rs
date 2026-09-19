@@ -37,6 +37,11 @@ pub(super) fn build_state_flow_fact(
     #[cfg(test)]
     super::builder::tests::STATE_BUILDS.set(super::builder::tests::STATE_BUILDS.get() + 1);
 
+    // Store potentials are this pass's evidence; a rebuilt state accumulates
+    // them afresh.
+    ctx.element_store_potentials
+        .retain(|(stored_state, _, _)| *stored_state != state.symbol);
+
     #[cfg(test)]
     if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
         ctx.built_state_value_inputs.push(state.symbol);

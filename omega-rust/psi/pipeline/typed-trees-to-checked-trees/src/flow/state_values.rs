@@ -31,6 +31,22 @@ pub(super) struct StateValues {
     qualifications: Vec<qualifications::QualifiedInput>,
 }
 
+/// The greatest predicate set this state's incoming edges have ever jointly
+/// delivered for `segments` -- the co-inductive premise an element-store
+/// reseed may assume for the carrier. Empty when no edge has established any.
+pub(super) fn field_predicate_ceiling<'a>(
+    ctx: &'a FlowBuildContext<'_>,
+    state: SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> &'a [crate::facts::field_domain::ByteSequencePredicate] {
+    let field = ctx
+        .state_value_inputs
+        .iter()
+        .find(|row| row.state == state)
+        .and_then(|row| row.fields.iter().find(|field| field.segments() == segments));
+    field.map_or(&[], |field| field.predicate_ceiling())
+}
+
 fn reachable(
     ctx: &FlowBuildContext,
     program: &typed_trees::TypedTrees,
@@ -47,7 +63,13 @@ fn reachable(
             .any(|input| input.state == state)
 }
 
-fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
+fn join(
+    program: &typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    source: fields::BoundsSource,
+    incoming: StateValues,
+) {
     let state = incoming.state;
     let mut changed = false;
     if let Some(previous) = ctx
@@ -55,7 +77,13 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
         .iter_mut()
         .find(|row| row.state == incoming.state)
     {
-        changed |= fields::meet(&mut previous.fields, &incoming.fields);
+        changed |= fields::meet(
+            program,
+            machine,
+            &mut previous.fields,
+            &incoming.fields,
+            source,
+        );
         changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
         for (parameter, value) in &mut previous.values {
             let next = incoming
@@ -73,6 +101,10 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
         changed = true;
         ctx.new_state_field_input_height += fields::height(&incoming.fields);
         ctx.new_state_field_input_height += incoming.qualifications.len();
+        let mut incoming = incoming;
+        for field in &mut incoming.fields {
+            field.seed_delivery(source);
+        }
         ctx.state_value_inputs.push(incoming);
     }
     #[cfg(test)]
@@ -229,7 +261,10 @@ pub(super) fn record_transition(
         qualifications::capture_self(program, semantic, ctx, state, contexts)
     };
     join(
+        program,
         ctx,
+        machine,
+        fields::BoundsSource::transition(state.symbol, target),
         StateValues {
             state: destination.symbol,
             values,
@@ -281,7 +316,10 @@ pub(super) fn record_invocation(
         return;
     }
     join(
+        program,
         ctx,
+        owner,
+        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal),
         StateValues {
             state: destination.symbol,
             fields: Vec::new(),

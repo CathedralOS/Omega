@@ -471,6 +471,13 @@ fn selected_operand_carriers_and_unserved_operations_cannot_supply_bounds() {
             &operation(CheckedIntegerBinaryKind::ExactDivide, PrimitiveType::U8),
             &mut Bounds(vec![range(4, 8), range(2, 2)]),
         ),
+        Some(range(2, 4)),
+    );
+    assert_eq!(
+        evaluate(
+            &operation(CheckedIntegerBinaryKind::BitwiseAnd, PrimitiveType::U8),
+            &mut Bounds(vec![range(4, 8), range(2, 2)]),
+        ),
         None,
     );
 }
