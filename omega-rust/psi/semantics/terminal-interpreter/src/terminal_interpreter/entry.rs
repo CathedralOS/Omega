@@ -9,8 +9,8 @@ use crate::terminal_interpreter::{
     AcceptTerminalEffects, AdmittedProviderInstallation, MeasuredTerminalExecution,
     ProviderInstallationError, ProviderInstallationSelection, TerminalArtifactInterpretError,
     TerminalEffectHandler, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInterpretError, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
-    TerminalStructuralPrimitiveValue, TerminalStructuralValue,
+    TerminalInterpretError, TerminalPlacedViewEstablishment, TerminalScalarValue,
+    TerminalStructuralBooleanFieldValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 use std::collections::BTreeMap;
 use terminal_fuel::{FuelMeterError, TerminalFuelMeter};
@@ -29,6 +29,11 @@ pub struct TerminalStructuralInputs<'input> {
     pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
     pub cases: &'input [TerminalStructuralCaseValue],
     pub byte_arrays: &'input [TerminalStructuralByteArrayValue],
+    /// Established placed-view inputs: one exact establishment per direct
+    /// entry roster row lends its qualified referent backing for the
+    /// invocation's duration. An entry declaring no placed-view inputs leaves
+    /// this empty.
+    pub placed_view_establishments: &'input [TerminalPlacedViewEstablishment],
 }
 
 /// Decode one complete portable Terminal-Psi envelope, independently verify

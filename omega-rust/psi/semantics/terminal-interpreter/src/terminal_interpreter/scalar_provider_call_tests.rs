@@ -336,9 +336,16 @@ fn installed_scalar_provider_executes_its_machine_and_commits_the_float_result()
     )
     .expect("scalar provider fixture verifies");
     let installation = scalar_provider_installation(&module);
-    let execution =
-        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], Some(&installation))
-            .expect("scalar provider module starts");
+    let execution = TerminalExecution::start_verified_module(
+        module,
+        &[],
+        &[],
+        &[],
+        &[],
+        &[],
+        Some(&installation),
+    )
+    .expect("scalar provider module starts");
     let (execution, result) = run_to_completion(execution);
     // round_nearest_even(2.0 * 3.0 + 4.0) = 10.0f32.
     assert_eq!(
@@ -361,9 +368,16 @@ fn installed_scalar_provider_executes_a_boolean_result() {
     )
     .expect("scalar provider fixture verifies");
     let installation = scalar_provider_installation(&module);
-    let execution =
-        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], Some(&installation))
-            .expect("scalar provider module starts");
+    let execution = TerminalExecution::start_verified_module(
+        module,
+        &[],
+        &[],
+        &[],
+        &[],
+        &[],
+        Some(&installation),
+    )
+    .expect("scalar provider module starts");
     let (execution, result) = run_to_completion(execution);
     assert_eq!(
         result,
@@ -377,7 +391,7 @@ fn scalar_provider_candidate_without_installation_still_rejects() {
     // The verified catalog row alone is not an installation: dispatch must
     // still find the boundary's selected candidate.
     let mut execution =
-        TerminalExecution::start_verified_module(float_fma_module(), &[], &[], &[], &[], None)
+        TerminalExecution::start_verified_module(float_fma_module(), &[], &[], &[], &[], &[], None)
             .unwrap();
     assert!(matches!(
         execution.resume(
@@ -423,7 +437,7 @@ fn scalar_provider_result_type_drift_rejects_at_verification_and_dispatch() {
     // transfers.
     module.provider_candidates.clear();
     let mut execution =
-        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], None).unwrap();
+        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], &[], None).unwrap();
     execution.provider_candidates.insert(boundary_id(1));
     execution
         .provider_installation

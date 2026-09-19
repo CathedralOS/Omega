@@ -13,6 +13,9 @@ use crate::terminal_interpreter::custody::{
     bind_affine_frontier, bind_arguments, bind_entry_claims, bind_structural_arguments,
     bind_structural_primitive_values,
 };
+use crate::terminal_interpreter::placed_views::{
+    PlacedViewOccurrence, TerminalPlacedViewEstablishment, establish_placed_view_inputs,
+};
 use crate::terminal_interpreter::primitive_storage;
 use crate::terminal_interpreter::results::meter_status;
 use crate::terminal_interpreter::scalar_array::TerminalScalarArrayValue;
@@ -35,7 +38,7 @@ use terminal_psi::{
     Block, BoundaryMachineDeclaration, EntryClaim, NominalAffineCleanup, OperationKind,
     StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
-    StructuralTypeDeclaration, TerminalMachineResult, Terminator,
+    StructuralTypeDeclaration, TerminalMachineResult, TerminalPlacedViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -112,6 +115,10 @@ pub struct TerminalExecution {
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
+    /// Live placed-view occurrences: each direct-entry roster row's lent
+    /// referent, bound for the entry invocation's duration. Retirement at
+    /// completion releases the loans without reminting custody.
+    pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
     pub(crate) current_machine: MachineId,
     pub(crate) current: BlockId,
@@ -226,6 +233,7 @@ impl TerminalExecution {
             structural_inputs.arguments,
             scalar_fields,
             structural_inputs.primitive_values,
+            structural_inputs.placed_view_establishments,
             None,
         )
         .map_err(TerminalArtifactInterpretError::Execution)
@@ -281,6 +289,7 @@ impl TerminalExecution {
             structural_inputs.arguments,
             structural_inputs.scalar_fields,
             structural_inputs.primitive_values,
+            structural_inputs.placed_view_establishments,
             Some(installation),
         )
         .map_err(TerminalArtifactInterpretError::Execution)?;
@@ -301,16 +310,21 @@ impl TerminalExecution {
         structural_arguments: &[TerminalStructuralValue],
         structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
+        placed_view_establishments: &[TerminalPlacedViewEstablishment],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
         // A nonempty placed-view roster declares direct entry inputs whose
-        // referent interpretation cannot lend: no structural or scalar input
-        // channel carries the placement each row names. Execution must fail
-        // closed rather than start the entry machine with a declared input
-        // silently unbound.
-        if !module.placed_view_inputs.is_empty() {
-            return Err(TerminalInterpretError::PlacedViewInputsRequireCustody);
-        }
+        // referent custody must be established beside the ordinary inputs: one
+        // exact establishment per entry row lends the qualified backing for
+        // the invocation's duration. A row left unsupplied, a supply that
+        // answers no declared row, and any roster row on a non-entry machine
+        // all fail closed rather than start the entry machine with a declared
+        // input unbound.
+        let placed_view_occurrences = establish_placed_view_inputs(
+            &module,
+            placed_view_establishments,
+            structural_arguments,
+        )?;
         let terminal_psi = terminal_codec::terminal_psi_identity(&module)
             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
         if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {
@@ -550,6 +564,7 @@ impl TerminalExecution {
             byte_sequence_values: BTreeMap::new(),
             live_affine_frontier,
             live_claims,
+            placed_view_occurrences,
             current_machine: module.entry,
             current,
             next_operation: 0,
@@ -602,8 +617,10 @@ impl TerminalExecution {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-        if let Some(result) = &self.result {
-            return Ok(TerminalExecutionStatus::Complete(result.clone()));
+        if self.result.is_some() {
+            self.retire_placed_view_occurrences();
+            let result = self.result.clone().expect("checked above");
+            return Ok(TerminalExecutionStatus::Complete(result));
         }
         if let Some(crash) = &self.crash {
             return Ok(TerminalExecutionStatus::Crashed(crash.clone()));
@@ -827,7 +844,12 @@ impl TerminalExecution {
                 match flow {
                     OperationFlow::Advance => {}
                     OperationFlow::Redispatch => continue,
-                    OperationFlow::Yield(status) => return Ok(status),
+                    OperationFlow::Yield(status) => {
+                        if matches!(status, TerminalExecutionStatus::Complete(_)) {
+                            self.retire_placed_view_occurrences();
+                        }
+                        return Ok(status);
+                    }
                 }
                 self.next_operation += 1;
             }
@@ -861,8 +883,20 @@ impl TerminalExecution {
             };
             match flow {
                 TerminatorFlow::Continue => {}
-                TerminatorFlow::Yield(status) => return Ok(status),
+                TerminatorFlow::Yield(status) => {
+                    if matches!(status, TerminalExecutionStatus::Complete(_)) {
+                        self.retire_placed_view_occurrences();
+                    }
+                    return Ok(status);
+                }
             }
         }
+    }
+
+    /// Release the entry invocation's placed-view loans. The provider's
+    /// qualified backing is returned untouched — custody is lent, never
+    /// reminted — so a crash leaves occurrences recorded rather than retired.
+    fn retire_placed_view_occurrences(&mut self) {
+        self.placed_view_occurrences.clear();
     }
 }
