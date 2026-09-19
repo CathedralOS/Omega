@@ -1180,12 +1180,12 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/via_bare_field_binding_rejected",
     "providers/duplicate_external_leaf_rejected",
     "providers/free_adapter_rejected",
-    "providers/service_missing_bound_rejected",
     "providers/service_nonboundary_requirement_rejected",
     "providers/service_bound_nonservice_rejected",
     "providers/service_authored_lookalike_not_privileged",
     "providers/service_borrowed_parameter_rejected",
     "providers/service_nested_carrier_rejected",
+    "entry/service_foreign_domain_rejected",
     "inline_asm/asm_pushfq_requires_u64_destination",
     "inline_asm/asm_popfq_requires_saved_place",
     "inline_asm/asm_rdmsr_requires_u64_destination",
@@ -2197,6 +2197,7 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "entry/service_intrinsic_carrier_establishment",
     "core/content_projection_owner",
     "core/content_conservation_contract",
     "core/content_retained_custody_round_trip",
@@ -4804,6 +4805,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "atomics/runtime_atomic_fetch_and_exit",
     "atomics/runtime_atomic_swap_exit",
     "atomics/runtime_atomic_compare_exchange_exit",
+    // Intrinsic `Service<R>` carriers (no authored `in Bound`) keep exact Fused
+    // establishment on the selected attached root through native settlement.
+    "entry/service_intrinsic_carrier_establishment",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[

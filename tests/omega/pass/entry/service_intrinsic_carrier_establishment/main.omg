@@ -1,0 +1,33 @@
+// One selected attached application root receives exact Fused Service
+// establishment from its generated entry bridge under the intrinsic carrier
+// spelling: `Service<R>` alone denotes the toolchain service era, so no
+// authored `in Bound` qualification is required. A same-shaped non-root owner
+// receives no such authority merely because the provider is selected.
+use omega::language::core::service;
+
+pub boundary trait Ping {
+    machine ping();
+}
+
+data PingProvider { }
+machine PingProvider::ping() satisfies Ping::ping { }
+
+data Main {
+    service: Service<Ping>;
+}
+
+machine Main::main(&mut self)
+reaches Ping
+{
+    self.service.ping();
+}
+
+data NonRoot {
+    service: Service<Ping>;
+}
+
+machine NonRoot::run(&mut self)
+reaches Ping
+{
+    self.service.ping();
+}
