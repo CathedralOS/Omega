@@ -361,10 +361,7 @@ fn projected_linear_owned_source(
         match program.expression_table.expression(cursor) {
             ExpressionNode::Member(member) => cursor = member.receiver,
             ExpressionNode::Indexed(indexed) => {
-                if !matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Integer(_)
-                ) {
+                if !constant_fixed_index(program, indexed.index) {
                     return false;
                 }
                 cursor = indexed.collection;
@@ -404,7 +401,7 @@ fn projected_linear_owned_source(
 }
 
 /// Walk an exact projection chain to its whole local root. Only record fields
-/// and literal fixed indexes keep exact path identity; a borrowed, dynamic, or
+/// and constant fixed indexes keep exact path identity; a borrowed, dynamic, or
 /// otherwise opaque receiver rejects admission instead of guessing custody.
 fn projected_plain_owned_source(
     program: &TypedTrees,
@@ -425,10 +422,7 @@ fn projected_plain_owned_source(
         match program.expression_table.expression(cursor) {
             ExpressionNode::Member(member) => cursor = member.receiver,
             ExpressionNode::Indexed(indexed) => {
-                if !matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Integer(_)
-                ) {
+                if !constant_fixed_index(program, indexed.index) {
                     return false;
                 }
                 cursor = indexed.collection;
@@ -560,7 +554,7 @@ fn selected_shared_borrow_place(
 
 /// Whether a shared-borrow arm target is an exact place path the checked arm
 /// planner can canonicalize into a `SharedBorrow` source: record fields and
-/// literal fixed indexes over a named root. A dynamic index or range segment
+/// constant fixed indexes over a named root. A dynamic index or range segment
 /// has no statically checkable ordinal, and a computed root has no place to
 /// re-derive at replay, so neither joins borrowed custody here.
 fn shared_borrow_target_is_exact_place(program: &TypedTrees, mut target: ExpressionHandle) -> bool {
@@ -569,12 +563,7 @@ fn shared_borrow_target_is_exact_place(program: &TypedTrees, mut target: Express
             ExpressionNode::Name(_) => return true,
             ExpressionNode::Member(member) => target = member.receiver,
             ExpressionNode::Indexed(indexed) => {
-                if program
-                    .expression_table
-                    .constant_integer_value(indexed.index)
-                    .and_then(|index| usize::try_from(index).ok())
-                    .is_none()
-                {
+                if !constant_fixed_index(program, indexed.index) {
                     return false;
                 }
                 target = indexed.collection;
@@ -583,6 +572,19 @@ fn shared_borrow_target_is_exact_place(program: &TypedTrees, mut target: Express
             _ => return false,
         }
     }
+}
+
+/// Whether an `Indexed` operand names one statically checkable ordinal: a pure
+/// constant integer that fits `usize`, folded the same way the checked
+/// canonicalizer bakes `FixedIndex`. A dynamic place read, a call, a range, or
+/// a constant that overflows or divides by zero has no fixed ordinal and keeps
+/// rejecting wherever an exact projected place is required.
+fn constant_fixed_index(program: &TypedTrees, index: ExpressionHandle) -> bool {
+    program
+        .expression_table
+        .constant_integer_value(index)
+        .and_then(|index| usize::try_from(index).ok())
+        .is_some()
 }
 
 fn result_needs_custody_join(

@@ -3,6 +3,8 @@
 
 #[path = "owned_results/call_product_arms.rs"]
 mod call_product_arms;
+#[path = "owned_results/folded_index_projection.rs"]
+mod folded_index_projection;
 #[path = "owned_results/interleaved_and_projected_sources.rs"]
 mod interleaved_and_projected_sources;
 #[path = "owned_results/linear_child_carriers.rs"]
