@@ -710,6 +710,13 @@ fn prove_edge(
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
 
+    // Endpoint arithmetic uses the same exact entry aliases and field
+    // coordinates as the rank. Bind quotient meaning after those coordinates
+    // exist; declaration/flow formation and every arrival's pinning remain
+    // independent obligations below.
+    for endpoint in [range.start, range.end] {
+        meanings::install_integer_quotients(program, machine, root, &mut engine, endpoint, 0)?;
+    }
     let floor = engine.normalize(range.start)?;
     let ceiling = engine.normalize(range.end)?;
     let rank = match measure {
@@ -763,6 +770,7 @@ fn prove_edge(
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
+    engine.refresh_opaque_intervals();
     // A computed endpoint that declaration bounds alone could not place still
     // owes its carrier landing under this edge's hypotheses: a requires or
     // constrained-parameter fact that bounds a leaf reaches the produced

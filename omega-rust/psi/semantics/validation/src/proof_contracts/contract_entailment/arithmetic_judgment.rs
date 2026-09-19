@@ -329,8 +329,8 @@ pub(super) struct Engine<'program> {
     /// roster may bind it to the exact term an exit returns; without a
     /// binding the name stays outside a strict engine's language.
     strict_result_binding: Option<Polynomial>,
-    /// Exact numeric projections installed by the owning strict query after
-    /// checking their builtin meaning and source custody.
+    /// Exact numeric projections and quotient occurrences installed by the
+    /// owning strict query after checking builtin meaning and source custody.
     strict_projections: Vec<(ExpressionHandle, Polynomial)>,
     /// Declaration-owned reserved self occurrences, isolated per scoped roster.
     strict_domain_self: Vec<(ExpressionHandle, Polynomial)>,
@@ -595,16 +595,43 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
         value: Polynomial,
     ) -> bool {
+        if !matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+        ) {
+            return false;
+        }
+        self.bind_strict_occurrence(expression, value)
+    }
+
+    /// The rank-range owner has checked selected Exact integer meaning; the
+    /// bound mathematical term does not excuse its separate formation proof.
+    pub(super) fn bind_strict_integer_quotient(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<()> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if binary.operator != BinaryOperator::Divide {
+            return None;
+        }
+        let dividend = self.normalize(binary.left)?;
+        let divisor = self.normalize(binary.right)?;
+        let divisor = self.substituted(&divisor).constant_value()?;
+        let quotient = self.integer_quotient(dividend, divisor)?;
+        self.bind_strict_occurrence(expression, quotient)
+            .then_some(())
+    }
+
+    fn bind_strict_occurrence(&mut self, expression: ExpressionHandle, value: Polynomial) -> bool {
         if self.strict_symbol_bindings.is_none()
             || !self.strict_symbol_bindings_valid
             || !self
                 .program
                 .expression_table
                 .expression_is_valid(expression)
-            || !matches!(
-                self.program.expression_table.expression(expression),
-                ExpressionNode::Member(_)
-            )
         {
             return false;
         }
@@ -717,6 +744,49 @@ impl<'program> Engine<'program> {
                 high: quotient_bound(dividend_interval.high),
             }
         }
+    }
+
+    /// Normalize an independently admitted truncating integer quotient. The
+    /// caller owns selected operator meaning and each operand/result's carrier
+    /// formation; this mathematical term supplies neither of those judgments.
+    /// Retaining the dividend makes state substitution reach the opaque atom.
+    fn integer_quotient(&mut self, dividend: Polynomial, divisor: BigInt) -> Option<Polynomial> {
+        if divisor.is_zero() {
+            return None;
+        }
+        if let Some(value) = dividend.constant_value() {
+            return Some(Polynomial::constant(value.div_rem(&divisor)?.0));
+        }
+        let interval = self.quotient_interval(&dividend, &divisor);
+        let atom = format!("\0integer-quotient:{dividend:?}/{divisor}");
+        self.register_opaque_term(atom.clone(), OpaqueTerm::Quotient { dividend, divisor });
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// Range queries mint endpoint terms before installing their hypotheses.
+    /// Recompute dependent intervals in mint order once those facts are live:
+    /// an inner quotient must tighten before an outer quotient reads it.
+    pub(super) fn refresh_opaque_intervals(&mut self) {
+        if self.opaque_terms.is_empty() {
+            return;
+        }
+        for position in 0..self.opaque_terms.len() {
+            let (atom, term) = self.opaque_terms[position].clone();
+            let interval = match term {
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    self.quotient_interval(&dividend, &divisor)
+                }
+                OpaqueTerm::Remainder {
+                    operand,
+                    modulus,
+                    tight_interval,
+                } => self.remainder_interval(&operand, &modulus, tight_interval),
+            };
+            self.arithmetic_intervals.insert(atom, interval);
+        }
+        self.seed_matrix();
+        self.close_matrix();
     }
 
     /// Extend a simultaneous argument map across this engine's opaque atoms:
@@ -1399,12 +1469,16 @@ impl<'program> Engine<'program> {
         {
             return Some(Polynomial::constant(value));
         }
+        if let Some((_, value)) = self
+            .strict_projections
+            .iter()
+            .find(|(candidate, _)| *candidate == expression)
+        {
+            return Some(value.clone());
+        }
         let node = self.program.expression_table.expression(expression).clone();
         match node {
-            ExpressionNode::Member(_) => self
-                .strict_projections
-                .iter()
-                .find_map(|(candidate, value)| (*candidate == expression).then(|| value.clone())),
+            ExpressionNode::Member(_) => None,
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
@@ -1528,22 +1602,9 @@ impl<'program> Engine<'program> {
                             return None;
                         }
                         let divisor = self.substituted(&divisor).constant_value()?;
-                        if divisor.is_zero() {
-                            return None;
-                        }
-                        let interval = self.quotient_interval(&dividend, &divisor);
                         // Structural polynomial identity keeps distinct dividends
                         // separate; the private prefix cannot be an authored name.
-                        let atom = format!("\0integer-quotient:{dividend:?}/{divisor}");
-                        self.register_opaque_term(
-                            atom.clone(),
-                            OpaqueTerm::Quotient {
-                                dividend: dividend.clone(),
-                                divisor,
-                            },
-                        );
-                        self.arithmetic_intervals.insert(atom.clone(), interval);
-                        return Some(Polynomial::atom(atom));
+                        return self.integer_quotient(dividend, divisor);
                     }
                     let operand = dividend;
                     let modulus = self.substituted(&divisor).constant_value()?;

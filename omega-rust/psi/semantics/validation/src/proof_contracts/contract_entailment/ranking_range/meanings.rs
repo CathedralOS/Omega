@@ -22,15 +22,20 @@ pub(super) fn builtin(
         return Some(None);
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => Some(None),
+        ExpressionNode::Integer(_) => Some(
+            program
+                .closed_integer_value_in(expression, machine.symbol)?
+                .type_reference,
+        ),
+        ExpressionNode::Boolean(_) => Some(None),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let parameter = program
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
-            // Meaning is independent of binding stability. The state-edge
-            // owner requires immutable inputs; call edges instead establish
-            // exact prefix preservation, including for mutable parameters.
+            // Meaning is independent of binding stability. State and call
+            // edge owners separately establish exact prefix preservation,
+            // including for mutable parameters.
             (!parameter.is_self && !parameter.is_const).then_some(Some(parameter.type_reference))
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
@@ -120,6 +125,7 @@ pub(super) fn builtin(
                 BinaryOperator::Add => OperatorSpelling::Add,
                 BinaryOperator::Subtract => OperatorSpelling::Subtract,
                 BinaryOperator::Multiply => OperatorSpelling::Multiply,
+                BinaryOperator::Divide => OperatorSpelling::Divide,
                 BinaryOperator::Modulo => OperatorSpelling::Modulo,
                 BinaryOperator::Equal => OperatorSpelling::Equal,
                 BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
@@ -146,6 +152,7 @@ pub(super) fn builtin(
                 BinaryOperator::Add
                     | BinaryOperator::Subtract
                     | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
                     | BinaryOperator::Modulo
             ) {
                 if left.zip(right).is_some_and(|(left, right)| {
@@ -161,4 +168,43 @@ pub(super) fn builtin(
         }
         _ => None,
     }
+}
+
+/// Bind only the exact integer divisions admitted by this ranking query. The
+/// general strict arithmetic engine deliberately does not infer executable
+/// division from a token. Anonymous rational subtrees still fold as rationals;
+/// each landed quotient retains its operand for simultaneous state transport.
+/// This is meaning, not formation: the range owner still checks every operation
+/// before using the endpoint, including an overflowing intermediate quotient.
+pub(super) fn install_integer_quotients(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    engine: &mut super::Engine<'_>,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<()> {
+    if depth >= 128 {
+        return None;
+    }
+    if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
+        return Some(());
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            install_integer_quotients(program, machine, state, engine, atomic.value, depth + 1)?;
+        }
+        ExpressionNode::Binary(binary) => {
+            for operand in [binary.left, binary.right] {
+                install_integer_quotients(program, machine, state, engine, operand, depth + 1)?;
+            }
+            if binary.operator == BinaryOperator::Divide {
+                let carrier = builtin(program, machine, state, expression, 0)??;
+                super::exact_integer_parameter(program, carrier)?;
+                engine.bind_strict_integer_quotient(expression)?;
+            }
+        }
+        _ => {}
+    }
+    Some(())
 }
