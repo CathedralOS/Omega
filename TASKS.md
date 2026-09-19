@@ -946,22 +946,32 @@ Owners include
   Existing `ArtifactSections` admission, codec replay and native-realization
   optimization retain exact rosters; do not rebuild that evidence transport.
 
-  Continue from `terminal-psi-to-abstract-operations/src/artifact_admission.rs`,
-  `compiler/native-realization`, and Terminal interpreter input custody.
-  `try_into_native_input` and `TerminalExecution::start_verified_module`
-  currently reject nonempty placed-view rosters because they cannot supply the
-  referent under the required custody. Add the ordinary source/provider
-  establishment route, preserving exact layout, qualified backing, range,
-  access/profile and lifetime joins; a roster or pointer is not this authority.
-  Keep unsupported consumers rejecting until they carry it. Preserve the
-  verified native-input boundary enforced by architecture checks.
+  `TerminalExecution::start_verified_module` now binds each direct-entry
+  roster row to one exact `TerminalPlacedViewEstablishment` — the provider's
+  loan of the qualified referent backing, recorded as a live occurrence and
+  retired when the entry invocation completes; missing, duplicated, stale or
+  undeclared supplies and overlapping exclusive referents reject at start.
+  `try_into_native_input` still rejects nonempty rosters because no provider
+  establishment binds occurrences at the image entry shim. Continue from
+  `terminal-psi-to-abstract-operations/src/artifact_admission.rs`,
+  `compiler/native-realization` — where the ProgramEntry settlement's fused
+  service establishments are the analog to extend — and the Terminal
+  interpreter's `placed_view_establishments` channel. Add the ordinary
+  source/provider establishment route to executable inputs, preserving exact
+  layout, qualified backing, range, access/profile and lifetime joins; a
+  roster or pointer is not this authority. Keep unsupported consumers
+  rejecting until they carry it. Preserve the verified native-input boundary
+  enforced by architecture checks.
 
   Extend `compiler/tests/access_plans/source_access_policies.rs`'s
   `direct_placed_view_input_survives_codec_and_native_replay` into a source
   program that establishes a view, performs a checked access and retires it
-  through published native execution. That test already optimizes/emits a
-  fragment and lends backing from C, but its authored consumer is empty;
-  it does not demonstrate source establishment or access.
+  through published native execution. The test now establishes and retires the
+  roster's view at interpretation, but its authored consumer is still empty:
+  `view.status.read()` lowers to a boundary call on the derived `PlacedField`
+  accessor, which has no boundary plan — a checked access needs the accessor
+  realization (a provider or compiler settlement) before source-level use and
+  retirement exist.
 
   Acceptance: valid views retain the same semantics through codec, optimization,
   interpretation and native execution. Stale/substituted plan, artifact, backing,
