@@ -35,6 +35,54 @@ fn result_field_guarantee_is_available_to_a_caller() {
 }
 
 #[test]
+fn caller_scalar_bound_survives_unrelated_owned_transfer() {
+    for (parameters, arguments) in [
+        ("capacity: u64", "capacity"),
+        ("unused: u64, capacity: u64", "moved.length, capacity"),
+    ] {
+        check(
+            &format!(
+                "data Backing {{ length: u64; }}
+                 machine transfer(backing: Backing) -> Backing {{ backing }}
+                 machine consume({parameters}) requires 16 <= capacity {{}}
+                 machine caller(backing: Backing, capacity: u64)
+                 requires 48 <= capacity; capacity == backing.length
+                 {{
+                     let moved: Backing = transfer(backing);
+                     consume({arguments});
+                 }}"
+            ),
+            true,
+        );
+    }
+}
+
+#[test]
+fn unused_result_fields_do_not_supply_missing_scalar_bounds() {
+    for (bound, actual, prefix) in [
+        ("8", "capacity", ""),
+        ("48", "other", ""),
+        ("48", "capacity", "capacity = 0;"),
+    ] {
+        check(
+            &format!(
+                "data Backing {{ length: u64; }}
+                 machine transfer(backing: Backing) -> Backing {{ backing }}
+                 machine consume(unused: u64, capacity: u64) requires 16 <= capacity {{}}
+                 machine caller(backing: Backing, mut capacity: u64, other: u64)
+                 requires {bound} <= capacity
+                 {{
+                     let moved: Backing = transfer(backing);
+                     {prefix}
+                     consume(moved.length, {actual});
+                 }}"
+            ),
+            false,
+        );
+    }
+}
+
+#[test]
 fn caller_result_relations_follow_live_copy_provenance() {
     for (body, accepted) in [
         (

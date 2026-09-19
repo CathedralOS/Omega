@@ -2592,9 +2592,10 @@ Owners include
     content-bearing signatures do not restrict every `ensures` to content
     grammar. `allocate` now declares and proves
     `ensures result.strategy.remaining == strategy.remaining - length`;
-    `check_remaining` consumes that relation from the exact second allocation,
-    and substituting the first allocation rejects. Check the actual fixture
-    on macOS ARM64 with `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
+    `check_remaining` consumes that relation from both exact allocations,
+    and using the first result for the second allocation's relation rejects.
+    Check the actual fixture on macOS ARM64 with
+    `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
     cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
     -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
     Caller import in `checks/contracts/prover/call_guarantees.rs` joins live
@@ -2602,17 +2603,21 @@ Owners include
     identities, not labels. `semantic_places` shares constructor projection
     with dependency invalidation. The caller tests cover copies, nested
     subtraction, input/result writes, distinct calls and arithmetic policies.
-    Next, feed these equalities into capacity-bound entailment and preserve
-    independent scalar premises when consuming backing; the fixture still
-    rejects `check_remaining(issued_first.strategy.remaining, capacity, 16)`
-    because its earlier `16 <= capacity` premise is unavailable. Computed
+    The first caller check proves `16 <= capacity` from the surviving scalar
+    premise after backing consumption. `checks/contracts/call_bounds/context.rs`
+    substitutes only the exact formals used by each goal, retaining all later-argument effects
+    when checking captured values. Next, feed the returned decrement equality
+    into capacity-bound entailment. Replacing the second request's stated
+    `remaining: 32` with `issued_first.strategy.remaining` (and passing that
+    same previous count to its `check_remaining`) still rejects the required
+    `32 <= issued_first.strategy.remaining` on the same macOS command. Computed
     actuals, state transfers and reference-bearing owned capture ceilings need
     their exact snapshot/effect evidence, not initializer replay. Exit proving
     remains in `checks/contracts/exits/scalars/result_fields.rs`.
     This is source checking, not a Terminal/native allocator claim. A `requires`
-    bound also neither carries a subtraction's lower bound nor survives
-    consumption of the backing. Each request's residual is a caller-stated
-    premise, and post-reset reuse is reachable only through a runtime guard.
+    bound does not yet carry a subtraction's lower bound through the returned
+    residual. Each request's residual is a caller-stated premise, and post-reset
+    reuse is reachable only through a runtime guard.
     A second edge surfaced in `grow`: the requires discharger does not
     reduce an inline constructor's field to the caller premise when a
     sibling field binds a call-result local (`Bump { tail: widened, ... }`
