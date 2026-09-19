@@ -2268,7 +2268,7 @@ Owners include
   Index extents compare as normalized bounds inside one replayed selector
   session (`overlap/indexes.rs`, `overlap/segments.rs`), `overlap/premises.rs`
   supplies ordering premises from the forming scope's own `requires` rows, and
-  forming-loan and statement-mutation admissions retain replayable
+  forming-loan, statement-mutation, and call admissions retain replayable
   `Structural` or `Premised` certificates. Bounds admit an integer, one
   immutable symbol plus a constant, or the canonical sum of two distinct
   immutable exact-domain symbols plus a constant
@@ -2291,10 +2291,6 @@ Owners include
     `incoming_guards.rs`, `requirements.rs`) through one shared reader instead
     of growing a second collector. Mutable, computed and foreign subjects stay
     unproven until that reader supplies version evidence.
-  - Retain certificates for call judgments. `checks/borrows/calls/` consults
-    stated premises for argument/argument, argument/loan and receiver/argument
-    conflicts and records nothing, so a premise-dependent call admission
-    cannot be replayed.
   - Range-premise read sets (`checks/ranges/facts/dependencies/reads.rs`) stay
     incomplete for requirement-dispatched calls, machine-valued and nested
     static applications, quotient and private-layout operations,
@@ -2333,15 +2329,6 @@ Owners include
   and the unknown-index negative control while extending premise sources.
   Existing compatibility certificates are checked-stage records; their
   relation enum is not a persisted Terminal wire format.
-
-  `checks/borrows/calls/conflicts.rs` already admits premise-dependent call
-  accesses but discards their compatibility evidence. Retain the exact
-  call/access subjects, captured places and premises, add independent drift
-  and replay validation, and include the records in statement admissibility
-  accounting. The current forming-loan/active-loan pair cannot identify an
-  argument/argument judgment; represent that judgment explicitly without
-  manufacturing loans. Start from
-  `premised_disjoint_writes.rs::stated_ordering_premise_admits_exclusive_argument_before_borrowed_window`.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Realize target-owned private callback
   slots natively under the

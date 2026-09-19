@@ -566,8 +566,16 @@ disequality over those immutable bounds. Disequality separates singleton
 elements, not windows, and survives only equal translation of both bounds.
 Premised certificates retain the exact consumed contract tokens; replay
 reconstructs their availability and rejects altered selectors or premises.
-Guard/callee-established premises, general proof admission, retained call
-judgments, and portable compatibility evidence remain unfinished.
+Call comparisons retain a separate ledger naming the exact state-owned call,
+argument-access ordinal, receiver, transferred place, or live loan. Replay
+recollects the call/access roster from typed source, checks the call-entry loan
+set against source-derived lifecycle boundaries, and compares every retained judgment
+in order. Construction and replay are distinct: deleting a ledger cannot ask
+replay to regenerate it. Lexical calls omitted by short-circuit flow still
+receive the conservative statement-entry check. These records are visible in
+state and statement admissibility; they are not a Terminal wire format.
+Guard/callee-established premises, general proof admission, and portable
+compatibility evidence remain unfinished.
 
 Direct reference-local reborrows require one exact prior parent. Resource rows
 retain typed parent handles, activation, weakening, formation availability,

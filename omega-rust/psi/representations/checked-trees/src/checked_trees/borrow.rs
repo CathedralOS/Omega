@@ -205,6 +205,44 @@ pub struct CheckedBorrowMutationCertificate {
     pub derivation: BorrowCompatibilityDerivation,
 }
 
+/// A subject of a call's non-interference judgment, not a newly formed loan.
+/// Ordinals select entries within this exact call's reconstructed access or
+/// transferred-place roster; a live loan keeps its generational identity.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BorrowCallCompatibilitySubject {
+    Argument(usize),
+    #[default]
+    Receiver,
+    ActiveLoan(Handle<BorrowLoanFact>),
+    TransferredPlace(usize),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowCallCompatibilityOperand {
+    pub subject: BorrowCallCompatibilitySubject,
+    pub place: CapturedPlace,
+    pub access: BorrowAccessKind,
+}
+
+/// Checked-only non-interference evidence for one comparison at an exact
+/// invocation. Replay reconstructs the call's operand/receiver places and
+/// live-loan roster before comparing the complete ordered ledger. Neither
+/// this record nor its access labels create or extend resource authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedBorrowCallCompatibilityCertificate {
+    pub formation: BorrowCompatibilityFormation,
+    pub call: Handle<BorrowCallFact>,
+    pub call_ordinal: usize,
+    pub target_symbol: SymbolHandle,
+    pub receiver_symbol: SymbolHandle,
+    pub left: BorrowCallCompatibilityOperand,
+    pub right: BorrowCallCompatibilityOperand,
+    pub selector_snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
+    pub premises: Vec<BorrowCompatibilityPremise>,
+    pub conclusion: BorrowCompatibilityConclusion,
+    pub derivation: BorrowCompatibilityDerivation,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum BorrowRootKind {
     #[default]
@@ -678,6 +716,9 @@ pub struct BorrowFacts {
     /// discipline as `compatibility_certificates` applies; the forming side
     /// is the statement's write access, not a loan.
     pub mutation_certificates: Arena<CheckedBorrowMutationCertificate>,
+    /// Retained call comparisons. Construction and replay are separate:
+    /// an empty ledger on a checked program never requests regeneration.
+    pub call_compatibility_certificates: Arena<CheckedBorrowCallCompatibilityCertificate>,
     /// Non-authorizing direct-root resource closures reconstructed from the
     /// exact loan activation/weakening ledger. Reborrow parent identity is
     /// retained separately.
@@ -721,6 +762,7 @@ impl BorrowFacts {
             states,
             compatibility_certificates: Arena::new(),
             mutation_certificates: Arena::new(),
+            call_compatibility_certificates: Arena::new(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
             reborrow_disposition_events: Arena::new(),

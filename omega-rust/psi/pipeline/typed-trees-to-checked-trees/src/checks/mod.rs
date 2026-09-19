@@ -41,6 +41,7 @@ pub(crate) fn check_unretained_borrow_fixture_facts(
         &mut scratch,
         &crate::flow::StateMutationSummaryCache::default(),
     )?;
+    borrows::initialize_checked_borrow_call_certificates(program, &mut scratch);
     check_checked_facts_recording(program, &mut scratch)
 }
 
@@ -50,6 +51,13 @@ pub(crate) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     borrows::initialize_checked_direct_borrow_resources(program, facts, mutation_summaries)
+}
+
+pub(crate) fn initialize_checked_borrow_call_certificates(
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
+) {
+    borrows::initialize_checked_borrow_call_certificates(program, facts)
 }
 
 #[cfg(test)]

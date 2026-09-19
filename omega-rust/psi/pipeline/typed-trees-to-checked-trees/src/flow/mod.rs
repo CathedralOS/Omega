@@ -29,7 +29,7 @@ mod statements;
 mod entry_origins;
 mod transfers;
 
-use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
+pub(crate) use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 use boundaries::append_call_boundary_edges;
 #[cfg(test)]
 pub(crate) use builder::build_flow_facts;
@@ -43,11 +43,12 @@ use call_phases::{
 use calls::build_call_flow_fact;
 pub(crate) use calls::call_target_return_type;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
+pub(crate) use common::append_constraint_ref;
 pub(crate) use common::proof_contract_call;
 use common::{
-    append_constraint_ref, append_flow_contexts, append_flow_contexts_for_points,
-    append_place_segments, appended_span_since, borrow_state_fact,
-    project_constraint_refs_to_active_contexts, retained_constraint_refs, retained_flow_contexts,
+    append_flow_contexts, append_flow_contexts_for_points, append_place_segments,
+    appended_span_since, borrow_state_fact, project_constraint_refs_to_active_contexts,
+    retained_constraint_refs, retained_flow_contexts,
 };
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,

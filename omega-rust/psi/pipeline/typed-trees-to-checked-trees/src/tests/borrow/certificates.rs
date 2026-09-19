@@ -3,6 +3,7 @@ use super::super::{
 };
 use crate::lower_typed_trees;
 
+mod call_judgments;
 mod computed_boundaries;
 mod stated_premises;
 mod value_snapshots;

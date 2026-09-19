@@ -50,6 +50,8 @@ pub(super) fn build_call_flow_fact(
         ctx,
         *active_contexts,
         *active_constraints,
+        machine.symbol,
+        state.symbol,
         borrow_call,
     );
     let requires = build_call_requires_contexts(semantic, ctx, machine, state, borrow_call);

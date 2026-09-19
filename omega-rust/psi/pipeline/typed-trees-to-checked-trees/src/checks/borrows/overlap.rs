@@ -39,7 +39,7 @@ pub(super) fn captured_place_compatibility(
     .compatibility
 }
 
-fn captured_place_compatibility_with_selector_snapshot(
+pub(super) fn captured_place_compatibility_with_selector_snapshot(
     program: &typed_trees::TypedTrees,
     left: &checked_trees::CapturedPlace,
     left_access: &checked_trees::BorrowAccessKind,
@@ -259,16 +259,6 @@ pub(super) fn captured_place_loan_compatibility_from_selector_snapshot(
     )
 }
 
-fn captured_access_place(
-    borrow: &checked_trees::BorrowFacts,
-    access: &checked_trees::BorrowArgumentAccessFact,
-) -> checked_trees::CapturedPlace {
-    checked_trees::CapturedPlace {
-        root_symbol: access.root_symbol,
-        segments: borrow.access_segments(access).to_vec(),
-    }
-}
-
 fn captured_loan_place(
     borrow: &checked_trees::BorrowFacts,
     loan: &checked_trees::BorrowLoanFact,
@@ -381,40 +371,6 @@ fn expression_mentions_field(
         ExpressionNode::Borrow(inner) => expression_mentions_field(program, inner.target, field),
         _ => false,
     }
-}
-
-pub(super) fn borrow_access_compatibility(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    left: &checked_trees::BorrowArgumentAccessFact,
-    right: &checked_trees::BorrowArgumentAccessFact,
-    premises: &[StatedOrderingPremise],
-) -> checked_trees::CapturedPlaceCompatibility {
-    captured_place_compatibility(
-        program,
-        &captured_access_place(&facts.borrow, left),
-        &left.kind,
-        &captured_access_place(&facts.borrow, right),
-        &right.kind,
-        premises,
-    )
-}
-
-pub(super) fn borrow_access_loan_compatibility(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    access: &checked_trees::BorrowArgumentAccessFact,
-    loan: &checked_trees::BorrowLoanFact,
-    premises: &[StatedOrderingPremise],
-) -> checked_trees::CapturedPlaceCompatibility {
-    captured_place_compatibility(
-        program,
-        &captured_access_place(&facts.borrow, access),
-        &access.kind,
-        &captured_loan_place(&facts.borrow, loan),
-        &loan.kind,
-        premises,
-    )
 }
 
 pub(super) fn borrow_loan_compatibility_with_selector_snapshot(

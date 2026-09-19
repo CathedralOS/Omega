@@ -164,6 +164,7 @@ fn check_program(
         &mutation_summaries,
     )?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
+    checks::initialize_checked_borrow_call_certificates(&program, &mut facts);
 
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,
