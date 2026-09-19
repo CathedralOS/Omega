@@ -192,6 +192,7 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
                 project_root: project.0.clone(),
                 targets: vec![host, target::TargetProfile::LinuxX64],
                 offline: true,
+                build_inputs: None,
             },
             None,
         )

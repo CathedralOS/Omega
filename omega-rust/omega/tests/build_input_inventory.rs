@@ -142,11 +142,12 @@ fn cli_inventory_narrows_root_reads_without_narrowing_dependencies_and_runs_nati
         return;
     };
     let project = Project::new();
-    // Accept the ordinary project before adding an undeclared sibling. Local
-    // source edits do not authorize changed risk-bearing policy; native
-    // production must still pass the exact accepted-package route.
-    assert_success(&project.omega(&["update", "--offline", "--target", host.target_name()]));
     fs::write(project.0.join("root/undeclared.txt"), "not a build input").unwrap();
+    // Establish acceptance with the same inventory used by audit and native
+    // compilation. A broader view fails even before a lock exists.
+    let mut update = vec!["update", "--offline", "--target", host.target_name()];
+    update.extend_from_slice(INVENTORY);
+    assert_success(&project.omega(&update));
     let accepted = fs::read(project.0.join("root/omega.lock")).unwrap();
     let broader = project.omega(&[
         "--check",
@@ -294,6 +295,20 @@ fn cli_inventory_rejects_missing_required_inputs_and_omitted_source_before_execu
             "scoped source inventory omits required source member",
         ),
     ] {
+        let mut update = vec!["update", "--offline", "--target", "linux_x86_64"];
+        update.extend_from_slice(&inventory);
+        let rejected = project.omega(&update);
+        assert_eq!(rejected.status.code(), Some(1), "{rejected:?}");
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr).contains(expected),
+            "{rejected:?}"
+        );
+        assert!(
+            !project
+                .0
+                .join("root/build/package-manager/proposal")
+                .exists()
+        );
         let mut arguments = inventory;
         arguments.extend([
             "--check",
@@ -310,5 +325,116 @@ fn cli_inventory_rejects_missing_required_inputs_and_omitted_source_before_execu
         );
         assert!(!project.0.join("root/omega.lock").exists());
         assert!(!project.0.join("root/build/omega-program").exists());
+    }
+}
+
+#[test]
+fn package_review_resume_retains_inputs_and_requires_exact_decisions_and_unchanged_source() {
+    for command in ["install", "update"] {
+        let project = Project::new();
+        if command == "install" {
+            fs::write(
+                project.0.join("root/build.omg"),
+                BUILD.replace(
+                    "    builder.depend(Source::Path { location: \"../dependency\" });\n",
+                    "",
+                ),
+            )
+            .unwrap();
+        }
+        fs::write(project.0.join("root/undeclared.txt"), "not granted").unwrap();
+        fs::write(
+            project.0.join("dependency/main.omg"),
+            "boundary machine trusted_zero() -> u64 ensures result == 0;\n",
+        )
+        .unwrap();
+        let before_build = fs::read(project.0.join("root/build.omg")).unwrap();
+        let mut arguments = vec![
+            command,
+            "--offline",
+            "--target",
+            "linux_x86_64",
+            "--target",
+            "windows_x86_64",
+        ];
+        if command == "install" {
+            arguments.push("../dependency");
+        }
+        arguments.extend_from_slice(INVENTORY);
+        let pending = project.omega(&arguments);
+        assert_eq!(pending.status.code(), Some(3), "{command}: {pending:?}");
+        assert_eq!(
+            fs::read(project.0.join("root/build.omg")).unwrap(),
+            before_build
+        );
+        assert!(!project.0.join("root/omega.lock").exists());
+        let proposal_path = project.0.join("root/build/package-manager/proposal");
+        let proposal = fs::read(&proposal_path).unwrap();
+        assert!(proposal.starts_with(b"omega-package-proposal 2\n"));
+
+        let override_inputs = project.omega(&[
+            command,
+            "--resume",
+            "--offline",
+            "--build-input",
+            "main.omg",
+        ]);
+        assert_eq!(
+            override_inputs.status.code(),
+            Some(2),
+            "{override_inputs:?}"
+        );
+        assert_eq!(fs::read(&proposal_path).unwrap(), proposal);
+        let still_pending = project.omega(&[command, "--resume", "--offline"]);
+        assert_eq!(still_pending.status.code(), Some(3), "{still_pending:?}");
+        assert!(!project.0.join("root/omega.lock").exists());
+
+        for target in ["linux_x86_64", "windows_x86_64"] {
+            let path = project
+                .0
+                .join(format!("root/build/package-manager/review-{target}.txt"));
+            let review = fs::read_to_string(&path).unwrap();
+            assert!(
+                review
+                    .lines()
+                    .any(|line| line.starts_with("decision ") && line.ends_with(" pending")),
+                "{review}"
+            );
+            let accepted = review
+                .lines()
+                .map(|line| {
+                    if line.starts_with("decision ") && line.ends_with(" pending") {
+                        format!("{} accept\n", line.strip_suffix(" pending").unwrap())
+                    } else {
+                        format!("{line}\n")
+                    }
+                })
+                .collect::<String>();
+            fs::write(path, accepted).unwrap();
+        }
+        // Retaining an input selection is not permission to reuse decisions
+        // after changing its bytes. Ordinary source-custody checks still run.
+        fs::write(project.0.join("root/templates/banner.txt"), "NO").unwrap();
+        let changed = project.omega(&[command, "--resume", "--offline"]);
+        assert_eq!(changed.status.code(), Some(1), "{changed:?}");
+        assert!(
+            String::from_utf8_lossy(&changed.stderr)
+                .contains("project source changed since the proposal"),
+            "{changed:?}"
+        );
+        assert!(!project.0.join("root/omega.lock").exists());
+        fs::write(project.0.join("root/templates/banner.txt"), "OK").unwrap();
+        assert_success(&project.omega(&[command, "--resume", "--offline"]));
+        let accepted_lock = fs::read(project.0.join("root/omega.lock")).unwrap();
+        let mut audit = vec!["audit", "packages", "--offline"];
+        audit.extend_from_slice(INVENTORY);
+        assert_success(&project.omega(&audit));
+        assert_eq!(
+            fs::read(project.0.join("root/omega.lock")).unwrap(),
+            accepted_lock
+        );
+        assert!(!proposal_path.exists());
+        assert!(!project.0.join("root/build/omega-program").exists());
+        assert!(!project.0.join("root/build/omega-program.exe").exists());
     }
 }

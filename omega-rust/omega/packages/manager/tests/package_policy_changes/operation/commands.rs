@@ -36,6 +36,7 @@ fn execute(
             project_root: tree.path("sources/root"),
             targets,
             offline: false,
+            build_inputs: None,
         },
         Some(&tree.storage("command-cache")),
     )

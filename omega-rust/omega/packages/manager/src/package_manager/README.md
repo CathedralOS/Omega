@@ -29,6 +29,22 @@ accept repeated `--target <name>`; they retain every existing lock target and
 add requested ones. First acceptance defaults to the host when none is named.
 The project must already have a valid `build.omg`.
 
+New commands also accept repeated `--build-input <path>` and
+`--optional-build-input <path>`, using the same root-relative immutable inventory
+as compilation and package audit. Include all root source files, including
+`build.omg`; directories include their admitted subtrees. Only the root's view
+is selected: dependency builds keep their own inventories. Missing required
+inputs fail before the affected build executes. Neither option grants host
+access or accepts policy.
+
+Pending review retains that selection for every target and both review passes.
+`--resume` uses the retained inventory, revalidates source custody, and compiles
+fresh before applying decisions; it does not default to a broader view. Resume
+and discard reject input flags. To change inputs or their bytes, discard the
+proposal and start a fresh command. Proposal format 2 records this intent;
+older pending proposals must be discarded and recreated. Existing accepted locks
+are unchanged by this proposal-format revision.
+
 `--offline` restricts repository acquisition for this invocation. Local source
 work and cached accepted/proposed Git pins remain usable; missing recorded
 content fails without fetching or changing accepted files. New or explicitly
@@ -60,8 +76,10 @@ omega install https://example.org/team/libraries.git --package exact-math --as m
 ```
 
 Selection stays in the proposed declaration and source graph during review.
-Resume uses it without repeating `--package`. Complex declaration layouts receive a
-manual-patch diagnostic rather than an unsafe automatic rewrite.
+Resume uses it without repeating `--package`. Automatic additions stay in the
+direct build entry, before any transfer or nested states. Ambiguous inline
+placement and other complex declaration layouts receive a manual-patch diagnostic
+rather than an unsafe automatic rewrite.
 
 Update without selections refreshes the graph. Selections resolve a root alias
 first, otherwise a unique package name. Selected Git repository members move
@@ -90,8 +108,8 @@ or line numbers. Rejection does not publish dependency or lock changes.
 
 Ignored `build/package-manager/` contains:
 
-- `proposal`: candidate pins, proposed build bytes, targets, and original
-  project-file/source identities needed to resume.
+- `proposal`: candidate pins, proposed build bytes, targets, root input selection,
+  and original project-file/source identities needed to resume.
 - `review-<target>.txt`: compiler-rendered findings and editable decisions.
 - `source-diff.txt`: separate, escaped source-code patches, regenerated on resume.
   Its contents are hostile source data and cannot supply project decisions.

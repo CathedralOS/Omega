@@ -178,6 +178,7 @@ impl Fixture {
                 project_root: self.path("root"),
                 targets,
                 offline,
+                build_inputs: None,
             },
             Some(
                 &SourceResolverStorage::for_hardened_base(

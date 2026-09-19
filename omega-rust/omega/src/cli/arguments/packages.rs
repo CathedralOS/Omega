@@ -1,3 +1,4 @@
+use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -9,10 +10,10 @@ mod tests;
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
         }
         PackageCommandKind::Update => {
-            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega update --resume [--project <dir>] [--offline]\n       omega update --discard-review [--project <dir>] [--offline]\n       omega update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update --resume [--project <dir>] [--offline]\n       omega update --discard-review [--project <dir>] [--offline]\n       omega update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery."
         }
     }
 }
@@ -31,6 +32,7 @@ pub(super) fn parse_arguments(
     let mut discard_review = false;
     let mut help = false;
     let mut offline = false;
+    let mut build_inputs = Vec::new();
     while let Some(argument) = arguments.next() {
         let argument = argument
             .into_string()
@@ -40,6 +42,18 @@ pub(super) fn parse_arguments(
             "--offline" => set_flag(&mut offline, &argument)?,
             "--resume" => set_flag(&mut resume, &argument)?,
             "--discard-review" => set_flag(&mut discard_review, &argument)?,
+            "--build-input" | "--optional-build-input" => {
+                let path = super::option_value(&mut arguments)
+                    .ok_or_else(|| format!("{argument} requires a canonical relative path"))?
+                    .into_string()
+                    .map_err(|_| format!("{argument} requires a UTF-8 canonical relative path"))?;
+                let obligation = if argument == "--build-input" {
+                    BuildSourceCaptureObligation::Required
+                } else {
+                    BuildSourceCaptureObligation::Optional
+                };
+                build_inputs.push((path.into_bytes(), obligation));
+            }
             "--project" => {
                 if project_root.is_some() {
                     return Err("duplicate --project".to_owned());
@@ -110,6 +124,7 @@ pub(super) fn parse_arguments(
             || revision.is_some()
             || alias.is_some()
             || package.is_some()
+            || !build_inputs.is_empty()
             || !targets.is_empty())
     {
         return Err("--resume and --discard-review allow only --project and --offline".to_owned());
@@ -117,6 +132,11 @@ pub(super) fn parse_arguments(
     if help {
         return Ok(None);
     }
+    let build_inputs = if build_inputs.is_empty() {
+        None
+    } else {
+        Some(BuildSourceCaptureRequest::new(build_inputs)?)
+    };
     let command = if resume {
         PackageCommand::Resume { kind }
     } else if discard_review {
@@ -143,6 +163,7 @@ pub(super) fn parse_arguments(
             project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
             targets,
             offline,
+            build_inputs,
         },
     )))
 }

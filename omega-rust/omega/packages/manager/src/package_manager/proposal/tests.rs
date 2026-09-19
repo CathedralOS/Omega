@@ -2,6 +2,7 @@ use super::{
     CanonicalSourceClosureSubjectLimits, MAX_BUILD_DECLARATION_BYTES, MAXIMUM_TEXT_BYTES,
     PackageCommandKind, PendingPackageChange, TargetProfile, Writer, write_digest,
 };
+mod build_inputs;
 mod fixture;
 use fixture::{pending, source};
 
@@ -21,12 +22,13 @@ fn canonical_round_trip_preserves_both_kinds_and_lock_presence() {
             assert_eq!(recovered.proposed_build, proposal.proposed_build);
             assert_eq!(recovered.source, proposal.source);
             assert_eq!(recovered.targets, proposal.targets);
+            assert_eq!(recovered.build_inputs, proposal.build_inputs);
             assert!(matches!(
                 (&recovered.kind, &proposal.kind),
                 (PackageCommandKind::Install, PackageCommandKind::Install)
                     | (PackageCommandKind::Update, PackageCommandKind::Update)
             ));
-            assert!(text.starts_with("omega-package-proposal 1\nkind "));
+            assert!(text.starts_with("omega-package-proposal 2\nkind "));
             let source_text = proposal.source.canonical_text(Default::default()).unwrap();
             assert!(text.ends_with(&format!(
                 "source {}\n{source_text}\nend\n",
@@ -86,8 +88,11 @@ fn all_catalog_targets_round_trip_and_order_uses_canonical_names() {
 #[test]
 fn rejects_noncanonical_envelope_rows() {
     let text = pending().encode().unwrap();
+    let legacy = text.replacen("proposal 2\n", "proposal 1\n", 1);
+    assert!(matches!(PendingPackageChange::recover(&legacy), Err(error)
+        if error.contains("--discard-review") && error.contains("fresh install/update")));
     for malformed in [
-        text.replacen("proposal 1\n", "proposal 2\n", 1),
+        text.replacen("proposal 2\n", "proposal 1\n", 1),
         text.replacen("kind install", "kind remove", 1),
         text.replacen("kind install", "kind  install", 1),
         text.replacen("kind install", "kind install ", 1),
