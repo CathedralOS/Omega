@@ -15,10 +15,11 @@ mod type_snapshots;
 pub use declaration_snapshots::{
     ConstDeclarationSnapshot, DataDefinitionSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
     DomainAliasConstituentSnapshot, DomainDefinitionSnapshot, DomainEstablishmentRouteSnapshot,
-    DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot, OperatorDefinitionSnapshot,
-    ProofFactSnapshot, PropositionBinderSnapshot, PropositionBodySnapshot,
-    PropositionFormulaSnapshot, PropositionSnapshot, QuotientDefinitionSnapshot,
-    QuotientEquivalenceSelectionSnapshot,
+    DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot, MathematicalBinderSnapshot,
+    MathematicalBodySnapshot, MathematicalDefinitionSnapshot, MathematicalParameterSnapshot,
+    MathematicalTypeSnapshot, OperatorDefinitionSnapshot, ProofFactSnapshot,
+    PropositionBinderSnapshot, PropositionBodySnapshot, PropositionFormulaSnapshot,
+    PropositionSnapshot, QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
 };
 pub use machine_snapshots::{
     ConformanceRowSnapshot, ConformanceSnapshot, GenericConformanceBoundSnapshot, MachineSnapshot,
@@ -40,6 +41,7 @@ pub use type_snapshots::{
 use crate::TypedTrees;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::data_definition_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::domain_definition_snapshot;
+use crate::typed_trees::inspection::snapshot::declaration_snapshots::mathematical_definition_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::operator_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::proposition_snapshot;
 use crate::typed_trees::inspection::snapshot::machine_snapshots::conformance_snapshot;
@@ -120,6 +122,11 @@ impl TypedTreesSnapshot {
                     .machines()
                     .iter()
                     .map(|machine| machine_snapshot(program, machine))
+                    .collect(),
+                mathematical_definitions: program
+                    .mathematical_definitions()
+                    .iter()
+                    .map(|definition| mathematical_definition_snapshot(program, definition))
                     .collect(),
                 operators: program
                     .operators()
@@ -272,6 +279,8 @@ pub struct TypedRootsSnapshot {
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mathematical_definitions: Vec<MathematicalDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub machine_token_bindings: Vec<OperatorDefinitionSnapshot>,

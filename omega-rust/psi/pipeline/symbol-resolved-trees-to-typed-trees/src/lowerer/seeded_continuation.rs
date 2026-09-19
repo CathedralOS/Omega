@@ -403,6 +403,10 @@ pub(super) fn resolved_root_shape_is_supported(
         && source.measures == base.measures
         && source.operators == base.operators
         && source.propositions == base.propositions
+        // Mathematical declarations are retained roots, never extension
+        // roots: an extension can never add one, so the whole arena must
+        // match the base exactly.
+        && source.mathematical_definitions == base.mathematical_definitions
         && source
             .traits
             .iter()

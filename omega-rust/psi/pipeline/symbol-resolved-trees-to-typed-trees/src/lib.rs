@@ -19,6 +19,7 @@ mod declarations {
     pub(crate) mod data;
     pub(crate) mod domain;
     pub(crate) mod machine;
+    pub(crate) mod mathematical;
     pub(crate) mod measure;
     pub(crate) mod operator;
     pub(crate) mod proposition;

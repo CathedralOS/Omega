@@ -20,6 +20,7 @@ impl TypedTrees {
             operators,
             machine_token_bindings,
             propositions,
+            mathematical_definitions,
             traits,
             conformances,
             wire_schemas,
@@ -32,6 +33,10 @@ impl TypedTrees {
             && root_start_is_retained(*operators, self.roots.operators)
             && root_start_is_retained(*machine_token_bindings, self.roots.machine_token_bindings)
             && root_start_is_retained(*propositions, self.roots.propositions)
+            && root_start_is_retained(
+                *mathematical_definitions,
+                self.roots.mathematical_definitions,
+            )
             && root_start_is_retained(*traits, self.roots.traits)
             && root_start_is_retained(*conformances, self.roots.conformances)
             && root_start_is_retained(*wire_schemas, self.roots.wire_schemas)
@@ -68,6 +73,11 @@ impl TypedTrees {
             && self
                 .propositions()
                 .starts_with(base.tables.propositions.span_or_empty(*propositions))
+            && self.mathematical_definitions().starts_with(
+                base.tables
+                    .mathematical_definitions
+                    .span_or_empty(*mathematical_definitions),
+            )
             && self
                 .traits()
                 .starts_with(base.tables.traits.span_or_empty(*traits))
@@ -98,6 +108,9 @@ impl TypedTreeTables {
             proof_facts,
             propositions,
             proposition_binders,
+            mathematical_definitions,
+            mathematical_parameters,
+            mathematical_types,
             domain_path_members,
             operator_path_members,
             machines,
@@ -131,6 +144,9 @@ impl TypedTreeTables {
             && arena_is_exact_prefix(proof_facts, &self.proof_facts)
             && arena_is_exact_prefix(propositions, &self.propositions)
             && arena_is_exact_prefix(proposition_binders, &self.proposition_binders)
+            && arena_is_exact_prefix(mathematical_definitions, &self.mathematical_definitions)
+            && arena_is_exact_prefix(mathematical_parameters, &self.mathematical_parameters)
+            && arena_is_exact_prefix(mathematical_types, &self.mathematical_types)
             && arena_is_exact_prefix(domain_path_members, &self.domain_path_members)
             && arena_is_exact_prefix(operator_path_members, &self.operator_path_members)
             && arena_is_exact_prefix(machines, &self.machines)

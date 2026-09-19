@@ -2,6 +2,7 @@
 
 pub mod byte_predicates;
 pub mod dependent_ranges;
+pub mod mathematical;
 pub mod proof_only;
 pub mod proposition;
 pub mod ranking;

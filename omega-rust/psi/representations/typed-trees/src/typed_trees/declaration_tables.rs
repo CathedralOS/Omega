@@ -242,6 +242,52 @@ impl TypedTrees {
             .append_to_span(&mut proposition.parameters, parameter);
     }
 
+    pub fn push_mathematical_definition(
+        &mut self,
+        definition: crate::mathematical::MathematicalDefinition,
+    ) {
+        self.tables
+            .mathematical_definitions
+            .append_to_span(&mut self.roots.mathematical_definitions, definition);
+    }
+
+    pub fn mathematical_definitions(&self) -> &[crate::mathematical::MathematicalDefinition] {
+        self.tables
+            .mathematical_definitions
+            .span_or_empty(self.roots.mathematical_definitions)
+    }
+
+    pub fn push_mathematical_parameter(
+        &mut self,
+        definition: &mut crate::mathematical::MathematicalDefinition,
+        parameter: crate::mathematical::MathematicalParameter,
+    ) {
+        self.tables
+            .mathematical_parameters
+            .append_to_span(&mut definition.parameters, parameter);
+    }
+
+    pub fn mathematical_parameters(
+        &self,
+        span: HandleSpan<crate::mathematical::MathematicalParameter>,
+    ) -> &[crate::mathematical::MathematicalParameter] {
+        self.tables.mathematical_parameters.span_or_empty(span)
+    }
+
+    pub fn insert_mathematical_type(
+        &mut self,
+        ty: crate::mathematical::MathematicalType,
+    ) -> crate::mathematical::MathematicalTypeHandle {
+        self.tables.mathematical_types.insert(ty)
+    }
+
+    pub fn mathematical_type(
+        &self,
+        handle: crate::mathematical::MathematicalTypeHandle,
+    ) -> &crate::mathematical::MathematicalType {
+        self.tables.mathematical_types.get(handle)
+    }
+
     pub fn domain_path_members(
         &self,
         span: HandleSpan<crate::name::Identifier>,

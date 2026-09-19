@@ -4,6 +4,7 @@
 use crate::TypedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::domain::{DomainDefinition, ProofFact};
+use crate::mathematical::{MathematicalBody, MathematicalType};
 use crate::operator::OperatorDefinition;
 use crate::proposition::{
     PropositionBinderKind, PropositionBody, PropositionDefinition, PropositionFormula,
@@ -558,5 +559,151 @@ pub(crate) fn establishment_route_snapshot(
         kind: route.kind_name(),
         source_symbol: route.source_symbol().arena_index(),
         requirement_symbol: requirement.is_valid().then(|| requirement.arena_index()),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MathematicalDefinitionSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub is_public: bool,
+    pub binders: Vec<MathematicalBinderSnapshot>,
+    pub parameters: Vec<MathematicalParameterSnapshot>,
+    pub result: MathematicalTypeSnapshot,
+    pub body: MathematicalBodySnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MathematicalBinderSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub carrier: Option<TypeReferenceSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MathematicalParameterSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub relevance: &'static str,
+    pub ty: MathematicalTypeSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MathematicalTypeSnapshot {
+    Ordinary {
+        reference: TypeReferenceSnapshot,
+    },
+    Arrow {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        binder: Option<String>,
+        domain: Box<MathematicalTypeSnapshot>,
+        codomain: Box<MathematicalTypeSnapshot>,
+    },
+    Application {
+        callee: Box<MathematicalTypeSnapshot>,
+        arguments: Vec<ExpressionSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MathematicalBodySnapshot {
+    Assumption,
+    Definition { term: ExpressionSnapshot },
+}
+
+fn mathematical_type_snapshot(
+    program: &TypedTrees,
+    handle: crate::mathematical::MathematicalTypeHandle,
+) -> MathematicalTypeSnapshot {
+    match program.mathematical_type(handle) {
+        MathematicalType::Ordinary(type_reference) => MathematicalTypeSnapshot::Ordinary {
+            reference: type_reference_snapshot(program, *type_reference),
+        },
+        MathematicalType::Arrow {
+            binder,
+            domain,
+            codomain,
+        } => MathematicalTypeSnapshot::Arrow {
+            binder: binder.as_ref().map(|binder| binder.to_string()),
+            domain: Box::new(mathematical_type_snapshot(program, *domain)),
+            codomain: Box::new(mathematical_type_snapshot(program, *codomain)),
+        },
+        MathematicalType::Application { callee, arguments } => {
+            MathematicalTypeSnapshot::Application {
+                callee: Box::new(mathematical_type_snapshot(program, *callee)),
+                arguments: program
+                    .expression_table
+                    .expression_handles(*arguments)
+                    .iter()
+                    .map(|argument| expression_snapshot(program, *argument))
+                    .collect(),
+            }
+        }
+    }
+}
+
+fn mathematical_binder_snapshot(
+    program: &TypedTrees,
+    parameter: &crate::data::TypeParameter,
+) -> MathematicalBinderSnapshot {
+    let (kind, carrier) = match &parameter.kind {
+        crate::data::TypeParameterKind::Type => ("type", None),
+        crate::data::TypeParameterKind::Const { type_reference }
+        | crate::data::TypeParameterKind::Value { type_reference } => {
+            let kind = match &parameter.kind {
+                crate::data::TypeParameterKind::Const { .. } => "const",
+                _ => "value",
+            };
+            (
+                kind,
+                Some(type_reference_snapshot(program, *type_reference)),
+            )
+        }
+        crate::data::TypeParameterKind::Machine { .. } => ("machine", None),
+        crate::data::TypeParameterKind::Proposition { .. } => ("proposition", None),
+    };
+    MathematicalBinderSnapshot {
+        has_symbol: parameter.symbol.is_valid(),
+        name: parameter.name.to_string(),
+        kind,
+        carrier,
+    }
+}
+
+pub(crate) fn mathematical_definition_snapshot(
+    program: &TypedTrees,
+    definition: &crate::mathematical::MathematicalDefinition,
+) -> MathematicalDefinitionSnapshot {
+    MathematicalDefinitionSnapshot {
+        has_symbol: definition.symbol.is_valid(),
+        name: definition.name.to_string(),
+        is_public: definition.is_public,
+        binders: program
+            .data_type_parameters
+            .span_or_empty(definition.binders)
+            .iter()
+            .map(|binder| mathematical_binder_snapshot(program, binder))
+            .collect(),
+        parameters: program
+            .mathematical_parameters(definition.parameters)
+            .iter()
+            .map(|parameter| MathematicalParameterSnapshot {
+                has_symbol: parameter.symbol.is_valid(),
+                name: parameter.name.to_string(),
+                relevance: snapshot_binding_relevance(parameter.relevance),
+                ty: mathematical_type_snapshot(program, parameter.ty),
+            })
+            .collect(),
+        result: mathematical_type_snapshot(program, definition.result),
+        body: match &definition.body {
+            MathematicalBody::Assumption => MathematicalBodySnapshot::Assumption,
+            MathematicalBody::Definition(term) => MathematicalBodySnapshot::Definition {
+                term: expression_snapshot(program, *term),
+            },
+        },
     }
 }
