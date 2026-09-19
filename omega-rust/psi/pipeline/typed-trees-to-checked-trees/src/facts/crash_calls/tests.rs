@@ -2070,18 +2070,102 @@ fn indexed_actuals_substitute_identity_through_private_summary_hops() {
     );
 }
 
-/// A `.len` actual carries no entry identity at all — a builtin member hop
-/// is not an authored field the identity channel can name — so the route
-/// widens to its unconditional cause rather than claiming a byte-length
-/// obligation the call cannot transport.
+/// A `.len` actual is an exact entry observation — the collection's bound
+/// snapshot at entry supplies the extent — so the guarded route retains the
+/// caller's own `cell.len` operand rather than widening to its unconditional
+/// cause.
 #[test]
-fn byte_length_actuals_widen_without_entry_identity() {
+fn byte_length_actuals_keep_their_entry_identity() {
+    use typed_trees::expression::BinaryOperator;
     let buckets = call_site_buckets(
         "machine inner(x: u64) -> bool crashes Trap x == 0 { true }
          machine outer(cell: [u8], k: u64) -> bool crashes Trap { inner(cell.len) }",
         "outer",
     );
-    let checked_trees::CrashRouteGuard::Truth = single_surviving_bucket(&buckets) else {
-        panic!("the `.len` actual widens its guarded route: {buckets:?}")
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the `.len` actual retains its guarded entry operand: {buckets:?}")
     };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "len".into(),
+            }),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+    );
+}
+
+/// A builtin `.len` actual resolves no member symbol, but its operand's entry
+/// observation is still exact: the collection's bound snapshot supplies the
+/// extent. The guarded route retains the caller's own `items.len` operand
+/// instead of widening to `Truth`, and a rebinding write still ends that
+/// provenance.
+#[test]
+fn byte_length_actuals_keep_their_entry_operand_identity() {
+    use typed_trees::expression::BinaryOperator;
+    let buckets = call_site_buckets(
+        "machine inner(bytes: &[u8], k: u64) -> bool crashes Trap bytes.len <= k { true }
+         machine outer(items: &[u8]) -> bool crashes Trap { inner(items, items.len) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the `.len` actual retains its guarded entry operand: {buckets:?}")
+    };
+    let items_len = CrashPredicateExpression::Member {
+        receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+        member: "len".into(),
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::LessOrEqual as u8,
+            left: Box::new(items_len.clone()),
+            right: Box::new(items_len),
+        }),
+    );
+
+    // A saved local holding the same observation transports it the same way:
+    // the initializer replay reaches the parameter's entry operand.
+    let buckets = call_site_buckets(
+        "machine inner(bytes: &[u8], k: u64) -> bool crashes Trap bytes.len <= k { true }
+         machine outer(items: &[u8]) -> bool crashes Trap { let n: u64 = items.len; inner(items, n) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the saved `.len` local retains its guarded entry operand: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::LessOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "len".into(),
+            }),
+            right: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "len".into(),
+            }),
+        }),
+    );
+
+    // A rebinding write ends the collection's entry provenance: the route
+    // widens to the unconditional cause rather than claiming the incoming
+    // extent for later storage.
+    let buckets = call_site_buckets(
+        "machine inner(bytes: &[u8], k: u64) -> bool crashes Trap bytes.len <= k { true }
+         machine outer(mut items: &[u8], spare: &[u8]) -> bool crashes Trap { items = spare; inner(items, items.len) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "a rebound collection keeps no entry extent observation: {buckets:?}"
+    );
 }

@@ -259,13 +259,26 @@ pub(super) fn entry_operand_projected(
 /// the shared contextual resolver the canonical place algebra uses, never
 /// from the first same-named field. `None` when the member does not resolve
 /// to a declared field.
+///
+/// A builtin extent read (`s.len`) resolves no member symbol either, but its
+/// operand's entry observation is still exact: the binding's entry snapshot
+/// supplies the extent, and the by-name `Member` spelling the callee's own
+/// leaf carries (`Member { receiver, "len" }`) survives substitution
+/// unchanged — typing keeps the actual's `len` the same extent read as the
+/// formal's. The hop is one opaque projection: `paths_interfere` treats it
+/// as reaching the whole binding, so any write that could rebind or resize
+/// the receiver ends a mutable formal's stored-extent provenance, and the
+/// leaf/walks the opaque member already degrade the same way. The returned
+/// symbol stays invalid so `member_entry_name` keeps the authored `len`
+/// name. Other unresolvable members still admit no hop at all.
 fn member_hop_path(
     program: &TypedTrees,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
     let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
     if !symbol.is_valid() {
-        return None;
+        return (member.case_variant.is_none() && member.member.as_str() == "len")
+            .then(|| (SymbolHandle::invalid(), vec![PlaceSegment::Opaque]));
     }
     let mut path = Vec::with_capacity(2);
     if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
