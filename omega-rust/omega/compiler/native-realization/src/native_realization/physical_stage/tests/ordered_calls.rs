@@ -226,8 +226,9 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 target::TargetProfile::MacosArm64
                     | target::TargetProfile::LinuxX64
                     | target::TargetProfile::LinuxArm64
+                    | target::TargetProfile::WindowsX64
             ) {
-                // macOS ARM64 and the Linux slots declare their two-surface
+                // The hosted-bridge slots declare their two-surface
                 // application contracts on the target slot, so native
                 // realization must fail closed when the settlement lost the
                 // exact paired semantic/physical calling plans a real

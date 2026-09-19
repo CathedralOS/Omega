@@ -162,10 +162,11 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
             target::TargetProfile::MacosArm64
                 | target::TargetProfile::LinuxX64
                 | target::TargetProfile::LinuxArm64
+                | target::TargetProfile::WindowsX64
         ) {
-            // macOS ARM64 and the Linux slots declare their two-surface
-            // application contracts on the target slot, so native realization
-            // must fail closed when the settlement lost the exact paired
+            // The hosted-bridge slots declare their two-surface application
+            // contracts on the target slot, so native realization must fail
+            // closed when the settlement lost the exact paired
             // semantic/physical calling plans a real selection produces.
             let error = outcome.expect_err(
                 "two-surface ProgramEntry settlement without paired calling plans must reject",
