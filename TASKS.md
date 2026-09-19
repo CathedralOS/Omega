@@ -913,6 +913,14 @@ Owners include
   neither proves this integration. Use canonical core content identities, not
   lookalike test-local algebra declarations.
 
+  Fenced deficiency (witnessed 2026-09-19): a ProgramEntry root data carrying a
+  fused `Service<T> in Bound` field fails selected establishment with
+  "rejoins 0 Terminal attachment identities" whenever trait `T` declares any
+  value-returning method, even `-> i32`; void-method traits pass. The missing
+  `attachment_type_identity` row is produced in t2c
+  `execution/unit/composed_control`, owned by ARCHITECTURE-CONTROL-GRAPH's live
+  claim — the invoked-route fixtures cannot check until that leg lands.
+
   Preserve exact subject/revision, projection/algebra, geometry, lineage, route
   and installed occurrence through source-free replay. The caller may use the
   callee's partition theorem only after its exact successful invocation.
