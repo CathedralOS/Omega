@@ -1,6 +1,6 @@
 //! Invoke exact selected endpoint calls without preexecuting nested expressions.
 
-use super::integer_type::ScalarPosition;
+use super::integer_type::{PositionRole, ScalarPosition};
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
 use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
 use diagnostics::Diagnostic;
@@ -38,13 +38,14 @@ impl Invocation<'_> {
         &self,
         callee: super::EndpointCallee,
         reference: TypeReferenceHandle,
+        role: PositionRole,
     ) -> Result<ScalarPosition, String> {
         let types = if callee.static_application {
             self.execution
         } else {
             self.working
         };
-        ScalarPosition::prepare(types, self.execution, reference, self.authority)
+        ScalarPosition::prepare(types, self.execution, reference, self.authority, role)
     }
 
     fn result_position(&self, callee: super::EndpointCallee) -> Result<ScalarPosition, String> {
@@ -59,7 +60,7 @@ impl Invocation<'_> {
             .machine_states(machine)
             .first()
             .ok_or("range endpoint lost entry")?;
-        self.position(callee, entry.return_type)
+        self.position(callee, entry.return_type, PositionRole::Result)
     }
 
     fn arguments(
@@ -95,7 +96,8 @@ impl Invocation<'_> {
         let mut values = Vec::new();
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
-            let position = self.position(callee, parameter.type_reference)?;
+            let position =
+                self.position(callee, parameter.type_reference, PositionRole::Parameter)?;
             let (value, new_warnings) = value::evaluate_closed_scalar(
                 self.execution,
                 *argument,
@@ -205,15 +207,28 @@ impl ConstantCalls for Invocation<'_> {
         }
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
-            let position = self.position(callee, parameter.type_reference)?;
+            let position =
+                self.position(callee, parameter.type_reference, PositionRole::Parameter)?;
             append_warnings(
                 &mut warnings,
-                value::validate_closed_scalar(
-                    self.execution,
-                    *argument,
-                    primitive(&position),
-                    self,
-                )?,
+                match &position {
+                    ScalarPosition::Integer(position)
+                        if position.policy != numerics::arithmetic::ArithmeticDomain::Exact =>
+                    {
+                        value::validate_closed_anonymous_scalar(
+                            self.execution,
+                            *argument,
+                            position.primitive,
+                            self,
+                        )?
+                    }
+                    _ => value::validate_closed_scalar(
+                        self.execution,
+                        *argument,
+                        primitive(&position),
+                        self,
+                    )?,
+                },
             );
         }
         Ok((primitive(&self.result_position(callee)?), warnings))

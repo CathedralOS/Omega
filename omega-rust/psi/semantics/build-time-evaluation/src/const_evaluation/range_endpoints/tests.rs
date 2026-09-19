@@ -1384,3 +1384,55 @@ fn optional_endpoint_preparation_failure_leaves_authored_roots_unchanged() {
     assert_eq!(program.pending_const_range_endpoints, marks);
     assert!(typed_trees_to_checked_trees::lower_typed_trees(program).is_err());
 }
+
+#[test]
+fn policy_parameters_execute_the_declared_width_without_changing_initial_landing() {
+    for (policy, expected) in [("Wrapping", "1"), ("Saturating", "255")] {
+        let declarations = format!(
+            "machine endpoint(value: u8 in {policy}) -> u64 {{ (value + 2) as u64 }} machine flag() -> bool {{ true }}"
+        );
+        for argument in ["255", "(match flag() { true -> 254, false -> 0 }) + 1"] {
+            let mut program = typed(&format!(
+                "{declarations} machine keep(value: u64[0..=endpoint({argument})]) {{}}"
+            ));
+            evaluate_const_range_endpoints(&mut program, None)
+                .unwrap_or_else(|errors| panic!("{policy} {argument}: {errors:?}"));
+            assert_eq!(folded_maximum(&program).as_deref(), Some(expected));
+            typed_trees_to_checked_trees::lower_typed_trees(program)
+                .unwrap_or_else(|errors| panic!("{policy} checked: {errors:?}"));
+        }
+        for argument in [
+            "256",
+            "1 / 2",
+            "-1",
+            "255u16",
+            "255u8",
+            "match true { true -> 255, false -> 0u8 }",
+        ] {
+            let mut program = typed(&format!(
+                "{declarations} machine keep(value: u64[0..=endpoint({argument})]) {{}}"
+            ));
+            assert!(
+                evaluate_const_range_endpoints(&mut program, None).is_err(),
+                "{policy} initial argument must reject: {argument}"
+            );
+        }
+    }
+}
+
+#[test]
+fn policy_parameter_admission_checks_skipped_calls_and_preserves_result_policy_refusal() {
+    for endpoint in [
+        "match false { true -> wrapping(255u8), false -> 256u64 }",
+        "exact_result(wrapping_result())",
+        "wrapping_result()",
+    ] {
+        let mut program = typed(&format!(
+            "machine wrapping(value: u8 in Wrapping) -> u64 {{ (value + 2) as u64 }} machine wrapping_result() -> u8 in Wrapping {{ 1 }} machine exact_result(value: u8) -> u64 {{ value as u64 }} machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        assert!(
+            evaluate_const_range_endpoints(&mut program, None).is_err(),
+            "{endpoint}"
+        );
+    }
+}

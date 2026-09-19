@@ -29,6 +29,13 @@ including skipped operands and arms; only demanded calls execute.
 their declared integer or Boolean carriers before crossing the common admission
 floor and checked interpreter. A callee's lexical owner cannot authorize an
 operator in the caller's bound.
+Anonymous arguments may land at Wrapping or Saturating integer parameters:
+the initial value must fit exactly, then the ordinary interpreter executes the
+callee's policy-qualified operations. The shared scalar shape judgment admits
+composed anonymous expressions, including matches, before selective execution.
+It does not implicitly change a landed caller's arithmetic policy. Results
+still require Exact policy; a callee must explicitly erase its completed
+policy payload before returning an endpoint value.
 
 [Integer positions](src/const_evaluation/range_endpoints/integer_type.rs) check
 closed range refinements and supported argument-free integer domains against
@@ -40,9 +47,9 @@ applications use ordinary prepared specialization. Re-preparation makes folded
 template bounds available to those instances; failures restore all published
 endpoint folds. Selected provider execution retains the existing deferred
 continuation. These checks do not replace ordinary callee body checking.
-Nominal/policy-qualified parameters, unresolved authored operator meanings and
-applications requiring inference or type/machine/evidence binders still need
-their complete admission contexts.
+Nominal parameters, already-landed policy arguments, policy-qualified results,
+unresolved authored operator meanings and applications requiring inference or
+type/machine/evidence binders still need their complete admission contexts.
 
 [Generic range arguments](src/const_evaluation/range_arguments.rs) expose closed integer range
 types to the same temporary typed-probe mechanism before generic-data synthesis.
