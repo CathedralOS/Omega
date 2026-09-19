@@ -2501,8 +2501,14 @@ Owners include
   (`provider-planning/src/provider_planning/installation_reach.rs`) and
   root-closure substitution (`external-roots/src/root_entry/root_validation.rs`)
   exist. A selected realization that itself retains an unresolved
-  installation-bound requirement rejects there; no nested substitution step
-  exists, so keep that rejection.
+  installation-bound requirement rejects there. That rejection is the
+  fail-closed interim, not the end state: the installation closure
+  "substitutes every bounded row and rejects unresolved rows"
+  ([interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)),
+  and substitution runs "through the complete root closure", so a nested row
+  is in scope rather than excluded. Keep the rejection until that step exists;
+  `RealizedMachineContractEnvelope::concrete_service_reach` already carries
+  resolved rows in the shape it would produce.
 
   Remaining work:
 
@@ -2514,11 +2520,14 @@ Owners include
     installation-bound entry settles the linear acknowledgement and retains
     the nested bounded row, and no satisfier for `complete` can be authored
     while a checked body cannot discharge the linear receiver, so the route
-    now waits on the `installation-bound-row-nested-resolution` decision in
-    [owner questions](OWNER_QUESTIONS.md). The rejection is
+    now waits on receiver-bearing requirement selection, which
+    **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns and which
+    [interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
+    names for this selection and lineage integration. Land the declaration
+    with the satisfier, not before it. The rejection is
     driven from authored source by
     `opaque_boundaries.rs::selected_realization_with_an_unresolved_installation_bound_row_rejects`,
-    so losing the fence is a red test whichever route is chosen. The
+    so losing the fence early is a red test. The
     component-contract bullet below is independent of this and claimable.
     [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
     requires a bounded row beneath `MachineControl + PortIo`, and
