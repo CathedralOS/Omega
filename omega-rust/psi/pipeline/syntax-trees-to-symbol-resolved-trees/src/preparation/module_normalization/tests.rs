@@ -263,7 +263,7 @@ fn module_trait_defaults_join_the_exact_selected_template() {
         "module first; trait Service { machine run(&mut self) { } } data Worker {} first_membership: Worker satisfies Service;",
         "module second; trait Service { machine stop(&mut self) { } } data Worker {}",
     ]);
-    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
+    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax, None, Vec::new())
         .expect("same-spelled module traits keep their own default templates");
     let mut machines = syntax
         .root_items()
@@ -293,7 +293,7 @@ fn module_closed_conformance_rows_keep_the_exact_declaring_path() {
         "module first; trait Service { machine run(&mut self) { } } data Worker {} membership: Worker satisfies Service {}",
         "module second; trait Service { machine stop(&mut self) { } }",
     ]);
-    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
+    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax, None, Vec::new())
         .expect("a module conformance selects the same-module trait");
     let conformance = syntax
         .root_items()
@@ -334,7 +334,7 @@ fn ambiguous_imported_traits_synthesize_no_default() {
         "module second; pub trait Service { machine stop(&mut self) { } }",
         "use first::Service; use second::Service; data Worker {} membership: Worker satisfies Service;",
     ]);
-    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
+    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax, None, Vec::new())
         .expect("an ambiguous authored trait defers to resolution diagnostics");
     assert!(
         !syntax
@@ -351,7 +351,7 @@ fn module_attached_machines_override_only_their_own_carrier() {
         "module first; data Worker {} machine Worker::run(&mut self) { } first_membership: Worker satisfies Service;",
         "module second; data Worker {} second_membership: Worker satisfies Service;",
     ]);
-    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax)
+    crate::preparation::trait_defaults::synthesize_trait_defaults(&mut syntax, None, Vec::new())
         .expect("carrier identity is exact across same-spelled modules");
     let mut names = syntax
         .root_items()

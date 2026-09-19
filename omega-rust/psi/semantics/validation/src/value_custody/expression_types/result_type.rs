@@ -37,13 +37,51 @@ pub fn expression_result_type_reference(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    result_type(program, machine, state, expression, &mut Vec::new())
+    result_type(
+        program,
+        ExpressionOwner::State { machine, state },
+        expression,
+        &mut Vec::new(),
+    )
+}
+
+// Domain predicates use the same selected-result rules as state expressions.
+// Only declaration-backed leaves differ: self belongs to the domain carrier,
+// while static indices retain their own declared types.
+pub(crate) fn domain_expression_result_type_reference(
+    program: &TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    result_type(
+        program,
+        ExpressionOwner::Domain(domain),
+        expression,
+        &mut Vec::new(),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ExpressionOwner<'program> {
+    State {
+        machine: &'program Machine,
+        state: &'program State,
+    },
+    Domain(&'program typed_trees::domain::DomainDefinition),
+}
+
+impl ExpressionOwner<'_> {
+    fn symbol(self) -> symbols::SymbolHandle {
+        match self {
+            Self::State { machine, .. } => machine.symbol,
+            Self::Domain(domain) => domain.symbol,
+        }
+    }
 }
 
 fn result_type(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    owner: ExpressionOwner<'_>,
     expression: ExpressionHandle,
     active: &mut Vec<ExpressionHandle>,
 ) -> Option<TypeReferenceHandle> {
@@ -56,7 +94,7 @@ fn result_type(
             let arms = program.expression_table.match_arms(dispatch.arms);
             let references = arms
                 .iter()
-                .map(|arm| result_type(program, machine, state, arm.value, active))
+                .map(|arm| result_type(program, owner, arm.value, active))
                 .collect::<Vec<_>>();
             join_result_type_references(
                 program,
@@ -132,11 +170,11 @@ fn result_type(
         }),
         ExpressionNode::Binary(binary) => {
             let operands = [binary.left, binary.right]
-                .map(|operand| result_type(program, machine, state, operand, active));
-            binary_result(program, machine, expression, binary, operands)
+                .map(|operand| result_type(program, owner, operand, active));
+            binary_result(program, owner, expression, binary, operands)
         }
         ExpressionNode::Unary(unary) => {
-            let operand = result_type(program, machine, state, unary.operand, active);
+            let operand = result_type(program, owner, unary.operand, active);
             match unary.operator {
                 UnaryOperator::BitwiseNot => operand
                     .and_then(|reference| arithmetic_result_type_reference(program, reference))
@@ -146,12 +184,31 @@ fn result_type(
                     .and_then(|_| builtin_reference(program, BuiltinTypeAtom::Bool)),
             }
         }
-        _ => crate::value_custody::places::declared_place_type_raw(
-            program,
-            machine,
-            Some(state),
-            expression,
-        ),
+        _ => match owner {
+            ExpressionOwner::State { machine, state } => {
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            }
+            ExpressionOwner::Domain(domain) => {
+                match program.expression_table.expression(expression) {
+                    ExpressionNode::Name(path)
+                        if !path.symbol.is_valid()
+                            && !path.head_symbol.is_valid()
+                            && matches!(program.expression_table.name_path_members(path.members),
+                            [name] if name.as_str() == "self") =>
+                    {
+                        Some(domain.target_type)
+                    }
+                    _ => crate::proof_contracts::proof_embeddings::expression_type_reference(
+                        program, expression,
+                    ),
+                }
+            }
+        },
     };
     active.pop();
     result.filter(|reference| {
@@ -256,7 +313,7 @@ fn has_domain_result_shell(program: &TypedTrees, mut reference: TypeReferenceHan
 
 fn binary_result(
     program: &TypedTrees,
-    machine: &Machine,
+    owner: ExpressionOwner<'_>,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
     operands: [Option<TypeReferenceHandle>; 2],
@@ -282,7 +339,7 @@ fn binary_result(
     if let Some(spelling) = spelling
         && !typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
-            machine.symbol,
+            owner.symbol(),
             expression,
             spelling,
             &operands,
@@ -295,7 +352,7 @@ fn binary_result(
         };
         if !typed_trees::operator::selected_trait_operator_meanings(
             program,
-            machine.symbol,
+            owner.symbol(),
             spelling,
             &operands,
         )
@@ -313,6 +370,9 @@ fn binary_result(
     }
     match binary.operator {
         CaseMembership => {
+            let ExpressionOwner::State { machine, .. } = owner else {
+                return None;
+            };
             crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
                 program, machine, None, expression, binary,
             )

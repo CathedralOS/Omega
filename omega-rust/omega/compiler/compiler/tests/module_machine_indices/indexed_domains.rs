@@ -22,6 +22,246 @@ fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
+fn scalar_constants_in_carrier_polymorphic_domains_reach_terminal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    for (declaration, qualification, selected) in [
+        (
+            "pub domain<T> T::Marked;",
+            "policy::Marked",
+            "policy::Marked",
+        ),
+        (
+            "pub domain<T, const Enabled: bool> T::Gate<Enabled> requires Enabled;",
+            "policy::Gate<true>",
+            "policy::Gate",
+        ),
+    ] {
+        Sources::write(
+            library.join("policy.omg"),
+            &format!("module policy; {declaration}"),
+        );
+        Sources::write(
+            library.join("settings.omg"),
+            &format!("module settings; use policy; pub const VALUE: u64 in {qualification} = 7;"),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            "use library::settings; machine read() -> u64 { settings::VALUE as u64 }",
+        );
+        let checked = compile(&root, package_inputs(&root, &library));
+        assert!(!selections(&checked, selected, identity(2)).is_empty());
+        assert_source_free_seven(checked);
+    }
+}
+
+#[test]
+fn unused_carrier_polymorphic_constants_check_the_complete_application() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (declaration, qualification, expected) in [
+        (
+            "domain<T, const Enabled: bool> T::Gate<Enabled> requires Enabled;",
+            "Gate<false>",
+            "for const `UNUSED` is false",
+        ),
+        (
+            "domain<T, const Enabled: bool> T::Gate<Enabled> requires !Enabled;",
+            "Gate<true>",
+            "for const `UNUSED` is false",
+        ),
+        (
+            "domain<T, const Enabled: bool> T::Gate<Enabled>;",
+            "Gate",
+            "requires 1 closed index argument(s), but 0 were supplied",
+        ),
+        (
+            "domain<T, const Enabled: bool> T::Gate<Enabled>;",
+            "Gate<true, false>",
+            "requires 1 closed index argument(s), but 2 were supplied",
+        ),
+        (
+            "domain<T, const Count: u8> T::Gate<Count>;",
+            "Gate<256>",
+            "does not fit `u8`",
+        ),
+        (
+            "domain<T, const Count: u8> T::Gate<Count>;",
+            "Gate<true>",
+            "canonical type `bool`, expected `u8`",
+        ),
+        (
+            "domain<T [linear]> T::Gate;",
+            "Gate",
+            "declaration-site proof checking",
+        ),
+        (
+            "domain<const Enabled: bool> u32::Gate<Enabled> requires Enabled;",
+            "u32::Gate<true>",
+            "const value has carrier `u64`",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{declaration} const UNUSED: u64 in {qualification} = 7;
+             machine read() -> u64 {{ 7 }}"
+            ),
+        );
+        let error = rejection(&root, super::root_inputs(&root));
+        assert!(
+            error.contains(expected),
+            "{declaration} {qualification}: {error}"
+        );
+    }
+}
+
+#[test]
+fn carrier_polymorphic_integer_facts_keep_declared_width_and_nested_carrier() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (fact, argument, expected) in [
+        ("N + 1 > N", "254", None),
+        ("N + 1u8 > N", "254", None),
+        ("ROOT_N + 1 > ROOT_N", "254", None),
+        (
+            "ROOT_N + 1 > ROOT_N",
+            "255",
+            Some("outside the declared `u8` range"),
+        ),
+        ("N + 1 > N", "255", Some("outside the declared `u8` range")),
+        ("N - 1 < N", "0", Some("outside the declared `u8` range")),
+        ("(N << 7) == 128", "1", None),
+        ("(N << 1u64) == 2u8", "1", None),
+        ("(N << 8) == 256", "1", Some("declared `u8` width")),
+        ("N in u8::Allowed", "7", None),
+        (
+            "N in u64::Allowed",
+            "7",
+            Some("const value has carrier `u8`"),
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "const ROOT_N: u8 = {argument};
+             domain u8::Allowed; domain u64::Allowed;
+             domain<T, const N: u8> T::Gate<N> requires {fact};
+             const VALUE: u64 in Gate<{argument}> = 7;
+             machine read() -> u64 {{ VALUE as u64 }}"
+            ),
+        );
+        if let Some(expected) = expected {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(error.contains(expected), "{fact}, N={argument}: {error}");
+        } else {
+            assert_source_free_seven(compile(&root, super::root_inputs(&root)));
+        }
+    }
+}
+
+#[test]
+fn domain_membership_subjects_retain_literal_and_computed_types() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for fact in [
+        "7u8 in u8::Allowed",
+        "(7u8 + 1) in u8::Allowed",
+        "true in bool::Allowed",
+        "(7u8 < 8) in bool::Allowed",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u8::Allowed; domain bool::Allowed;
+             domain u8::Gate requires {fact};
+             machine read() -> u64 {{ 7 }}"
+            ),
+        );
+        assert_source_free_seven(compile(&root, super::root_inputs(&root)));
+    }
+}
+
+#[test]
+fn scalar_constant_predicates_cannot_mint_routed_or_aliased_authority() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for declaration in [
+        "domain<T> T::Issued established by Issuer::issue;",
+        "domain<T> T::Issued requires true\n established by Issuer::issue;",
+        "domain u64::Issued established by Issuer::issue;",
+        "domain<T> T::Never requires false; domain<T> T::Issued = T::Never;",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{declaration}
+             trait Issuer {{ machine issue() -> u64 in Issued; }}
+             const UNUSED: u64 in Issued = 7;
+             machine read() -> u64 {{ 7 }}"
+            ),
+        );
+        let error = rejection(&root, super::root_inputs(&root));
+        assert!(
+            error.contains("declaration-site proof checking"),
+            "{declaration}: {error}"
+        );
+    }
+}
+
+#[test]
+fn carrier_polymorphic_constant_domain_selection_stays_source_and_package_owned() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; pub domain<T> T::Gate requires true;",
+    );
+    Sources::write(
+        root.join("policy.omg"),
+        "module policy; pub domain<T> T::Gate requires false;",
+    );
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; use policy; pub const VALUE: u64 in policy::Gate = 7;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings; use policy;
+         machine read() -> u64 { settings::VALUE as u64 }",
+    );
+    let checked = compile(&root, package_inputs(&root, &library));
+    assert!(!selections(&checked, "policy::Gate", identity(2)).is_empty());
+    assert_source_free_seven(checked);
+
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; domain<T> T::Gate requires true;",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(error.contains("private"), "{error}");
+
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; pub domain<T> T::Gate requires true;",
+    );
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; use policy; pub machine value() -> u64 { 7 }",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings;
+         const UNUSED: u64 in u64::Gate = 7;
+         machine read() -> u64 { 7 }",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(error.contains("declaration-site proof checking"), "{error}");
+}
+
+#[test]
 fn generic_carrier_qualified_fields_keep_their_owner_after_specialization() {
     let tree = Sources::new();
     let root = tree.package("root");

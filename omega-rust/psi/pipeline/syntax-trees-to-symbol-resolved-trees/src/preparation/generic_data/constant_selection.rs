@@ -328,6 +328,16 @@ impl<'base> ConstantSelection<'base> {
         authored: &str,
         reference: source::SourceSpan,
     ) -> bool {
+        // A complete logical path can occur in several checked packages.
+        // Rejoin ordinary source-owned lookup before accepting that spelling;
+        // matching display text alone cannot select the declaration's owner.
+        if authored.contains("::") && self.symbols.display_path(symbol, "::") == authored {
+            return self.symbols.find_top_level_by_name_and_kinds_from_source(
+                authored,
+                &[SymbolKind::Domain],
+                reference,
+            ) == Some(symbol);
+        }
         self.symbols.get(symbol).kind == SymbolKind::Domain
             && self
                 .symbols

@@ -1,4 +1,4 @@
-use super::expression_result_type_reference;
+use super::{domain_expression_result_type_reference, expression_result_type_reference};
 use numerics::arithmetic::ArithmeticDomain;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -145,6 +145,31 @@ fn selected_operator_result_retains_exact_declaration_reference() {
             query(&program, declared_binary_arm(&program)),
             operator.return_type,
             "{declaration}"
+        );
+    }
+}
+
+#[test]
+fn domain_membership_subject_retains_selected_operator_result() {
+    for result in ["u64", "u64 in Wrapping"] {
+        let program = typed_source(&format!(
+            "operator + u8::sum(left: u8, right: u8) -> {result};
+             domain u64::Allowed;
+             domain u8::Gate requires (self + 1u8) in u64::Allowed;"
+        ));
+        let domain = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| !program.proof_facts(domain).is_empty())
+            .expect("Gate domain");
+        let [typed_trees::domain::ProofFact::Membership(membership)] = program.proof_facts(domain)
+        else {
+            panic!("one membership subject");
+        };
+        assert_eq!(
+            domain_expression_result_type_reference(&program, domain, membership.value),
+            Some(program.operators()[0].return_type),
+            "{result}"
         );
     }
 }

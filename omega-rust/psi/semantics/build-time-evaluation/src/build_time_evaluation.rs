@@ -84,6 +84,8 @@ pub fn evaluate_pre_resolution(
     )?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
         &mut syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings.to_vec(),
     )?;
     let placed_view_records = placed_views::desugar_placed_views(
         &mut syntax_trees,

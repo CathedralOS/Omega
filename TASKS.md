@@ -3352,9 +3352,12 @@ Owners include
     selected floating operations/NaN identities and aggregate floating values,
     which need determined bits through ordinary typed floating provider
     applications and recursive materialization. Constrained constants
-    still fence aggregate values and indices,
-    carrier-polymorphic families, open applications, non-domain constraints
-    and unprovable facts (`generic_data/const_evaluation/facts.rs`).
+    still fence aggregate values and indices, open applications, non-domain
+    constraints and unprovable facts. Carrier-polymorphic scalar constants
+    discharge carrier-independent closed predicates; carrier-property bounds
+    and operations on abstract `self` still need typed application evidence.
+    Routed and aliased constraints require their establishment/expansion
+    evidence, not empty predicate replay (`generic_data/const_evaluation/facts.rs`).
     Reuse typed expression evaluation, not untyped fact folding that erases
     operand widths and selected-operation custody.
   - Extend concrete failure discharge in `const_initializers/invocations.rs`

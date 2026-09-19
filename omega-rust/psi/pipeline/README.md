@@ -453,6 +453,17 @@ the same domain proof as public declarations, independently of optional public
 value encoding. `module_machine_indices::indexed_domains` covers source-free
 Terminal execution and false, mismatched, private, file-local, transitive,
 ambiguous-import and cyclic controls.
+Scalar constants also admit carrier-polymorphic marker domains and closed
+carrier-independent predicates. Their complete index tuple is checked even
+when unused. Declared integer fact operands retain their carrier through
+intermediate arithmetic and nested membership; comparisons cannot hide an
+earlier Exact overflow or borrow the enclosing subject's width. Anonymous
+peers land against that carrier, while authored operator meanings still need
+ordinary typed selection. Generic `self` and carrier-property bounds remain
+unavailable to this early evaluator. Predicates alone never discharge routed
+authority or an unexpanded alias. Trait-default preparation retains the source
+map and import bindings when it rechecks these declarations, so that later
+pass cannot merge equal logical domain paths from distinct packages.
 The shared symbol selector distinguishes a generic family's carrier qualifier
 from a foreign module qualifier. Validation groups repeated normalized domain
 names within their exact declaring module and checked package; different owners

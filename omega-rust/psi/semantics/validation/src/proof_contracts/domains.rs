@@ -330,7 +330,23 @@ fn validate_domain_membership_targets(
             continue;
         };
 
-        if type_references_match(program, domain.target_type, referenced_domain.target_type) {
+        // A predicate may classify an index or projected value independently
+        // of its own carrier. Only the reserved self node denotes that carrier;
+        // every other subject must retain its actual declared result type.
+        let subject_type =
+            crate::value_custody::expression_types::domain_expression_result_type_reference(
+                program,
+                domain,
+                membership.value,
+            );
+        let Some(subject_type) = subject_type else {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain `{}` membership in `{}` has no resolved subject type",
+                domain.name, referenced_domain.name,
+            )));
+            continue;
+        };
+        if type_references_match(program, subject_type, referenced_domain.target_type) {
             continue;
         }
 
@@ -338,7 +354,7 @@ fn validate_domain_membership_targets(
             "domain `{}` imports `{}` but they classify different types: `{}` vs `{}`",
             domain.name,
             referenced_domain.name,
-            type_reference_label(program, domain.target_type),
+            type_reference_label(program, subject_type),
             type_reference_label(program, referenced_domain.target_type)
         )));
     }
