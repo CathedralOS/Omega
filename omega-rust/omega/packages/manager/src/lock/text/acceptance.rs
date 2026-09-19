@@ -56,6 +56,7 @@ pub(in crate::lock) fn read(
             "terminal_permission" => PackagePolicyRowKind::TerminalPermission,
             "external_supply" => PackagePolicyRowKind::ExternalSupply,
             "dangerous_capability" => PackagePolicyRowKind::DangerousCapability,
+            "restricted_build_request" => PackagePolicyRowKind::RestrictedBuildRequest,
             _ => return Err(Error::InvalidFraming),
         };
         let hex = reader.field("key")?;

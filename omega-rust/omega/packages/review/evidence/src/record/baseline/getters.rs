@@ -8,6 +8,7 @@ use crate::record::PackagePolicyExternalExecutableSupply;
 use crate::record::PackagePolicyOperatorShape;
 use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicyRestrictedBuildRequest;
 use crate::record::PackagePolicySelectedProviders;
 use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicyTerminalPermissions;
@@ -76,5 +77,10 @@ impl PackagePolicyBaseline {
     }
     pub const fn boundary_applications(&self) -> &PackagePolicyBoundaryApplications {
         &self.boundary_applications
+    }
+    /// Restricted build-host requests this package's admitted build activation
+    /// asked of the host before it executed, in issue order.
+    pub fn restricted_build_requests(&self) -> &[PackagePolicyRestrictedBuildRequest] {
+        &self.restricted_build_requests
     }
 }

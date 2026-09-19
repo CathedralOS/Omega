@@ -4,6 +4,7 @@ mod boundary;
 mod dependencies;
 #[cfg(test)]
 mod external_tests;
+mod restricted_build;
 #[cfg(test)]
 mod row_tests;
 #[cfg(test)]
@@ -52,6 +53,7 @@ impl PackagePolicyBaseline {
             slack_uses: reader.sequence(1, dependencies::slack)?,
             semantic_dependencies: reader.sequence(1, dependencies::semantic_dependency)?,
             boundary_applications: boundary::applications(&mut reader)?,
+            restricted_build_requests: restricted_build::requests(&mut reader)?,
         };
         reader.finish()?;
         policy

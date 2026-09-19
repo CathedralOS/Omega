@@ -5,6 +5,7 @@
 
 mod authority;
 mod external;
+mod restricted_build;
 mod semantic_dependencies;
 
 use crate::capture::PackageReviewInput;
@@ -55,6 +56,7 @@ pub fn project_checked_package_policy<'a>(
         slack_uses,
         semantic_dependencies,
         boundary_applications,
+        restricted_build_requests: restricted_build::project(compilation),
     };
     policy.validate_canonical_structure().map_err(rejected)?;
     Ok(policy)

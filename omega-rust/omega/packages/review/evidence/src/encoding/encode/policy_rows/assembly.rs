@@ -34,6 +34,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         policy.slack_uses.len(),
         policy.semantic_dependencies.len(),
         policy.boundary_applications.demands.len(),
+        policy.restricted_build_requests.len(),
     ];
     counts
         .into_iter()
@@ -69,6 +70,7 @@ pub(super) fn acceptance_count(
             .count(),
         policy.external_supplies.len(),
         policy.dangerous_capabilities.len(),
+        policy.restricted_build_requests.len(),
     ]
     .into_iter()
     .chain(
@@ -103,6 +105,7 @@ pub(super) fn project(
         slack_uses,
         semantic_dependencies,
         boundary_applications,
+        restricted_build_requests,
     } = policy;
     builder.push(
         PackagePolicyRowKind::Header,
@@ -205,6 +208,25 @@ pub(super) fn project(
             false,
             |encoder| baseline::semantic_dependency(encoder, dependency),
             |encoder| baseline::semantic_dependency(encoder, dependency),
+        )?;
+    }
+    for (ordinal, request) in restricted_build_requests.iter().enumerate() {
+        // The operation and issue-order ordinal identify the request; the
+        // retained row value carries its complete normalized meaning so a
+        // widened request surfaces as a change under the same key.
+        let ordinal = u64::try_from(ordinal)
+            .map_err(|_| rejected("restricted build request ordinal overflows"))?;
+        builder.push(
+            PackagePolicyRowKind::RestrictedBuildRequest,
+            true,
+            true,
+            |encoder| {
+                let (name, tag) = baseline::restricted_build::operation(request.operation);
+                encoder.tag(name, tag);
+                encoder.u64(ordinal);
+                Ok(())
+            },
+            |encoder| baseline::restricted_build::request(encoder, request),
         )?;
     }
     Ok(())

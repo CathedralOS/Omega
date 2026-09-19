@@ -104,6 +104,7 @@ pub(super) fn baseline(package: PackageKeyIdentity) -> PackagePolicyBaseline {
             demands: vec![],
             realizations: vec![],
         },
+        restricted_build_requests: vec![],
     }
 }
 

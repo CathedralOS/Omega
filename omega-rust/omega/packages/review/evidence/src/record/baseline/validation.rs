@@ -93,6 +93,11 @@ impl PackagePolicyBaseline {
                 return Err("authority slack has no matching dangerous capability");
             }
         }
+        for request in &self.restricted_build_requests {
+            if request.selected_target_profile != Some(self.target) {
+                return Err("restricted build request belongs to another target activation");
+            }
+        }
         for dependency in &self.semantic_dependencies {
             nominal(&dependency.dependency)?;
             match &dependency.consumer {

@@ -25,6 +25,7 @@ mod policy_rows;
 mod public_policy;
 mod quotients;
 mod representation;
+mod restricted_build;
 mod rows;
 pub use policy_rows::*;
 mod signatures;
@@ -136,6 +137,12 @@ pub use representation::{
     PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
     PackageReviewRepresentationTargetProfile, PackageReviewRepresentationTcb,
     PackageReviewRepresentationTcbKind, PackageReviewSystemVEightbyteClass,
+};
+pub use restricted_build::{
+    PackagePolicyEvaluationSponsorLimits, PackagePolicyFilesystemSponsorLimits,
+    PackagePolicyRestrictedBuildBounds, PackagePolicyRestrictedBuildGrant,
+    PackagePolicyRestrictedBuildGrantRoot, PackagePolicyRestrictedBuildOperation,
+    PackagePolicyRestrictedBuildRequest,
 };
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
