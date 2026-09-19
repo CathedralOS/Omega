@@ -7,9 +7,9 @@ use super::{
     InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt, MaterializationReceipt,
     PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget, RetirementAuthority,
-    RetirementFactDigest, RetirementReceipt, ValidatedPlacement, WxEnforcement, admit_executable,
-    install_validated, materialize_admitted_artifact, materialize_and_freeze,
-    normalized_proof_payload_digest, quarantine_installed, retire_installed,
+    RetirementFactDigest, RetirementReceipt, UninstallOutcome, ValidatedPlacement, WxEnforcement,
+    admit_executable, install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    normalized_proof_payload_digest, quarantine_installed, retire_installed, uninstall_installed,
     validate_final_placement,
 };
 use extents::{Extent, ExtentLineageId, ExtentRootGrant, MappingEraId};
@@ -577,6 +577,126 @@ fn retirement_requires_quiescence_then_returns_writable_placement() {
         ),
     )
     .expect("placement reusable only after quiescent retirement");
+}
+
+#[test]
+fn uninstall_join_retires_a_complete_drain() {
+    let spec = authentic_spec();
+    let outcome = uninstall_installed(
+        realize(&spec),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
+        None,
+    )
+    .expect("a complete drain retires through the join");
+    let UninstallOutcome::Retired(retired) = outcome else {
+        panic!("a complete drain retires rather than quarantining")
+    };
+    assert_eq!(
+        retired.previous_artifact().artifact().identity(),
+        id(spec.artifact, ArtifactId::from_normalized_identity)
+    );
+    let _placement = retired.into_placement();
+}
+
+#[test]
+fn uninstall_join_quarantines_an_incomplete_drain() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let installed_identity = installed.identity();
+    let installed_context = installed.receipt_context();
+    let quarantine = id(401, MappingQuarantineId::from_normalized_identity);
+    let outcome = uninstall_installed(
+        installed,
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
+        Some(MappingQuarantineReceipt::from_provider(
+            &realize(&spec),
+            quarantine,
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 2,
+            },
+        )),
+    )
+    .expect("an incomplete drain parks in quarantine");
+    let UninstallOutcome::Quarantined(quarantined) = outcome else {
+        panic!("an incomplete drain must not return the placement")
+    };
+    assert_eq!(quarantined.installed_code(), installed_identity);
+    assert_eq!(quarantined.attributed_capacity_loss(), 4096);
+    assert!(matches!(
+        quarantined.cause(),
+        MappingQuarantineCause::IncompleteDrain {
+            residual_authority_count: 2
+        }
+    ));
+    let fault = quarantined
+        .stale_entry_fault(&installed_context)
+        .expect("a stale entry names the quarantined realization");
+    assert_eq!(fault.quarantine(), quarantine);
+    assert!(!fault.discharged_obligations());
+}
+
+#[test]
+fn uninstall_join_returns_every_input_without_quarantine_evidence() {
+    let spec = authentic_spec();
+    let error = uninstall_installed(
+        realize(&spec),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
+        None,
+    )
+    .expect_err("a failed drain without quarantine evidence keeps every input");
+    assert!(error.retirement_diagnostic().0.contains("quiescence"));
+    assert!(error.quarantine_diagnostic().is_none());
+    let (installed, authority, _retirement, quarantine) = (*error).into_parts();
+    assert!(quarantine.is_none());
+
+    // The returned custody is intact: the same authority with a complete
+    // drain retires the returned installed code.
+    let receipt =
+        RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
+    retire_installed(installed, authority, receipt).expect("returned custody still retires");
+}
+
+#[test]
+fn uninstall_join_rejects_a_quarantine_receipt_naming_another_realization() {
+    let spec = authentic_spec();
+    let mut foreign_spec = authentic_spec();
+    foreign_spec.placement = 108;
+    let error = uninstall_installed(
+        realize(&spec),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
+        Some(MappingQuarantineReceipt::from_provider(
+            &realize(&foreign_spec),
+            id(401, MappingQuarantineId::from_normalized_identity),
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        )),
+    )
+    .expect_err("a foreign quarantine receipt cannot park this realization");
+    assert!(error.retirement_diagnostic().0.contains("quiescence"));
+    assert!(
+        error
+            .quarantine_diagnostic()
+            .expect("the quarantine leg ran and refused")
+            .0
+            .contains("does not match")
+    );
+    let (installed, authority, _retirement, quarantine) = (*error).into_parts();
+    assert!(quarantine.is_some());
+
+    let receipt =
+        RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
+    retire_installed(installed, authority, receipt).expect("returned custody still retires");
 }
 
 #[test]

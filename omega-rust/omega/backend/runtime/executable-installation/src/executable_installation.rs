@@ -12,9 +12,10 @@
 //! derives the domain-separated authority digests, `artifacts.rs` carries
 //! artifacts and their admission, `code_placement.rs` placement claims,
 //! materialization and final validation, `installation.rs` installed code
-//! and its registry, `retirement.rs` retirement receipts; `container.rs`,
-//! `container_bytes.rs`, `materializer.rs`, `post_handoff_writer.rs` and
-//! `replacement_quarantine.rs` carry the container, writer and quarantine.
+//! and its registry, `retirement.rs` retirement receipts, `uninstall.rs` the
+//! drain-or-quarantine join; `container.rs`, `container_bytes.rs`,
+//! `materializer.rs`, `post_handoff_writer.rs` and `replacement_quarantine.rs`
+//! carry the container, writer and quarantine.
 
 mod artifacts;
 mod authority_digests;
@@ -30,6 +31,7 @@ mod retirement;
 mod test_support;
 #[cfg(test)]
 mod tests;
+mod uninstall;
 
 pub use artifacts::{
     AdmittedArtifact, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, InstallationAudience,
@@ -60,6 +62,7 @@ pub use replacement_quarantine::*;
 pub use retirement::{
     RetiredInstallation, RetirementAuthority, RetirementError, RetirementReceipt,
 };
+pub use uninstall::{UninstallError, UninstallOutcome, uninstall_installed};
 
 use crate::executable_installation::code_placement::{
     CodePlacementEvidence, ValidatedPlacementEvidence,
