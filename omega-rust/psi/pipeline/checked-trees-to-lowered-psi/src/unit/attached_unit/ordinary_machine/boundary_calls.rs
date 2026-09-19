@@ -2,7 +2,10 @@
 //! boundary call shapes share one claim and transfer validation.
 
 use super::super::call_closure::unique_unit_boundary;
-use super::super::parameters::{lower_structural_arguments, validate_transfer_shape};
+use super::super::lower_structural_path;
+use super::super::parameters::{
+    StructuralResultCustody, lower_structural_arguments, validate_transfer_shape,
+};
 use super::super::{argument_evaluation, byte_subslices, structural_calls};
 use super::{MachineEmission, StepInputs};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
@@ -44,24 +47,10 @@ impl MachineEmission<'_> {
             &target.structural_parameters,
             &[],
         )?;
-        let expected_claim_arguments = structural_arguments
-            .iter()
-            .enumerate()
-            .flat_map(|(argument_index, argument)| {
-                plan.entry_claims
-                    .iter()
-                    .filter(move |claim| {
-                        argument.byte_sequence_literal().is_none()
-                            && Some(claim.parameter_index) == argument.source_parameter_index()
-                            && (argument.path.is_empty() || claim.path == argument.path)
-                    })
-                    .map(move |_| {
-                        u32::try_from(argument_index).map_err(|_| {
-                            LoweringError::Unsupported("boundary Unit argument index exceeds u32")
-                        })
-                    })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let expected_claim_arguments = self.expected_boundary_claim_arguments(
+            structural_arguments,
+            "boundary Unit argument index exceeds u32",
+        )?;
         validate_transfer_shape(
             structural_arguments,
             completion_receipts,
@@ -73,7 +62,7 @@ impl MachineEmission<'_> {
             self.structural_types,
             &expected_claim_arguments,
             &self.primitive_local_places,
-            None,
+            Some(self.boundary_result_custody()),
         )?;
         let (_, boundary, _, target_scalar_parameters) = self
             .lowered_boundary_parameters
@@ -162,24 +151,10 @@ impl MachineEmission<'_> {
             &target.structural_parameters,
             &[],
         )?;
-        let expected_claim_arguments = structural_arguments
-            .iter()
-            .enumerate()
-            .flat_map(|(argument_index, argument)| {
-                plan.entry_claims
-                    .iter()
-                    .filter(move |claim| {
-                        argument.byte_sequence_literal().is_none()
-                            && Some(claim.parameter_index) == argument.source_parameter_index()
-                            && (argument.path.is_empty() || claim.path == argument.path)
-                    })
-                    .map(move |_| {
-                        u32::try_from(argument_index).map_err(|_| {
-                            LoweringError::Unsupported("boundary scalar argument index exceeds u32")
-                        })
-                    })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let expected_claim_arguments = self.expected_boundary_claim_arguments(
+            structural_arguments,
+            "boundary scalar argument index exceeds u32",
+        )?;
         validate_transfer_shape(
             structural_arguments,
             completion_receipts,
@@ -191,7 +166,7 @@ impl MachineEmission<'_> {
             self.structural_types,
             &expected_claim_arguments,
             &self.primitive_local_places,
-            None,
+            Some(self.boundary_result_custody()),
         )?;
         let (_, boundary, _, target_scalar_parameters) = self
             .lowered_boundary_parameters
@@ -332,26 +307,10 @@ impl MachineEmission<'_> {
             &target.structural_parameters,
             &[],
         )?;
-        let expected_claim_arguments = structural_arguments
-            .iter()
-            .enumerate()
-            .flat_map(|(argument_index, argument)| {
-                plan.entry_claims
-                    .iter()
-                    .filter(move |claim| {
-                        argument.byte_sequence_literal().is_none()
-                            && Some(claim.parameter_index) == argument.source_parameter_index()
-                            && (argument.path.is_empty() || claim.path == argument.path)
-                    })
-                    .map(move |_| {
-                        u32::try_from(argument_index).map_err(|_| {
-                            LoweringError::Unsupported(
-                                "boundary structural argument index exceeds u32",
-                            )
-                        })
-                    })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let expected_claim_arguments = self.expected_boundary_claim_arguments(
+            structural_arguments,
+            "boundary structural argument index exceeds u32",
+        )?;
         validate_transfer_shape(
             structural_arguments,
             completion_receipts,
@@ -363,7 +322,7 @@ impl MachineEmission<'_> {
             self.structural_types,
             &expected_claim_arguments,
             &self.primitive_local_places,
-            None,
+            Some(self.boundary_result_custody()),
         )?;
         let (_, boundary, _, target_scalar_parameters) = self
             .lowered_boundary_parameters
@@ -421,6 +380,14 @@ impl MachineEmission<'_> {
                 structural_type,
             },
         };
+        // A linear result arrives carrying the claim frontier the provider
+        // established: the checked `Establish` events on the bound local name
+        // the exact caller-local claims the completed value holds.
+        let result_claims = if result.multiplicity == Multiplicity::Linear {
+            self.boundary_result_claims(plan.machine, result)?
+        } else {
+            Vec::new()
+        };
         self.operations.record_source_call(
             SourceCallCoordinate {
                 state: plan.state,
@@ -439,28 +406,146 @@ impl MachineEmission<'_> {
             id,
             *target_machine,
         )?;
+        let returned = StructuralOperationResult {
+            place: result_place,
+            structural_type,
+            multiplicity: match multiplicity {
+                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                Multiplicity::Linear => StructuralMultiplicity::Linear,
+            },
+            qualifications: qualifications
+                .iter()
+                .map(|domain| lookup_domain_id(self.domain_ids, *domain))
+                .collect::<Result<Vec<_>, _>>()?,
+            projected_qualifications: Vec::new(),
+            claims: result_claims,
+        };
         self.operations.push(Operation {
             static_reach_binding: None,
             id,
-            result: OperationResult::Structural(StructuralOperationResult {
-                place: result_place,
-                structural_type,
-                multiplicity: match multiplicity {
-                    Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                    Multiplicity::Affine => StructuralMultiplicity::Affine,
-                    Multiplicity::Linear => StructuralMultiplicity::Linear,
-                },
-                qualifications: qualifications
-                    .iter()
-                    .map(|domain| lookup_domain_id(self.domain_ids, *domain))
-                    .collect::<Result<Vec<_>, _>>()?,
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
+            result: OperationResult::Structural(returned.clone()),
             kind,
         });
+        self.operations
+            .structural_values
+            .push((result.binding_ordinal, returned));
         self.structural_result_places
             .push((result_declaration, *discard_result_on_return));
         Ok(None)
+    }
+
+    /// The caller-local claim occurrences a completed boundary result holds:
+    /// the `Establish` events checking recorded on the bound local, rebased
+    /// onto this machine's claim namespace.
+    fn boundary_result_claims(
+        &self,
+        machine: symbols::SymbolHandle,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
+        let checked = self.checked;
+        let plan = self.plan;
+        let (_, state) =
+            crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+        let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(result.statement_index as usize)
+        else {
+            return unsupported("boundary structural result has no authored local");
+        };
+        let mut claims = checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state.symbol
+                    && event.source
+                        == language_semantics::PermissionEventSource::Statement {
+                            statement_index: result.statement_index as usize,
+                        }
+                    && event.kind == language_semantics::PermissionEventKind::Establish
+                    && event.access == language_semantics::PermissionAccess::Owned
+                    && event.multiplicity == Multiplicity::Linear
+                    && event.obligation_live
+                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
+            })
+            .map(|event| {
+                Ok(terminal_psi::StructuralResultClaimBinding {
+                    claim: lookup_claim_id(self.claim_bindings, event.claim_identity)?,
+                    path: lower_structural_path(
+                        &validation::structural_claim_path(
+                            &checked.typed,
+                            local.type_reference,
+                            checked
+                                .facts
+                                .flow
+                                .ownership
+                                .segments
+                                .span_or_empty(event.segments),
+                        )
+                        .map_err(LoweringError::Unsupported)?,
+                    ),
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        claims.sort();
+        Ok(claims)
+    }
+
+    /// Boundary declarations own no entry-claim roster, so the expected
+    /// transfer shape pairs each caller entry claim sourced from a parameter
+    /// with one receipt per claim in a moved result's completed frontier.
+    fn expected_boundary_claim_arguments(
+        &self,
+        structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+        overflow: &'static str,
+    ) -> Result<Vec<u32>, LoweringError> {
+        structural_arguments
+            .iter()
+            .enumerate()
+            .flat_map(|(argument_index, argument)| {
+                let count = self
+                    .plan
+                    .entry_claims
+                    .iter()
+                    .filter(|claim| {
+                        argument.byte_sequence_literal().is_none()
+                            && Some(claim.parameter_index) == argument.source_parameter_index()
+                            && (argument.path.is_empty() || claim.path == argument.path)
+                    })
+                    .count()
+                    + argument
+                        .source_structural_result_binding_ordinal()
+                        .map(|binding_ordinal| {
+                            self.operations
+                                .structural_values
+                                .iter()
+                                .filter(|(ordinal, _)| *ordinal == binding_ordinal)
+                                .map(|(_, result)| result.claims.len())
+                                .sum::<usize>()
+                        })
+                        .unwrap_or(0);
+                (0..count).map(move |_| {
+                    u32::try_from(argument_index).map_err(|_| LoweringError::Unsupported(overflow))
+                })
+            })
+            .collect()
+    }
+
+    /// The completed-result custody a boundary call consults: boundary targets
+    /// declare no entry claims, so the moved frontier is checked against the
+    /// producer's own claim set.
+    fn boundary_result_custody(&self) -> StructuralResultCustody<'_> {
+        StructuralResultCustody {
+            results: &self.operations.structural_values,
+            domains: self.domain_ids,
+            claims: self.claim_bindings,
+            target_entry_claims: &[],
+        }
     }
 }

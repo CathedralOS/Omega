@@ -425,6 +425,32 @@ pub(super) fn available_target(
                 && u32::try_from(call.call_ordinal).ok() == Some(coordinate.call_ordinal)
         });
     let call = calls.next()?;
+    // Rebuild the caller's result-binding roots the way statement sequencing
+    // recorded them: each whole-move argument source is the local its
+    // producing statement bound. Anonymous expression-rooted results never
+    // source a whole owned move, so only `LocalData` bindings belong here.
+    let caller_state = crate::semantic_calls::find_state(program, caller.state)?;
+    let caller_structural_results = caller
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => Some(result),
+            _ => None,
+        })
+        .filter_map(|result| {
+            let crate::execution::terminal_unit::StatementNode::LocalData(local) = program
+                .statement_table
+                .statements(caller_state.statement_nodes)
+                .get(usize::try_from(result.statement_index).ok()?)?
+            else {
+                return None;
+            };
+            Some((result.clone(), facts::PlaceRoot::Symbol(local.symbol)))
+        })
+        .collect::<Vec<_>>();
     if calls.next().is_some()
         || call_claim_transfers(
             facts,
@@ -433,6 +459,7 @@ pub(super) fn available_target(
             call,
             &caller.structural_parameters,
             &caller.entry_claims,
+            &caller_structural_results,
             structural_arguments,
             PermissionEventKind::Transfer,
         )

@@ -98,8 +98,11 @@ pub(super) fn validate_structural_argument(
                         ))
                     }
                     StructuralPlaceKind::OperationResult { .. }
-                        if source_policy == StructuralArgumentSourcePolicy::ParametersOrLinearCallResults
-                            && argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
+                        if matches!(
+                            source_policy,
+                            StructuralArgumentSourcePolicy::ParametersOrLinearCallResults
+                                | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                        ) && argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
                     {
                         let (_, result) = linear_call_result(caller, argument.place)?;
                         Some((result.structural_type, result.multiplicity, StructuralAccess::Owned,

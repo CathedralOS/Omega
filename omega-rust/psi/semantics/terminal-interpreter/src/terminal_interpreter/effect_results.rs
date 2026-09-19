@@ -96,8 +96,10 @@ impl TerminalExecution {
                     .live_affine_frontier
                     .iter()
                     .any(|value| value.place == result.place)
-                || result.multiplicity == StructuralMultiplicity::Linear
-                || !result.claims.is_empty()
+                // A claimed result is admissible only at Linear custody: an
+                // unrestricted or affine boundary result owns no claims.
+                || (!result.claims.is_empty()
+                    && result.multiplicity != StructuralMultiplicity::Linear)
                 || !result.projected_qualifications.is_empty())
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);

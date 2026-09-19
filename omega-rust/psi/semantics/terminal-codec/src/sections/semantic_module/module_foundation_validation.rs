@@ -861,6 +861,7 @@ fn validate_claim_indices(
                                 operation.kind,
                                 OperationKind::CallStructural { .. }
                                     | OperationKind::CallStructuralWithScalarArguments { .. }
+                                    | OperationKind::BoundaryCall { .. }
                             )
                         {
                             return None;

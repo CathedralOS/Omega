@@ -9,7 +9,8 @@ use crate::terminal_interpreter::custody::{
 };
 use crate::terminal_interpreter::effect_results;
 use crate::terminal_interpreter::execution::{
-    ExecutableMachine, OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution,
+    ExecutableMachine, LiveClaim, OperationFlow, SuspendedCall, SuspendedCallResult,
+    TerminalExecution,
 };
 use crate::terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalExecutionStatus, TerminalInterpretError,
@@ -490,6 +491,31 @@ impl TerminalExecution {
             }
         }
         self.live_claims = remaining_claims;
+        // The boundary's claimed result re-enters the caller's claim frontier
+        // at its own result place, matching the static frontier's ordering:
+        // receipted claims retire before the returned bindings install.
+        if let terminal_psi::OperationResult::Structural(result) = &operation.result {
+            for binding in &result.claims {
+                if self
+                    .live_claims
+                    .insert(
+                        binding.claim,
+                        LiveClaim {
+                            place: Some(result.place),
+                            path: binding.path.clone(),
+                            multiplicity: Some(if binding.path.is_empty() {
+                                result.multiplicity
+                            } else {
+                                StructuralMultiplicity::Linear
+                            }),
+                        },
+                    )
+                    .is_some()
+                {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
+            }
+        }
         boundary_arguments.commit(self);
         self.effects.push(effect);
         Ok(OperationFlow::Advance)

@@ -82,6 +82,7 @@ pub(crate) fn linear_call_result(
             operation.kind,
             OperationKind::CallStructural { .. }
                 | OperationKind::CallStructuralWithScalarArguments { .. }
+                | OperationKind::BoundaryCall { .. }
         )
     {
         return None;

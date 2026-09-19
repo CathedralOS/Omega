@@ -915,6 +915,7 @@ pub(crate) fn call_claim_transfers(
     call: &checked_trees::FlowCallFact,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     arguments: &[CheckedUnitStructuralArgumentPlan],
     kind: PermissionEventKind,
 ) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
@@ -994,6 +995,35 @@ pub(crate) fn call_claim_transfers(
                         && argument.access == CheckedStructuralAccess::SharedBorrow))
             {
                 return None;
+            }
+            // A whole linear result moved into this call carries the
+            // producer's live claim, not an entry claim: its transfer events
+            // root at the local the producing statement bound. Publish one
+            // receipt per event so the call's outbound claim set stays exact.
+            if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal()
+                && argument.access == CheckedStructuralAccess::Owned
+            {
+                let Some((_, root)) = caller_structural_results
+                    .iter()
+                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)
+                else {
+                    return None;
+                };
+                let mut claims = Vec::new();
+                for event in events.iter().filter(|event| event.root == *root) {
+                    if event.claim_identity == PermissionClaimIdentity::Unknown
+                        || claims.contains(&event.claim_identity)
+                    {
+                        return None;
+                    }
+                    claims.push(event.claim_identity);
+                }
+                for claim_identity in claims {
+                    output.push(CheckedUnitClaimTransferPlan {
+                        claim_identity,
+                        argument_index: u32::try_from(argument_index).ok()?,
+                    });
+                }
             }
             continue;
         }

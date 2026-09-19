@@ -4,8 +4,8 @@
 use super::super::structural_operations::validate_unit_operation_static;
 use super::super::{
     BTreeMap, BoundaryMachineResult, BoundaryStructuralResultDeclaration, IdRegistry, MachineId,
-    ModuleError, OperationKind, OperationResult, ScalarType, TerminalMachine, TerminalModule,
-    insert_unique, insert_value,
+    ModuleError, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
+    TerminalMachine, TerminalModule, insert_unique, insert_value,
 };
 use semantic_vocabulary::ValueId;
 use terminal_psi::Operation;
@@ -239,7 +239,9 @@ pub(super) fn register_custody_operation(
                 Some(BoundaryMachineResult::Scalar(result.scalar_type))
             }
             OperationResult::Structural(result)
-                if result.projected_qualifications.is_empty() && result.claims.is_empty() =>
+                if result.projected_qualifications.is_empty()
+                    && (result.claims.is_empty()
+                        || result.multiplicity == StructuralMultiplicity::Linear) =>
             {
                 Some(BoundaryMachineResult::Structural(
                     BoundaryStructuralResultDeclaration {

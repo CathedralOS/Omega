@@ -526,6 +526,7 @@ pub(in crate::execution) fn build_call_operation(
             call,
             caller_parameters,
             entry_claims,
+            caller_structural_results,
             &structural_arguments,
             PermissionEventKind::Transfer,
         )?;
@@ -771,6 +772,7 @@ pub(in crate::execution) fn build_call_operation(
         call,
         caller_parameters,
         entry_claims,
+        caller_structural_results,
         &structural_arguments,
         if boundary {
             PermissionEventKind::Consume
