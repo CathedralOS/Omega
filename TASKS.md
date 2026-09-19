@@ -569,33 +569,50 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
 
 - **BUILD-EXCLUSION-REALIZATION.** Enforce requested physical-authority exclusions
   under the [exclusion contract](wiki/spec/build/behavior_exclusions.md). The
-  retained `BehaviorExclusions` currently carries crash causes and services, not
-  physical classes. Add evaluated physical-class selections and their retained
-  evidence in `build-evaluation` and `compilation-report`; integrate final checks
-  through `compiler/native-realization/src/native_realization/`.
+  retained `BehaviorExclusions` now carries a
+  `PhysicalAuthorityClass(TerminalAuthorityClass)` axis beside crash causes and
+  services: the semantic walk records it in the canonical union and still demands
+  a bounded entry/call closure, and native realization adjudicates it against the
+  mechanism-closure review's exercised dispositions before emission — including
+  when the request carries no receiving permission policy, since absence is
+  classification evidence, not receiver admission
+  (`build-evaluation/src/admission/behavior_exclusions.rs`,
+  `native-realization/src/native_realization/behavior_exclusions.rs`;
+  linux-x86_64). The same union stays retained on the realization proposal and is
+  replayed there; no second classifier exists.
 
-  Reuse `terminal_authority_policy/` and the existing mechanism-closure review.
-  Classification is not receiving permission: a requested absence guarantee must
-  be checked even with no receiving permission policy. Do not invent a second
-  classifier, synthesize receiver approval, or claim that semantic exclusion replay
-  establishes physical absence. `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW` owns receiver
-  admission; this task owns the independently requested build guarantee.
+  Remaining work:
 
-  Bind the exclusion scope, exact selected mechanisms, classification identity and
-  final product to independently replayable evidence. Carry the envelope through
-  rebinding/replacement using `COMPONENT-SUBSTRATE` and
-  `WIRE-RUNTIME-AND-INSTALLATION` for custody and lifecycle. Keep build-host
-  activity and target children separate; build code cannot inspect its unfinished
-  executable. Define the source/protocol fields before claiming portable support.
+  - Forward the proposal's retained union into `realize_image` from
+    `retained_native_product.rs` / `native_product/realization.rs` and re-export
+    the exclusion-taking entry point from the crate `lib.rs`; those call sites
+    sit under a live `native-realization` blanket claim (CORPUS-RED-FAMILY,
+    ticket 0a2579a8), so this leg needs a coordinator handoff.
+  - Authoring surface: an `AuthoredBehaviorExclusionKind` physical-class row plus
+    `builder.exclude_*` syntax and the source/protocol fields the contract
+    requires before portable support can be claimed; until then the axis is
+    reachable only by constructing `BehaviorExclusion`s directly.
+  - Envelope custody through rebinding/replacement via COMPONENT-SUBSTRATE and
+    WIRE-RUNTIME-AND-INSTALLATION, and the image-emission and foreign-boundary
+    legs.
+  - Exercise provider and installation controls on Windows/macOS hosts — both
+    unavailable on the landing host; report them as unavailable, not passing.
 
-  Acceptance: source-built products distinguish no-Console from no physical output,
-  including a silent Console provider. Unknown classifications and mismatched
-  evidence cannot count as absence; failed final checks publish no successful
-  product. Check with and without receiver permission policy and optional
-  optimizations. Source-free replay preserves the same verdict, and replacing a
-  benign provider with excluded behavior rejects. Exercise actual provider and
-  installation controls on each available Windows/macOS host and report the
-  unavailable legs explicitly.
+  Reuse `terminal_authority_policy/` and the mechanism-closure review;
+  classification is not receiving permission. Do not invent a second classifier,
+  synthesize receiver approval, or claim that semantic exclusion replay
+  establishes physical absence. `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW` owns
+  receiver admission; this task owns the independently requested build
+  guarantee.
+
+  Acceptance: source-built products distinguish no-Console from no physical
+  output, including a silent Console provider. Unknown classifications and
+  mismatched evidence cannot count as absence; failed final checks publish no
+  successful product. Check with and without receiver permission policy and
+  optional optimizations. Source-free replay preserves the same verdict, and
+  replacing a benign provider with excluded behavior rejects. Exercise actual
+  provider and installation controls on each available Windows/macOS host and
+  report the unavailable legs explicitly.
 
 ## Checked boundary topology
 
