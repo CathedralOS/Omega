@@ -17,7 +17,9 @@ use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::ReconstructedTerminalObligationOwner;
 
 use crate::lowering_error::LoweringError;
-use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
+use crate::proofs::nonzero_divisor_certificate::{
+    produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
+};
 use lowered_psi::LoweredPsi;
 
 mod cyclic_guarantees;
@@ -178,6 +180,22 @@ fn retain_provable_roster(lowered: &mut LoweredPsi) -> Result<(), LoweringError>
                 &site.semantic_axioms,
                 &parameters,
             )
+            // Arrival obligations can outgrow the canonical custody envelope
+            // the same way operation obligations do: an endpoint that meets
+            // cited facts only through equality/definition chains. The relaxed
+            // search is the named last resort here too — canonical producers
+            // first, the bounded derived closure only at unproven leaves, and
+            // the kernel re-checks the certificate before the candidate is
+            // retained. Guarded `Implication` premises keep their scope.
+            .or_else(|| {
+                produce_relaxed_integer_proof(
+                    &context,
+                    &site.obligation.proposition,
+                    &site.requirements,
+                    &site.semantic_axioms,
+                    &parameters,
+                )
+            })
             .is_none()
             {
                 rejected.insert((machine, header));
