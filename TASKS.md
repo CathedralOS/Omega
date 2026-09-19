@@ -3690,9 +3690,19 @@ Owners include
 
   Remaining work:
 
-  - Kernel discharge. The `FloatSemantics::*` rows in
-    `numerics/src/float_semantics_catalog.rs` are identity only; attach the
-    discharge binding beside each row, never keyed on the leaf spelling.
+  - Kernel discharge. Each `FloatSemantics::*` row in
+    `numerics/src/float_semantics_catalog.rs` now carries a
+    `FloatSemanticKernel` beside its identity (landed 2026-09-19):
+    `FloatSemanticOperation::kernel_discharge` evaluates a signature-shaped
+    operand list through the bound `FloatSemantics` definition and pairs the
+    result with the row's `FloatSemanticContractIdentity`, selected through
+    the complete signature by `from_source_identity` — never the leaf
+    spelling. Meaning results compare by payload-erased meaning equality;
+    `Bool` results keep the IEEE predicates (`NaN` unordered, `+0` == `-0`).
+    Remaining: no checked obligation cites the binding yet — the
+    semantic-application proof value that would carry the discharged tuple
+    through Terminal is still not threaded checked-trees -> Terminal ->
+    codec -> verifier.
   - The non-call operation result and call result
     [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity).
     Terminal carries `DirectOperationResult`/`DirectCallResult` with codec
