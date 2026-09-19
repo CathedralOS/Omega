@@ -18,8 +18,8 @@
 
 use super::{LiveTaskDependency, TaskLifecycleLedger};
 use crate::{
-    SuspensionCrossingId, TaskLifecycleClaim, TaskLifecycleClaimId, TaskPlanDiagnostic,
-    TaskStorageBinding,
+    LiveCarryDemand, SuspensionCrossingId, TaskLifecycleClaim, TaskLifecycleClaimId,
+    TaskPlanDiagnostic, TaskStorageBinding,
 };
 
 /// Provider-side execution state of one live activation.
@@ -201,6 +201,26 @@ impl TaskLifecycleLedger {
             Some(TaskExecutionState::Parked(crossing)) => Some(crossing),
             _ => None,
         }
+    }
+
+    /// The exact live frontier the claim's activation retains while parked
+    /// at its crossing, or `None` when the claim is running, settled, or
+    /// unknown.
+    ///
+    /// Each row is one live place the retained nonmoving stack and machine
+    /// storage keep stable across the park; rows with a nonempty `claims`
+    /// roster are the suspension-safe loans still live through this
+    /// crossing. The frontier is plan evidence, so it never re-reads
+    /// checked-tree or carry facts.
+    pub fn parked_frontier(&self, claim: TaskLifecycleClaimId) -> Option<&[LiveCarryDemand]> {
+        let dependency = self.live.get(&claim)?;
+        let TaskExecutionState::Parked(crossing) = dependency.execution else {
+            return None;
+        };
+        canonical_crossings(dependency)
+            .iter()
+            .find(|candidate| candidate.identity == crossing)
+            .map(|candidate| candidate.live_carry.as_slice())
     }
 
     /// The canonical crossing where the claim's activation observed its

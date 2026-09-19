@@ -1,7 +1,7 @@
 use super::{candidate, id, wcsu_projection};
 use crate::{
-    ActivationCarryObligations, StackRepresentationId, validate_activation_plan,
-    validate_wcsu_activation_plan,
+    ActivationCarryObligations, ClaimId, LiveCarryPlaceId, StackRepresentationId,
+    validate_activation_plan, validate_wcsu_activation_plan,
 };
 
 #[test]
@@ -102,6 +102,9 @@ fn normalized_plan_identity_binds_stack_crossings_and_preservation() {
 
     let mut changed_crossing = candidate();
     changed_crossing.canonical_suspension_crossings[0].preserve_host_thread = true;
+    changed_crossing.canonical_suspension_crossings[0].live_carry[0]
+        .effective
+        .host_thread = language_core::CarryHostThread::Origin;
     changed_crossing.carry_obligations.preserve_host_thread = true;
     assert_ne!(
         plan.normalized_identity(),
@@ -109,6 +112,104 @@ fn normalized_plan_identity_binds_stack_crossings_and_preservation() {
             .expect("changed crossing")
             .normalized_identity()
     );
+
+    // The exact live frontier is bound into the plan identity: attaching a
+    // second loan to the crossing's live place changes the plan.
+    let mut changed_frontier = candidate();
+    changed_frontier.canonical_suspension_crossings[0].live_carry[0]
+        .claims
+        .push(ClaimId::new(11).expect("nonzero claim identity"));
+    assert_ne!(
+        plan.normalized_identity(),
+        validate_activation_plan(changed_frontier)
+            .expect("changed frontier")
+            .normalized_identity()
+    );
+}
+
+#[test]
+fn crossing_frontier_validation_fail_closed() {
+    // A live place that forbids suspension cannot be retained across a
+    // parking crossing: the checked producer refuses it at check time, so a
+    // candidate carrying it is rejected rather than licensed or dropped.
+    let mut forbidden = candidate();
+    forbidden.canonical_suspension_crossings[0].live_carry[0]
+        .effective
+        .suspension = language_core::CarrySuspension::Forbidden;
+    assert!(
+        validate_activation_plan(forbidden)
+            .expect_err("suspension-forbidden live place")
+            .0
+            .contains("live value that forbids suspension")
+    );
+
+    // A claim appearing twice on one place is not a roster.
+    let mut duplicate_claim = candidate();
+    duplicate_claim.canonical_suspension_crossings[0].live_carry[0]
+        .claims
+        .push(ClaimId::new(10).expect("nonzero claim identity"));
+    assert!(
+        validate_activation_plan(duplicate_claim)
+            .expect_err("duplicate claim")
+            .0
+            .contains("duplicate claim")
+    );
+
+    // Two rows naming the same place cannot both retain it.
+    let mut duplicate_place = candidate();
+    let row = duplicate_place.canonical_suspension_crossings[0].live_carry[0].clone();
+    duplicate_place.canonical_suspension_crossings[0]
+        .live_carry
+        .push(row);
+    assert!(
+        validate_activation_plan(duplicate_place)
+            .expect_err("duplicate place")
+            .0
+            .contains("duplicate live places")
+    );
+
+    // A crossing whose declared preservation overstates its live frontier
+    // is internally inconsistent evidence.
+    let mut overstated = candidate();
+    overstated.canonical_suspension_crossings[0].preserve_host_thread = true;
+    assert!(
+        validate_activation_plan(overstated)
+            .expect_err("overstated preservation")
+            .0
+            .contains("does not match its live frontier")
+    );
+
+    // And so is a frontier demanding preservation the crossing omits.
+    let mut understated = candidate();
+    understated.canonical_suspension_crossings[0].preserve_cpu = false;
+    assert!(
+        validate_activation_plan(understated)
+            .expect_err("understated crossing preservation")
+            .0
+            .contains("does not match its live frontier")
+    );
+
+    // A second host-thread-pinned place keeps the join honest in both
+    // directions: the crossing now preserves CPU for the first row and the
+    // host thread for the second.
+    let mut joined = candidate();
+    joined.canonical_suspension_crossings[0]
+        .live_carry
+        .push(crate::LiveCarryDemand {
+            place: id(13, LiveCarryPlaceId::from_normalized_identity),
+            ty: id(14, crate::LiveCarryTypeId::from_normalized_identity),
+            storage: crate::LiveCarryStorage::Parameter,
+            claims: Vec::new(),
+            effective: language_core::CarryPolicy {
+                suspension: language_core::CarrySuspension::Allowed,
+                cpu: language_core::CarryCpu::Any,
+                host_thread: language_core::CarryHostThread::Origin,
+                address: language_core::CarryAddress::Movable,
+            },
+        });
+    joined.canonical_suspension_crossings[0].preserve_host_thread = true;
+    joined.carry_obligations.preserve_host_thread = true;
+    validate_activation_plan(joined).expect("the join of both live places preserves both axes");
 }
 
 #[test]

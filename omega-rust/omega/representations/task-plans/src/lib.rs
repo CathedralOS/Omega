@@ -1,8 +1,10 @@
 //! Provider-independent task activation plans and lifecycle accounting.
 //!
 //! An activation plan describes one fixed, nonmoving stack, the canonical
-//! semantic suspension crossings, and only the CPU/thread preservation those
-//! crossings demand. Executor selection consumes exact per-axis checked or
+//! semantic suspension crossings — each retaining the exact live frontier
+//! of places, claims and four-axis demands the parked continuation must
+//! keep — and only the CPU/thread preservation those crossings demand.
+//! Executor selection consumes exact per-axis checked or
 //! admitted evidence; this crate deliberately does not publish a generalized
 //! runtime behavior record.
 //!
@@ -38,9 +40,9 @@ pub use activation_plans::activation_plan_facts::{
 };
 pub use activation_plans::diagnostic::TaskPlanDiagnostic;
 pub use activation_plans::{
-    ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing, StackPlan,
-    TaskArgumentExtent, TaskArgumentLayout, ValidatedActivationPlan, validate_activation_plan,
-    validate_wcsu_activation_plan,
+    ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
+    LiveCarryDemand, LiveCarryStorage, StackPlan, TaskArgumentExtent, TaskArgumentLayout,
+    ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
 };
 pub use executor_selection::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorSelectionCandidate,
@@ -48,12 +50,12 @@ pub use executor_selection::{
 };
 pub use identities::{
     ActivationInstanceId, ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId,
-    ExecutorPreservationEvidenceId, ExecutorSelectionId, MachineContractId, MachineEntryId,
-    SameStackContributionAdmissionReceiptId, StackPlanProjectionId, StackRepresentationId,
-    TaskArgumentCustodyId, TaskLifecycleClaimId, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
-    TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, TaskStorageLeaseId,
-    TaskStorageOwnerId, ValueLayoutId,
+    ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId, LiveCarryTypeId,
+    MachineContractId, MachineEntryId, SameStackContributionAdmissionReceiptId,
+    StackPlanProjectionId, StackRepresentationId, TaskArgumentCustodyId, TaskLifecycleClaimId,
+    TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId,
+    TaskRuntimeInvocationReceiptId, TaskStackCompositionId, TaskStackFrameId,
+    TaskStackFrameValidationId, TaskStorageLeaseId, TaskStorageOwnerId, ValueLayoutId,
 };
 pub use lifecycle_ledger::{
     ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskDependencyRecord,
@@ -67,7 +69,7 @@ pub use runtime_invocation::{
     TaskRuntimeActivationBinding, TaskRuntimeInvocationReceiptCandidate,
     ValidatedTaskRuntimeInvocationReceipt, validate_task_runtime_invocation_receipt,
 };
-pub use semantic_vocabulary::SuspensionCrossingId;
+pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
 pub use stack_composition::{
     AdmittedSameStackContribution, ComposedTaskStackDemand,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,

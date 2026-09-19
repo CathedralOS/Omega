@@ -9,6 +9,7 @@ name = "task_plans"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../psi/foundation/language-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../psi/foundation/symbols" }
 sha2 = "0.10.9"

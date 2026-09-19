@@ -9,10 +9,11 @@ pub(crate) mod diagnostic;
 use crate::report_fingerprints::activation_plan_report_fingerprint;
 use crate::stack_composition::WcsuStackPlanProjection;
 use crate::{
-    ActivationPlanId, CallingPlanId, MachineContractId, MachineEntryId, StackRepresentationId,
-    TaskPlanDiagnostic, ValueLayoutId,
+    ActivationPlanId, CallingPlanId, LiveCarryPlaceId, LiveCarryTypeId, MachineContractId,
+    MachineEntryId, StackRepresentationId, TaskPlanDiagnostic, ValueLayoutId,
 };
-use semantic_vocabulary::SuspensionCrossingId;
+use language_core::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
+use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
 
 /// Physical fixed-stack shape retained by the activation sidecar.
 ///
@@ -160,17 +161,71 @@ fn canonical_argument_layout(
     })
 }
 
+/// The storage class holding one live value across a parking crossing.
+///
+/// The class names whose lifetime and pinning the park relies on: the
+/// fixed, nonmoving activation stack keeps `Parameter`, `Local` and
+/// `CallArgument` places stable across the suspension, while `Persistent`
+/// storage belongs to the machine's own attached layout and outlives the
+/// crossing independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LiveCarryStorage {
+    /// Resident in the machine's persistent attached/owned layout.
+    Persistent,
+    /// Entry/state parameter held in the activation's fixed frame.
+    Parameter,
+    /// Lexical local held in the activation's fixed frame.
+    Local,
+    /// Value materialized for the suspending call itself.
+    CallArgument,
+}
+
+/// One exact live place a parked continuation retains at a canonical
+/// crossing.
+///
+/// This roster is the plan's suspension-safe-loan evidence. Each row names
+/// the exact place, the checked type it carries, the storage class whose
+/// lifetime and pinning the park relies on, the complete linear-claim
+/// identities attached to that place — the loans that must stay alive and
+/// address-stable through the suspension — and the four-axis demand the
+/// value contributes. A live reference carrier alone never appears here;
+/// only checked live places with their exact claim rosters do. A row whose
+/// `effective` forbids suspension is rejected at plan validation rather
+/// than silently licensing or silently dropping the loan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveCarryDemand {
+    /// Stable identity of this exact live place at this crossing.
+    pub place: LiveCarryPlaceId,
+    /// Stable identity of the value's checked type.
+    pub ty: LiveCarryTypeId,
+    /// Storage class holding the value across the park.
+    pub storage: LiveCarryStorage,
+    /// Complete linear-claim identities attached to this place at the
+    /// crossing. An empty roster means no live loan crosses here; it is
+    /// never reconstructed from the type or storage class.
+    pub claims: Vec<ClaimId>,
+    /// The four-axis carry demand this value contributes to the crossing.
+    pub effective: CarryPolicy,
+}
+
 /// One canonical semantic crossing at which the activation can park.
 ///
 /// `identity` binds the detailed checked-tree crossing record retained in the
 /// carry artifact. The local permission and preservation columns are repeated
 /// here so activation-plan consumers do not reinterpret source or liveness.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// `live_carry` retains the crossing's exact ordered live frontier: the
+/// permission and preservation columns must be exactly the join of those
+/// rows, so a candidate cannot publish a frontier that disagrees with the
+/// preservation it declares.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalSuspensionCrossing {
     pub identity: SuspensionCrossingId,
     pub suspension_allowed: bool,
     pub preserve_cpu: bool,
     pub preserve_host_thread: bool,
+    /// The exact ordered live frontier retained across this crossing: one
+    /// row per live place, in checked order.
+    pub live_carry: Vec<LiveCarryDemand>,
 }
 
 /// Activation-wide scheduler preservation derived by joining the canonical
@@ -318,6 +373,57 @@ fn validate_activation_plan_shape(
         return Err(TaskPlanDiagnostic(
             "a possible suspension crossing carries a value that forbids suspension".into(),
         ));
+    }
+    for crossing in &candidate.canonical_suspension_crossings {
+        let mut places = Vec::new();
+        for live in &crossing.live_carry {
+            if places.contains(&live.place) {
+                return Err(TaskPlanDiagnostic(
+                    "a canonical suspension crossing carries duplicate live places".into(),
+                ));
+            }
+            places.push(live.place);
+            let mut claims = Vec::new();
+            for claim in &live.claims {
+                if claims.contains(claim) {
+                    return Err(TaskPlanDiagnostic(
+                        "a live place at a suspension crossing carries a duplicate claim".into(),
+                    ));
+                }
+                claims.push(*claim);
+            }
+            // The checked producer already refuses a suspension-forbidden
+            // live value at check time; a row that forbids suspension here
+            // is fabricated or drifted evidence, so it fails closed rather
+            // than licensing or silently dropping the loan.
+            if live.effective.suspension == CarrySuspension::Forbidden {
+                return Err(TaskPlanDiagnostic(
+                    "a canonical suspension crossing carries a live value that forbids suspension"
+                        .into(),
+                ));
+            }
+        }
+        // The crossing's preservation bits are the join of its live
+        // frontier. The checked producer derives them from the same
+        // intersect, so an exact mismatch means the frontier and the
+        // declared preservation disagree — neither may be trusted.
+        if crossing.preserve_cpu
+            != crossing
+                .live_carry
+                .iter()
+                .any(|live| live.effective.cpu == CarryCpu::Origin)
+            || crossing.preserve_host_thread
+                != crossing
+                    .live_carry
+                    .iter()
+                    .any(|live| live.effective.host_thread == CarryHostThread::Origin)
+        {
+            return Err(TaskPlanDiagnostic(
+                "a canonical suspension crossing's preservation does not match its live \
+                 frontier"
+                    .into(),
+            ));
+        }
     }
     let canonical_layout = canonical_argument_layout(&candidate.argument_layout)?;
     if canonical_layout != candidate.argument_layout {

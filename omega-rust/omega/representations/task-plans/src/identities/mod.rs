@@ -65,3 +65,5 @@ normalized_id!(TaskStorageOwnerId, "task-storage-owner");
 normalized_id!(TaskStorageLeaseId, "task-storage-lease");
 normalized_id!(TaskArgumentCustodyId, "task-argument-custody");
 normalized_id!(TaskLifecycleClaimId, "task-lifecycle-claim");
+normalized_id!(LiveCarryPlaceId, "live-carry-place");
+normalized_id!(LiveCarryTypeId, "live-carry-type");

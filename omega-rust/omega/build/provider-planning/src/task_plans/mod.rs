@@ -3,7 +3,8 @@
 //! fingerprints. `specialization_commitments.rs` commits exact task machine
 //! specializations, `runtime_requirements.rs` selects the task runtime
 //! provider and requirement, `carry_crossings.rs` validates activation
-//! carry crossings and translates them into plan values,
+//! carry crossings and translates them into plan values — including each
+//! crossing's exact live frontier of places, claims and carry demands,
 //! `start_selections.rs` selects task start targets and `stack_graphs.rs`
 //! derives the whole-call-graph WCSU demand behind every fixed task stack.
 

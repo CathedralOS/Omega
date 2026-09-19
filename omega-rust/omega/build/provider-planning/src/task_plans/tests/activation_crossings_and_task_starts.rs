@@ -12,7 +12,7 @@ use crate::task_plans::{
     Arc, CheckedTrees, NativeTarget, TaskActivationPlanSet, elaborate_task_activation_plans,
     settle_task_activation_plans,
 };
-use language_semantics::{CarryCpu, CarryHostThread};
+use language_semantics::{CarryCpu, CarryHostThread, CarrySuspension};
 use task_plans::{ActivationCarryObligations, TaskStartOperation};
 
 #[test]
@@ -194,6 +194,174 @@ fn nested_checked_call_composes_whole_graph_wcsu_and_roster() {
     // parking call inside the nested checked frame.
     assert!(plan.may_suspend);
     assert_eq!(plan.canonical_suspension_crossings.len(), 3);
+}
+
+#[test]
+fn suspending_task_plan_retains_the_exact_live_frontier() {
+    let (checked, selected, _) = concrete_task_start_fixture();
+
+    let task_activations =
+        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
+            .expect("a suspending task target should elaborate");
+    let activation = task_activations
+        .as_slice()
+        .iter()
+        .find(|activation| activation.operation == TaskStartOperation::Start)
+        .expect("start activation plan");
+    let plan = activation.plan.candidate();
+
+    // `Worker::run` parks at `suspend Sleeper::park(value)` with `value`
+    // live in its fixed frame. The crossing retains the exact checked live
+    // frontier rather than a bare suspension bit.
+    assert_eq!(plan.canonical_suspension_crossings.len(), 1);
+    let crossing = &plan.canonical_suspension_crossings[0];
+    assert!(
+        !crossing.live_carry.is_empty(),
+        "the parking crossing retains the exact live frontier"
+    );
+    for live in &crossing.live_carry {
+        assert_ne!(live.place.normalized_identity(), 0);
+        assert_ne!(live.ty.normalized_identity(), 0);
+        assert_eq!(
+            live.effective.suspension,
+            language_semantics::CarrySuspension::Allowed,
+            "every retained place permits suspension"
+        );
+    }
+    assert!(
+        crossing
+            .live_carry
+            .iter()
+            .any(|live| live.storage == task_plans::LiveCarryStorage::Local),
+        "the live `value` local rides the frontier"
+    );
+
+    // The crossing's preservation bits are exactly the join of its frontier.
+    assert_eq!(
+        crossing.preserve_cpu,
+        crossing
+            .live_carry
+            .iter()
+            .any(|live| live.effective.cpu == CarryCpu::Origin)
+    );
+    assert_eq!(
+        crossing.preserve_host_thread,
+        crossing
+            .live_carry
+            .iter()
+            .any(|live| live.effective.host_thread == CarryHostThread::Origin)
+    );
+}
+
+#[test]
+fn suspending_task_plan_rejects_a_suspension_forbidden_live_place() {
+    let (mut checked, selected, _) = concrete_task_start_fixture();
+    // Drift one checked live row to forbid suspension while the crossing's
+    // recorded aggregate still permits it: the frontier and the declared
+    // preservation disagree, so elaboration must fail closed rather than
+    // license or drop the loan.
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter_mut()
+        .flat_map(|crossing| crossing.live_values.iter_mut())
+        .for_each(|live| live.effective.suspension = CarrySuspension::Forbidden);
+    let diagnostics =
+        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
+            .expect_err("a suspension-forbidden live place must reject");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("live value that forbids suspension"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn suspending_task_plan_rejects_an_unresolved_live_claim() {
+    let (mut checked, selected, _) = concrete_task_start_fixture();
+    // A live claim that never resolved to its exact checked provenance
+    // cannot mint a normalized frontier identity.
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter_mut()
+        .flat_map(|crossing| crossing.live_values.iter_mut())
+        .for_each(|live| {
+            live.claims
+                .push(language_semantics::PermissionClaimIdentity::Unknown);
+        });
+    let diagnostics =
+        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
+            .expect_err("an unresolved live claim must reject");
+    assert!(
+        diagnostics[0].message.contains("identity never resolved"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn suspending_task_plan_retains_established_live_claim_identities() {
+    let (mut checked, selected, _) = concrete_task_start_fixture();
+    let worker = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Worker::run")
+        .expect("worker machine");
+    let worker_state = checked
+        .machine_states(worker)
+        .iter()
+        .next()
+        .expect("worker entry state")
+        .symbol;
+    let worker_machine = worker.symbol;
+
+    // Attach an exactly-resolved loan to one live place; the plan frontier
+    // must carry its normalized claim identity, distinguishing the loan
+    // rather than merely counting it.
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter_mut()
+        .flat_map(|crossing| crossing.live_values.iter_mut())
+        .for_each(|live| {
+            live.claims
+                .push(language_semantics::PermissionClaimIdentity::Established {
+                    machine_symbol: worker_machine,
+                    state_symbol: worker_state,
+                    source: language_semantics::PermissionEventSource::StateEntry,
+                    ordinal: 0,
+                });
+        });
+
+    let task_activations =
+        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
+            .expect("an established loan crosses the park");
+    let activation = task_activations
+        .as_slice()
+        .iter()
+        .find(|activation| activation.operation == TaskStartOperation::Start)
+        .expect("start activation plan");
+    let crossing = &activation.plan.candidate().canonical_suspension_crossings[0];
+    assert!(
+        crossing
+            .live_carry
+            .iter()
+            .all(|live| live.claims.iter().all(|claim| claim.get() != 0)),
+        "every retained loan carries a normalized claim identity"
+    );
+    assert!(
+        crossing
+            .live_carry
+            .iter()
+            .any(|live| !live.claims.is_empty()),
+        "the established loan crosses the park"
+    );
 }
 
 #[test]
