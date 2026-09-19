@@ -13,6 +13,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 mod proof_machines;
 
+pub(crate) use proof_machines::proof_call_has_structural_descent;
 pub(crate) use proof_machines::validate_proof_machine_recursion;
 
 /// Measured recursion MR3 (2026-07-18 ruling): runtime recursion is

@@ -1,0 +1,20 @@
+// Importing core also checks its requires-bearing cancellation induction.
+use omega::language::core::nat;
+
+machine zero_only(value: Nat) -> Nat
+requires value == Nat::Zero;
+terminates;
+{
+    transition { _ -> value }
+}
+
+machine forward_zero(value: Nat, other: Nat) -> Nat
+requires value == Nat::Zero;
+terminates;
+{
+    transition { _ -> next(other, value) }
+
+    state next(unknown: Nat, known: Nat) -> Nat {
+        transition { _ -> (zero_only(known)) }
+    }
+}

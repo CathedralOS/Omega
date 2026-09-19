@@ -105,7 +105,7 @@ pub(crate) fn reject_refuted_value_call_requires(
     }
 }
 
-fn instantiated_fact_judgment(
+pub(super) fn instantiated_fact_judgment(
     program: &TypedTrees,
     judge: &StructuralJudge,
     fact: ExpressionHandle,

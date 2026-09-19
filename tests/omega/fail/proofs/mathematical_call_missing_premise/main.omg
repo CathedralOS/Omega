@@ -1,0 +1,16 @@
+data Nat {
+    case Zero;
+    case Succ(previous: Nat);
+}
+
+machine zero_only(value: Nat) -> Nat
+requires value == Nat::Zero;
+terminates;
+{
+    transition { _ -> value }
+}
+
+machine discard_unknown(value: Nat) terminates;
+{
+    _ = zero_only(value);
+}

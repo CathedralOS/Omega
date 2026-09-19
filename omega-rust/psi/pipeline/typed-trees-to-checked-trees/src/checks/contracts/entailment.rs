@@ -229,6 +229,76 @@ fn entry_premises_are_preserved(
         })
 }
 
+/// Structural induction and call formation share one proof language, but not
+/// one observation point. Ask for the exact call entry, never reuse an exit
+/// judgment or import an unproved callee guarantee.
+pub(super) fn structural_call_requirement(
+    program: &TypedTrees,
+    facts: &checked_trees::CheckFacts,
+    state_flow: &checked_trees::FlowStateFact,
+    call_flow: &checked_trees::FlowCallFact,
+    expression: ExpressionHandle,
+    resolver: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let classification = typed_trees::proof_only::classify(program);
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
+    if !classification.is_proof_machine(program, machine)
+        || !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver)
+    {
+        return false;
+    }
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(callee) = program
+        .machines()
+        .iter()
+        .filter(|machine| classification.is_proof_machine(program, machine))
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|state| state.symbol == call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let Some(call_site) = crate::semantic_calls::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return false;
+    };
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+    let in_transition_target = crate::semantic_calls::transition_call_target(
+        program,
+        machine,
+        state,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    )
+    .is_some_and(|target| target.is_valid());
+    validation::structural_call_requirement_entailed(
+        program,
+        machine,
+        state.symbol,
+        call_flow.statement_index,
+        in_transition_target,
+        callee,
+        arguments,
+        expression,
+    )
+}
+
 fn isolated_proof_values(
     program: &TypedTrees,
     facts: &checked_trees::CheckFacts,

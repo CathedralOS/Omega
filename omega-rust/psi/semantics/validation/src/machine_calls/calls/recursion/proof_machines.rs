@@ -508,6 +508,58 @@ fn expression_names_measure(
         })
 }
 
+/// A direct self-application whose ranked operand is a strict constructor
+/// subterm on every incoming state edge. This query deliberately excludes
+/// cited decrease and contract normalization: an earlier call may use the
+/// resulting IH to establish its own premises, so its guarantees cannot also
+/// be the reason that induction is licensed.
+pub(crate) fn proof_call_has_structural_descent(
+    program: &TypedTrees,
+    machine: &Machine,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return false;
+    };
+    if call.target_symbol != entry.symbol || call.receiver.is_valid() {
+        return false;
+    }
+    let Some(subjects) = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
+    else {
+        return false;
+    };
+    let [subject] = subjects.as_slice() else {
+        return false;
+    };
+    let ExpressionNode::Name(measure) = program.expression_table.expression(*subject) else {
+        return false;
+    };
+    if !measure.symbol.is_valid() {
+        return false;
+    }
+    let parameters = program.state_parameters(entry);
+    let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == measure.symbol)
+    else {
+        return false;
+    };
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != parameters.len() {
+        return false;
+    }
+    arguments.get(position).is_some_and(|argument| {
+        strict_subterm_of_measure(program, *argument, measure.symbol, None)
+            || matches!(program.expression_table.expression(*argument), ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && program.machine_states(machine)[1..].iter().any(|state| {
+                        program.state_parameters(state).iter()
+                            .any(|parameter| parameter.symbol == path.symbol)
+                    })
+                    && substate_parameter_descends(program, machine, *argument, measure.symbol, None))
+    })
+}
+
 pub(crate) fn validate_proof_machine_recursion(
     program: &TypedTrees,
     machine: &Machine,

@@ -53,6 +53,7 @@ pub(crate) use call_targets::machine_state_by_symbol;
 pub use caller_aliases::{AssignmentWriteTarget, LocalWriteOrigin};
 pub(crate) use demand::statement_value_expression_roots;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
+pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 
 use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};

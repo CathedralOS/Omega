@@ -1,0 +1,1 @@
+cannot prove requires contract for call zero_only from discard_unknown

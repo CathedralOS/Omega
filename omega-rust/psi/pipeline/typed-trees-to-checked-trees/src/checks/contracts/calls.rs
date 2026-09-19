@@ -81,6 +81,14 @@ pub(super) fn check_call_requires(
                             expression,
                             call_frames,
                         )
+                        || super::entailment::structural_call_requirement(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            expression,
+                            call_frames,
+                        )
                         || if !expression_is_boolean_place_like(program, expression) {
                             // R1: a DOMINATING incoming-arm guard establishes a
                             // boolean requires fact -- the ranges machinery's

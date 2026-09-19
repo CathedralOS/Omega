@@ -49,18 +49,9 @@ pub(super) fn check_flow_call_contracts(
 
     assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
 
-    // PROOF-machine calls are exempt from the runtime requires prover: a
-    // proof machine emits no runtime code, and a call between proof
-    // machines denotes a mathematical application whose VALUE does not
-    // depend on the callee's requires -- the requires conditions only the
-    // callee's ENSURES, and every ensures-consumption face is gated in the
-    // structural validation layer (citation site discharge, IH premise
-    // discharge, functional-ensures exclusion for requires-bearing
-    // callees). Keeping this prover on proof-proof calls double-gates and
-    // refuses sound requires-bearing INDUCTION, whose recursive call's
-    // premise only the structural judge can derive (injectivity
-    // decomposition of the arm-refined requires; probed 2026-07-16 with
-    // add_cancel).
+    // Mathematical applications owe the same substituted premises as runtime
+    // calls, even when their result is erased or no guarantee is consumed.
+    // Recursive descent establishes termination, not a call's preconditions.
     let proof_only = typed_trees::proof_only::classify(program);
     let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only, call_frames);
     let mut cyclic_headers = CyclicHeaderInvariants::new();
@@ -92,9 +83,6 @@ pub(super) fn check_flow_call_contracts(
                     crate::labels::call_target_label(program, call_flow.target_symbol),
                     is_proof_machine(call_flow.target_symbol),
                 );
-            }
-            if caller_is_proof && is_proof_machine(call_flow.target_symbol) {
-                continue;
             }
             exits::check_scalar_tail_result_domains(
                 program,
