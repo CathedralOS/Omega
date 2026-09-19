@@ -174,3 +174,28 @@ fn indexed_operand_access_preserves_shared_collection_and_owned_index() {
         "{diagnostics:#?}"
     );
 }
+
+#[test]
+fn ordinary_first_parameter_gains_no_receiver_adaptation() {
+    let source = r#"
+        data Buffer { value: i32; }
+        data Index {}
+        machine [] Buffer::index(items: &Buffer, index: Index) -> i32 { items.value }
+        data Main { buffer: Buffer; }
+        machine Main::read(&self, index: Index) {
+            let view: &i32 = &self.buffer[index];
+        }
+    "#;
+    let diagnostics = match check_source(source) {
+        Ok(_) => {
+            panic!("an ordinary `items: &Buffer` parameter must not select at `buffer[index]`")
+        }
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("remained unresolved")),
+        "{diagnostics:#?}"
+    );
+}
