@@ -141,9 +141,17 @@ pub fn validate_runtime_spill_with_span_policy(
         for (instruction_index, original) in source_block.instructions.iter().enumerate() {
             boundaries.push(consumed);
             let mut restored = original.clone();
+            // `UseDef` operands read the victim like uses: replay redirects
+            // them to the same reload registers, and the operand's own write
+            // is what the instruction's following store then reads. A plain
+            // `Def` — including one tied to a victim use — keeps the victim
+            // register its store replays.
             for operand in &mut restored.operands {
                 if operand.virtual_register != register
-                    || operand.access != RegisterOperandAccess::Use
+                    || !matches!(
+                        operand.access,
+                        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+                    )
                 {
                     continue;
                 }
@@ -201,16 +209,29 @@ pub fn validate_runtime_spill_with_span_policy(
             }
             for definition in admitted.definitions.iter().filter(|definition| {
                 definition.block_index == block_index
-                    && matches!(definition.position,
-                        admission::StoragePosition::AfterInstruction(instruction)
-                            if instruction == original.id)
+                    && match definition.position {
+                        admission::StoragePosition::AfterInstruction(anchor)
+                        | admission::StoragePosition::AfterUseDef {
+                            instruction: anchor,
+                            ..
+                        } => anchor == original.id,
+                        admission::StoragePosition::BlockStart => false,
+                    }
             }) {
-                let store = admission::store(
-                    &admitted,
-                    definition.register,
-                    &mut next_instruction,
-                    &mut next_register,
-                )?;
+                // The `UseDef` store reads the register its operand was
+                // redirected to — replay resolves it on the rebuilt
+                // instruction, exactly where the proposal's emitter read it.
+                let stored = match definition.position {
+                    admission::StoragePosition::AfterUseDef { operand, .. } => restored
+                        .operands
+                        .iter()
+                        .find(|candidate| candidate.operand == operand)
+                        .map(|operand| operand.virtual_register)
+                        .ok_or(RuntimeSpillError::ReplayMismatch)?,
+                    _ => definition.register,
+                };
+                let store =
+                    admission::store(&admitted, stored, &mut next_instruction, &mut next_register)?;
                 let (registers, sequence) = store.into_streams();
                 for register in &registers {
                     if values.next() != Some(register) {
