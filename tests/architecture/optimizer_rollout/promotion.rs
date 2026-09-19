@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::path::Path;
 
 use crate::Audit;
 use crate::inventory::ReleaseRow;
@@ -21,13 +22,35 @@ const PROMOTION_FIELDS: &[&str] = &[
     "Measurement evidence:",
 ];
 
+/// The schema fields that carry evidence. A completed value must cite at
+/// least one repository artifact, so a promotion leg cannot pass on
+/// unverifiable prose. `Approved status` and `Owner approval` record a
+/// decision, and the identity and rollback lines are checked exactly, so
+/// none of them is an evidence field.
+const EVIDENCE_FIELDS: &[&str] = &[
+    "Semantic and corruption evidence:",
+    "Differential evidence:",
+    "Determinism and bounded-work evidence:",
+    "Target matrix evidence:",
+    "Measurement evidence:",
+];
+
+/// Extensions that make a bare filename a repository citation. A backticked
+/// span whose leading `::`-free segment contains `/` or ends in one of these
+/// is read as `path` or `path::subject` and must resolve in the checkout.
+/// Other spans — `Optimization::ALL`, `HOSTED_NATIVE_TARGETS`, flags,
+/// version names like `1.5x` — are prose and resolve nothing.
+const CITATION_EXTENSIONS: &[&str] = &[
+    ".rs", ".omg", ".md", ".toml", ".json", ".yaml", ".yml", ".txt",
+];
+
 pub(super) fn check(audit: &mut Audit, published: &BTreeMap<String, ReleaseRow>) {
     let records = check_record_inventory(audit, published);
     for (name, row) in published {
         let relative = format!("{}/{name}.md", super::PROMOTION_ROOT);
         match (row.status.as_str(), records.get(name)) {
             ("Recommended" | "Default", Some(contents)) => audit.violations.extend(
-                record_defects(name, &row.status, contents)
+                record_defects(&audit.repository, name, &row.status, contents)
                     .into_iter()
                     .map(|defect| format!("optimizer promotion record {relative} {defect}")),
             ),
@@ -38,7 +61,7 @@ pub(super) fn check(audit: &mut Audit, published: &BTreeMap<String, ReleaseRow>)
                 ));
             }
             ("Experimental", Some(contents)) => audit.violations.extend(
-                staged_record_defects(name, contents)
+                staged_record_defects(&audit.repository, name, contents)
                     .into_iter()
                     .map(|defect| format!("optimizer promotion record {relative} {defect}")),
             ),
@@ -93,9 +116,10 @@ fn check_record_inventory(
     records
 }
 
-fn record_defects(name: &str, status: &str, contents: &str) -> Vec<String> {
+fn record_defects(repository: &Path, name: &str, status: &str, contents: &str) -> Vec<String> {
     let mut defects = Vec::new();
     for expected in [
+        format!("# {name} Promotion"),
         format!("Exact rule: {name}"),
         format!("Approved status: {status}"),
         format!("Rollback: --disable-optimization {name}"),
@@ -120,6 +144,7 @@ fn record_defects(name: &str, status: &str, contents: &str) -> Vec<String> {
             defects.push(format!("lacks completed `{field}`"));
         }
     }
+    defects.extend(citation_defects(repository, contents));
     defects
 }
 
@@ -129,9 +154,10 @@ fn record_defects(name: &str, status: &str, contents: &str) -> Vec<String> {
 /// schema field must be present, and no completed `Approved status:` may
 /// appear — the inventory change the approval authorizes has not happened, so
 /// a completed approval would be out of step with the row.
-fn staged_record_defects(name: &str, contents: &str) -> Vec<String> {
+fn staged_record_defects(repository: &Path, name: &str, contents: &str) -> Vec<String> {
     let mut defects = Vec::new();
     for expected in [
+        format!("# {name} Promotion"),
         format!("Exact rule: {name}"),
         format!("Rollback: --disable-optimization {name}"),
     ] {
@@ -161,6 +187,82 @@ fn staged_record_defects(name: &str, contents: &str) -> Vec<String> {
             "asserts a completed `Approved status:` before the inventory row leaves `Experimental`"
                 .to_owned(),
         );
+    }
+    defects.extend(citation_defects(repository, contents));
+    defects
+}
+
+fn backticked_spans(line: &str) -> impl Iterator<Item = &str> {
+    line.split('`').skip(1).step_by(2)
+}
+
+fn repository_citation(span: &str) -> Option<&str> {
+    let path = span.split("::").next()?;
+    (path.contains('/')
+        || CITATION_EXTENSIONS
+            .iter()
+            .any(|extension| path.ends_with(extension)))
+    .then_some(span)
+}
+
+/// Resolve one `path` or `path::subject` citation against the checkout: the
+/// path must exist, and each `::subject` must appear in the file's text, so
+/// a record cannot name a renamed, moved, or imagined artifact.
+fn resolve_citation(repository: &Path, citation: &str) -> Result<(), String> {
+    let mut parts = citation.split("::");
+    let path = parts.next().unwrap_or_default();
+    let joined = repository.join(path);
+    let metadata = fs::metadata(&joined)
+        .map_err(|_| format!("cites `{citation}` but `{path}` is not a repository path"))?;
+    if metadata.is_dir() {
+        return if parts.next().is_none() {
+            Ok(())
+        } else {
+            Err(format!(
+                "cites `{citation}` but directory `{path}` cannot name a subject"
+            ))
+        };
+    }
+    let text = fs::read_to_string(&joined)
+        .map_err(|_| format!("cites `{citation}` but `{path}` is not a readable text artifact"))?;
+    for subject in parts {
+        if !text.contains(subject) {
+            return Err(format!(
+                "cites `{citation}` but `{subject}` does not appear in `{path}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Every artifact citation in the record resolves, and every completed
+/// evidence field cites at least one. A `PENDING` field names open work and
+/// stays exempt; a field completed without a citation is unverifiable prose.
+fn citation_defects(repository: &Path, contents: &str) -> Vec<String> {
+    let mut defects = Vec::new();
+    for line in contents.lines().map(normalize_record_line) {
+        for span in backticked_spans(line) {
+            if let Some(citation) = repository_citation(span)
+                && let Err(defect) = resolve_citation(repository, citation)
+            {
+                defects.push(defect);
+            }
+        }
+    }
+    for field in EVIDENCE_FIELDS {
+        let Some(line) = contents
+            .lines()
+            .map(normalize_record_line)
+            .find(|line| line.starts_with(field))
+        else {
+            continue;
+        };
+        if !completed_record_field(line, field) {
+            continue;
+        }
+        if !backticked_spans(&line[field.len()..]).any(|span| repository_citation(span).is_some()) {
+            defects.push(format!("completed `{field}` cites no repository artifact"));
+        }
     }
     defects
 }
@@ -196,20 +298,38 @@ fn evidence_rejects_empty_pending_and_template_values() {
     ));
 }
 
+fn fixture_repository(test: &str) -> std::path::PathBuf {
+    let root = std::env::temp_dir().join(format!(
+        "omega_promotion_gate_{}_{}_{}",
+        test,
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or_default()
+    ));
+    std::fs::create_dir_all(root.join("evidence")).expect("fixture root");
+    std::fs::write(root.join("evidence/rule.rs"), "fn real_test() {}\n").expect("fixture evidence");
+    std::fs::create_dir_all(root.join("corpus/case")).expect("fixture corpus");
+    root
+}
+
 #[test]
 fn promotion_record_requires_exact_identity_and_completed_evidence() {
+    let repository = fixture_repository("promoted");
     let valid = "\
+# ControlFlowCleanup Promotion
 - Exact rule: ControlFlowCleanup
 - Approved status: Recommended
 - Owner approval: compiler-owner, review 42, 2026-08-31
-- Semantic and corruption evidence: test run 1
-- Differential evidence: corpus run 1
-- Determinism and bounded-work evidence: test run 2
-- Target matrix evidence: matrix run 1
-- Measurement evidence: benchmark v1
+- Semantic and corruption evidence: `evidence/rule.rs::real_test` matrix legs
+- Differential evidence: `corpus/case` corpus run 1
+- Determinism and bounded-work evidence: `evidence/rule.rs::real_test` determinism leg
+- Target matrix evidence: `evidence/rule.rs` matrix run 1
+- Measurement evidence: `evidence/rule.rs` benchmark v1
 - Rollback: --disable-optimization ControlFlowCleanup
 ";
-    assert!(record_defects("ControlFlowCleanup", "Recommended", valid).is_empty());
+    assert!(record_defects(&repository, "ControlFlowCleanup", "Recommended", valid).is_empty());
 
     let incomplete = valid
         .replace(
@@ -217,10 +337,15 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
             "Exact rule: CopyPropagation",
         )
         .replace(
-            "Differential evidence: corpus run 1",
+            "Differential evidence: `corpus/case` corpus run 1",
             "Differential evidence: PENDING",
         );
-    let defects = record_defects("ControlFlowCleanup", "Recommended", &incomplete);
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &incomplete,
+    );
     assert!(
         defects
             .iter()
@@ -231,25 +356,68 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
             .iter()
             .any(|defect| defect.contains("Differential evidence:"))
     );
+
+    // Completed evidence is unverifiable when it cites no artifact, and a
+    // citation that names a moved or imagined artifact rejects.
+    let uncited = valid.replace(
+        "`evidence/rule.rs::real_test` matrix legs",
+        "evidence-matrix legs",
+    );
+    let defects = record_defects(&repository, "ControlFlowCleanup", "Recommended", &uncited);
+    assert!(
+        defects.iter().any(|defect| {
+            defect.contains(
+                "completed `Semantic and corruption evidence:` cites no repository artifact",
+            )
+        }),
+        "missing uncited-evidence defect; saw {defects:?}"
+    );
+
+    let phantom = valid.replace("evidence/rule.rs", "evidence/renamed_away.rs");
+    let defects = record_defects(&repository, "ControlFlowCleanup", "Recommended", &phantom);
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("evidence/renamed_away.rs")),
+        "missing phantom-citation defect; saw {defects:?}"
+    );
+
+    let phantom_subject = valid.replace("rule.rs::real_test", "rule.rs::renamed_test");
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &phantom_subject,
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("`renamed_test` does not appear")),
+        "missing phantom-subject defect; saw {defects:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(repository);
 }
 
 #[test]
 fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
+    let repository = fixture_repository("staged");
     let staged = "\
+# ControlFlowCleanup Promotion
 - Exact rule: ControlFlowCleanup
 - Approved status: PENDING
 - Owner approval: PENDING
-- Semantic and corruption evidence: evidence-matrix legs
+- Semantic and corruption evidence: `evidence/rule.rs` evidence-matrix legs
 - Differential evidence: PENDING
-- Determinism and bounded-work evidence: determinism and budget legs
+- Determinism and bounded-work evidence: `evidence/rule.rs::real_test` determinism and budget legs
 - Target matrix evidence: PENDING
 - Measurement evidence: PENDING
 - Rollback: --disable-optimization ControlFlowCleanup
 ";
-    assert!(staged_record_defects("ControlFlowCleanup", staged).is_empty());
+    assert!(staged_record_defects(&repository, "ControlFlowCleanup", staged).is_empty());
 
     let approved_early = staged.replace("Approved status: PENDING", "Approved status: Recommended");
-    let defects = staged_record_defects("ControlFlowCleanup", &approved_early);
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &approved_early);
     assert!(
         defects
             .iter()
@@ -261,7 +429,7 @@ fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
         "Exact rule: ControlFlowCleanup",
         "Exact rule: CopyPropagation",
     );
-    let defects = staged_record_defects("ControlFlowCleanup", &wrong_identity);
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &wrong_identity);
     assert!(
         defects
             .iter()
@@ -270,11 +438,35 @@ fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
     );
 
     let missing_field = staged.replace("- Measurement evidence: PENDING\n", "");
-    let defects = staged_record_defects("ControlFlowCleanup", &missing_field);
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &missing_field);
     assert!(
         defects
             .iter()
             .any(|defect| defect.contains("`Measurement evidence:`")),
         "missing schema-field defect; saw {defects:?}"
     );
+
+    // Staged evidence is still evidence: a completed field needs a citation,
+    // and a citation must resolve.
+    let uncited = staged.replace("`evidence/rule.rs` evidence", "the evidence");
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &uncited);
+    assert!(
+        defects.iter().any(|defect| {
+            defect.contains(
+                "completed `Semantic and corruption evidence:` cites no repository artifact",
+            )
+        }),
+        "missing staged uncited-evidence defect; saw {defects:?}"
+    );
+
+    let phantom = staged.replace("evidence/rule.rs::real_test", "evidence/rule.rs::gone_test");
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &phantom);
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("`gone_test` does not appear")),
+        "missing staged phantom-subject defect; saw {defects:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(repository);
 }

@@ -90,4 +90,6 @@ completed owner-reviewed record at
 `promotions/<ExactRuleName>.md`. The architecture gate rejects the
 status change unless that record names the exact rule and status and supplies
 semantic/corruption, differential, deterministic bounded-work, supported
-target, measurement, owner-approval, and exact rollback evidence.
+target, measurement, owner-approval, and exact rollback evidence — with each
+evidence field citing resolvable repository artifacts (`path` or
+`path::subject`), so a promotion leg cannot pass on unverifiable prose.
