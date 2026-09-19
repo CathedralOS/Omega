@@ -1145,20 +1145,11 @@ established by HiddenIssues::issue;
         )
         .expect("root-only establishment graph should close")
     };
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(root_only()),
         ..CheckedCompileRequest::new(&root.join("main.omg"), None)
     })
-    .expect_err("a public domain may not authorize a private trait requirement");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("public interface selects private trait")
-                && diagnostic.message.contains("HiddenIssues")
-        }),
-        "unexpected private establishment-route diagnostics: {diagnostics:#?}"
-    );
+    .expect("a public catalog may retain a private trait requirement");
 
     TempTree::write(
         root.join("main.omg"),
@@ -1201,15 +1192,9 @@ established by InternalIssues::hide;
     assert_eq!(rows.len(), 4, "rows={rows:#?}");
     assert_eq!(
         rows.iter()
-            .filter(|selection| selection.kind() == Kind::TypeReference)
+            .filter(|selection| selection.kind() == Kind::DomainIssuerAuthorization)
             .count(),
-        2
-    );
-    assert_eq!(
-        rows.iter()
-            .filter(|selection| selection.kind() == Kind::StaticPathSegment)
-            .count(),
-        2
+        4
     );
     assert_eq!(
         rows.iter()
@@ -1800,4 +1785,93 @@ where machine Selected satisfies PrivatePolicy::apply;
         }),
         "unexpected boundary nominal-requirement diagnostics: {diagnostics:#?}"
     );
+}
+
+#[test]
+fn private_domain_issuer_catalog_does_not_grant_dependency_access() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    TempTree::write(
+        library.join("issuance.omg"),
+        r#"
+pub domain u64::Issued requires self > 0; established by issue;
+machine issue() -> u64 in Issued { 7 }
+pub machine forward() -> u64 in Issued { issue() }
+trait HiddenIssues { machine grant() -> u64 in Issued; }
+"#,
+    );
+    let inputs = || {
+        PackageCompilationInputs::new_package(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "library", library.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "library",
+                identity(2),
+            )],
+        )
+        .unwrap()
+    };
+    TempTree::write(
+        root.join("main.omg"),
+        "use library::issuance; machine consume() -> u64 in Issued { forward() }",
+    );
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("consumer may forward a public wrapper's issued value");
+    for source in [
+        "use library::issuance; machine consume() -> u64 in Issued { issue() }",
+        "use library::issuance; boundary machine grant() -> u64 in Issued satisfies HiddenIssues::grant;",
+    ] {
+        TempTree::write(root.join("main.omg"), source);
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs()),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("catalog metadata cannot grant private declaration access");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("private")),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn private_issuer_catalog_exception_does_not_publish_other_interface_dependencies() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    for source in [
+        "data Hidden {} pub domain Hidden::Issued established by issue; machine issue() -> Hidden in Issued { Hidden {} }",
+        "pub domain u64::Issued requires self>0; established by issue; machine issue()->u64 in Issued {7} pub domain u64::Leaked requires issue()>0;",
+        "data Factory {} pub domain u64::Issued requires self>0; established by Factory::issue; machine Factory::issue()->u64 in Issued {7} pub machine forward(value:Factory)->u64 in Issued {Factory::issue()}",
+    ] {
+        TempTree::write(root.join("main.omg"), source);
+        let inputs = PackageCompilationInputs::new_package(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .unwrap();
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err(
+            "ordinary public carrier, predicate and signature occurrences remain nameable API",
+        );
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("public interface selects private")),
+            "{source}: {diagnostics:?}"
+        );
+    }
 }

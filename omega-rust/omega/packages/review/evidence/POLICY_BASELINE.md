@@ -63,8 +63,10 @@ from different packages cannot establish equal policy.
 Domain establishment routes distinguish checked and boundary requirements from
 exact machines. Each machine route retains its package owner and complete
 normalized callable declaration identity. Public routes are recoverable as inert
-policy; private issuer catalogs still require the source-selection visibility
-exception. Recovery does not establish result provenance.
+policy. Private issuer references use the source-selection metadata exception
+without publishing ordinary call, conformance or private-type access. Private
+admission claims retain their separate policy obligations. Recovery does not
+establish result provenance.
 Evaluated bindings retain their exact producer and physical locator or syscall
 meaning without evaluator accounting. Plain and evaluated syscalls remain
 distinct. Table bindings retain the exact attached data declaration. Grants

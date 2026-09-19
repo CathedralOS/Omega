@@ -715,7 +715,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         rows.iter()
             .filter(|(kind, exposure, symbol)| {
                 *kind
-                    == symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+                    == symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
                     && *exposure
                         == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
                     && *symbol == issues.symbol
@@ -727,7 +727,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         rows.iter()
             .filter(|(kind, exposure, symbol)| {
                 *kind
-                    == symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticPathSegment
+                    == symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
                     && *exposure
                         == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
                     && *symbol == issue.symbol

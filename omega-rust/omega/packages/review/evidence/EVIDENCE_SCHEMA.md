@@ -81,7 +81,10 @@ Exact-machine tag 2 carries one nominal identity: its package owner and complete
 normalized callable declaration identity, including overload shape and attached
 owner. Canonical route ordering includes the closed kind and its matching
 identity payload. Public exact-machine routes survive review rows and complete
-policy binary/text recovery; private issuer catalogs remain unsupported.
+policy binary/text recovery. Private issuer catalogs retain the same identity
+payload without publishing the issuer as ordinary consumer API. Their source
+occurrences remain publicly exposed authorization metadata; ordinary package
+ownership, dependency and declaration-access checks still apply.
 Recovery validates inert structure and canonical encoding. Existing ordinary
 ledger validation compares supplied rows with a fresh checked-source projection;
 a decoded issuer identity is not authority to establish a qualification.

@@ -1,5 +1,6 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
+use package_evidence::record::PackagePolicyCallableRole;
 
 #[test]
 fn public_domain_shape_changes_change_comparison_encoding() {
@@ -554,6 +555,188 @@ fn public_exact_machine_issuer_order_is_canonical_and_predicates_remain_obligati
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("cannot prove scalar result domain")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn public_domain_private_machine_catalog_preserves_wrapper_and_review_identity() {
+    let package = TempPackage::new();
+    package.write("main.omg", "module issuance; pub domain u64::Issued requires self > 0; established by issue; machine issue() -> u64 in Issued { 7 } pub machine forward() -> u64 in Issued { issue() }");
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("public domain may authorize its private checked issuer");
+    let review = project_checked_package_review(&checked)
+        .expect("private catalog remains exact review metadata");
+    let [domain] = review.public_domains() else {
+        panic!("one domain")
+    };
+    let [route] = domain.establishment_routes() else {
+        panic!("one private issuer")
+    };
+    let machine = route.machine_identity().unwrap();
+    assert_eq!(
+        machine.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    let issuer = checked
+        .machines()
+        .iter()
+        .find(|declaration| declaration.name.as_str() == "issue")
+        .unwrap();
+    assert_eq!(
+        machine.path(),
+        checked
+            .normalized_machine_overload_identity(issuer)
+            .unwrap()
+            .identity()
+    );
+    assert!(
+        review
+            .callables()
+            .iter()
+            .any(|callable| callable.identity().path().contains("forward"))
+    );
+    assert!(
+        !review
+            .callables()
+            .iter()
+            .any(|callable| callable.identity().path()
+                == checked.symbols.display_path(issuer.symbol, "::"))
+    );
+    assert!(!machine.path().contains("forward"));
+    let rows = review.canonical_rows().unwrap();
+    let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+        checked.custody.dependency_closure().cloned().unwrap(),
+        &rows,
+    )
+    .unwrap();
+    let decoded = decode_ordinary_package_obligation_ledger(
+        &encode_ordinary_package_obligation_ledger(&ledger).unwrap(),
+    )
+    .unwrap();
+    validate_ordinary_package_obligation_ledger(&decoded, &checked).unwrap();
+}
+
+#[test]
+fn public_domain_private_catalogs_retain_requirement_and_attached_identities() {
+    for (source, kind) in [
+        (
+            "data Catalog {} pub domain u64::Issued requires self > 0; established by Catalog::issue; machine Catalog::issue() -> u64 in Issued { 7 } pub machine forward() -> u64 in Issued { Catalog::issue() }",
+            PackageReviewDomainEstablishmentKind::ExactMachine,
+        ),
+        (
+            "trait Catalog { machine issue() -> u64 in Issued; } pub domain u64::Issued requires self > 0; established by Catalog::issue; machine issue()->u64 in Issued satisfies Catalog::issue {7} pub machine forward()->u64 in Issued {issue()}",
+            PackageReviewDomainEstablishmentKind::CheckedRequirement,
+        ),
+        (
+            "boundary trait Catalog { machine issue() -> u64 in Issued; } pub domain u64::Issued requires self > 0; established by Catalog::issue;",
+            PackageReviewDomainEstablishmentKind::BoundaryRequirement,
+        ),
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
+        .unwrap();
+        let review = project_checked_package_review(&checked).unwrap();
+        let [domain] = review.public_domains() else {
+            panic!("one catalog")
+        };
+        let [route] = domain.establishment_routes() else {
+            panic!("one issuer")
+        };
+        assert_eq!(route.kind(), kind);
+        assert!(
+            review
+                .public_traits()
+                .iter()
+                .all(|definition| !definition.identity().path().contains("Catalog"))
+        );
+        assert!(
+            review
+                .public_data()
+                .iter()
+                .all(|definition| !definition.identity().path().contains("Catalog"))
+        );
+        let rows = review.canonical_rows().unwrap();
+        let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+            checked.custody.dependency_closure().cloned().unwrap(),
+            &rows,
+        )
+        .unwrap();
+        validate_ordinary_package_obligation_ledger(&ledger, &checked).unwrap();
+    }
+}
+
+#[test]
+fn private_boundary_issuer_remains_an_explicit_review_assumption() {
+    let package = TempPackage::new();
+    // Catalog identity and an explicit assumption are review data. They do
+    // not constitute the authorized boundary-requirement receipt needed to
+    // establish routed membership at an invocation.
+    let source = "pub domain u64::Issued requires self > 0; established by issue; boundary machine issue() -> u64 in Issued ensures result > 0;";
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .unwrap();
+    let review = project_checked_package_review(&checked).unwrap();
+    assert_eq!(
+        review.public_domains()[0].establishment_routes()[0].kind(),
+        PackageReviewDomainEstablishmentKind::ExactMachine
+    );
+    let policy = package_evidence::project_checked_package_policy(
+        &checked,
+        review.target(),
+        package_identity(),
+    )
+    .unwrap();
+    let claim = policy
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("issue"))
+        .unwrap();
+    assert_eq!(claim.role(), PackagePolicyCallableRole::PrivateAssumption);
+    assert_eq!(claim.supply(), PackageReviewCallableSupply::AdmissionClaim);
+    assert!(!claim.contracts().is_empty());
+    assert!(
+        review
+            .public_traits()
+            .iter()
+            .all(|definition| !definition.identity().path().contains("Catalog"))
+    );
+    package.write(
+        "main.omg",
+        &format!("{source} pub machine forward() -> u64 in Issued {{ issue() }}"),
+    );
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect_err("a concrete admission claim is not a boundary-requirement receipt");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot establish call-result qualification")),
         "{diagnostics:?}"
     );
 }

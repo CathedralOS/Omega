@@ -1,6 +1,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionTarget,
 };
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
@@ -61,6 +62,19 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
             );
             continue;
         };
+        // A catalog authorizes an exact issuer without publishing it as a
+        // consumer-nameable declaration. Only route normalization mints this
+        // occurrence kind; other uses of the same symbol remain ordinary
+        // public-interface selections. Resolution-stratum visibility still applies.
+        // Package declaration admission independently checks author custody,
+        // private cross-package access, and direct dependency for every kind.
+        if selection.kind() == AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
+            && program
+                .symbols
+                .source_reference_can_see_symbol(selection.source_span(), symbol)
+        {
+            continue;
+        }
         // The two canonical float projections are deliberately private: they
         // expose a compiler-sealed proof view, not a package-callable API.
         // Public toolchain float contracts may still cite those exact checked
