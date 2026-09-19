@@ -96,12 +96,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `selected-instructions-to-register-homes` and about 60 of
     `selected-instructions-to-selected-instructions`. Keep the retained inputs
     as replay evidence only.
-  - Settle `representations/optimization-unit`. It holds an executable entrance
-    (`construction/`, `reconstruct_psi_optimization_unit_seed`) that projects an
-    `AbstractOperationPlan` into a second program, `PsiOptimizationUnit`, plus
-    three root files beside `lib.rs`. Either the unit is private working state
-    of `abstract-operations-to-abstract-operations` and moves there, or it is a
-    named representation with one root and its projection moves to the stage.
+  - `representations/optimization-unit` settled as a named representation at
+    `11eaa140cb`: `optimization_unit.rs` is the one root beside `lib.rs` and
+    every concept area — including the `construction/` projection entrance —
+    nests under `optimization_unit/`. The projection stays with the
+    representation because validation replay and test fixtures outside the
+    producer stage consume `reconstruct_psi_optimization_unit_seed` directly.
   - Move durable codecs out of transforms and coordinators with their
     consuming stage changes: `post_allocation_manifest/codec` and
     `rewrites/allocation_recovery/fixed_view_copy/codec` in the two selected
@@ -377,13 +377,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     foreign-class IEEE scalar reaches its slot through the frame rows'
     shared carrier class: stores prepend `Float*ToBits`, reloads append
     `BitsToFloat*`, and a missing or impure conversion row keeps the victim
-    a candidate-local rejection. Still rejected: a foreign-class victim
-    without that transport pair (vector-class values, non-IEEE scalars); a
-    definition by `FrameAddress`, `AddressOffset` or `ByteViewAddress`; tied
-    and early-clobber references; an entry-bound victim when an edge targets
-    the entry block; and a multi-chunk stored snapshot whose chunk loads are
-    pinned or separated by a unit-writing instruction. Recovery then tries
-    the next roster candidate and fails when the roster is exhausted.
+    a candidate-local rejection. Address-defined victims
+    (`FrameAddress`, `AddressOffset`, `ByteViewAddress`) admit at
+    `3ab7564c05`; redefining `Def` operands admit at `58c5089231`; and tied
+    Def+use and `UseDef` operands admit at `f8d6064244`. Still rejected: a
+    foreign-class victim without that transport pair (vector-class values,
+    non-IEEE scalars); an early-clobber write tied to a victim use; an
+    entry-bound victim when an edge targets the entry block; and a
+    multi-chunk stored snapshot whose chunk loads are pinned or separated by
+    a unit-writing instruction. Recovery then tries the next roster
+    candidate and fails when the roster is exhausted.
   - Slot assignment. Every victim declares a private eight-byte
     `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
     existing slot only for the zero-offset `Store64` or
