@@ -19,7 +19,7 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,666-line / 47,748-byte canonical addressed Beta with named control targets
+1,666-line / 47,756-byte canonical addressed Beta with named control targets
 8,575-byte evaluator tape
 ```
 
