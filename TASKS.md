@@ -1372,34 +1372,32 @@ Owners include
 
   Remaining work:
 
-  - Resume at the `check` state's conditional guard. The indexed byte store
-    landed at `a3821e0aeb`: byte-sequence store plans carry
-    `CheckedByteSequenceStoreValue` (`Pure` or `ScalarResult{position}`),
-    resolved once by `byte_store_scalar_value` for both destination lanes, so
-    `self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32)` replays the
-    same statement's call result and the store sequence survives state 7. On
+  - The `check` state's conditional guard now carries a checked form:
+    `values/scalar/boolean_lowering.rs` decomposes `BoundedOwned` carrier
+    `==`/`!=` against a byte-sequence literal into a live-length
+    `IntegerComparison` over `StructuralParameterByteLength` folded with one
+    `StructuralParameterIndexedRead` equality per literal byte, so the
+    existing `scalar_expressions` `Guard` row admits it without a new variant
+    or a `boolean_expression_reads_carrier` arm. Composed bodies also admit
+    `ScalarCall`/`BoundaryScalarCall` through `ScalarCallSite`
+    (`execution/unit/scalar_targets`), which lifts the ordinary
+    `available_target` caller view onto `CheckedComposedUnitControlStatePlan`;
+    `digit_write`'s byte-store `ScalarResult` needs that, since
+    `CheckedByteSequenceStoreValue` has no `Computation` carrier. On
     2026-09-19 (Linux x86-64)
     `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs`
-    still fails before the native run with `InvalidUnitMachinePlan`, but the
-    omission advanced to "local construction stopped at state graph:
-    terminator: conditional successors: guard expression, state 8". State 8
-    is `check`, whose
-    `transition self.out == "12345" { true -> ok() _ -> bad() }` compares a
-    `BoundedOwned` byte carrier against a byte-sequence literal. No checked
-    boolean form carries it: neither the pure `scalar_expressions` `Guard`
-    row nor a `values/scalar/computations` root exists for byte-carrier `==`
-    over a literal, `CheckedBooleanExpression::ByteSequenceEqual` requires
-    `CheckedStructuralParameterField` on both sides (a literal has no
-    parameter position), and Terminal `OperationKind` has no
-    byte-content-equality leaf. Give the guard a checked form (a
-    literal-bearing boolean variant or a computation root), relax
-    `state_graph` conditional-successor admission and
-    `composed_control/state_graph` emission to carry it, and add the
-    `boolean_expression_reads_carrier` arm in `control/checked_machine.rs` —
-    foreign-claimed this wave, check `tools/claims.py status` first. Sibling
-    canaries `runtime_bounded_carrier_write_read_exit` and
-    `utf8_equals_literal_exit` already fail in this closure's custody gates
-    at base, so the equality frontier is shared, not decimal-specific.
+    still fails before the native run, but the omission advanced past state 8
+    to `Lowering(Unsupported("Unit graph dropped or added a body effect"))`:
+    the `ScalarCall` + `StructuralByteSequenceFieldByteStore` pair is two
+    operations for one statement, and the foreign
+    `checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs`
+    count check plus its missing `ScalarCall` emission arm refuse it.
+    Resume there: admit the call-store pair in `body.rs` emission (TR3-TR8's
+    claim this wave) and check whether Terminal `OperationKind` still lacks a
+    leaf reading bounded-field byte content. Sibling canaries
+    `runtime_bounded_carrier_write_read_exit` and `utf8_equals_literal_exit`
+    already fail in this closure's custody gates at base, so the equality
+    frontier is shared, not decimal-specific.
   - Lowering still gives a live scalar call result only a `Return` or
     `LocalInitializer` role in `emission/call_source_custody.rs`, so a store
     consuming its own statement's call result has no authored destination

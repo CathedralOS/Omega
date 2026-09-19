@@ -142,6 +142,42 @@ pub(super) enum AvailableScalarTarget {
     OrdinaryBody(usize),
 }
 
+/// The call-site half of a scalar-call availability check. Ordinary machine
+/// plans own their fields directly; composed-control bodies hold the same
+/// vocabulary on each retained state, so both route through this view.
+pub(super) struct ScalarCallSite<'a> {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub operations: Vec<&'a CheckedUnitEffectOperationPlan>,
+    pub structural_parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
+    pub entry_claims: &'a [checked_trees::CheckedUnitEntryClaimPlan],
+}
+
+impl ScalarCallSite<'_> {
+    pub(super) fn of_plan(plan: &CheckedUnitEffectMachinePlan) -> ScalarCallSite<'_> {
+        ScalarCallSite {
+            machine: plan.machine,
+            state: plan.state,
+            operations: plan.operations.iter().collect(),
+            structural_parameters: &plan.structural_parameters,
+            entry_claims: &plan.entry_claims,
+        }
+    }
+
+    pub(super) fn of_composed_state<'a>(
+        machine: SymbolHandle,
+        state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
+    ) -> ScalarCallSite<'a> {
+        ScalarCallSite {
+            machine,
+            state: state.state,
+            operations: state.operation_dependencies().collect(),
+            structural_parameters: &state.structural_parameters,
+            entry_claims: &state.entry_claims,
+        }
+    }
+}
+
 #[cfg(test)]
 fn is_available(
     program: &TypedTrees,
@@ -159,7 +195,7 @@ fn is_available(
         facts,
         scalar_callees,
         candidates,
-        caller,
+        &ScalarCallSite::of_plan(caller),
         operation,
     )
     .is_some()
@@ -170,7 +206,7 @@ pub(super) fn available_target(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     candidates: &[CheckedUnitEffectMachinePlan],
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &ScalarCallSite<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<AvailableScalarTarget> {
     let CheckedUnitEffectOperationPlan::ScalarCall {
@@ -433,6 +469,7 @@ pub(super) fn available_target(
     let caller_structural_results = caller
         .operations
         .iter()
+        .copied()
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
@@ -457,8 +494,8 @@ pub(super) fn available_target(
             caller.machine,
             caller.state,
             call,
-            &caller.structural_parameters,
-            &caller.entry_claims,
+            caller.structural_parameters,
+            caller.entry_claims,
             &caller_structural_results,
             structural_arguments,
             PermissionEventKind::Transfer,

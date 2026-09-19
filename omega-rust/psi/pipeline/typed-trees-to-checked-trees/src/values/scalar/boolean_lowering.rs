@@ -16,6 +16,7 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
     CheckedScalarExpression,
 };
+use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
@@ -192,6 +193,20 @@ pub(crate) fn lower_boolean_expression(
             {
                 return integer_comparison;
             }
+            // A bounded owned byte carrier compared against a byte-sequence
+            // literal has no scalar operand pair: content equality is the
+            // live-length observation plus each literal byte at its fixed
+            // index, evaluated left to right so the length dominates every
+            // indexed read.
+            if let Some(equality) =
+                bounded_carrier_literal_equality(program, binary, authored_parameters)
+            {
+                return Some(if binary.operator == BinaryOperator::NotEqual {
+                    CheckedBooleanExpression::Not(Box::new(equality))
+                } else {
+                    equality
+                });
+            }
             let equality = CheckedBooleanExpression::Equal {
                 left: Box::new(lower_boolean_expression(
                     program,
@@ -252,6 +267,86 @@ pub(crate) fn lower_boolean_expression(
         }
         _ => None,
     }
+}
+
+/// `carrier == "literal"` on a bounded owned byte field admits no scalar
+/// operand pair: content equality is the live-length observation plus each
+/// literal byte at its fixed index. The fold keeps the length comparison
+/// leftmost so short-circuit evaluation dominates every indexed read.
+fn bounded_carrier_literal_equality(
+    program: &TypedTrees,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    authored_parameters: &[StateParameter],
+) -> Option<CheckedBooleanExpression> {
+    for (carrier, literal) in [(binary.left, binary.right), (binary.right, binary.left)] {
+        let ExpressionNode::String(bytes) = program.expression_table.expression(literal) else {
+            continue;
+        };
+        let (parameter_position, path, type_reference) =
+            structural_fields::structural_parameter_place(program, authored_parameters, carrier)?;
+        if !matches!(
+            crate::execution::terminal_unit::types::byte_sequence_carrier(
+                program,
+                type_reference,
+                &[],
+            ),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+        ) {
+            continue;
+        }
+        let mut equality = CheckedBooleanExpression::IntegerComparison {
+            kind: CheckedIntegerComparisonKind::Equal,
+            left: Box::new(CheckedScalarExpression::StructuralParameterByteLength {
+                parameter_position,
+                path: path.clone(),
+            }),
+            right: Box::new(integer_literal(
+                u64::try_from(bytes.len()).ok()?,
+                PrimitiveType::U64,
+            )?),
+        };
+        for (index, byte) in bytes.iter().enumerate() {
+            let read = CheckedScalarExpression::StructuralParameterIndexedRead {
+                parameter_position,
+                path: path.clone(),
+                index: Box::new(integer_literal(
+                    u64::try_from(index).ok()?,
+                    PrimitiveType::U64,
+                )?),
+                primitive_type: PrimitiveType::U8,
+            };
+            let comparison = CheckedBooleanExpression::IntegerComparison {
+                kind: CheckedIntegerComparisonKind::Equal,
+                left: Box::new(read),
+                right: Box::new(integer_literal(u64::from(*byte), PrimitiveType::U8)?),
+            };
+            equality = CheckedBooleanExpression::And {
+                left: Box::new(equality),
+                right: Box::new(comparison),
+            };
+        }
+        return Some(equality);
+    }
+    None
+}
+
+fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedScalarExpression> {
+    let landed_type = match primitive_type {
+        PrimitiveType::U8 => numerics::literals::LandedIntegerType::U8,
+        PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
+        _ => return None,
+    };
+    let literal = numerics::literals::IntegerLiteral::from_parts(
+        false,
+        numerics::literals::IntegerRadix::Decimal,
+        &value.to_string(),
+    )
+    .ok()?
+    .with_landing(numerics::literals::IntegerLanding {
+        landed_type,
+        domain: ArithmeticDomain::Exact,
+    });
+    Some(CheckedScalarExpression::IntegerLiteral { literal })
 }
 
 /// Comparison normalization may swap completed values for `>` and `>=`; it
