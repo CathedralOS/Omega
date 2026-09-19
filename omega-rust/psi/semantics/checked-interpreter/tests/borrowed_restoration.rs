@@ -63,3 +63,35 @@ fn borrowed_storage_replacement_publishes_the_caller_visible_update() {
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
+
+#[test]
+fn quiet_checked_body_with_operational_ceiling_can_transform_detached_contents() {
+    // A declared may-ceiling is not evidence that this local checked body
+    // parks. The call's inferred envelope is quiet, so it may transform the
+    // detached value while disjoint caller storage remains established.
+    let checked = checked_program(
+        "data Inventory { slots: i32; }
+         machine Inventory::bump(self) -> Inventory suspends; blocks; {
+             Inventory { slots: self.slots + 1 }
+         }
+         data Main { inventory: Inventory; count: i32; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.inventory;
+             self.count = 7;
+             self.inventory = move taken.bump();
+         }
+         machine main() -> i32 {
+             let mut owner: Main = Main {
+                 inventory: Inventory { slots: 41 }, count: 6
+             };
+             owner.replace();
+             transition owner.inventory.slots == 42 && owner.count == 7 {
+                 true -> 7
+                 false -> 0
+             }
+         }",
+    );
+    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}

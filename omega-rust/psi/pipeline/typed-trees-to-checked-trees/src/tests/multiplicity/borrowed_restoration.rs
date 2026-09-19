@@ -457,3 +457,106 @@ fn crash_exit_abandons_the_window() {
     )
     .expect("a crash edge abandons the window under the survivor contract");
 }
+
+fn operational_window_source(contract: &str, body: &str) -> String {
+    format!(
+        "boundary trait Waiter {{ machine wait() -> i32 {contract}; }}
+         machine identity(value: i32) -> i32 {{ value }}
+         data Inventory {{ slots: i32; }}
+         data Main {{ inventory: Inventory; waiter: Waiter; observed: i32; }}
+         machine Main::replace(&mut self) reaches Waiter {contract}; {{ {body} }}"
+    )
+}
+
+#[test]
+fn blocking_initializer_cannot_park_an_open_storage_window() {
+    let diagnostics = check_source(&operational_window_source(
+        "blocks",
+        "let taken: Inventory = self.inventory;
+         let result: i32 = block self.waiter.wait();
+         self.inventory = move taken;",
+    ))
+    .expect_err("initializer calls must not park an incomplete borrowed owner");
+    assert_window_call_fence(&diagnostics);
+}
+
+fn assert_window_call_fence(diagnostics: &[diagnostics::Diagnostic]) {
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("cannot suspend or block")
+                && diagnostic.message.contains("inventory")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn blocking_call_fence_is_independent_of_expression_position() {
+    for call in [
+        "_ = block self.waiter.wait();",
+        "self.observed = block self.waiter.wait();",
+        "let result: [i32; 2] = [0, block self.waiter.wait()];",
+        "let result: i32 = identity(block self.waiter.wait());",
+    ] {
+        let diagnostics = check_source(&operational_window_source(
+            "blocks",
+            &format!(
+                "let taken: Inventory = self.inventory;
+                 {call}
+                 self.inventory = move taken;"
+            ),
+        ))
+        .err()
+        .unwrap_or_else(|| panic!("call escaped borrowed window checking: {call}"));
+        assert_window_call_fence(&diagnostics);
+    }
+}
+
+#[test]
+fn suspending_initializer_requires_restored_borrowed_storage() {
+    let diagnostics = check_source(&operational_window_source(
+        "suspends",
+        "let taken: Inventory = self.inventory;
+         let result: i32 = suspend self.waiter.wait();
+         self.inventory = move taken;",
+    ))
+    .expect_err("a suspension must retain restoration custody or reject");
+    assert_window_call_fence(&diagnostics);
+}
+
+#[test]
+fn blocking_calls_outside_the_storage_window_remain_valid() {
+    check_source(&operational_window_source(
+        "blocks",
+        "let before: i32 = block self.waiter.wait();
+         let taken: Inventory = self.inventory;
+         self.inventory = move taken;
+         self.observed = block self.waiter.wait();",
+    ))
+    .expect("only calls crossing the open window owe restoration custody");
+}
+
+#[test]
+fn blocking_replacement_value_is_checked_before_the_repair_store() {
+    let source = operational_window_source(
+        "blocks",
+        "let taken: Inventory = self.inventory;
+         self.inventory = block self.waiter.wait();",
+    )
+    .replace("machine wait() -> i32", "machine wait() -> Inventory");
+    let diagnostics = check_source(&source)
+        .expect_err("the repair value is evaluated while its destination is absent");
+    assert_window_call_fence(&diagnostics);
+}
+
+#[test]
+fn skipped_blocking_operand_does_not_cross_the_storage_window() {
+    let source = operational_window_source(
+        "blocks",
+        "let taken: Inventory = self.inventory;
+         let skipped: bool = false && block self.waiter.wait();
+         self.inventory = move taken;",
+    )
+    .replace("machine wait() -> i32", "machine wait() -> bool");
+    check_source(&source).expect("an operand that cannot execute does not park the invocation");
+}
