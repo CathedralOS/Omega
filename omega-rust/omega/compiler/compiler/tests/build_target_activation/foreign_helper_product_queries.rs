@@ -5,6 +5,45 @@ use compiler::{
 };
 use std::fs;
 
+fn helper_entry_inputs(
+    project: &TempProject,
+    helper: &TempProject,
+) -> package_compilation::PackageCompilationInputs {
+    // Executing configure and selecting launch need separate checked frontiers.
+    // A build edge alone does not put the helper's entry into the product.
+    package_compilation::PackageCompilationInputs::new(
+        super::package_identity(1),
+        package_compilation::BuildDeclarationKind::Application,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                super::package_identity(1),
+                "root-binding-owner",
+                project.0.clone(),
+            ),
+            package_compilation::PackageSourceBinding::new(
+                super::package_identity(2),
+                "root-binding-helper",
+                helper.0.clone(),
+            ),
+        ],
+        [
+            build_declarations::DependencyPurpose::Build,
+            build_declarations::DependencyPurpose::Product,
+        ]
+        .into_iter()
+        .map(|purpose| {
+            package_compilation::PackageDependencyBinding::for_purpose(
+                super::package_identity(1),
+                "support",
+                super::package_identity(2),
+                purpose,
+            )
+        })
+        .collect(),
+    )
+    .expect("explicit build and product dependencies")
+}
+
 fn dual_context_product_query(
     build_body: &str,
     build_only_declarations: bool,
@@ -188,18 +227,32 @@ fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
     let helper = TempProject::new(
         "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
     );
-    fs::write(helper.0.join("setup.omg"),
-        "module setup; pub machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
-    ).expect("helper source");
+    fs::write(
+        helper.0.join("setup.omg"),
+        "module setup; pub machine launch() { let marker: u8 = 0; }",
+    )
+    .expect("product entry source");
+    fs::write(helper.0.join("configure.omg"),
+        "module configure; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
+    ).expect("build helper source");
     let project = TempProject::with_main(
-        "const ANSWER: u32 = 42;\n",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; const ANSWER: u32 = 42;\n",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
-    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    request.package_inputs = Some(helper_entry_inputs(&project, &helper));
     let checked = compile_to_checked(request)
         .expect("a helper may bind its own package's entry through the borrowed root Build");
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+    let selected = checked
+        .selected_program_entry()
+        .expect("entry")
+        .source_signature()
+        .machine_symbol();
+    assert_eq!(
+        checked.symbols.symbol_product_package_identity(selected),
+        Some(super::package_identity(2))
+    );
 }
 
 #[test]
@@ -207,15 +260,20 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
     let helper = TempProject::new(
         "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
     );
-    fs::write(helper.0.join("setup.omg"),
-        "module setup; pub machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
-    ).expect("helper source");
+    fs::write(
+        helper.0.join("setup.omg"),
+        "module setup; pub machine launch() { let marker: u8 = 0; }",
+    )
+    .expect("product entry source");
+    fs::write(helper.0.join("configure.omg"),
+        "module configure; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
+    ).expect("build helper source");
     let project = TempProject::with_main(
-        "machine launch() { let marker: u8 = 0; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; machine launch() { let marker: u8 = 0; }",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
-    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    request.package_inputs = Some(helper_entry_inputs(&project, &helper));
     let checked = compile_to_checked(request)
         .expect("a same-named foreign entry binds by exact symbol, not by name");
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
@@ -223,6 +281,12 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
         .selected_program_entry()
         .cloned()
         .expect("one exact selected ProgramEntry");
+    assert_eq!(
+        checked
+            .symbols
+            .symbol_product_package_identity(entry.source_signature().machine_symbol()),
+        Some(super::package_identity(2))
+    );
     let native_target = checked
         .selected_native_target()
         .expect("one selected native target");
@@ -291,7 +355,7 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
             target_name: Some("windows_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_package_inputs(foreign_helper_inputs(&project, &helper)),
+        .with_package_inputs(helper_entry_inputs(&project, &helper)),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {
@@ -338,6 +402,74 @@ fn owner_selected_product_description_binds_through_foreign_helper() {
         "an owner-selected product description binds through a helper without executing the target",
     );
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+}
+
+#[test]
+fn returned_owner_selected_description_binds_and_executes_after_foreign_helper_transport() {
+    let Some(profile) = target::TargetProfile::host_if_supported() else {
+        eprintln!("SKIP: returned entry publication requires a supported hosted target");
+        return;
+    };
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine retain(entry: ProductEntryRef) -> ProductEntryRef { transition { _ -> (entry) } }",
+    ).expect("ordinary owned-description helper");
+    let slot = format!("{}::ProgramEntry", profile.root_slot_owner_name());
+    let project = TempProject::with_main(
+        "machine launch() { }",
+        &format!(
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned-entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); let returned: ProductEntryRef = setup::retain(entry); builder.roots.bind({slot}, returned); }}"
+        ),
+    );
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some(profile.target_name().into()),
+        })
+        .with_package_inputs(foreign_helper_inputs(&project, &helper))
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("an ordinary return preserves a compiler-issued description");
+    let published = report
+        .publish_retained_native_artifact(&project.0.join("out"))
+        .expect("returned entry publication");
+    let output = std::process::Command::new(
+        published
+            .checked_native_executable_path()
+            .expect("checked executable"),
+    )
+    .output()
+    .expect("execute owner entry");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn returned_forged_description_does_not_gain_authority_from_its_result_type() {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine fabricate() -> ProductEntryRef { transition { _ -> (ProductEntryRef {}) } }",
+    ).expect("forged result source");
+    let project = TempProject::new(
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"forged-return\"); let entry: ProductEntryRef = setup::fabricate(); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("an ordinary return cannot fabricate selection authority");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("not a compiler-issued product entry description")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -1023,16 +1155,30 @@ fn product_entry_query_resolves_an_own_package_module_path() {
     let helper = TempProject::new(
         "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
     );
-    fs::write(helper.0.join("setup.omg"),
-        "module setup; machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { let entry: ProductEntryRef = builder.product.entry(\"setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
-    ).expect("helper source");
+    fs::write(
+        helper.0.join("setup.omg"),
+        "module setup; machine launch() { let marker: u8 = 0; }",
+    )
+    .expect("private product entry source");
+    fs::write(helper.0.join("configure.omg"),
+        "module configure; pub machine configure(builder: &mut Build) { let entry: ProductEntryRef = builder.product.entry(\"setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+    ).expect("build helper source");
     let project = TempProject::with_main(
-        "const ANSWER: u32 = 42;\n",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; const ANSWER: u32 = 42;\n",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
-    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    request.package_inputs = Some(helper_entry_inputs(&project, &helper));
     let checked = compile_to_checked(request)
         .expect("a module-qualified path selects the occurrence package's own declaration");
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+    let selected = checked
+        .selected_program_entry()
+        .expect("entry")
+        .source_signature()
+        .machine_symbol();
+    assert_eq!(
+        checked.symbols.symbol_product_package_identity(selected),
+        Some(super::package_identity(2))
+    );
 }
