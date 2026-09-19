@@ -907,7 +907,7 @@ fn build_checked_machine_with_trace(
                     &[],
                 )?;
                 let operation = bind_structural_call_result(operation, result)?;
-                if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } = &operation {
+                if let CheckedUnitEffectOperationPlan::StructuralCall { .. } = &operation {
                     for plan in &facts.flow.terminal_structural_returns.structural_types {
                         if shapes
                             .types
@@ -918,10 +918,20 @@ fn build_checked_machine_with_trace(
                         }
                         shapes.types.insert(plan.identity.clone(), plan.clone());
                     }
-                    structural_result_bindings.push((
-                        result.clone(),
-                        facts::PlaceRoot::Symbol(structural_result_symbol?),
-                    ));
+                }
+                // A boundary call's bound structural result is a live caller
+                // local exactly like an ordinary structural call's: a later
+                // call argument rooted at its symbol replays the retained
+                // binding's identity, multiplicity, and custody events.
+                match &operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+                        structural_result_bindings.push((
+                            result.clone(),
+                            facts::PlaceRoot::Symbol(structural_result_symbol?),
+                        ))
+                    }
+                    _ => {}
                 }
                 operations.push(operation);
                 1
@@ -948,30 +958,10 @@ fn build_checked_machine_with_trace(
                 None,
                 &structural_result_bindings,
             )?;
-            if let CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            } = &operation
-            {
-                for binding_ordinal in structural_arguments
-                    .iter()
-                    .filter_map(|argument| argument.source_structural_result_binding_ordinal())
-                {
-                    let producer = operations.iter_mut().find(|operation| matches!(operation,
-                        CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))?;
-                    let CheckedUnitEffectOperationPlan::StructuralCall {
-                        discard_result_on_return,
-                        ..
-                    } = producer
-                    else {
-                        unreachable!()
-                    };
-                    if !*discard_result_on_return {
-                        return None;
-                    }
-                    *discard_result_on_return = false;
-                }
-            }
+            // A later call consuming an earlier call's bound result clears the
+            // producer's pending return disposal through the shared custody
+            // join — boundary structural results carry the same contract.
+            statement_sequence::consume_results(&mut operations, &operation)?;
             operations.push(operation);
         }
     }

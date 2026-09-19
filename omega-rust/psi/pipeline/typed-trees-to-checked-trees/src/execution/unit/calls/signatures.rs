@@ -177,7 +177,7 @@ fn structural_signature_with_partial_affine(
                 .iter()
                 .find(|data| data.name == *attached_name)?;
             Some((
-                shapes.add_attached_data(attached, binders)?,
+                shapes.add_attached_application(machine, binders)?,
                 attached.properties.multiplicity,
             ))
         }
@@ -408,7 +408,7 @@ pub(crate) fn structural_scalar_signature_traced(
         .data_definitions()
         .iter()
         .find(|data| data.name == *attached_name)?;
-    let attachment_type_identity = shapes.add_attached_data(attached, binders)?;
+    let attachment_type_identity = shapes.add_attached_application(machine, binders)?;
     let (structural_parameters, scalar_parameters) = scalar_and_structural_parameters(
         program,
         shapes,

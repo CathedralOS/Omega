@@ -1694,7 +1694,7 @@ fn retain_selected_sources(
     Some(())
 }
 
-fn consume_results(
+pub(super) fn consume_results(
     operations: &mut [CheckedUnitEffectOperationPlan],
     consumer: &CheckedUnitEffectOperationPlan,
 ) -> Option<()> {
