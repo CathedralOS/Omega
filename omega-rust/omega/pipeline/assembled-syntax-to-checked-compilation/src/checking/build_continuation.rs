@@ -18,6 +18,9 @@ pub(super) struct BuiltCheckedProgram {
         build_evaluation::target_machines::SelectedTargetMachineDeclarations,
     pub(super) pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub(super) computed_build_config: build_evaluation::ComputedBuildConfig,
+    /// The normalized restricted build-host requests the admitted activation
+    /// asked of the host before it executed.
+    pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
     /// The validated `builder.application` declaration retained from source
     /// assembly. Its name supplies the publication `.app` basename and inner
     /// executable leaf; its artifact-only intent narrows the admitted route.
@@ -103,6 +106,7 @@ pub(super) fn evaluate_build_and_continue(
     let ExecutedBuildCheckpoint {
         frontend: executed_frontend,
         computed_build_config,
+        restricted_build_requests,
         package_authority_verdict,
         base_sources,
     } = (AdmittedBuildCheckpoint {
@@ -201,6 +205,7 @@ pub(super) fn evaluate_build_and_continue(
             selected_target_machine_declarations,
             pending_pre_checks,
             computed_build_config,
+            restricted_build_requests,
             application,
             selected_build_machine_symbol,
             selected_build_machine_identity,
@@ -268,6 +273,7 @@ struct AdmittedBuildCheckpoint {
 struct ExecutedBuildCheckpoint {
     frontend: CheckedFrontend,
     computed_build_config: build_evaluation::ComputedBuildConfig,
+    restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
     package_authority_verdict:
         Option<crate::package::declaration_admission::AuthoredDeclarationAuthorityVerdict>,
     base_sources: Arc<source::SourceMap>,
@@ -276,6 +282,9 @@ struct ExecutedBuildCheckpoint {
 impl AdmittedBuildCheckpoint {
     fn execute(self) -> Result<ExecutedBuildCheckpoint, Vec<Diagnostic>> {
         let selected_build_symbol = self.admitted_build.selected_build_machine_symbol();
+        // Restricted-host requests describe the admission decision, not its
+        // execution; capture them before the checkpoint is consumed.
+        let restricted_build_requests = self.admitted_build.restricted_build_requests();
         let computed_build_config = self.admitted_build.execute()?;
         if computed_build_config.selected_build_machine_symbol != selected_build_symbol {
             return Err(vec![Diagnostic::error(
@@ -285,6 +294,7 @@ impl AdmittedBuildCheckpoint {
         Ok(ExecutedBuildCheckpoint {
             frontend: self.frontend,
             computed_build_config,
+            restricted_build_requests,
             package_authority_verdict: self.package_authority_verdict,
             base_sources: self.base_sources,
         })

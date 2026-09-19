@@ -52,6 +52,9 @@ pub(super) struct CheckedExecution {
     pub(super) behavior_exclusions: Vec<build_evaluation::AuthoredBehaviorExclusion>,
     pub(super) build_evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<build_evaluation::BuildObservationSummary>,
+    /// The normalized restricted build-host requests the admitted build
+    /// activation asked of the host before it executed.
+    pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
 }
 
 pub(super) fn check_selected_execution(
@@ -66,6 +69,7 @@ pub(super) fn check_selected_execution(
         selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
+        restricted_build_requests,
         application,
         selected_build_machine_symbol,
         selected_build_machine_identity,
@@ -299,5 +303,6 @@ pub(super) fn check_selected_execution(
         behavior_exclusions: build_config.behavior_exclusions,
         build_evaluation_usage,
         build_observation_summary,
+        restricted_build_requests,
     })
 }
