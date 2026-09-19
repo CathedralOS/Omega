@@ -139,6 +139,12 @@ pub(crate) fn checked_integer_binary_kind(
         (BinaryOperator::ShiftLeft, ArithmeticDomain::Exact) => {
             Some(CheckedIntegerBinaryKind::ExactShiftLeft)
         }
+        (BinaryOperator::ShiftLeft, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingShiftLeft)
+        }
+        (BinaryOperator::ShiftRight, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingShiftRight)
+        }
         (BinaryOperator::Add, ArithmeticDomain::Exact) => Some(CheckedIntegerBinaryKind::ExactAdd),
         (BinaryOperator::Subtract, ArithmeticDomain::Exact) => {
             Some(CheckedIntegerBinaryKind::ExactSubtract)

@@ -836,6 +836,9 @@ impl Context<'_> {
             | IntegerBinary::SaturatingMultiply
             | IntegerBinary::SaturatingDivide
             | IntegerBinary::SaturatingRemainder => ArithmeticDomain::Saturating,
+            IntegerBinary::TrappingShiftLeft | IntegerBinary::TrappingShiftRight => {
+                ArithmeticDomain::Trapping
+            }
             _ => ArithmeticDomain::Exact,
         };
         self.domain(source, 0) == Some(expected)
@@ -1052,11 +1055,11 @@ fn integer_operator(kind: IntegerBinary) -> BinaryOperator {
         IntegerBinary::BitwiseAnd => BinaryOperator::BitwiseAnd,
         IntegerBinary::BitwiseOr => BinaryOperator::BitwiseOr,
         IntegerBinary::BitwiseXor => BinaryOperator::BitwiseXor,
-        IntegerBinary::ExactShiftLeft | IntegerBinary::WrappingShiftLeft => {
-            BinaryOperator::ShiftLeft
-        }
-        IntegerBinary::ExactShiftRight | IntegerBinary::WrappingShiftRight => {
-            BinaryOperator::ShiftRight
-        }
+        IntegerBinary::ExactShiftLeft
+        | IntegerBinary::WrappingShiftLeft
+        | IntegerBinary::TrappingShiftLeft => BinaryOperator::ShiftLeft,
+        IntegerBinary::ExactShiftRight
+        | IntegerBinary::WrappingShiftRight
+        | IntegerBinary::TrappingShiftRight => BinaryOperator::ShiftRight,
     }
 }

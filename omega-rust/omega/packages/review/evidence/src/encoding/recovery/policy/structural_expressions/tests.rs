@@ -316,6 +316,8 @@ fn all_integer_binary_kinds_and_literal_landing_domains_roundtrip() {
         Kind::WrappingShiftRight,
         Kind::ExactShiftLeft,
         Kind::ExactShiftRight,
+        Kind::TrappingShiftLeft,
+        Kind::TrappingShiftRight,
     ];
     for (tag, kind) in kinds.into_iter().enumerate() {
         let value = Scalar::IntegerBinary {
@@ -353,7 +355,7 @@ fn closed_tags_reject_unknown_nodes_kinds_paths_primitive_names_and_domains() {
             Err(Error::InvalidTag)
         );
     }
-    for bytes in [vec![9], vec![4, 22], vec![5, 12]] {
+    for bytes in [vec![9], vec![4, 29], vec![5, 12]] {
         assert_eq!(recover_scalar(&bytes), Err(Error::InvalidTag));
     }
     let mut path = boolean_bytes(&Boolean::StructuralParameterField {

@@ -132,6 +132,8 @@ fn integer(
                     | CheckedIntegerBinaryKind::WrappingShiftRight
                     | CheckedIntegerBinaryKind::ExactShiftLeft
                     | CheckedIntegerBinaryKind::ExactShiftRight
+                    | CheckedIntegerBinaryKind::TrappingShiftLeft
+                    | CheckedIntegerBinaryKind::TrappingShiftRight
             );
             if !shift && right_type != scalar_type {
                 return None;
@@ -234,6 +236,15 @@ fn binary(
             scalar_type.exact_shift_left(left, count_type, right)
         }
         CheckedIntegerBinaryKind::ExactShiftRight => {
+            scalar_type.exact_shift_right(left, count_type, right)
+        }
+        // A Trapping operation returns the primitive's exact result on a
+        // normal return; where the exact operation is undefined the checked
+        // program traps instead, so no normal-return fact exists there.
+        CheckedIntegerBinaryKind::TrappingShiftLeft => {
+            scalar_type.exact_shift_left(left, count_type, right)
+        }
+        CheckedIntegerBinaryKind::TrappingShiftRight => {
             scalar_type.exact_shift_right(left, count_type, right)
         }
     }
