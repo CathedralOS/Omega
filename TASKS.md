@@ -2905,7 +2905,14 @@ Owners include
   data-level `where Binder == <range shell>` equations that recover an omitted
   const or type binder in either direction
   (`syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/equations.rs`).
-  They do not establish the general contract. `equations.rs` matches only a
+  The three pieces now share one canonical-range admission: declared-range
+  call inference runs before the const-call probe, evaluates each retained
+  call endpoint through the shared endpoint evaluator, and writes the folded
+  decimal literal back into canonical syntax, so `u64[0..=limit()]` and
+  `u64[0..limit() + 1]` arguments on data fields and machine parameters
+  select the same `u64[0..=256]` instance and recover its `Capacity`;
+  conflicting explicit binders and calls that keep no canonical range still
+  reject. That is not the general contract: `equations.rs` matches only a
   range shell or a single name (`Structure::{RangeShell, Name}`), equations
   exist on data templates only, and `T == i32` is decided only as a case
   `where` fact on a closed data instance.
