@@ -147,9 +147,9 @@ where
                         suffix,
                         &resolve,
                     )?;
-                    place = flow::local_reference_storage_before_statement(
+                    place = reference_storage_or_literal(
                         program, frames, machine, state, index, source,
-                    )?;
+                    );
                 } else {
                     let writes = flow::statement_storage_writes(
                         program,
@@ -179,9 +179,8 @@ where
                     &place.segments,
                     &resolve,
                 )?;
-                place = flow::local_reference_storage_before_statement(
-                    program, frames, machine, state, index, source,
-                )?;
+                place =
+                    reference_storage_or_literal(program, frames, machine, state, index, source);
             }
             StatementNode::Call(call) => {
                 preserve_frame(
@@ -284,6 +283,33 @@ fn result_call<'program>(
             _ => return None,
         }
     }
+}
+
+/// Rebase a captured source through the prefix's exact reference origins
+/// when they name it. A source rooted at a reference local whose origin the
+/// shared query cannot prove — an exclusive `&mut` binding or a leaf carried
+/// inside another local — keeps its literal spelling instead of ending the
+/// trace: each later frontier's rebase either resolves that storage exactly
+/// or the scan still meets the same write fences and the declaration's
+/// caller-isolation check. For consumers without a rebase hook the literal
+/// spelling still fails closed at the first reference-typed declaration.
+fn reference_storage_or_literal(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &Machine,
+    state: &FlowStateFact,
+    index: usize,
+    source: CanonicalPlace,
+) -> CanonicalPlace {
+    flow::local_reference_storage_before_statement(
+        program,
+        frames,
+        machine,
+        state,
+        index,
+        source.clone(),
+    )
+    .unwrap_or(source)
 }
 
 fn exact_suffix<'place>(
