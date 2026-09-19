@@ -1350,9 +1350,9 @@ machine Main::main(&mut self) reaches Console {
     /// The captured subject flows through a literal-indexed scalar field on
     /// the receiver: each `put` stores its own realized `Count`, each `at`
     /// reads it back, and the authored argument stays distinct: 3 + 5 + 30.
-    /// The methods carry no `requires` clause: a receiver method whose
-    /// realized subject owes a contract stops in target lowering
-    /// (`UnsupportedControlFlow`, entry claims on a structural function).
+    /// The Unit setter requires a bound on its own captured subject. Adding
+    /// the same contract to the scalar getter still requires scalar-call
+    /// obligation admission in instruction legalization.
     #[test]
     fn runtime_bound_subject_flows_through_indexed_field_writes_natively() {
         run_native(
@@ -1370,7 +1370,10 @@ machine Main::at<Count: u8>(&self) -> u8 {
     self.values[3]
 }
 
-machine Main::put<Count: u8>(&mut self, v: u8) {
+machine Main::put<Count: u8>(&mut self, v: u8)
+requires
+    Count <= 7;
+{
     self.values[3] = Count;
     self.values[4] = v;
 }

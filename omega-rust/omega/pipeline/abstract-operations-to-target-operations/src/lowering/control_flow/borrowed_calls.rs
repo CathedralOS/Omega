@@ -62,8 +62,11 @@ pub(super) fn lower(
         .get(&callee)
         .copied()
         .ok_or(LoweringError::UnknownCallTarget(callee))?;
+    // Requirement obligations are discharged proof metadata, not ownership
+    // claims or ABI arguments. Retain their exact ordered IDs on the target
+    // call for independent translation replay, as for ordinary Unit calls.
+    // Ownership transfers and crash routes still need their own realization.
     if !claims.is_empty()
-        || !requirements.is_empty()
         || !crashes.is_empty()
         || !callee_function.entry_claims.is_empty()
         || !callee_function.published_service_ceiling.is_empty()

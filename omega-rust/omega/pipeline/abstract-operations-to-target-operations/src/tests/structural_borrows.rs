@@ -42,6 +42,108 @@ pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperatio
 }
 
 #[test]
+fn borrowed_unit_call_preserves_verified_requirement_obligations() {
+    borrowed_call_requirement_custody(false);
+}
+
+#[test]
+fn borrowed_scalar_call_preserves_verified_requirement_obligations() {
+    borrowed_call_requirement_custody(true);
+}
+
+fn borrowed_call_requirement_custody(scalar_result: bool) {
+    let source = source_plan(
+        r#"
+            data Main { value: u64; }
+            machine Main::put(&mut self, value: u64)
+            requires
+                1 <= value;
+                value <= 7;
+            { self.value = value; }
+            machine Main::get(&self, value: u64) -> u64
+            requires
+                1 <= value;
+                value <= 7;
+            { self.value }
+            machine Main::run(&mut self) {
+                self.put(3);
+                let observed: u64 = self.get(3);
+            }
+        "#,
+    );
+    let (operation, obligations) = source
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .find_map(|operation| match operation {
+            AbstractOperation::CallUnit {
+                psi_operation,
+                requirement_obligations,
+                ..
+            } if !scalar_result => Some((*psi_operation, requirement_obligations)),
+            AbstractOperation::CallStructuralScalar {
+                psi_operation,
+                requirement_obligations,
+                ..
+            } if scalar_result => Some((*psi_operation, requirement_obligations)),
+            _ => None,
+        })
+        .expect("authored borrowed call");
+    assert!(obligations.len() >= 2, "both authored requirements survive");
+    assert_ne!(obligations[0], obligations[1]);
+    let select = |candidate: &TargetUnitOperation| match candidate {
+        TargetUnitOperation::Call { psi_operation, .. } if !scalar_result => {
+            *psi_operation == operation
+        }
+        TargetUnitOperation::StructuralScalarCall { psi_operation, .. } if scalar_result => {
+            *psi_operation == operation
+        }
+        _ => false,
+    };
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("verified receiver requirements lower");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        for mutation in 0..3 {
+            let changed = mutate_call_row(&target, select, |call| {
+                let (TargetUnitOperation::Call {
+                    requirement_obligations,
+                    ..
+                }
+                | TargetUnitOperation::StructuralScalarCall {
+                    requirement_obligations,
+                    ..
+                }) = call
+                else {
+                    unreachable!("selected borrowed call")
+                };
+                assert_eq!(requirement_obligations, obligations);
+                match mutation {
+                    0 => requirement_obligations.clear(),
+                    1 => {
+                        requirement_obligations[0] = semantic_vocabulary::ObligationId::new(
+                            obligations
+                                .iter()
+                                .map(|obligation| obligation.get())
+                                .max()
+                                .unwrap()
+                                + 1,
+                        )
+                        .unwrap()
+                    }
+                    _ => requirement_obligations.swap(0, 1),
+                }
+            });
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "{native:?}, scalar result {scalar_result}, obligation mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
     use semantic_vocabulary::StructuralFieldId;
     use terminal_psi::{
