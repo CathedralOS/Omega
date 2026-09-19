@@ -3311,10 +3311,13 @@ Owners include
     Each has landed slices; rerun its `write_frame_*` tests in
     `typed-trees-to-checked-trees/src/tests/termination/` to find the residue.
     Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
-  - A divergent exclusive-alias local keeps its candidate set only for writes
-    and proven rebinds. A reborrow, call argument, transport into another
-    binding, reference-typed interior write or unproven rebind still makes
-    the summary opaque (`state_write_walk.rs`).
+  - A divergent exclusive-alias local keeps its candidate set for writes,
+    proven rebinds, and statement calls that lend the set through a direct
+    exclusive reborrow (`&mut <place>`) or the bare binding as the actual.
+    A member-read actual, nested or match-position call mention,
+    value-position call, wire-codec argument, transport into another binding,
+    reference-typed interior write or unproven rebind still makes the summary
+    opaque (`state_write_walk.rs`, `caller_aliases.rs`, `demand.rs`).
   - `type_may_carry_write` counts every `Named`, generic, array and slice type
     as write-capable; only state parameters get the reference-free test.
   - `permuted_cycle_frames.rs` hands statement calls a fresh summary memo
