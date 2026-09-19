@@ -4225,10 +4225,15 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the
   Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
-  at `source/omega/{build.omg,main.omg}`. The maintained Rust compiler is the
-  differential implementation, not source for this task. Work backward from
-  complete Omega behavior in small, live vertical slices; do not create a
-  bootstrap-private dialect, file allowlist, or parallel source-to-native path.
+  at `source/omega/{build.omg,main.omg}`. Two packages rather than two modules
+  is settled, not a layout choice: the firewall keeps Psi target-neutral while
+  `source/omega/build.omg` selects a provider and binds target roots, and
+  [package boundaries](wiki/spec/packages/boundaries.md) make a subsystem
+  needing its own dependency-reach set a separate package. The maintained Rust
+  compiler is the differential implementation, not source for this task. Work
+  backward from complete Omega behavior in small, live vertical slices; do not
+  create a bootstrap-private dialect, file allowlist, or parallel
+  source-to-native path.
   What exists is a lexer and a partial parser: about 3,600 lines across
   `source/psi/{lex,parse,source,syntax,tokens}/`, the parser gate at
   `source/psi/gates/parser/`, and a 70-line `source/omega/main.omg` that drives

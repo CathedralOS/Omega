@@ -40,23 +40,7 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **Is the product compiler's two-package source split specification or an
-   owner architecture decision?** (named decision:
-   `product-compiler-source-topology`). The specification assumes an
-   Omega-written compiler ([compiler request](wiki/spec/build/compiler_request.md))
-   and AGENTS.md names `source/psi` and `source/omega`, but no normative clause
-   prescribes the two-sibling-package split or its `build.omg`/`main.omg`
-   entrypoints, and OMEGA-PRODUCT-COMPILER-SOURCE builds to that shape today.
-   Either (a) the split is specification: add the clause to the compiler-request
-   contract so a product source tree is checkable against it, or (b) it is an
-   owner architecture decision: record it here as settled with its rationale,
-   and let the board item cite this named decision rather than the current
-   repository layout. Motivating customer: the Omega-written compiler, whose
-   package boundaries decide what its build declarations and entrypoints may
-   assume; the answer also fixes whether a future third package needs a
-   specification change or only this record.
-
-2. **Which route admits the complete Beta-encoding certificate, or does the
+1. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -108,7 +92,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-3. **Does a transported contract instantiate its `FloatMeaning` projections
+2. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
@@ -166,7 +150,7 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
-4. **May the compiler-owned build vocabulary offer a constrained
+3. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** (named decision:
    `build-vocabulary-filesystem-chain`). The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
@@ -200,7 +184,7 @@ must be surfaced before relying on them.
    stands unused, and **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and
    **FILESYSTEM-RELEASE-CONTRACT** cannot close.
 
-5. **May a provider's selected plan resolve an installation-bound row it
+4. **May a provider's selected plan resolve an installation-bound row it
    owns, or does that wait on receiver-bearing selection?** (named decision:
    `installation-bound-row-nested-resolution`).
    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
