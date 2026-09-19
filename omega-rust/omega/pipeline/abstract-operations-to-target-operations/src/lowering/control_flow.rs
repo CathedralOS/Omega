@@ -196,8 +196,7 @@ pub(super) fn lower(
         for (position, parameter) in entry.structural_parameters.iter().enumerate() {
             if entry.block == function.entry
                 || parameter.position as usize != position
-                || (!unobserved_owned
-                    && !super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
+                || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
                     && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {

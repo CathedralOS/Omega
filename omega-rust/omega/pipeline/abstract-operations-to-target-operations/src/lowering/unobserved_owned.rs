@@ -1,4 +1,8 @@
 //! Plain owned arrivals retain semantic custody without executable storage uses.
+//! The whole-function gate answers one question: whether every owned arrival
+//! stays unobserved so the graph suppresses its storage home. Edge cleanup no
+//! longer consults it — each action admits by its root's own home or arrival
+//! declaration where the edge commits the discard.
 use super::shared::*;
 
 pub(super) fn parameter(parameter: &terminal_psi::StructuralParameterDeclaration) -> bool {
@@ -128,11 +132,10 @@ fn bindings(
     })
 }
 
-/// Current ownership validates the live frontier and exact disposal order.
-pub(super) fn cleanup(
-    function: &AbstractFunction,
-    actions: &[TerminalAffineCleanupAction],
-) -> bool {
+/// Every cleanup action an unobserved-owned function carries must be a discard
+/// of a declared owned affine arrival — realizability is then decided per
+/// action at the edge, not by this gate.
+fn cleanup(function: &AbstractFunction, actions: &[TerminalAffineCleanupAction]) -> bool {
     let mut seen = BTreeSet::new();
     actions.iter().all(|action| {
         let TerminalAffineCleanupAction::DiscardRoot(place) = action else {

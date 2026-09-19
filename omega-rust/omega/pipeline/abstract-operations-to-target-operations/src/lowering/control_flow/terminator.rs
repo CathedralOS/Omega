@@ -18,22 +18,36 @@ fn plain_home_cleanup(
         if !discarded.insert(*place) {
             return Ok(false);
         }
+        // An unobserved owned arrival has no live storage home, so its discard
+        // keys on the arrival declaration — the same owned affine contract a
+        // realized home would report.
+        let arrival = function
+            .structural_parameters
+            .iter()
+            .chain(
+                function
+                    .block_entries
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .any(|parameter| {
+                parameter.place == *place
+                    && parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+                    && function.entry_claims.is_empty()
+            });
         let admitted = live.structural_homes.get(place).is_some_and(|home| {
             home.multiplicity() == StructuralMultiplicity::Affine
                 && !home.has_claims()
                 && home.qualifications().is_empty()
                 && home.projected_qualifications().is_empty()
-        }) || function.structural_parameters.iter().any(|parameter| {
-            parameter.place == *place
-                && parameter.access == StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Affine
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-                && function.entry_claims.is_empty()
-        }) || live
-            .references
-            .get(&(*place, Vec::new()))
-            .is_some_and(|leaf| leaf.result.multiplicity == StructuralMultiplicity::Affine);
+        }) || arrival
+            || live
+                .references
+                .get(&(*place, Vec::new()))
+                .is_some_and(|leaf| leaf.result.multiplicity == StructuralMultiplicity::Affine);
         // A suspended referent root cannot be discarded while its loan lives.
         if !admitted || super::references::is_suspended_root(live, *place) {
             return Ok(false);
@@ -215,9 +229,7 @@ pub(super) fn lower_terminator(
             if *result != expected.value
                 || *scalar_type != expected.scalar_type
                 || (!cleanup_actions.is_empty()
-                    && !plain_home_cleanup(function, live, structural_types, cleanup_actions)?
-                    && !(super::super::unobserved_owned::accepts(function, structural_types)
-                        && super::super::unobserved_owned::cleanup(function, cleanup_actions)))
+                    && !plain_home_cleanup(function, live, structural_types, cleanup_actions)?)
             {
                 return Err(invalid());
             }
@@ -255,10 +267,7 @@ pub(super) fn lower_terminator(
             // Current ownership validation owns the exact live frontier and
             // discard order. Native admission only proves each retained action
             // is a no-code discard of an available boundary result home.
-            if !plain_home_cleanup(function, live, structural_types, cleanup_actions)?
-                && !(super::super::unobserved_owned::accepts(function, structural_types)
-                    && super::super::unobserved_owned::cleanup(function, cleanup_actions))
-            {
+            if !plain_home_cleanup(function, live, structural_types, cleanup_actions)? {
                 return Err(invalid());
             }
             provenance.edges.push(*psi_edge);
