@@ -60,6 +60,22 @@ pub(crate) fn reconstruct_declared_places(
                 } => {
                     known_places.insert(result.place);
                 }
+                O::AtomicEvent { event, .. } => {
+                    // The accessed atomic location joins place custody; a
+                    // fence accesses no place. A single-attempt
+                    // compare-exchange also establishes its structural
+                    // outcome place.
+                    if let Some(place) = event.place() {
+                        known_places.insert(place);
+                    }
+                    if let abstract_operations::AbstractAtomicEvent::CompareExchangeOnce {
+                        outcome,
+                        ..
+                    } = event
+                    {
+                        known_places.insert(outcome.place);
+                    }
+                }
                 _ => {}
             }
         }

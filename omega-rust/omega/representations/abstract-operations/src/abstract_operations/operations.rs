@@ -4,7 +4,8 @@ use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicDescriptorArgument,
     AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
-    AbstractStructuralCaseSuccessor, AbstractSuccessor, CompletionClaimSource, ValueBinding,
+    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicReadsFrom, CompletionClaimSource,
+    ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -165,12 +166,17 @@ pub enum AbstractOperation {
     /// `event.custody_is_consistent()` replay the source-admitted legality
     /// and result-custody relations so optimization and target refinement
     /// verify the concurrency contract rather than trusting producer
-    /// assertion. Terminal Psi does not yet emit normalized atomic events;
+    /// assertion. `reads_from` retains the edge the event claims in its
+    /// place's modification order — `Some` on every observing event,
+    /// `None` on stores and fences — for the independent serial-coherence
+    /// recheck `abstract_operations::serial_atomic_coherence_violation`.
+    /// Terminal Psi does not yet emit normalized atomic events;
     /// consumers must keep rejecting this operation until its producer and
     /// checked target realization land.
     AtomicEvent {
         psi_operation: OperationId,
         event: AbstractAtomicEvent,
+        reads_from: Option<AtomicReadsFrom>,
     },
     /// Atomically establish one exact scalar case of a declared structural sum.
     /// Target realization remains deliberately separate from retention in the

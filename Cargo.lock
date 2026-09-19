@@ -1472,6 +1472,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "checked-trees-to-lowered-psi",
+ "language-core",
  "language-semantics",
  "optimization-core",
  "optimization-unit",
