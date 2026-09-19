@@ -4,10 +4,12 @@
 //! copy equality.
 use super::{
     BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Polynomial, RankingRangeState,
-    State, TypedTrees, fields,
+    State, TypedTrees, comparison_proven, fields,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
+use typed_trees::expression::BinaryOperator;
+use typed_trees::signature::StateParameter;
 
 pub(super) struct FieldCoordinates<'program> {
     rank: Option<FieldCoordinate<'program>>,
@@ -122,13 +124,23 @@ impl<'program> FieldCoordinates<'program> {
 
     /// Every demanded field of this formal receives the same evaluated actual.
     /// The caller applies this map simultaneously, never sequentially rewriting
-    /// one field's actual through another field's new value.
+    /// one field's actual through another field's new value. `carrier` is the
+    /// destination formal whose slot `argument` fills (unused on a root edge),
+    /// and `required` names the entry symbols the judgment holds equal at
+    /// every arrival. A role claimed by several slots can still be read:
+    /// contested required copies stay equal under the edge's own alias
+    /// hypotheses, so each claimant's own record is the carrier its actual
+    /// must fill and every transport must agree with the first reading.
+    /// A contested unrequired claim still produces no substitution rather
+    /// than a first/last-wins guess.
     pub(super) fn substitute(
         &self,
         program: &'program TypedTrees,
         state: &State,
         entry_parameters: Option<&[SymbolHandle]>,
         destination: Option<RankingRangeState<'_>>,
+        carrier: &'program StateParameter,
+        required: &[SymbolHandle],
         engine: &mut Engine<'_>,
         formal: SymbolHandle,
         argument: ExpressionHandle,
@@ -150,14 +162,25 @@ impl<'program> FieldCoordinates<'program> {
                         // fields never rewrite a template coordinate.
                         continue;
                     }
-                    coordinate.at_arrival(
-                        program,
-                        RankingRangeState {
-                            state,
-                            entry_parameters: entries,
-                        },
-                        *entry,
-                    )?;
+                    if coordinate
+                        .at_arrival(
+                            program,
+                            RankingRangeState {
+                                state,
+                                entry_parameters: entries,
+                            },
+                            *entry,
+                        )
+                        .is_none()
+                        && !required.contains(entry)
+                    {
+                        // Contested copies of an unrequired role can never
+                        // name which value this coordinate reads. A contested
+                        // required role keeps every copy equal under the
+                        // edge's alias hypotheses, so the coordinate on this
+                        // formal still reads the role's value.
+                        return None;
+                    }
                     *entry
                 }
             };
@@ -176,16 +199,39 @@ impl<'program> FieldCoordinates<'program> {
             // coordinate's own formal, so its boundary is the arrival's.
             let actual = match destination {
                 Some(destination) => {
-                    let arrived = coordinate.at_arrival(program, destination, entry_symbol)?;
+                    let arrived = match coordinate.at_arrival(program, destination, entry_symbol) {
+                        Some(arrived) => arrived,
+                        None => {
+                            // Several destination slots claim the role: this
+                            // slot's own declaration is the carrier the
+                            // actual must fill. A claimant that cannot carry
+                            // the chain leaves the scalar substitution path
+                            // to read its actual.
+                            if !required.contains(&entry_symbol) {
+                                return None;
+                            }
+                            match coordinate.for_carrier(program, carrier) {
+                                Some(arrived) => arrived,
+                                None => continue,
+                            }
+                        }
+                    };
                     arrived.actual(program, state, engine, argument, arrived.borrowed)?
                 }
                 None => coordinate.actual(program, state, engine, argument, coordinate.borrowed)?,
             };
-            if substitutions
-                .insert(coordinate.identity.clone(), actual)
-                .is_some()
-            {
-                return None;
+            if let Some(existing) = substitutions.get(&coordinate.identity) {
+                // A contested required role reaches this map once per
+                // claimant: every actual must agree with the first reading,
+                // the same re-proof the scalar destination arm runs for
+                // duplicated required copies.
+                if !engine.requires_unsatisfiable
+                    && !comparison_proven(engine, BinaryOperator::Equal, existing, &actual)
+                {
+                    return None;
+                }
+            } else {
+                substitutions.insert(coordinate.identity.clone(), actual);
             }
             matched = true;
         }

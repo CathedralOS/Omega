@@ -1,0 +1,21 @@
+// FAIL CANARY. `restart` re-seeds `copy` with a literal — a computed
+// non-step arrival — so `copy` keeps its contested claim on the required
+// `remaining` and its equality obligation. The `s -> s` edge forwards it
+// stale against the stepped carrier, and the `s`/`restart` cycle never
+// descends.
+data Pair { left: u32 [0..=5]; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> s(Pair { left: remaining }, remaining) }
+    state s(pair: Pair, copy: u32 [0..=5]) {
+        transition pair.left > 0 {
+            true -> s(Pair { left: pair.left - 1 }, copy)
+            false -> restart(pair)
+        }
+    }
+    state restart(seed: Pair) {
+        transition { _ -> s(seed, 0) }
+    }
+}

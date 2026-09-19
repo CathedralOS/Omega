@@ -852,8 +852,104 @@ mod moved_record_copy {
         let remaining =
             program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
         assert_eq!(mappings[1], vec![remaining, remaining]);
-        // Contested copies give the edge no moved carrier to read: the rank
-        // does not decrease through a forwarded literal.
+        // The contested copies still transport — the forwarded literal is
+        // provably equal to the carrier's leaf — but no copy is the moved
+        // continuation, so the edge keeps membership and proves no descent.
+        let proof = cycle_edge(&program, &mappings[1]).expect("membership edge");
+        assert!(proof.membership_and_pinning && !proof.strictly_decreases);
+    }
+
+    const TWO_LITERALS: &str = r#"
+        data Pair { left: u32 [0..=5]; }
+        machine walk(remaining: u32 [0..=5])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> s(Pair { left: remaining }, Pair { left: remaining }) }
+            state s(first: Pair, second: Pair) {
+                transition first.left > 0 {
+                    true -> s(Pair { left: first.left - 1 }, Pair { left: first.left - 1 })
+                    false -> first.left
+                }
+            }
+        }
+    "#;
+
+    #[test]
+    fn contested_stepped_copies_transport_one_proved_value() {
+        // Both record copies step the same carrier's leaf, so discovery
+        // cannot name which slot continues `remaining`: the claims stay
+        // contested. The edge judgment still serves them — a required
+        // entry's copies are held equal at every arrival, so each
+        // claimant's own record transports the role and the two actuals
+        // must re-prove equal rather than pick a first/last winner.
+        let program = typed(TWO_LITERALS);
+        let remaining =
+            program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let mappings = mappings(&program, premises).expect("telescope");
+            assert_eq!(mappings[1], vec![remaining, remaining]);
+        }
+        let discovered = mappings(&program, RankingRangePremises::RankInvariant).unwrap();
+        let proof = cycle_edge(&program, &discovered[1]).expect("cycle edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        // The same lockstep arrival through each copy's own leaf keeps the
+        // transport honest: `second.left - 1` agrees with `first.left - 1`
+        // only under the copies-equal invariant.
+        let independent = typed(&TWO_LITERALS.replace(
+            "s(Pair { left: first.left - 1 }, Pair { left: first.left - 1 })",
+            "s(Pair { left: first.left - 1 }, Pair { left: second.left - 1 })",
+        ));
+        let discovered = mappings(&independent, RankingRangePremises::RankInvariant).unwrap();
+        let proof = cycle_edge(&independent, &discovered[1]).expect("cycle edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        // A contested copy that transports a different value — here the
+        // carrier's stale leaf instead of its step — breaks the equality
+        // the claim owes and the edge rejects. `... - 1 })` names only the
+        // second literal: the first is followed by a comma.
+        let divergent = typed(&TWO_LITERALS.replace(
+            "Pair { left: first.left - 1 })",
+            "Pair { left: first.left })",
+        ));
+        let discovered = mappings(&divergent, RankingRangePremises::RankInvariant).unwrap();
+        assert_eq!(discovered[1], vec![remaining, remaining]);
+        assert!(cycle_edge(&divergent, &discovered[1]).is_none());
+    }
+
+    const STEPPED_STALE: &str = r#"
+        data Pair { left: u32 [0..=5]; }
+        machine walk(remaining: u32 [0..=5])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> s(Pair { left: remaining }, remaining) }
+            state s(pair: Pair, copy: u32 [0..=5]) {
+                transition pair.left > 0 {
+                    true -> s(Pair { left: pair.left - 1 }, copy)
+                    false -> restart(pair)
+                }
+            }
+            state restart(seed: Pair) {
+                transition { _ -> s(seed, 0) }
+            }
+        }
+    "#;
+
+    #[test]
+    fn a_literal_reseed_keeps_the_stale_copy_contested() {
+        // `restart` re-seeds `copy` with a literal: a computed non-step
+        // arrival keeps its equality obligation, so `copy` never demotes
+        // even though the `s -> s` edge leaves it stale. The contested
+        // claim then reads `copy` against the stepped carrier's transport
+        // and the edge rejects — `pair` is the moved copy, `copy` is not
+        // its equal.
+        let program = typed(STEPPED_STALE);
+        let remaining =
+            program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
+        let mappings = mappings(&program, RankingRangePremises::RankInvariant).expect("telescope");
+        assert_eq!(mappings[1], vec![remaining, remaining]);
+        assert_eq!(mappings[2], vec![remaining]);
         assert!(cycle_edge(&program, &mappings[1]).is_none());
     }
 }
