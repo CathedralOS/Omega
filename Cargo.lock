@@ -1490,13 +1490,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "package-advisory"
-version = "0.1.0"
-dependencies = [
- "package-manager",
-]
-
-[[package]]
 name = "package-compilation"
 version = "0.1.0"
 dependencies = [
