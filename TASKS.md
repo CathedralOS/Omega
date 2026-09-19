@@ -3015,8 +3015,9 @@ Owners include
   and since `9913f44891` the duplicate check spans both introducers: every
   spelling-bearing `operator` definition — root, `boundary operator`/`boundary
   machine` slots, and domain-homed members — joins the machine set's
-  token/owner/alpha-normalized-shape space, so a cross-form pair rejects at
-  the declaration instead of surfacing as use-site ambiguity. Use sites select
+  token/owner/shape space, alpha-normalized by each binder's first-occurrence
+  position so `combine<T,U>(T,U)` and `combine<A,B>(B,A)` collide at the
+  second declaration instead of surfacing as use-site ambiguity. Use sites select
   by operand type, and the checked stage rewrites each resolved binary use
   into an ordinary call on the declaration's entry state
   (`typed-trees-to-checked-trees/src/operators/token_bound_machine_calls.rs`).

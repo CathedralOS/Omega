@@ -717,6 +717,60 @@ fn bodiless_token_bearing_nonboundary_machine_rejects_missing_supply() {
 }
 
 #[test]
+fn renamed_and_reordered_binders_still_render_the_same_operand_shape() {
+    // `expressions.md` overload structure: `combine<T,U>(T,U)` and
+    // `combine<A,B>(B,A)` are the same candidate, so a second declaration
+    // that only renames or reorders its generic binders duplicates the
+    // first and rejects here rather than surfacing as use-site ambiguity.
+    let diagnostics = resolve_source(
+        "data Pair<T, U> { first: T; second: U; }
+         machine + Pair::combine<T, U>(left: Pair<T, U>, right: U) -> Pair<T, U> { left }
+         machine + Pair::join<A, B>(left: Pair<B, A>, right: A) -> Pair<B, A> { left }",
+    )
+    .expect_err("a binder-renaming repeat of a token/owner/shape is a duplicate");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0].message.contains(
+            "`Pair::join` binds the fixed operator token `+` already bound by `Pair::combine`"
+        ),
+        "{}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn binders_reordered_across_introducers_reject_as_duplicates() {
+    // The machine and operator forms share one binding space, so the
+    // alpha-equivalence rule crosses introducers too.
+    let diagnostics = resolve_source(
+        "data Pair<T, U> { first: T; second: U; }
+         machine + Pair::combine<T, U>(left: Pair<T, U>, right: U) -> Pair<T, U> { left }
+         operator + Pair::join<A, B>(left: Pair<B, A>, right: A) -> Pair<B, A>;",
+    )
+    .expect_err("an operator repeating a machine's alpha-equivalent shape duplicates");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0].message.contains(
+            "`Pair::join` binds the fixed operator token `+` already bound by `Pair::combine`"
+        ),
+        "{}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn binders_with_distinct_occurrence_structure_stay_distinct() {
+    // `f<T,U>(T,U)` and `g<A,B>(A,A)` are different candidate sets: the
+    // second forces both operands to share one binder, so no collision.
+    resolve_source(
+        "data Pair<T, U> { first: T; second: U; }
+         machine + Pair::combine<T, U>(left: Pair<T, U>, right: U) -> Pair<T, U> { left }
+         machine + Pair::both<A, B>(left: Pair<A, A>, right: A) -> Pair<A, A> { left }",
+    )
+    .expect("distinct occurrence relationships are not duplicates");
+}
+
+#[test]
 fn sealed_ranking_view_signature_that_drifts_from_its_row_rejects() {
     for (declaration, expected) in [
         (
