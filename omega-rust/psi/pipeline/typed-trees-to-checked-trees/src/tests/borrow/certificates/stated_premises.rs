@@ -112,6 +112,7 @@ fn assert_recording_rejects(
     message: &str,
 ) -> Vec<diagnostics::Diagnostic> {
     let before = checked.facts.borrow.compatibility_certificates.clone();
+    let before_mutations = checked.facts.borrow.mutation_certificates.clone();
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
             .expect_err("tampered premised evidence must reject replay");
@@ -124,6 +125,10 @@ fn assert_recording_rejects(
     assert_eq!(
         checked.facts.borrow.compatibility_certificates, before,
         "failed replay must preserve the retained proof ledger",
+    );
+    assert_eq!(
+        checked.facts.borrow.mutation_certificates, before_mutations,
+        "failed replay must preserve the retained mutation ledger",
     );
     diagnostics
 }
@@ -619,6 +624,120 @@ fn rejects_stale_requires_that_no_longer_states_the_relation() {
         }
     }
     assert!(flipped, "fixture must find the `cut <= last` conjunct");
+
+    assert_recording_rejects(&mut checked, "premise tokens drifted");
+}
+
+/// `i + j < cut` states the ordering on a two-term bound: the summed index
+/// normalizes to one canonical pair whose terms separate the write's point
+/// index from the `[cut, 4)` window.
+const SUMMED_INDEX: &str = r#"
+    data Main { items: [i32; 4]; }
+
+    machine Main::split(&mut self, i: u64 [0..2], j: u64 [0..2], cut: u64 [0..4]) -> u64
+        requires i + j < cut;
+    {
+        let left: &mut [i32] = self.items[cut..4];
+        self.items[i + j] = 7;
+        left.len
+    }
+"#;
+
+fn sum_value(
+    checked: &checked_trees::CheckedTrees,
+    first: &str,
+    second: &str,
+) -> checked_trees::BorrowCompatibilitySelectorValue {
+    checked_trees::BorrowCompatibilitySelectorValue::SymbolSum {
+        first: parameter_symbol(checked, first),
+        second: parameter_symbol(checked, second),
+        offset: 0,
+    }
+}
+
+fn sole_mutation_certificate(
+    checked: &checked_trees::CheckedTrees,
+) -> checked_trees::CheckedBorrowMutationCertificate {
+    let certificates = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        certificates.len(),
+        1,
+        "only the write-against-active-window admission is certified"
+    );
+    certificates.into_iter().next().expect("sole certificate")
+}
+
+#[test]
+fn stated_ordering_premise_certifies_summed_index_bounds() {
+    let checked = checked_source(SUMMED_INDEX);
+    let certificate = sole_mutation_certificate(&checked);
+
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    assert_eq!(
+        certificate
+            .premises
+            .iter()
+            .map(|premise| (premise.relation, premise.left, premise.right))
+            .collect::<Vec<_>>(),
+        vec![(
+            checked_trees::BorrowCompatibilityPremiseRelation::StrictlyBefore,
+            sum_value(&checked, "i", "j"),
+            symbol_value(&checked, "cut"),
+        )],
+        "the retained premise is the stated `i + j < cut` conjunct on the canonical pair",
+    );
+    assert_eq!(certificate.premises[0].fact, requires_fact(&checked));
+    assert!(
+        checked
+            .facts
+            .borrow
+            .mutation_certificate_matches_resources(&certificate)
+    );
+}
+
+#[test]
+fn summed_premise_certificate_replays_through_checked_recording() {
+    let mut checked = checked_source(SUMMED_INDEX);
+    let before = checked.facts.borrow.mutation_certificates.clone();
+
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("retained summed-premise certificate must replay its exact tokens");
+    assert_eq!(
+        checked.facts.borrow.mutation_certificates, before,
+        "idempotent replay republishes the identical summed-premise certificate",
+    );
+}
+
+#[test]
+fn rejects_retained_sum_operand_retarget() {
+    // Reordering the recorded pair breaks its canonical member order, so the
+    // re-derived premise tokens drift.
+    let mut checked = checked_source(SUMMED_INDEX);
+    let row = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .next()
+        .expect("certificate")
+        .0;
+    let certificate = checked.facts.borrow.mutation_certificates.get_mut(row);
+    let checked_trees::BorrowCompatibilitySelectorValue::SymbolSum {
+        first, second, ..
+    } = &mut certificate.premises[0].left
+    else {
+        panic!("the summed premise records a two-symbol bound");
+    };
+    std::mem::swap(first, second);
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }

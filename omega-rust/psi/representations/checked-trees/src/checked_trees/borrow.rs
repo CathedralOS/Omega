@@ -119,8 +119,9 @@ pub enum BorrowCompatibilitySelectorPosition {
 
 /// Value retained by the checked structural selector tactic.
 ///
-/// An exact folded integer or exact symbolic constant offset may enter this
-/// vocabulary. Mutable names and unresolved computed values never do.
+/// An exact folded integer, exact symbolic constant offset, or the exact sum
+/// of two immutable symbols plus a constant may enter this vocabulary.
+/// Mutable names and unresolved computed values never do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorrowCompatibilitySelectorValue {
     Integer(i64),
@@ -129,6 +130,14 @@ pub enum BorrowCompatibilitySelectorValue {
     /// zero offset is the plain `Symbol` row.
     SymbolOffset {
         symbol: SymbolHandle,
+        offset: i64,
+    },
+    /// `first + second + offset` under Exact arithmetic over two distinct
+    /// immutable symbols in canonical arena order. `offset` may be zero: a
+    /// two-symbol bound has no simpler row form.
+    SymbolSum {
+        first: SymbolHandle,
+        second: SymbolHandle,
         offset: i64,
     },
 }

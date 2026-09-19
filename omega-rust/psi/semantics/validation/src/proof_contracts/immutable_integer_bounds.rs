@@ -12,6 +12,23 @@ pub struct ImmutableIntegerBoundOffset {
     pub offset: i64,
 }
 
+/// One immutable integer boundary formed from two distinct immutable
+/// bindings and an exact constant: the mathematical value
+/// `first + second + offset`, valid only under Exact arithmetic on every
+/// term.
+///
+/// `first` canonically precedes `second` in arena order so `a + b` and
+/// `b + a` share one stored spelling. Every term carries coefficient one:
+/// `x + x`, a signed term such as `a - b`, and a third distinct symbol all
+/// have no spelling here and stay unknown rather than approximating a
+/// coefficient or term the vocabulary cannot express.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImmutableIntegerBoundSum {
+    pub first: SymbolHandle,
+    pub second: SymbolHandle,
+    pub offset: i64,
+}
+
 /// Immutable integer boundary normalization preserves either an exact literal,
 /// one immutable binding's identity, or one resolved immutable symbol leaf.
 ///
@@ -103,6 +120,140 @@ pub fn immutable_integer_bound_symbol_offset(
         }
         _ => return None,
     };
+    let symbol = bound_leaf_symbol(program, base)?;
+    Some(ImmutableIntegerBoundOffset { symbol, offset })
+}
+
+/// Normalize an `Add`/`Subtract` tree of immutable integer bindings into the
+/// two-symbol bound `first + second + offset`.
+///
+/// Constant subtrees fold into `offset`; each remaining leaf must clear the
+/// same immutable, single-segment, exact-domain gate a bare `symbol + const`
+/// base does. Subtraction of a symbolic term, a third distinct symbol, and a
+/// repeated symbol all stay unknown rather than approximating a coefficient
+/// or term the vocabulary cannot express.
+pub fn immutable_integer_bound_sum(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ImmutableIntegerBoundSum> {
+    let mut terms = BoundSumTerms::default();
+    collect_bound_terms(program, expression, &mut terms, 0)?;
+    let (Some(mut first), Some(mut second)) = (terms.first, terms.second) else {
+        return None;
+    };
+    if (first.arena_index(), first.generation()) > (second.arena_index(), second.generation()) {
+        std::mem::swap(&mut first, &mut second);
+    }
+    Some(ImmutableIntegerBoundSum {
+        first,
+        second,
+        offset: terms.offset,
+    })
+}
+
+#[derive(Default)]
+struct BoundSumTerms {
+    first: Option<SymbolHandle>,
+    second: Option<SymbolHandle>,
+    offset: i64,
+}
+
+fn collect_bound_terms(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    terms: &mut BoundSumTerms,
+    depth: usize,
+) -> Option<()> {
+    if !expression.is_valid() || depth >= 128 {
+        return None;
+    }
+    // A pure constant subtree folds into the offset before any symbolic
+    // reading; `i - (1 + 2)` is `i - 3` even though its right child is a
+    // `Subtract` node.
+    if let Some(value) = program.expression_table.constant_integer_value(expression) {
+        terms.offset = terms.offset.checked_add(value)?;
+        return Some(());
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => match binary.operator {
+            typed_trees::expression::BinaryOperator::Add => {
+                collect_bound_terms(program, binary.left, terms, depth + 1)?;
+                collect_bound_terms(program, binary.right, terms, depth + 1)
+            }
+            typed_trees::expression::BinaryOperator::Subtract => {
+                collect_bound_terms(program, binary.left, terms, depth + 1)?;
+                // Only a constant right side folds; `a - b` would carry a
+                // negative coefficient on `b`, which has no spelling.
+                let value = program
+                    .expression_table
+                    .constant_integer_value(binary.right)?;
+                terms.offset = terms.offset.checked_sub(value)?;
+                Some(())
+            }
+            _ => None,
+        },
+        _ => {
+            let symbol = bound_leaf_symbol(program, expression)?;
+            if let Some(initializer) = bound_leaf_initializer(program, expression) {
+                // An immutable local bound to a bound-shaped initializer
+                // contributes that initializer's terms: the local stores the
+                // expression's exact value, never a retargetable alias.
+                return collect_bound_terms(program, initializer, terms, depth + 1);
+            }
+            if terms.first == Some(symbol) || terms.second == Some(symbol) {
+                // `x + x` is `2x`; coefficient-one terms cannot express it.
+                return None;
+            }
+            if terms.first.is_none() {
+                terms.first = Some(symbol);
+            } else if terms.second.is_none() {
+                terms.second = Some(symbol);
+            } else {
+                return None;
+            }
+            Some(())
+        }
+    }
+}
+
+/// When one bound leaf is an immutable local whose initializer is itself a
+/// bound-shaped `Add`/`Subtract` tree, the leaf's terms come from that
+/// initializer -- generated hoist locals are exactly this shape. A mutable
+/// local, a non-bound initializer, or a bare parameter name contributes the
+/// leaf's own symbol instead.
+fn bound_leaf_initializer(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid() || path.head_symbol != path.symbol {
+        return None;
+    }
+    let LocalLookup::Found(local) = local_by_symbol(program, path.symbol) else {
+        return None;
+    };
+    if local.is_mutable || !local.initial_value.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    matches!(
+        binary.operator,
+        typed_trees::expression::BinaryOperator::Add
+            | typed_trees::expression::BinaryOperator::Subtract
+    )
+    .then_some(local.initial_value)
+}
+
+/// Resolve one bound leaf to its immutable symbol identity: a bare
+/// single-segment name whose declared type is an exact-domain integer
+/// primitive, followed through finite immutable local copies. Mutable,
+/// ambiguous, qualified, and non-integer leaves have no bound identity.
+fn bound_leaf_symbol(program: &TypedTrees, base: ExpressionHandle) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(base) else {
         return None;
     };
@@ -142,19 +293,18 @@ pub fn immutable_integer_bound_symbol_offset(
         return None;
     }
 
-    let symbol = match normalize_bound(program, base, &mut Vec::new())? {
-        NormalizedBound::LocalValue(symbol) => symbol,
+    match normalize_bound(program, base, &mut Vec::new())? {
+        NormalizedBound::LocalValue(symbol) => Some(symbol),
         NormalizedBound::Expression(expression) => {
             let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
                 return None;
             };
             let members = program.expression_table.name_path_members(path.members);
             (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
-                .then_some(path.symbol)?
+                .then_some(path.symbol)
         }
-        NormalizedBound::MutableValue => return None,
-    };
-    Some(ImmutableIntegerBoundOffset { symbol, offset })
+        NormalizedBound::MutableValue => None,
+    }
 }
 
 /// Normalize an integer literal or finite immutable local-copy chain to one
