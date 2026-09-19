@@ -2820,6 +2820,27 @@ Owners include
     [machine-state evidence](wiki/spec/build/machine_state_evidence.md) in the
     emitted image. Owners: `backend/machine-emission`,
     `calling-conventions/src/stack_realizations/` and `external-roots`.
+    First authored leg landed: `interrupt_table_canary` now carries
+    `cathedral::interrupt_roots`, which declares `CriticalStackPolicy`
+    (`InterruptReturn` entry control, `X86Long64`, dedicated stack class,
+    masked preemption), `FatalExceptionRoot: InterruptEntry +
+    Calling<CriticalStackPolicy>`, the acknowledgement's opaque carrier, and
+    the provider/mask conformances; its `build.omg` selects the
+    representation through the shared program namespace (`use` there
+    re-declares the module). The compiler-side test drives that member's
+    candidate through `selected_external_root_provider_plan`, real entry
+    and mask-guard claims, `ResolvedRootServiceReach::
+    from_selected_provider_closure` and the replayed boundary realization
+    (`Dedicated` stack class joined to the member's declared class), then
+    `validate_external_root` → ledger `install` → `admit_interrupt_table_
+    member` for the divide-error vector. Remaining on this leg: the entry
+    stub identity, provider-admitted resource columns and fuel/state
+    receipts are still test-admitted shapes until deriver-owned entry/exit
+    code exists; a second `InterruptEntry`-inheriting trait emits a
+    duplicate requirement identity and
+    `with_installation_reach_resolutions` rejects it, so the timer root
+    waits on a distinct-requirement or multi-resolution seam; emitted-image
+    machine-state evidence still needs the stub leg.
   - Descriptor table. The authored half now exists:
     `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
     package whose `InterruptGate` layout splits the entry-offset fields into

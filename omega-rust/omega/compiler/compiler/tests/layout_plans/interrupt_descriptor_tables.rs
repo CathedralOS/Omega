@@ -31,9 +31,13 @@
 //! `lidt` provider edge — `execute_checked_publication` — mints the
 //! receipt that publishes the table. The authored layout is the only
 //! placement vocabulary on the whole path; what remains on the seam is
-//! spelled in `TASKS.md` — Cathedral-authored exception/timer roots (the
-//! ledger's candidates are still test-constructed shapes) and the
+//! spelled in `TASKS.md` — deriver-owned entry/exit stubs and the
 //! package-side relocation of the Rust model's published-root records.
+//! The divide-error member is now authored: `cathedral::interrupt_roots`
+//! declares `FatalExceptionRoot` plus its `CriticalStackPolicy` calling
+//! policy, and the last test drives that member's candidate through real
+//! provider selection and reach resolution to an installed-root record.
+//! The other members' candidates remain test-constructed shapes.
 
 use build_time_evaluation::compute_layout_plan;
 use calling_conventions::{
@@ -93,6 +97,7 @@ use layout_plans::{
     derive_symbolic_materialization_with_inner_layouts, materialize_aggregate_layout_into,
     materialize_scalar_layout_into,
 };
+use provider_planning::selected_external_root_provider_plan;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use target::Architecture;
@@ -1749,4 +1754,274 @@ fn established_table_publishes_through_the_checked_lidt_edge() {
     );
     assert_eq!(published.members().len(), members.len());
     assert_eq!(published.destination().base(), TABLE_BASE);
+}
+
+/// The authored-roots leg: the canary's `FatalExceptionRoot` boundary trait
+/// reaches the installed-root ledger through the compiler's retained provider
+/// selection rather than through test-fabricated schema. Every candidate
+/// field that speaks about the source program — requirement identity,
+/// provider plan identity and digest, Pending entry claim, Active mask-guard
+/// claim, installation-closure reach, and the validated boundary itself —
+/// derives from `checked.selected_provider_plans()` and the retained calling
+/// plan realizations. The columns that remain test-admitted shapes — the
+/// entry stub identity, stack/fuel/machine-state receipts, effects, trust,
+/// component pins, and the execution/admission/slot ladder — are the
+/// deriver-owned entry/exit code leg this slice does not yet emit.
+#[test]
+fn authored_fatal_exception_root_installs_through_selected_provider() {
+    let checked = compile_to_checked(CheckedCompileRequest::new(&canary_main(), None))
+        .expect("interrupt table canary compiles");
+    let facts = checked.selected_provider_plans();
+
+    // Provider selection: the authored `FatalExceptionRoot` boundary trait
+    // resolves to exactly one retained provider plan — the conformance's
+    // schema, identity, and digest are the compiler's, not the test's.
+    let selected = selected_external_root_provider_plan(facts, "FatalExceptionRoot")
+        .expect("the authored fatal-exception root selects a provider plan");
+    assert_eq!(selected.schema.trait_name, "FatalExceptionRoot");
+    let [entry] = selected.schema.methods.as_slice() else {
+        panic!("FatalExceptionRoot inherits one exact interrupt-entry requirement")
+    };
+    assert_eq!(entry.name, "enter");
+    assert_eq!(entry.requirement_owner, "InterruptEntry");
+    let requirement_identity = entry.requirement_identity.clone();
+
+    // The requirement carries the authored Pending qualification as a strict
+    // entry claim on the acknowledgement parameter.
+    let entry_claims = selected
+        .entry_claims(&requirement_identity)
+        .expect("the selected plan lowers its Pending entry claim");
+    let [pending] = entry_claims.as_slice() else {
+        panic!("fatal-exception entry publishes one Pending claim")
+    };
+    assert_eq!(pending.parameter_index, 0);
+    assert_eq!(pending.domain, "InterruptAcknowledgement::Pending");
+    assert_eq!(
+        pending.effective_carry,
+        language_semantics::CarryPolicy::STRICT
+    );
+
+    // The selected InterruptMaskControl provider issues the Active guard
+    // claim the ledger records for entry masking.
+    let mask = selected_external_root_provider_plan(facts, "InterruptMaskControl")
+        .expect("the mask control selects a provider plan");
+    let [save_and_mask] = mask.schema.methods.as_slice() else {
+        panic!("mask control publishes one save-and-mask requirement")
+    };
+    let guard_claims = mask
+        .result_claims(&save_and_mask.requirement_identity)
+        .expect("the mask plan lowers its Active result claim");
+    let [guard] = guard_claims.as_slice() else {
+        panic!("mask control issues one Active claim")
+    };
+    assert_eq!(guard.domain, "InterruptMaskGuard::Active");
+    assert_eq!(guard.provider_plan, mask.identity);
+    assert_eq!(guard.provider_plan_digest, mask.digest);
+    let guard = guard.clone();
+
+    // The root's own bounded requirement resolves inside the retained
+    // provider closure: the `MachineControl + PortIo` ceiling refines to the
+    // realization's concrete `PortIo` row.
+    let service_reach = ResolvedRootServiceReach::from_selected_provider_closure(
+        Vec::new(),
+        vec![requirement_identity.clone()],
+        facts,
+    )
+    .expect("the authored root closes against the selected provider closure");
+    let [resolution] = service_reach.resolutions() else {
+        panic!("one bounded requirement produces one retained resolution")
+    };
+    assert_eq!(
+        resolution.provider_plan_report_identity,
+        selected.identity.normalized_identity()
+    );
+    assert_eq!(
+        resolution.upper_bound,
+        ["MachineControl".to_owned(), "PortIo".to_owned()]
+    );
+    assert_eq!(resolution.resolved_row, ["PortIo".to_owned()]);
+    assert_eq!(service_reach.effective(), ["PortIo".to_owned()]);
+
+    // The validated boundary is the authored policy's retained realization:
+    // dedicated critical stack class 11 (the divide-error member's declared
+    // class), masked preemption, interrupt-return exit.
+    let matching = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .filter(|realization| {
+            checked
+                .symbols
+                .display_path(realization.boundary_trait, "::")
+                .ends_with("FatalExceptionRoot")
+        })
+        .collect::<Vec<_>>();
+    let [realization] = matching.as_slice() else {
+        panic!("one retained boundary calling-plan realization for the authored trait")
+    };
+    assert_eq!(
+        entry.calling_plan_report_fingerprint,
+        Some(realization.report_fingerprint),
+        "the selected schema joins the retained boundary realization"
+    );
+    let (boundary, boundary_fingerprint, boundary_commitment) = realization
+        .replayed_validated_application()
+        .expect("the authored policy's validated entry plan replays");
+    assert_eq!(boundary_fingerprint, realization.report_fingerprint);
+    assert_eq!(boundary_commitment, realization.commitment);
+    assert_eq!(
+        boundary.plan().call.entry_control,
+        EntryControl::InterruptReturn
+    );
+    assert_eq!(
+        boundary.plan().state.stack,
+        EntryStack::Dedicated { class: 11 }
+    );
+    assert_eq!(boundary.plan().state.preemption, Preemption::Masked);
+
+    // The candidate's compiler-visible fields are real; only the
+    // admitted-provider columns stay test-admitted.
+    let member = declared_members()[&DIVIDE_ERROR];
+    let members = BTreeMap::from([(DIVIDE_ERROR, member)]);
+    let mut code = table_installed_code(&members);
+    let provider = identity(2, RootProviderId::from_normalized_identity);
+    let nesting_relation = identity(6, NestingRelationId::from_normalized_identity);
+    let composition = compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: nesting_relation,
+            edges: BTreeSet::new(),
+        },
+        [stack_demand_input(
+            member.root,
+            provider,
+            &boundary,
+            &code,
+            member.entry,
+            boundary.plan().state.stack,
+        )]
+        .iter(),
+    )
+    .expect("bound epoch stack composition over the authored plan");
+    let candidate = ExternalRootCandidate {
+        identity: member.root,
+        entry: member.entry,
+        provider,
+        provider_plan: selected.identity,
+        provider_plan_digest: selected.digest,
+        requirement_identity: requirement_identity.clone(),
+        entry_claims,
+        acknowledgement_parameter_index: None,
+        interrupt_mask_guard_claim: Some(guard),
+        service_reach,
+        effects: [identity(3, RootEffectId::from_normalized_identity)]
+            .into_iter()
+            .collect(),
+        trust_receipts: [identity(4, TrustReceiptId::from_normalized_identity)]
+            .into_iter()
+            .collect(),
+        nesting_relation,
+        acknowledgement_policy: None,
+        stack: StackResourceColumn {
+            ceiling_bytes: 8192,
+            realization: composition,
+            validation_receipt: identity(50, StackValidationReceiptId::from_normalized_identity),
+        },
+        logical_fuel: LogicalFuelResourceColumn {
+            schedule: fuel_schedule(),
+            provision: identity(53, FuelProvisionId::from_normalized_identity),
+            ceiling_units: 64,
+            realization: fixed_fuel(),
+            validation_receipt: identity(51, FuelValidationReceiptId::from_normalized_identity),
+        },
+        machine_state: MachineStateResourceColumn {
+            realization: StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rax]),
+                MachineStateSet::new([MachineState::Flags]),
+            ),
+            validation_receipt: identity(52, StateValidationReceiptId::from_normalized_identity),
+        },
+        component_pins: [ComponentVersionPin {
+            contract: identity(8, ComponentContractId::from_normalized_identity),
+            artifact: identity(9, ComponentArtifactId::from_normalized_identity),
+            provider: identity(10, ComponentProviderId::from_normalized_identity),
+            version: identity(11, ComponentVersionPinId::from_normalized_identity),
+        }]
+        .into_iter()
+        .collect(),
+    };
+    let root = validate_external_root(candidate, &boundary)
+        .expect("the authored member validates as an external root");
+    let authority = RootSlotAuthority::from_admitted_owner(
+        identity(0x300, RootSlotId::from_normalized_identity),
+        identity(0x21, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = ProviderExecution::from_admitted_provider(
+        identity(0x400, ProviderExecutionId::from_normalized_identity),
+        &root,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: root.boundary().call.entry_control,
+                restored_state: root.boundary().state.restored_state,
+            },
+            validation_receipt: identity(4, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("admitted provider exit");
+    let admission = RootAdmission::from_admitted_provider(
+        identity(0x500, RootAdmissionId::from_normalized_identity),
+        &root,
+        &execution,
+        &code,
+        &authority,
+        root.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("root admission");
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+    let installed = ledger
+        .install(&code, root, authority, admission)
+        .expect("the authored member installs into the ledger");
+
+    // The installed-root record retains the authored contract end to end.
+    let record = ledger
+        .record(member.root)
+        .expect("the authored member's root record is retained");
+    assert_eq!(record.requirement_identity, requirement_identity);
+    assert_eq!(record.provider_plan, selected.identity);
+    assert_eq!(
+        record.entry_claims,
+        [ExternalRootEntryClaim {
+            parameter_index: 0,
+            domain: "InterruptAcknowledgement::Pending".to_owned(),
+            effective_carry: language_semantics::CarryPolicy::STRICT,
+        }]
+    );
+    assert_eq!(record.acknowledgement_parameter_index, None);
+    assert_eq!(record.acknowledgement_policy, None);
+    assert_eq!(record.service_reach, ["PortIo".to_owned()]);
+    let [recorded_resolution] = record.installation_reach_resolutions.as_slice() else {
+        panic!("the record retains the authored requirement's resolution")
+    };
+    assert_eq!(
+        recorded_resolution.provider_plan_report_identity,
+        selected.identity.normalized_identity()
+    );
+    assert_eq!(recorded_resolution.resolved_row, ["PortIo".to_owned()]);
+    assert_eq!(record.boundary, *boundary.plan());
+    assert_eq!(
+        record.boundary_contract_report_fingerprint,
+        boundary.contract_report_fingerprint()
+    );
+
+    // The table's member admission joins the authored boundary against the
+    // declared divide-error profile: dedicated stack class 11 and the fatal
+    // obligation's no-acknowledgement shape.
+    let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
+    let admitted = table
+        .admit_interrupt_table_member(&ledger, DIVIDE_ERROR, installed)
+        .expect("the authored fatal-exception member admits into the declared table");
+    assert_eq!(admitted.vector(), DIVIDE_ERROR);
+    assert_eq!(admitted.dedicated_stack_class(), 11);
+    assert_eq!(
+        admitted.obligation(),
+        InterruptTableObligation::FatalException
+    );
 }

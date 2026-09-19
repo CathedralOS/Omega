@@ -1,0 +1,15 @@
+// INTERRUPT-TABLE-CANARY build root: registers the application and
+// selects the acknowledgement's physical representation so the authored
+// boundary machines materialize against an exact carrier. The build file
+// shares the program namespace — `use` here would re-declare the roots
+// module — so the selection names program declarations directly. No
+// ordinary package dependencies: the checked-only canary stays on the
+// bundled toolchain libraries.
+
+machine build(builder: &mut Build) {
+    builder.application("interrupt-table-canary");
+    builder.select_representation<
+        InterruptAcknowledgement,
+        CriticalAcknowledgementRepresentation
+    >();
+}

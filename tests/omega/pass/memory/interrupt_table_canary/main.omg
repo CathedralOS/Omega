@@ -11,6 +11,7 @@
 // is minted. This root only needs to retain the authored types so the
 // checked program carries them.
 
+use cathedral::interrupt_roots;
 use cathedral::interrupt_table;
 
 data Main {
