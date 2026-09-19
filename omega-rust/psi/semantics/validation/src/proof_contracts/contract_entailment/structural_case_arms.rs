@@ -16,6 +16,9 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+#[cfg(test)]
+mod tests;
+
 /// N3 rung 1: the structural mini-judge for contract conjuncts over
 /// proof-only data. Term language (bounded by today's contract grammar --
 /// struct literals do not parse in fact position, so payload-carrying
@@ -100,12 +103,31 @@ pub(crate) fn recognize_guarded_structural_value_arms(
         Some((equality.left, *polarity, transition.target))
     };
     let (first_condition, first_polarity, first_target) = branch(first)?;
-    let (second_condition, second_polarity, second_target) = branch(second)?;
-    if first_polarity == second_polarity
-        || !guard_expressions_equal(program, first_condition, second_condition)
-    {
-        return None;
-    }
+    let second_target = match second.guard {
+        TransitionGuardNode::Always => {
+            // Boolean dispatch evaluates its subject once: the parser makes
+            // the opposite final arm an unconditional fallback. Both value
+            // obligations are still checked, without assuming either guard.
+            // Keep the existing pure scalar grammar; effects could invalidate
+            // the entry facts shared by the two structural judgments.
+            if second.continuation.is_valid()
+                || !second.target.is_valid()
+                || !guard_expressions_equal(program, first_condition, first_condition)
+            {
+                return None;
+            }
+            second.target
+        }
+        TransitionGuardNode::When(_) => {
+            let (second_condition, second_polarity, second_target) = branch(second)?;
+            if first_polarity == second_polarity
+                || !guard_expressions_equal(program, first_condition, second_condition)
+            {
+                return None;
+            }
+            second_target
+        }
+    };
 
     let parameter_names: Vec<String> = program
         .state_parameters(root)
