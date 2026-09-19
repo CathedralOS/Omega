@@ -2320,8 +2320,11 @@ Owners include
   borrowed-source `TranslationAuthority` contract (`Pending` -> `Installed` ->
   reusable `Granted` custody plus a linear `Shootdown` debt) carrying authored
   obligation sets, beside a stand-in `cathedral/` package: a fully backed
-  four-level hierarchy, entry encoding, the 9-bit level walk and three
-  `TranslationHardware` boundary crossings. Seven `fail/core/translation_*`
+  four-level hierarchy, entry encoding, the 9-bit level walk, three
+  `TranslationHardware` boundary crossings, and a second level of mapping
+  authority (`install_huge`/`remove_huge` store the terminal at depth 2, so a
+  2MiB leaf needs no `pt` table; `cathedral_huge_install_and_teardown` drives
+  the identical authority cycle). Eight `fail/core/translation_*`
   controls pin custody misuse, and `psi/foundation/extents/src/mapping/` is the
   Rust conservation model a provider reads. This is source checking only: the
   fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster, `Main::main` is empty,
@@ -2363,9 +2366,9 @@ Owners include
   Acceptance: QEMU installs and tears down Cathedral-owned multi-page mappings
   with explicit `Extent` and TLB custody, and mapped access exists only between
   activation and unmap. Source use after map, unmap before activation, a lost
-  shootdown, carrier construction, borrowed-source reclaim, and a receipt for
-  another mapping or a stale era reject. A checked-only fixture or a Rust
-  receipt test is not the witness.
+  shootdown, carrier construction, borrowed-source reclaim, a replayed
+  activation, and a receipt for another mapping or a stale era reject. A
+  checked-only fixture or a Rust receipt test is not the witness.
 
   The `cathedral/` directory is a stand-in inside the compiler corpus;
   Cathedral's repository owns the real package. Do not add page-table or TLB
