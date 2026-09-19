@@ -1,0 +1,15 @@
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+machine empty_only(value: Tree) -> Tree
+requires value in Tree::Empty;
+terminates;
+{ value }
+
+machine wrong_subject(known: Tree, other: Tree)
+requires known in Tree::Empty;
+ensures empty_only(other) == empty_only(other);
+{}

@@ -677,9 +677,15 @@ pub(super) fn structural_arm_judge<'program>(
 ) -> StructuralJudge<'program> {
     let mut arm_judge = judge.clone();
     for (subject, constructor) in case_equations {
+        arm_judge.intake_case_equation(subject.clone(), constructor.clone(), 0);
         arm_judge.intake_equation(subject.clone(), constructor.clone(), 0);
     }
     for (subject, constructor) in case_hypotheses {
+        arm_judge.intake_case_equation(
+            StructuralTerm::Variable(subject.clone()),
+            constructor.clone(),
+            0,
+        );
         arm_judge
             .substitutions
             .insert(0, (subject.clone(), constructor.clone()));

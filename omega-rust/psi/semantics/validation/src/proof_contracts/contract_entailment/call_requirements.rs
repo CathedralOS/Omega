@@ -62,7 +62,11 @@ pub fn structural_call_requirement_entailed(
         proven: true,
     };
     let requires = machine_requires_facts(program, machine);
-    let judge = StructuralJudge::from_requires(program, machine, &requires);
+    let judge = if contains_case_premise(program, expression) {
+        StructuralJudge::from_case_requires(program, machine, &requires)
+    } else {
+        StructuralJudge::from_requires(program, machine, &requires)
+    };
     let mut diagnostics = Vec::new();
     let recognized = recognize_structural_case_arms_with_requirement(
         program,
@@ -125,10 +129,8 @@ impl CallRequirement<'_> {
             .iter()
             .zip(self.arguments)
             .map(|(parameter, argument)| {
-                Some((
-                    parameter.name.as_str().to_owned(),
-                    judge.callee_term(*argument, environment, 0)?,
-                ))
+                let term = judge.callee_term(*argument, environment, 0)?;
+                Some((parameter.name.as_str().to_owned(), term))
             })
             .collect::<Option<Vec<_>>>();
         self.proven &= parameters.len() == self.arguments.len()
@@ -137,6 +139,7 @@ impl CallRequirement<'_> {
                     instantiated_fact_judgment(
                         program,
                         &site_judge,
+                        self.callee,
                         self.expression,
                         &substitution
                     ),
@@ -144,6 +147,15 @@ impl CallRequirement<'_> {
                 )
             });
     }
+}
+
+fn contains_case_premise(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if super::structural_terms::is_case_observation(program, expression) {
+        return true;
+    }
+    matches!(program.expression_table.expression(expression), ExpressionNode::Binary(binary)
+        if binary.operator == typed_trees::expression::BinaryOperator::And
+        && (contains_case_premise(program, binary.left) || contains_case_premise(program, binary.right)))
 }
 
 /// Establish a prior citation before a later branch can refine its arguments.
