@@ -1378,13 +1378,22 @@ Owners include
     rule, `terminal-interpreter` case and Omega realization.
     `checked-trees-to-lowered-psi/src/expression_preparation/`
     (`prepare_expression.rs`, `bindings/mod.rs`) refuses `IntegerTrappingCast`
-    with "requires runtime policy realization", and
-    `typed-trees-to-checked-trees/src/values/scalar/expression_facts.rs::checked_integer_binary_kind`
-    has no Trapping arm for any arithmetic or shift operator, so a Trapping
-    shift, whose out-of-range count the spec makes an executable trap
-    condition, gets no value fact. The Trapping refusal in
-    `scalar_graph/scalar_contracts/namespace.rs` is contract-position and
-    stays: direct Trapping arithmetic forms no predicate term.
+    and now the checked `TrappingShiftLeft`/`TrappingShiftRight` forms with
+    "requires runtime policy realization". Those shift kinds exist
+    (`checked_integer_binary_kind` maps `(ShiftLeft|ShiftRight, Trapping)`)
+    and evaluate through the primitive's exact shift, so a Trapping shift,
+    whose out-of-range count the spec makes an executable trap condition,
+    carries a normal-return fact and refuses explicitly at expression
+    preparation instead of vanishing from the computation plan as an
+    `InvalidUnitMachinePlan` omission; package-evidence projects them onto
+    integer-binary vocabulary tags 22-23. The five remaining Trapping
+    arithmetic operators keep their no-fact boundary: their check-stage
+    refusal is pinned by
+    `flow/transfers/byte_sequence_tests.rs::argument_cast_policies_follow_the_callee_parameter_domain`,
+    under a live NOMINAL-FIELD-FLOW claim at this writing. The Trapping
+    refusal in `scalar_graph/scalar_contracts/namespace.rs` is
+    contract-position and stays: direct Trapping arithmetic forms no
+    predicate term.
   - Realize modular conversion with a signed source or target;
     `prepare_expression.rs` lowers only unsigned-to-unsigned
     `IntegerWrappingCast`. Do not retry expression-level composition:
@@ -1392,9 +1401,10 @@ Owners include
     a same-width sign reinterpretation needs a value-level select that
     Lowered Psi has no operation for, and masking plus an exact cast needs a
     bitwise range the spec denies.
-  - Carry Boolean-to-integer conversion in `CheckedScalarExpression`.
-    Checking admits the surface and retains its `0..=1` range, but no
-    expression node holds it, so the initializer has no value fact.
+  - Boolean-to-integer conversion landed at 4133043eab:
+    `CheckedScalarComputationKind::BooleanToInteger` owns the authored cast
+    occurrence and its evaluated operand and lowers through the ordinary
+    conditional selection of destination-typed 0 and 1.
 
   Acceptance: the six `core/numeric_*` pass canaries and every
   `source/library/core/numeric_conversion.omg` machine ending in a Trapping
