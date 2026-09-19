@@ -44,6 +44,7 @@ pub fn project_conventional_record_with_sum_materialization_layout(
         data_symbol,
         "nested-sum record",
         &mut reachability,
+        LiteralArrayHopRule::OuterOnly,
     )?;
     if let Some(candidate) = level.record_paths.first() {
         return Err(Diagnostic::error(format!(
@@ -83,12 +84,29 @@ struct RecordPathCandidate<'a> {
 /// One runtime-relevant nonzero literal `[R; N]` field whose record element
 /// still reaches sums — the record-array candidates one level projects, in
 /// authored order. The element's own recursive report supplies the shared
-/// interior every index carries.
+/// interior every index carries. `hops` holds every consecutive literal
+/// element arity, outermost first — a `[[R; 2]; 3]` field spells `[3, 2]` and
+/// its packed row carries their product.
 struct RecordArrayPathCandidate<'a> {
     declared: &'a typed_trees::data::DataField,
     laid: &'a crate::FieldLayout,
     named: &'a DataDefinition,
-    length: usize,
+    hops: Vec<usize>,
+}
+
+/// How one record level's array-of-sums classifier treats an element reached
+/// through more than one literal element hop.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LiteralArrayHopRule {
+    /// The element must resolve beside the field's own literal length: a
+    /// second array level rejects, preserving the standalone rungs' narrower
+    /// contract with their const-evaluator twins.
+    OuterOnly,
+    /// Consecutive literal element hops flatten into one packed repeated row:
+    /// a conventional `[[S; N]; M]` occupies exactly the extent `[S; M * N]`
+    /// would, so the row carries the hop product and the innermost element's
+    /// report. The recursive owner's rule.
+    Flattened,
 }
 
 /// The direct children one record level retains under the general recursive
@@ -117,15 +135,18 @@ struct RecordLevelChildren<'a> {
 /// whose record element still reaches sums enters `record_array_paths` for
 /// the caller's own depth rule; a record field still reaching sums enters
 /// `record_paths` for the caller's own depth rule; anything else is an
-/// ordinary whole-field `At` entry. Arrays reaching sums through more than
-/// one literal element hop — nested arrays, mixed elements, or non-literal
-/// lengths — remain fenced.
+/// ordinary whole-field `At` entry. Under `LiteralArrayHopRule::Flattened`,
+/// arrays reaching sums through consecutive literal element hops — nested
+/// literal arrays of sums or of records still reaching sums — flatten into
+/// one packed row; mixed elements, non-literal lengths, and zero-length hops
+/// remain fenced.
 fn project_record_level_children<'a>(
     program: &'a CheckedTrees,
     plan: &'a LayoutPlan,
     data_symbol: SymbolHandle,
     owner: &str,
     reachability: &mut SumReachability<'_>,
+    literal_array_hops: LiteralArrayHopRule,
 ) -> Result<RecordLevelChildren<'a>, Diagnostic> {
     let definition = unique_data_definition(program, data_symbol, owner)?;
     validate_closed_copy_record(program, definition, owner)?;
@@ -193,16 +214,53 @@ fn project_record_level_children<'a>(
                     element_type,
                     length: FixedArrayLength::Literal(length),
                 } => {
-                    let Some(named) = exact_named_data(program, *element_type)? else {
+                    // Consecutive literal element hops compose one packed
+                    // repetition: `[[S; N]; M]` stores `M * N` contiguous
+                    // elements, so the level spells the whole hop list beside
+                    // the innermost element's own report rather than an
+                    // array-of-arrays shape the row vocabulary does not have.
+                    let mut hops = vec![*length];
+                    let mut element_reference = *element_type;
+                    loop {
+                        match program
+                            .type_reference_table
+                            .type_reference(element_reference)
+                        {
+                            TypeReferenceNode::FixedArray {
+                                element_type: nested_element,
+                                length: FixedArrayLength::Literal(nested_length),
+                            } if literal_array_hops == LiteralArrayHopRule::Flattened => {
+                                hops.push(*nested_length);
+                                element_reference = *nested_element;
+                            }
+                            TypeReferenceNode::FixedArray {
+                                length: FixedArrayLength::Literal(_),
+                                ..
+                            } => {
+                                return Err(Diagnostic::error(format!(
+                                    "{owner} outer field `{}` reaches a sum through an array deeper than one literal element hop",
+                                    declared.name
+                                )));
+                            }
+                            TypeReferenceNode::FixedArray { .. } => {
+                                return Err(Diagnostic::error(format!(
+                                    "{owner} outer field `{}` reaches a sum through a non-literal-length array",
+                                    declared.name
+                                )));
+                            }
+                            _ => break,
+                        }
+                    }
+                    let Some(named) = exact_named_data(program, element_reference)? else {
                         return Err(Diagnostic::error(format!(
-                            "{owner} outer field `{}` reaches a sum through an array deeper than one literal element hop",
+                            "{owner} outer field `{}` reaches a sum through an array element without one exact nominal identity",
                             declared.name
                         )));
                     };
                     match DataDefinition::shape_kind_from_members(program.data_members(named)) {
                         DataShapeKind::Enum => {
                             child_sum_array_layouts.push(project_sum_array_row(
-                                program, plan, declared, laid, named, *length, owner,
+                                program, plan, declared, laid, named, &hops, owner,
                             )?);
                         }
                         DataShapeKind::Mixed => {
@@ -220,7 +278,7 @@ fn project_record_level_children<'a>(
                                 declared,
                                 laid,
                                 named,
-                                length: *length,
+                                hops,
                             });
                         }
                         DataShapeKind::Empty => {
@@ -334,9 +392,42 @@ fn project_record_level_children<'a>(
     })
 }
 
-/// Project the compact report row for one direct `[S; N]` field whose element
-/// resolves to `element_named`, a conventional pure sum, with nonzero literal
-/// `length`. The complete all-case element layout is retained once with the
+/// Peel `descriptor` through `hops` fixed-array levels — each level must
+/// carry the declared literal length — and return the innermost descriptor.
+/// The laid descriptor mirrors the declared chain one level per hop, so the
+/// flattened row's element/count parity proof runs level by level.
+fn laid_innermost_array_descriptor<'d>(
+    descriptor: &'d TypeLayoutDescriptor,
+    hops: &[usize],
+    field_name: &str,
+    element_role: &str,
+) -> Result<&'d TypeLayoutDescriptor, Diagnostic> {
+    let mut descriptor = descriptor;
+    for hop in hops {
+        let TypeLayoutDescriptor::FixedArray {
+            element_type,
+            length,
+        } = descriptor
+        else {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field `{field_name}` is not the exact declared fixed array"
+            )));
+        };
+        if length != hop {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field `{field_name}` substitutes its {element_role} element/count"
+            )));
+        }
+        descriptor = element_type;
+    }
+    Ok(descriptor)
+}
+
+/// Project the compact report row for one direct fixed-array-of-sums field
+/// whose innermost element resolves to `element_named`, a conventional pure
+/// sum. `hops` carries every consecutive literal arity, outermost first, and
+/// must be nonzero at every level; the packed row's `element_count` is their
+/// product. The complete all-case element layout is retained once with the
 /// exact count and stride.
 fn project_sum_array_row(
     program: &CheckedTrees,
@@ -344,10 +435,10 @@ fn project_sum_array_row(
     declared: &typed_trees::data::DataField,
     laid: &crate::FieldLayout,
     element_named: &DataDefinition,
-    length: usize,
+    hops: &[usize],
     owner: &str,
 ) -> Result<ConventionalSumArrayFieldLayoutReport, Diagnostic> {
-    if length == 0 {
+    if hops.contains(&0) {
         return Err(Diagnostic::error(format!(
             "{owner} field `{}` must have nonzero literal length",
             declared.name
@@ -355,28 +446,19 @@ fn project_sum_array_row(
     }
     let element_layout =
         project_conventional_sum_materialization_layout(program, plan, element_named.symbol)?;
-    let TypeLayoutDescriptor::FixedArray {
-        element_type: laid_element,
-        length: laid_length,
-    } = &laid.type_descriptor
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout field `{}` is not the exact declared fixed array",
-            declared.name
-        )));
-    };
+    let laid_element =
+        laid_innermost_array_descriptor(&laid.type_descriptor, hops, &declared.name, "sum-array")?;
     let TypeLayoutDescriptor::Named {
         symbol: laid_symbol,
         name: laid_name,
-    } = laid_element.as_ref()
+    } = laid_element
     else {
         return Err(Diagnostic::error(format!(
             "target runtime layout field `{}` substitutes its sum-array element type",
             declared.name
         )));
     };
-    if *laid_length != length
-        || *laid_symbol != element_named.symbol
+    if *laid_symbol != element_named.symbol
         || laid.type_symbol != element_named.symbol
         || laid_name.as_str() != element_named.name.as_str()
     {
@@ -385,7 +467,17 @@ fn project_sum_array_row(
             declared.name
         )));
     }
-    let element_count = u64::try_from(length).map_err(|_| {
+    let element_count = u64::try_from(
+        hops.iter()
+            .try_fold(1usize, |count, hop| count.checked_mul(*hop))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{owner} field `{}` count exceeds canonical report width",
+                    declared.name
+                ))
+            })?,
+    )
+    .map_err(|_| {
         Diagnostic::error(format!(
             "{owner} field `{}` count exceeds canonical report width",
             declared.name
@@ -417,11 +509,13 @@ fn project_sum_array_row(
     })
 }
 
-/// Project the compact report row for one direct `[R; N]` field whose record
-/// element still reaches conventional sums, with nonzero literal `length`.
-/// The element's complete recursive report is retained once with the exact
-/// count and stride, so every index shares the same record interior rather
-/// than multiplying rows by element.
+/// Project the compact report row for one direct fixed-array-of-records
+/// field whose innermost record element still reaches conventional sums.
+/// `candidate.hops` carries every consecutive literal arity, outermost
+/// first, and must be nonzero at every level; the packed row's
+/// `element_count` is their product. The element's complete recursive report
+/// is retained once with the exact count and stride, so every index shares
+/// the same record interior rather than multiplying rows by element.
 fn project_record_array_row(
     program: &CheckedTrees,
     plan: &LayoutPlan,
@@ -433,7 +527,7 @@ fn project_record_array_row(
     let declared = candidate.declared;
     let laid = candidate.laid;
     let element_named = candidate.named;
-    if candidate.length == 0 {
+    if candidate.hops.contains(&0) {
         return Err(Diagnostic::error(format!(
             "{owner} field `{}` must have nonzero literal length",
             declared.name
@@ -441,28 +535,23 @@ fn project_record_array_row(
     }
     let inner =
         project_recursive_paths(program, plan, element_named.symbol, reachability, depth + 1)?;
-    let TypeLayoutDescriptor::FixedArray {
-        element_type: laid_element,
-        length: laid_length,
-    } = &laid.type_descriptor
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout field `{}` is not the exact declared fixed array",
-            declared.name
-        )));
-    };
+    let laid_element = laid_innermost_array_descriptor(
+        &laid.type_descriptor,
+        &candidate.hops,
+        &declared.name,
+        "record-array",
+    )?;
     let TypeLayoutDescriptor::Named {
         symbol: laid_symbol,
         name: laid_name,
-    } = laid_element.as_ref()
+    } = laid_element
     else {
         return Err(Diagnostic::error(format!(
             "target runtime layout field `{}` substitutes its record-array element type",
             declared.name
         )));
     };
-    if *laid_length != candidate.length
-        || *laid_symbol != element_named.symbol
+    if *laid_symbol != element_named.symbol
         || laid.type_symbol != element_named.symbol
         || laid_name.as_str() != element_named.name.as_str()
     {
@@ -471,7 +560,19 @@ fn project_record_array_row(
             declared.name
         )));
     }
-    let element_count = u64::try_from(candidate.length).map_err(|_| {
+    let element_count = u64::try_from(
+        candidate
+            .hops
+            .iter()
+            .try_fold(1usize, |count, hop| count.checked_mul(*hop))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{owner} field `{}` count exceeds canonical report width",
+                    declared.name
+                ))
+            })?,
+    )
+    .map_err(|_| {
         Diagnostic::error(format!(
             "{owner} field `{}` count exceeds canonical report width",
             declared.name
@@ -773,6 +874,7 @@ fn project_recursive_paths(
             data_symbol,
             "recursive sum owner",
             reachability,
+            LiteralArrayHopRule::Flattened,
         )?;
         // `!profile.deeper` means no field reaches a sum through a nested
         // record, so the level cannot hold record-path candidates. Direct
@@ -850,7 +952,14 @@ fn project_record_sum_branches(
     // rows beside the flat outer plan, direct record arrays retain their
     // element's shared recursive report as compact rows, and record fields
     // still reaching sums are the level's authored-order deeper paths.
-    let level = project_record_level_children(program, plan, data_symbol, owner, reachability)?;
+    let level = project_record_level_children(
+        program,
+        plan,
+        data_symbol,
+        owner,
+        reachability,
+        LiteralArrayHopRule::Flattened,
+    )?;
     let mut total_leaf_paths = level
         .child_sum_layouts
         .len()
@@ -1286,6 +1395,7 @@ pub fn project_conventional_record_with_sum_arrays_materialization_layout(
         data_symbol,
         "nested-sum array record",
         &mut reachability,
+        LiteralArrayHopRule::OuterOnly,
     )?;
     if let Some(candidate) = level.record_paths.first() {
         return Err(Diagnostic::error(format!(

@@ -18,8 +18,9 @@ mod validated_materializations;
 
 pub(crate) use derived_bytes::{EncodedOuterField, PreparedSumArrayField, prepare_sum_array_field};
 pub(crate) use outer_layouts::{
-    exact_named_data, field_occurrence_matches, nested_sum_fields_match, validate_outer_layout,
-    validate_outer_record_owner, validate_supplied_nested_rows_against_retained,
+    exact_named_data, field_occurrence_matches, flatten_literal_array_elements,
+    nested_sum_fields_match, validate_outer_layout, validate_outer_record_owner,
+    validate_supplied_nested_rows_against_retained,
 };
 pub(crate) use replay_matching::{sum_array_fields_match, sum_array_layout_sets_match_for_replay};
 pub(crate) use report_fingerprints::hash_compact_sum_array_occurrence;

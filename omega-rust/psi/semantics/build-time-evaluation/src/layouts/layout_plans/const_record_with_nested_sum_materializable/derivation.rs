@@ -14,9 +14,10 @@ use super::{
     ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumFieldMaterialization,
     ValidatedConstRecursiveNestedSumOccurrenceMaterialization, encode_typed_owned_value,
     exact_named_data, exact_struct_fields, field_occurrence_matches,
-    materialize_aggregate_layout_into, normalized_schema_report_fingerprint,
-    prepare_sum_array_field, record_sum_profile, recursive, reflected_field_layout,
-    reject_sum_array_type, unique_data_by_name, validate_const_materializable_conventional_sum,
+    flatten_literal_array_elements, materialize_aggregate_layout_into,
+    normalized_schema_report_fingerprint, prepare_sum_array_field, record_sum_profile, recursive,
+    reflected_field_layout, reject_sum_array_type, unique_data_by_name,
+    validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums, validate_outer_layout,
     validate_outer_record_owner, validate_value, value_kind,
 };
@@ -27,13 +28,22 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 pub(super) struct RecordLevelChildren<'a> {
     /// Direct conventional pure-sum fields.
     pub(super) direct_sums: Vec<(&'a typed_trees::data::DataField, &'a DataDefinition)>,
-    /// Direct nonzero literal `[S; N]` fields of conventional pure sums.
-    pub(super) direct_sum_arrays:
-        Vec<(&'a typed_trees::data::DataField, &'a DataDefinition, usize)>,
-    /// Direct nonzero literal `[R; N]` fields whose record element still
-    /// reaches sums inside the element.
-    pub(super) direct_record_arrays:
-        Vec<(&'a typed_trees::data::DataField, &'a DataDefinition, usize)>,
+    /// Direct nonzero literal fixed arrays of conventional pure sums. The
+    /// `Vec<usize>` is every consecutive literal element arity, outermost
+    /// first — `[[S; 2]; 3]` carries `[3, 2]` and its packed row's element
+    /// count is the product.
+    pub(super) direct_sum_arrays: Vec<(
+        &'a typed_trees::data::DataField,
+        &'a DataDefinition,
+        Vec<usize>,
+    )>,
+    /// Direct nonzero literal fixed arrays of records still reaching sums
+    /// inside the element, under the same flattened-hop rule.
+    pub(super) direct_record_arrays: Vec<(
+        &'a typed_trees::data::DataField,
+        &'a DataDefinition,
+        Vec<usize>,
+    )>,
     /// Record fields whose exact type still reaches sums below this level.
     pub(super) record_paths: Vec<(&'a typed_trees::data::DataField, &'a DataDefinition)>,
 }
@@ -41,10 +51,11 @@ pub(super) struct RecordLevelChildren<'a> {
 /// Classify every runtime-relevant field of one record level exactly as the
 /// projection does: direct pure sums, direct literal fixed arrays of pure
 /// sums, direct literal fixed arrays of records still reaching sums inside
-/// the element, and record fields still reaching sums below. Arrays
-/// reaching sums through more than one literal element hop — nested arrays
-/// or mixed elements — non-literal lengths, and zero-length arrays remain
-/// fenced, and every declared member must be supplied by the value.
+/// the element, and record fields still reaching sums below. Consecutive
+/// literal element hops flatten into the packed row's element count — a
+/// `[[S; 2]; 3]` field is six packed sums — while mixed elements,
+/// non-literal lengths, and zero-length hops remain fenced, and every
+/// declared member must be supplied by the value.
 pub(super) fn classify_record_level_children<'a>(
     typed: &'a TypedTrees,
     data: &'a DataDefinition,
@@ -115,21 +126,44 @@ pub(super) fn classify_record_level_children<'a>(
                 element_type,
                 length: FixedArrayLength::Literal(length),
             } => {
-                let Some(named) = exact_named_data(typed, *element_type)? else {
-                    return Err(MaterializationDiagnostic(format!(
-                        "value.{} reaches a sum through an array deeper than one literal element hop",
-                        field.name
-                    )));
-                };
-                match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-                    DataShapeKind::Enum => {
-                        if *length == 0 {
+                // Consecutive literal element hops pack contiguously —
+                // `[[S; N]; M]` holds `M * N` elements — so the level spells
+                // the whole hop list beside the innermost element's report.
+                let mut hops = vec![*length];
+                let mut element_reference = *element_type;
+                loop {
+                    match typed.type_reference_table.type_reference(element_reference) {
+                        TypeReferenceNode::FixedArray {
+                            element_type: nested_element,
+                            length: FixedArrayLength::Literal(nested_length),
+                        } => {
+                            hops.push(*nested_length);
+                            element_reference = *nested_element;
+                        }
+                        TypeReferenceNode::FixedArray { .. } => {
                             return Err(MaterializationDiagnostic(format!(
-                                "value.{} must have nonzero literal length",
+                                "value.{} reaches a sum through a non-literal-length array",
                                 field.name
                             )));
                         }
-                        children.direct_sum_arrays.push((field, named, *length));
+                        _ => break,
+                    }
+                }
+                let Some(named) = exact_named_data(typed, element_reference)? else {
+                    return Err(MaterializationDiagnostic(format!(
+                        "value.{} reaches a sum through an array element without one exact nominal identity",
+                        field.name
+                    )));
+                };
+                if hops.contains(&0) {
+                    return Err(MaterializationDiagnostic(format!(
+                        "value.{} must have nonzero literal length",
+                        field.name
+                    )));
+                }
+                match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
+                    DataShapeKind::Enum => {
+                        children.direct_sum_arrays.push((field, named, hops));
                     }
                     DataShapeKind::Mixed => {
                         return Err(MaterializationDiagnostic(format!(
@@ -142,13 +176,7 @@ pub(super) fn classify_record_level_children<'a>(
                     // projection admits, carried by the recursive report the
                     // row retains once for every element.
                     DataShapeKind::Record => {
-                        if *length == 0 {
-                            return Err(MaterializationDiagnostic(format!(
-                                "value.{} must have nonzero literal length",
-                                field.name
-                            )));
-                        }
-                        children.direct_record_arrays.push((field, named, *length));
+                        children.direct_record_arrays.push((field, named, hops));
                     }
                     DataShapeKind::Empty => {
                         return Err(MaterializationDiagnostic(format!(
@@ -261,7 +289,7 @@ pub(super) fn validate_direct_sum_rows(
 /// staging each field's complete repeated bytes and per-element custody.
 pub(super) fn validate_direct_sum_array_rows(
     typed: &TypedTrees,
-    direct_sum_arrays: &[(&typed_trees::data::DataField, &DataDefinition, usize)],
+    direct_sum_arrays: &[(&typed_trees::data::DataField, &DataDefinition, Vec<usize>)],
     rows: &[ConventionalSumArrayFieldLayoutReport],
     supplied: &std::collections::BTreeMap<&str, &BuildTimeValue>,
     byte_order: ByteOrder,
@@ -283,7 +311,7 @@ pub(super) fn validate_direct_sum_array_rows(
                     .into(),
             )
         })?;
-    for ((array_field, sum_data, element_count), array_layout) in direct_sum_arrays.iter().zip(rows)
+    for ((array_field, sum_data, element_hops), array_layout) in direct_sum_arrays.iter().zip(rows)
     {
         let array_value = supplied
             .get(array_field.name.as_str())
@@ -292,7 +320,7 @@ pub(super) fn validate_direct_sum_array_rows(
             typed,
             array_field,
             sum_data,
-            *element_count,
+            element_hops,
             array_layout,
             array_value,
             byte_order,
@@ -324,7 +352,7 @@ pub(super) fn prepare_record_array_field(
     typed: &TypedTrees,
     array_field: &typed_trees::data::DataField,
     element_data: &DataDefinition,
-    element_count: usize,
+    element_hops: &[usize],
     array_layout: &ConventionalRecordArrayFieldLayoutReport,
     array_value: &BuildTimeValue,
     byte_order: ByteOrder,
@@ -341,6 +369,14 @@ pub(super) fn prepare_record_array_field(
             array_field.name
         )));
     }
+    let element_count = element_hops
+        .iter()
+        .try_fold(1usize, |count, hop| count.checked_mul(*hop))
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-array count exceeds canonical report width".into(),
+            )
+        })?;
     let element_count_u64 = u64::try_from(element_count).map_err(|_| {
         MaterializationDiagnostic(
             "ConstMaterializable record-array count exceeds canonical report width".into(),
@@ -360,19 +396,8 @@ pub(super) fn prepare_record_array_field(
             array_field.name
         )));
     }
-    let BuildTimeValue::Array(element_values) = array_value else {
-        return Err(MaterializationDiagnostic(format!(
-            "value.{} is not a fixed array",
-            array_field.name
-        )));
-    };
-    if element_values.len() != element_count {
-        return Err(MaterializationDiagnostic(format!(
-            "value.{} has {} elements, expected {element_count}",
-            array_field.name,
-            element_values.len()
-        )));
-    }
+    let element_values =
+        flatten_literal_array_elements(array_field.name.as_str(), element_hops, array_value)?;
     let mut elements = Vec::new();
     elements.try_reserve_exact(element_count).map_err(|_| {
         MaterializationDiagnostic(
@@ -400,7 +425,7 @@ pub(super) fn prepare_record_array_field(
                 "ConstMaterializable record-array staged bytes exceed compiler resources".into(),
             )
         })?;
-    for (index, element_value) in element_values.iter().enumerate() {
+    for (index, element_value) in element_values.into_iter().enumerate() {
         let inner = recursive::validate_with_reachability(
             typed,
             element_data.name.as_str(),
@@ -457,7 +482,7 @@ pub(super) fn prepare_record_array_field(
 /// recursive custody.
 pub(super) fn validate_direct_record_array_rows(
     typed: &TypedTrees,
-    direct_record_arrays: &[(&typed_trees::data::DataField, &DataDefinition, usize)],
+    direct_record_arrays: &[(&typed_trees::data::DataField, &DataDefinition, Vec<usize>)],
     rows: &[ConventionalRecordArrayFieldLayoutReport],
     supplied: &std::collections::BTreeMap<&str, &BuildTimeValue>,
     byte_order: ByteOrder,
@@ -480,7 +505,7 @@ pub(super) fn validate_direct_record_array_rows(
                     .into(),
             )
         })?;
-    for ((array_field, element_data, element_count), array_layout) in
+    for ((array_field, element_data, element_hops), array_layout) in
         direct_record_arrays.iter().zip(rows)
     {
         let array_value = supplied
@@ -490,7 +515,7 @@ pub(super) fn validate_direct_record_array_rows(
             typed,
             array_field,
             element_data,
-            *element_count,
+            element_hops,
             array_layout,
             array_value,
             byte_order,

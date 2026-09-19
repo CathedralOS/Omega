@@ -461,11 +461,11 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             ByteOrder::LittleEndian,
         )
         .unwrap();
-        // Arrays reaching sums through more than one literal element hop —
-        // nested arrays, zero-length elements — stay fenced at every depth.
-        // A direct record element crosses its own record boundary inside the
-        // repeated element, which the general recursive rule already carries.
-        for name in ["NestedChoiceArray", "ZeroChoices"] {
+        // Zero-length array hops stay fenced at every depth. Nested literal
+        // arrays flatten into one packed row under the general recursive
+        // rule, so `NestedChoiceArray` joins the admitted cohort below.
+        {
+            let name = "ZeroChoices";
             assert!(
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
                     &checked,
@@ -490,6 +490,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             "InnerArray",
             "RecordArrays",
             "InnerRecordArrays",
+            "NestedChoiceArray",
         ] {
             let result =
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
@@ -1612,4 +1613,256 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
             ByteOrder::LittleEndian,
         )
         .expect("numbered member spelling is presentation-only on record-array rows");
+}
+
+#[test]
+fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
+    // `[[Choice; 2]; 3]` is six packed sums byte-identical to `[Choice; 6]`:
+    // one compact row carries the hop product at the innermost element's
+    // stride, the flat leaf index `matrix[k]` spells `k = outer * 2 + inner`,
+    // and every declared level's arity is still enforced on the value.
+    // `[[Layer0; 2]; 2]` flattens the same way with the record element's own
+    // leaf report retained once beside the packed row. Zero-length hops and
+    // values whose per-level arity drifts stay fenced.
+    let checked = checked(
+        "data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u16); }
+         data Layer0 [copy] { #1 first: Choice; #2 second: Choice; }
+         data Packed [copy] { #1 head: u16; #2 matrix: [[Choice; 2]; 3]; #3 rows: [[Layer0; 2]; 2]; #4 tail: Choice; }
+         data ZeroNested [copy] { #1 dead: [[Choice; 0]; 2]; }",
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let definition = |name: &str| {
+        checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .unwrap()
+    };
+    let zero_error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        definition("ZeroNested").symbol,
+    )
+    .expect_err("a zero-length nested hop must reject");
+    assert!(
+        format!("{zero_error:?}").contains("must have nonzero literal length"),
+        "{zero_error:?}"
+    );
+
+    let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        definition("Packed").symbol,
+    )
+    .expect("a level carrying nested literal arrays beside a direct sum projects");
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        outer_layout,
+        child_sum_layouts,
+        child_sum_array_layouts,
+        child_record_array_layouts,
+    } = &paths
+    else {
+        panic!("Packed holds no record path: the level is a leaf");
+    };
+    assert_eq!(outer_layout.offsets.as_deref(), Some(&[0, 4, 52, 116][..]));
+    assert_eq!(outer_layout.size, Some(124));
+    assert_eq!(
+        child_sum_layouts
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        [("tail", Some(4))]
+    );
+    assert_eq!(
+        child_sum_array_layouts
+            .iter()
+            .map(|row| (
+                row.field.as_str(),
+                row.member_identity,
+                row.element_count,
+                row.element_stride
+            ))
+            .collect::<Vec<_>>(),
+        [("matrix", Some(2), 6, 8)]
+    );
+    assert_eq!(
+        child_record_array_layouts
+            .iter()
+            .map(|row| (
+                row.field.as_str(),
+                row.member_identity,
+                row.element_count,
+                row.element_stride
+            ))
+            .collect::<Vec<_>>(),
+        [("rows", Some(3), 4, 16)]
+    );
+    // The packed record-array row retains the element's leaf level once —
+    // Layer0's own two direct sums — not four multiplied rows.
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts: element_sums,
+        child_sum_array_layouts: element_arrays,
+        child_record_array_layouts: element_record_arrays,
+        ..
+    } = &child_record_array_layouts[0].inner
+    else {
+        panic!("the Layer0 element is a leaf level");
+    };
+    assert_eq!(
+        element_sums
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        [("first", Some(1)), ("second", Some(2))]
+    );
+    assert!(element_arrays.is_empty());
+    assert!(element_record_arrays.is_empty());
+
+    let number = |value| BuildTimeValue::Case {
+        variant: "Number".into(),
+        payload: vec![("value".into(), BuildTimeValue::Int(value))],
+    };
+    let empty = || BuildTimeValue::Case {
+        variant: "Empty".into(),
+        payload: Vec::new(),
+    };
+    let layer0 = |first, second| BuildTimeValue::Struct {
+        type_name: "Layer0".into(),
+        fields: vec![("first".into(), first), ("second".into(), second)],
+    };
+    let value = BuildTimeValue::Struct {
+        type_name: "Packed".into(),
+        fields: vec![
+            ("head".into(), BuildTimeValue::Int(0x7788)),
+            (
+                "matrix".into(),
+                BuildTimeValue::Array(vec![
+                    BuildTimeValue::Array(vec![empty(), number(0x1122)]),
+                    BuildTimeValue::Array(vec![number(0x3344), empty()]),
+                    BuildTimeValue::Array(vec![number(0x5566), empty()]),
+                ]),
+            ),
+            (
+                "rows".into(),
+                BuildTimeValue::Array(vec![
+                    BuildTimeValue::Array(vec![
+                        layer0(number(0x7788), empty()),
+                        layer0(empty(), number(0x99aa)),
+                    ]),
+                    BuildTimeValue::Array(vec![
+                        layer0(empty(), empty()),
+                        layer0(number(0xbbcc), empty()),
+                    ]),
+                ]),
+            ),
+            ("tail".into(), number(0xddee)),
+        ],
+    };
+    let carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "Packed",
+        &paths,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("nested literal arrays rejoin value custody as packed rows");
+    let ValidatedConstRecordWithRecursiveNestedSumsMaterialization::Leaf(leaf) = &carrier else {
+        panic!("Packed retains leaf custody");
+    };
+    assert_eq!(leaf.nested_sums().len(), 1);
+    assert_eq!(leaf.nested_sums()[0].field(), "tail");
+    assert_eq!(leaf.nested_sum_arrays().len(), 1);
+    let matrix = &leaf.nested_sum_arrays()[0];
+    assert_eq!(matrix.field(), "matrix");
+    assert_eq!(matrix.field_identity(), Some(2));
+    // `literal_index` is the packed leaf index: `matrix[1][0]` is element 2.
+    assert_eq!(
+        matrix
+            .elements()
+            .iter()
+            .map(|element| element.literal_index())
+            .collect::<Vec<_>>(),
+        [0, 1, 2, 3, 4, 5]
+    );
+    assert_eq!(leaf.nested_record_arrays().len(), 1);
+    let rows = &leaf.nested_record_arrays()[0];
+    assert_eq!(rows.field(), "rows");
+    assert_eq!(
+        rows.elements()
+            .iter()
+            .map(|element| element.literal_index())
+            .collect::<Vec<_>>(),
+        [0, 1, 2, 3]
+    );
+    let mut expected = [0_u8; 124];
+    expected[0..2].copy_from_slice(&0x7788_u16.to_le_bytes());
+    // Packed index 1 is `matrix[0][1]`, index 2 is `matrix[1][0]`, index 4 is
+    // `matrix[2][0]` — the flat leaf order proves `k = outer * 2 + inner`.
+    for (flat_index, case) in [(1_usize, 0x1122_u16), (2, 0x3344), (4, 0x5566)] {
+        let offset = 4 + flat_index * 8;
+        expected[offset..offset + 4].copy_from_slice(&1_u32.to_le_bytes());
+        expected[offset + 4..offset + 6].copy_from_slice(&case.to_le_bytes());
+    }
+    expected[52..56].copy_from_slice(&1_u32.to_le_bytes());
+    expected[56..58].copy_from_slice(&0x7788_u16.to_le_bytes());
+    expected[76..80].copy_from_slice(&1_u32.to_le_bytes());
+    expected[80..82].copy_from_slice(&0x99aa_u16.to_le_bytes());
+    expected[100..104].copy_from_slice(&1_u32.to_le_bytes());
+    expected[104..106].copy_from_slice(&0xbbcc_u16.to_le_bytes());
+    expected[116..120].copy_from_slice(&1_u32.to_le_bytes());
+    expected[120..122].copy_from_slice(&0xddee_u16.to_le_bytes());
+    assert_eq!(carrier.bytes(), &expected);
+    let mut destination = [0x5a; 128];
+    carrier.apply(&checked, &mut destination).unwrap();
+    assert_eq!(&destination[..124], carrier.bytes());
+    assert_eq!(&destination[124..], &[0x5a; 4]);
+
+    // Per-level arity is part of the packed contract: the same total count
+    // spelled at the wrong level, or a value missing one level entirely,
+    // rejects against the declared hops.
+    for mutation in 0..3 {
+        let mut changed_value = value.clone();
+        let BuildTimeValue::Struct { fields, .. } = &mut changed_value else {
+            unreachable!()
+        };
+        match mutation {
+            0 => {
+                let BuildTimeValue::Array(outer) = &mut fields[1].1 else {
+                    unreachable!()
+                };
+                outer.pop();
+            }
+            1 => {
+                let BuildTimeValue::Array(outer) = &mut fields[1].1 else {
+                    unreachable!()
+                };
+                let BuildTimeValue::Array(inner) = &mut outer[1] else {
+                    unreachable!()
+                };
+                inner.pop();
+            }
+            2 => {
+                fields[1].1 = BuildTimeValue::Array(vec![
+                    empty(),
+                    empty(),
+                    empty(),
+                    empty(),
+                    empty(),
+                    empty(),
+                ]);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_const_materializable_record_with_recursive_nested_sums(
+                &checked,
+                "Packed",
+                &paths,
+                &changed_value,
+                ByteOrder::LittleEndian,
+            )
+            .is_err(),
+            "mutation {mutation}: per-level arity drift must reject"
+        );
+    }
 }

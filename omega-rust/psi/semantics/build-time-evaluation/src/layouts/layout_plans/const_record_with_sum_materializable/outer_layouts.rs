@@ -1,5 +1,6 @@
 //! Outer record owners, layouts and retained nested rows.
 
+use crate::layouts::layout_plans::BuildTimeValue;
 use crate::layouts::layout_plans::const_record_with_sum_materializable::ValidatedConstRecordSumFieldMaterialization;
 use crate::layouts::layout_plans::const_record_with_sum_materializable::derived_bytes::EncodedOuterField;
 use language_semantics::{DataSupplyMode, Multiplicity};
@@ -212,6 +213,38 @@ pub(crate) fn nested_sum_fields_match(
                         .nested_sum
                         .non_authoritative_materialization_report_fingerprint()
         })
+}
+
+/// Collect one declared literal array's innermost element values in packed
+/// order. `element_hops` carries each level's declared arity, outermost
+/// first: a `[[T; 2]; 3]` field spells `[3, 2]` and yields six references in
+/// the same order the compact row's flat element index uses — `field[i][j]`
+/// is packed element `i * 2 + j`.
+pub(crate) fn flatten_literal_array_elements<'v>(
+    field_name: &str,
+    element_hops: &[usize],
+    array_value: &'v BuildTimeValue,
+) -> Result<Vec<&'v BuildTimeValue>, MaterializationDiagnostic> {
+    let mut level = vec![array_value];
+    for hop in element_hops {
+        let mut next = Vec::new();
+        for value in level {
+            let BuildTimeValue::Array(elements) = value else {
+                return Err(MaterializationDiagnostic(format!(
+                    "value.{field_name} is not a fixed array"
+                )));
+            };
+            if elements.len() != *hop {
+                return Err(MaterializationDiagnostic(format!(
+                    "value.{field_name} has {} elements, expected {hop}",
+                    elements.len()
+                )));
+            }
+            next.extend(elements.iter());
+        }
+        level = next;
+    }
+    Ok(level)
 }
 
 pub(crate) fn field_occurrence_matches(

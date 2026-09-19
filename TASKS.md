@@ -1000,9 +1000,15 @@ Owners include
   projects a leaf level carrying a direct sum beside a literal `[R; N]` record
   array, folds the `RecordArray` carrier, composes `field At + index * stride
   + interior offset` for `members[i].<path>` writes, and lowers/replays the
-  post-handoff writer on both Linux ISAs (native execution on x86-64). Carry
-  record depth as data and extend that owner rather than adding
-  depth-specific implementations.
+  post-handoff writer on both Linux ISAs (native execution on x86-64). The
+  nested literal array shape runs the same leg as one packed repeated row:
+  `nested_array_symbolic_materialization_realizes_on_both_linux_isas` folds
+  `[[S; N]; M]` and `[[R; N]; M]` fields into the count-and-stride row the
+  carriers already carry — element count is the hop product, stride is the
+  innermost element extent, the path spells the flat leaf index `field[k]`
+  with `k = outer * N + inner` — and per-level arity stays enforced on the
+  build-time value. Carry record depth as data and extend that owner rather
+  than adding depth-specific implementations.
 
   Remaining work:
 
@@ -1012,9 +1018,12 @@ Owners include
     stored-integer, or repeated placement"). A symbolic path must cross the
     whole [placement vocabulary](wiki/spec/layouts/plans.md#placement-vocabulary),
     not only whole-field `At` entries.
-  - Shapes the recursion still fences: an array reaching sums through more
-    than one literal element hop — nested arrays or mixed elements — and any
-    non-literal array length.
+  - Shapes the recursion still fences: an array whose element is a mixed
+    common-field/case data definition, and any non-literal array length.
+    Consecutive literal element hops now flatten into one packed row under
+    the recursive owner; the standalone rungs keep their single-hop fence
+    verbatim, so an array-of-arrays reaching sums still rejects outside the
+    recursive owner.
   - The Linux aarch64 native leg has never executed. That harness selects its
     guarded C driver by `cfg(target_arch)`, so only the x86-64 arm has run;
     every other host takes the emission-only path.
