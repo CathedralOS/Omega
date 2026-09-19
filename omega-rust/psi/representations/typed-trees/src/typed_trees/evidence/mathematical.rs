@@ -26,9 +26,10 @@ pub struct MathematicalDefinition {
     /// owns that judgment.
     pub binders: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<MathematicalParameter>,
-    /// The declared result type. Lowering currently admits only `Ordinary`
-    /// references; `Arrow`/`Application` nodes exist for the dependent
-    /// function-type and application legs that fill them.
+    /// The declared result type as a declaration-local mathematical type:
+    /// `Ordinary` references, dependent `Arrow`s and type-level
+    /// `Application`s all carry through; checked elaboration owns their
+    /// interpretation.
     pub result: MathematicalTypeHandle,
     pub body: MathematicalBody,
 }
