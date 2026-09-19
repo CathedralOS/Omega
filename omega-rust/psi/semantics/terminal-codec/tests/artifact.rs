@@ -15,6 +15,8 @@ mod float_meaning_custody;
 mod integer_proof_formats;
 #[path = "artifact/obligation_ledger_custody.rs"]
 mod obligation_ledger_custody;
+#[path = "artifact/operation_crash_contract_custody.rs"]
+mod operation_crash_contract_custody;
 #[path = "artifact/optimization_execution_custody.rs"]
 mod optimization_execution_custody;
 #[path = "artifact/pcc.rs"]
