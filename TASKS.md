@@ -3258,8 +3258,10 @@ Owners include
     evidence-bound explicit-empty row needs a retained occurrence, and no
     authored source can produce one;
     `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
-    that stop. Which customer earns the row is owner-blocked on the named
-    decision `build-vocabulary-filesystem-chain` in `OWNER_QUESTIONS.md`.
+    that stop. Which customer earns the row follows from the named decision
+    `build-authority-reach-or-vocabulary` in `OWNER_QUESTIONS.md`, which
+    settles whether build authority is declared reach checked against a bound
+    or stays a blessed facet list.
     FILESYSTEM-RELEASE-CONTRACT owns the occurrence evidence. Generic close
     need not be supported to admit a separately proved constrained
     occurrence.
@@ -3297,10 +3299,12 @@ Owners include
 
   Remaining work:
 
-  - A producer. Whether the build vocabulary may issue the constrained chain,
-    or the row is earned only by program-side release, is owner-blocked on
-    the named decision `build-vocabulary-filesystem-chain` in
-    `OWNER_QUESTIONS.md`.
+  - A producer. Whether a build can issue the constrained chain, or the row is
+    earned only by program-side release, follows from the named decision
+    `build-authority-reach-or-vocabulary` in `OWNER_QUESTIONS.md`. The chain
+    requests access zero and reads nothing, while the blessed baseline
+    `BuildSource::{open, read}` already opens with arbitrary flags and reads
+    contents, so this is not a question of granting authority.
     Add no further consumers of the record until it is answered;
     `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
     the stop.

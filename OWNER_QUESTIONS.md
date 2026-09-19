@@ -40,39 +40,52 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **May the compiler-owned build vocabulary offer a constrained
-   filesystem open/query/close chain?** (named decision:
-   `build-vocabulary-filesystem-chain`). The two-axis review's remaining
-   acceptance is a witness that an ordinary compile earns the evidence-bound
-   explicit-empty release row. No authored source can produce the retained
-   occurrence that witness needs. `BUILD_PRELUDE`
-   (`source-files-to-assembled-syntax/src/source_assembly.rs`) declares only
-   `BuildSource::{resolve, open, read, close}` and the `BuildOutput` and
-   `BuildLog` facets, and `build_facet_filesystem_operation`
-   (`checked-interpreter/.../evaluator/build_paths.rs`) maps exactly those
-   names onto open, read, close, create and write, none of which is the
-   constrained acquisition
-   (`build-evaluation/src/evidence/replay_eligibility.rs` wants an
-   `open_path_handle` attempt). Reaching the raw boundary instead is refused
-   by a settled rule in `build-evaluation/src/admitted_build_program.rs`:
-   "build.omg may not reach runtime boundary services; use the
-   compiler-owned Build facets." Witnessed at 7be8d50205 (macOS ARM64):
-   a compile running the widest lifecycle a build machine can request
-   retains three receipted attempts and a verified replay record, and
-   `filesystem_native_handle_query_release_contracts` still derives zero
-   contracts (`compiler/tests/terminal_authority.rs`). Decision needed:
-   (a) add one compiler-owned Source facet that issues the constrained
-   chain over a `BuildPath`, the shape std already composes for Windows
-   canonicalization (`open_path_handle`, `final_path_name_by_handle`,
-   `close_handle`), which widens the authored build surface that
-   [permissions](wiki/spec/build/permissions.md) and
-   [declarations](wiki/spec/build/declarations.md) currently fix; or (b)
-   the constrained row is earned only by program-side filesystem release
-   and never by a build, in which case the two-axis acceptance should name
-   a program customer instead, and the broad `Filesystem` summary retires
-   on that route. Until answered, the summary stays, the settlement wiring
-   stands unused, and **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and
-   **FILESYSTEM-RELEASE-CONTRACT** cannot close.
+1. **Does build-time authority publish as declared service reach checked
+   against a bound, or stay a fixed compiler-owned facet vocabulary?** (named
+   decision: `build-authority-reach-or-vocabulary`). The general mechanism
+   already exists and already runs on build machines.
+   [Service reach](wiki/spec/language/effects.md) propagates through ordinary
+   calls, inherits through boundary parents, and publishes a normalized row,
+   and `reaches <= Bound` is settled for abstract ceilings
+   (effects.md "Installation-bound requirements"). `admitted_build_program.rs`
+   computes a build machine's inferred transitive service reach through that
+   ordinary plan and then rejects any non-empty result: "build.omg may not
+   reach runtime boundary services; use the compiler-owned Build facets". The
+   policy is `reach == 0` where the language spells `reach <= Bound`, so the
+   computed row is discarded rather than published. Package review collapses
+   the same information: `dangerous_authority_class`
+   (`packages/review/evidence/src/capture/authority.rs`) receives a
+   `ServiceReachDefinition` and returns a class only when the symbol is one of
+   two blessed bindings, so every other reached service classifies as nothing
+   and filesystem use publishes one broad transitional row. Meanwhile
+   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
+   already specifies the channel a bubbled primitive would use: a request
+   carrying operation, logical resource scope, bounds, execution profile and
+   target, compared against the consuming project's accepted lock policy and
+   published in `omega.lock`. Build facets bypass it by being the pre-blessed
+   baseline that needs no approval. Options:
+
+   - (a) Build machines declare reach and are checked against a bound like
+     ordinary code. Review publishes rows from the reach structure instead of
+     blessed symbol identity, and an operation outside the baseline becomes a
+     restricted request the lock accepts per package. The facet vocabulary
+     stops being an authority boundary and becomes ordinary library surface.
+   - (b) Build authority stays a fixed compiler-owned vocabulary. Each new
+     build operation is an owner blessing, review keeps its two blessed
+     classes, and the reach computed for build machines stays discarded.
+
+   Motivating customer: a consumer deciding whether to install a package must
+   see what its build does during compilation, which the acceptance contract
+   already requires as checked requests with scope and bounds rather than
+   broad risk labels. Today that answer is "one of five compiler-blessed
+   operations, unreviewed", and the shipped artifact's filesystem use
+   publishes one transitional broad class. The answer also settles what was
+   filed as the constrained filesystem open/query/close chain: that operation
+   requests access zero and cannot read a byte, while the blessed baseline
+   already opens with arbitrary flags and reads contents, so under (a) it
+   needs no blessing at all and under (b) it is one more enumeration step.
+   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and **FILESYSTEM-RELEASE-CONTRACT**
+   both wait on the consequence.
 
 2. **May a provider's selected plan resolve an installation-bound row it
    owns, or does that wait on receiver-bearing selection?** (named decision:
