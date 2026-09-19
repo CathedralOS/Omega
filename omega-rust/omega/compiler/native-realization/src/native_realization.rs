@@ -5,6 +5,7 @@
 //! not choose a different publication route.
 
 mod artifact_assembly;
+mod behavior_exclusions;
 mod boundary_applications;
 mod callback_custody;
 mod input_preparation;
@@ -143,7 +144,12 @@ pub fn realize_native_artifact_with_release_contracts(
             }
         }
     }
-    realize_image(artifact, &request).map_err(|diagnostics| RequestedNativeArtifactError {
+    realize_image(
+        artifact,
+        &request,
+        &build_evaluation::BehaviorExclusions::default(),
+    )
+    .map_err(|diagnostics| RequestedNativeArtifactError {
         image_request: request.image_request,
         diagnostics,
     })
@@ -152,6 +158,7 @@ pub fn realize_native_artifact_with_release_contracts(
 fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
+    behavior_exclusions: &build_evaluation::BehaviorExclusions,
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     if let Some(scope) = request.checked_scope {
         scope
@@ -202,6 +209,14 @@ fn realize_image(
         proof_bytes,
         terminal_artifact_identity,
         request,
+    )?;
+    // A requested physical-authority exclusion is a demand on the admitted
+    // mechanism closure, not a receiver permission: it is adjudicated against
+    // the review's exercised dispositions whether or not the request carries
+    // a permission policy, and a violation publishes no product.
+    behavior_exclusions::admit_behavior_exclusion_closure(
+        behavior_exclusions,
+        &terminal_authority_closure_review,
     )?;
     let emitted = emit_realization_object(
         input,

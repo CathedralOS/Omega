@@ -1,8 +1,9 @@
 //! Typed build behavior exclusions and the Terminal-closure absence checker.
 //!
-//! A build may forbid exact behavior — a crash cause or an abstract boundary
-//! service — in the selected executable composition, independently of the
-//! conservative public contracts the same declarations publish. This is what
+//! A build may forbid exact behavior — a crash cause, an abstract boundary
+//! service, or a physical terminal-authority class — in the selected
+//! executable composition, independently of the conservative public contracts
+//! the same declarations publish. This is what
 //! separates a verified no-op assertion composition from a checking one under
 //! an identical declared Trap ceiling, and an ordinary silent logger from an
 //! actual Console invocation behind an equally broad published ceiling.
@@ -50,7 +51,21 @@
 //! identity is resolved per module at the join. The product-admission join
 //! itself lives in `checked-compilation-to-terminal-artifact`, which replays
 //! the unoptimized lowering before the artifact is admitted.
+//!
+//! A physical-authority-class exclusion selects a class from D45's closed
+//! `TerminalAuthorityClass` vocabulary: no admitted mechanism may exercise
+//! that class under the shared mechanism-classification semantics. The
+//! semantic walk cannot adjudicate it — mechanisms are settled only by
+//! native realization — so the class records into the canonical union like
+//! any other selection and the walk still demands a bounded entry/call
+//! closure: a composition whose calls cannot be enumerated cannot carry a
+//! physical absence claim forward. The final adjudication reuses the
+//! mechanism-closure review in `native-realization` (`TerminalAuthorityClass`
+//! classification, never a second classifier and never the receiver's
+//! permission grant table); this walk's evidence gaps remain the earliest
+//! bound on what that review cannot enumerate.
 
+use effects::TerminalAuthorityClass;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
 use std::collections::{BTreeMap, VecDeque};
 use symbols::SymbolHandle;
@@ -64,6 +79,12 @@ use terminal_psi::{
 pub enum BehaviorExclusion {
     CrashCause(CrashCause),
     Service(ServiceId),
+    /// No admitted mechanism may exercise this class of D45's closed
+    /// terminal-authority vocabulary. The semantic walk records the
+    /// selection and its bounded-closure evidence but cannot adjudicate
+    /// mechanisms; native realization checks it against the retained
+    /// mechanism-closure review's exercised dispositions.
+    PhysicalAuthorityClass(TerminalAuthorityClass),
 }
 
 /// Canonical union of the root's selected exclusions: sorted, deduplicated,
@@ -72,6 +93,7 @@ pub enum BehaviorExclusion {
 pub struct BehaviorExclusions {
     crash_causes: Vec<CrashCause>,
     services: Vec<ServiceId>,
+    physical_authority_classes: Vec<TerminalAuthorityClass>,
 }
 
 impl BehaviorExclusions {
@@ -81,6 +103,9 @@ impl BehaviorExclusions {
             match selection {
                 BehaviorExclusion::CrashCause(cause) => exclusions.crash_causes.push(cause),
                 BehaviorExclusion::Service(service) => exclusions.services.push(service),
+                BehaviorExclusion::PhysicalAuthorityClass(class) => {
+                    exclusions.physical_authority_classes.push(class)
+                }
             }
         }
         exclusions.sort_and_deduplicate();
@@ -91,11 +116,15 @@ impl BehaviorExclusions {
     pub fn union(&mut self, other: &Self) {
         self.crash_causes.extend_from_slice(&other.crash_causes);
         self.services.extend_from_slice(&other.services);
+        self.physical_authority_classes
+            .extend_from_slice(&other.physical_authority_classes);
         self.sort_and_deduplicate();
     }
 
     pub fn is_empty(&self) -> bool {
-        self.crash_causes.is_empty() && self.services.is_empty()
+        self.crash_causes.is_empty()
+            && self.services.is_empty()
+            && self.physical_authority_classes.is_empty()
     }
 
     pub fn excludes_crash_cause(&self, cause: CrashCause) -> bool {
@@ -106,6 +135,14 @@ impl BehaviorExclusions {
         self.services.contains(&service)
     }
 
+    /// Whether this union excludes one physical authority class: the native
+    /// mechanism-closure review then rejects every admitted mechanism whose
+    /// exercised disposition contains it, independently of any receiver
+    /// permission policy.
+    pub fn excludes_physical_authority_class(&self, class: TerminalAuthorityClass) -> bool {
+        self.physical_authority_classes.contains(&class)
+    }
+
     pub fn crash_causes(&self) -> &[CrashCause] {
         &self.crash_causes
     }
@@ -114,11 +151,17 @@ impl BehaviorExclusions {
         &self.services
     }
 
+    pub fn physical_authority_classes(&self) -> &[TerminalAuthorityClass] {
+        &self.physical_authority_classes
+    }
+
     fn sort_and_deduplicate(&mut self) {
         self.crash_causes.sort_unstable();
         self.crash_causes.dedup();
         self.services.sort_unstable();
         self.services.dedup();
+        self.physical_authority_classes.sort_unstable();
+        self.physical_authority_classes.dedup();
     }
 }
 

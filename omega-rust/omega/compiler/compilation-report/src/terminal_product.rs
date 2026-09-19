@@ -529,7 +529,11 @@ impl TerminalNativeRealizationProposal {
         // trusted from producer rows. The producing admission gate
         // additionally checked the unoptimized closure committed as this
         // artifact's optimization input; this replay re-verifies the
-        // published subject.
+        // published subject. Physical-authority-class rows produce no site in
+        // this walk — mechanisms exist only at realization — but still demand
+        // the bounded entry/call closure the walk enforces; their
+        // adjudication waits for the mechanism-closure review at native
+        // realization, which consumes this same retained union.
         match build_evaluation::establish_behavior_exclusions(
             &module,
             &[module.entry],
@@ -1009,6 +1013,9 @@ impl TerminalNativeRealizationProposal {
     /// build required. The producing admission gate enforced it over the
     /// unoptimized selected-entry closure; consumers replay it against the
     /// retained artifact semantics through `validate_for_artifact`.
+    /// Physical-authority-class rows are retained for realization: native
+    /// realization adjudicates them against the mechanism-closure review
+    /// even when the request supplies no receiving permission policy.
     pub const fn behavior_exclusions(&self) -> &build_evaluation::BehaviorExclusions {
         &self.behavior_exclusions
     }

@@ -352,8 +352,8 @@ fn lower_with_selections(
     let (semantic, proof) = artifact;
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
+            semantic_bytes: semantic,
+            proof_bytes: proof,
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),
