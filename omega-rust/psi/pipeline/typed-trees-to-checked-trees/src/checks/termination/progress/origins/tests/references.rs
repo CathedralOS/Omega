@@ -214,6 +214,78 @@ fn shared_reference_leaf_observes_the_current_value_not_its_store_snapshot() {
     );
 }
 
+/// A `&` binding bound to a helper's `&` result names the referent the
+/// callee's returned leaf maps to: the leaf is instantiated onto the actual
+/// argument's slot, then that slot's stored row resolves its referent.
+#[test]
+fn shared_reference_local_loads_a_helper_returned_leaf() {
+    for (helper, expected) in [
+        // The callee returns the leaf slot stored inside its borrowed
+        // carrier parameter.
+        (
+            "machine unbox(b: &RefBox) -> &Context { b.view }",
+            ("holder", &[("Holder", "view")][..]),
+        ),
+        // The leaf reaches the result through a callee-local binding.
+        (
+            "machine unbox(b: &RefBox) -> &Context { let kept: &Context = b.view; kept }",
+            ("holder", &[("Holder", "view")][..]),
+        ),
+        // The leaf is bound through a nested helper call inside the
+        // initializer.
+        (
+            "machine unbox(b: &RefBox) -> &Context { b.view } machine wrap(b: &RefBox) -> &RefBox { b }",
+            ("holder", &[("Holder", "view")][..]),
+        ),
+    ] {
+        let initializer = if helper.contains("wrap") {
+            "unbox(wrap(&boxed))"
+        } else {
+            "unbox(&boxed)"
+        };
+        let fixture = Fixture::with_machines(
+            &format!(
+                "let boxed: RefBox = RefBox {{ view: &holder.view }}; let borrowed: &Context = {initializer};"
+            ),
+            "borrowed.scheduler",
+            &[],
+            &format!("data RefBox {{ view: &Context; }} {helper}"),
+        );
+        let mut segments = expected.1.to_vec();
+        segments.push(("Context", "scheduler"));
+        assert_eq!(
+            fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+            Some(fixture.subject(expected.0, &segments))
+        );
+    }
+}
+
+/// The binding stays unproven when no exact referent can be named: an
+/// unproven call route into the leaf store, a rebind reached through an
+/// unresolved `&mut` alias, or an indexed carrier load whose segment is
+/// deliberately coarse.
+#[test]
+fn shared_reference_local_from_an_unproven_leaf_store_stays_unproven() {
+    for statements in [
+        "let mut boxed: RefBox = RefBox { view: &context }; boxed.view = choose(&holder, context, true); let borrowed: &Context = boxed.view;",
+        "let mut boxed: RefBox = RefBox { view: &context }; let mb: &mut RefBox = &mut boxed; mb.view = &holder.view; let borrowed: &Context = boxed.view;",
+        "let boxes: [RefBox; 2] = [RefBox { view: &context }, RefBox { view: &holder.view }]; let borrowed: &Context = boxes[0].view;",
+        "let boxed: RefBox = RefBox { view: &holder.view }; let borrowed: &Context = choose(&holder, context, true);",
+        "let boxed: RefBox = RefBox { view: &holder.view }; let spare: RefBox = RefBox { view: &context }; let borrowed: &Context = pick(&boxed, &spare, true);",
+    ] {
+        let fixture = Fixture::with_machines(
+            statements,
+            "borrowed.scheduler",
+            &[],
+            "data RefBox { view: &Context; } machine choose(former: &Holder, latter: &Context, flag: bool) -> &Context { transition flag { true -> &former.view false -> latter } } machine pick(a: &RefBox, b: &RefBox, flag: bool) -> &Context { transition flag { true -> a.view false -> b.view } }",
+        );
+        assert_eq!(
+            fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+            None
+        );
+    }
+}
+
 /// Rebinding the leaf slot itself makes the newest stored referent the
 /// origin.
 #[test]

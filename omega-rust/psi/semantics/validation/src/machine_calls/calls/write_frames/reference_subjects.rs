@@ -267,6 +267,17 @@ fn declared_initializer_origin(
         let origin = results::call_origin(
             program, machine, expression, symbols, inference, aliases, stored,
         )?;
+        // The returned leaf names the caller-visible storage only after the
+        // stored evidence resolves it: a leaf loaded inside the callee's
+        // borrowed carrier lands on the caller's leaf slot, whose referent the
+        // slot's own row supplies.
+        let mut origins =
+            stored_origins::canonical_reference_origins(program, &origin, aliases, stored)
+                .into_iter();
+        let origin = origins.next()?;
+        if origins.next().is_some() {
+            return None;
+        }
         validate_source_projection(program, machine, state, index, &origin.source, stored)?;
         return (origin.precision == FramePathPrecision::Exact).then_some(origin);
     }
