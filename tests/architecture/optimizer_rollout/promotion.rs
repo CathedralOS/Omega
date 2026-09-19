@@ -1,28 +1,65 @@
-//! Owner-review evidence required by every nonexperimental exact rule.
+//! Owner-review evidence required by every nonexperimental exact rule, plus
+//! the schema and identity checks that keep a staged record in step with its
+//! still-`Experimental` inventory row.
 
 use std::collections::BTreeMap;
 use std::fs;
 
-use crate::Audit;
 use crate::inventory::ReleaseRow;
+use crate::Audit;
+
+/// The record schema's value-bearing fields. A record must carry every label
+/// even while its evidence accrues: an absent field is a malformed record,
+/// not a pending one.
+const PROMOTION_FIELDS: &[&str] = &[
+    "Approved status:",
+    "Owner approval:",
+    "Semantic and corruption evidence:",
+    "Differential evidence:",
+    "Determinism and bounded-work evidence:",
+    "Target matrix evidence:",
+    "Measurement evidence:",
+];
 
 pub(super) fn check(audit: &mut Audit, published: &BTreeMap<String, ReleaseRow>) {
-    check_record_inventory(audit, published);
+    let records = check_record_inventory(audit, published);
     for (name, row) in published {
-        if matches!(row.status.as_str(), "Recommended" | "Default") {
-            check_record(audit, name, &row.status);
+        let relative = format!("{}/{name}.md", super::PROMOTION_ROOT);
+        match (row.status.as_str(), records.get(name)) {
+            ("Recommended" | "Default", Some(contents)) => audit.violations.extend(
+                record_defects(name, &row.status, contents)
+                    .into_iter()
+                    .map(|defect| format!("optimizer promotion record {relative} {defect}")),
+            ),
+            ("Recommended" | "Default", None) => {
+                audit.violations.insert(format!(
+                    "optimizer rule `{name}` is {} without owner-reviewed promotion record {relative}",
+                    row.status
+                ));
+            }
+            ("Experimental", Some(contents)) => audit.violations.extend(
+                staged_record_defects(name, contents)
+                    .into_iter()
+                    .map(|defect| format!("optimizer promotion record {relative} {defect}")),
+            ),
+            // Unknown statuses are already reported by the inventory check.
+            _ => {}
         }
     }
 }
 
-fn check_record_inventory(audit: &mut Audit, published: &BTreeMap<String, ReleaseRow>) {
+fn check_record_inventory(
+    audit: &mut Audit,
+    published: &BTreeMap<String, ReleaseRow>,
+) -> BTreeMap<String, String> {
     let root = audit.repository.join(super::PROMOTION_ROOT);
+    let mut records = BTreeMap::new();
     let Ok(entries) = fs::read_dir(&root) else {
         audit.violations.insert(format!(
             "cannot read optimizer promotion-record directory {}",
             super::PROMOTION_ROOT
         ));
-        return;
+        return records;
     };
     for entry in entries.flatten() {
         let path = entry.path();
@@ -39,23 +76,21 @@ fn check_record_inventory(audit: &mut Audit, published: &BTreeMap<String, Releas
                 "optimizer promotion record `{}` does not name a canonical published exact rule",
                 path.display()
             ));
+            continue;
+        }
+        match fs::read_to_string(&path) {
+            Ok(contents) => {
+                records.insert(name.to_owned(), contents);
+            }
+            Err(_) => {
+                audit.violations.insert(format!(
+                    "cannot read optimizer promotion record `{}`",
+                    path.display()
+                ));
+            }
         }
     }
-}
-
-fn check_record(audit: &mut Audit, name: &str, status: &str) {
-    let relative = format!("{}/{name}.md", super::PROMOTION_ROOT);
-    let Ok(contents) = fs::read_to_string(audit.repository.join(&relative)) else {
-        audit.violations.insert(format!(
-            "optimizer rule `{name}` is {status} without owner-reviewed promotion record {relative}"
-        ));
-        return;
-    };
-    audit.violations.extend(
-        record_defects(name, status, &contents)
-            .into_iter()
-            .map(|defect| format!("optimizer promotion record {relative} {defect}")),
-    );
+    records
 }
 
 fn record_defects(name: &str, status: &str, contents: &str) -> Vec<String> {
@@ -73,14 +108,10 @@ fn record_defects(name: &str, status: &str, contents: &str) -> Vec<String> {
             defects.push(format!("lacks exact `{expected}`"));
         }
     }
-    for field in [
-        "Owner approval:",
-        "Semantic and corruption evidence:",
-        "Differential evidence:",
-        "Determinism and bounded-work evidence:",
-        "Target matrix evidence:",
-        "Measurement evidence:",
-    ] {
+    for field in PROMOTION_FIELDS
+        .iter()
+        .filter(|field| **field != "Approved status:")
+    {
         if !contents
             .lines()
             .map(normalize_record_line)
@@ -88,6 +119,48 @@ fn record_defects(name: &str, status: &str, contents: &str) -> Vec<String> {
         {
             defects.push(format!("lacks completed `{field}`"));
         }
+    }
+    defects
+}
+
+/// A staged record sits in `promotions/` while its inventory row remains
+/// `Experimental`: it accumulates evidence ahead of a promotion leg, so its
+/// values may stay `PENDING`. Its identity legs must already be exact, every
+/// schema field must be present, and no completed `Approved status:` may
+/// appear — the inventory change the approval authorizes has not happened, so
+/// a completed approval would be out of step with the row.
+fn staged_record_defects(name: &str, contents: &str) -> Vec<String> {
+    let mut defects = Vec::new();
+    for expected in [
+        format!("Exact rule: {name}"),
+        format!("Rollback: --disable-optimization {name}"),
+    ] {
+        if !contents
+            .lines()
+            .map(normalize_record_line)
+            .any(|line| line == expected)
+        {
+            defects.push(format!("lacks exact `{expected}`"));
+        }
+    }
+    for field in PROMOTION_FIELDS {
+        if !contents
+            .lines()
+            .map(normalize_record_line)
+            .any(|line| line.starts_with(field))
+        {
+            defects.push(format!("lacks `{field}` field"));
+        }
+    }
+    if contents
+        .lines()
+        .map(normalize_record_line)
+        .any(|line| completed_record_field(line, "Approved status:"))
+    {
+        defects.push(
+            "asserts a completed `Approved status:` before the inventory row leaves `Experimental`"
+                .to_owned(),
+        );
     }
     defects
 }
@@ -148,14 +221,56 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
             "Differential evidence: PENDING",
         );
     let defects = record_defects("ControlFlowCleanup", "Recommended", &incomplete);
+    assert!(defects
+        .iter()
+        .any(|defect| defect.contains("Exact rule: ControlFlowCleanup")));
+    assert!(defects
+        .iter()
+        .any(|defect| defect.contains("Differential evidence:")));
+}
+
+#[test]
+fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
+    let staged = "\
+- Exact rule: ControlFlowCleanup
+- Approved status: PENDING
+- Owner approval: PENDING
+- Semantic and corruption evidence: evidence-matrix legs
+- Differential evidence: PENDING
+- Determinism and bounded-work evidence: determinism and budget legs
+- Target matrix evidence: PENDING
+- Measurement evidence: PENDING
+- Rollback: --disable-optimization ControlFlowCleanup
+";
+    assert!(staged_record_defects("ControlFlowCleanup", staged).is_empty());
+
+    let approved_early = staged.replace("Approved status: PENDING", "Approved status: Recommended");
+    let defects = staged_record_defects("ControlFlowCleanup", &approved_early);
     assert!(
         defects
             .iter()
-            .any(|defect| defect.contains("Exact rule: ControlFlowCleanup"))
+            .any(|defect| defect.contains("Approved status:")),
+        "missing early-approval defect; saw {defects:?}"
     );
+
+    let wrong_identity = staged.replace(
+        "Exact rule: ControlFlowCleanup",
+        "Exact rule: CopyPropagation",
+    );
+    let defects = staged_record_defects("ControlFlowCleanup", &wrong_identity);
     assert!(
         defects
             .iter()
-            .any(|defect| defect.contains("Differential evidence:"))
+            .any(|defect| defect.contains("Exact rule: ControlFlowCleanup")),
+        "missing identity defect; saw {defects:?}"
+    );
+
+    let missing_field = staged.replace("- Measurement evidence: PENDING\n", "");
+    let defects = staged_record_defects("ControlFlowCleanup", &missing_field);
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("`Measurement evidence:`")),
+        "missing schema-field defect; saw {defects:?}"
     );
 }
