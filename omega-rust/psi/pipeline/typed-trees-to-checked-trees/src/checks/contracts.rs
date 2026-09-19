@@ -125,7 +125,13 @@ pub(super) fn check_flow_call_contracts(
             // on the returned value itself -- enforced here so a caller may
             // consume them from the signature (flow/calls.rs).
             let exit_diagnostics = diagnostics.len();
-            exits::check_result_field_domains(program, facts, exit_flow, &mut diagnostics);
+            exits::check_result_field_domains(
+                program,
+                facts,
+                exit_flow,
+                call_frames,
+                &mut diagnostics,
+            );
             // The return hands every readable `&mut` referent back to the
             // caller, so the field facts it assumed on entry are due again.
             // A reference return into that referent names the same place

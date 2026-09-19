@@ -123,6 +123,31 @@ pub(super) fn append_constructed_field_values(
         ) else {
             continue;
         };
+        let context_handles = contexts
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(active)
+            .iter()
+            .map(|reference| reference.context)
+            .collect::<Vec<_>>();
+        let source_place = semantic.places.get(source);
+        if !crate::flow::place_cases_are_selected(
+            program,
+            semantic,
+            &context_handles,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            &crate::flow::CanonicalPlace {
+                root: source_place.root,
+                segments: semantic
+                    .place_segments
+                    .span_or_empty(source_place.segments)
+                    .to_vec(),
+            },
+        ) {
+            continue;
+        }
         for fact in &active_facts {
             let payload = match fact.payload {
                 FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. } => {

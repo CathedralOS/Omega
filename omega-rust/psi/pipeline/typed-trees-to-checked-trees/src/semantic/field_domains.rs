@@ -630,10 +630,14 @@ fn append_state_parameter_data_field_domain_facts(
     visited: &[SymbolHandle],
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
-    for member in program.data_members(data) {
-        let DataMember::Field(field) = member else {
-            continue;
-        };
+    for field in program
+        .data_members(data)
+        .iter()
+        .flat_map(|member| match member {
+            DataMember::Field(field) => std::slice::from_ref(field),
+            DataMember::Variant(variant) => program.data_payload_fields(variant),
+        })
+    {
         if readable_type_reference(program, field.type_reference).is_none() {
             continue;
         }

@@ -158,6 +158,13 @@ pub(super) fn check_call_requires(
                         call_frames,
                     )));
 
+            let satisfied = satisfied
+                && super::prover::contract_membership_place_is_accessible(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    fact,
+                );
             if !satisfied {
                 let detail = match fact.payload {
                     FactPayload::ContractDomainMembership { domain_symbol, .. } => {

@@ -77,25 +77,15 @@
 // Discoveries from the fallible-request and container slices, which bound
 // what a `Vec<T>`-style owner over this chain can currently say:
 //
-// - A `case` cannot carry live custody. A destructured case payload does
-//   not surface its declared `in Granted` domain on the binding, so the
-//   payload cannot fill a qualified parameter and cannot construct a
-//   qualified field; it is linear, so it cannot be dropped either, and
-//   every arm of the `transition` must dispose of the same payloads
-//   consistently. The result is that `Attempt`-style sums
-//   (`Allocated(Issued)` / `Exhausted(Bump)`), an `Option`-wrapped extent
-//   for one retired slot, and a recursive `Retired` list are all
-//   unclosable: constructed fine, then inert at the consumer. The
-//   contract's "fallible request preserving unchanged state on rejection"
-//   is therefore spelled as a caller-side guard in `exercise_fallible`:
-//   rejection is the branch that never transfers the strategy, so
-//   unchanged-state preservation is a control-flow fact rather than a
-//   returned value. A sum-typed request needs outcome vocabulary that
-//   surfaces case-payload domains — not present yet.
-// - Post-reset reuse is only spellable through that guarded path. `reset`
-//   returns `restored.remaining` as runtime data the caller cannot
-//   re-prove, so no `requires` bound can be discharged against it; the
-//   caller reads the residual and guards the next request on it.
+// - `try_allocate` returns an ordinary `Attempt`: `Allocated(Issued)` or
+//   `Exhausted(Bump)`. `exercise_fallible` consumes both selected payloads.
+//   Their qualifications retain exact case/field paths; selecting a payload
+//   requires the current tag, not just the sum's declared alternatives.
+//   Rejection returns the original strategy unchanged. Recursive retired
+//   lists and outcome-specific partition frontiers remain separate work.
+// - Post-reset reuse remains fallible. `reset` returns its recomposed range's
+//   runtime length without a guarantee connecting it to the original capacity;
+//   `try_allocate` checks demand against that returned residual.
 // - Retaining an outgrown buffer is the other half of the growth contract
 //   and is doubly blocked: folding an unbounded retired list back into the
 //   range needs a ranking `Retired` does not have (no builtin well-founded
@@ -202,6 +192,21 @@ data Issued {
     allocation: Extent in Granted & Vacant;
 }
 
+data Attempt {
+    case Allocated(issued: Issued);
+    case Exhausted(strategy: Bump);
+}
+
+// Failure returns the unchanged strategy; success returns its exact partition.
+machine try_allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Attempt
+reaches ExtentPartition
+{
+    transition length <= strategy.remaining {
+        true -> Attempt::Allocated { issued: allocate(partition, strategy, length) }
+        _ -> Attempt::Exhausted { strategy: strategy }
+    }
+}
+
 // Infallible request: the caller proves the exact capacity requirement
 // `length <= strategy.remaining` (allocation.md), and the body decrements
 // the residual by the same length the requires bounds — the requires
@@ -261,8 +266,8 @@ reaches ExtentPartition
 // The reservation half of a `Vec<T>`-style owner over the bump chain: one
 // live buffer and the strategy it was issued from. `buffer.length` is the
 // capacity measure. There is deliberately no retired-buffer field and no
-// element `length`: retention needs custody-carrying sums the checker
-// cannot yet close, and elements need the undeclared place/take/read
+// element `length`: unbounded retention needs recursive custody transport
+// and a ranking proof, and elements need the undeclared place/take/read
 // operations (placed_access.md) — see the header for both edges.
 data BumpVec {
     strategy: Bump;
@@ -409,15 +414,10 @@ reaches ExtentPartition
     restored.tail as Extent
 }
 
-// The fallible request of the allocation contract, spelled as the shape the
-// checker can close: a caller-side guard. `demand` is deliberately unrelated
-// to `capacity`, so neither arm is statically dead — the reject path never
-// transfers the strategy, which is what "preserving unchanged state on
-// rejection" means when a sum cannot carry the custody back. The request
-// runs on a second epoch: two first-epoch allocations are returned and
-// reset, then `restored` is reopened by guarding `demand` against the
-// recomposed residual. `restored.tail` is restated to an exactly typed
-// local before the guard so both arms hold the qualified custody.
+// A second allocation epoch uses the real fallible request. `demand` is
+// unrelated to the original capacity, so both returned outcomes must work:
+// success recomposes its allocation and tail; rejection returns the strategy's
+// unchanged tail. No caller-side guard substitutes for the returned custody.
 machine exercise_fallible(
     partition: &ExtentPartition,
     whole: Extent in Granted & Vacant,
@@ -450,30 +450,19 @@ reaches ExtentPartition
         first_allocation,
         second_allocation,
     );
-    let restored_residual: u64 = restored.remaining;
-    let restored_tail: Extent in Granted & Vacant = restored.tail;
-    transition demand <= restored_residual {
-        true -> reuse(partition, restored_tail, restored_residual, demand)
-        _ -> rejected(restored_tail)
+    let attempt: Attempt = try_allocate(partition, restored, demand);
+    transition attempt {
+        Attempt::Allocated { issued } -> reuse(partition, issued)
+        Attempt::Exhausted { strategy } -> rejected(strategy)
     }
 
-    // The accepted arm of the fallible request: the guard's fact licenses
-    // this state's `requires`, which in turn licenses `allocate`'s own
-    // capacity requirement and subtraction.
+    // Allocation already happened inside the request. This arm returns both
+    // selected claims to the partition boundary for exact recomposition.
     state reuse(
         partition: &ExtentPartition,
-        tail: Extent in Granted & Vacant,
-        remaining: u64,
-        demand: u64
+        issued: Issued
     ) -> Extent
-    requires
-        demand <= remaining
     {
-        let issued: Issued = allocate(
-            partition,
-            Bump { tail: tail, remaining: remaining },
-            demand,
-        );
         let strategy: Bump = issued.strategy;
         let new_tail: Extent in Granted & Vacant = strategy.tail;
         let allocation: Extent in Granted & Vacant = issued.allocation;
@@ -486,16 +475,15 @@ reaches ExtentPartition
 
     // The rejected arm returns the recomposed backing untouched — the
     // request never happened, so the caller's custody is unchanged.
-    state rejected(tail: Extent in Granted & Vacant) -> Extent {
-        tail as Extent
+    state rejected(strategy: Bump) -> Extent {
+        strategy.tail as Extent
     }
 }
 
 // The reservation container over the chain: open a 16-byte buffer, then
 // close — the live buffer and the tail recompose into the backing's suffix.
-// The record returned by `open` does not surface its qualified field facts,
-// so the fields are restated and the container rebuilt before `close`,
-// atomically consuming the family as the header describes.
+// The record fields retain their existing qualifications while this exercise
+// explicitly rebuilds the container before returning its backing.
 machine exercise_vec(
     partition: &ExtentPartition,
     whole: Extent in Granted & Vacant,

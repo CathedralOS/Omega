@@ -50,6 +50,57 @@ enum ProjectionMode {
     ConstructedValues,
 }
 
+/// Only an exact constructed alternative makes a payload contract inapplicable.
+/// Unknown stored values and malformed projections remain obligations. Resolve
+/// nested fields/array elements through the same projection owner as accesses;
+/// never replay a local initializer to discover its former tag.
+pub(crate) fn literal_value_path_is_inactive(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> bool {
+    segments.iter().enumerate().any(|(position, segment)| {
+        let facts::PlaceSegment::Case { variant } = segment else {
+            return false;
+        };
+        let Some(projections) =
+            literal_value_projections(program, expression, reference, &segments[..position], false)
+        else {
+            return false;
+        };
+        !projections.is_empty()
+            && projections.iter().all(|projection| {
+                if !projection.remaining.is_empty() {
+                    return false;
+                }
+                let actual = match program.expression_table.expression(projection.expression) {
+                    ExpressionNode::StructLiteral(literal) => {
+                        literal.case_symbol.filter(|symbol| {
+                            symbol.is_valid()
+                                && program.symbols.get(*symbol).parent == literal.type_symbol
+                        })
+                    }
+                    ExpressionNode::Name(name)
+                        if program.symbols.get(name.symbol).kind
+                            == symbols::SymbolKind::Variant =>
+                    {
+                        Some(name.symbol)
+                    }
+                    _ => None,
+                };
+                actual.is_some_and(|actual| {
+                    actual != *variant
+                        && variant.is_valid()
+                        && program.symbols.get(actual).kind == symbols::SymbolKind::Variant
+                        && program.symbols.get(*variant).kind == symbols::SymbolKind::Variant
+                        && program.symbols.get(actual).parent
+                            == program.symbols.get(*variant).parent
+                })
+            })
+    })
+}
+
 pub(crate) fn literal_value_projections(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,

@@ -65,6 +65,35 @@ pub(super) fn append_copied_field_predicates(
         .place_segments
         .span_or_empty(destination_place.segments)
         .to_vec();
+    let context_handles = contexts
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(active)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>();
+    let ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+    } = point
+    else {
+        return;
+    };
+    if !crate::flow::place_cases_are_selected(
+        program,
+        semantic,
+        &context_handles,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &crate::flow::CanonicalPlace {
+            root: source_place.root,
+            segments: source_segments.clone(),
+        },
+    ) {
+        return;
+    }
     if !source_segments
         .iter()
         .chain(&destination_segments)
@@ -134,9 +163,9 @@ pub(super) fn append_copied_field_predicates(
             {
                 fact.payload
             }
-            FactPayload::AssignedScalarValue { .. } | FactPayload::BytePredicate { .. } => {
-                fact.payload
-            }
+            FactPayload::AssignedCase { .. }
+            | FactPayload::AssignedScalarValue { .. }
+            | FactPayload::BytePredicate { .. } => fact.payload,
             _ => continue,
         };
         let FactPlace::Place(place) = fact.place else {

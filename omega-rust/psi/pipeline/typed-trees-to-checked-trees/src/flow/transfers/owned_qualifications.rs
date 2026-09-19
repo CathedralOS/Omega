@@ -28,6 +28,35 @@ pub(super) fn append_owned_qualification_transfer(
         .place_segments
         .span_or_empty(destination.segments)
         .to_vec();
+    let context_handles = contexts
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(active)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>();
+    let ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+    } = point
+    else {
+        return;
+    };
+    if !crate::flow::place_cases_are_selected(
+        program,
+        semantic,
+        &context_handles,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &crate::flow::CanonicalPlace {
+            root: source.root,
+            segments: source_segments.clone(),
+        },
+    ) {
+        return;
+    }
     let candidates = contexts
         .contexts
         .semantic_context_refs
@@ -57,7 +86,7 @@ pub(super) fn append_owned_qualification_transfer(
             continue;
         };
         if !semantic_domain.is_valid()
-            || !crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+            && crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
         {
             continue;
         }
@@ -96,6 +125,7 @@ pub(super) fn append_owned_qualification_transfer(
         if !segments.iter().chain(&destination_segments).all(|segment| {
             matches!(segment,
             facts::PlaceSegment::Field { symbol } if symbol.is_valid())
+                || matches!(segment, facts::PlaceSegment::Case { variant } if variant.is_valid())
                 || matches!(segment, facts::PlaceSegment::FixedIndex { .. })
         }) {
             continue;
@@ -107,6 +137,25 @@ pub(super) fn append_owned_qualification_transfer(
             destination.root,
             &rebased,
         );
+        // The exact-place lane may already have moved this same fact and
+        // recorded its qualification correspondence. Do not duplicate it
+        // when the structural traversal has an empty relative path.
+        if semantic
+            .refs
+            .span_or_empty(*references)
+            .iter()
+            .any(|reference| {
+                let prior = semantic.facts.get(reference.fact);
+                prior.evidence == fact.evidence
+                    && matches!(prior.place, FactPlace::Place(prior_place)
+                    if semantic.places_equal(prior_place, place))
+                    && matches!(prior.payload, FactPayload::DomainMembership {
+                    domain_symbol: prior_domain, semantic_domain: prior_identity, ..
+                } if prior_domain == domain_symbol && prior_identity == semantic_domain)
+            })
+        {
+            continue;
+        }
         let transferred = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
             point,

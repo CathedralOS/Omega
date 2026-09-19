@@ -801,6 +801,9 @@ fn value_proves_qualification(
     domain: SymbolHandle,
     identity: language_semantics::SemanticDomainId,
 ) -> bool {
+    if !value_case_path_is_selected(program, facts, state, statement_index, value) {
+        return false;
+    }
     if !crate::facts::field_domain::domain_requires_provenance(program, domain) {
         return value_proves_domain(program, facts, state, statement_index, value, domain);
     }
@@ -903,10 +906,68 @@ fn construction_field_type(
         })
 }
 
-/// Whether the assigned `value` is provably in `domain_symbol` at this statement:
-/// a string literal the domain's byte-predicate fact accepts (the construction-grant),
-/// or a value carried in (a domained param/field) whose entry-context domain
-/// fact implies `domain_symbol`. Mirrors the call-requires discharge.
+/// An extracted payload needs its current tag before any qualification rule
+/// can consume its field facts. Use the same completed-operand contexts as
+/// routed membership, never an initializer or a post-assignment destination.
+fn value_case_path_is_selected(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+) -> bool {
+    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    ) else {
+        return true;
+    };
+    if !subject
+        .segments
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+    {
+        return true;
+    }
+    let contexts = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .rfind(|call| call.statement_index == statement_index)
+        .map(|call| call.exit_semantic_contexts)
+        .unwrap_or_else(|| {
+            facts
+                .flow
+                .state_statement(state, statement_index)
+                .map_or(state.entry_semantic_contexts, |statement| {
+                    statement.entry_semantic_contexts
+                })
+        });
+    let contexts = facts
+        .flow
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(contexts)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>();
+    crate::flow::place_cases_are_selected(
+        program,
+        &facts.semantic,
+        &contexts,
+        state.machine_symbol,
+        state.state_symbol,
+        statement_index,
+        &subject,
+    )
+}
+
+/// Prove an assigned value from live membership or an independently checked
+/// predicate. A declared field alone cannot license an inactive payload read.
 fn value_proves_domain(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -915,6 +976,9 @@ fn value_proves_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
+    if !value_case_path_is_selected(program, facts, state_flow, statement_index, value) {
+        return false;
+    }
     if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }

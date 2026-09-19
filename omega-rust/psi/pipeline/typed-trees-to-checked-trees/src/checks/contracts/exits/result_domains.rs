@@ -112,6 +112,22 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
             )
         })
         .flatten();
+    if subject.as_ref().is_some_and(|subject| {
+        !crate::flow::place_cases_are_selected(
+            program,
+            &facts.semantic,
+            &contexts,
+            exit.machine_symbol,
+            exit.state_symbol,
+            exit.statement_index,
+            subject,
+        )
+    }) {
+        diagnostics.push(Diagnostic::error(
+            "cannot prove selected case for qualified scalar return",
+        ));
+        return;
+    }
     for constraint in domains {
         let domain_symbol = constraint.symbol;
         let semantic_domain = constraint.semantic_id;
@@ -1105,6 +1121,17 @@ pub(super) fn proves_result_domain(
     ) else {
         return false;
     };
+    if !crate::flow::place_cases_are_selected(
+        program,
+        &facts.semantic,
+        contexts,
+        exit.machine_symbol,
+        exit.state_symbol,
+        exit.statement_index,
+        &subject,
+    ) {
+        return false;
+    }
     subject.extend_segments(facts.semantic.place_segments.span_or_empty(place.segments));
     super::super::prover::prove_domain_at_place(
         program,
@@ -1128,6 +1155,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(machine) = program
@@ -1152,11 +1180,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         crate::facts::field_domain::declared_owned_field_domain_identities(
             program,
             result_domain_type(program, entry.return_type),
-        )
-        .into_iter()
-        .filter(|(_, domain, _)| {
-            crate::facts::field_domain::domain_requires_provenance(program, *domain)
-        }),
+        ),
     );
     if program
         .primitive_type_reference(entry.return_type)
@@ -1192,18 +1216,29 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         exit.statement_index,
         returned,
     );
+    let cases =
+        super::cases::CaseObservation::for_exit(program, facts, exit, &entry_contexts, call_frames);
     for (path, domain_symbol, semantic_domain) in paths {
+        if cases
+            .as_ref()
+            .is_some_and(|cases| cases.result_path_is_inactive(&path))
+        {
+            continue;
+        }
         let proves = |subject: &CanonicalPlace| {
-            if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
-                exact_scalar_membership(
-                    program,
-                    facts,
-                    &entry_contexts,
-                    subject,
-                    domain_symbol,
-                    semantic_domain,
-                )
-            } else {
+            if exact_scalar_membership(
+                program,
+                facts,
+                &entry_contexts,
+                subject,
+                domain_symbol,
+                semantic_domain,
+            ) {
+                true
+            } else if !crate::facts::field_domain::domain_requires_provenance(
+                program,
+                domain_symbol,
+            ) {
                 super::super::prover::prove_domain_at_place(
                     program,
                     &facts.semantic,
@@ -1211,6 +1246,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     subject,
                     domain_symbol,
                 )
+            } else {
+                false
             }
         };
         // The same two shapes as call actuals (checks/contracts/nominal_inputs):
@@ -1234,11 +1271,33 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                         projection.expression,
                     )
                     .is_some_and(|mut subject| {
+                        if !crate::flow::place_cases_are_selected(
+                            program,
+                            &facts.semantic,
+                            &entry_contexts,
+                            exit.machine_symbol,
+                            exit.state_symbol,
+                            exit.statement_index,
+                            &subject,
+                        ) {
+                            return false;
+                        }
                         subject.extend_segments(&projection.remaining);
                         proves(&subject)
                     })
                 })
         }) || base.as_ref().is_some_and(|base| {
+            if !crate::flow::place_cases_are_selected(
+                program,
+                &facts.semantic,
+                &entry_contexts,
+                exit.machine_symbol,
+                exit.state_symbol,
+                exit.statement_index,
+                base,
+            ) {
+                return false;
+            }
             let mut subject = base.clone();
             subject.extend_segments(&path);
             proves(&subject)
