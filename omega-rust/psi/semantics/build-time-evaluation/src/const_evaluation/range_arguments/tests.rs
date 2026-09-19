@@ -108,6 +108,60 @@ fn malformed_closed_endpoints_never_receive_range_observations() {
 }
 
 #[test]
+fn range_argument_observations_execute_declared_call_endpoints() {
+    let text = "machine limit() -> u64 { 256 }
+        data RangeValue<T> [copy] { value: T; }
+        machine read(value: RangeValue<u64[0..=limit()]>, other: RangeValue<u64[0..limit() + 1]>) -> u64 { 0 }";
+    let tokens = Lexer::new(text).tokenize().expect("call endpoint tokens");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("call endpoint syntax");
+    let syntax = super::evaluate(syntax, None, &[], None).expect("observe call endpoints");
+    let ranges = range_arguments(&syntax);
+    assert_eq!(ranges.len(), 2);
+    let expected = IntegerRangeNormalization {
+        minimum: BigInt::from_u64(0),
+        maximum: BigInt::from_u64(256),
+    };
+    for range in &ranges {
+        assert_eq!(
+            syntax
+                .type_references
+                .integer_range_normalization(*range, 0),
+            Some(&expected)
+        );
+    }
+    for range in ranges {
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            *syntax.type_references.type_reference(range)
+        else {
+            continue;
+        };
+        let mut work = Vec::new();
+        for constraint in syntax.type_references.constraints(constraints) {
+            let syntax_trees::types::TypeConstraintNode::Range {
+                minimum, maximum, ..
+            } = *constraint
+            else {
+                continue;
+            };
+            work.push(minimum);
+            work.push(maximum);
+        }
+        while let Some(expression) = work.pop() {
+            match syntax.expressions.expression(expression) {
+                syntax_trees::expression::ExpressionNode::Binary(binary) => {
+                    work.push(binary.left);
+                    work.push(binary.right);
+                }
+                syntax_trees::expression::ExpressionNode::Call(_) => {
+                    panic!("an executed endpoint call keeps no authored call in canonical syntax");
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[test]
 fn completed_typed_replay_rejects_forged_equal_range_observations() {
     let mut syntax = parse(&["u64[0..=256]", "u64[0..=255]"]);
     let ranges = range_arguments(&syntax);

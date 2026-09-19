@@ -65,6 +65,15 @@ pub fn evaluate_pre_resolution(
         source_scoped_top_level_bindings,
         selection_authority.as_deref(),
     )?;
+    // Canonical ranges must exist before the const-call probe normalizes its
+    // syntax clone: that clone's generic synthesis is itself an equation
+    // customer, so retained endpoints cannot arrive after it.
+    let syntax_trees = range_arguments::evaluate(
+        syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+        selection_authority.clone(),
+    )?;
     let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls(
         syntax_trees,
         BuildTimeSources {
@@ -75,12 +84,6 @@ pub fn evaluate_pre_resolution(
     )?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
         &mut syntax_trees,
-    )?;
-    let mut syntax_trees = range_arguments::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.as_deref(),
     )?;
     let placed_view_records = placed_views::desugar_placed_views(
         &mut syntax_trees,

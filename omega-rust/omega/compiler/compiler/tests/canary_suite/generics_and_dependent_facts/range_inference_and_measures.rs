@@ -411,6 +411,84 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
 }
 
 #[test]
+fn canonical_range_call_endpoints_bind_omitted_binder_and_reject_conflicts() {
+    // A declared endpoint call is a canonical range position like a literal:
+    // `TinyBytes<u64[0..=limit()]>` binds `Capacity` to 256 on a data field and
+    // inside a machine parameter, the exclusive arithmetic spelling selects the
+    // same instance, and a nested callee chain folds through the shared
+    // evaluator. An explicit argument must satisfy the equation exactly, and
+    // an endpoint call that cannot close keeps the authored rejection.
+    let scratch = unique_no_output_build_dir();
+    fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("main.omg");
+    let shared = "machine limit() -> u64[0..=300] { 256 }
+        machine nested() -> u64[0..=400] { limit() + 100 }
+        data TinyBytes<Length [copy], const Capacity: u64> [copy]
+        where
+            Length == u64[0..=Capacity]
+        {
+            storage: [u8; Capacity];
+            length: Length;
+        }";
+    fs::write(
+        &path,
+        format!(
+            "{shared}
+             data Container {{
+                 field: TinyBytes<u64[0..=limit()]>;
+                 exclusive: TinyBytes<u64[0..limit() + 1]>;
+                 chained: TinyBytes<u64[0..=nested()]>;
+             }}
+             machine measure(value: TinyBytes<u64[0..=limit()]>) -> u64 {{ value.length }}
+             machine Main::main(&mut self) {{}}"
+        ),
+    )
+    .unwrap();
+    compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None))
+        .expect("declared call endpoints bind the omitted binder on a data template and a machine application");
+    fs::write(
+        &path,
+        format!(
+            "{shared}
+             data Container {{ field: TinyBytes<u64[0..=limit()], 512>; }}
+             machine Main::main(&mut self) {{}}"
+        ),
+    )
+    .unwrap();
+    let diagnostics = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None))
+        .expect_err("an explicit conflicting argument must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Capacity")),
+        "{diagnostics:?}"
+    );
+    fs::write(
+        &path,
+        "machine open<const N: u64>() -> u64 { 256 }
+         data TinyBytes<Length [copy], const Capacity: u64> [copy]
+         where
+             Length == u64[0..=Capacity]
+         {
+             storage: [u8; Capacity];
+             length: Length;
+         }
+         data Container { field: TinyBytes<u64[0..=open()]>; }
+         machine Main::main(&mut self) {}",
+    )
+    .unwrap();
+    let diagnostics = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None))
+        .expect_err("an unclosable endpoint call supplies no canonical endpoint");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("canonical range")),
+        "{diagnostics:?}"
+    );
+    fs::remove_dir_all(&scratch).unwrap();
+}
+
+#[test]
 fn bounded_integer_field_stores_run_natively() {
     let canary = pass_canary("borrows/bounded_integer_field_store");
     let scratch = unique_no_output_build_dir();

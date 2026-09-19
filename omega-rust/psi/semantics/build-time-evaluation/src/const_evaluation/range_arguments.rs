@@ -10,9 +10,11 @@
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
+use numerics::literals::{IntegerLiteral, IntegerRadix};
 use source::SourceMap;
 use symbols::SourceScopedTopLevelBinding;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::{IntegerRangeNormalization, TypeConstraintNode, TypeReferenceNode};
 
 #[cfg(test)]
@@ -22,7 +24,7 @@ pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
     bindings: &[SourceScopedTopLevelBinding],
-    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = syntax.type_references.generic_nodes();
     let mut visited = Vec::new();
@@ -159,6 +161,7 @@ pub(crate) fn evaluate(
             bounds.push((
                 ordinal,
                 minimum,
+                maximum,
                 end_inclusive,
                 minimum_origins,
                 maximum_origins,
@@ -182,6 +185,48 @@ pub(crate) fn evaluate(
     let resolved = crate::machine_execution::syntax_probes::resolve(&probe, sources, bindings)?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
+    // A call endpoint is a constant position exactly as a fixed-array length
+    // is: run the shared endpoint admission on a working copy so a
+    // `u64[0..=limit()]` argument retains the same canonical range a literal
+    // spelling does. Selection custody still reads the original tree, where
+    // each call keeps its authored target; only the folded copy is queried
+    // for values. A call that still needs selected operators, open
+    // arguments, or fails its own admission keeps its authored form -- its
+    // diagnostic belongs to the typed stage, and here it simply has no
+    // canonical range to retain.
+    let mut evaluated = typed.clone();
+    let _ = crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
+        &mut evaluated,
+        authority.clone(),
+        crate::SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &[],
+        },
+    );
+    let executed_calls: std::collections::HashSet<typed_trees::expression::ExpressionHandle> =
+        typed
+            .expression_table
+            .iter_expressions()
+            .filter(|(handle, node)| {
+                matches!(node, typed_trees::expression::ExpressionNode::Call(_))
+                    && !matches!(
+                        evaluated.expression_table.expression(*handle),
+                        typed_trees::expression::ExpressionNode::Call(_)
+                    )
+            })
+            .map(|(handle, _)| handle)
+            .collect();
+    let executed_spans: Vec<source::SourceSpan> = executed_calls
+        .iter()
+        .map(|handle| typed.expression_table.source_span(*handle))
+        .collect();
+    // An executed endpoint call wrote its canonical value back as a decimal
+    // literal so resolution, the const-call probe, and typed origin replay all
+    // read the same `u64[0..=256]` spelling the retained range admits. Only
+    // calls beneath a bound that retained its normalization substitute; an
+    // endpoint that admission or custody refused keeps its authored call for
+    // the ordinary typed diagnostics.
+    let mut folded_calls = Vec::new();
     for (probe_ordinal, (reference, carrier, bounds)) in probes.into_iter().enumerate() {
         // These names are private probe markers, not published type identity.
         let marker = format!("@const-argument-{probe_ordinal}");
@@ -226,7 +271,15 @@ pub(crate) fn evaluate(
         else {
             continue;
         };
-        for (ordinal, _, end_inclusive, minimum_origins, maximum_origins) in bounds {
+        for (
+            ordinal,
+            authored_minimum,
+            authored_maximum,
+            end_inclusive,
+            minimum_origins,
+            maximum_origins,
+        ) in bounds
+        {
             let Some(typed_trees::types::TypeConstraintNode::Range {
                 minimum, maximum, ..
             }) = typed
@@ -241,7 +294,10 @@ pub(crate) fn evaluate(
                 [(*minimum, &minimum_origins), (*maximum, &maximum_origins)]
             {
                 if crate::machine_execution::admission::require_closed_integer_argument(
-                    &typed, &typed, expression, authority,
+                    &typed,
+                    &evaluated,
+                    expression,
+                    authority.as_deref(),
                 )
                 .is_err()
                 {
@@ -250,7 +306,13 @@ pub(crate) fn evaluate(
                 }
                 let Ok((origins, _)) =
                     crate::const_evaluation::const_generic_expressions::expression_custody(
-                        &typed, machine, state, expression, false, &syntax,
+                        &typed,
+                        machine,
+                        state,
+                        expression,
+                        false,
+                        &syntax,
+                        &executed_calls,
                     )
                 else {
                     eligible = false;
@@ -266,18 +328,71 @@ pub(crate) fn evaluate(
             if !eligible {
                 continue;
             }
-            let (Some(minimum), Some(maximum)) = (
-                typed.closed_integer_expression_value(*minimum),
-                typed.closed_integer_range_endpoint(*maximum, end_inclusive),
+            let (Some(minimum_value), Some(maximum_value)) = (
+                evaluated.closed_integer_expression_value(*minimum),
+                evaluated.closed_integer_range_endpoint(*maximum, end_inclusive),
             ) else {
                 continue;
             };
             syntax.type_references.retain_integer_range_normalization(
                 reference,
                 ordinal,
-                IntegerRangeNormalization { minimum, maximum },
+                IntegerRangeNormalization {
+                    minimum: minimum_value,
+                    maximum: maximum_value,
+                },
             );
+            let mut endpoint_work = vec![authored_minimum, authored_maximum];
+            let mut endpoint_visited = Vec::new();
+            while let Some(endpoint) = endpoint_work.pop() {
+                if endpoint_visited.contains(&endpoint) {
+                    continue;
+                }
+                endpoint_visited.push(endpoint);
+                match syntax.expressions.expression(endpoint) {
+                    ExpressionNode::Binary(binary) => {
+                        endpoint_work.push(binary.left);
+                        endpoint_work.push(binary.right);
+                    }
+                    ExpressionNode::Call(call) => {
+                        let source_span = syntax.expressions.source_span(endpoint);
+                        if executed_spans.contains(&source_span) {
+                            folded_calls.push((endpoint, source_span));
+                        }
+                        endpoint_work.extend(
+                            syntax
+                                .expressions
+                                .expression_handles(call.arguments)
+                                .iter()
+                                .copied(),
+                        );
+                    }
+                    _ => {}
+                }
+            }
         }
+    }
+    for (authored, source_span) in folded_calls {
+        let value = evaluated
+            .expression_table
+            .iter_expressions()
+            .filter(|(handle, _)| evaluated.expression_table.source_span(*handle) == source_span)
+            .find_map(|(_, node)| match node {
+                typed_trees::expression::ExpressionNode::Integer(literal) => literal.value_bignum(),
+                _ => None,
+            });
+        let Some(value) = value else {
+            continue;
+        };
+        let literal = IntegerLiteral::from_parts(
+            value.is_negative(),
+            IntegerRadix::Decimal,
+            value.abs().to_string().as_str(),
+        )
+        .expect("an evaluated range endpoint is a valid integer literal");
+        syntax
+            .expressions
+            .replace_expression(authored, ExpressionNode::Integer(literal));
     }
     Ok(syntax)
 }
