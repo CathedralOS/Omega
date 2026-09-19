@@ -6,6 +6,7 @@ use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyTraitShape;
 use crate::record::PackageReviewConformanceSubject;
 use crate::record::PackageReviewDomainAliasAtom;
+use crate::record::PackageReviewDomainEstablishmentRoute;
 use crate::record::PackageReviewEvidenceInterface;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewPropositionBinderKind;
@@ -136,7 +137,19 @@ pub(super) fn domain(value: &PackagePolicyDomainShape) -> Result {
     ordered(&value.semantic_roles)?;
     ordered(&value.establishment_routes)?;
     for route in &value.establishment_routes {
-        owned_pair(&route.trait_identity, &route.requirement_identity)?;
+        match route {
+            PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+                trait_identity,
+                requirement_identity,
+            }
+            | PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+                trait_identity,
+                requirement_identity,
+            } => owned_pair(trait_identity, requirement_identity)?,
+            PackageReviewDomainEstablishmentRoute::ExactMachine { machine_identity } => {
+                nominal(machine_identity)?
+            }
+        }
     }
     Ok(())
 }

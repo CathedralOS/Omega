@@ -80,8 +80,10 @@ Public domain facts join exactly one checked definition, one fact-keyed ownershi
 record, and checked dependency places for nested paths. Domain role records must
 name the declaration's own typed semantic identity; evidence stores its qualified
 domain and closed role, not a private semantic-domain ID. Establishment routes
-retain exact kind, trait, and requirement and normalize alternatives by sorting
-and deduplication. Domain operators remain separate public-operator rows.
+retain a closed kind with exact trait/requirement identities or an exact machine
+identity. Machine routes use package ownership and the complete normalized
+callable declaration identity, rather than a display path. Alternatives normalize
+by sorting and deduplication. Domain operators remain separate public-operator rows.
 
 ## Realization joins
 

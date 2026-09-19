@@ -9,7 +9,7 @@ mod values;
 mod tests;
 
 pub(super) use data::data_member;
-pub(super) use domains::alias_atom;
+pub(super) use domains::{alias_atom, establishment_route};
 #[cfg(test)]
 pub(super) use traits::conformance_shape;
 pub(super) use traits::trait_parent;

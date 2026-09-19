@@ -114,20 +114,38 @@ pub(crate) fn encode_domain_establishment_route(
     route: &PackageReviewDomainEstablishmentRoute,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("kind", |encoder| {
-        match route.kind {
+        match route.kind() {
             PackageReviewDomainEstablishmentKind::CheckedRequirement => {
                 encoder.tag("checked_requirement", 0)
             }
             PackageReviewDomainEstablishmentKind::BoundaryRequirement => {
                 encoder.tag("boundary_requirement", 1)
             }
+            PackageReviewDomainEstablishmentKind::ExactMachine => encoder.tag("exact_machine", 2),
         };
         Ok(())
     })?;
-    encoder.field("trait_identity", |encoder| {
-        encode_nominal(encoder, &route.trait_identity)
-    })?;
-    encoder.field("requirement_identity", |encoder| {
-        encode_nominal(encoder, &route.requirement_identity)
-    })
+    // Tags 0 and 1 retain their original two-identity layout. Tag 2 adds
+    // exactly one callable identity, without a synthetic requirement owner.
+    match route {
+        PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+            trait_identity,
+            requirement_identity,
+        }
+        | PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+            trait_identity,
+            requirement_identity,
+        } => {
+            encoder.field("trait_identity", |encoder| {
+                encode_nominal(encoder, trait_identity)
+            })?;
+            encoder.field("requirement_identity", |encoder| {
+                encode_nominal(encoder, requirement_identity)
+            })
+        }
+        PackageReviewDomainEstablishmentRoute::ExactMachine { machine_identity } => encoder
+            .field("machine_identity", |encoder| {
+                encode_nominal(encoder, machine_identity)
+            }),
+    }
 }

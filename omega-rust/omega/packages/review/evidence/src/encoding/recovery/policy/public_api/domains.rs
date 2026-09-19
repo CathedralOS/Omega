@@ -1,7 +1,7 @@
 use super::super::{
     Error,
     contracts::contract_fact,
-    declarations::alias_atom,
+    declarations::{alias_atom, establishment_route},
     identity::{nominal, type_identity},
     reader::Reader,
 };
@@ -33,16 +33,6 @@ pub(super) fn domain_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDomai
                 _ => return Err(Error::InvalidTag),
             })
         })?,
-        establishment_routes: reader.sequence(83, |reader| {
-            Ok(PackageReviewDomainEstablishmentRoute {
-                kind: match reader.byte()? {
-                    0 => PackageReviewDomainEstablishmentKind::CheckedRequirement,
-                    1 => PackageReviewDomainEstablishmentKind::BoundaryRequirement,
-                    _ => return Err(Error::InvalidTag),
-                },
-                trait_identity: nominal(reader)?,
-                requirement_identity: nominal(reader)?,
-            })
-        })?,
+        establishment_routes: reader.sequence(42, establishment_route)?,
     })
 }

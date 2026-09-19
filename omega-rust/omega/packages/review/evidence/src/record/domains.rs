@@ -27,26 +27,66 @@ pub enum PackageReviewDomainSemanticRole {
 pub enum PackageReviewDomainEstablishmentKind {
     CheckedRequirement,
     BoundaryRequirement,
+    ExactMachine,
 }
 
+/// Inert issuer identity. A concrete machine has no invented trait or
+/// requirement; no variant grants invocation or package admission.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewDomainEstablishmentRoute {
-    pub(crate) kind: PackageReviewDomainEstablishmentKind,
-    pub(crate) trait_identity: PackageReviewNominalIdentity,
-    pub(crate) requirement_identity: PackageReviewNominalIdentity,
+pub enum PackageReviewDomainEstablishmentRoute {
+    CheckedRequirement {
+        trait_identity: PackageReviewNominalIdentity,
+        requirement_identity: PackageReviewNominalIdentity,
+    },
+    BoundaryRequirement {
+        trait_identity: PackageReviewNominalIdentity,
+        requirement_identity: PackageReviewNominalIdentity,
+    },
+    ExactMachine {
+        machine_identity: PackageReviewNominalIdentity,
+    },
 }
 
 impl PackageReviewDomainEstablishmentRoute {
     pub const fn kind(&self) -> PackageReviewDomainEstablishmentKind {
-        self.kind
+        match self {
+            Self::CheckedRequirement { .. } => {
+                PackageReviewDomainEstablishmentKind::CheckedRequirement
+            }
+            Self::BoundaryRequirement { .. } => {
+                PackageReviewDomainEstablishmentKind::BoundaryRequirement
+            }
+            Self::ExactMachine { .. } => PackageReviewDomainEstablishmentKind::ExactMachine,
+        }
     }
 
-    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.trait_identity
+    pub const fn trait_identity(&self) -> Option<&PackageReviewNominalIdentity> {
+        match self {
+            Self::CheckedRequirement { trait_identity, .. }
+            | Self::BoundaryRequirement { trait_identity, .. } => Some(trait_identity),
+            Self::ExactMachine { .. } => None,
+        }
     }
 
-    pub const fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> Option<&PackageReviewNominalIdentity> {
+        match self {
+            Self::CheckedRequirement {
+                requirement_identity,
+                ..
+            }
+            | Self::BoundaryRequirement {
+                requirement_identity,
+                ..
+            } => Some(requirement_identity),
+            Self::ExactMachine { .. } => None,
+        }
+    }
+
+    pub const fn machine_identity(&self) -> Option<&PackageReviewNominalIdentity> {
+        match self {
+            Self::ExactMachine { machine_identity } => Some(machine_identity),
+            Self::CheckedRequirement { .. } | Self::BoundaryRequirement { .. } => None,
+        }
     }
 }
 

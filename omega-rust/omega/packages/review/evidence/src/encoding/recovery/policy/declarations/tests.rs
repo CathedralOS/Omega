@@ -238,17 +238,19 @@ fn domain_all_alias_roles_routes_and_presence_roundtrip() {
                         PackageReviewDomainSemanticRole::DenotationDimension,
                         PackageReviewDomainSemanticRole::ArithmeticPolicy,
                     ],
-                    establishment_routes: [
-                        PackageReviewDomainEstablishmentKind::CheckedRequirement,
-                        PackageReviewDomainEstablishmentKind::BoundaryRequirement,
-                    ]
-                    .into_iter()
-                    .map(|kind| PackageReviewDomainEstablishmentRoute {
-                        kind,
-                        trait_identity: nominal("Establish"),
-                        requirement_identity: nominal("Establish::run"),
-                    })
-                    .collect(),
+                    establishment_routes: vec![
+                        PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+                            trait_identity: nominal("Establish"),
+                            requirement_identity: nominal("Establish::run"),
+                        },
+                        PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+                            trait_identity: nominal("Establish"),
+                            requirement_identity: nominal("Establish::run"),
+                        },
+                        PackageReviewDomainEstablishmentRoute::ExactMachine {
+                            machine_identity: nominal("m"),
+                        },
+                    ],
                 };
                 roundtrip(&shape, encode_domain_shape, domain_shape);
                 text_test_support::meaning(|encoder| encode_domain_shape(encoder, &shape));
@@ -505,4 +507,91 @@ fn malformed_declaration_tags_counts_and_utf8_reject() {
         const_shape(&mut Reader::new(&encoded, PackagePolicyRecoveryLimits::default()).unwrap()),
         Err(Error::InvalidUtf8)
     );
+}
+
+#[test]
+fn exact_machine_routes_keep_requirement_bytes_and_bound_new_payloads() {
+    use super::establishment_route;
+    use crate::encoding::encode::declarations::encode_domain_establishment_route;
+    for (tag, route) in [
+        (
+            0,
+            PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+                trait_identity: nominal("T"),
+                requirement_identity: nominal("R"),
+            },
+        ),
+        (
+            1,
+            PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+                trait_identity: nominal("T"),
+                requirement_identity: nominal("R"),
+            },
+        ),
+        (
+            2,
+            PackageReviewDomainEstablishmentRoute::ExactMachine {
+                machine_identity: nominal("m"),
+            },
+        ),
+    ] {
+        let encoded = bytes(&route, encode_domain_establishment_route);
+        // Explicit legacy payload oracle: a kind tag followed by the same
+        // nominal owner tag, digest, little-endian path length, and UTF-8.
+        let mut expected = vec![tag];
+        let names: &[&str] = if tag == 2 { &["m"] } else { &["T", "R"] };
+        for name in names {
+            expected.push(1);
+            expected.extend_from_slice(&[7; 32]);
+            expected.extend_from_slice(&(name.len() as u64).to_le_bytes());
+            expected.extend_from_slice(name.as_bytes());
+        }
+        assert_eq!(encoded, expected);
+        roundtrip(
+            &route,
+            encode_domain_establishment_route,
+            establishment_route,
+        );
+        for unknown in [3, 255] {
+            let mut changed = encoded.clone();
+            changed[0] = unknown;
+            let mut reader = Reader::new(&changed, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(establishment_route(&mut reader), Err(Error::InvalidTag));
+        }
+        let mut invalid_owner = encoded.clone();
+        invalid_owner[1] = 255;
+        let mut reader =
+            Reader::new(&invalid_owner, PackagePolicyRecoveryLimits::default()).unwrap();
+        assert!(establishment_route(&mut reader).is_err());
+    }
+}
+
+#[test]
+fn exact_machine_route_short_payload_uses_one_nominal_sequence_floor() {
+    let shape = PackageReviewDomainShape {
+        identity: nominal("D"),
+        type_parameters: vec![],
+        target_type: value_type(),
+        index_arguments: vec![],
+        predicate_body: DomainPredicateBody::Bodyless,
+        predicate_facts: vec![],
+        alias_expansion: None,
+        classification: None,
+        semantic_roles: vec![],
+        establishment_routes: vec![PackageReviewDomainEstablishmentRoute::ExactMachine {
+            machine_identity: nominal("m"),
+        }],
+    };
+    roundtrip(&shape, encode_domain_shape, domain_shape);
+    let mut encoded = bytes(&shape, encode_domain_shape);
+    // Last field is one route: count8 + tag1 + nominal42. An oversized route
+    // count must fail before allocation or reading a nonexistent payload.
+    let count_offset = encoded.len() - 43 - 8;
+    assert_eq!(
+        &encoded[count_offset..count_offset + 8],
+        &1u64.to_le_bytes()
+    );
+    encoded[count_offset..count_offset + 8].copy_from_slice(&u64::MAX.to_le_bytes());
+    let mut reader = Reader::new(&encoded, PackagePolicyRecoveryLimits::default()).unwrap();
+    assert!(domain_shape(&mut reader).is_err());
 }

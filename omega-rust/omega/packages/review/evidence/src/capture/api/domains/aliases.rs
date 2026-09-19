@@ -1,9 +1,8 @@
 use crate::capture::PackageReviewInput;
-use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
-use crate::record::{
-    PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
-    PackageReviewDomainEstablishmentRoute,
+use crate::capture::semantics::declarations::{
+    nominal_identity, nominal_owner, trait_requirement_identity,
 };
+use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -86,29 +85,46 @@ pub(crate) fn project_domain_establishment_route(
     compilation: &PackageReviewInput<'_>,
     route: language_semantics::DomainEstablishmentRoute,
 ) -> Result<PackageReviewDomainEstablishmentRoute, Vec<Diagnostic>> {
-    let (kind, trait_symbol, requirement_symbol, expects_boundary) = match route {
+    let (trait_symbol, requirement_symbol, expects_boundary) = match route {
         language_semantics::DomainEstablishmentRoute::CheckedRequirement {
             trait_definition,
             requirement,
-        } => (
-            PackageReviewDomainEstablishmentKind::CheckedRequirement,
-            trait_definition,
-            requirement,
-            false,
-        ),
+        } => (trait_definition, requirement, false),
         language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
             boundary_trait,
             requirement,
-        } => (
-            PackageReviewDomainEstablishmentKind::BoundaryRequirement,
-            boundary_trait,
-            requirement,
-            true,
-        ),
-        language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
-            return Err(vec![Diagnostic::error(
-                "exact-machine domain establishment routes have no package-review projection yet",
-            )]);
+        } => (boundary_trait, requirement, true),
+        language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
+            let mut declarations = compilation
+                .machines()
+                .iter()
+                .filter(|candidate| candidate.symbol == machine);
+            let Some(declaration) = declarations.next() else {
+                return Err(vec![Diagnostic::error(
+                    "package review exact-machine issuer has no declaration",
+                )]);
+            };
+            if declarations.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "package review exact-machine issuer has multiple declarations",
+                )]);
+            }
+            // Callable identity includes overload shape and attached owner;
+            // a display path cannot distinguish declarations with one name.
+            let path = compilation
+                .normalized_machine_overload_identity(declaration)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "package review exact-machine issuer has no normalized callable identity",
+                    )]
+                })?
+                .identity();
+            return Ok(PackageReviewDomainEstablishmentRoute::ExactMachine {
+                machine_identity: crate::record::PackageReviewNominalIdentity {
+                    owner: nominal_owner(compilation, declaration.symbol)?,
+                    path,
+                },
+            });
         }
     };
     let owners = compilation
@@ -138,9 +154,17 @@ pub(crate) fn project_domain_establishment_route(
             requirements.len()
         ))]);
     };
-    Ok(PackageReviewDomainEstablishmentRoute {
-        kind,
-        trait_identity: nominal_identity(compilation, owner.symbol)?,
-        requirement_identity: trait_requirement_identity(compilation, owner, requirement)?,
+    let trait_identity = nominal_identity(compilation, owner.symbol)?;
+    let requirement_identity = trait_requirement_identity(compilation, owner, requirement)?;
+    Ok(if expects_boundary {
+        PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+            trait_identity,
+            requirement_identity,
+        }
+    } else {
+        PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+            trait_identity,
+            requirement_identity,
+        }
     })
 }
