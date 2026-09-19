@@ -25,6 +25,10 @@ pub enum AuthoredDeclarationSelectionKind {
     CaseReference,
     CaseMembership,
     DomainMembership,
+    /// A declaration named by a domain's issuer-authorization catalog.
+    /// Public exposure retains interface identity and dependencies, but does
+    /// not make the selected issuer nameable as ordinary consumer API.
+    DomainIssuerAuthorization,
     Call,
     StaticArgument,
     Operator,

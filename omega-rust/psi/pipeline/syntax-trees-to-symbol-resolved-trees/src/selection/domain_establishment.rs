@@ -1,8 +1,10 @@
-//! Domain establishment routes: which requirement introduces a domain.
+//! Domain establishment routes: which requirement or machine may issue a domain.
 //!
 //! This is the sole projection point for route sources. Checked consumers
 //! read these identities instead of reconstructing owner authority from
-//! attachment names or contract placement.
+//! attachment names or contract placement. Public catalog references retain
+//! interface exposure but have their own authorization occurrence kind: they
+//! do not publish a private issuer for ordinary consumer selection.
 
 use diagnostics::Diagnostic;
 use language_semantics::DomainEstablishmentRoute;
@@ -135,13 +137,13 @@ fn collect_authored_requirement_routes(
                     if machine.machine.attached_data_symbol.is_valid() {
                         selections.push((
                             path_source_span(&path[..path.len() - 1]),
-                            SelectionKind::TypeReference,
+                            SelectionKind::DomainIssuerAuthorization,
                             machine.machine.attached_data_symbol,
                         ));
                     }
                     selections.push((
                         path.last().expect("route path nonempty").source_span(),
-                        SelectionKind::StaticPathSegment,
+                        SelectionKind::DomainIssuerAuthorization,
                         machine.machine.symbol,
                     ));
                     resolutions.push(AuthoredRouteResolution {
@@ -218,12 +220,12 @@ fn collect_authored_requirement_routes(
                 selections: vec![
                     (
                         path_source_span(trait_path),
-                        SelectionKind::TypeReference,
+                        SelectionKind::DomainIssuerAuthorization,
                         route.source_symbol(),
                     ),
                     (
                         requirement_name.source_span(),
-                        SelectionKind::StaticPathSegment,
+                        SelectionKind::DomainIssuerAuthorization,
                         route.established_declaration(),
                     ),
                 ],

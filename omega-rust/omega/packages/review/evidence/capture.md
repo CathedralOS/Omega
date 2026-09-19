@@ -85,6 +85,17 @@ identity. Machine routes use package ownership and the complete normalized
 callable declaration identity, rather than a display path. Alternatives normalize
 by sorting and deduplication. Domain operators remain separate public-operator rows.
 
+Only domain-route normalization records `DomainIssuerAuthorization` occurrences.
+A public catalog retains public-interface exposure and exact private issuer
+identity, while ordinary references to that declaration keep their visibility
+checks. The author still needs declaration-selection authority; the metadata
+does not authorize a consumer call or conformance. Machine identities include
+the exact declaring module as well as the overload coordinate, so equal leaf
+names in one package remain distinct. Recovery is inert; local reconstruction
+rejoins the retained identity to checked source. A retained private admission
+claim is not an invocation receipt: listing an exact boundary machine and its
+result annotation does not grant the authority of an admitted boundary requirement.
+
 ## Realization joins
 
 [Callable capture](src/capture/callables) cross-checks supply mode, exact
