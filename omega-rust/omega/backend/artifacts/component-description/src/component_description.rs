@@ -670,7 +670,9 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ExactIntegerDivide { .. }
                     | OperationKind::WrappingIntegerRemainder { .. }
                     | OperationKind::SaturatingIntegerRemainder { .. }
-                    | OperationKind::ExactIntegerRemainder { .. } => {}
+                    | OperationKind::ExactIntegerRemainder { .. }
+                    | OperationKind::MoveStructuralField { .. }
+                    | OperationKind::StoreStructuralField { .. } => {}
                 }
             }
         }
