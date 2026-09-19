@@ -559,3 +559,134 @@ fn rebound_dynamic_plan_retains_both_exact_selection_versions() {
     assert_eq!(initial.type_identity, latest.source_type_identity);
     assert!(latest.unit_continuation.is_some());
 }
+
+#[test]
+fn dynamic_dispatch_to_an_erased_formal_requirement_refuses_the_missing_lane() {
+    // The descriptor lane carries `self` arity only: a requirement declaring
+    // an erased formal can never receive its proof-only actual through a
+    // `&dyn` call, so checking refuses the call by name instead of producing
+    // an unadmitted plan downstream.
+    let source = r#"
+        trait Measure {
+            machine measure(&self, proof [erased]: i32) -> bool;
+        }
+
+        data Item [copy] {
+            value: bool;
+        }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self, proof [erased]: i32) -> bool {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main [copy] {
+            item: Item;
+        }
+
+        machine Main::run(&self) {
+            let erased: &dyn Measure = &self.item as &dyn Item::Primary;
+            let result: bool = erased.measure(3);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a dynamic call to an erased-formal requirement must refuse the missing lane");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("cannot supply erased formal `proof`")),
+        "expected an erased-lane refusal diagnostic: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn dynamic_dispatch_to_an_erased_formal_free_requirement_still_lowers() {
+    let source = r#"
+        trait Measure {
+            machine measure(&self) -> bool;
+        }
+
+        data Item [copy] {
+            value: bool;
+        }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> bool {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main [copy] {
+            item: Item;
+        }
+
+        machine Main::run(&self) {
+            let erased: &dyn Measure = &self.item as &dyn Item::Primary;
+            let result: bool = erased.measure();
+        }
+    "#;
+    let checked = check_dynamic_source(source);
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .direct_scalar_calls
+            .len(),
+        1,
+        "the self-only requirement keeps its checked dynamic plan"
+    );
+}
+
+#[test]
+fn stored_dynamic_dispatch_to_an_erased_formal_requirement_refuses_the_missing_lane() {
+    // A descriptor stored into a record field dispatches through the same
+    // self-arity lane: the erased formal on the requirement still refuses.
+    let source = r#"
+        trait Measure {
+            machine measure(&self, proof [erased]: i32) -> bool;
+        }
+
+        data Item [copy] {
+            value: bool;
+        }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self, proof [erased]: i32) -> bool {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Holder<'item> {
+            handler: &'item dyn Measure;
+        }
+
+        data Main [copy] {
+            item: Item;
+        }
+
+        machine Main::run<'item>(&self) {
+            let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: bool = holder.handler.measure(3);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a stored dynamic call to an erased-formal requirement must refuse");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("cannot supply erased formal `proof`")),
+        "expected an erased-lane refusal diagnostic: {diagnostics:?}"
+    );
+}
