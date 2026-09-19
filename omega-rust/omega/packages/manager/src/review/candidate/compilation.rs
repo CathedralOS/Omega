@@ -122,16 +122,26 @@ pub fn compile_resolved_package_reviews_reusing(
     bindings: SemanticBindingReview<'_>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_candidate(target_closure, build_root, bindings, None, preparation)
-        .map(|compiled| compiled.reviews)
+    compile_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        None,
+        None,
+        preparation,
+    )
+    .map(|compiled| compiled.reviews)
 }
 
 /// Retain the application root from the same final pass that produced its reviews.
 /// This checked product grants no native authority.
+/// A supplied snapshot selects only the root activation's inputs and required
+/// outputs in every review pass; dependencies keep their own package inventories.
 pub fn compile_resolved_package_candidate_for_production(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     bindings: SemanticBindingReview<'_>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
@@ -152,6 +162,7 @@ pub fn compile_resolved_package_candidate_for_production(
         build_root,
         bindings,
         Some(&root_path),
+        root_build_snapshot,
         &mut CandidateSourcePreparation::for_closure(closure),
     )?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
@@ -175,12 +186,14 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     entry_path: &Path,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
 ) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
     let compiled = compile_candidate(
         target_closure,
         build_root,
         SemanticBindingReview::Discover,
         Some(entry_path),
+        root_build_snapshot,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )?;
     compiled
@@ -196,6 +209,7 @@ fn compile_candidate(
     build_root: &Path,
     bindings: SemanticBindingReview<'_>,
     retained_root_entry: Option<&Path>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     preparation.size_for(target_closure.source_closure());
@@ -205,6 +219,7 @@ fn compile_candidate(
             build_root,
             inputs,
             retained_root_entry,
+            root_build_snapshot,
             TargetEntryDiscovery::Disabled,
             preparation,
         );
@@ -214,6 +229,7 @@ fn compile_candidate(
         build_root,
         &[],
         retained_root_entry,
+        root_build_snapshot,
         TargetEntryDiscovery::Dependencies,
         preparation,
     )?;
@@ -232,6 +248,7 @@ fn compile_candidate(
         build_root,
         &discovered,
         retained_root_entry,
+        root_build_snapshot,
         TargetEntryDiscovery::Disabled,
         preparation,
     )
@@ -242,6 +259,7 @@ fn compile_pass(
     build_root: &Path,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     retained_root_entry: Option<&Path>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
@@ -258,6 +276,7 @@ fn compile_pass(
         session.evaluation_sponsor(),
         &bindings,
         retained_root_entry,
+        root_build_snapshot,
         discovery,
         preparation,
     );

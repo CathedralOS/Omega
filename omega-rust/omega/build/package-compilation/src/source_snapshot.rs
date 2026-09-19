@@ -50,10 +50,20 @@ impl BuildSourceCaptureRequest {
     ) -> Result<Self, String> {
         let mut request = BTreeMap::new();
         for (relative_path, obligation) in entries {
-            if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
-                &relative_path,
-                false,
-            ) {
+            // Physical package metadata also describes raw host names. A
+            // caller-authored logical inventory has the narrower portable
+            // protocol: UTF-8 and no drive-qualified spellings on any host.
+            let drive_qualified = relative_path.split(|byte| *byte == b'/').any(|component| {
+                component.first().is_some_and(u8::is_ascii_alphabetic)
+                    && component.get(1) == Some(&b':')
+            });
+            if std::str::from_utf8(&relative_path).is_err()
+                || drive_qualified
+                || !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+                    &relative_path,
+                    false,
+                )
+            {
                 return Err(format!(
                     "source capture entry is not a canonical relative path: {relative_path:?}"
                 ));
@@ -895,4 +905,35 @@ fn os_str_from_bytes(bytes: &[u8]) -> Result<std::ffi::OsString, String> {
     std::str::from_utf8(bytes)
         .map(std::ffi::OsString::from)
         .map_err(|_| "physical Source path is not portable UTF-8".to_owned())
+}
+
+#[cfg(test)]
+mod capture_request_tests {
+    use super::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+
+    #[test]
+    fn logical_inventory_rejects_drive_components_and_non_utf8_on_every_host() {
+        for path in [
+            b"C:/file".as_slice(),
+            b"c:relative",
+            b"sub/C:relative",
+            b"\xff",
+        ] {
+            assert!(
+                BuildSourceCaptureRequest::new([(
+                    path.to_vec(),
+                    BuildSourceCaptureObligation::Required
+                ),])
+                .is_err(),
+                "{path:?}"
+            );
+        }
+        assert!(
+            BuildSourceCaptureRequest::new([(
+                "templates/é.txt".as_bytes().to_vec(),
+                BuildSourceCaptureObligation::Optional
+            ),])
+            .is_ok()
+        );
+    }
 }

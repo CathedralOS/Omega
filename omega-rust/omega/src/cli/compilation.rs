@@ -24,6 +24,9 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         accept_admissions: arguments.accept_admissions,
         require_package_project: false,
         optimization_rollback: arguments.optimization_rollback,
+        build_snapshot: arguments
+            .build_inputs
+            .map(|capture| compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
     };
     let result = compile_project(request);
     if let Some(started) = started {

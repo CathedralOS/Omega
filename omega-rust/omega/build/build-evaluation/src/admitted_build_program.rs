@@ -64,9 +64,9 @@ pub enum BuildSnapshotCapture {
     /// resolver already validated. Capture reads no member the package
     /// binding did not commit.
     PackageInventory,
-    /// An explicit invocation inventory of files and subtrees for a
-    /// standalone root. Capture reads exactly the declared members; a local
-    /// build never implicitly exposes the working directory.
+    /// An explicit invocation inventory of files and subtrees. A package
+    /// root retains full resolver provenance while its build receives only
+    /// the selected view; a standalone root captures only declared members.
     Scoped(BuildSourceCaptureRequest),
 }
 
@@ -82,8 +82,9 @@ impl BuildSnapshotRequest {
         }
     }
 
-    /// A snapshot over an explicit invocation inventory for a standalone
-    /// root: exactly the files and subtrees the caller declared.
+    /// A snapshot over exactly the files and subtrees the caller declared.
+    /// Package capture additionally verifies this view against the complete
+    /// resolver-owned source inventory; it never replaces package provenance.
     pub fn scoped(
         required_outputs: impl IntoIterator<Item = Vec<u8>>,
         capture: BuildSourceCaptureRequest,

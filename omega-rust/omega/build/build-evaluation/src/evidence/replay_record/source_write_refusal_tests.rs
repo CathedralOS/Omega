@@ -190,6 +190,44 @@ fn refused_source_write_codec_rejects_omission_duplication_and_framing_mutation(
 }
 
 #[test]
+fn replay_record_retains_distinct_package_and_selected_inventory_commitments() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut observed = summary(vec![exact_attempt()]);
+    observed.canonical_source_metadata_identity =
+        Some(crate::BuildCanonicalSourceMetadataIdentity::new(1, [3; 32]));
+    observed.captured_source_inventory = Some(crate::BuildCapturedSourceInventory {
+        source_metadata_identity: crate::BuildCanonicalSourceMetadataIdentity::new(1, [4; 32]),
+        entry_count: 2,
+        file_bytes: 7,
+    });
+    let captured = capture_verified_build_filesystem_replay_record(&observed, limits)
+        .unwrap()
+        .unwrap();
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .unwrap();
+    assert_eq!(
+        recovered.canonical_source_metadata_identity(),
+        observed.canonical_source_metadata_identity()
+    );
+    assert_eq!(
+        recovered.captured_source_inventory(),
+        observed.captured_source_inventory()
+    );
+    observed
+        .captured_source_inventory
+        .as_mut()
+        .unwrap()
+        .source_metadata_identity = crate::BuildCanonicalSourceMetadataIdentity::new(1, [5; 32]);
+    let changed = capture_verified_build_filesystem_replay_record(&observed, limits)
+        .unwrap()
+        .unwrap();
+    assert_ne!(changed.commitment(), captured.commitment());
+    observed.canonical_source_metadata_identity = None;
+    assert!(capture_verified_build_filesystem_replay_record(&observed, limits).is_err());
+}
+
+#[test]
 fn refused_source_write_codec_rejects_independent_semantic_mutations() {
     let mut changed = exact_attempt();
     changed.operation_tag = 2;

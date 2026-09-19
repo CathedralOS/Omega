@@ -29,7 +29,7 @@ fn production_rejects_package_role_before_either_binding_mode_creates_a_session(
         SemanticBindingReview::Explicit(&[]),
     ] {
         assert!(matches!(
-            compile_resolved_package_candidate_for_production(&exact, &build, bindings),
+            compile_resolved_package_candidate_for_production(&exact, &build, bindings, None),
             Err(CompileResolvedPackageReviewsError::InvalidProductionRootRole { .. })
         ));
         assert!(!build.exists());
@@ -60,6 +60,7 @@ fn check_retains_requested_package_entry_after_disposal_without_production() {
         &closure.for_exact_target(target),
         &build,
         &entry,
+        None,
     )
     .expect("check accepts a package and does not read its unselected main");
     assert_eq!(checked.selected_target_profile(), Some(target));
@@ -125,6 +126,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &fixture.0.join("discovery"),
         &[],
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -144,6 +146,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &exact,
         &fixture.0.join("consumed"),
         &[],
+        None,
         None,
         TargetEntryDiscovery::Disabled,
         &mut preparation,
@@ -209,6 +212,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &fixture.0.join("discovery"),
         &[],
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -232,6 +236,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &exact,
         &fixture.0.join("final"),
         &[],
+        None,
         None,
         TargetEntryDiscovery::Disabled,
         &mut preparation,
@@ -517,6 +522,7 @@ fn assert_root_console_permissions(
         &fixture.0.join("discovery"),
         &[],
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -723,6 +729,7 @@ fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf()
         &exact,
         &fixture.0.join("discovery"),
         &[],
+        None,
         None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,

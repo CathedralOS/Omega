@@ -139,6 +139,7 @@ are parsed in `omega-rust/omega/src/cli/arguments/`. Full surface:
 
 ```text
 omega [--check] [--offline] [--accept-admissions] [--timings]
+      [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>

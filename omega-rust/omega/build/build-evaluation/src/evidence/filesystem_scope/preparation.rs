@@ -179,12 +179,36 @@ pub fn prepare_filesystem_scope(
             std::process::id(),
             NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed)
         ));
-        build_machine_filesystem_scope = build_machine_filesystem_scope
-            .with_captured_source_input(captured_input, snapshot_dir)?
-            .with_dependency_inputs(dependency_inputs)
-            .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
+        build_machine_filesystem_scope = if package_inputs.is_some()
+            && matches!(
+                build_snapshot.capture(),
+                crate::BuildSnapshotCapture::Scoped(_)
+            ) {
+            // A narrowed inventory has a different commitment from the full
+            // package. Compare exact captured entries against that package's
+            // authenticated full capture rather than dropping provenance or
+            // treating matching path kinds/lengths as matching source bytes.
+            let complete = package_compilation::capture_package_source_input(&source_root)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "could not validate the scoped package source snapshot: {reason}"
+                    ))]
+                })?;
+            build_machine_filesystem_scope.with_scoped_package_source_input(
+                captured_input,
+                &complete,
+                snapshot_dir,
+            )?
+        } else {
+            build_machine_filesystem_scope
+                .with_captured_source_input(captured_input, snapshot_dir)?
+        }
+        .with_dependency_inputs(dependency_inputs)
+        .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     if let Some(filesystem_replay) = filesystem_replay {
+        build_machine_filesystem_scope.replayed_source_inventory =
+            replay_record.and_then(|record| record.captured_source_inventory());
         build_machine_filesystem_scope = build_machine_filesystem_scope.with_replay(
             filesystem_replay,
             replay_record

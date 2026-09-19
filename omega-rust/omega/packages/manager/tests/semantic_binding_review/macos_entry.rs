@@ -48,6 +48,7 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
         &target,
         &temporary.0.join("review"),
         SemanticBindingReview::Discover,
+        None,
     )
     .expect("checked dependency schema feeds strict application review without an authored import");
     let review = candidate.reviews().review(closure.graph().root()).unwrap();

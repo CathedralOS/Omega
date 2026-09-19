@@ -105,7 +105,7 @@ impl BuildEvaluationUsage {
     }
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 77;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 78;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -951,17 +951,22 @@ impl BuildFilesystemReplayVerdict {
 }
 
 /// Extent evidence of the captured immutable input inventory a build
-/// occurrence executed against. The inventory's content identity is the
-/// summary's canonical source metadata commitment; this evidence records that
-/// the run was bound to a complete compiler-captured inventory and how much
-/// retained input state it represented.
+/// occurrence executed against. Its commitment is distinct from the full
+/// package's source provenance: equally sized selections from one package
+/// must remain different inputs even when neither build reads a file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BuildCapturedSourceInventory {
     pub(crate) entry_count: u64,
     pub(crate) file_bytes: u64,
+    pub(crate) source_metadata_identity: BuildCanonicalSourceMetadataIdentity,
 }
 
 impl BuildCapturedSourceInventory {
+    /// Exact membership, metadata policy, and byte commitment of the selected view.
+    pub const fn source_metadata_identity(self) -> BuildCanonicalSourceMetadataIdentity {
+        self.source_metadata_identity
+    }
+
     /// Complete inventory size in canonical rows, including the source root.
     pub const fn entry_count(self) -> u64 {
         self.entry_count
@@ -1065,10 +1070,9 @@ impl BuildObservationSummary {
         self.replay_activation
     }
 
-    /// Extent evidence of the captured immutable input inventory this build
-    /// occurrence executed against. `Some` means every Source read was served
-    /// from a fresh private materialization of the compiler-captured
-    /// inventory bound to the recorded canonical metadata commitment.
+    /// Identity and extent of this occurrence's selected immutable inventory.
+    /// Primary execution reads its private materialization; review-only replay
+    /// retains the original capture evidence without rereading host files.
     pub const fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_inventory
     }

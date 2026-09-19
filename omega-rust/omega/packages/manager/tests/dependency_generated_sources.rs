@@ -79,7 +79,8 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
         compile_resolved_package_candidate_for_production(
             &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &temporary.join("invalid-native-production"),
-            SemanticBindingReview::Discover
+            SemanticBindingReview::Discover,
+            None,
         ),
         Err(
             CompileResolvedPackageReviewsError::InvalidProductionRootRole {

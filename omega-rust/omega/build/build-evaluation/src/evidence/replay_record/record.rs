@@ -6,7 +6,7 @@ use crate::evidence::replay_record::attempt_codec::{
 };
 use crate::evidence::replay_record::rehydration::decode_shapes;
 use crate::{
-    BuildCanonicalSourceMetadataIdentity, BuildFilesystemGrantAccess,
+    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory, BuildFilesystemGrantAccess,
     BuildFilesystemGrantRefusalReason, BuildFilesystemOperationObservationClass,
     BuildFilesystemRoot, BuildObservationSummary, BuildReplayActivation,
 };
@@ -18,7 +18,7 @@ pub(crate) const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
 
-pub(crate) const VERSION: u16 = 57;
+pub(crate) const VERSION: u16 = 58;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -81,6 +81,7 @@ pub struct ReviewOnlyBuildFilesystemReplayRecord {
     canonical_bytes: Vec<u8>,
     commitment: [u8; 32],
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    captured_source_inventory: Option<BuildCapturedSourceInventory>,
     replay_activation: BuildReplayActivation,
 }
 
@@ -105,6 +106,10 @@ impl ReviewOnlyBuildFilesystemReplayRecord {
     /// build execution profile agree with it.
     pub const fn replay_activation(&self) -> BuildReplayActivation {
         self.replay_activation
+    }
+
+    pub const fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
+        self.captured_source_inventory
     }
 }
 
@@ -168,6 +173,20 @@ pub fn capture_verified_build_filesystem_replay_record(
             encoder.fixed(&identity.source_content_commitment());
         }
     }
+    match summary.captured_source_inventory() {
+        None => encoder.byte(0),
+        Some(inventory) => {
+            encoder.byte(1);
+            encoder.u32(inventory.source_metadata_identity().policy_version());
+            encoder.fixed(
+                &inventory
+                    .source_metadata_identity()
+                    .source_content_commitment(),
+            );
+            encoder.u64(inventory.entry_count());
+            encoder.u64(inventory.file_bytes());
+        }
+    }
     encode_replay_activation(&mut encoder, summary.replay_activation())?;
     encoder.count(summary.included_source_handoffs().len())?;
     for handoff in summary.included_source_handoffs() {
@@ -194,6 +213,7 @@ pub fn recover_review_only_build_filesystem_replay_record(
         commitment: record_commitment(&canonical_bytes),
         canonical_bytes,
         canonical_source_metadata_identity: decoded.canonical_source_metadata_identity,
+        captured_source_inventory: decoded.captured_source_inventory,
         replay_activation: decoded.replay_activation,
     })
 }

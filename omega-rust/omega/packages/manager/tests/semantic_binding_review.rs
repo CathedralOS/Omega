@@ -364,6 +364,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("accepted-build"),
         SemanticBindingReview::Explicit(std::slice::from_ref(&binding_input)),
+        None,
     )
     .expect("compile exact consumer-bound Console review with explicit terminal permission");
     assert_eq!(production_candidate.root(), &root_key);
@@ -539,6 +540,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         &source_only_closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("source-only-review"),
         SemanticBindingReview::Explicit(std::slice::from_ref(&binding_input)),
+        None,
     )
     .expect("reconstruct permissions after source-only change");
     let source_only_reviews = source_only_candidate.reviews();
@@ -970,6 +972,7 @@ fn retained_production_discovery_reaches_fresh_final_acceptance() {
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("discovered-production"),
         SemanticBindingReview::Discover,
+        None,
     )
     .expect("production candidate rechecks discovered semantics from retained preparation");
     let discovered_root = discovered.reviews().review(&root_key).unwrap();
