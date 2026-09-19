@@ -1892,34 +1892,33 @@ Owners include
   now replay embedded callee plans, projected argument/home identity and
   standalone receiving entrances against signatures derived from the
   declarations. Every borrowed access keeps `BorrowedReference`, an inline byte
-  field cannot satisfy a parameter by shape equality, and an exclusive view
-  reaches an ordinary call from a non-entry block parameter. One caller form
-  has no admitted route: an owned root cannot lend an exclusive projected
-  subloan.
+  field cannot satisfy a parameter by shape equality, an exclusive view
+  reaches an ordinary call from a non-entry block parameter, and an owned root
+  lends a mutable or write-only projected subloan through
+  `structural_arguments_match`. The Terminal verifier still requires a
+  borrowed caller parameter as the exclusive subloan's parent, so nothing
+  produces the owned-parent form for real artifacts yet.
 
   Remaining work:
 
   - Admit `Owned` storage as the parent of a mutable or write-only projected
-    loan. A projected shared borrow rooted in an owned non-entry block arrival
-    lowers, legalizes and replays. Making only the argument exclusive rejects
-    with `StructuralCallContractMismatch` in
-    `validate_psi_optimization_unit_with_admitted_cycle_machines`, before the
-    source-to-target join runs. The rule is `structural_arguments_match`
-    (`optimization-unit-semantics/src/unit_validation/operation_contracts/structural_access.rs`):
-    `static_borrowed_path` admits mutable-to-any, shared-to-shared and
-    write-only-to-write-only parents, `unrestricted_mutable_subloan` requires
-    `source.access == MutableBorrow`, and `Owned` appears in neither. The
-    restriction covers every owned root, including an established record home,
-    not only block arrivals. The Terminal verifier's
-    `is_unrestricted_mutable_subloan` and `is_unrestricted_write_only_subloan`
+    loan in the Terminal verifier.
+    `is_unrestricted_mutable_subloan` and
+    `is_unrestricted_write_only_subloan`
     (`terminal-verifier/src/validation/structural_operations/structural_arguments.rs`)
-    also require a borrowed caller parameter as parent; change both sides
-    together.
+    still require a borrowed caller parameter as parent. The unit-semantics
+    side landed: `static_borrowed_path`'s access matrix now pairs `Owned`
+    parents with mutable and write-only children, a new
+    `unrestricted_owned_mutable_subloan` binds `actual_type ==
+    parameter.structural_type` so inline byte-field presentations stay
+    borrowed-parent forms, and `unrestricted_write_only_subloan` accepts an
+    `Owned` source. Pinned by
+    `owned_root_lends_exclusive_projected_subloan` and
+    `owned_root_subloan_keeps_exclusive_and_presentation_limits`.
   - The [reborrow table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access)
-    has rows for Read, Mutable and Write-only parents and none for an owned
-    root. State the owned-parent rule there before changing the validators.
-    If the specification is genuinely silent, file it in `OWNER_QUESTIONS.md`
-    and mark this step blocked; no such question exists today.
+    now carries the `Owned` parent row: a shared child freezes the loaned
+    subtree until the complete shared cohort ends; mutable and write-only
+    children suspend it and restore owned access.
   - Do not retry by relaxing `aggregate_borrows::argument` or the legalization
     aggregate route. Lowering and legalization already admit the form, so that
     edit lowers the program and then fails at the same unit-semantics rule.
@@ -1951,32 +1950,16 @@ Owners include
   `Field`/`FixedIndex` path, stated once in `terminal-semantics` and used by
   both validators.
 
-  DESIGN-BLOCKED (2026-09-18, measured): the owned-parent projected subloan
-  above needs an owner decision before either validator changes. The
-  [reborrow table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access)
-  has rows for `Read`, `Mutable` and `Write-only` parents and none for `Owned`;
-  `loans.md` contains no occurrence of "owned" or "ownership" at all, and
-  `structural_access.md` states no reborrow relation for an owned parent. No
-  `OWNER_QUESTIONS.md` entry covers reborrow, owned roots, owned parents or
-  subloans. Filing one is itself blocked today: that file requires "an
-  independently motivated product requirement or credible external use case",
-  and no authored customer exists -- `tests/omega/pass` has none and shipped
-  `source/` has none. Two near misses are NOT customers: Cathedral's
-  `installer.omg` lends `&mut self.pml4` from an already-`&mut self` receiver,
-  a Mutable parent, and
-  `pass/dependent/mutable_referent_alias_corruption_restored_compile` projects
-  from a `&mut Level` parameter. The owned root is not uniformly excluded:
-  `path_shape_matches` admits owned-to-owned partial-affine projections and
-  `shared_affine_loan` admits an owned affine root lending a whole-root shared
-  borrow; only the owned-parent EXCLUSIVE projected subloan has no route. The
-  rejection is unpinned by any test --
-  `subloan_rejects_access_amplification_and_wrong_multiplicity` varies the
-  argument and parameter access to `Owned`, never the source -- and should stay
-  unpinned while the intended direction is to admit the form. The path cited
-  above is stale: the crate is
-  `omega-rust/omega/semantics/optimization-unit-semantics/`, not
-  `representations/`, and the three rules are `let` bindings inside one
-  function, not `fn`s, so `fn`-anchored greps find nothing.
+  RESOLVED-BLOCKER (2026-09-19, w9): the owned-parent projected subloan was
+  DESIGN-BLOCKED pending an owner decision; the swarm prompt for the owned-row
+  slice supplied it. The unit-semantics admission and the `loans.md` `Owned`
+  row landed under that direction; `mixed [Field, FixedIndex]` paths from
+  owned parameter roots are contract-admitted but remain unlowerable through
+  `exact_borrowed_projection` (a producer-reach gap mirroring the existing
+  operation-result divergence, not a contract rejection). Still open: the
+  verifier half above, upstream production of the form (WRITE-ONLY-BORROW's
+  territory), and the two native runtime legs, which this Linux host cannot
+  run and which were never claimed as passing here.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
