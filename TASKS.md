@@ -3192,11 +3192,25 @@ Owners include
   - Module-owned forms, once **MODULE-NAMESPACE-RESOLUTION** supplies exact
     lexical selection. No source-spelling fallback, and no runtime value used
     as a static cache key.
-  - Native legs for three scenarios. Each stops identically without a value
-    binder, so repair the owning route, not this item: a receiver method whose
-    realized subject owes `requires` stops at the `entry_claims` gate in
-    `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
-    a `let mut` primitive local beside a Console receiver stops with
+  - Native legs for three scenarios. Repair the owning ordinary call/storage
+    routes, not generic-specific substitutes. A scalar-returning receiver
+    method with `requires` now reaches instruction legalization, where
+    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`
+    still rejects nonempty `CallStructuralScalar::requirement_obligations`.
+    Reproduce by adding `requires Count <= 7;` to `Main::at` in
+    `runtime_value_generics::native::runtime_bound_subject_flows_through_indexed_field_writes_natively`;
+    its Unit setter already retains that requirement and the macOS ARM64
+    executable exits 38. Target lowering retains and independently checks the
+    ordered call obligations. Keep that custody through legalization and
+    selection; `entry_claims` are distinct ownership evidence and their
+    restrictions must not be removed to admit proof-only requirements.
+    At `29ca2fd46e`, the guarded-subject and state-transition tests (Terminal
+    and native) additionally fail before target lowering with `Terminal
+    proposal must retain every integer comparison occurrence exactly once`.
+    This reproduces with the borrowed-call change absent;
+    **CRASH-CONTRACT** owns the newly required comparison occurrence custody.
+    Recheck those four cases separately from the passing indexed-field case.
+    A `let mut` primitive local beside a Console receiver stops with
     `SourceCustodyMismatch` in the selected-instruction
     `legalization/source/scalar_graph/terminator.rs`; a structural subject
     over a record local beside a provider receiver gets no checked Unit plan
