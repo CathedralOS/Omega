@@ -175,13 +175,12 @@ pub fn validate_runtime_spill_with_span_policy(
             consumed = consumed
                 .checked_add(1)
                 .ok_or(RuntimeSpillError::IdentityOverflow)?;
-            // The same unit-writing instruction that closed the proposal's
-            // open reload closes it here — unless the admitted span policy
-            // crossed it — so the next unpinned use must name a fresh pair
-            // rather than the pre-boundary register.
-            if (!restored.clobbers.is_empty() || !restored.implicit_defs.is_empty())
-                && !admitted.crossed_unit_writes[block_index].contains(&instruction_index)
-            {
+            // The same span-closing instruction — a victim redefinition, or
+            // a unit writer the admitted span policy did not cross — that
+            // closed the proposal's open reload closes it here, so the next
+            // unpinned use must name a fresh pair rather than the
+            // pre-boundary register.
+            if admitted.span_closes[block_index].contains(&instruction_index) {
                 open_reload = None;
             }
             for definition in admitted.definitions.iter().filter(|definition| {

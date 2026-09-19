@@ -27,14 +27,19 @@ pub(super) struct Admission<'source> {
     /// implicit definition — closes it and the next use opens a fresh pair.
     /// `false` keeps each use on a private reload pair.
     pub shared_reload: Vec<bool>,
-    /// Per block: the source instruction indices whose clobber or implicit
-    /// definition does NOT close the still-open shared reload. Under
+    /// Per block: the source instruction indices that close the still-open
+    /// shared reload — every instruction redefining the victim, whose later
+    /// `Def` operand makes the held value stale the way a unit writer makes
+    /// it unsafe, plus every clobbering or implicitly-defining instruction
+    /// the span policy did not cross. Under
     /// `RuntimeSpillSpanPolicy::UnitWriteCrossing` a unit-writing instruction
-    /// stays crossed while an allocatable view of the victim's class avoids
-    /// every unit written inside the span so far — the surviving home the
-    /// produced interval then demands of the allocator. Always empty under
-    /// `UnitWriteBounded`, the historical shape.
-    pub crossed_unit_writes: Vec<std::collections::BTreeSet<usize>>,
+    /// stays off this set while an allocatable view of the victim's class
+    /// avoids every unit written inside the span so far — the surviving home
+    /// the produced interval then demands of the allocator. Under
+    /// `UnitWriteBounded`, the historical shape, every unit writer is a
+    /// member. Proposal, replay, and the slot-reuse analysis all read this
+    /// one decision.
+    pub span_closes: Vec<std::collections::BTreeSet<usize>>,
     pub victim: &'source VirtualRegister,
     /// What the spill restates. A scalar victim keeps its source `ValueId`;
     /// a structural victim — an ABI live-in's incoming pointer, a field
@@ -365,7 +370,7 @@ pub(super) fn admit<'source>(
     {
         return Err(RuntimeSpillError::UnsupportedUse);
     }
-    let definitions = if let Some(instruction) = definition {
+    let mut definitions = if let Some(instruction) = definition {
         vec![StorageDefinition {
             block_index,
             position: StoragePosition::AfterInstruction(instruction),
@@ -382,6 +387,16 @@ pub(super) fn admit<'source>(
         };
         parameter_definitions(function, block_index, victim, source_value)?
     };
+    // Per block: instruction indices holding a `Def` operand on the victim
+    // beyond the origin definition — redefinitions. Each writes a new value
+    // into the register, so each gains its own following store and each ends
+    // the still-open shared reload: the value that register held no longer
+    // restates the victim.
+    let mut redefinitions: Vec<std::collections::BTreeSet<usize>> = function
+        .blocks
+        .iter()
+        .map(|_| std::collections::BTreeSet::new())
+        .collect();
     let mut defined = definition.is_none();
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
@@ -635,6 +650,31 @@ pub(super) fn admit<'source>(
                     {
                         defined = true;
                     }
+                    // A later `Def` on the victim redefines the register: the
+                    // instruction writes a new value into it, so the slot
+                    // tracks that write with one store immediately after —
+                    // the same rule the origin definition keeps. The operand
+                    // itself keeps the victim register, so its class must
+                    // agree; any tie or early-clobber flag stays allocation
+                    // detail on the unrewritten operand, and a use on the
+                    // same instruction still reads the pre-write value
+                    // through its own reload. A write ahead of the origin in
+                    // the origin's own block — or a second definition inside
+                    // the origin instruction — stays rejected: the register
+                    // cannot be redefined before it exists.
+                    RegisterOperandAccess::Def
+                        if (defined || current_block_index != block_index)
+                            && Some(instruction.id) != definition
+                            && operand.class == victim.class =>
+                    {
+                        if redefinitions[current_block_index].insert(instruction_index) {
+                            definitions.push(StorageDefinition {
+                                block_index: current_block_index,
+                                position: StoragePosition::AfterInstruction(instruction.id),
+                                register,
+                            });
+                        }
+                    }
                     RegisterOperandAccess::Use
                         if (defined || current_block_index != block_index)
                             && Some(instruction.id) != definition
@@ -720,18 +760,13 @@ pub(super) fn admit<'source>(
             })
         })
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
-        // The unit-write crossing simulation replays the open/close decision
-        // once over the victim function's own instructions.
+        // The open/close decision replays once over the victim function's own
+        // instructions — the crossing simulation under `UnitWriteCrossing`,
+        // the span-close collection under either policy.
         .and_then(|total| {
-            total.checked_add(
-                if span_policy == super::RuntimeSpillSpanPolicy::UnitWriteCrossing {
-                    function.blocks.iter().try_fold(0usize, |sum, block| {
-                        sum.checked_add(block.instructions.len())?.checked_add(1)
-                    })?
-                } else {
-                    0
-                },
-            )
+            total.checked_add(function.blocks.iter().try_fold(0usize, |sum, block| {
+                sum.checked_add(block.instructions.len())?.checked_add(1)
+            })?)
         })
         .and_then(|total| total.checked_add(slot_scan))
         // The structural-argument check groups the memory accesses once, then
@@ -897,8 +932,10 @@ pub(super) fn admit<'source>(
     // simulation replays the rewrite's own open/close decision: the pair
     // opens at each unpinned use and, while open, a unit-writing instruction
     // either joins the crossed set — accumulating its writes into the span —
-    // or ends the span. Where no view survives, the instruction still closes
-    // the span and the produced shape degrades to the bounded one.
+    // or ends the span. A redefinition always ends the span: it writes the
+    // victim itself, so the held register's value no longer restates it.
+    // Where no view survives, the instruction still closes the span and the
+    // produced shape degrades to the bounded one.
     let crossed_unit_writes: Vec<std::collections::BTreeSet<usize>> = function
         .blocks
         .iter()
@@ -913,6 +950,11 @@ pub(super) fn admit<'source>(
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     if use_positions[block_index].unpinned.contains(&index) {
                         open = true;
+                    }
+                    if redefinitions[block_index].contains(&index) {
+                        open = false;
+                        written.clear();
+                        continue;
                     }
                     if instruction.clobbers.is_empty() && instruction.implicit_defs.is_empty()
                         || !open
@@ -938,6 +980,30 @@ pub(super) fn admit<'source>(
                 }
             }
             crossed
+        })
+        .collect();
+    // The shared span-closing decision, computed once: every victim
+    // redefinition — the held reload's value stops restating the register —
+    // and every unit-writing instruction the policy did not cross. Proposal,
+    // replay, and the slot-reuse last-writer walk all consume this set, so
+    // the three of them can never disagree about where a span ends.
+    let span_closes: Vec<std::collections::BTreeSet<usize>> = function
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(block_index, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(|(index, instruction)| {
+                    (redefinitions[block_index].contains(&index)
+                        || ((!instruction.clobbers.is_empty()
+                            || !instruction.implicit_defs.is_empty())
+                            && !crossed_unit_writes[block_index].contains(&index)))
+                    .then_some(index)
+                })
+                .collect()
         })
         .collect();
     // Every recorded binding must resolve to exactly the snapshot chunk-load
@@ -1029,17 +1095,12 @@ pub(super) fn admit<'source>(
             if pending.loads.len() > 1 {
                 // Positions follow byte order, not necessarily instruction
                 // order; the span between the outermost chunk loads is what a
-                // unit-writing instruction would have to sit inside to close
-                // the shared reload between them. Under the crossing policy a
-                // barrier the span survives does not close it.
+                // span-closing instruction — a victim redefinition, or a unit
+                // writer the policy did not cross — would have to sit inside
+                // to keep the loads from sharing one reload register.
                 let first = *positions.iter().min().unwrap();
                 let last = *positions.iter().max().unwrap();
-                let closed = block.instructions[first..last].iter().enumerate().any(
-                    |(offset, instruction)| {
-                        (!instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty())
-                            && !crossed_unit_writes[pending.block].contains(&(first + offset))
-                    },
-                );
+                let closed = (first..last).any(|index| span_closes[pending.block].contains(&index));
                 if !shared_reload[pending.block] || closed || pinned {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
@@ -1056,7 +1117,7 @@ pub(super) fn admit<'source>(
         &definitions,
         &use_positions,
         &shared_reload,
-        &crossed_unit_writes,
+        &span_closes,
     ) {
         Some(shared) => (shared, false),
         None => (private_slot, true),
@@ -1065,7 +1126,7 @@ pub(super) fn admit<'source>(
         function,
         use_blocks,
         shared_reload,
-        crossed_unit_writes,
+        span_closes,
         victim,
         lineage,
         address_scalar_type: ScalarType::Integer(unsigned),

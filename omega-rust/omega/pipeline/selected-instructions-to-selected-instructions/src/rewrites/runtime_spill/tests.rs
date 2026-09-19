@@ -26,6 +26,7 @@ mod control_flow;
 mod dominance;
 mod liveness_custody;
 mod parameters;
+mod redefinitions;
 mod scalar_payloads;
 mod structural_transports;
 
@@ -699,20 +700,23 @@ fn compiler_address_origins_and_exhausted_budget_do_not_gain_spill_authority() {
 fn measured_validation_step_boundary_admits_and_rejects() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for (source, exact_steps) in [
-        // (1 block + 4 instructions) + (3 uses × 4) + 1 definition + 2 = 20.
-        (fixture(NativeTarget::linux_x64()), 20u64),
-        // (3 blocks + 4 instructions) + (3 uses × 4) + 1 definition + 6 = 26.
-        (control_flow::cfg_fixture(NativeTarget::linux_x64()), 26u64),
-        // (4 blocks + 5 instructions) + (2 uses × 4) + 2 definitions + 8 = 27.
+        // (1 block + 4 instructions) + (3 uses × 4) + 1 definition + 2
+        // + (1 block + 4 instructions) = 25.
+        (fixture(NativeTarget::linux_x64()), 25u64),
+        // (3 blocks + 4 instructions) + (3 uses × 4) + 1 definition + 6
+        // + (3 blocks + 4 instructions) = 33.
+        (control_flow::cfg_fixture(NativeTarget::linux_x64()), 33u64),
+        // (4 blocks + 5 instructions) + (2 uses × 4) + 2 definitions + 8
+        // + (4 blocks + 5 instructions) = 36.
         (
             parameters::parameter_fixture(NativeTarget::linux_x64()),
-            27u64,
+            36u64,
         ),
         // (4 blocks + 6 instructions) + (2 uses × 4) + 2 definitions + 8
-        // + 1 slot × 10 = 38.
+        // + (4 blocks + 6 instructions) + 1 slot × 10 = 48.
         (
             parameters::case_parameter_fixture(NativeTarget::linux_x64()),
-            38u64,
+            48u64,
         ),
     ] {
         let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
