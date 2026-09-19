@@ -238,9 +238,12 @@ Remove completed board acceptance without adding a changelog. If customer
 acceptance remains open, retain compact resume evidence on the owning item:
 tested revision, repository-relative command and environment/host, observed result,
 owning implementation path, and next acceptance. Label an unrun probe explicitly.
+Write the new evidence in place of the paragraph it supersedes — the item
+states its current frontier once, not as an appended ledger of landed slices.
 A board-only checkpoint is useful only when it changes the next action or corrects
 materially stale evidence; an unchanged diagnosis at a newer revision is not an
-improvement.
+improvement, and a rerun that reproduces the recorded result at the same revision
+writes nothing — it reports.
 
 After publication, return to the recorded starting checkout and recheck its
 branch and status. If it is still clean and on main, fetch and run

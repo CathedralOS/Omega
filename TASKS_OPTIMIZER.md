@@ -4,7 +4,9 @@ This is the optimizer execution board, not its history. Architecture and
 rationale live in
 [optimizer implementation](omega-rust/optimization.md),
 and landed milestones live in Git. Remove work from this file when its
-acceptance condition passes. Tag an added item's provenance on its first line:
+acceptance condition passes. An open item's evidence states the current
+frontier once: recording a newer observation deletes the dated paragraph it
+supersedes rather than appending beside it. Tag an added item's provenance on its first line:
 `(new-scope)` for newly discovered work, `(split-of:<parent-item>)` when it
 decomposes an existing item. Items added before 2026-09-14 are untagged.
 

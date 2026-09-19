@@ -89,6 +89,23 @@ while preserving project acceptance and compiler checks. Remaining
 package latency, current measurements, and the next performance investigation
 belong to the owning task; Windows release timing has not been measured.
 
+Windows x86_64 observation at `e07e5c7a25` (2026-09-17, Windows host, dev
+`omega`): the outer command stops inside the fresh package review's checked
+compilation — `selected ProgramEntry establishment rejoins 0 Terminal
+attachment identities; expected one` — under both `--target windows_x86_64`
+and `--target macos_arm64`, so the review produces no findings to accept.
+`omega --check` and `omega audit packages --details` report the same
+diagnostic, and the filtered `samples_compile` probe fails identically on
+`windows_x86_64`. The probe's test-owned entry bindings exist only for
+`macos_arm64`/`linux_x86_64`, and std's `windows_x86_64` target def authors no
+entry contract (no `…Application: ProgramStorageEntry` boundary trait or
+calling-policy machine; `linux_x86_64`, `macos_arm64`, and `uefi_x86_64` each
+ship `entry.omg`). A zero attachment count means the checked stage retained no
+Terminal Unit plan carrying `Main`'s attachment. This precedes the leaf
+settlement and receiver provisioning gaps below: on Windows the stop is
+inside checked compilation, and the `macos_arm64` result shows the stop is
+not specific to the Windows target under this revision and host.
+
 On Windows, std contributes `FilesystemHost` authority and three external Console
 leaves: `read_byte`, `write_byte`, and `exit_process`. `read_line` is a checked
 library adapter over that same provider's `read_byte` leaf. These are review
@@ -162,8 +179,9 @@ order, and caller continuation. Unguarded head reads and unchanged tails reject.
 The producer's [writer composition notes](../../../../omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
 describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
 owns the portable view rules.
-Windows leaf settlement and receiver provisioning remain dependencies. These
-are code-inspected gaps, not Windows runtime observations.
+Windows leaf settlement and receiver provisioning remain dependencies, now
+ordered behind the earlier Windows stop recorded above: the dated observation
+replaces the previous code-inspection-only status.
 
 `pause` belongs to the provisioned `Main` receiver; this program does not need a
 new source-local array constructor. The entry bridge must establish the receiver

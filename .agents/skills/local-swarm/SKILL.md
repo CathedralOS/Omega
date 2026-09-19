@@ -75,6 +75,18 @@ minutes (clean worktree, no commits, no new files) as dead — relaunch it in a
 fresh worktree rather than waiting. Keep the tank at 6 only while the user
 asked the wave to keep running.
 
+Host capacity bounds the wave separately from the message budget. On an
+interactive desktop — this Windows machine is one — run at most 3-4 slots and
+cap each agent's build parallelism in the rendered prompt (`CARGO_BUILD_JOBS=8`;
+nextest `-j 4..8` per the global rules' 28-thread test cap, which documents
+desktop freeze under full oversubscription). Uncapped, N slots × 32-core
+builds plus multi-GB links starve dwm/explorer; explorer.exe AppHang clusters
+were witnessed during an 8-slot wave window. Create worktrees from the
+top-level checkout only — never inside another worktree (a nested `jev-live`
+wave left six sub-worktrees carrying their own `target/` dirs). On Windows,
+keep `.codex/worktrees` and `target/` out of Defender real-time scanning and
+file indexers.
+
 ## Monitor
 
 `python3 tools/swarm/worktree_status.py` is the local `status`/`report`:
@@ -116,8 +128,10 @@ and renders a resume prompt — reuse the same manifest to continue.
 When the user says wrap up: stop backfilling, let running agents finish, then
 sweep — release remaining claim tickets, WIP-commit any dirty worktree worth
 keeping (never delete one with uncommitted work), record each parked WIP
-branch and its covered slice in the item's board evidence when the item
-stays open, remove clean worktrees and landed branches, verify `git status`
+branch and its covered slice as a compact resume line in the item's board
+evidence when the item stays open (replacing the frontier it supersedes, not
+appended to it), collapse any accreted landing ledger in touched items back
+to its current frontier, remove clean worktrees and landed branches, verify `git status`
 clean on the main checkout, and save the wave tally to
 `tools/swarm/waves/<wave>.outcomes.json` (result, commits, `item_closed` per
 slot): commits landed per slot, verified-closed items, WIP branches
