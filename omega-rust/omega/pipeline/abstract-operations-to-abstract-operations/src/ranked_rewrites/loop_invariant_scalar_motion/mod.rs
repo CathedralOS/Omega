@@ -106,19 +106,26 @@ pub use model::{
 /// place-custody bound is also what makes the hoisted invocation return
 /// what every in-loop traversal's invocation returned.
 /// `CallStructural` — the call returning a fresh structural place — adds the
-/// family's fourth call relocation and its second custody-rewriting shape:
-/// the admitted form is the one the cyclic eligibility fence already
-/// confines, an affine claim-free result the producing member block
-/// dispatches through a `StructuralCase` or returns outright, carrying no
+/// family's fourth call relocation and its second custody-rewriting shape,
+/// in the two forms the cyclic eligibility fence confines: an affine
+/// claim-free result the producing member block
+/// dispatches through a `StructuralCase` or returns outright, or an
+/// unrestricted claim-free result spelling one of the frontier's
+/// plain-source shapes — a copy payload that never enters `owned_places`
+/// and carries no disposal roster at all — either carrying no
 /// claims, obligations, crash routes, or selected
 /// evidence and structural arguments confined to the same borrow or
 /// copyable-owned whitelist the other structural-signature calls obey. The
 /// callee passes the same purity bar and the member roster
-/// stays unobservable; the result place obeys the scalar-case containment
-/// bound, so hoisting the call keeps the one persistent preheader place
+/// stays unobservable. The affine result place obeys the scalar-case
+/// containment bound, so hoisting the call keeps the one persistent
+/// preheader place
 /// live across member-internal edges while every exit edge and member
 /// return disposes it — the same frontier re-expression the establishment
-/// performs, replayed independently at validation. Its scalar arguments
+/// performs, replayed independently at validation; the unrestricted result
+/// needs no containment and no custody rewrite — it moves byte-exact under
+/// the same argument the unrestricted record establishment uses. Its scalar
+/// arguments
 /// obey the shared member-parameter substitution, and its declared place
 /// joins the run's relocated roots.
 /// An `EstablishPrimitiveLocal` adds the family's second establishment

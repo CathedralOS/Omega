@@ -343,12 +343,31 @@ fn cycle_operation_eligible(
                         || case_source == Some(result.place)
                 })
         }
+        // A confined result — the same block's affine dispatch or return
+        // source — keeps its per-traversal disposal roster, while an
+        // unrestricted result spelling one of the frontier's plain-source
+        // shapes is a copy payload: the place never enters `owned_places`,
+        // so re-entering the producer on every traversal replaces a
+        // custody-free value and no member-disposal obligation exists. The
+        // place's dominance and the consuming reads' availability are still
+        // proven by the ordinary operation walk, and a claimed, projected,
+        // or non-plain result keeps the fence closed.
         OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. } => {
             operation.result.structural().is_some_and(|result| {
                 case_source == Some(result.place)
                     || matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
                                     if *source == result.place)
+                    || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && (super::super::scalar_case::plain_return_source(
+                            module,
+                            machine,
+                            result.place,
+                        ) || super::super::record::plain_return_source(
+                            module,
+                            machine,
+                            result.place,
+                        ) || scalar_array::plain_return_source(module, machine, result.place)))
             })
         }
         // Ordinary scalar calls retain their complete signature,
