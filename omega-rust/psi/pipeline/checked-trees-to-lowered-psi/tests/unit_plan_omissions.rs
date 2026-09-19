@@ -143,9 +143,12 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // claim directly — the checker owns the consumption judgment and records no
 // `StateEntry` event for it, so `entry_claims` mints the established identity
 // — and both `settle` bodies plus `probe` carry full Unit plans. The
-// remaining frontier is in lowering: moving the linear `start` result into
-// `settle`'s `self` formal is a claim transfer the claim-free
-// structural-result custody path does not yet admit.
+// remaining frontier is in emission: admission now proves that the linear
+// `start` result moving whole into `settle`'s `self` formal is the exact
+// custody the callee's entry claim and the caller's consume event describe,
+// but the `start` boundary mints `task`'s claim fresh at the binding
+// statement, and the completed-result claim rebasing only maps claim
+// identities that persist through the call chain with entry provenance.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -384,18 +387,249 @@ fn a_routed_task_start_call_plans_and_owned_settle_stops_at_lowered_custody() {
             .is_none(),
         "Main::probe plans once its specialized settle callee is admitted"
     );
-    // The named frontier moves to lowering: moving the linear `start` result
-    // into `settle`'s `self` formal is a claim transfer the lowering layer's
-    // claim-free structural-result custody path does not yet admit.
+    // The named frontier moves one edge deeper: admission now admits the
+    // whole owned linear `start` result into `settle`'s `self` formal because
+    // the callee's entry-claim plan and the caller's consume event jointly
+    // prove that exact custody (the corruption pin below keeps that join
+    // evidence-based). Emission stops earlier, on `start` itself: the
+    // boundary establishes `task`'s claim fresh at the binding statement, and
+    // recording that claim under the result place rebases each `Establish`
+    // event's identity through the caller's entry-claim bindings. A
+    // statement-established claim has no caller entry claim to rebase onto —
+    // `probe` declares none — so the completed-result claim channel cannot
+    // yet mint the binding a freshly claimed boundary result needs.
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the claim-carrying settle edge has no lowered custody yet");
+        .expect_err("the claimed start result has no caller claim binding to rebase onto");
     assert!(
         matches!(
             error,
             checked_trees_to_lowered_psi::LoweringError::Unsupported(message)
-                if message == "Unit structural result argument has invalid claim-free custody"
+                if message == "Unit claim transfer references a non-entry caller claim"
         ),
         "unexpected error: {error:?}"
+    );
+}
+
+// The claim-carrying admission is evidence, not a bypass: each corruption
+// below must still be rejected by the consumer's claimed-custody join rather
+// than by an unrelated later check. Every mutation is applied to the same
+// routed `start`/`settle` fixture the pinning test above establishes.
+#[test]
+fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
+    let baseline = checked(&format!(
+        "{ROUTED_TASK_START_DECLS}
+         data Main {{
+             runtime: TaskRuntime;
+         }}
+         machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
+             let task: Task<Token> = self.runtime.start<Worker::run>(token);
+             Task::settle(task);
+         }}
+         machine Main::main(&mut self) {{ }}"
+    ));
+    let probe = baseline
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::probe")
+        .expect("Main::probe is declared")
+        .symbol;
+    let specialized = baseline
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine
+                .name
+                .as_str()
+                .starts_with("Task::settle$specialized$")
+        })
+        .expect("the Task<Token> receiver specialization is emitted")
+        .symbol;
+    let consume = baseline
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.machine_symbol == probe
+                && event.kind == language_semantics::PermissionEventKind::Consume
+                && event.multiplicity == language_semantics::Multiplicity::Linear
+                && event.access == language_semantics::PermissionAccess::Owned)
+                .then_some(handle)
+        })
+        .expect("probe consumes the task claim at the settle call");
+    fn settle_plan_mut(
+        checked: &mut checked_trees::CheckedTrees,
+        machine: symbols::SymbolHandle,
+    ) -> &mut checked_trees::CheckedUnitEffectMachinePlan {
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .expect("the specialized settle has a Unit plan")
+    }
+    let rejects = |checked: &checked_trees::CheckedTrees, expected: &str, corruption: &str| {
+        let error = checked_trees_to_lowered_psi::lower_machine(checked, "Main::probe")
+            .expect_err(corruption);
+        assert!(
+            matches!(
+                error,
+                checked_trees_to_lowered_psi::LoweringError::Unsupported(message)
+                    if message == expected
+            ),
+            "{corruption}: unexpected error: {error:?}"
+        );
+    };
+
+    // A `self` formal without its entry claim is not claim-carrying custody.
+    let mut missing_claim = baseline.clone();
+    settle_plan_mut(&mut missing_claim, specialized)
+        .entry_claims
+        .clear();
+    rejects(
+        &missing_claim,
+        "Unit structural result claim custody has no exact callee entry claim",
+        "missing entry claim",
+    );
+
+    // The entry claim must sit on the consumed parameter itself.
+    let mut wrong_parameter = baseline.clone();
+    settle_plan_mut(&mut wrong_parameter, specialized).entry_claims[0].parameter_index = 1;
+    rejects(
+        &wrong_parameter,
+        "Unit structural result claim custody has no exact callee entry claim",
+        "claim on another parameter",
+    );
+
+    // The entry claim must carry the whole value, not a projection below it.
+    let mut projected_claim = baseline.clone();
+    settle_plan_mut(&mut projected_claim, specialized).entry_claims[0]
+        .path
+        .push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "provider".to_string(),
+        ));
+    rejects(
+        &projected_claim,
+        "Unit structural result claim custody has no exact callee entry claim",
+        "projected claim path",
+    );
+
+    // The entry claim must belong to the exact callee state it names.
+    let mut foreign_claim = baseline.clone();
+    let language_semantics::PermissionClaimIdentity::Established { state_symbol, .. } =
+        &mut settle_plan_mut(&mut foreign_claim, specialized).entry_claims[0].claim_identity
+    else {
+        unreachable!()
+    };
+    *state_symbol = probe;
+    rejects(
+        &foreign_claim,
+        "Unit structural result claim custody has no exact callee entry claim",
+        "claim belonging to another state",
+    );
+
+    // An affine consume does not discharge linear result custody.
+    let mut affine_consume = baseline.clone();
+    affine_consume
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(consume)
+        .multiplicity = language_semantics::Multiplicity::Affine;
+    rejects(
+        &affine_consume,
+        "Unit structural result claim custody lost its exact caller consume event",
+        "non-linear consume",
+    );
+
+    // The consumed claim's ordinal is the join: the producer's established
+    // identity must match what the call consumed exactly.
+    let mut drifted_ordinal = baseline.clone();
+    let language_semantics::PermissionClaimIdentity::Established { ordinal, .. } =
+        &mut drifted_ordinal
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(consume)
+            .claim_identity
+    else {
+        unreachable!()
+    };
+    *ordinal += 1;
+    rejects(
+        &drifted_ordinal,
+        "Unit structural result claim custody was not established and consumed exactly once",
+        "mismatched claim ordinal",
+    );
+
+    // One call may not consume the same claim custody twice.
+    let mut second_consume = baseline.clone();
+    let duplicate = second_consume
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(consume)
+        .clone();
+    second_consume
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .insert(duplicate);
+    rejects(
+        &second_consume,
+        "Unit structural result claim custody lost its exact caller consume event",
+        "consumed twice",
+    );
+
+    // A stray transfer row on the same argument is not an entry-claim proof.
+    let mut stray_transfer = baseline.clone();
+    let transfer = checked_trees::CheckedUnitClaimTransferPlan {
+        claim_identity: baseline
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get(consume)
+            .claim_identity,
+        argument_index: 0,
+    };
+    let probe_plan = stray_transfer
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == probe)
+        .expect("Main::probe has a Unit plan");
+    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+        claim_transfers, ..
+    } = probe_plan
+        .operations
+        .iter_mut()
+        .find(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
+            )
+        })
+        .expect("probe retains its settle call")
+    else {
+        unreachable!()
+    };
+    claim_transfers.push(transfer);
+    rejects(
+        &stray_transfer,
+        "Unit structural result argument has invalid claim-carrying custody",
+        "stray claim transfer",
     );
 }
 
