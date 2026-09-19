@@ -564,6 +564,23 @@ pub(crate) fn entry_claims(
         })
         .map(|(_, event)| event)
         .collect::<Vec<_>>();
+    // By-value `self` on `[linear]` attached data is the terminal-consumer
+    // form: the checker owns the consumption judgment and records no
+    // StateEntry claim event for it, so the entry roster mints the identity
+    // the body's consumption joins downstream. Its ordinal sits past every
+    // recorded StateEntry ordinal for this state, keeping the synthesized
+    // identity unique without touching the checker's allocation order.
+    let owned_self_entry_ordinal = || {
+        events
+            .iter()
+            .filter_map(|event| match event.claim_identity {
+                PermissionClaimIdentity::Established { ordinal, .. } => Some(ordinal),
+                PermissionClaimIdentity::Unknown => None,
+            })
+            .max()
+            .map_or(0, |ordinal| ordinal + 1)
+    };
+    let mut synthesized = 0_usize;
     let mut output = Vec::new();
     for (parameter_index, parameter) in structural_parameters.iter().enumerate() {
         if parameter.multiplicity == Multiplicity::Unrestricted {
@@ -577,6 +594,24 @@ pub(crate) fn entry_claims(
             .collect::<Vec<_>>();
         if matching.is_empty() {
             if parameter.multiplicity == Multiplicity::Affine {
+                continue;
+            }
+            if source.is_self
+                && !is_reference(program, source.type_reference)
+                && parameter.multiplicity == Multiplicity::Linear
+            {
+                output.push(CheckedUnitEntryClaimPlan {
+                    claim_identity: PermissionClaimIdentity::Established {
+                        machine_symbol: machine,
+                        state_symbol: state,
+                        source: PermissionEventSource::StateEntry,
+                        ordinal: owned_self_entry_ordinal(),
+                    },
+                    parameter_index: u32::try_from(parameter_index).ok()?,
+                    path: Vec::new(),
+                    carry: CarryPolicy::STRICT,
+                });
+                synthesized += 1;
                 continue;
             }
             return None;
@@ -657,5 +692,7 @@ pub(crate) fn entry_claims(
     output.sort_by(|left, right| {
         (left.parameter_index, &left.path).cmp(&(right.parameter_index, &right.path))
     });
-    (output.len() == events.len()).then_some(output)
+    // Synthesized owned-self claims have no recorded event to join; the
+    // remaining claims must still account for every recorded entry event.
+    (output.len() - synthesized == events.len()).then_some(output)
 }
