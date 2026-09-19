@@ -1,0 +1,16 @@
+machine reset(value: &mut u64) -> u64 { value = 0; 0 }
+
+data Limits {
+    limit: u64;
+    divisor: u64 [3..=5];
+}
+
+machine walk(remaining: u64 [0..=5], limits: Limits, marker: u64)
+terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);
+-> u64 {
+    let mut scratch: u64 = 0;
+    transition remaining > 0 {
+        true -> walk(remaining - 1, limits, reset(&mut scratch))
+        false -> remaining
+    }
+}
