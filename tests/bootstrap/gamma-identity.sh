@@ -95,7 +95,7 @@ rc=0
 echo "truncate: a truncated tape is refused before stamping"
 
 for needle in \
-  "$GAMMA_EVALUATOR_SOURCE_SHA256" "$GAMMA_EVALUATOR_TAPE_SHA256" "47,748" "8,575"
+  "$GAMMA_EVALUATOR_SOURCE_SHA256" "$GAMMA_EVALUATOR_TAPE_SHA256" "47,756" "8,575"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/2_gamma/EVALUATOR_PROFILE.md" ||
     fail "EVALUATOR_PROFILE.md lacks bound record $needle"
@@ -130,8 +130,8 @@ for record in \
   bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md \
   bootstrap/proofs/beta_encoding/PROFILE.md
 do
-  grep -q "47,748" "$OMEGA_REPO_ROOT/$record" ||
-    fail "$record lacks bound source record 47,748"
+  grep -q "47,756" "$OMEGA_REPO_ROOT/$record" ||
+    fail "$record lacks bound source record 47,756"
 done
 for record in \
   tests/gamma/evaluator-development/README.md \

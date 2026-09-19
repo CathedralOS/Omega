@@ -60,7 +60,7 @@ echo "truncate: a truncated container is refused before stamping"
 
 for needle in \
   "$ALPHA_SEED_ARM64_MACOS_SHA256" "$ALPHA_SEED_X64_WINDOWS_SHA256" \
-  "16,942,384" "16,782,336"
+  "16,942,368" "16,782,336"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/0_alpha/README.md" ||
     fail "README retention inventory lacks bound record $needle"

@@ -120,7 +120,7 @@ performance guarantees.
 
 The same stepper independently reconstructed the owner-fixed proposition
 `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` for the complete selected
-subject — the 47,748-byte evaluator Beta source as a midpoint-split Source
+subject — the 47,756-byte evaluator Beta source as a midpoint-split Source
 tree (22,339 interned owner terms; the tree shares identical subtrees) and
 the 8,575-byte persisted tape — and produced the complete untrusted
 derivation in 24.1 seconds at ~2.8GB peak RSS on macOS arm64:

@@ -134,7 +134,7 @@ production authority. Do not recreate local scratch paths as required tooling.
 
 ### Integrated ledger for the consolidated candidate
 
-Derived against the current selected subject (47,748-byte source, 8,575-byte
+Derived against the current selected subject (47,756-byte source, 8,575-byte
 tape; the discriminators above used the earlier 46,484/8,355 subject). The
 subject now has 3,751 tokens in 595 distinct values, 3,493 emitting tokens,
 218 assertions, 19,495 comment bytes, 15,305 separator bytes, 76 distinct
@@ -227,7 +227,7 @@ encoder functions 58..108 occupy 22,816 bytes). A pure-Python stepper
 (`tests/gamma/beta-encoding-theory/stepper.py`) replays every ground
 application through its stated clause and emits the corresponding
 unfold/congruence/transitivity certificate rows. On the exact selected
-subject — the 47,748-byte evaluator source as a midpoint-split Source tree
+subject — the 47,756-byte evaluator source as a midpoint-split Source tree
 (22,339 interned owner terms) and the 8,575-byte tape — it independently
 reconstructed the owner proposition
 `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` and produced the complete
