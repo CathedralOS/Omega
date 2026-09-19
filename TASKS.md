@@ -280,11 +280,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
     requirement as its own proof.
   - Generalize endpoint formation and conservation through exact checked
     value relationships. The independent endpoint fallback still requires one
-    state and immutable scalar/direct-field inputs; mixed-component endpoint
-    discovery handles direct integer inputs and arithmetic trees. Nested
-    reference boundaries and non-polynomial substitutions need their actual
-    formation, equality, and write-preservation evidence, not polynomial
-    cancellation or positional guesses.
+    state; it now pins a member endpoint through a shared-borrow receiver
+    (`bag: &Wrap` in `0..=bag.remaining`) using the referent's store-enforced
+    field bounds plus per-edge referent preservation, while compound
+    arithmetic over borrowed fields stays refused. Exclusive borrows,
+    nested/projected reference chains, mixed-component inputs beyond direct
+    integers/arithmetic trees, and non-polynomial substitutions need their
+    actual formation, equality, and write-preservation evidence, not
+    polynomial cancellation or positional guesses.
   - Replace residual rank-role discovery limits with explicit arrival
     correspondence where the program supplies enough evidence. Unique nested
     carriers, borrowed roots, moved scalar/slice/record copies, custom
