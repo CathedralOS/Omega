@@ -250,6 +250,9 @@ sh tests/epsilon/runtime-invariants/run.sh
 sh tests/epsilon/array-storage/run.sh
 sh tests/epsilon/source-views/run.sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh
+sh tests/epsilon/evaluator-entry/run.sh
+sh tests/epsilon/refinement/run.sh
+sh tests/epsilon/d-composition/run.sh
 sh tests/delta/staged-compiler/run.sh
 ```
 
