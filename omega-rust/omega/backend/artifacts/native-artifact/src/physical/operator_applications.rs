@@ -80,8 +80,11 @@ fn derive_checked_call_span(
     let expected_callee = match &operation.kind {
         OperationKind::Call { callee, .. }
         | OperationKind::CallUnit { callee, .. }
+        | OperationKind::CallStructural { callee, .. }
         | OperationKind::CallStructuralScalar { callee, .. }
         | OperationKind::CallStructuralWithScalarArguments { callee, .. } => *callee,
+        // Dynamic call kinds carry descriptor/parameter ordinals rather than a
+        // static callee; no resolved call row can join them here.
         _ => return Ok(None),
     };
     let function = object

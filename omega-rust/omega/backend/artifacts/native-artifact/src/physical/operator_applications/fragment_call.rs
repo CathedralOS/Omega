@@ -13,7 +13,14 @@ pub(super) fn derive(
     image: &image::EmittedImageOutput,
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let expected_callee = match operation.kind {
-        OperationKind::Call { callee, .. } => callee,
+        OperationKind::Call { callee, .. }
+        | OperationKind::CallUnit { callee, .. }
+        | OperationKind::CallStructural { callee, .. }
+        | OperationKind::CallStructuralScalar { callee, .. }
+        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
+        // Dynamic call kinds carry descriptor/parameter ordinals rather than a
+        // static callee, so no resolved call row can join them here; they
+        // remain named evidence-gap subjects.
         _ => return Ok(None),
     };
     let function = object
