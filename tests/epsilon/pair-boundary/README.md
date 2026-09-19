@@ -4,7 +4,7 @@ This explicit slow gate executes the direct evaluator-level status-252 witness
 for the canonical Epsilon evaluator edge: the refusal the
 [evaluator entry profile](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md)
 classifies as the section-10 outer `Incomplete(cumulative immutable pair
-nodes, 40265318, 40265319)`. The lower chain's exact/adjacent pair boundary is
+nodes, 3422453760, 3422453761)`. The lower chain's exact/adjacent pair boundary is
 pinned separately by [tests/gamma/heap-boundary](../../gamma/heap-boundary/README.md);
 this gate witnesses that same counter through the Epsilon evaluator itself.
 
@@ -36,7 +36,7 @@ The two fixtures differ only in the loop bound:
 - [`writes_exhaustion.epsilon`](writes_exhaustion.epsilon) — the same loop
   with no exit arm. Every iteration allocates; the arena is cumulative and
   cannot reclaim, so the run ends only when a write attempts the
-  40,265,319th pair: status 252, empty stdout, empty stderr. No Epsilon
+  3,422,453,761st pair: status 252, empty stdout, empty stderr. No Epsilon
   observation is published — that is the witness. The refusal lands inside
   whichever phase reaches the boundary; this workload reaches it in
   execution.

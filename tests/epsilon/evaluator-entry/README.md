@@ -54,7 +54,7 @@ stdout. At the edge boundary each is the section-10 outer `Incomplete`:
 status 253 carries `Incomplete(sealed input, 4194304, submitted extent)`,
 status 254 `Incomplete(published observation, 4194304, 4194305)`, status 250
 `Incomplete(live call contexts, 256, 257)`, and status 252 `Incomplete(pair
-nodes, 40265318, 40265319)`. Every other process observation carries the
+nodes, 3422453760, 3422453761)`. Every other process observation carries the
 outer `InternalFailure`. The status table and derivations live in
 [`EVALUATOR_ENTRY.md`](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md). The
 status-252 refusal is too slow for this routine gate; it is executed directly

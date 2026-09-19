@@ -91,7 +91,7 @@ The largest request is 188,980 bytes and the largest ground table has 1,552
 rows, both in the round-trip batch. Including checker source and framing gives
 252,488 bytes. Across these finite families, the generic cumulative pair bound
 is at most `63752 + 137781 * 48 + 128 = 6677368`, below the selected arena's
-40,265,318 pairs. Each vector is a separate evaluator invocation; these figures
+3,422,453,760 pairs. Each vector is a separate evaluator invocation; these figures
 do not claim that unrelated certificates can reset accounting mid-request.
 Malformed Word arities and semantic corruptions must publish exact owned
 rejections. A timeout, evaluator failure, or short observation is not a verdict.
@@ -145,7 +145,8 @@ sha256-pinned host-side theory reconstruction, the midpoint-split owner
 proposition, and the full emission completed in 23.8 seconds at ~2.3 GiB peak
 RSS with byte-identical section sizes and per-rule totals.
 The same gap blocks production through the selected chain: the certificate
-is ~8 times the evaluator's 16,777,212-byte buffered-output provision.
+exceeded the evaluator's former 16,777,212-byte buffered-output provision;
+the AlphaBootstrapV5 provision is 135,266,304 bytes.
 Owner decision `beta-encoding-certificate-admission` settles admission on the
 native-backing route, recorded at the
 [checking ledger](../checker/CHECKING.md#complete-generic-execution-provision);
