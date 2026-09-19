@@ -57,6 +57,7 @@ fn two_crossing_plan(validation_identity: u64) -> ValidatedActivationPlan {
             suspension_allowed: true,
             preserve_cpu: false,
             preserve_host_thread: false,
+            live_carry: Vec::new(),
         });
     candidate.stack_plan = projection.stack_plan();
     validate_wcsu_activation_plan(candidate, projection)
@@ -131,6 +132,54 @@ fn parked_activation_resumes_the_same_invocation_unchanged() {
         .settle(claim, TaskSettlementOutcome::Completed)
         .expect("the resumed activation settles");
     ledger.close().expect("no live claims remain");
+}
+
+#[test]
+fn parked_activation_exposes_its_exact_live_frontier() {
+    let plan = two_crossing_plan(82);
+    let instance = instance(720);
+    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
+    let claim = start_persistent(&mut ledger, &plan, instance, (721, 722, 723, 724, 725));
+
+    // A running activation is not parked at any crossing.
+    assert_eq!(ledger.parked_frontier(claim.identity()), None);
+    ledger
+        .park(&claim, canonical_crossing())
+        .expect("a canonical crossing accepts the park");
+
+    // The frontier is the plan's exact live roster at the park crossing:
+    // one local place carrying its loan across the suspension.
+    let frontier = ledger
+        .parked_frontier(claim.identity())
+        .expect("a parked activation exposes its live frontier");
+    assert_eq!(frontier.len(), 1);
+    assert_eq!(frontier[0].storage, crate::LiveCarryStorage::Local);
+    assert_eq!(
+        frontier[0].claims.as_slice(),
+        &[crate::ClaimId::new(10).expect("nonzero claim identity")]
+    );
+
+    // Resuming drops the frontier view; parking at the plan's second,
+    // empty-frontier crossing exposes no retained places.
+    ledger
+        .resume(&claim)
+        .expect("resume continues the invocation");
+    assert_eq!(ledger.parked_frontier(claim.identity()), None);
+    ledger
+        .park(&claim, crossing(8))
+        .expect("the second canonical crossing accepts the park");
+    assert_eq!(
+        ledger.parked_frontier(claim.identity()),
+        Some([].as_slice())
+    );
+
+    // A settled claim has no live activation frontier at all.
+    ledger.resume(&claim).expect("resume to settle");
+    ledger
+        .settle(claim, TaskSettlementOutcome::Completed)
+        .expect("the resumed activation settles");
+    let settled_id = id(726, crate::TaskLifecycleClaimId::from_normalized_identity);
+    assert_eq!(ledger.parked_frontier(settled_id), None);
 }
 
 #[test]

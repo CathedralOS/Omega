@@ -2248,6 +2248,7 @@ dependencies = [
 name = "task-plans"
 version = "0.1.0"
 dependencies = [
+ "language-core",
  "semantic-vocabulary",
  "sha2",
  "symbols",

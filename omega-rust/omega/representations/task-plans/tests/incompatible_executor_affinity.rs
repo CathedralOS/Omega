@@ -1,8 +1,9 @@
 use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
     CanonicalSuspensionCrossing, ExecutorPreservationAxis, ExecutorPreservationEvidence,
-    ExecutorPreservationEvidenceId, ExecutorSelectionCandidate, MachineContractId, MachineEntryId,
-    StackPlan, StackRepresentationId, SuspensionCrossingId, TaskArgumentLayout, TaskPlanDiagnostic,
+    ExecutorPreservationEvidenceId, ExecutorSelectionCandidate, LiveCarryDemand, LiveCarryPlaceId,
+    LiveCarryStorage, LiveCarryTypeId, MachineContractId, MachineEntryId, StackPlan,
+    StackRepresentationId, SuspensionCrossingId, TaskArgumentLayout, TaskPlanDiagnostic,
     TaskRuntimeId, TaskRuntimeInstanceId, ValueLayoutId, validate_activation_plan,
     validate_executor_selection,
 };
@@ -35,6 +36,19 @@ fn selected_executor_with_incompatible_affinity_evidence_rejects() {
             suspension_allowed: true,
             preserve_cpu: true,
             preserve_host_thread: false,
+            // The CPU-pinned live place is what makes `preserve_cpu` honest.
+            live_carry: vec![LiveCarryDemand {
+                place: id(11, LiveCarryPlaceId::from_normalized_identity),
+                ty: id(12, LiveCarryTypeId::from_normalized_identity),
+                storage: LiveCarryStorage::Local,
+                claims: Vec::new(),
+                effective: language_core::CarryPolicy {
+                    suspension: language_core::CarrySuspension::Allowed,
+                    cpu: language_core::CarryCpu::Origin,
+                    host_thread: language_core::CarryHostThread::Any,
+                    address: language_core::CarryAddress::Stable,
+                },
+            }],
         }],
         carry_obligations: ActivationCarryObligations {
             preserve_cpu: true,

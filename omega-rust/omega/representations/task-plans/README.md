@@ -56,6 +56,20 @@ records where a recorded request was observed: at the parked crossing for
 a suspended activation, or at any canonical crossing a running activation
 traverses.
 
+Each canonical crossing also retains its exact live frontier — one
+`LiveCarryDemand` row per live place naming the place, its checked type,
+the storage class whose lifetime and pinning the park relies on, the
+complete linear-claim identities attached to it, and the four-axis demand
+it contributes. That roster is the plan's suspension-safe-loan evidence:
+a row whose claims are nonempty is a loan the retained stack must keep
+alive and address-stable through the park, and `parked_frontier` hands a
+provider exactly that roster while the activation is suspended. Plan
+validation binds the crossing's suspension permission and preservation
+bits exactly to the join of its frontier, so a candidate cannot publish
+a frontier that disagrees with the demand it declares, and a live place
+whose policy forbids suspension fails closed rather than licensing or
+dropping the loan.
+
 [provider_admission.rs](src/provider_admission.rs) is the provider-side
 gate consuming those carriers: one admitted runtime instance owns its
 ledger plus its fixed stack provisioning, mints fresh lease eras, and
@@ -73,5 +87,7 @@ activation's argument area, but real park/resume of a native stack and
 observation at a checked-source safe point remain separate consumers. The
 bounded
 scalar suspension carrier likewise does not license receiver/structural/claim
-frontiers without their exact joins; see the
+frontiers without their exact joins; the plan frontier records the claims
+the checked producer already established but cannot yet authorize forms
+the producer never emits; see the
 [Terminal producer](../../../psi/compiler/terminal-production/README.md#structural-results-and-suspension).

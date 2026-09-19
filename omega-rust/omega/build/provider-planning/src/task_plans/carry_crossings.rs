@@ -4,7 +4,10 @@
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use task_plans::{ActivationCarryObligations, CanonicalSuspensionCrossing};
+use task_plans::{
+    ActivationCarryObligations, CanonicalSuspensionCrossing, LiveCarryDemand, LiveCarryPlaceId,
+    LiveCarryStorage, LiveCarryTypeId,
+};
 
 pub(crate) struct ActivationCarryCrossings<'program> {
     pub(crate) subtree: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
@@ -311,6 +314,10 @@ pub(crate) fn canonical_suspension_crossing(
     program: &CheckedTrees,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
 ) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
+    let mut live_carry = Vec::with_capacity(crossing.live_values.len());
+    for live in &crossing.live_values {
+        live_carry.push(live_carry_demand(program, crossing, live)?);
+    }
     Ok(CanonicalSuspensionCrossing {
         identity: checked_trees::canonical_suspension_crossing_id(program, crossing).ok_or_else(
             || {
@@ -322,5 +329,150 @@ pub(crate) fn canonical_suspension_crossing(
         suspension_allowed: crossing.effective.suspension == CarrySuspension::Allowed,
         preserve_cpu: crossing.effective.cpu == CarryCpu::Origin,
         preserve_host_thread: crossing.effective.host_thread == CarryHostThread::Origin,
+        live_carry,
+    })
+}
+
+/// Translate one checked live value at a suspension crossing into the
+/// plan's suspension-safe-loan roster row: the exact place, its checked
+/// type, the storage class holding it across the park, the complete live
+/// claim identities attached to it, and the four-axis demand it carries.
+fn live_carry_demand(
+    program: &CheckedTrees,
+    crossing: &checked_trees::SuspensionCrossingCarryFact,
+    live: &checked_trees::SuspensionCrossingLiveValueFact,
+) -> Result<LiveCarryDemand, Vec<Diagnostic>> {
+    Ok(LiveCarryDemand {
+        place: super::normalized_id(
+            live_place_identity(program, crossing, live),
+            LiveCarryPlaceId::from_normalized_identity,
+        )?,
+        ty: super::normalized_id(
+            live_type_identity(program, live),
+            LiveCarryTypeId::from_normalized_identity,
+        )?,
+        storage: match live.storage {
+            checked_trees::SuspensionCrossingStorage::Persistent => LiveCarryStorage::Persistent,
+            checked_trees::SuspensionCrossingStorage::Parameter => LiveCarryStorage::Parameter,
+            checked_trees::SuspensionCrossingStorage::Local => LiveCarryStorage::Local,
+            checked_trees::SuspensionCrossingStorage::CallArgument => {
+                LiveCarryStorage::CallArgument
+            }
+        },
+        claims: live
+            .claims
+            .iter()
+            .map(|claim| live_claim_identity(program, claim))
+            .collect::<Result<_, _>>()?,
+        effective: live.effective,
+    })
+}
+
+/// Stable identity of one exact live place at one crossing. The crossing
+/// coordinate distinguishes the same source place observed at different
+/// crossings and gives `CallArgument` ordinals — which share no symbol —
+/// their exact coordinate.
+fn live_place_identity(
+    program: &CheckedTrees,
+    crossing: &checked_trees::SuspensionCrossingCarryFact,
+    live: &checked_trees::SuspensionCrossingLiveValueFact,
+) -> u64 {
+    let mut hash = super::StableHash::new();
+    hash.byte(0x4c);
+    hash.string(&program.typed.symbols.display_path(crossing.machine, "::"));
+    hash.string(&program.typed.symbols.display_path(crossing.state, "::"));
+    hash.usize(crossing.statement_index);
+    hash.usize(crossing.call_ordinal);
+    match live.origin {
+        checked_trees::SuspensionCrossingValueOrigin::Persistent { symbol } => {
+            hash.byte(1);
+            hash.string(&program.typed.symbols.display_path(symbol, "::"));
+        }
+        checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
+            hash.byte(2);
+            hash.string(&program.typed.symbols.display_path(symbol, "::"));
+            hash.usize(position);
+        }
+        checked_trees::SuspensionCrossingValueOrigin::Local {
+            symbol,
+            statement_index,
+            environment_position,
+        } => {
+            hash.byte(3);
+            hash.string(&program.typed.symbols.display_path(symbol, "::"));
+            hash.usize(statement_index);
+            hash.usize(environment_position);
+        }
+        checked_trees::SuspensionCrossingValueOrigin::CallArgument { position } => {
+            hash.byte(4);
+            hash.usize(position);
+        }
+    }
+    hash.finish()
+}
+
+/// Stable identity of a live value's checked type: the canonical type
+/// identity string is already the normalized semantic coordinate.
+fn live_type_identity(
+    program: &CheckedTrees,
+    live: &checked_trees::SuspensionCrossingLiveValueFact,
+) -> u64 {
+    let mut hash = super::StableHash::new();
+    hash.byte(0x54);
+    hash.string(
+        program
+            .normalized_type_identity(live.type_reference)
+            .as_str(),
+    );
+    hash.finish()
+}
+
+/// Stable identity of one live claim attached to a crossing place. The
+/// normalized coordinate commits to the claim's exact checked provenance —
+/// establishing machine, state, event source, and ordinal — so a plan
+/// frontier distinguishes loans rather than counting them.
+fn live_claim_identity(
+    program: &CheckedTrees,
+    claim: &language_semantics::PermissionClaimIdentity,
+) -> Result<semantic_vocabulary::ClaimId, Vec<Diagnostic>> {
+    let language_semantics::PermissionClaimIdentity::Established {
+        machine_symbol,
+        state_symbol,
+        source,
+        ordinal,
+    } = *claim
+    else {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing retains a live claim whose identity never resolved",
+        )]);
+    };
+    let mut hash = super::StableHash::new();
+    hash.byte(0x43);
+    hash.string(&program.typed.symbols.display_path(machine_symbol, "::"));
+    hash.string(&program.typed.symbols.display_path(state_symbol, "::"));
+    match source {
+        language_semantics::PermissionEventSource::StateEntry => hash.byte(1),
+        language_semantics::PermissionEventSource::Statement { statement_index } => {
+            hash.byte(2);
+            hash.usize(statement_index);
+        }
+        language_semantics::PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => {
+            hash.byte(3);
+            hash.usize(statement_index);
+            hash.usize(call_ordinal);
+            hash.string(&program.typed.symbols.display_path(target_symbol, "::"));
+        }
+        language_semantics::PermissionEventSource::StateExit => hash.byte(4),
+    }
+    hash.u64(u64::from(ordinal));
+    semantic_vocabulary::ClaimId::new(hash.finish()).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing claim identity resolved to the reserved zero \
+             coordinate",
+        )]
     })
 }

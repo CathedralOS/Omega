@@ -4,8 +4,8 @@
 //! provider-domain custody on acceptance.
 
 use super::{
-    argument_layout, candidate, id, invocation_receipt, marshal_arguments, moved_arguments,
-    runtime, stack_lease, wcsu_plan,
+    argument_layout, candidate, id, invocation_receipt, moved_arguments, runtime, stack_lease,
+    wcsu_plan,
 };
 use crate::{
     ActivationInstanceId, MovedTaskArguments, TaskArgumentCustodyId, TaskArgumentExtent,

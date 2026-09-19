@@ -4,10 +4,11 @@
 use crate::stack_composition::WcsuStackPlanProjection;
 use crate::{
     ActivationInstanceId, ActivationPlanCandidate, ExecutorPreservationAxis,
-    ExecutorSelectionCandidate, MovedTaskArguments, TaskActivationPlanFact,
+    ExecutorSelectionCandidate, LiveCarryStorage, MovedTaskArguments, TaskActivationPlanFact,
     TaskRuntimeInvocationReceiptCandidate, TaskStartOperation, TaskStorageBinding,
     ValidatedActivationPlan, ValidatedExecutorSelection, ValidatedTaskRuntimeInvocationReceipt,
 };
+use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
 pub(crate) fn activation_plan_report_fingerprint(
     plan: &ActivationPlanCandidate,
@@ -34,6 +35,28 @@ pub(crate) fn activation_plan_report_fingerprint(
         fingerprint.flag(crossing.suspension_allowed);
         fingerprint.flag(crossing.preserve_cpu);
         fingerprint.flag(crossing.preserve_host_thread);
+        fingerprint.word(crossing.live_carry.len() as u64);
+        for live in &crossing.live_carry {
+            fingerprint.word(live.place.normalized_identity());
+            fingerprint.word(live.ty.normalized_identity());
+            fingerprint.byte(match live.storage {
+                LiveCarryStorage::Persistent => 1,
+                LiveCarryStorage::Parameter => 2,
+                LiveCarryStorage::Local => 3,
+                LiveCarryStorage::CallArgument => 4,
+            });
+            fingerprint.word(live.claims.len() as u64);
+            for claim in &live.claims {
+                fingerprint.word(claim.get());
+            }
+            fingerprint.flag(live.effective.suspension == CarrySuspension::Allowed);
+            fingerprint.flag(live.effective.cpu == CarryCpu::Origin);
+            fingerprint.flag(live.effective.host_thread == CarryHostThread::Origin);
+            fingerprint.byte(match live.effective.address {
+                CarryAddress::Movable => 1,
+                CarryAddress::Stable => 2,
+            });
+        }
     }
     fingerprint.flag(plan.carry_obligations.preserve_cpu);
     fingerprint.flag(plan.carry_obligations.preserve_host_thread);

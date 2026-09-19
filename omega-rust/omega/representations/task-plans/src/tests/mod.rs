@@ -13,8 +13,9 @@ mod start_transaction;
 
 use crate::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
-    CanonicalSuspensionCrossing, ExecutorPreservationAxis, ExecutorPreservationEvidence,
-    ExecutorPreservationEvidenceId, MachineContractId, MachineEntryId, MovedTaskArguments,
+    CanonicalSuspensionCrossing, ClaimId, ExecutorPreservationAxis, ExecutorPreservationEvidence,
+    ExecutorPreservationEvidenceId, LiveCarryDemand, LiveCarryPlaceId, LiveCarryStorage,
+    LiveCarryTypeId, MachineContractId, MachineEntryId, MovedTaskArguments,
     SelectedTaskRuntimeProviderFact, StackLease, StackLeaseBacking, StackPlan,
     StackRepresentationId, SuspensionCrossingId, TaskActivationPlanFact, TaskActivationPlanSet,
     TaskArgumentCustodyId, TaskArgumentLayout, TaskPlanDiagnostic, TaskRuntimeId,
@@ -27,6 +28,7 @@ use crate::{
     project_wcsu_stack_plan, validate_task_runtime_invocation_receipt,
     validate_task_stack_frame_summary, validate_wcsu_activation_plan,
 };
+use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
     constructor(identity).expect("normalized identity")
@@ -62,6 +64,20 @@ fn candidate() -> ActivationPlanCandidate {
             suspension_allowed: true,
             preserve_cpu: true,
             preserve_host_thread: false,
+            // The fixture crossing retains one live local carrying a loan:
+            // its CPU-pinned demand is what makes `preserve_cpu` honest.
+            live_carry: vec![LiveCarryDemand {
+                place: id(8, LiveCarryPlaceId::from_normalized_identity),
+                ty: id(9, LiveCarryTypeId::from_normalized_identity),
+                storage: LiveCarryStorage::Local,
+                claims: vec![ClaimId::new(10).expect("nonzero claim identity")],
+                effective: CarryPolicy {
+                    suspension: CarrySuspension::Allowed,
+                    cpu: CarryCpu::Origin,
+                    host_thread: CarryHostThread::Any,
+                    address: CarryAddress::Stable,
+                },
+            }],
         }],
         carry_obligations: ActivationCarryObligations {
             preserve_cpu: true,

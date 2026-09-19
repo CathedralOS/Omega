@@ -24,12 +24,13 @@
 
 use crate::stack_leases::{StackLeaseBacking, TaskStorageProvenance, establish_stack_lease};
 use crate::{
-    ActivationInstanceId, ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, StackPlan,
-    SuspensionCrossingId, TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim,
-    TaskLifecycleClaimId, TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId,
-    TaskRuntimeInstanceId, TaskRuntimeInvocationReceiptCandidate, TaskSettlementError,
-    TaskSettlementOutcome, TaskStartRejection, TaskStartStorage, TaskStorageBinding,
-    TaskStorageLeaseId, TaskStorageOwnerId, ValidatedTaskRuntimeInvocationReceipt,
+    ActivationInstanceId, ClosedTaskRuntime, LiveCarryDemand, MovedTaskArguments,
+    SettledTaskLifecycle, StackPlan, SuspensionCrossingId, TaskActivationPlanSet,
+    TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId, TaskLifecycleLedger,
+    TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
+    TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskSettlementOutcome,
+    TaskStartRejection, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
+    TaskStorageOwnerId, ValidatedTaskRuntimeInvocationReceipt,
     validate_task_runtime_invocation_receipt,
 };
 use std::collections::BTreeMap;
@@ -340,6 +341,14 @@ impl TaskRuntimeAdmission {
     /// `None` when it is running, settled, or unknown.
     pub fn parked_crossing(&self, claim: TaskLifecycleClaimId) -> Option<SuspensionCrossingId> {
         self.ledger.parked_crossing(claim)
+    }
+
+    /// The exact live frontier the claim's activation retains while parked
+    /// — the suspension-safe loan roster a provider must keep alive and
+    /// address-stable across this crossing — or `None` when it is running,
+    /// settled, or unknown.
+    pub fn parked_frontier(&self, claim: TaskLifecycleClaimId) -> Option<&[LiveCarryDemand]> {
+        self.ledger.parked_frontier(claim)
     }
 
     /// The canonical crossing where the claim's activation observed its
