@@ -40,14 +40,37 @@ pub(crate) fn evaluate(
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let mut arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(&syntax);
+    let data_arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
     let machine_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            &syntax,
-        );
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
     let mut lexical_arguments = Vec::new();
     let mut aggregate_arguments = Vec::new();
+    // Declaration initializers have already materialized named data indices.
+    // Their ordinary canonical-value selection preserves private initializer
+    // dependencies without reclassifying them as public expression probes.
+    // Machine indices still need original lexical-scope resolution below.
+    let mut arguments = data_arguments
+        .into_iter()
+        .filter(|(argument, _, _)| {
+            matches!(
+                syntax.type_references.type_reference(*argument),
+                TypeReferenceNode::ConstExpression(_)
+            )
+        })
+        .collect::<Vec<_>>();
     for (argument, destination, public) in machine_arguments {
         // This is probe routing, not builtin identity. The typed destination
         // must still resolve to the exact primitive before evaluation.
@@ -164,6 +187,13 @@ pub(crate) fn evaluate(
     // frontend type the selected expression before any real instance is created.
     // Original expressions and their authored names remain unchanged in the probe.
     let mut probe = syntax.clone();
+    crate::machine_execution::syntax_probes::defer_pending_const_qualifications(
+        &mut probe,
+        &arguments
+            .iter()
+            .map(|(argument, _, _)| *argument)
+            .collect::<Vec<_>>(),
+    );
     for (argument, destination, _) in &arguments {
         let placeholder = match syntax.type_references.type_reference(*destination) {
             TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",

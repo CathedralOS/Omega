@@ -77,10 +77,30 @@ pub(crate) fn evaluate(
     }) {
         return Ok(syntax);
     }
+    // Selection discovery cannot prove a literal declaration's qualification
+    // while its index still depends on another initializer. Keep its actual
+    // value and carrier in this private forest, but defer that qualification
+    // just as the later typed probes do for provisional indices.
+    let mut selection_syntax = syntax.clone();
+    let selection_arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
+    crate::machine_execution::syntax_probes::defer_pending_const_qualifications(
+        &mut selection_syntax,
+        &selection_arguments
+            .iter()
+            .map(|(argument, _, _)| *argument)
+            .collect::<Vec<_>>(),
+    );
     let preparation =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax: &selection_syntax,
                 sources: sources.clone(),
                 top_level_bindings: bindings.to_vec(),
             },
@@ -238,12 +258,31 @@ pub(crate) fn evaluate(
         // Private layout stand-ins, exactly as in the index-expression probe.
         // Actual arguments are normalized only after all declaration values exist.
         let arguments =
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(&probe)
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &probe,
+                    sources: sources.clone(),
+                    top_level_bindings: bindings.to_vec(),
+                },
+            )?
                 .into_iter()
                 .chain(
-                    syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(&probe),
+                    syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+                        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                            syntax: &probe,
+                            sources: sources.clone(),
+                            top_level_bindings: bindings.to_vec(),
+                        },
+                    )?,
                 )
                 .collect::<Vec<_>>();
+        crate::machine_execution::syntax_probes::defer_pending_const_qualifications(
+            &mut probe,
+            &arguments
+                .iter()
+                .map(|(argument, _, _)| *argument)
+                .collect::<Vec<_>>(),
+        );
         for (argument, destination, _) in arguments {
             let placeholder = match probe.type_references.type_reference(destination) {
                 TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",

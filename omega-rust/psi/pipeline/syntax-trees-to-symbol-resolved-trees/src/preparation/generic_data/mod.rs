@@ -51,33 +51,58 @@ pub(crate) use substitution::*;
 use synthesis::desugar_generic_data_instances;
 use uses::*;
 
-/// Constant-expression arguments in concrete data fields and their parameter types.
+/// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.
 /// These handles borrow the input syntax; no provisional program escapes.
 /// Each tuple retains the argument, parameter type, and real owner's public exposure.
 pub fn closed_data_const_argument_expressions(
-    syntax: &SyntaxTrees,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
+    request: crate::ResolutionRequest<'_>,
+) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
+    let syntax = request.syntax;
+    let selection = constant_selection::ConstantSelection::new(
+        syntax,
+        request.sources,
+        request.top_level_bindings,
+    )?;
     let positions = collect_data_type_reference_positions(syntax, false);
     let public_positions = collect_data_type_reference_positions(syntax, true);
-    collect_closed_const_arguments(syntax, &positions, &public_positions, false)
+    Ok(collect_closed_const_arguments(
+        syntax,
+        &selection,
+        &positions,
+        &public_positions,
+        false,
+    ))
 }
 
 /// Authored constant arguments in nongeneric machine type owners. Discovery
 /// supplies destinations, not value-selection authority: callers must resolve
 /// each expression in its original machine and state scope before evaluation.
 pub fn closed_machine_const_arguments(
-    syntax: &SyntaxTrees,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
+    request: crate::ResolutionRequest<'_>,
+) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
+    let syntax = request.syntax;
+    let selection = constant_selection::ConstantSelection::new(
+        syntax,
+        request.sources,
+        request.top_level_bindings,
+    )?;
     let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
-    collect_closed_const_arguments(syntax, &positions, &public_positions, true)
+    Ok(collect_closed_const_arguments(
+        syntax,
+        &selection,
+        &positions,
+        &public_positions,
+        true,
+    ))
 }
 
 fn collect_closed_const_arguments(
     syntax: &SyntaxTrees,
+    selection: &constant_selection::ConstantSelection<'_>,
     positions: &[TypeReferenceHandle],
     public_positions: &[TypeReferenceHandle],
-    include_named: bool,
+    include_machine_casts: bool,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut pending = Vec::new();
     let mut retain_arguments = |parameters: &[TypeParameter], arguments: &[TypeReferenceHandle]| {
@@ -88,7 +113,7 @@ fn collect_closed_const_arguments(
             if let TypeParameterKind::Const { type_reference } = parameter.kind
                 && match syntax.type_references.type_reference(*argument) {
                     TypeReferenceNode::ConstExpression(_) => true,
-                    TypeReferenceNode::Named(name) if include_named => {
+                    TypeReferenceNode::Named(name) => {
                         syntax
                             .type_references
                             .const_argument_normalization(*argument)
@@ -139,9 +164,12 @@ fn collect_closed_const_arguments(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
-                    let Some(parameters) =
-                        unique_domain_index_parameters(syntax, domain.name.as_str())
-                    else {
+                    let Some(parameters) = unique_domain_index_parameters(
+                        syntax,
+                        selection,
+                        domain.name.as_str(),
+                        domain.name.source_span(),
+                    ) else {
                         continue;
                     };
                     retain_arguments(
@@ -155,7 +183,7 @@ fn collect_closed_const_arguments(
             _ => {}
         }
     }
-    if include_named {
+    if include_machine_casts {
         let concrete = concrete_machine_expression_handles(syntax);
         for (handle, expression) in syntax.expressions.iter_expressions() {
             if !concrete.contains(&handle.arena_index()) {
@@ -164,14 +192,34 @@ fn collect_closed_const_arguments(
             let ExpressionNode::Cast(cast) = expression else {
                 continue;
             };
-            let name = syntax
+            let members = syntax
                 .expressions
-                .identifier_path_members(cast.semantic_domain)
+                .identifier_path_members(cast.semantic_domain);
+            let Some(first) = members.first() else {
+                continue;
+            };
+            if members.iter().any(|member| {
+                let span = member.source_span();
+                span.source_id != first.source_span().source_id || span.span.start > span.span.end
+            }) || members
+                .windows(2)
+                .any(|pair| pair[0].source_span().span.end > pair[1].source_span().span.start)
+            {
+                // Malformed custody cannot select a family through a partial path.
+                continue;
+            }
+            let mut reference = first.source_span();
+            for member in members.iter().skip(1) {
+                reference.span.end = member.source_span().span.end;
+            }
+            let name = members
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            let Some(parameters) = unique_domain_index_parameters(syntax, &name) else {
+            let Some(parameters) =
+                unique_domain_index_parameters(syntax, selection, &name, reference)
+            else {
                 continue;
             };
             retain_arguments(
@@ -187,16 +235,14 @@ fn collect_closed_const_arguments(
 
 fn unique_domain_index_parameters<'syntax>(
     syntax: &'syntax SyntaxTrees,
+    selection: &constant_selection::ConstantSelection<'_>,
     name: &str,
+    reference: source::SourceSpan,
 ) -> Option<&'syntax [TypeParameter]> {
-    let mut definitions = syntax.root_items().filter_map(|item| match item {
-        Item::Domain(definition) if definition.name.as_str() == name => Some(definition),
-        _ => None,
-    });
-    let definition = definitions.next()?;
-    if definitions.next().is_some() {
-        return None;
-    }
+    // Declaration names include their carrier; an authored qualifier may be
+    // module-relative. Borrow the telescope only after ordinary source-owned
+    // family selection, never by comparing those different spellings.
+    let (_, definition) = selection.domain_family(syntax, name, reference)?;
     domain_index_parameters(syntax, definition)
 }
 

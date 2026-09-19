@@ -74,12 +74,20 @@ pub fn evaluate_const_generic_calls(
     if !applications.is_empty() {
         let mut const_arguments =
             syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-                &syntax,
-            );
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &syntax,
+                    sources: sources.clone(),
+                    top_level_bindings: source_scoped_top_level_bindings.to_vec(),
+                },
+            )?;
         const_arguments.extend(
             syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-                &syntax,
-            ),
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &syntax,
+                    sources: sources.clone(),
+                    top_level_bindings: source_scoped_top_level_bindings.to_vec(),
+                },
+            )?,
         );
         for (type_reference, expression) in &applications {
             let Some((_, destination, public)) = const_arguments
@@ -100,6 +108,18 @@ pub fn evaluate_const_generic_calls(
     // for each owning const argument lets the frontend type/effect-check the
     // machine definitions themselves; no probe layout escapes this function.
     let mut probe = syntax.clone();
+    crate::machine_execution::syntax_probes::defer_pending_const_qualifications(
+        &mut probe,
+        &pending_type_references
+            .iter()
+            .copied()
+            .chain(
+                application_destinations
+                    .iter()
+                    .map(|(argument, ..)| *argument),
+            )
+            .collect::<Vec<_>>(),
+    );
     for type_reference in &pending_type_references {
         probe.type_references.replace_type_reference(
             *type_reference,
