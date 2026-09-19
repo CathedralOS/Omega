@@ -170,7 +170,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             },
         ),
     )?;
-    let structural_arguments = lower_structural_arguments(
+    let terminal_arguments = lower_structural_arguments(
         structural_arguments,
         parameters,
         &[],
@@ -190,7 +190,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             crate::unit::attached_unit::ordinary_calls::PreparedCall {
                 arguments: arguments.into_iter().map(|value| value.id).collect(),
                 erased_arguments,
-                structural_arguments,
+                structural_arguments: terminal_arguments,
+                claim_transfers: crate::unit::attached_unit::parameters::emitted_claim_transfers(
+                    structural_arguments,
+                    custody.map_or(&[], |custody| custody.claim_transfers.as_slice()),
+                    &target.structural_parameters,
+                    &operations.structural_values,
+                    claim_bindings,
+                )?,
                 requirement_obligations,
                 crash_continuations,
             },
@@ -230,7 +237,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             callee: target.id,
             arguments: arguments.into_iter().map(|value| value.id).collect(),
             erased_arguments,
-            structural_arguments,
+            structural_arguments: terminal_arguments,
             claim_transfers: Vec::new(),
             requirement_obligations,
             crash_continuations,

@@ -65,6 +65,9 @@ impl MachineEmission<'_> {
                 self.type_ids,
                 self.structural_types,
                 &[],
+                &output.structural_values,
+                self.domain_ids,
+                &self.claim_bindings,
                 call_context,
             )?;
             let declaration = ordinary_calls::emit_structural(

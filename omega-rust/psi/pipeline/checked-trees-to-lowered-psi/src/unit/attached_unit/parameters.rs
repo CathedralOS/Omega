@@ -8,8 +8,8 @@ use super::super::{
     StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::{
-    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
-    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralMultiplicity,
+    CheckedBoundaryMachinePlan, CheckedTrees, ClaimTransfer, LoweringError, Multiplicity, PlaceId,
+    ScalarType, SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
     allocate_dense, lookup_claim_id, lookup_domain_id, lookup_service_id, lookup_type_id, place_id,
     require_valid_service_row, terminal_scalar_type, unsupported,
@@ -686,32 +686,65 @@ pub(crate) fn validate_transfer_shape(
                 // Counts alone cannot distinguish missing or swapped siblings.
                 // A boundary target has no entry-claim roster, so its exact
                 // set is the completed result's own claim frontier.
-                let claims_match = !claims.is_empty()
-                    && result.claims.len() == claims.len()
-                    && if expected.is_empty() {
-                        let mut transferred = claims.clone();
-                        transferred.sort_unstable();
-                        let mut completed = result
-                            .claims
-                            .iter()
-                            .map(|binding| binding.claim)
-                            .collect::<Vec<_>>();
-                        completed.sort_unstable();
-                        transferred == completed
-                    } else {
-                        claims.len() == expected.len()
-                            && claims.iter().zip(&expected).all(|(claim, expected)| {
-                                result
-                                    .claims
-                                    .iter()
-                                    .filter(|result| {
-                                        result.claim == *claim
-                                            && result.path == lower_structural_path(&expected.path)
-                                    })
-                                    .count()
-                                    == 1
-                            })
-                    };
+                // A claim-carrying `self` formal publishes no transfer row at
+                // all: the result's own claim frontier is the custody this
+                // call consumes. The minted caller binding is the evidence —
+                // the producing call minted it only for a claim established
+                // at the result's own binding statement, so the carried claim
+                // must resolve through the grown table to a statement-
+                // established identity, and the formal's entry roster must be
+                // exactly the whole-value claim that consume joins. Anything
+                // else is a claim-free move wearing receiver custody, not a
+                // completed operation transfer.
+                let claims_match = if target.is_self {
+                    claims.is_empty()
+                        && expected.len() == 1
+                        && result.claims.len() == 1
+                        && expected.iter().zip(&result.claims).all(|(expected, binding)| {
+                            binding.path == lower_structural_path(&expected.path)
+                                && custody.claims.iter().any(|(identity, claim)| {
+                                    *claim == binding.claim
+                                        && matches!(
+                                            identity,
+                                            PermissionClaimIdentity::Established {
+                                                source:
+                                                    language_semantics::PermissionEventSource::Statement {
+                                                        ..
+                                                    },
+                                                ..
+                                            }
+                                        )
+                                })
+                        })
+                } else {
+                    !claims.is_empty()
+                        && result.claims.len() == claims.len()
+                        && if expected.is_empty() {
+                            let mut transferred = claims.clone();
+                            transferred.sort_unstable();
+                            let mut completed = result
+                                .claims
+                                .iter()
+                                .map(|binding| binding.claim)
+                                .collect::<Vec<_>>();
+                            completed.sort_unstable();
+                            transferred == completed
+                        } else {
+                            claims.len() == expected.len()
+                                && claims.iter().zip(&expected).all(|(claim, expected)| {
+                                    result
+                                        .claims
+                                        .iter()
+                                        .filter(|result| {
+                                            result.claim == *claim
+                                                && result.path
+                                                    == lower_structural_path(&expected.path)
+                                        })
+                                        .count()
+                                        == 1
+                                })
+                        }
+                };
                 if results.next().is_some()
                     || result.place != source.id
                     || result.structural_type != structural_type
@@ -721,7 +754,6 @@ pub(crate) fn validate_transfer_shape(
                     || !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || target.access != argument.access
-                    || target.is_self
                     || target.fused_service_erasure.is_some()
                     || result.qualifications != qualifications
                     || result.projected_qualifications != projected_qualifications
@@ -870,6 +902,63 @@ pub(crate) fn validate_transfer_shape(
         return unsupported("Unit claim transfer does not exactly match target entry custody");
     }
     Ok(())
+}
+
+/// The call's emitted transfer roster: each checked row resolves through the
+/// caller's claim table, and a claim-carrying `self` formal fed by a
+/// completed result names the minted binding the call consumes. The checker
+/// records that consume as a permission event rather than a transfer row —
+/// the result's claim was established at its own binding statement, not
+/// carried through an entry claim — so the emitted operation publishes the
+/// result's carried claim directly. The verifier's roster joins it against
+/// the result place's own frontier the same way it resolves every other
+/// caller claim.
+pub(crate) fn emitted_claim_transfers(
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    completed_results: &[(u32, terminal_psi::StructuralOperationResult)],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<Vec<ClaimTransfer>, LoweringError> {
+    let mut emitted = transfers
+        .iter()
+        .map(|transfer| {
+            Ok(ClaimTransfer {
+                claim: lookup_claim_id(claim_bindings, transfer.claim_identity)?,
+                argument_index: transfer.argument_index,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    for (argument_index, (argument, target)) in arguments.iter().zip(target_parameters).enumerate()
+    {
+        let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
+            continue;
+        };
+        if !target.is_self || target.multiplicity != Multiplicity::Linear {
+            continue;
+        }
+        // Transfer-shape validation already joined this argument: the
+        // completed result carries exactly the formal's whole-value entry
+        // claim, bound in the caller's table by the producing statement's
+        // mint. The emitted transfer is that consume, not a new claim.
+        let (_, result) = completed_results
+            .iter()
+            .find(|(ordinal, _)| *ordinal == binding_ordinal)
+            .ok_or(LoweringError::Unsupported(
+                "Unit self argument lost its completed result claim binding",
+            ))?;
+        let [binding] = result.claims.as_slice() else {
+            return unsupported("Unit self argument lost its completed result claim binding");
+        };
+        emitted.push(ClaimTransfer {
+            claim: binding.claim,
+            argument_index: u32::try_from(argument_index).map_err(|_| {
+                LoweringError::Unsupported("Unit claim transfer argument index exceeds u32")
+            })?,
+        });
+    }
+    emitted.sort();
+    Ok(emitted)
 }
 
 fn fixed_byte_array_view_transfer(
