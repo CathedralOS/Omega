@@ -95,9 +95,12 @@ fn undominated_lifetimes_and_uninitialized_parameters_do_not_gain_spill_authorit
             }
             1 => function.blocks[1].instructions.swap(0, 1),
             2 => {
+                // A `Def` on the victim after its origin is now an admitted
+                // redefinition with its own store; ahead of the origin in
+                // the origin's own block it stays a write before existence.
                 let mut duplicate = function.blocks[1].instructions[0].clone();
                 duplicate.id = SelectedInstructionId(500);
-                function.blocks[1].instructions.push(duplicate);
+                function.blocks[1].instructions.insert(0, duplicate);
             }
             3 => {
                 function.virtual_registers[1].origin = VirtualRegisterOrigin::BlockParameter {

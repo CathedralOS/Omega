@@ -22,6 +22,14 @@
 //! copy's own output register, or — on a case-dispatch continuation — the
 //! bridge's field observation behind the payload's own `Load32`/`Load64`.
 //! Each is stored immediately, before later transfers create more pressure.
+//! A later `Def` operand on the victim redefines the register, so the slot
+//! tracks it the same way: one store after every definition keeps the slot a
+//! mirror of the register's last write, a use on the redefining instruction
+//! still reads the pre-write value through its own reload, and the
+//! redefinition closes any still-open shared reload since the value it held
+//! no longer restates the register. The origin definition still dominates
+//! every use, so on each path the last executed store is the register's
+//! reaching write.
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use.

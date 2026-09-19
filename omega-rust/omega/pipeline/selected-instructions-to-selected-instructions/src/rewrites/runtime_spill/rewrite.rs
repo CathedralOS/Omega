@@ -16,9 +16,10 @@ use crate::ValidatedSelectedAnalysis;
 /// Emit one private address/load pair for a use, or — when `share` admits a
 /// block-local shared reload — reuse the pair still open from the span's
 /// first flexible use so its interval covers every later flexible use in the
-/// span. The caller clears the open pair after any instruction that can
-/// destroy register content unless admission crossed it, so under the
-/// bounded policy the interval never reaches across a call.
+/// span. The caller clears the open pair after each admitted span-closing
+/// instruction — a victim redefinition, or a unit writer the policy did not
+/// cross — so under the bounded policy the interval never reaches across a
+/// call.
 /// Returns the register the rewritten use must name.
 fn reload_for_use(
     admitted: &admission::Admission<'_>,
@@ -167,13 +168,13 @@ pub fn spill_selected_runtime_value_with_span_policy(
             );
             instructions.push(rewritten);
             // A clobber or implicit definition may write any unit, including
-            // the one hosting the still-open reload, so the shared interval
-            // ends here and the next flexible use opens a fresh pair — unless
-            // admission proved a surviving view lets the produced interval
-            // cross this unit-writing instruction to its home.
-            if (!original.clobbers.is_empty() || !original.implicit_defs.is_empty())
-                && !admitted.crossed_unit_writes[block_index].contains(&instruction_index)
-            {
+            // the one hosting the still-open reload, and a redefinition makes
+            // the held value stale, so the shared interval ends at each
+            // admitted span-closing instruction and the next flexible use
+            // opens a fresh pair — unless admission proved a surviving view
+            // lets the produced interval cross a unit-writing instruction to
+            // its home.
+            if admitted.span_closes[block_index].contains(&instruction_index) {
                 open_reload = None;
             }
             for definition in admitted.definitions.iter().filter(|definition| {
