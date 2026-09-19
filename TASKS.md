@@ -357,18 +357,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Remaining work:
 
-  - Generalize independent endpoint formation and conservation beyond one
-    state for non-polynomial expressions. Reuse the relational field-coordinate
-    route for natural member endpoints, including stored readable references
-    carried through renamed or reordered named-state parameters; its exact
-    arrival equality and complete write-frame checks remain required.
-    `termination/stored_reference_endpoint_arrivals` and its reseating false
-    twin pin that source boundary. The independent endpoint fallback still
-    requires one state for its broader arithmetic expressions.
-    Mixed-component inputs beyond direct integers/arithmetic trees and
-    non-polynomial substitutions need their actual formation, equality, and
-    write-preservation evidence, not polynomial cancellation or positional
-    guesses.
+  - Extend non-polynomial endpoint formation and conservation to symbolic
+    divisors and mixed-call-component substitutions. The named-state relational
+    route handles constant-divisor quotients, including nested quotients and
+    exact record fields; `termination/named_computed_rank_endpoints` and its
+    changed-endpoint false twin exercise that boundary. The independent
+    interval-only fallback still requires one state; do not remove its guard
+    without proving every exact arrival. Reuse the relational field-coordinate
+    route for readable stored references, covered by
+    `termination/stored_reference_endpoint_arrivals` and its reseating twin.
+    Formation, arrival equality, and complete write-frame checks remain required;
+    polynomial cancellation, equal endpoint intervals, or positional guesses
+    cannot supply them. Mixed-component inputs beyond direct integers/arithmetic
+    trees still need their actual input correspondence and conservation evidence.
     The stored-exclusive countdown in `compiler/tests/rank_endpoint_borrows.rs`
     checks and runs in the checked interpreter (macOS ARM64, `a647d6afef` plus
     the endpoint repair; `RUST_MIN_STACK=67108864 cargo nextest run -p compiler
