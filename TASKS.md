@@ -4031,8 +4031,21 @@ Owners include
   target-only descriptor composition: two such milestones left this native
   customer unsupported.
 
-  `abstract-operations-to-target-operations` now lowers that source customer's
-  descriptor parameter to `DynamicParameter{Scalar,Unit}Call` with two pointer
+  Source helpers retain scalar bindings around forwarding/dispatch and their
+  actual returning control through the shared scalar evaluator
+  (`checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit/forwarded_helpers.rs`).
+  The source-to-verified-artifact interpreter regression
+  `forwarded_descriptor_calculations_execute_through_verified_artifact` observes
+  both branches and a computation after final dispatch; substituted helper
+  bodies and disagreeing join rosters reject (verified at `87102d60aa` on
+  macOS ARM64). Resume on macOS with
+  `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(dynamic_composed_unit)'`.
+  This establishes semantic execution, not native publication. Extra effects,
+  mutable helper locals, and differing helper/requirement result carriers still
+  need composition through their ordinary operation owners.
+
+  `abstract-operations-to-target-operations` lowers the descriptor parameter
+  to `DynamicParameter{Scalar,Unit}Call` with two pointer
   words per descriptor, and independently replays roster binding, requirement
   slot, dispatch plan, table offset, obligations and result home
   (`lowering/unit/parameter_dynamic.rs`, `tests/dynamic_parameters.rs`). No
