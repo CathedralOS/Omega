@@ -390,6 +390,15 @@ fn service_progress_establishment_routes(
     let mut routes = domain
         .establishment_routes
         .iter()
+        // Progress profiles project only requirement routes; exact-machine
+        // routes have no progress-projection representation yet and are
+        // ineligible for admitted boundary progress profiles.
+        .filter(|route| {
+            !matches!(
+                route,
+                language_semantics::DomainEstablishmentRoute::ExactMachine { .. }
+            )
+        })
         .map(|route| {
             let owner = program
                 .traits()
@@ -407,6 +416,9 @@ fn service_progress_establishment_routes(
                 }
                 language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. } => {
                     ServiceProgressEstablishmentRouteKind::BoundaryRequirement
+                }
+                language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
+                    unreachable!("exact-machine routes are filtered above")
                 }
             };
             ServiceProgressEstablishmentRoute {

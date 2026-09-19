@@ -105,6 +105,11 @@ pub(crate) fn project_domain_establishment_route(
             requirement,
             true,
         ),
+        language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
+            return Err(vec![Diagnostic::error(
+                "exact-machine domain establishment routes have no package-review projection yet",
+            )]);
+        }
     };
     let owners = compilation
         .traits()

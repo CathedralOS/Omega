@@ -52,9 +52,17 @@ pub(super) fn project(
                 .ok_or_else(|| rejected("progress subject has no source parameter ordinal"))?;
             ServiceProgressSubject::Parameter(ordinal)
         };
+        // Progress profiles project only requirement routes; exact-machine
+        // routes are ineligible for admitted boundary progress profiles.
         let mut establishment_routes = profile
             .establishment_routes
             .iter()
+            .filter(|route| {
+                !matches!(
+                    route,
+                    language_semantics::DomainEstablishmentRoute::ExactMachine { .. }
+                )
+            })
             .map(|route| {
                 Ok(PackagePolicyServiceProgressRoute {
                     kind: match route {
@@ -64,6 +72,9 @@ pub(super) fn project(
                         language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
                             ..
                         } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                        language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
+                            unreachable!("exact-machine routes are filtered above")
+                        }
                     },
                     requirement_owner: nominal_identity(compilation, route.source_symbol())?,
                     requirement: trait_requirement_identity_from_symbols(

@@ -665,6 +665,108 @@ fn normalizes_authored_checked_and_boundary_requirement_routes() {
 }
 
 #[test]
+fn normalizes_authored_exact_machine_route() {
+    use language_semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token { value: u64; }
+
+    domain Token::Stamped
+    established by Token::stamp;
+
+    machine Token::stamp(value: u64) -> Token
+    ensures result in Token::Stamped
+    {
+        Token { value: value }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Stamped")
+        .expect("stamped domain");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Token::stamp")
+        .expect("stamp machine");
+    assert_eq!(
+        domain.establishment_routes,
+        [DomainEstablishmentRoute::ExactMachine {
+            machine: machine.symbol,
+        }]
+    );
+}
+
+#[test]
+fn exact_machine_route_rejects_a_machine_without_domain_authority() {
+    let source = r#"
+    data Token { value: u64; }
+
+    domain Token::Stamped
+    established by Token::stamp;
+
+    machine Token::stamp(value: u64) -> Token
+    {
+        Token { value: value }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostics = resolve(ResolutionRequest::new(&syntax_trees))
+        .expect_err("a machine route must authorize the domain on its exact result");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not name the domain on its exact result")),
+        "unexpected domain-establishment diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn establishment_route_rejects_ambiguity_across_declaration_kinds() {
+    let source = r#"
+    data Token { value: u64; }
+
+    domain Token::Stamped
+    established by Issuer::issue;
+
+    trait Issuer {
+        machine issue(value: u64) -> Token in Stamped;
+    }
+
+    machine Issuer::issue(value: u64) -> Token
+    ensures result in Token::Stamped
+    {
+        Token { value: value }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostics = resolve(ResolutionRequest::new(&syntax_trees))
+        .expect_err("a route naming both a requirement and a machine must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("ambiguous across declaration kinds")),
+        "unexpected domain-establishment diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn authored_establishment_route_cannot_use_an_extension_only_domain_constraint() {
     let base = r#"
         data Token { value: u64; }
