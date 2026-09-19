@@ -551,9 +551,11 @@ fn component_description_stays_below_the_runtime_quarantine() {
             .all(|dependency| {
                 [
                     "effects",
+                    "proof-admission",
                     "semantic-vocabulary",
                     "terminal-codec",
                     "terminal-psi",
+                    "terminal-verifier",
                 ]
                 .contains(&dependency.as_str())
             }),

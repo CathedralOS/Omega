@@ -21,8 +21,9 @@ use terminal_psi::{
 };
 
 use crate::{
-    COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescriptionFacts, ComponentVerificationRequest,
-    VerifiedComponent, describe_component_facts, encode_component_description, verify_component,
+    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescriptionFacts,
+    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
+    encode_component_description, verify_component,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -192,13 +193,15 @@ pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
 }
 
 /// Describe and independently verify one component module under the
-/// current schema with no accepted assumptions: the producer/consumer pair
-/// a build route runs, so a consumer test only ever sees replayed evidence.
+/// current schema with no accepted assumptions and an empty module-proof
+/// admission profile: the producer/consumer pair a build route runs, so a
+/// consumer test only ever sees replayed evidence.
 pub fn verified_component(module: &TerminalModule) -> VerifiedComponent {
     let request = ComponentVerificationRequest {
         expected_subject: module_subject(module),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
         accepted_assumptions: BTreeSet::new(),
+        admission_profile: AdmissionProfile::default(),
     };
     verify_component(&describe_module(module), &request).expect("the component verifies")
 }

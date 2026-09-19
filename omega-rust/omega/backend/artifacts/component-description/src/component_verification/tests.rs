@@ -271,6 +271,7 @@ fn request_for(
         expected_subject: terminal_codec::terminal_psi_identity(module).expect("module identity"),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
         accepted_assumptions,
+        admission_profile: super::AdmissionProfile::default(),
     }
 }
 
@@ -1635,4 +1636,25 @@ fn component_description_declared_fields_stay_identity_bound() {
         move |d| d.assumptions.push(assumption),
         DescriptionDecodeRejection::NonCanonicalOrder("assumption"),
     );
+}
+
+#[test]
+fn rejects_a_module_the_terminal_verifier_refuses() {
+    // A module that decodes and subject-matches but whose machine contract
+    // ensures a clause no evidence discharges is not a verified component:
+    // the verifier, not the decode, owns the code-to-inventory claim.
+    let mut module = minimal_module();
+    module.machines[0]
+        .contract
+        .ensures
+        .push(terminal_psi::ContractClause {
+            obligation: semantic_vocabulary::ObligationId::new(1).expect("obligation"),
+            proposition: semantic_vocabulary::Proposition::Falsehood,
+        });
+    let description = describe(&module, &empty_selection());
+    let request = request_for(&module, BTreeSet::new());
+    assert!(matches!(
+        verify(&description, &request),
+        Err(ComponentVerificationRejection::ModuleVerification(_))
+    ));
 }

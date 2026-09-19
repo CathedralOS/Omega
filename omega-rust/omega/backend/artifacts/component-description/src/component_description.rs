@@ -565,6 +565,17 @@ pub(crate) fn derive_component_inventory(
     for machine in &module.machines {
         for block in &machine.blocks {
             for operation in &block.operations {
+                // Every operation kind must be placed in an explicit group:
+                // an authority-bearing kind added to `OperationKind` without a
+                // decision here stops compiling rather than silently reading
+                // as empty outgoing authority. Operations are the complete
+                // authority surface: block terminators are closure-internal
+                // control flow, suspension resumptions are the module-level
+                // call-site table counted below, and in-module calls resolve
+                // through the verified module's own machine and
+                // dynamic-dispatch tables, so their callee's operations are
+                // scanned by this same enumeration and they carry no
+                // authority past the component closure.
                 match &operation.kind {
                     OperationKind::BoundaryCall {
                         boundary,
@@ -593,7 +604,73 @@ pub(crate) fn derive_component_inventory(
                     } => {
                         port_writes.insert((*service, *port, *value));
                     }
-                    _ => {}
+                    OperationKind::Call { .. }
+                    | OperationKind::CallUnit { .. }
+                    | OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralScalar { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::CallDynamicScalar { .. }
+                    | OperationKind::CallDynamicParameterScalar { .. }
+                    | OperationKind::CallDynamicUnit { .. }
+                    | OperationKind::CallDynamicParameterUnit { .. }
+                    | OperationKind::StoreDynamicDescriptor { .. } => {}
+                    OperationKind::EstablishReference { .. }
+                    | OperationKind::ReleaseReference { .. }
+                    | OperationKind::EstablishScalarArray { .. }
+                    | OperationKind::EstablishPrimitiveLocal { .. }
+                    | OperationKind::EstablishTrivialAffineLocal { .. }
+                    | OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishScalarCase { .. }
+                    | OperationKind::EstablishByteSequenceLiteral { .. }
+                    | OperationKind::PrimitiveScalarRead { .. }
+                    | OperationKind::StructuralScalarFieldStore { .. }
+                    | OperationKind::StructuralByteSequenceFieldLength { .. }
+                    | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+                    | OperationKind::StructuralByteSequenceFieldStore { .. }
+                    | OperationKind::StructuralCaseMembership { .. }
+                    | OperationKind::WriteOnlyPrimitiveStore { .. }
+                    | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+                    | OperationKind::ByteSequenceLength { .. }
+                    | OperationKind::ByteSequenceRead { .. }
+                    | OperationKind::ByteSequenceWrite { .. }
+                    | OperationKind::ByteSequenceSubslice { .. } => {}
+                    OperationKind::IntegerConstant { .. }
+                    | OperationKind::BooleanConstant { .. }
+                    | OperationKind::IeeeFloatConstant { .. }
+                    | OperationKind::IeeeFloatCompare { .. }
+                    | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+                    | OperationKind::BooleanStructuralField { .. }
+                    | OperationKind::IntegerStructuralField { .. }
+                    | OperationKind::BooleanNot { .. }
+                    | OperationKind::BooleanEqual { .. }
+                    | OperationKind::IntegerEqual { .. }
+                    | OperationKind::IntegerLessThan { .. }
+                    | OperationKind::IntegerLessOrEqual { .. }
+                    | OperationKind::IntegerBitwiseNot { .. }
+                    | OperationKind::IntegerBitwiseAnd { .. }
+                    | OperationKind::IntegerBitwiseOr { .. }
+                    | OperationKind::IntegerBitwiseXor { .. }
+                    | OperationKind::IntegerWiden { .. }
+                    | OperationKind::IntegerExactCast { .. }
+                    | OperationKind::WrappingIntegerShiftLeft { .. }
+                    | OperationKind::WrappingIntegerShiftRight { .. }
+                    | OperationKind::ExactIntegerShiftLeft { .. }
+                    | OperationKind::ExactIntegerShiftRight { .. }
+                    | OperationKind::WrappingIntegerAdd { .. }
+                    | OperationKind::SaturatingIntegerAdd { .. }
+                    | OperationKind::ExactIntegerAdd { .. }
+                    | OperationKind::WrappingIntegerSubtract { .. }
+                    | OperationKind::SaturatingIntegerSubtract { .. }
+                    | OperationKind::ExactIntegerSubtract { .. }
+                    | OperationKind::WrappingIntegerMultiply { .. }
+                    | OperationKind::SaturatingIntegerMultiply { .. }
+                    | OperationKind::ExactIntegerMultiply { .. }
+                    | OperationKind::WrappingIntegerDivide { .. }
+                    | OperationKind::SaturatingIntegerDivide { .. }
+                    | OperationKind::ExactIntegerDivide { .. }
+                    | OperationKind::WrappingIntegerRemainder { .. }
+                    | OperationKind::SaturatingIntegerRemainder { .. }
+                    | OperationKind::ExactIntegerRemainder { .. } => {}
                 }
             }
         }
