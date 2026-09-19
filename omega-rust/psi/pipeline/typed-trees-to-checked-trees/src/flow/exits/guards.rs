@@ -60,7 +60,222 @@ pub(super) fn append_guard_context(
             active_contexts,
             active_constraints,
         );
+        append_guard_bounds_context(
+            program,
+            semantic,
+            ctx,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            expression,
+            point,
+            active_contexts,
+            active_constraints,
+        );
     }
+}
+
+/// The satisfied arm of a comparison guard bounds each compared stable place
+/// by the literal endpoint: `self.i >= 1 && self.i <= 9` carries
+/// `self.i in [1, 9]` onto that edge. Conjuncts of one guard INTERSECT into a
+/// single bounds fact per place, so `>=`/`<=` pairs keep their meet rather
+/// than hulling to the carrier. Only literal endpoints bound here --
+/// place-versus-place endpoints belong to the range checker's declared-range
+/// seeders. Ordinary write invalidation retires the observation on
+/// reassignment, and the destination's incoming-field meet drops it on edges
+/// that do not all prove it.
+#[allow(clippy::too_many_arguments)]
+fn append_guard_bounds_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    point: ProgramPoint,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+        return;
+    };
+    let Some(state) =
+        crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol)
+    else {
+        return;
+    };
+    let mut conjuncts = Vec::new();
+    // Arm tests arrive as `<guard> == true`; peel that wrapper off before
+    // reading conjuncts, then split `&&` as the arm's own test would.
+    append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    struct GuardBound {
+        place: facts::PlaceHandle,
+        carrier: facts::IntegerRange,
+        lower: Option<numerics::bignum::BigInt>,
+        upper: Option<numerics::bignum::BigInt>,
+    }
+    let mut bounds: Vec<GuardBound> = Vec::new();
+    let literal = |operand: ExpressionHandle| match program.expression_table.expression(operand) {
+        ExpressionNode::Integer(value) => value.value_bignum(),
+        _ => None,
+    };
+    let mirrored = |operator: typed_trees::expression::BinaryOperator| {
+        use typed_trees::expression::BinaryOperator as Operator;
+        match operator {
+            Operator::Less => Operator::Greater,
+            Operator::LessOrEqual => Operator::GreaterOrEqual,
+            Operator::Greater => Operator::Less,
+            Operator::GreaterOrEqual => Operator::LessOrEqual,
+            other => other,
+        }
+    };
+    for conjunct in conjuncts {
+        if !validation::has_builtin_decomposed_guard_meaning(
+            program,
+            machine,
+            Some(state),
+            conjunct,
+        ) {
+            continue;
+        }
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct) else {
+            continue;
+        };
+        let (operand, endpoint, operator) = match (literal(binary.left), literal(binary.right)) {
+            (None, Some(endpoint)) => (binary.left, endpoint, binary.operator),
+            (Some(endpoint), None) => (binary.right, endpoint, mirrored(binary.operator)),
+            _ => continue,
+        };
+        let one = numerics::bignum::BigInt::from_u64(1);
+        let (lower, upper) = match operator {
+            typed_trees::expression::BinaryOperator::Less => (None, Some(endpoint.sub(&one))),
+            typed_trees::expression::BinaryOperator::LessOrEqual => (None, Some(endpoint)),
+            typed_trees::expression::BinaryOperator::Greater => (Some(endpoint.add(&one)), None),
+            typed_trees::expression::BinaryOperator::GreaterOrEqual => (Some(endpoint), None),
+            typed_trees::expression::BinaryOperator::Equal => {
+                (Some(endpoint.clone()), Some(endpoint))
+            }
+            _ => continue,
+        };
+        let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+            program,
+            semantic,
+            state_symbol,
+            statement_index,
+            operand,
+        ) else {
+            continue;
+        };
+        let Some(carrier) = crate::flow::expression_type_reference_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            operand,
+        )
+        .and_then(|reference| program.primitive_type_reference(reference))
+        .and_then(crate::values::bounds::primitive_range) else {
+            continue;
+        };
+        // `append_place` allocates a fresh handle per call, so place identity
+        // is structural here: same root and same segment chain, the same place
+        // the readers compare by contents.
+        let row = match bounds.iter_mut().position(|row| {
+            let (stored, candidate) = (semantic.places.get(row.place), semantic.places.get(place));
+            stored.root == candidate.root
+                && semantic.place_segments.span_or_empty(stored.segments)
+                    == semantic.place_segments.span_or_empty(candidate.segments)
+        }) {
+            Some(index) => &mut bounds[index],
+            None => {
+                bounds.push(GuardBound {
+                    place,
+                    carrier,
+                    lower: None,
+                    upper: None,
+                });
+                bounds.last_mut().expect("pushed")
+            }
+        };
+        if let Some(lower) = lower {
+            row.lower = Some(match row.lower.take() {
+                Some(previous) => previous.max(lower),
+                None => lower,
+            });
+        }
+        if let Some(upper) = upper {
+            row.upper = Some(match row.upper.take() {
+                Some(previous) => previous.min(upper),
+                None => upper,
+            });
+        }
+    }
+    let mut refs = HandleSpan::empty();
+    for row in bounds {
+        if row.lower.is_none() && row.upper.is_none() {
+            continue;
+        }
+        let mut range = facts::IntegerRange {
+            minimum: row.lower.unwrap_or_else(|| row.carrier.minimum.clone()),
+            maximum: row.upper.unwrap_or_else(|| row.carrier.maximum.clone()),
+        };
+        // The guard fact must refine the value's live interval, not widen it:
+        // readers union every live bounds payload at the place, so a row that
+        // reaches past the already-established extent would only union the
+        // dead half back in. Intersect instead; an empty meet means this arm
+        // is unreachable and mints nothing.
+        let live = crate::flow::canonical_place_from_semantic_place(
+            program,
+            semantic,
+            semantic.places.get(row.place),
+        )
+        .and_then(|subject| {
+            crate::values::integer_bounds_at_place(
+                program,
+                semantic,
+                ctx.contexts
+                    .semantic_context_refs
+                    .span_or_empty(*active_contexts)
+                    .iter()
+                    .map(|reference| semantic.contexts.get(reference.context)),
+                &subject,
+            )
+        });
+        if let Some(live) = live {
+            range.minimum = range.minimum.max(live.minimum);
+            range.maximum = range.maximum.min(live.maximum);
+        }
+        if range.minimum > range.maximum {
+            continue;
+        }
+        let bounds = semantic.integer_ranges.append(range);
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(row.place),
+            point,
+            origin: FactOrigin::TransitionGuard,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::AssignedIntegerBounds { bounds },
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+    if refs.is_empty() {
+        return;
+    }
+    let context = semantic.append_context(point, refs);
+    *active_contexts =
+        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+    *active_constraints =
+        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+    common::append_flow_reference(
+        &mut ctx.contexts.semantic_context_refs,
+        active_contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut ctx.contexts.constraint_refs,
+        active_constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
 }
 
 /// CASE-CONSTRAINTS (ch12): on the matched branch a case-membership guard
@@ -177,6 +392,39 @@ fn append_case_constraint_context(
         active_constraints,
         FlowConstraintKind::SemanticContext { context },
     );
+}
+
+/// Conjuncts asserted by taking the `true` arm: split `&&` recursively, and
+/// peel the arm-test `<expr> == true` wrappers. `expr == false` under a true
+/// arm is contradictory and contributes nothing.
+fn append_true_arm_conjuncts(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    conjuncts: &mut Vec<ExpressionHandle>,
+) {
+    let boolean = |operand: ExpressionHandle| match program.expression_table.expression(operand) {
+        ExpressionNode::Boolean(value) => Some(*value),
+        _ => None,
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::And =>
+        {
+            append_true_arm_conjuncts(program, binary.left, conjuncts);
+            append_true_arm_conjuncts(program, binary.right, conjuncts);
+        }
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::Equal =>
+        {
+            match (boolean(binary.left), boolean(binary.right)) {
+                (None, Some(true)) => append_true_arm_conjuncts(program, binary.left, conjuncts),
+                (Some(true), None) => append_true_arm_conjuncts(program, binary.right, conjuncts),
+                (None, Some(false)) | (Some(false), None) => {}
+                _ => conjuncts.push(expression),
+            }
+        }
+        _ => conjuncts.push(expression),
+    }
 }
 
 fn flatten_and_conjuncts(

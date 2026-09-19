@@ -165,7 +165,7 @@ fn value_proves_predicate(
 pub(super) fn append_element_replacement_predicates(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    contexts: &FlowBuildContext,
+    contexts: &mut FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -244,17 +244,138 @@ pub(super) fn append_element_replacement_predicates(
         let maximum = u8::try_from(bounds.maximum.to_i64()?).ok()?;
         (minimum <= maximum).then_some((minimum, maximum))
     });
-    let Some((minimum, maximum)) = bounds else {
-        return;
-    };
+    // A stored place is in a per-byte class when its captured bounds sit
+    // inside it, or when the source place itself proves the class -- a field
+    // byte carried across a state edge can keep its class through a join that
+    // dropped the differing exact bounds each arm left behind.
+    let source_place = contextual_expression_place(
+        program,
+        semantic,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        source_expression,
+    );
 
-    for predicate in crate::facts::field_domain::ByteSequencePredicate::ALL
+    // The carrier's classes are loop invariants: an element store re-proves
+    // them under the co-inductive hypothesis that the greatest claim the
+    // state's incoming edges could jointly sustain still holds. A weak
+    // mid-fixpoint delivery (a bound still unconstrained on one pass) shrinks
+    // the stored join below the invariant and the premise channel can never
+    // re-derive it, so the hypothesis is the recorded ceiling; the join
+    // itself still removes what no current edge can deliver, so a byte or
+    // propagation path that genuinely cannot carry a class refutes the
+    // candidate by itself.
+    let canonical_carrier =
+        canonical_place_from_semantic_place(program, semantic, semantic.places.get(carrier)).map(
+            |mut place| {
+                normalize_attached_place_root(program, machine_symbol, state_symbol, &mut place);
+                place.root = normalized_event_place_root(program, place.root);
+                place
+            },
+        );
+    let carrier_ceiling: Vec<crate::facts::field_domain::ByteSequencePredicate> = canonical_carrier
+        .as_ref()
+        .and_then(|place| {
+            (place.root == facts::PlaceRoot::Symbol(machine_symbol)).then(|| {
+                crate::flow::state_values::field_predicate_ceiling(
+                    contexts,
+                    state_symbol,
+                    &place.segments,
+                )
+            })
+        })
+        .map(<[_]>::to_vec)
+        .unwrap_or_default();
+    let stored_classes: Vec<_> = crate::facts::field_domain::ByteSequencePredicate::ALL
         .into_iter()
-        .filter(|predicate| predicate.is_subslice_preserving())
+        .map(|predicate| {
+            let stored = bounds
+                .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
+                || source_place.is_some_and(|place| {
+                    carrier_proves_predicate(
+                        program,
+                        semantic,
+                        &active_facts,
+                        machine_symbol,
+                        state_symbol,
+                        place,
+                        predicate,
+                        &[],
+                    )
+                });
+            (predicate, stored)
+        })
+        .collect();
+    let stored_in = |predicate: crate::facts::field_domain::ByteSequencePredicate| {
+        stored_classes
+            .iter()
+            .any(|(class, stored)| *class == predicate && *stored)
+    };
+    let ascii_stored = stored_in(crate::facts::field_domain::ByteSequencePredicate::AsciiOnly);
+    if let Some(carrier_place) = canonical_carrier
+        .as_ref()
+        .filter(|place| place.root == facts::PlaceRoot::Symbol(machine_symbol))
     {
+        // The byte side of this store alone -- no carrier premise -- is what
+        // the outgoing edges could deliver for the carrier if the state's
+        // predicate candidate holds. `valid_utf8` on the byte side is only
+        // `ascii_stored`: whether the carrier held ASCII (and so could not
+        // split a scalar) is the premise the candidate answers.
+        let byteok: Vec<_> = crate::facts::field_domain::ByteSequencePredicate::ALL
+            .into_iter()
+            .filter(|predicate| {
+                if predicate.is_subslice_preserving() {
+                    stored_in(*predicate)
+                } else {
+                    *predicate == crate::facts::field_domain::ByteSequencePredicate::ValidUtf8
+                        && ascii_stored
+                }
+            })
+            .collect();
+        if let Some((_, _, joined)) =
+            contexts
+                .element_store_potentials
+                .iter_mut()
+                .find(|(state, segments, _)| {
+                    *state == state_symbol && *segments == carrier_place.segments
+                })
+        {
+            // Every store into the carrier must keep the class, so the
+            // deliverable set is the intersection over the state's stores.
+            joined.retain(|predicate| byteok.contains(predicate));
+        } else {
+            contexts.element_store_potentials.push((
+                state_symbol,
+                carrier_place.segments.clone(),
+                byteok,
+            ));
+        }
+    }
+    for predicate in crate::facts::field_domain::ByteSequencePredicate::ALL {
         // Both supported per-byte classes are intervals. Their endpoints
         // establish every possible replacement byte, not just one witness.
-        if !predicate.holds_for(&[minimum, maximum])
+        // `ValidUtf8` is not subslice preserving in general -- an ASCII byte
+        // can split a multi-byte scalar -- but an all-ASCII carrier holds no
+        // multi-byte scalars, so an ASCII replacement keeps it decodable.
+        let byte_in_class = if predicate.is_subslice_preserving() {
+            stored_in(predicate)
+        } else if predicate == crate::facts::field_domain::ByteSequencePredicate::ValidUtf8 {
+            ascii_stored
+                && carrier_proves_predicate(
+                    program,
+                    semantic,
+                    &active_facts,
+                    machine_symbol,
+                    state_symbol,
+                    carrier,
+                    crate::facts::field_domain::ByteSequencePredicate::AsciiOnly,
+                    &carrier_ceiling,
+                )
+        } else {
+            false
+        };
+        if !byte_in_class
             || !carrier_proves_predicate(
                 program,
                 semantic,
@@ -263,6 +384,7 @@ pub(super) fn append_element_replacement_predicates(
                 state_symbol,
                 carrier,
                 predicate,
+                &carrier_ceiling,
             )
         {
             continue;
@@ -336,6 +458,7 @@ fn carrier_proves_predicate(
     state_symbol: SymbolHandle,
     carrier: PlaceHandle,
     predicate: crate::facts::field_domain::ByteSequencePredicate,
+    ceiling: &[crate::facts::field_domain::ByteSequencePredicate],
 ) -> bool {
     // State inputs use one attached storage root; authored accesses may still
     // use the current self parameter or an inherited field root.
@@ -346,6 +469,9 @@ fn carrier_proves_predicate(
         place.root = normalized_event_place_root(program, place.root);
         Some(place)
     };
+    if ceiling.contains(&predicate) {
+        return true;
+    }
     let Some(carrier) = canonical(carrier) else {
         return false;
     };

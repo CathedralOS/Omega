@@ -1338,6 +1338,77 @@ fn uninitialized_nominal_local_carries_zii_field_coverage() {
     check(&source, true);
 }
 
+/// A loop-carried element byte store keeps the carrier's declared predicate
+/// live across the back-edge: the `cell -> col -> cell` cycle rejoins
+/// `self.line`'s delivery every pass, and the stored byte's bound arrives
+/// through the nested guarded loops (the same `i`/`k` bound chain that sets
+/// `b`), so an early pass can deliver a weak set whose collapse the premise
+/// channel alone could never repair. Each edge's delivery potential -- this
+/// pass's own byte-class evidence -- is what the store's carrier premise
+/// assumes, so the fixpoint still reaches the declared set rather than
+/// starving on the collapsed join. This is the multiplication table's
+/// `clear`/`cell_store` shape, where `self.line[self.o0] = self.tc` under
+/// `emit_row`'s reader previously rejected `self.line requires [u8; N]::Utf8`.
+#[test]
+fn loop_carried_element_byte_stores_keep_the_carriers_declared_domain() {
+    let source = r#"domain [u8; 4]::Utf8 requires valid_utf8(self);
+        data Main { line: [u8; 4] in Utf8; i: i32 in Wrapping; k: i32 in Wrapping; p: i32 in Wrapping; b: u8; }
+        machine consume(text: &[u8; 4]) requires text in Utf8 { }
+        machine digit(value: i32 in Wrapping) -> u8 { ((value % 10 + 48) as u8 in Wrapping) as u8 }
+        machine Main::run(&mut self) {
+            self.line = "ok  ";
+            self.i = 1;
+            transition { _ -> row() }
+            state row(&mut self) {
+                transition self.i >= 1 && self.i <= 2 { true -> pinit() _ -> done() }
+            }
+            state pinit(&mut self) { self.k = 0; transition { _ -> col() } }
+            state col(&mut self) {
+                transition self.k >= 0 && self.k < 4 { true -> cell() _ -> bump() }
+            }
+            state cell(&mut self) {
+                self.p = self.i * self.k;
+                self.b = digit(self.p);
+                self.line[self.k] = self.b;
+                self.k = self.k + 1;
+                transition { _ -> col() }
+            }
+            state bump(&mut self) { self.i = self.i + 1; transition { _ -> row() } }
+            state done(&mut self) { consume(&self.line); }
+        }
+    "#
+    .to_string();
+    check(&source, true);
+}
+
+/// The potential premise is not a permission slip: a store whose byte leaves
+/// the declared class refutes the candidate through its own edge -- its
+/// delivery potential lacks the predicate, so the ceiling drops it, the mint
+/// gate stays shut, and the join honestly retires the carrier's coverage.
+#[test]
+fn loop_carried_out_of_class_byte_store_retires_the_carriers_domain() {
+    let source = r#"domain [u8; 4]::Utf8 requires valid_utf8(self);
+        data Main { line: [u8; 4] in Utf8; k: i32 in Wrapping; }
+        machine consume(text: &[u8; 4]) requires text in Utf8 { }
+        machine Main::run(&mut self) {
+            self.line = "ok  ";
+            self.k = 0;
+            transition { _ -> clear() }
+            state clear(&mut self) {
+                transition self.k >= 0 && self.k < 4 { true -> cell() _ -> done() }
+            }
+            state cell(&mut self) {
+                self.line[self.k] = 255;
+                self.k = self.k + 1;
+                transition { _ -> clear() }
+            }
+            state done(&mut self) { consume(&self.line); }
+        }
+    "#
+    .to_string();
+    check_rejection(&source, false, "requires");
+}
+
 /// The ZII seed is only the zero-value gate: a field whose domain the empty
 /// byte sequence violates stays unproved until a write establishes it, so
 /// `consume(&row)` on a fresh `NonEmpty` field still rejects.

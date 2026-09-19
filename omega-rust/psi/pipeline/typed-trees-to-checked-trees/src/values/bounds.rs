@@ -123,8 +123,10 @@ fn integer(
             left,
             right,
         } => {
-            let (left_type, left) = integer(left, source)?;
-            let (right_type, right) = integer(right, source)?;
+            let left_eval = integer(left, source);
+            let right_eval = integer(right, source);
+            let (left_type, left) = left_eval?;
+            let (right_type, right) = right_eval?;
             if left_type != *primitive_type || right_type != *primitive_type {
                 return None;
             }
@@ -224,6 +226,27 @@ fn binary(
         return Some(IntegerRange {
             minimum: BigInt::zero(),
             maximum: left.maximum.min(right.maximum.sub(&BigInt::from_u64(1))),
+        });
+    }
+    if matches!(
+        kind,
+        Kind::ExactDivide | Kind::WrappingDivide | Kind::SaturatingDivide
+    ) {
+        // Truncated division over a nonnegative dividend and a positive
+        // divisor is monotone and cannot leave the dividend's own span:
+        // the quotient sits between the extremes each endpoint pair produces.
+        if left.minimum < BigInt::zero() || right.minimum <= BigInt::zero() {
+            return None;
+        }
+        return Some(IntegerRange {
+            minimum: left
+                .minimum
+                .div_rem(&right.maximum)
+                .map(|(quotient, _)| quotient)?,
+            maximum: left
+                .maximum
+                .div_rem(&right.minimum)
+                .map(|(quotient, _)| quotient)?,
         });
     }
     let mut bounds = match kind {

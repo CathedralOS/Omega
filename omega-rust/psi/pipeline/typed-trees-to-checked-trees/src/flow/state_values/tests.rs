@@ -70,7 +70,13 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
         &state_mutation_summary_cache,
     );
     super::join(
+        &program,
         &mut context,
+        caller,
+        super::fields::BoundsSource {
+            state: entry.symbol,
+            tag: 0,
+        },
         super::StateValues {
             state: finish.symbol,
             fields: Vec::new(),
