@@ -1,0 +1,174 @@
+// INTERRUPT-TABLE-CANARY: the authored-roots leg of Cathedral's
+// exception-roots-and-timer boundary. `interrupt_table.omg` authors the
+// wire layout; this module authors the ROOTS that fill it -- a
+// fatal-exception entry declared as a boundary trait the compiler's
+// provider selection must resolve to a concrete machine before the
+// member can ever reach the installed-root ledger.
+//
+// The package declares WHAT installs (a boundary trait inheriting the
+// core interrupt-entry contract, pinned to an authored calling policy
+// whose plan demands a dedicated critical stack, masked preemption, and
+// interrupt-return exit); the compiler selects WHO satisfies it (the
+// conformance below), validates the policy's returned plan, and retains
+// the selected provider's schema, claims, and reach resolution. What
+// remains compiler-side is the deriver-owned entry/exit stub and the
+// runtime resource columns (stack/fuel/machine-state receipts) that
+// admitted-provider custody still supplies in the compiler test.
+//
+// `CriticalStackPolicy` fixes the divide-error member's stack class: the
+// wire profile admits class 11 for vector 0, and the emitted boundary
+// plan is what `admit_interrupt_table_member` joins against. Per-member
+// classes arrive with later authored members; a single authored root is
+// this leg's honest unit because `InterruptEntry::enter` is one shared
+// requirement identity -- every root trait inheriting it resolves to the
+// same requirement row, and installation-reach resolution today retains
+// exactly one selected resolution per requirement identity.
+
+use omega::language::core::interrupt;
+use omega::language::std::calling;
+
+// The acknowledgement's physical carrier: five aligned u64 cells hold the
+// physical-root, execution, invocation, policy, and acknowledgement words
+// the boundary hands the machine. The representation conformance makes
+// the compiler's materialization of `InterruptAcknowledgement` by value
+// exact -- `build.omg` selects it so the closed calling vocabulary can
+// compute the boundary signature's shapes.
+pub data CriticalAcknowledgementCarrier {
+    physical_root: u64;
+    execution: u64;
+    invocation: u64;
+    policy: u64;
+    acknowledgement: u64;
+}
+
+pub CriticalAcknowledgementRepresentation:
+    CriticalAcknowledgementCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;
+
+// The authored calling policy for dedicated critical-stack roots. The
+// compiler evaluates `plan` at build time against the materialized
+// boundary signature and VALIDATES the returned plan; a buggy plan is a
+// compile error, never unsafety. The plan demands: System V AMD64 entry
+// shape (the machine arrives with the acknowledgement in the
+// compiler-owned stack slot), interrupt-return exit, x86-64 long regime,
+// the interrupted state's full snapshot, arrival on dedicated critical
+// stack class 11 (the divide-error member's declared class), masked
+// preemption, and a transitive machine-state ceiling of general
+// registers plus flags -- the footprint the installed root's admitted
+// machine-state column must stay inside.
+pub data CriticalStackPolicy {
+}
+pub CriticalStackPolicyCalling: CriticalStackPolicy satisfies CallingPolicy;
+
+machine CriticalStackPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> accept(signature, signature.parameters[0])
+        _ -> reject()
+    }
+
+    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> size(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].byte_size == 40 {
+            true -> alignment(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].alignment == 8 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[root].byte_size,
+            alignment: 8
+        };
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::InterruptReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.interrupted_state.general_registers = true;
+        output.state.interrupted_state.vector_registers = true;
+        output.state.interrupted_state.flags = true;
+        output.state.interrupted_state.instruction_pointer = true;
+        output.state.interrupted_state.stack_pointer = true;
+        output.state.saved_state.general_registers = true;
+        output.state.saved_state.flags = true;
+        output.state.saved_state.instruction_pointer = true;
+        output.state.saved_state.stack_pointer = true;
+        output.state.restored_state.general_registers = true;
+        output.state.restored_state.flags = true;
+        output.state.restored_state.instruction_pointer = true;
+        output.state.restored_state.stack_pointer = true;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::Dedicated { class: 11 };
+        output.state.preemption = Preemption::Masked;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "fatal exception roots take exactly one acknowledgement",
+            },
+        }
+    }
+}
+
+// The fatal-exception root contract: one requirement inherited from
+// `InterruptEntry` (arrive holding a Pending acknowledgement, bound to
+// the authored calling policy). The compiler's provider selection
+// resolves this trait to the conformance below; nothing consumer-side
+// spells the provider's name again.
+pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPolicy> {
+}
+
+// The divide-error provider. Its entry machine realizes
+// `InterruptEntry::enter`: it accepts the Pending acknowledgement and
+// discharges the linear parameter through `complete` -- an honest
+// stand-in until the fatal-halt body arrives with the controller leg.
+// The declared `reaches PortIo` is the realization's own bound; the
+// compiler-derived installation-reach resolution records it against the
+// requirement's `MachineControl + PortIo` upper bound.
+pub data FatalExceptionProvider {
+}
+pub FatalExceptionProviderRoot: FatalExceptionProvider satisfies FatalExceptionRoot;
+
+machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
+    satisfies InterruptEntry::enter
+    reaches PortIo
+{
+    acknowledgement.complete();
+}
+
+// The mask-guard provider the entry's `InterruptMaskGuard in Active`
+// claim names: the compiler lowers `save_and_mask` through its intrinsic
+// binding, so arrival masking is an operator, not package-authored code.
+pub data InterruptMaskProvider {
+}
+pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptMaskControl;
+
+machine InterruptMaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
+    satisfies InterruptMaskControl::save_and_mask
+    via Binding::CompilerIntrinsic;
