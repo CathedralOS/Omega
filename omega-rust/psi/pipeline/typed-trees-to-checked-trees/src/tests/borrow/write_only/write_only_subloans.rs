@@ -1420,6 +1420,176 @@ fn immutable_value_bindings_cannot_form_write_only_borrows() {
 }
 
 #[test]
+fn transient_reborrow_arguments_face_the_access_pair_rule() {
+    // `&write`/`&mut` formed directly in a call argument is a referent
+    // reborrow when the target names a reference-typed binding: the transient
+    // formation builds no local loan to rebase through, so the binding's
+    // declared access is the parent authority and the lattice's access-pair
+    // rule decides — the same edge a `let`-bound reborrow faces. Before this
+    // rung the transient argument skipped the lattice entirely and `&write r`
+    // on `r: &u8` compiled with write authority invented from a shared
+    // referent.
+    for (name, expected, source) in [
+        (
+            "shared local into a helper argument",
+            "cannot derive WriteOnly reborrow authority from an exact Read parent loan",
+            r#"
+                machine stamp(slot: &write u8) {}
+
+                machine forward(source: &u8) {
+                    let r: &u8 = source;
+                    stamp(&write r);
+                }
+            "#,
+        ),
+        (
+            "shared local into a transition argument",
+            "cannot derive WriteOnly reborrow authority from an exact Read parent loan",
+            r#"
+                machine forward(source: &u8) {
+                    let r: &u8 = source;
+                    transition true { true -> stamp(&write r) }
+                    state stamp(&mut self, slot: &write u8) {}
+                }
+            "#,
+        ),
+        (
+            "shared-from-mutable local",
+            "cannot derive WriteOnly reborrow authority from an exact Read parent loan",
+            r#"
+                machine stamp(slot: &write u8) {}
+
+                machine forward(source: &mut u8) {
+                    let r: &u8 = source;
+                    stamp(&write r);
+                }
+            "#,
+        ),
+        (
+            "transient mutable borrow of a shared local",
+            "cannot derive Mutable reborrow authority from an exact Read parent loan",
+            r#"
+                machine stamp(slot: &mut u8) {}
+
+                machine forward(source: &u8) {
+                    let r: &u8 = source;
+                    stamp(&mut r);
+                }
+            "#,
+        ),
+        (
+            "transient mutable borrow of a write-only local",
+            "widens write-only",
+            r#"
+                machine stamp(slot: &mut u8) {}
+
+                machine forward(source: &mut u8) {
+                    let w: &write u8 = &write source;
+                    stamp(&mut w);
+                }
+            "#,
+        ),
+        (
+            "let-bound child of a shared local",
+            "cannot derive WriteOnly reborrow authority from an exact Read parent loan",
+            r#"
+                machine forward(source: &u8) {
+                    let r: &u8 = source;
+                    let w: &write u8 = &write r;
+                }
+            "#,
+        ),
+        (
+            "let-bound child of a shared parameter",
+            "cannot derive WriteOnly reborrow authority from an exact Read parent loan",
+            r#"
+                machine forward(source: &u8) {
+                    let w: &write u8 = &write source;
+                }
+            "#,
+        ),
+        (
+            "let-bound mutable child of a shared parameter",
+            "cannot derive Mutable reborrow authority from an exact Read parent loan",
+            r#"
+                machine forward(source: &u8) {
+                    let w: &mut u8 = &mut source;
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(expected),
+            "{name}: `&write`/`&mut` on a binding without the parent authority must take the lattice's directed diagnostic: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn transient_reborrow_arguments_keep_writable_authority() {
+    // The access-pair edge only rejects impossible derivations: a `&mut`
+    // binding lends `&write` and `&mut` children and a `&write` binding lends
+    // `&write` children, transient or `let`-bound alike.
+    for (name, source) in [
+        (
+            "write child of a mutable local reborrow",
+            r#"
+                machine stamp(slot: &write u8) {}
+
+                machine forward(source: &mut u8) {
+                    let r: &mut u8 = &mut source;
+                    stamp(&write r);
+                }
+            "#,
+        ),
+        (
+            "mutable child of a mutable local reborrow",
+            r#"
+                machine stamp(slot: &mut u8) {}
+
+                machine forward(source: &mut u8) {
+                    let r: &mut u8 = &mut source;
+                    stamp(&mut r);
+                }
+            "#,
+        ),
+        (
+            "write child of a write-only local",
+            r#"
+                machine stamp(slot: &write u8) {}
+
+                machine forward(source: &mut u8) {
+                    let w: &write u8 = &write source;
+                    stamp(&write w);
+                }
+            "#,
+        ),
+        (
+            "let-bound write child of a mutable parameter",
+            r#"
+                machine forward(source: &mut u8) {
+                    let w: &write u8 = &write source;
+                }
+            "#,
+        ),
+        (
+            "let-bound write child of a write-only local",
+            r#"
+                machine forward(source: &mut u8) {
+                    let w: &write u8 = &write source;
+                    let w2: &write u8 = &write w;
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!("{name}: a legal reborrow of a writable binding must stay admitted: {errors:?}")
+        });
+    }
+}
+
+#[test]
 fn mut_value_sources_stay_readable_beside_write_only_formation() {
     // A `mut` value binding is a formation source, never a write-only root:
     // ordinary reads through it in a state that forms `&write` subloans keep

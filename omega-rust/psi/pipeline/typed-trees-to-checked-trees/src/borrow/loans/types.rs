@@ -17,7 +17,7 @@ pub(super) fn is_reference_type(
     }
 }
 
-pub(super) fn reference_borrow_access_kind(
+pub(crate) fn reference_borrow_access_kind(
     program: &typed_trees::TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::BorrowAccessKind> {

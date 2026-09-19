@@ -35,6 +35,10 @@ use crate::checks::borrows::resources::retained_validation::{
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 
+// The transient-call-argument check in `calls::writability` shares the
+// lattice's directed attenuation diagnostic for reference-binding reborrows.
+pub(super) use retained_validation::invalid_reborrow_attenuation_diagnostic;
+
 /// Populate the checked-only direct-root and direct-reborrow resource closures
 /// before ordinary checked-fact replay.
 pub(super) fn initialize_checked_direct_borrow_resources(
@@ -43,7 +47,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
-    let direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
+    let direct = reconstruct_direct_borrow_resources(program, &facts.borrow, &facts.flow)?;
     let reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
     let installation = plan_resource_installation(&direct, &reborrows)?;
     let dispositions =
@@ -81,7 +85,7 @@ pub(super) fn replay_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
-    let expected_direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
+    let expected_direct = reconstruct_direct_borrow_resources(program, &facts.borrow, &facts.flow)?;
     let expected_reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
     let retained = facts
         .borrow
