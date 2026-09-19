@@ -4,6 +4,7 @@
 mod content_projections_and_old;
 mod content_reshuffles_and_partitions;
 mod retained_content_custody;
+mod structural_conservation;
 
 use crate::lower_typed_trees;
 use crate::tests::{

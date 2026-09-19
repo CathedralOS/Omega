@@ -1,7 +1,16 @@
-//! Lifetime-bound borrow custody of retained content and the domain
-//! applications it admits.
+//! Retained content requires owned sources or an exact lifetime-bound loan.
+//!
+//! The root check handles unique source retention; `borrowed_fields` applies
+//! the loan rule beneath structural shells. Bodyless multi-output authority
+//! additionally needs the closed partition equation checked by
+//! `partitioned_results`. Both structural gates share declaration traversal in
+//! `structural_sources`; none publishes call-result authority from annotations.
 
 mod borrowed_fields;
+mod partitioned_results;
+mod structural_sources;
+
+pub(crate) use partitioned_results::check_boundary_partition_results;
 
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;

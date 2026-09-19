@@ -23,7 +23,7 @@ use crate::checks::content::partition_wrappers::{
     AvailablePartitionSource, equation_contains_partition, instantiate_partition_wrapper,
     returned_partition_invocations,
 };
-use crate::checks::content::retained_custody::check_callable;
+use crate::checks::content::retained_custody::{check_boundary_partition_results, check_callable};
 use checked_trees::{
     CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     FlowClaimOutcomeSource,
@@ -338,6 +338,18 @@ pub(crate) fn check_retained_content_custody(
                 &mut diagnostics,
                 &mut retained_borrow_custodies,
             );
+            if trait_definition.is_boundary {
+                check_boundary_partition_results(
+                    program,
+                    facts,
+                    &format!("{}::{}", trait_definition.name, signature.name),
+                    signature.symbol,
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    &contracts,
+                    &mut diagnostics,
+                );
+            }
         }
     }
 
@@ -364,6 +376,18 @@ pub(crate) fn check_retained_content_custody(
                 &mut diagnostics,
                 &mut retained_borrow_custodies,
             );
+            if !machine.body_is_present {
+                check_boundary_partition_results(
+                    program,
+                    facts,
+                    &label,
+                    state.symbol,
+                    program.state_parameters(state),
+                    state.return_type,
+                    &contracts,
+                    &mut diagnostics,
+                );
+            }
         }
     }
 
