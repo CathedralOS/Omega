@@ -237,13 +237,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   across the required hosted matrix. Record unavailable hosts explicitly;
   scoped reruns do not establish a new complete baseline.
 
-  `calendar`'s current first failure (macOS ARM64, `2d0b5495c6`,
+  `calendar` checks successfully (macOS ARM64, `099f6c8d45`,
   `omega --check --target macos_arm64 samples/cli/simulation/calendar/main.omg`)
-  is preservation of `self.line`'s `Utf8` default-domain requirement at
-  `advance` and `clear_loop`, under **NOMINAL-FIELD-FLOW**. Preserve its
+  after the **NOMINAL-FIELD-FLOW** repair; the former `self.line` `Utf8`
+  failures at `advance` and `clear_loop` no longer reproduce. Preserve its
   qualified capacity-21 buffers and 20-byte live header; padding the header or
-  dropping encoding qualification is not a repair. Native grid/output
-  acceptance remains unverified.
+  dropping encoding qualification is not a repair. The native probe on
+  `b336531455` with the unchanged-delivery repair
+  (`RUST_MIN_STACK=67108864 omega run --target macos_arm64
+  samples/cli/simulation/calendar/main.omg`, stdin EOF) exits 200 at the
+  package-review gate with six pending policy rows, including a filesystem
+  capability. Complete the ordinary package review before rerunning; do not
+  bypass it. Native grid/output acceptance remains unverified. Check all five
+  week rows and the live 20-byte header: the existing `contains: 30` oracle
+  also matches the banner without proving the grid rendered.
 
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and their
   `compiler/tests/canary_suite/` owners to the promised checked/native stages.

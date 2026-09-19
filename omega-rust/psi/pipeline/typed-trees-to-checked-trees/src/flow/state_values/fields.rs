@@ -147,10 +147,9 @@ pub(super) struct FieldValue {
     /// evidence is genuinely absent refutes the candidate by itself, so the
     /// join can never ratify a predicate some path disproves.
     predicate_ceiling: Vec<ByteSequencePredicate>,
-    /// Joins that extended the accumulated interval. A bound that keeps
-    /// growing -- an incrementing counter's backedge -- is widened to its
-    /// primitive carrier so joins converge; an edge set that stabilizes keeps
-    /// the exact union.
+    /// Joins that extended the accumulated interval. Repeated growth widens
+    /// to authored thresholds or the primitive carrier. Unchanged deliveries
+    /// preserve that widening; genuinely changed evidence can retighten it.
     bounds_growth: u8,
 }
 
@@ -226,8 +225,9 @@ fn integer_literal_thresholds(program: &typed_trees::TypedTrees) -> Vec<numerics
 /// every edge proves it, so an edge that delivered none empties the join.
 /// A literal survives only when every edge delivered that same literal.
 /// A bound that keeps extending across joins -- a counter backedge that adds
-/// one each pass -- widens to the declared primitive carrier, which cannot
-/// grow again; an edge set that stabilizes keeps the exact union.
+/// one each pass -- widens to authored thresholds or the declared primitive
+/// carrier. Identical arrivals retain that widening rather than shrinking
+/// back to the raw union without new evidence.
 pub(super) fn meet(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -265,6 +265,14 @@ pub(super) fn meet(
                 }
             });
         if let Some(slot) = field.deliveries.iter_mut().find(|(key, _)| *key == source) {
+            // Replaying the same evidence must preserve any sound widening.
+            // Rejoining the raw deliveries would shrink that bound without
+            // learning anything new and unnecessarily dirty the destination.
+            // Compare the full delivery, including a missing call edge's
+            // freshly derived potential, so changed ceilings still propagate.
+            if slot.1 == delivery {
+                return true;
+            }
             slot.1 = delivery;
         } else {
             field.deliveries.push((source, delivery));

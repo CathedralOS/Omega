@@ -205,3 +205,100 @@ fn missing_integer_bounds_widen_the_join_to_the_carrier() {
     assert_eq!(previous.len(), 1);
     assert!(previous[0].integer_bounds.is_none());
 }
+
+#[test]
+fn potential_only_changes_propagate_through_missing_call_deliveries() {
+    let (program, machine) = fixture();
+    let mut incoming = field(1, 0, Vec::new());
+    incoming.edge_potential = ByteSequencePredicate::ALL.to_vec();
+    let mut initial = incoming.clone();
+    initial.seed_delivery(edge(0));
+    let mut previous = vec![initial];
+    let call = BoundsSource::invocation(SymbolHandle::from_arena_index(7), 0, 0);
+
+    // The call carries no row, but must still be recorded as a predecessor.
+    assert!(!meet(&program, &machine, &mut previous, &[], call));
+    assert_eq!(previous[0].deliveries.len(), 2);
+    assert_eq!(previous[0].predicate_ceiling(), ByteSequencePredicate::ALL);
+
+    // No literal, predicate, or bound changed: potential alone refutes the
+    // co-inductive claim and must invalidate the stored ceiling.
+    incoming.edge_potential.clear();
+    assert!(meet(
+        &program,
+        &machine,
+        &mut previous,
+        &[incoming],
+        edge(0)
+    ));
+    assert!(previous[0].predicate_ceiling().is_empty());
+
+    // The same absent call row now forwards the changed ceiling. Its stored
+    // delivery changes even though the joined result is already empty.
+    assert!(!meet(&program, &machine, &mut previous, &[], call));
+    let (_, delivery) = previous[0]
+        .deliveries
+        .iter()
+        .find(|(source, _)| *source == call)
+        .expect("call delivery");
+    assert!(delivery.potential.is_empty());
+}
+
+#[test]
+fn repeated_delivery_preserves_widening_until_the_evidence_changes() {
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+    use tokens_to_syntax_trees::parse_syntax_trees;
+
+    let source = "data Counter { count: u64; }
+                  machine Counter::tick(&mut self) { let limit: u64 = 10; }";
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = program.machines().first().expect("counter machine");
+    let counter = program.data_definitions().first().expect("counter data");
+    let symbol = program
+        .data_members(counter)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field.symbol),
+            _ => None,
+        })
+        .expect("count field");
+    let mut initial = field(1, 0, Vec::new());
+    initial.segments = vec![facts::PlaceSegment::Field { symbol }];
+    initial.integer_bounds = Some(range(0, 0));
+    initial.seed_delivery(edge(0));
+    let mut previous = vec![initial.clone()];
+    let mut incoming = initial;
+    for maximum in 1..=4 {
+        incoming.integer_bounds = Some(range(0, maximum));
+        assert!(meet(
+            &program,
+            machine,
+            &mut previous,
+            &[incoming.clone()],
+            edge(0)
+        ));
+    }
+    assert_eq!(previous[0].integer_bounds, Some(range(0, 10)));
+    assert!(
+        !meet(
+            &program,
+            machine,
+            &mut previous,
+            &[incoming.clone()],
+            edge(0)
+        ),
+        "identical edge evidence must not undo widening and dirty the state"
+    );
+    assert_eq!(previous[0].integer_bounds, Some(range(0, 10)));
+
+    // A genuinely tighter delivery still improves the live join; avoiding
+    // duplicate work must not make old widening an absorbing unknown.
+    incoming.integer_bounds = Some(range(0, 2));
+    assert!(meet(&program, machine, &mut previous, &[incoming], edge(0)));
+    assert_eq!(previous[0].integer_bounds, Some(range(0, 2)));
+}
