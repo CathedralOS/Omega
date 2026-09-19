@@ -174,6 +174,43 @@ fn a_home_anywhere_in_the_operand_tuple_participates() {
 }
 
 #[test]
+fn attached_self_parameter_names_the_semantic_home() {
+    // `Self` inside an attached machine's signature resolves to the machine's
+    // own symbol; `&self` on `machine [] Buffer::index` still participates as
+    // the attached `Buffer` operand the home check asks for.
+    let program = resolve_source(
+        "data Buffer { value: i32; }
+         data Index {}
+         machine [] Buffer::index(&self, index: Index) -> i32 { self.value }",
+    )
+    .expect("the self operand names the attached home");
+    assert_eq!(program.machines.len(), 1);
+}
+
+#[test]
+fn attached_self_bindings_with_one_shape_reject_as_duplicates() {
+    // Two `&self` bindings on one owner spell `Self` as their own machine
+    // symbols; both carry the attached data's operand shape, so they collide.
+    let diagnostics = resolve_source(
+        "data Buffer { value: i32; }
+         data Index {}
+         machine [] Buffer::index(&self, index: Index) -> i32 { self.value }
+         machine [] Buffer::at(&self, index: Index) -> i32 { self.value }",
+    )
+    .expect_err("two `&self` bindings on one owner share the operand shape");
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one diagnostic per duplicate: {diagnostics:?}");
+    };
+    assert!(
+        diagnostic.message.contains(
+            "`Buffer::at` binds the fixed operator token `[]` already bound by `Buffer::index`"
+        ),
+        "{}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn distinct_operand_shapes_may_share_a_token() {
     let program = resolve_source(
         "data Vec2 { x: u64; y: u64; }

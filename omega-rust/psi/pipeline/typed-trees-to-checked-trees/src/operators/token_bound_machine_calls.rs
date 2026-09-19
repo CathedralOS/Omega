@@ -23,11 +23,16 @@
 //! (`authored_selections/finalization.rs`), so the checked artifact retains
 //! the authored token occurrence together with the exact declaration.
 //!
-//! Only binary spellings at expression occurrences bind here. Any other
-//! resolved selection of a token-bearing machine -- `[]`, `[..]`, or a `==`
-//! folded into match-arm equality -- rejects at this pass: leaving the
-//! selection fact without a body binding would let a later consumer treat the
-//! operand primitives as builtin arithmetic, which the contract forbids.
+//! Binary and indexed spellings at expression occurrences bind here. `[]`
+//! (and `[..]` with both authored bounds and an exclusive end) supplies the
+//! collection place as the call receiver when the entry state's first
+//! parameter is `self`, matching the loan a named `collection.at(index)`
+//! forms; a token binding whose first operand is an ordinary parameter keeps
+//! the operands as ordinary arguments. Open or inclusive range uses, and any
+//! other resolved selection of a token-bearing machine -- a `==` folded into
+//! match-arm equality, say -- reject at this pass: leaving the selection fact
+//! without a body binding would let a later consumer treat the operand
+//! primitives as builtin arithmetic, which the contract forbids.
 
 use checked_trees::{CheckedOperatorOccurrence, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
@@ -68,14 +73,14 @@ pub(crate) fn bind_token_bound_machine_calls(
         if bindings.iter().any(|(bound, _)| *bound == expression) {
             continue;
         }
-        let is_binary_expression = operator_use.occurrence == CheckedOperatorOccurrence::Expression
+        let bindable = operator_use.occurrence == CheckedOperatorOccurrence::Expression
             && matches!(
                 program.expression_table.expression(expression),
-                ExpressionNode::Binary(_)
+                ExpressionNode::Binary(_) | ExpressionNode::Indexed(_)
             );
-        if !is_binary_expression {
+        if !bindable {
             diagnostics.push(Diagnostic::error(format!(
-                "`{}` was selected for its fixed operator token `{}` in a position whose body supply is not implemented; only binary expression uses bind the declaration's own body",
+                "`{}` was selected for its fixed operator token `{}` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body",
                 machine_name(program, selected),
                 operator_use.spelling.symbol(),
             )));
@@ -85,10 +90,36 @@ pub(crate) fn bind_token_bound_machine_calls(
     }
 
     for (expression, machine_symbol) in bindings {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-            unreachable!("binding candidates are binary expressions");
+        let operands = match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+            ExpressionNode::Indexed(indexed) => {
+                let mut operands = vec![indexed.collection];
+                match program.expression_table.expression(indexed.index) {
+                    // `a[..]`/`a[start..]`/`a[..=end]` leave the token binding
+                    // without every bound it declared; inclusive ends need the
+                    // `end + 1` normalization the spec assigns to `[..]`,
+                    // which is not yet formed here.
+                    ExpressionNode::Range(range)
+                        if range.end_inclusive
+                            || !range.start.is_valid()
+                            || !range.end.is_valid() =>
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "`{}` was selected for its fixed operator token `[..]` but the range use is open or inclusive; only `start..end` uses bind the declaration's own body",
+                            machine_name(program, machine_symbol),
+                        )));
+                        continue;
+                    }
+                    ExpressionNode::Range(range) => {
+                        operands.push(range.start);
+                        operands.push(range.end);
+                    }
+                    _ => operands.push(indexed.index),
+                }
+                operands
+            }
+            _ => unreachable!("binding candidates are binary or indexed expressions"),
         };
-        let operands = [binary.left, binary.right];
         let Some(machine) = program
             .machines()
             .iter()
@@ -107,10 +138,24 @@ pub(crate) fn bind_token_bound_machine_calls(
             continue;
         };
         let (entry_symbol, target) = (entry.symbol, machine.name.clone());
-        let arguments = program.expression_table.insert_expression_handles(operands);
+        let first_is_self = program
+            .state_parameters(entry)
+            .first()
+            .is_some_and(|parameter| parameter.is_self);
+        // A `self` first operand is the receiver: the collection place takes
+        // the same loan a named `collection.at(index)` call forms. Otherwise
+        // operand zero is an ordinary argument like any binary operand.
+        let (receiver, argument_handles) = if first_is_self {
+            (operands[0], &operands[1..])
+        } else {
+            (ExpressionHandle::invalid(), &operands[..])
+        };
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(argument_handles.iter().copied());
         *program.expression_table.expression_mut(expression) =
             ExpressionNode::Call(TableCallExpression {
-                receiver: ExpressionHandle::invalid(),
+                receiver,
                 target_symbol: entry_symbol,
                 static_machine_parameter: SymbolHandle::invalid(),
                 target,

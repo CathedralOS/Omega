@@ -202,7 +202,16 @@ fn names_symbol(
     home: SymbolHandle,
 ) -> bool {
     match type_reference {
-        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol == home,
+        TypeReference::Named { symbol, .. } => *symbol == home,
+        TypeReference::SelfType { symbol } => {
+            // `Self` inside an attached machine's signature resolves to the
+            // machine's own symbol; the operand participates as the attached
+            // data, so `&self` on `machine [] Buffer::index` names `Buffer`.
+            *symbol == home
+                || program.machines.iter().any(|machine| {
+                    machine.symbol == *symbol && machine.attached_data_symbol == home
+                })
+        }
         TypeReference::Generic(generic) => {
             generic.base_symbol == home
                 || program
@@ -549,7 +558,27 @@ fn type_shape(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> 
             None => format!("dyn {}", symbol_or_spelling(*symbol, name.as_str())),
         },
         TypeReference::Named { symbol, name } => symbol_or_spelling(*symbol, name.as_str()),
-        TypeReference::SelfType { symbol } => symbol_or_spelling(*symbol, "Self"),
+        TypeReference::SelfType { symbol } => {
+            // `Self` inside an attached machine's signature resolves to that
+            // machine's own symbol. The operand shape is the attached data's,
+            // so `&self` bindings on one owner collide as duplicate shapes
+            // instead of each spelling their own machine symbol.
+            let attached = program
+                .machines
+                .iter()
+                .find(|machine| machine.symbol == *symbol)
+                .filter(|machine| machine.attached_data_symbol.is_valid());
+            attached.map_or_else(
+                || symbol_or_spelling(*symbol, "Self"),
+                |machine| {
+                    let name = machine
+                        .attached_data
+                        .as_ref()
+                        .map_or("Self", |name| name.as_str());
+                    symbol_or_spelling(machine.attached_data_symbol, name)
+                },
+            )
+        }
         TypeReference::Unit => "()".to_owned(),
     }
 }
