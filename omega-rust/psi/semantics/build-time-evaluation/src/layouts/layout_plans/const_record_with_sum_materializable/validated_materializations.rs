@@ -397,10 +397,11 @@ impl ValidatedConstRecordSumFieldMaterialization {
 }
 
 /// Exact materialization custody for one closed record containing one or more
-/// direct, runtime-relevant conventional pure-sum fields.
+/// direct, runtime-relevant conventional case-bearing fields — pure sums or
+/// mixed common-field/case shapes.
 ///
 /// This deliberately distinct carrier keeps arrays of sums, recursively nested
-/// sums, mixed data shapes, and target-dependent sum geometry outside the first
+/// sums, and target-dependent sum geometry outside the first
 /// nested-sum rung. It does not implement `Clone`: replay reconstructs every
 /// outer and nested fact from the caller's current typed program.
 #[derive(Debug)]

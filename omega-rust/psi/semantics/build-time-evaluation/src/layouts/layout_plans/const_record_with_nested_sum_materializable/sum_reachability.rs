@@ -33,17 +33,13 @@ pub(super) fn record_sum_profile(
                     continue;
                 };
                 match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-                    DataShapeKind::Enum => profile.direct = true,
+                    // A mixed shape is one case-bearing interior: as a
+                    // record's direct member it profiles like a direct sum.
+                    DataShapeKind::Enum | DataShapeKind::Mixed => profile.direct = true,
                     DataShapeKind::Record => {
                         if reachability.type_contains_sum(field.type_reference)? {
                             profile.deeper = true;
                         }
-                    }
-                    DataShapeKind::Mixed => {
-                        return Err(MaterializationDiagnostic(format!(
-                            "field `{}` uses a mixed common-field/case shape",
-                            field.name
-                        )));
                     }
                     DataShapeKind::Empty => {}
                 }

@@ -41,6 +41,7 @@ fn conventional_sum_report_fingerprint_binds_ordinals_geometry_and_unnumbered_na
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields: Vec::new(),
         cases: vec![ConventionalSumCaseLayoutReport {
             case: "Ready".into(),
             member_identity: Some(41),
@@ -95,6 +96,7 @@ fn conventional_sum_replay_uses_numbered_identity_and_exact_geometry() {
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields: Vec::new(),
         cases: vec![ConventionalSumCaseLayoutReport {
             case: "Ready".into(),
             member_identity: Some(41),

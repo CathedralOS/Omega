@@ -68,7 +68,7 @@ pub fn project_conventional_record_with_sum_materialization_layout(
     }
     if level.child_sum_layouts.is_empty() {
         return Err(Diagnostic::error(
-            "nested-sum layout projection requires at least one direct runtime-relevant pure-sum field",
+            "nested-sum layout projection requires at least one direct runtime-relevant case-bearing field",
         ));
     }
     Ok((level.outer_layout, level.child_sum_layouts))
@@ -115,10 +115,11 @@ enum LiteralArrayHopRule {
 /// rule, beside the level's flat outer plan.
 struct RecordLevelChildren<'a> {
     outer_layout: LayoutPlanReport,
-    /// Direct conventional pure-sum fields, in authored order.
+    /// Direct conventional case-bearing fields — pure sums and mixed
+    /// common-field/case shapes — in authored order.
     child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
-    /// Direct nonzero literal fixed arrays of conventional pure sums, in
-    /// authored order.
+    /// Direct nonzero literal fixed arrays of conventional case-bearing
+    /// elements — pure sums and mixed shapes — in authored order.
     child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
     /// Direct nonzero literal fixed arrays of records still reaching sums,
     /// in authored order.
@@ -130,21 +131,20 @@ struct RecordLevelChildren<'a> {
 
 /// Project one record level's direct conventional-sum children from the exact
 /// target runtime layout. Every runtime-relevant field classifies under the
-/// same rule at every depth: a direct pure sum emits one
-/// `ConventionalSumFieldLayoutReport`; a nonzero literal `[S; N]` field whose
-/// element resolves to a conventional pure sum emits one compact
-/// `ConventionalSumArrayFieldLayoutReport`; a nonzero literal `[R; N]` field
-/// whose record element still reaches sums enters `record_array_paths` for
-/// the caller's own depth rule; a record field still reaching sums enters
-/// `record_paths` for the caller's own depth rule; anything else is an
-/// ordinary field. Whatever the classification, each field's report entries
-/// transcribe the plan's own placement vocabulary — whole `At`, per-element
-/// `At`, `IntegerAt`, or `Bits` — through `project_field_placement_entries`.
-/// Under `LiteralArrayHopRule::Flattened`,
+/// same rule at every depth: a direct pure sum or mixed common-field/case
+/// shape emits one `ConventionalSumFieldLayoutReport`; a nonzero literal
+/// `[S; N]` field whose element resolves to a conventional pure or mixed sum
+/// emits one compact `ConventionalSumArrayFieldLayoutReport`; a nonzero
+/// literal `[R; N]` field whose record element still reaches sums enters
+/// `record_array_paths` for the caller's own depth rule; a record field still
+/// reaching sums enters `record_paths` for the caller's own depth rule;
+/// anything else is an ordinary field. Whatever the classification, each
+/// field's report entries transcribe the plan's own placement vocabulary —
+/// whole `At`, per-element `At`, `IntegerAt`, or `Bits` — through
+/// `project_field_placement_entries`. Under `LiteralArrayHopRule::Flattened`,
 /// arrays reaching sums through consecutive literal element hops — nested
 /// literal arrays of sums or of records still reaching sums — flatten into
-/// one packed row; mixed elements, non-literal lengths, and zero-length hops
-/// remain fenced.
+/// one packed row; non-literal lengths and zero-length hops remain fenced.
 fn project_record_level_children<'a>(
     program: &'a CheckedTrees,
     plan: &'a LayoutPlan,
@@ -254,16 +254,14 @@ fn project_record_level_children<'a>(
                         )));
                     };
                     match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                        DataShapeKind::Enum => {
+                        // A mixed element is one case-bearing interior whose
+                        // common fields sit beside the overlay: the same
+                        // compact row carries it, with the element report
+                        // spelling the common-field rows itself.
+                        DataShapeKind::Enum | DataShapeKind::Mixed => {
                             child_sum_array_layouts.push(project_sum_array_row(
                                 program, plan, declared, laid, named, &hops, owner,
                             )?);
-                        }
-                        DataShapeKind::Mixed => {
-                            return Err(Diagnostic::error(format!(
-                                "{owner} outer field `{}` uses mixed common-field/case elements",
-                                declared.name
-                            )));
                         }
                         // A record element still reaching sums crosses its
                         // own record boundary inside each element: the level
@@ -300,7 +298,10 @@ fn project_record_level_children<'a>(
                             ))
                         })?;
                     match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                        DataShapeKind::Enum => {
+                        // A mixed shape is one case-bearing interior plus
+                        // leading common fields: the same row carries it and
+                        // the child report spells the common rows itself.
+                        DataShapeKind::Enum | DataShapeKind::Mixed => {
                             let TypeLayoutDescriptor::Named {
                                 symbol: laid_symbol,
                                 name: laid_name,
@@ -338,12 +339,6 @@ fn project_record_level_children<'a>(
                                 member_identity: declared.identity,
                                 layout: child_layout,
                             });
-                        }
-                        DataShapeKind::Mixed => {
-                            return Err(Diagnostic::error(format!(
-                                "{owner} outer field `{}` uses a mixed common-field/case shape",
-                                declared.name
-                            )));
                         }
                         DataShapeKind::Record => {
                             record_paths.push(RecordPathCandidate {
@@ -906,15 +901,9 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
         }
         if let Some(named) = exact_named_data(program, declared.type_reference)? {
             match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                DataShapeKind::Enum => {
+                DataShapeKind::Enum | DataShapeKind::Mixed => {
                     return Err(Diagnostic::error(format!(
-                        "nested-record sum materialization does not admit direct outer sum field `{}`",
-                        declared.name
-                    )));
-                }
-                DataShapeKind::Mixed => {
-                    return Err(Diagnostic::error(format!(
-                        "nested-record sum outer field `{}` uses a mixed common-field/case shape",
+                        "nested-record sum materialization does not admit direct outer case-bearing field `{}`",
                         declared.name
                     )));
                 }
@@ -1277,13 +1266,12 @@ fn record_sum_profile(
                     continue;
                 };
                 match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                    DataShapeKind::Enum => profile.direct = true,
+                    DataShapeKind::Enum | DataShapeKind::Mixed => profile.direct = true,
                     DataShapeKind::Record => {
                         if reachability.type_contains_sum(field.type_reference)? {
                             profile.deeper = true;
                         }
                     }
-                    DataShapeKind::Mixed => profile.deeper = true,
                     DataShapeKind::Empty => {}
                 }
             }
@@ -1674,9 +1662,11 @@ fn exact_named_data(
     Ok(Some(definition))
 }
 
-/// Project one exact closed pure sum from the already-built runtime layout.
-/// Common-field/case mixed shapes reject and remain a separate materialization
-/// rung.
+/// Project one exact closed pure sum or one closed common-field/case mixed
+/// shape from the already-built runtime layout. The returned report carries
+/// the case-bearing overlay either shape shares; a mixed shape additionally
+/// retains its leading common fields, packed between the tag and the shared
+/// payload base, in authored order.
 pub fn project_conventional_sum_materialization_layout(
     program: &CheckedTrees,
     plan: &LayoutPlan,
@@ -1695,9 +1685,10 @@ pub fn project_conventional_sum_materialization_layout(
         ));
     }
     let members = program.data_members(definition);
-    if DataDefinition::shape_kind_from_members(members) != DataShapeKind::Enum {
+    let shape_kind = DataDefinition::shape_kind_from_members(members);
+    if !matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
         return Err(Diagnostic::error(format!(
-            "conventional sum materialization requires a pure sum; `{}` is empty, a record, or a mixed common-field/case shape",
+            "conventional sum materialization requires a pure sum or a mixed common-field/case shape; `{}` is empty or a record",
             definition.name
         )));
     }
@@ -1709,13 +1700,13 @@ pub fn project_conventional_sum_materialization_layout(
         .filter(|layout| layout.symbol == data_symbol);
     let data_layout = layouts.next().ok_or_else(|| {
         Diagnostic::error(format!(
-            "runtime layout has no exact data row for pure sum `{}`",
+            "runtime layout has no exact data row for case-bearing `{}`",
             definition.name
         ))
     })?;
     if layouts.next().is_some() {
         return Err(Diagnostic::error(format!(
-            "runtime layout has duplicate data rows for pure sum `{}`",
+            "runtime layout has duplicate data rows for case-bearing `{}`",
             definition.name
         )));
     }
@@ -1725,16 +1716,45 @@ pub fn project_conventional_sum_materialization_layout(
     } = &data_layout.shape
     else {
         return Err(Diagnostic::error(format!(
-            "runtime layout row for pure sum `{}` is not case-bearing",
+            "runtime layout row for case-bearing `{}` is not case-bearing",
             definition.name
         )));
     };
-    if !plan.fields.span_or_empty(*common_fields).is_empty() {
+    let declared_common = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let laid_common = plan.fields.span_or_empty(*common_fields);
+    if declared_common.len() != laid_common.len() {
         return Err(Diagnostic::error(format!(
-            "pure sum `{}` unexpectedly retains common runtime fields",
-            definition.name
+            "case-bearing `{}` runtime layout has {} common fields; checked schema has {} relevant fields",
+            definition.name,
+            laid_common.len(),
+            declared_common.len()
         )));
     }
+    let common_fields = declared_common
+        .into_iter()
+        .zip(laid_common)
+        .map(|(declared, laid)| {
+            if declared.symbol != laid.symbol || declared.name != laid.name {
+                return Err(Diagnostic::error(format!(
+                    "case-bearing `{}` runtime common-field identity or order drifted at `{}`",
+                    definition.name, declared.name
+                )));
+            }
+            Ok(ConventionalSumPayloadFieldLayoutReport {
+                field: declared.name.to_string(),
+                member_identity: declared.identity,
+                offset: laid.offset as u64,
+                size: laid.layout.size as u64,
+                align: laid.layout.alignment as u64,
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     let declared_cases = members
         .iter()
@@ -1821,6 +1841,7 @@ pub fn project_conventional_sum_materialization_layout(
         tag_offset: 0,
         tag_size: ENUM_TAG_BYTES as u64,
         tag_align: ENUM_TAG_BYTES as u64,
+        common_fields,
         cases,
         size: data_layout.layout.size as u64,
         align: data_layout.layout.alignment as u64,

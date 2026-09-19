@@ -989,6 +989,172 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn mixed_sum_array_symbolic_materialization_realizes_on_both_linux_isas() {
+    // Mixed common-field/case elements, end to end: `events[i].sequence`
+    // spells the element's common field beside the tag while
+    // `events[i].Ready.value` spells the selected case's payload inside the
+    // shared overlay. Both paths stay symbolic until materialization composes
+    // `field At + index * element stride + member offset`; the same lowered
+    // writer then executes on the host ISA.
+    let main_path = write_program(
+        "mixed-sum-array-symbolic-field",
+        r#"
+data Event [copy] {
+    sequence: u8;
+    case Ready(value: u64);
+    case Waiting;
+}
+data Log [copy] {
+    header: u64;
+    events: [Event; 2];
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a mixed sum array record should check");
+    let plan = build_layout_plan(&checked, NativeTarget::linux_x64(), &[])
+        .expect("the mixed sum array record should lay out");
+    let arm_plan = build_layout_plan(&checked, NativeTarget::linux_arm64(), &[])
+        .expect("the mixed sum array record should lay out for linux_arm64");
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Log")
+        .expect("the log record");
+    let (report, array_fields) =
+        layout::project_conventional_record_with_sum_arrays_materialization_layout(
+            &checked,
+            &plan,
+            owner.symbol,
+        )
+        .expect("a mixed sum array field should project its conventional interior");
+    let (arm_report, arm_array_fields) =
+        layout::project_conventional_record_with_sum_arrays_materialization_layout(
+            &checked,
+            &arm_plan,
+            owner.symbol,
+        )
+        .expect("the same projection closes on linux_arm64");
+    assert_eq!(
+        report, arm_report,
+        "both Linux ISAs retain the same outer report geometry"
+    );
+    assert_eq!(
+        array_fields, arm_array_fields,
+        "both Linux ISAs retain the same repeated mixed interior"
+    );
+    let array_row = array_fields
+        .iter()
+        .find(|row| row.field == "events")
+        .expect("the mixed sum array field row");
+    assert_eq!(array_row.element_count, 2);
+    assert_eq!(array_row.element_stride, 16);
+    assert_eq!(array_row.element_layout.size, 16);
+    let sequence = array_row
+        .element_layout
+        .common_fields
+        .iter()
+        .find(|field| field.field == "sequence")
+        .expect("the element retains its common field row");
+    assert_eq!((sequence.offset, sequence.size), (4, 1));
+    let ready = array_row
+        .element_layout
+        .cases
+        .iter()
+        .find(|case| case.case == "Ready")
+        .expect("the element retains its Ready case");
+    assert_eq!(
+        ready
+            .payload_fields
+            .iter()
+            .map(|field| (field.field.as_str(), field.offset, field.size))
+            .collect::<Vec<_>>(),
+        vec![("value", 8, 8)]
+    );
+    let carrier = match array_row.member_identity {
+        Some(identity) => SymbolicFieldInnerLayout::new_sum_array_numbered(
+            array_row.field.clone(),
+            identity,
+            array_row.element_layout.clone(),
+            array_row.element_count,
+            array_row.element_stride,
+        ),
+        None => SymbolicFieldInnerLayout::new_sum_array(
+            array_row.field.clone(),
+            array_row.element_layout.clone(),
+            array_row.element_count,
+            array_row.element_stride,
+        ),
+    };
+
+    let entry_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let data_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new_indexed("events", 1, 8, data_target)
+            .expect("repeated mixed field")
+            .with_inner_segment(SymbolicFieldPathSegment::new("sequence")),
+        SymbolicFieldValue::new_indexed("events", 0, 64, entry_target)
+            .expect("repeated mixed field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("Ready")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("value")),
+            ),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        &report,
+        std::slice::from_ref(&carrier),
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("mixed element member paths derive writes inside each element");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved element member paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    // `events` spans 8..40 at a 16-byte stride: element 1's `sequence` lands
+    // at 8 + 16 + 4 = 28 and element 0's `Ready.value` at 8 + 0 + 8 = 16.
+    assert_eq!(
+        writes,
+        [("events[1].sequence", 28), ("events[0].Ready.value", 16),]
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the mixed element writes derive a writer");
+    let mut expected = vec![0xa5_u8; 40];
+    expected[28] = 0x7f;
+    expected[16..24].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &expected, |resolved| {
+        if resolved == entry_target {
+            0x1122_3344_5566_7788
+        } else {
+            assert_eq!(resolved, data_target);
+            0x7f
+        }
+    });
+}
+
+#[test]
 fn recursive_sum_symbolic_materialization_realizes_on_both_linux_isas() {
     // Recursive shapes under the general rule, end to end:
     // `middle.inner.choice.Run.callback` crosses two record boundaries before

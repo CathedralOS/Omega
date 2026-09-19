@@ -1,4 +1,6 @@
-//! Value-sensitive materialization of one conventional closed pure sum.
+//! Value-sensitive materialization of one conventional closed case-bearing
+//! value: a pure sum, or a mixed shape whose common fields pack between the
+//! tag and the shared case-payload overlay.
 
 use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
@@ -191,9 +193,10 @@ impl ValidatedConstSumMaterialization {
     }
 }
 
-/// Validate one closed non-generic `[copy]` pure-sum value against the exact
-/// compiler-owned conventional runtime layout. This does not admit
-/// programmable tag/case placement or mixed common-field shapes.
+/// Validate one closed non-generic `[copy]` case-bearing value against the
+/// exact compiler-owned conventional runtime layout: a pure sum, or a mixed
+/// shape whose value spells its common fields beside the selected case's
+/// payload. This does not admit programmable tag/case placement.
 pub fn validate_const_materializable_conventional_sum(
     typed: &TypedTrees,
     schema_name: &str,
@@ -248,8 +251,23 @@ fn derive_sum_bytes(
     validate_conventional_layout(typed, data, layout, schema_report_fingerprint)?;
     let (selected, selected_layout, payload) = selected_case(typed, data, layout, value)?;
 
+    let declared_common = typed
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
     let mut active = vec![data.symbol];
-    validate_selected_payload(typed, selected, payload, &mut active)?;
+    validate_selected_payload(
+        typed,
+        data,
+        selected,
+        &declared_common,
+        payload,
+        &mut active,
+    )?;
     let byte_len = usize::try_from(layout.size).map_err(|_| {
         MaterializationDiagnostic("ConstMaterializable sum extent exceeds compiler host".into())
     })?;
@@ -268,53 +286,40 @@ fn derive_sum_bytes(
         }
     }
 
+    // A mixed shape's common fields pack between the tag and the shared
+    // payload overlay; the merged value spells them beside the selected
+    // case's payload fields.
+    for (declared, field_layout) in declared_common.iter().zip(&layout.common_fields) {
+        encode_member_into(
+            typed,
+            data,
+            payload,
+            declared,
+            field_layout,
+            byte_order,
+            &mut bytes,
+            &data.name,
+            "common field",
+        )?;
+    }
+
     for (declared, field_layout) in typed
         .data_payload_fields(selected)
         .iter()
         .filter(|field| !field.relevance.is_erased())
         .zip(&selected_layout.payload_fields)
     {
-        let field_value = payload
-            .iter()
-            .find(|(name, _)| name == declared.name.as_str())
-            .map(|(_, value)| value)
-            .ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "value::{} lost payload field `{}` after validation",
-                    selected.name, declared.name
-                ))
-            })?;
-        let encoded = encode_typed_owned_value(
+        encode_member_into(
             typed,
-            declared.type_reference,
-            field_value,
+            data,
+            payload,
+            declared,
+            field_layout,
             byte_order,
-            &mut vec![data.symbol],
+            &mut bytes,
+            &selected.name,
+            "payload field",
         )?;
-        if encoded.len() as u64 != field_layout.size {
-            return Err(MaterializationDiagnostic(format!(
-                "value::{} payload field `{}` encoded to {} bytes, expected {}",
-                selected.name,
-                declared.name,
-                encoded.len(),
-                field_layout.size
-            )));
-        }
-        let start = usize::try_from(field_layout.offset).map_err(|_| {
-            MaterializationDiagnostic("ConstMaterializable sum field offset exceeds host".into())
-        })?;
-        let end = start.checked_add(encoded.len()).ok_or_else(|| {
-            MaterializationDiagnostic("ConstMaterializable sum field range overflows".into())
-        })?;
-        bytes
-            .get_mut(start..end)
-            .ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "value::{} payload field `{}` writes outside the conventional sum extent",
-                    selected.name, declared.name
-                ))
-            })?
-            .copy_from_slice(&encoded);
     }
 
     Ok(DerivedSumMaterialization {
@@ -323,6 +328,63 @@ fn derive_sum_bytes(
         selected_case_ordinal: selected_layout.ordinal,
         bytes,
     })
+}
+
+/// Encodes one declared member's value out of the merged case payload and
+/// writes it at the layout row's exact offset. Common fields and case payload
+/// fields share the merged `payload` spelling and this same write path.
+fn encode_member_into(
+    typed: &TypedTrees,
+    data: &DataDefinition,
+    payload: &[(String, BuildTimeValue)],
+    declared: &typed_trees::data::DataField,
+    field_layout: &layout_plans::ConventionalSumPayloadFieldLayoutReport,
+    byte_order: ByteOrder,
+    bytes: &mut [u8],
+    owner_display: &str,
+    member_kind: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    let field_value = payload
+        .iter()
+        .find(|(name, _)| name == declared.name.as_str())
+        .map(|(_, value)| value)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "value::{owner_display} lost {member_kind} `{}` after validation",
+                declared.name
+            ))
+        })?;
+    let encoded = encode_typed_owned_value(
+        typed,
+        declared.type_reference,
+        field_value,
+        byte_order,
+        &mut vec![data.symbol],
+    )?;
+    if encoded.len() as u64 != field_layout.size {
+        return Err(MaterializationDiagnostic(format!(
+            "value::{owner_display} {member_kind} `{}` encoded to {} bytes, expected {}",
+            declared.name,
+            encoded.len(),
+            field_layout.size
+        )));
+    }
+    let start = usize::try_from(field_layout.offset).map_err(|_| {
+        MaterializationDiagnostic("ConstMaterializable sum field offset exceeds host".into())
+    })?;
+    let end = start.checked_add(encoded.len()).ok_or_else(|| {
+        MaterializationDiagnostic("ConstMaterializable sum field range overflows".into())
+    })?;
+    bytes
+        .get_mut(start..end)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "value::{owner_display} {member_kind} `{}` writes outside the conventional sum extent",
+                declared.name
+            ))
+        })?
+        .copy_from_slice(&encoded);
+    Ok(())
 }
 
 fn validate_sum_owner(
@@ -347,9 +409,10 @@ fn validate_sum_owner(
             data.name
         )));
     }
-    if DataDefinition::shape_kind_from_members(typed.data_members(data)) != DataShapeKind::Enum {
+    let shape_kind = DataDefinition::shape_kind_from_members(typed.data_members(data));
+    if !matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
         return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable conventional sum `{}` is empty, a record, or a mixed common-field/case shape",
+            "ConstMaterializable conventional sum `{}` is empty or a record",
             data.name
         )));
     }
@@ -377,6 +440,69 @@ fn validate_conventional_layout(
                 .into(),
         ));
     }
+    // A mixed shape's common fields pack sequentially right after the tag;
+    // their aligned end is the floor under every case's payload overlay.
+    let declared_common = typed
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if declared_common.len() != layout.common_fields.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable sum layout has {} common fields, expected {} for `{}`",
+            layout.common_fields.len(),
+            declared_common.len(),
+            data.name
+        )));
+    }
+    let mut common_align = 1u64;
+    let mut common_raw_end = CONVENTIONAL_TAG_SIZE;
+    for (field, reported) in declared_common.iter().zip(&layout.common_fields) {
+        if reported.field != field.name.as_str() || reported.member_identity != field.identity {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable sum common-field identity/order drifted at `{}`",
+                field.name
+            )));
+        }
+        let (size, align) = reflected_nested_member_layout(
+            typed,
+            field.type_reference,
+            &mut vec![data.symbol],
+        )
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "ConstMaterializable sum common field `{}` is outside the target-independent fixed aggregate subset",
+                field.name
+            ))
+        })?;
+        common_align = common_align.max(align);
+        let offset = checked_align_up(common_raw_end, align).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "ConstMaterializable sum common field `{}` alignment overflows",
+                field.name
+            ))
+        })?;
+        if reported.offset != offset || reported.size != size || reported.align != align {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable sum common field `{}` geometry drifted",
+                field.name
+            )));
+        }
+        common_raw_end = offset.checked_add(size).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "ConstMaterializable sum common field `{}` extent overflows",
+                field.name
+            ))
+        })?;
+    }
+    let common_end = checked_align_up(common_raw_end, common_align)
+        .ok_or_else(|| {
+            MaterializationDiagnostic("ConstMaterializable sum common extent overflows".into())
+        })?
+        .max(CONVENTIONAL_TAG_SIZE);
     let declared_cases = typed
         .data_members(data)
         .iter()
@@ -448,11 +574,11 @@ fn validate_conventional_layout(
         case_shapes.push((declared, shapes));
     }
 
-    let expected_align = CONVENTIONAL_TAG_ALIGN.max(payload_align);
-    let payload_base = checked_align_up(CONVENTIONAL_TAG_SIZE, payload_align).ok_or_else(|| {
+    let expected_align = CONVENTIONAL_TAG_ALIGN.max(common_align).max(payload_align);
+    let payload_base = checked_align_up(common_end, payload_align).ok_or_else(|| {
         MaterializationDiagnostic("ConstMaterializable sum payload base overflows".into())
     })?;
-    let mut maximum_end = CONVENTIONAL_TAG_SIZE;
+    let mut maximum_end = common_end;
     for (case, fields) in case_shapes {
         let mut offset = payload_base;
         for (size, align, reported) in fields {
@@ -509,17 +635,19 @@ fn selected_case<'a>(
             value_kind(value)
         )));
     };
-    let mut matches =
-        typed
-            .data_members(data)
-            .iter()
-            .enumerate()
-            .filter_map(|(ordinal, member)| match member {
-                DataMember::Variant(candidate) if candidate.name.as_str() == variant => {
-                    Some((ordinal, candidate))
-                }
-                DataMember::Field(_) | DataMember::Variant(_) => None,
-            });
+    // Case layout rows are indexed by variant order alone; a mixed shape's
+    // leading common fields do not shift the case ordinals.
+    let mut matches = typed
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(candidate) => Some(candidate),
+            DataMember::Field(_) => None,
+        })
+        .enumerate()
+        .filter_map(|(ordinal, candidate)| {
+            (candidate.name.as_str() == variant).then_some((ordinal, candidate))
+        });
     let (ordinal, selected) = matches.next().ok_or_else(|| {
         MaterializationDiagnostic(format!(
             "value names unknown case `{variant}` of `{}`",
@@ -538,42 +666,57 @@ fn selected_case<'a>(
     Ok((selected, selected_layout, payload))
 }
 
+/// Validates the merged member spelling of a `BuildTimeValue::Case`: a mixed
+/// shape's value carries its common fields beside the selected case's payload
+/// fields in the same `payload` vector, so the expected member set is the
+/// owner's common fields followed by the selected case's payload fields.
 fn validate_selected_payload(
     typed: &TypedTrees,
+    data: &DataDefinition,
     selected: &DataVariant,
+    declared_common: &[&typed_trees::data::DataField],
     payload: &[(String, BuildTimeValue)],
     active: &mut Vec<symbols::SymbolHandle>,
 ) -> Result<(), MaterializationDiagnostic> {
     let declared = typed.data_payload_fields(selected);
-    if payload.len() != declared.len() {
+    let expected = declared_common.len() + declared.len();
+    if payload.len() != expected {
         return Err(MaterializationDiagnostic(format!(
             "value::{} expected {} payload field(s), found {}",
             selected.name,
-            declared.len(),
+            expected,
             payload.len()
         )));
     }
-    for field in declared {
+    for (field, owner_display, member_kind) in declared_common
+        .iter()
+        .map(|field| (*field, data.name.as_str(), "common field"))
+        .chain(
+            declared
+                .iter()
+                .map(|field| (field, selected.name.as_str(), "payload field")),
+        )
+    {
         let mut matches = payload
             .iter()
             .filter(|(name, _)| name == field.name.as_str());
         let (_, value) = matches.next().ok_or_else(|| {
             MaterializationDiagnostic(format!(
-                "value::{} is missing payload field `{}`",
-                selected.name, field.name
+                "value::{owner_display} is missing {member_kind} `{}`",
+                field.name
             ))
         })?;
         if matches.next().is_some() {
             return Err(MaterializationDiagnostic(format!(
-                "value::{} repeats payload field `{}`",
-                selected.name, field.name
+                "value::{owner_display} repeats {member_kind} `{}`",
+                field.name
             )));
         }
         validate_value(
             typed,
             field.type_reference,
             value,
-            &format!("value::{}.{}", selected.name, field.name),
+            &format!("value::{owner_display}.{}", field.name),
             active,
         )?;
     }

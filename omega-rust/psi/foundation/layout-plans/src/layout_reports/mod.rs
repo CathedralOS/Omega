@@ -86,7 +86,8 @@ pub struct ConventionalSumCaseLayoutReport {
     pub payload_fields: Vec<ConventionalSumPayloadFieldLayoutReport>,
 }
 
-/// Exact compiler-owned conventional layout for one closed pure sum.
+/// Exact compiler-owned conventional layout for one closed pure sum or one
+/// closed common-field/case mixed shape.
 ///
 /// This report does not extend programmable `Layout` policies with tag/case
 /// placement. It is a target-closed observation of the existing fixed runtime
@@ -99,6 +100,11 @@ pub struct ConventionalSumLayoutReport {
     pub tag_offset: u64,
     pub tag_size: u64,
     pub tag_align: u64,
+    /// A mixed shape's leading common fields in authored order: absolute byte
+    /// offsets inside the complete value, packed between the tag and the
+    /// shared payload overlay. Empty for a pure sum — the field's presence on
+    /// the report does not change pure-sum geometry or fingerprints.
+    pub common_fields: Vec<ConventionalSumPayloadFieldLayoutReport>,
     pub cases: Vec<ConventionalSumCaseLayoutReport>,
     pub size: u64,
     pub align: u64,
@@ -434,6 +440,18 @@ pub fn normalized_conventional_sum_layout_report_fingerprint(
     ] {
         hash_fingerprint_u64(&mut hash, value);
     }
+    // A pure sum's empty common-field list contributes nothing, so an
+    // existing pure-sum report keeps its fingerprint byte for byte; a mixed
+    // report's common rows hash in between the case count and the case rows.
+    if !layout.common_fields.is_empty() {
+        hash_fingerprint_u64(&mut hash, layout.common_fields.len() as u64);
+        for field in &layout.common_fields {
+            hash_optional_member_identity(&mut hash, field.member_identity, &field.field);
+            for value in [field.offset, field.size, field.align] {
+                hash_fingerprint_u64(&mut hash, value);
+            }
+        }
+    }
     for case in &layout.cases {
         hash_fingerprint_u64(&mut hash, u64::from(case.ordinal));
         hash_optional_member_identity(&mut hash, case.member_identity, &case.case);
@@ -464,7 +482,24 @@ pub fn conventional_sum_layout_reports_match_for_replay(
         || current.size != retained.size
         || current.align != retained.align
         || current.cases.len() != retained.cases.len()
+        || current.common_fields.len() != retained.common_fields.len()
     {
+        return false;
+    }
+
+    let common_fields_match = current
+        .common_fields
+        .iter()
+        .zip(&retained.common_fields)
+        .all(|(current_field, retained_field)| {
+            current_field.member_identity == retained_field.member_identity
+                && (current_field.member_identity.is_some()
+                    || current_field.field == retained_field.field)
+                && current_field.offset == retained_field.offset
+                && current_field.size == retained_field.size
+                && current_field.align == retained_field.align
+        });
+    if !common_fields_match {
         return false;
     }
 
@@ -496,6 +531,17 @@ pub fn conventional_sum_layout_reports_match_for_replay(
 fn conventional_sum_member_identities_are_unambiguous(
     layout: &ConventionalSumLayoutReport,
 ) -> bool {
+    for (index, field) in layout.common_fields.iter().enumerate() {
+        if layout.common_fields[..index]
+            .iter()
+            .any(|prior| match field.member_identity {
+                Some(identity) => prior.member_identity == Some(identity),
+                None => prior.member_identity.is_none() && prior.field == field.field,
+            })
+        {
+            return false;
+        }
+    }
     for (index, case) in layout.cases.iter().enumerate() {
         if layout.cases[..index]
             .iter()

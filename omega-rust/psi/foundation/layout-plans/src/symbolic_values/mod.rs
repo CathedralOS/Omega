@@ -68,7 +68,9 @@ impl RelocationTarget {
 /// until assignment. Below a conventional sum boundary the next hop spells
 /// the selected case and the final hop spells that case's payload field;
 /// a case payload always ends a sum path, so it never carries a carrier or
-/// a further segment.
+/// a further segment. Below a mixed common-field/case shape a single hop may
+/// instead spell one common field directly — common members sit between the
+/// tag and the shared overlay — and that hop likewise ends the path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldPathSegment {
     pub field: String,
@@ -236,7 +238,9 @@ impl SymbolicFieldValue {
     /// `field.inner.sub` spells each record boundary as data. When the bound
     /// carrier describes a conventional sum, the following two segments spell
     /// `field.Case.payload` (or `field[index].Case.payload` over a repeated
-    /// sum field); the same hop vocabulary carries that boundary too. Each
+    /// sum field); a mixed shape's common field is the one-segment spelling
+    /// `field.common` (or `field[index].common`). The same hop vocabulary
+    /// carries that boundary too. Each
     /// boundary's placement comes from a [`SymbolicFieldInnerLayout`] carrier
     /// supplied to [`derive_symbolic_materialization_with_inner_layouts`]; no
     /// concrete address or inner offset is baked into the value itself.
@@ -265,18 +269,20 @@ pub enum SymbolicFieldInteriorLayout {
     /// [`SymbolicFieldInnerLayout::with_inner_layout`], so the carrier tree
     /// mirrors the record boundaries a path crosses.
     Record(LayoutPlanReport),
-    /// The field stores one conventional pure sum; this is the compiler-owned
-    /// tag-prefixed overlay shared with build-time const materialization. A
-    /// path crossing the boundary spells the selected case and that case's
-    /// payload field as its last two hops; neither hop carries an element
-    /// index. The tag and the inactive cases' payload bytes stay staged
-    /// content: the writer only realizes the addressed payload slot.
+    /// The field stores one conventional sum — a pure case overlay or a
+    /// mixed common-field/case shape; this is the compiler-owned tag-prefixed
+    /// layout shared with build-time const materialization. A path crossing
+    /// the boundary spells the selected case and that case's payload field as
+    /// its last two hops, or one mixed common field as its last hop; neither
+    /// spelling carries an element index. The tag and the inactive cases'
+    /// payload bytes stay staged content: the writer only realizes the
+    /// addressed member slot.
     Sum(ConventionalSumLayoutReport),
-    /// The field repeats one conventional pure sum at a constant byte stride.
-    /// The outer plan retains the field's whole array extent as one `At`
-    /// placement, so the path's element index composes
-    /// `index * element_stride` inside that extent before the case and
-    /// payload hops resolve inside the addressed element. `element_stride`
+    /// The field repeats one conventional sum — pure or mixed — at a constant
+    /// byte stride. The outer plan retains the field's whole array extent as
+    /// one `At` placement or one `At` per element, so the path's element
+    /// index composes `index * element_stride` inside that extent before the
+    /// member hops resolve inside the addressed element. `element_stride`
     /// must cover the complete `element_layout` extent so repeated elements
     /// cannot overlap.
     SumArray {

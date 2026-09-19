@@ -250,17 +250,11 @@ pub(crate) fn derive_record_with_sum_bytes(
             continue;
         };
         match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-            DataShapeKind::Enum => {
+            DataShapeKind::Enum | DataShapeKind::Mixed => {
                 if field.relevance.is_erased() {
                     continue;
                 }
                 direct_sums.push((field, named));
-            }
-            DataShapeKind::Mixed => {
-                return Err(MaterializationDiagnostic(format!(
-                    "field `{}` uses a mixed common-field/case shape, which is outside the conventional pure-sum rung",
-                    field.name
-                )));
             }
             DataShapeKind::Empty | DataShapeKind::Record => {}
         }
@@ -268,7 +262,7 @@ pub(crate) fn derive_record_with_sum_bytes(
     if direct_sums.is_empty() {
         return Err(
         MaterializationDiagnostic(
-            "nested-sum ConstMaterializable requires at least one direct runtime-relevant pure-sum field"
+            "nested-sum ConstMaterializable requires at least one direct runtime-relevant case-bearing field"
                 .into(),
         ));
     }
@@ -608,7 +602,7 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
             } => {
                 if let Some(named) = exact_named_data(typed, *element_type)? {
                     match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-                        DataShapeKind::Enum => {
+                        DataShapeKind::Enum | DataShapeKind::Mixed => {
                             if *length == 0 {
                                 return Err(MaterializationDiagnostic(format!(
                                     "sum-array field `{}` must have nonzero literal length",
@@ -618,20 +612,16 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
                             selected_arrays.push((field, named, *length));
                             selected_direct_array = true;
                         }
-                        DataShapeKind::Mixed => {
-                            return Err(MaterializationDiagnostic(format!(
-                                "field `{}` uses an array of mixed common-field/case elements",
-                                field.name
-                            )));
-                        }
                         DataShapeKind::Empty | DataShapeKind::Record => {}
                     }
                 }
             }
             _ => {
                 if let Some(named) = exact_named_data(typed, field.type_reference)?
-                    && DataDefinition::shape_kind_from_members(typed.data_members(named))
-                        == DataShapeKind::Enum
+                    && matches!(
+                        DataDefinition::shape_kind_from_members(typed.data_members(named)),
+                        DataShapeKind::Enum | DataShapeKind::Mixed
+                    )
                 {
                     return Err(MaterializationDiagnostic(
                         "ConstMaterializable sum-array rung does not combine direct sum fields with its array field"

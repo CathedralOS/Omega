@@ -162,14 +162,11 @@ pub(super) fn classify_record_level_children<'a>(
                     )));
                 }
                 match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-                    DataShapeKind::Enum => {
+                    // A mixed element is one case-bearing interior with
+                    // common fields beside the overlay: the same compact
+                    // element row carries it.
+                    DataShapeKind::Enum | DataShapeKind::Mixed => {
                         children.direct_sum_arrays.push((field, named, hops));
-                    }
-                    DataShapeKind::Mixed => {
-                        return Err(MaterializationDiagnostic(format!(
-                            "field `{}` uses an array of mixed common-field/case elements",
-                            field.name
-                        )));
                     }
                     // A record element crosses its own record boundary
                     // inside each index — the same literal element hop the
@@ -200,17 +197,12 @@ pub(super) fn classify_record_level_children<'a>(
                     )));
                 };
                 match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-                    // A direct sum field coexists with the level's deeper
-                    // record paths: it takes the same per-field custody the
-                    // leaf level retains through `child_sum_layouts`.
-                    DataShapeKind::Enum => {
+                    // A direct case-bearing field — pure sum or mixed —
+                    // coexists with the level's deeper record paths: it takes
+                    // the same per-field custody the leaf level retains
+                    // through `child_sum_layouts`.
+                    DataShapeKind::Enum | DataShapeKind::Mixed => {
                         children.direct_sums.push((field, named));
-                    }
-                    DataShapeKind::Mixed => {
-                        return Err(MaterializationDiagnostic(format!(
-                            "field `{}` uses a mixed common-field/case shape",
-                            field.name
-                        )));
                     }
                     DataShapeKind::Record => {
                         validate_outer_record_owner(typed, named)?;
@@ -1298,15 +1290,9 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
             continue;
         };
         match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
-            DataShapeKind::Enum => {
+            DataShapeKind::Enum | DataShapeKind::Mixed => {
                 return Err(MaterializationDiagnostic(format!(
-                    "ConstMaterializable nested-record path does not admit direct outer sum field `{}`",
-                    field.name
-                )));
-            }
-            DataShapeKind::Mixed => {
-                return Err(MaterializationDiagnostic(format!(
-                    "field `{}` uses a mixed common-field/case shape",
+                    "ConstMaterializable nested-record path does not admit direct outer case-bearing field `{}`",
                     field.name
                 )));
             }

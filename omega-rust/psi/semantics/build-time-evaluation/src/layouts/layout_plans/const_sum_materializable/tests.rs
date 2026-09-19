@@ -35,8 +35,8 @@ fn typed() -> TypedTrees {
 
 fn layout(typed: &TypedTrees, schema: &str) -> ConventionalSumLayoutReport {
     let data = unique_data_by_name(typed, schema).unwrap();
-    let cases = typed
-        .data_members(data)
+    let members = typed.data_members(data);
+    let cases = members
         .iter()
         .filter_map(|member| match member {
             DataMember::Variant(variant) => Some(variant),
@@ -63,8 +63,36 @@ fn layout(typed: &TypedTrees, schema: &str) -> ConventionalSumLayoutReport {
             .collect::<Vec<_>>();
         shapes.push(fields);
     }
-    let payload_base = checked_align_up(4, max_align).unwrap();
-    let mut max_end = 4;
+    // Common fields pack right after the tag; their aligned end is the floor
+    // under the shared payload overlay.
+    let mut common_align = 1;
+    let mut common_end = 4;
+    let common_fields = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .map(|field| {
+            let (size, align) =
+                reflected_nested_member_layout(typed, field.type_reference, &mut vec![data.symbol])
+                    .unwrap();
+            common_align = common_align.max(align);
+            common_end = checked_align_up(common_end, align).unwrap();
+            let report = ConventionalSumPayloadFieldLayoutReport {
+                field: field.name.to_string(),
+                member_identity: field.identity,
+                offset: common_end,
+                size,
+                align,
+            };
+            common_end += size;
+            report
+        })
+        .collect::<Vec<_>>();
+    let common_end = checked_align_up(common_end, common_align).unwrap().max(4);
+    let payload_base = checked_align_up(common_end, max_align).unwrap();
+    let mut max_end = common_end;
     let reports = cases
         .iter()
         .zip(shapes)
@@ -95,12 +123,13 @@ fn layout(typed: &TypedTrees, schema: &str) -> ConventionalSumLayoutReport {
             }
         })
         .collect();
-    let align = 4.max(max_align);
+    let align = 4.max(common_align).max(max_align);
     ConventionalSumLayoutReport {
         schema_report_fingerprint: normalized_schema_report_fingerprint(typed, data),
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields,
         cases: reports,
         size: checked_align_up(max_end, align).unwrap(),
         align,
@@ -318,6 +347,7 @@ fn only_selected_value_payload_is_checked_but_all_case_geometry_replays() {
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields: Vec::new(),
         cases: vec![
             ConventionalSumCaseLayoutReport {
                 case: "Empty".into(),
@@ -436,10 +466,13 @@ fn malformed_active_case_payload_and_mixed_shape_fail_closed() {
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields: Vec::new(),
         cases: Vec::new(),
         size: 4,
         align: 4,
     };
+    // A mixed value carries its common field inside the merged case payload;
+    // omitting it fails the expected member count.
     let error = validate_const_materializable_conventional_sum(
         &typed,
         "MixedChoice",
@@ -451,5 +484,131 @@ fn malformed_active_case_payload_and_mixed_shape_fail_closed() {
         ByteOrder::LittleEndian,
     )
     .unwrap_err();
-    assert!(error.0.contains("mixed common-field/case"));
+    assert!(error.0.contains("common fields"));
+}
+
+#[test]
+fn mixed_shape_writes_common_field_and_selected_case_payload() {
+    let typed = typed();
+    let layout = layout(&typed, "MixedChoice");
+    // common: u8 packs at offset 4 right after the tag; the payload base and
+    // Number.value land at offset 5 under its 1-byte alignment.
+    assert_eq!(layout.common_fields.len(), 1);
+    assert_eq!(layout.common_fields[0].offset, 4);
+    assert_eq!(layout.size, 8);
+    assert_eq!(layout.align, 4);
+
+    // The merged case payload spells the common field beside the selected
+    // case's own payload member.
+    let value = BuildTimeValue::Case {
+        variant: "Number".into(),
+        payload: vec![
+            ("common".into(), BuildTimeValue::Int(9)),
+            ("value".into(), BuildTimeValue::Int(3)),
+        ],
+    };
+    let carrier = validate_const_materializable_conventional_sum(
+        &typed,
+        "MixedChoice",
+        &layout,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .unwrap();
+    assert_eq!(carrier.selected_case_ordinal(), 1);
+    assert_eq!(carrier.bytes(), &[1, 0, 0, 0, 9, 3, 0, 0]);
+
+    // A payload-less case still writes its common field; the shared overlay
+    // stays zeroed.
+    let empty = BuildTimeValue::Case {
+        variant: "Empty".into(),
+        payload: vec![("common".into(), BuildTimeValue::Int(7))],
+    };
+    let carrier = validate_const_materializable_conventional_sum(
+        &typed,
+        "MixedChoice",
+        &layout,
+        &empty,
+        ByteOrder::LittleEndian,
+    )
+    .unwrap();
+    assert_eq!(carrier.selected_case_ordinal(), 0);
+    assert_eq!(carrier.bytes(), &[0, 0, 0, 0, 7, 0, 0, 0]);
+}
+
+#[test]
+fn mixed_shape_rejects_drifted_common_geometry_and_unmerged_spelling() {
+    let typed = typed();
+    let layout = layout(&typed, "MixedChoice");
+    let value = BuildTimeValue::Case {
+        variant: "Number".into(),
+        payload: vec![
+            ("common".into(), BuildTimeValue::Int(9)),
+            ("value".into(), BuildTimeValue::Int(3)),
+        ],
+    };
+
+    let mut drifted = layout.clone();
+    drifted.common_fields[0].offset = 5;
+    assert!(
+        validate_const_materializable_conventional_sum(
+            &typed,
+            "MixedChoice",
+            &drifted,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .is_err()
+    );
+
+    let mut drifted = layout.clone();
+    drifted.common_fields[0].field = "other".into();
+    assert!(
+        validate_const_materializable_conventional_sum(
+            &typed,
+            "MixedChoice",
+            &drifted,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .is_err()
+    );
+
+    // A payload spelling only the case member misses the common field.
+    let missing_common = BuildTimeValue::Case {
+        variant: "Number".into(),
+        payload: vec![("value".into(), BuildTimeValue::Int(3))],
+    };
+    assert!(
+        validate_const_materializable_conventional_sum(
+            &typed,
+            "MixedChoice",
+            &layout,
+            &missing_common,
+            ByteOrder::LittleEndian,
+        )
+        .is_err()
+    );
+
+    let carrier = validate_const_materializable_conventional_sum(
+        &typed,
+        "MixedChoice",
+        &layout,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .unwrap();
+    let mut drifted = layout.clone();
+    drifted.common_fields[0].offset += 1;
+    assert!(
+        carrier
+            .replay_against(
+                &typed,
+                "MixedChoice",
+                &drifted,
+                &value,
+                ByteOrder::LittleEndian
+            )
+            .is_err()
+    );
 }
