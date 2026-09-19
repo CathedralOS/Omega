@@ -92,18 +92,72 @@ fn binary_token_use_becomes_an_ordinary_call_on_the_declaration_entry() {
     );
 }
 
+/// Indexed `[]` uses now bind the declaration body: `target[0u64]` rewrites
+/// to an ordinary call on `Wrapped::at`'s entry state with the collection and
+/// index forwarded in authored order, keeping the authored `[]` occurrence as
+/// a selection of that declaration.
 #[test]
-fn index_token_use_rejects_instead_of_falling_back() {
-    let diagnostics = check(
+fn index_token_use_binds_the_declaration_body() {
+    let checked = check(
         "data Wrapped { value: u8; }
         machine [] Wrapped::at(target: Wrapped, index: u64) -> u8 { target.value }
         machine by_token(target: Wrapped) -> u8 { target[0u64] }",
     )
-    .expect_err("an index token use has no implemented body supply");
+    .expect("an index token use binds the declaration body");
+    let at = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Wrapped::at")
+        .expect("token-bearing declaration");
+    let at_entry = checked.machine_states(at)[0].symbol;
+    let synthesized = checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target_symbol == at_entry => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call] = synthesized.as_slice() else {
+        panic!(
+            "exactly one call binds the token use; found {}",
+            synthesized.len()
+        );
+    };
+    assert_eq!(
+        call.operational_acknowledgement.origin,
+        language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
+    );
+    assert_eq!(
+        checked
+            .expression_table
+            .expression_handles(call.arguments)
+            .len(),
+        2,
+        "collection and index forward in authored order"
+    );
+    // `Wrapped::at`'s first parameter is an ordinary parameter, so no receiver
+    // loan forms at the call edge.
+    assert!(!call.receiver.is_valid());
+}
+
+/// The positions whose body supply is still unimplemented keep rejecting
+/// rather than falling back to builtin indexing: an open range use has no
+/// `end` bound to forward to the declaration.
+#[test]
+fn open_range_token_use_rejects_instead_of_falling_back() {
+    let diagnostics = check(
+        "data Wrapped { value: u8; }
+        machine [..] Wrapped::window(target: Wrapped, start: u64, end: u64) -> u8 {
+            target.value
+        }
+        machine by_token(target: Wrapped) -> u8 { target[0u64..] }",
+    )
+    .expect_err("an open range use has no implemented body supply");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "`Wrapped::at` was selected for its fixed operator token `[]` in a position whose body supply is not implemented"
-        )),
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("the range use is open or inclusive")),
         "{diagnostics:?}"
     );
 }

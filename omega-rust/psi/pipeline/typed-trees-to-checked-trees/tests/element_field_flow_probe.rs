@@ -283,9 +283,13 @@ fn named_transition_corrupted_element() {
     );
 }
 
+/// Element field domains seed at the whole-extent coordinate, so a runtime
+/// `rows[index]` subject narrows coverage from the extent row: for a fixed
+/// array the `u64 [0..2]` index range discharges the bounds proof and the
+/// element's declared `Utf8` coverage reaches the `consume` argument.
 #[test]
 fn runtime_index_read() {
-    assert_rejected(
+    assert_accepted(
         "runtime_index_read",
         &format!(
             r#"{DEFINITIONS}
@@ -295,10 +299,13 @@ fn runtime_index_read() {
             }}
         "#
         ),
-        &["parameter row.bytes requires"],
     );
 }
 
+/// Field coverage reaches the runtime-indexed slice element the same way;
+/// the remaining rejection is the bounds proof, not the field domain: the
+/// `u64 [0..2]` index range says nothing about `rows.len`, so an unknown
+/// slice length cannot admit the access.
 #[test]
 fn slice_param_runtime_index() {
     assert_rejected(
@@ -311,7 +318,7 @@ fn slice_param_runtime_index() {
             }}
         "#
         ),
-        &["parameter row.bytes requires"],
+        &["cannot prove index `index` is within unknown slice length of `rows`"],
     );
 }
 
@@ -365,6 +372,9 @@ fn slice_view_element() {
     );
 }
 
+/// The same contract holds on a named-transition edge: whole-extent element
+/// coverage flows into the `inner` argument, so the only remaining rejection
+/// is the unprovable index bound against the unknown slice length.
 #[test]
 fn named_transition_runtime_index() {
     assert_rejected(
@@ -380,6 +390,6 @@ fn named_transition_runtime_index() {
             }}
         "#
         ),
-        &["parameter row.bytes requires"],
+        &["cannot prove index `index` is within unknown slice length of `rows`"],
     );
 }
