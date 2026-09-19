@@ -3,8 +3,8 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot,
-    SelectedStructuralTransport, SelectedValueTransport, VirtualRegisterId,
+    SelectedInstruction, SelectedLocalStorageSlot, SelectedStructuralTransport,
+    SelectedValueTransport, VirtualRegisterId,
 };
 
 use super::{
@@ -36,10 +36,9 @@ fn reload_for_use(
     }
     let reload = admission::reload(admitted, register, next_instruction, next_register)?;
     let reloaded = reload.reload_register.id;
-    function.virtual_registers.push(reload.address_register);
-    function.virtual_registers.push(reload.reload_register);
-    instructions.push(reload.address);
-    instructions.push(reload.load);
+    let (registers, sequence) = reload.into_streams();
+    function.virtual_registers.extend(registers);
+    instructions.extend(sequence);
     if share {
         *open = Some(reloaded);
     }
@@ -127,15 +126,15 @@ pub fn spill_selected_runtime_value_with_span_policy(
             definition.block_index == block_index
                 && matches!(definition.position, admission::StoragePosition::BlockStart)
         }) {
-            instructions.push(admission::instruction(
-                SelectedInstructionId(admission::fresh(&mut next_instruction)?),
-                SelectedInstructionKind::Store64 {
-                    slot: admission::frame(admitted.slot),
-                    byte_offset: 0,
-                },
-                admitted.store,
-                &[definition.register],
-            ));
+            let store = admission::store(
+                &admitted,
+                definition.register,
+                &mut next_instruction,
+                &mut next_register,
+            )?;
+            let (registers, sequence) = store.into_streams();
+            function.virtual_registers.extend(registers);
+            instructions.extend(sequence);
         }
         for (instruction_index, original) in block.instructions.iter().enumerate() {
             boundaries.push(
@@ -183,15 +182,15 @@ pub fn spill_selected_runtime_value_with_span_policy(
                         admission::StoragePosition::AfterInstruction(instruction)
                             if instruction == original.id)
             }) {
-                instructions.push(admission::instruction(
-                    SelectedInstructionId(admission::fresh(&mut next_instruction)?),
-                    SelectedInstructionKind::Store64 {
-                        slot: admission::frame(admitted.slot),
-                        byte_offset: 0,
-                    },
-                    admitted.store,
-                    &[definition.register],
-                ));
+                let store = admission::store(
+                    &admitted,
+                    definition.register,
+                    &mut next_instruction,
+                    &mut next_register,
+                )?;
+                let (registers, sequence) = store.into_streams();
+                function.virtual_registers.extend(registers);
+                instructions.extend(sequence);
             }
         }
         // Terminator operand uses reload after the last block instruction.
@@ -210,10 +209,9 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 &mut next_register,
             )?;
             let reloaded = reload.reload_register.id;
-            function.virtual_registers.push(reload.address_register);
-            function.virtual_registers.push(reload.reload_register);
-            instructions.push(reload.address);
-            instructions.push(reload.load);
+            let (registers, sequence) = reload.into_streams();
+            function.virtual_registers.extend(registers);
+            instructions.extend(sequence);
             operand.virtual_register = reloaded;
         }
         // Edge-transport arguments read at the same end-of-block position,
@@ -239,10 +237,9 @@ pub fn spill_selected_runtime_value_with_span_policy(
                     &mut next_register,
                 )?;
                 let reloaded = reload.reload_register.id;
-                function.virtual_registers.push(reload.address_register);
-                function.virtual_registers.push(reload.reload_register);
-                instructions.push(reload.address);
-                instructions.push(reload.load);
+                let (registers, sequence) = reload.into_streams();
+                function.virtual_registers.extend(registers);
+                instructions.extend(sequence);
                 let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport
                 else {
                     unreachable!()
@@ -308,10 +305,9 @@ pub fn spill_selected_runtime_value_with_span_policy(
                         &mut next_register,
                     )?;
                     let reloaded = reload.reload_register.id;
-                    function.virtual_registers.push(reload.address_register);
-                    function.virtual_registers.push(reload.reload_register);
-                    instructions.push(reload.address);
-                    instructions.push(reload.load);
+                    let (registers, sequence) = reload.into_streams();
+                    function.virtual_registers.extend(registers);
+                    instructions.extend(sequence);
                     let SelectedCasePayloadTransport::Registers { argument, .. } =
                         &mut payload.transport
                     else {

@@ -12,7 +12,7 @@ use selected_instructions::{
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
+    EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
 };
 
 use super::RuntimeSpillError;
@@ -71,6 +71,28 @@ pub(super) struct Admission<'source> {
     pub address: &'source RegisterInstructionConstraint,
     pub load: &'source RegisterInstructionConstraint,
     pub store: &'source RegisterInstructionConstraint,
+    /// The class the private slot's access stream moves end to end — the
+    /// victim's own class when it rides the rows directly, else the single
+    /// class the frame-address, load, and store rows share, reached through
+    /// the declared conversion pair below.
+    pub carrier_class: RegisterClassId,
+    /// `Some` when the victim's class cannot sit in the slot rows: its raw
+    /// payload crosses the pair instead, so each store becomes `to_bits` then
+    /// `Store64` and each reload appends `from_bits` after its `Load64`.
+    pub bits_conversion: Option<BitsConversion<'source>>,
+}
+
+/// The bit-preserving conversion pair admitting a victim whose class cannot
+/// ride the slot's access rows directly. `to_bits` re-exposes the payload in
+/// the carrier class ahead of each store; `from_bits` restores the victim's
+/// class behind each load. `to_kind`/`from_kind` are the selected instruction
+/// kinds those rows realize.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct BitsConversion<'source> {
+    pub to_bits: &'source RegisterInstructionConstraint,
+    pub from_bits: &'source RegisterInstructionConstraint,
+    pub to_kind: SelectedInstructionKind,
+    pub from_kind: SelectedInstructionKind,
 }
 
 /// Source definition coordinates, not proposed spill instructions. An incoming
@@ -730,65 +752,6 @@ pub(super) fn admit<'source>(
     if !defined || uses == 0 {
         return Err(RuntimeSpillError::UnsupportedValue);
     }
-    // The reuse check scans this function once per declared local slot.
-    let slot_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .and_then(|span| function.local_storage_slots.len().checked_mul(span))
-        .ok_or(RuntimeSpillError::IdentityOverflow)?;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| total.checked_add(uses.checked_mul(4)?))
-        .and_then(|total| total.checked_add(definitions.len()))
-        // An entry-bound register's boundary definition scans every block's
-        // successor list once for a re-entry edge — the same per-block shape
-        // the two dominance passes below already pay for.
-        .and_then(|total| {
-            total.checked_add(if entry_boundary {
-                function.blocks.len()
-            } else {
-                0
-            })
-        })
-        .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
-        // The open/close decision replays once over the victim function's own
-        // instructions — the crossing simulation under `UnitWriteCrossing`,
-        // the span-close collection under either policy.
-        .and_then(|total| {
-            total.checked_add(function.blocks.iter().try_fold(0usize, |sum, block| {
-                sum.checked_add(block.instructions.len())?.checked_add(1)
-            })?)
-        })
-        .and_then(|total| total.checked_add(slot_scan))
-        // The structural-argument check groups the memory accesses once, then
-        // each pending binding walks its own access group. The establishment
-        // pairing above scans them twice more — once for the `AddressLocal`
-        // records on the victim's definition, once for the paired `WritePlace`
-        // stores.
-        .and_then(|total| total.checked_add(function.memory_accesses.len().checked_mul(3)?))
-        .and_then(|total| {
-            total.checked_add(
-                structural_uses
-                    .len()
-                    .checked_mul(function.memory_accesses.len())?,
-            )
-        })
-        .ok_or(RuntimeSpillError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(RuntimeSpillError::WorkBudgetExceeded);
-    }
-    super::require_dominated_uses(function, block_index, &use_blocks)?;
     let keys = environment.selected_keys();
     let address = environment
         .constraint(
@@ -830,13 +793,100 @@ pub(super) fn admit<'source>(
             {
                 return Err(RuntimeSpillError::ConstraintMismatch);
             }
-            // A victim in another register class cannot ride these rows; that
-            // is a victim limit, so recovery may try the next candidate.
-            if operand.class != victim.class {
-                return Err(RuntimeSpillError::UnsupportedValue);
-            }
         }
     }
+    // The slot's access stream moves one class end to end: the computed
+    // address and every stored or loaded payload share it. A victim in
+    // another class cannot ride the rows directly, but its stored bytes are
+    // raw payload — when that payload is an IEEE float and the target
+    // declares the matching bit-preserving pair, `to_bits` ahead of each
+    // store and `from_bits` behind each load carry it across while the slot
+    // keeps its eight-byte geometry. A victim with no usable pair is a
+    // candidate-local rejection, not a constraint fault, so recovery may
+    // try the next candidate.
+    let carrier_class = address.operands[0].class;
+    if [address, load, store]
+        .iter()
+        .flat_map(|row| row.operands.iter())
+        .any(|operand| operand.class != carrier_class)
+    {
+        return Err(RuntimeSpillError::ConstraintMismatch);
+    }
+    let bits_conversion = if victim.class == carrier_class {
+        None
+    } else {
+        Some(bits_transport(environment, victim, carrier_class)?)
+    };
+    // The reuse check scans this function once per declared local slot.
+    let slot_scan = function
+        .blocks
+        .iter()
+        .try_fold(0usize, |total, block| {
+            total.checked_add(block.instructions.len())?.checked_add(1)
+        })
+        .and_then(|span| function.local_storage_slots.len().checked_mul(span))
+        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+    let steps = plan
+        .functions
+        .iter()
+        .try_fold(0usize, |total, function| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block.instructions.len())?.checked_add(1)
+            })
+        })
+        // A converted victim emits one more instruction and one more
+        // register at every store and every reload, so its replay charges
+        // six per use and three per definition instead of four and one.
+        .and_then(|total| {
+            total.checked_add(uses.checked_mul(if bits_conversion.is_some() { 6 } else { 4 })?)
+        })
+        .and_then(|total| {
+            total.checked_add(
+                definitions
+                    .len()
+                    .checked_mul(if bits_conversion.is_some() { 3 } else { 1 })?,
+            )
+        })
+        // An entry-bound register's boundary definition scans every block's
+        // successor list once for a re-entry edge — the same per-block shape
+        // the two dominance passes below already pay for.
+        .and_then(|total| {
+            total.checked_add(if entry_boundary {
+                function.blocks.len()
+            } else {
+                0
+            })
+        })
+        .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
+        // The open/close decision replays once over the victim function's own
+        // instructions — the crossing simulation under `UnitWriteCrossing`,
+        // the span-close collection under either policy.
+        .and_then(|total| {
+            total.checked_add(function.blocks.iter().try_fold(0usize, |sum, block| {
+                sum.checked_add(block.instructions.len())?.checked_add(1)
+            })?)
+        })
+        .and_then(|total| total.checked_add(slot_scan))
+        // The structural-argument check groups the memory accesses once, then
+        // each pending binding walks its own access group. The establishment
+        // pairing above scans them twice more — once for the `AddressLocal`
+        // records on the victim's definition, once for the paired `WritePlace`
+        // stores.
+        .and_then(|total| total.checked_add(function.memory_accesses.len().checked_mul(3)?))
+        .and_then(|total| {
+            total.checked_add(
+                structural_uses
+                    .len()
+                    .checked_mul(function.memory_accesses.len())?,
+            )
+        })
+        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+    if u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow)?
+        > budget.validation_steps()
+    {
+        return Err(RuntimeSpillError::WorkBudgetExceeded);
+    }
+    super::require_dominated_uses(function, block_index, &use_blocks)?;
     let first_instruction = function
         .blocks
         .iter()
@@ -891,6 +941,13 @@ pub(super) fn admit<'source>(
     implicit_use_units.extend(address.implicit_uses.iter().copied());
     implicit_use_units.extend(load.implicit_uses.iter().copied());
     implicit_use_units.extend(store.implicit_uses.iter().copied());
+    // A transported victim's conversions may read units of their own; they
+    // sit inside the same open intervals, so their implicit units are
+    // excluded from any home the shared reload demands.
+    if let Some(conversion) = &bits_conversion {
+        implicit_use_units.extend(conversion.to_bits.implicit_uses.iter().copied());
+        implicit_use_units.extend(conversion.from_bits.implicit_uses.iter().copied());
+    }
     let pinned_units = pinned_views
         .iter()
         .flat_map(|view_id| {
@@ -1139,6 +1196,74 @@ pub(super) fn admit<'source>(
         address,
         load,
         store,
+        carrier_class,
+        bits_conversion,
+    })
+}
+
+/// The declared bit-preserving pair bridging a foreign-class victim to the
+/// slot's carrier class. Only an IEEE-float payload has such a pair today;
+/// each row must be the exact two-operand `Use`/`Def` bridge between the two
+/// classes with no hidden effects — a conversion that wrote or clobbered a
+/// unit could destroy the still-open reload it sits inside. A missing key, an
+/// absent row, or a row that does not bridge the two classes is a victim
+/// limit rather than an environment fault.
+fn bits_transport<'source>(
+    environment: &'source ValidatedTargetRegisterEnvironment,
+    victim: &VirtualRegister,
+    carrier_class: RegisterClassId,
+) -> Result<BitsConversion<'source>, RuntimeSpillError> {
+    let keys = environment.selected_keys();
+    let (to_key, from_key, to_kind, from_kind) = match victim.scalar_type {
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => (
+            keys.float32_to_bits,
+            keys.bits_to_float32,
+            SelectedInstructionKind::Float32ToBits,
+            SelectedInstructionKind::BitsToFloat32,
+        ),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => (
+            keys.float64_to_bits,
+            keys.bits_to_float64,
+            SelectedInstructionKind::Float64ToBits,
+            SelectedInstructionKind::BitsToFloat64,
+        ),
+        _ => return Err(RuntimeSpillError::UnsupportedValue),
+    };
+    let to_bits = environment
+        .constraint(to_key.ok_or(RuntimeSpillError::UnsupportedValue)?)
+        .ok_or(RuntimeSpillError::UnsupportedValue)?;
+    let from_bits = environment
+        .constraint(from_key.ok_or(RuntimeSpillError::UnsupportedValue)?)
+        .ok_or(RuntimeSpillError::UnsupportedValue)?;
+    for (row, classes) in [
+        (to_bits, [victim.class, carrier_class]),
+        (from_bits, [carrier_class, victim.class]),
+    ] {
+        if row.operands.len() != 2 || !row.implicit_defs.is_empty() || !row.clobbers.is_empty() {
+            return Err(RuntimeSpillError::UnsupportedValue);
+        }
+        for (ordinal, (operand, class)) in row.operands.iter().zip(classes).enumerate() {
+            if usize::from(operand.operand) != ordinal
+                || operand.access
+                    != if ordinal == 0 {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    }
+                || operand.class != class
+                || operand.fixed_view.is_some()
+                || operand.tied_to.is_some()
+                || operand.early_clobber
+            {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+        }
+    }
+    Ok(BitsConversion {
+        to_bits,
+        from_bits,
+        to_kind,
+        from_kind,
     })
 }
 
@@ -1380,15 +1505,44 @@ pub(super) fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {
 }
 
 /// The private address computation and load inserted for one admitted use, at
-/// an instruction operand or at a terminator operand. Proposal and replay build
-/// the identical pair from this one constructor; the consumer operand keeps its
-/// own access, class, and any fixed ABI view while only the referenced register
-/// changes.
+/// an instruction operand or at a terminator operand — plus, for a
+/// foreign-class victim, the carrier register the load fills and the
+/// `from_bits` conversion restoring the reload's own class. Proposal and
+/// replay build the identical sequence from this one constructor; the consumer
+/// operand keeps its own access, class, and any fixed ABI view while only the
+/// referenced register changes.
 pub(super) struct Reload {
     pub address_register: VirtualRegister,
+    /// The `Load64` result holding the victim's raw payload — present only
+    /// when the victim is foreign-class and `convert` consumes it. A direct
+    /// spill's load defines the reload register instead.
+    pub carrier_register: Option<VirtualRegister>,
     pub reload_register: VirtualRegister,
     pub address: SelectedInstruction,
     pub load: SelectedInstruction,
+    /// `from_bits` restoring the loaded payload into the victim's class.
+    pub convert: Option<SelectedInstruction>,
+}
+
+impl Reload {
+    /// Produced registers in declaration order, then the emitted instructions
+    /// in stream order — the single sequence proposal and replay share.
+    pub(super) fn into_streams(self) -> (Vec<VirtualRegister>, Vec<SelectedInstruction>) {
+        (
+            [
+                Some(self.address_register),
+                self.carrier_register,
+                Some(self.reload_register),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+            [Some(self.address), Some(self.load), self.convert]
+                .into_iter()
+                .flatten()
+                .collect(),
+        )
+    }
 }
 
 pub(super) fn reload(
@@ -1397,15 +1551,32 @@ pub(super) fn reload(
     next_instruction: &mut u32,
     next_register: &mut u32,
 ) -> Result<Reload, RuntimeSpillError> {
+    let conversion = admitted.bits_conversion;
     let address_instruction = SelectedInstructionId(fresh(next_instruction)?);
     let load_instruction = SelectedInstructionId(fresh(next_instruction)?);
+    let convert_instruction = if conversion.is_some() {
+        Some(SelectedInstructionId(fresh(next_instruction)?))
+    } else {
+        None
+    };
     let address_register = VirtualRegisterId(fresh(next_register)?);
+    let carrier_id = if conversion.is_some() {
+        Some(VirtualRegisterId(fresh(next_register)?))
+    } else {
+        None
+    };
     let reload_register = VirtualRegisterId(fresh(next_register)?);
+    // The register the load defines: the reload itself when the victim rides
+    // the slot rows directly, or the carrier holding its raw bits.
+    let loaded = carrier_id.unwrap_or(reload_register);
+    // The instruction whose result restates the victim — the load for a
+    // direct spill, the `from_bits` conversion for a transported one.
+    let restating = convert_instruction.unwrap_or(load_instruction);
     Ok(Reload {
         address_register: VirtualRegister {
             id: address_register,
             scalar_type: admitted.address_scalar_type,
-            class: admitted.victim.class,
+            class: admitted.carrier_class,
             origin: VirtualRegisterOrigin::SpillAddress {
                 instruction: address_instruction,
                 register,
@@ -1413,13 +1584,33 @@ pub(super) fn reload(
             definition_site: None,
             entry_fixed_view: None,
         },
+        carrier_register: carrier_id.map(|id| VirtualRegister {
+            id,
+            scalar_type: admitted.address_scalar_type,
+            class: admitted.carrier_class,
+            origin: match admitted.lineage {
+                VictimLineage::Scalar(source_value) => VirtualRegisterOrigin::InstructionResult {
+                    instruction: load_instruction,
+                    source_value,
+                },
+                VictimLineage::Structural { place, byte_offset } => {
+                    VirtualRegisterOrigin::StructuralObservation {
+                        instruction: load_instruction,
+                        place,
+                        byte_offset,
+                    }
+                }
+            },
+            definition_site: admitted.victim.definition_site,
+            entry_fixed_view: None,
+        }),
         reload_register: VirtualRegister {
             id: reload_register,
             scalar_type: admitted.victim.scalar_type,
             class: admitted.victim.class,
             origin: match admitted.lineage {
                 VictimLineage::Scalar(source_value) => VirtualRegisterOrigin::InstructionResult {
-                    instruction: load_instruction,
+                    instruction: restating,
                     source_value,
                 },
                 // A structural victim restates no source value; the reload
@@ -1430,7 +1621,7 @@ pub(super) fn reload(
                 // argument still names the exact field the transport asks for.
                 VictimLineage::Structural { place, byte_offset } => {
                     VirtualRegisterOrigin::StructuralObservation {
-                        instruction: load_instruction,
+                        instruction: restating,
                         place,
                         byte_offset,
                     }
@@ -1452,7 +1643,106 @@ pub(super) fn reload(
             load_instruction,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             admitted.load,
-            &[address_register, reload_register],
+            &[address_register, loaded],
+        ),
+        convert: conversion.map(|conversion| {
+            instruction(
+                convert_instruction.unwrap_or(restating),
+                conversion.from_kind,
+                conversion.from_bits,
+                &[loaded, reload_register],
+            )
+        }),
+    })
+}
+
+/// The sequence landing one definition's value in the slot: a victim in the
+/// carrier class is the lone `Store64`, while a foreign-class victim's
+/// payload first crosses `to_bits` into the carrier register the store then
+/// writes. Proposal and replay build the identical sequence from this one
+/// constructor, so the produced register and instruction streams stay in the
+/// declaration order both sides share.
+pub(super) struct Store {
+    /// The `to_bits` result the store writes — present only for a converted
+    /// victim.
+    pub carrier_register: Option<VirtualRegister>,
+    /// `to_bits` exposing the stored register's payload in the carrier class.
+    pub convert: Option<SelectedInstruction>,
+    pub store: SelectedInstruction,
+}
+
+impl Store {
+    /// Produced registers in declaration order, then the emitted instructions
+    /// in stream order — conversion ahead of the `Store64`.
+    pub(super) fn into_streams(self) -> (Vec<VirtualRegister>, Vec<SelectedInstruction>) {
+        (
+            self.carrier_register.into_iter().collect(),
+            [self.convert, Some(self.store)]
+                .into_iter()
+                .flatten()
+                .collect(),
+        )
+    }
+}
+
+pub(super) fn store(
+    admitted: &Admission<'_>,
+    stored: VirtualRegisterId,
+    next_instruction: &mut u32,
+    next_register: &mut u32,
+) -> Result<Store, RuntimeSpillError> {
+    let conversion = admitted.bits_conversion;
+    let convert_instruction = if conversion.is_some() {
+        Some(SelectedInstructionId(fresh(next_instruction)?))
+    } else {
+        None
+    };
+    let store_instruction = SelectedInstructionId(fresh(next_instruction)?);
+    let carrier_id = if conversion.is_some() {
+        Some(VirtualRegisterId(fresh(next_register)?))
+    } else {
+        None
+    };
+    // The register the slot write reads: the stored value itself, or the
+    // carrier holding its raw bits after `to_bits`.
+    let stored_register = carrier_id.unwrap_or(stored);
+    Ok(Store {
+        carrier_register: carrier_id.map(|id| VirtualRegister {
+            id,
+            scalar_type: admitted.address_scalar_type,
+            class: admitted.carrier_class,
+            origin: match admitted.lineage {
+                VictimLineage::Scalar(source_value) => VirtualRegisterOrigin::InstructionResult {
+                    instruction: convert_instruction.unwrap_or(store_instruction),
+                    source_value,
+                },
+                VictimLineage::Structural { place, byte_offset } => {
+                    VirtualRegisterOrigin::StructuralObservation {
+                        instruction: convert_instruction.unwrap_or(store_instruction),
+                        place,
+                        byte_offset,
+                    }
+                }
+            },
+            definition_site: admitted.victim.definition_site,
+            entry_fixed_view: None,
+        }),
+        convert: conversion.map(|conversion| {
+            instruction(
+                convert_instruction.unwrap_or(store_instruction),
+                conversion.to_kind,
+                conversion.to_bits,
+                &[stored, stored_register],
+            )
+        }),
+        store: instruction(
+            store_instruction,
+            SelectedInstructionKind::Store64 {
+                slot: frame(admitted.slot),
+                byte_offset: 0,
+            },
+            admitted.store,
+            &[stored_register],
         ),
     })
 }
