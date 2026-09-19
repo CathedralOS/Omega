@@ -4,6 +4,46 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn unary_const_arguments_retain_their_typed_evaluation_obligation() {
+    use syntax_trees::item::{DataMember, Item};
+
+    // Even wrong operand carriers belong to semantic admission, not an
+    // integer-only fold in the parser.
+    for argument in [
+        "!false", "(!false)", "!!true", "~1u8", "(~1u8)", "!0", "~false",
+    ] {
+        let source = format!("data Main {{ value: Flag<{argument}>; }}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize unary argument");
+        let parsed = parse_syntax_trees(&tokens).expect("retain unary argument syntax");
+        let Item::Data(data) = parsed.root_items().next().unwrap() else {
+            panic!("data declaration");
+        };
+        let [DataMember::Field(field)] = parsed.items.data_members(data.members) else {
+            panic!("one field");
+        };
+        let TypeReferenceNode::Generic { arguments, .. } =
+            parsed.type_references.type_reference(field.type_reference)
+        else {
+            panic!("generic field");
+        };
+        let [argument] = parsed.type_references.type_reference_handles(*arguments) else {
+            panic!("one argument");
+        };
+        let TypeReferenceNode::ConstExpression(expression) =
+            parsed.type_references.type_reference(*argument)
+        else {
+            panic!("retain expression until its carrier is known");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(*expression),
+            ExpressionNode::Unary(_)
+        ));
+    }
+}
+
+#[test]
 fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy() {
     for equation in [
         "Backing == [[Element; Count]; 2]",

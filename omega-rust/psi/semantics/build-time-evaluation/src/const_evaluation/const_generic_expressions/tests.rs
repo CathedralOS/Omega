@@ -32,6 +32,78 @@ fn typed_binary() -> (TypedTrees, ExpressionHandle) {
 }
 
 #[test]
+fn unary_custody_admits_only_fixed_operator_bindings() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelections,
+    };
+    use typed_trees::expression::{TableUnaryExpression, UnaryOperator};
+    let (mut program, expression) = typed_binary();
+    let operand = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    *program.expression_table.expression_mut(expression) =
+        ExpressionNode::Unary(TableUnaryExpression {
+            operand,
+            operator: UnaryOperator::LogicalNot,
+        });
+    let machine = program.machines().iter().next().expect("probe machine");
+    let state = &program.machine_states(machine)[0];
+    let (_, operators) = expression_custody(
+        &program,
+        machine,
+        state,
+        expression,
+        false,
+        &syntax_trees::SyntaxTrees::default(),
+        &std::collections::HashSet::new(),
+    )
+    .expect("pending unary receipt has fixed builtin meaning");
+    assert_eq!(operators.len(), 1);
+    let mut selections = AuthoredDeclarationSelections::default();
+    let forged = selections
+        .record_resolved(
+            program.expression_table.source_span(expression),
+            Exposure::PrivateImplementation,
+            Kind::Operator,
+            machine.symbol,
+        )
+        .expect("forge a declaration-selected operator");
+    assert!(!super::has_builtin_operator_selection(
+        &program,
+        machine,
+        state,
+        expression,
+        selections.get(forged).unwrap().target(),
+    ));
+}
+
+#[test]
+fn unary_graph_validation_rejects_cycles_and_stale_operands_before_type_readers() {
+    use typed_trees::expression::{TableUnaryExpression, UnaryOperator};
+    let (program, expression) = typed_binary();
+    for operand in [ExpressionHandle::invalid(), expression] {
+        let mut changed = program.clone();
+        *changed.expression_table.expression_mut(expression) =
+            ExpressionNode::Unary(TableUnaryExpression {
+                operand,
+                operator: UnaryOperator::LogicalNot,
+            });
+        let machine = changed.machines().iter().next().expect("probe machine");
+        let state = &changed.machine_states(machine)[0];
+        let error = super::value::evaluate(
+            &changed,
+            machine,
+            state,
+            expression,
+            PrimitiveType::Bool,
+            None,
+        )
+        .expect_err("unary edges must be validated before recursive readers");
+        assert!(error.contains("invalid or cyclic"), "{error}");
+    }
+}
+
+#[test]
 fn index_destination_rejects_range_constraints_even_under_exact_policy() {
     let (mut program, expression) = typed_binary();
     let machine = program.machines().iter().next().expect("probe machine");

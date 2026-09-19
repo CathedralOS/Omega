@@ -222,6 +222,8 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     .first()
                     .is_some_and(|token| token.float_literal_kind().is_some())
                 || input.at_punctuation(PunctuationKind::Minus)
+                || input.at_punctuation(PunctuationKind::Exclamation)
+                || input.at_punctuation(PunctuationKind::Tilde)
                 || (input.at_punctuation(PunctuationKind::LeftParen)
                     && input
                         .take_punctuation(PunctuationKind::LeftParen, "(")
@@ -377,6 +379,7 @@ fn const_expression_requires_semantic_admission(
             | ExpressionNode::StructLiteral(_)
             | ExpressionNode::ArrayLiteral(_)
             | ExpressionNode::Match(_)
+            | ExpressionNode::Unary(_)
     ) {
         return true;
     }

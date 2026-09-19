@@ -16,6 +16,10 @@
 //! neither integer truncation nor floating rounding belongs to this comparison.
 //! The static pass requires both rational values even in an unselected comparison:
 //! anonymous division by zero has no value under the numeric contract.
+//! Unary operators are fixed, non-overloadable meanings. Their operands still
+//! participate in the complete shape pass before execution: Boolean negation
+//! needs bool, and complement needs an already selected integer width. The
+//! shared integer operation preserves that width, including signed complement.
 //!
 //! Match uses this same work stack: retain the subject, test patterns in order,
 //! then visit only the selected result. The Match owner first checks the complete
@@ -36,7 +40,7 @@ use numerics::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use typed_trees::{
     TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
+    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
     machine::Machine,
     state::State,
     types::PrimitiveType,
@@ -268,6 +272,7 @@ fn evaluate_expression(
     }
     enum Step {
         Enter(ExpressionHandle),
+        Unary(ExpressionHandle, UnaryOperator),
         Binary(ExpressionHandle, BinaryOperator),
         LogicalLeft(ExpressionHandle, BinaryOperator, ExpressionHandle),
         LogicalRight(ExpressionHandle),
@@ -324,6 +329,11 @@ fn evaluate_expression(
                     ExpressionNode::Integer(_) => values.push(Value::Anonymous(expression)),
                     ExpressionNode::Float(literal) if literal.landing().is_none() => {
                         values.push(Value::Anonymous(expression));
+                    }
+                    ExpressionNode::Unary(unary) => {
+                        active.push(expression);
+                        pending.push(Step::Unary(expression, unary.operator));
+                        pending.push(Step::Enter(unary.operand));
                     }
                     ExpressionNode::Binary(binary) => {
                         if !context.has_builtin(program, expression) {
@@ -467,6 +477,23 @@ fn evaluate_expression(
                 if !matches!(values.last(), Some(Value::Boolean(_))) {
                     return Err("Boolean logic requires a Boolean right operand".into());
                 }
+            }
+            Step::Unary(expression, operator) => {
+                if active.pop() != Some(expression) {
+                    return Err("invalid constant expression traversal".into());
+                }
+                let operand = values.pop().ok_or("missing unary constant operand")?;
+                let result = match (operator, operand) {
+                    (UnaryOperator::LogicalNot, Value::Boolean(value)) => Value::Boolean(!value),
+                    (UnaryOperator::BitwiseNot, Value::Landed(carrier, value)) => {
+                        let value = integer_type(carrier)?
+                            .bitwise_not(value)
+                            .ok_or("integer complement operand does not inhabit its carrier")?;
+                        Value::Landed(carrier, value)
+                    }
+                    _ => return Err("unary constant operator has incompatible operand type".into()),
+                };
+                values.push(result);
             }
             Step::Binary(expression, operator) => {
                 if active.pop() != Some(expression) {
@@ -642,6 +669,11 @@ fn validate_shapes(
                 ExpressionNode::Float(literal) if literal.landing().is_none() => {
                     shapes.push(Shape::Anonymous(expression))
                 }
+                ExpressionNode::Unary(unary) => {
+                    active.push(expression);
+                    pending.push((expression, true));
+                    pending.push((unary.operand, false));
+                }
                 ExpressionNode::Binary(binary) => {
                     if !context.has_builtin(program, expression) {
                         return Err(
@@ -673,6 +705,18 @@ fn validate_shapes(
             )?;
             shapes.push(plan.result);
             matches.push(plan);
+            continue;
+        }
+        if let ExpressionNode::Unary(unary) = program.expression_table.expression(expression) {
+            let operand = shapes.pop().ok_or("missing unary constant operand type")?;
+            let result = match (unary.operator, operand) {
+                (UnaryOperator::LogicalNot, Shape::Boolean) => Shape::Boolean,
+                (UnaryOperator::BitwiseNot, Shape::Integer(_, _)) => {
+                    context.arithmetic_result(program, operand)?
+                }
+                _ => return Err("unary constant operator has incompatible operand type".into()),
+            };
+            shapes.push(result);
             continue;
         }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {

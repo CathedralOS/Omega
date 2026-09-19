@@ -734,7 +734,7 @@ fn computed_boolean_domain_indices_retain_their_pending_typed_probe_boundary() {
         "use library::settings; machine read() -> u64 { settings::VALUE }",
     );
     for (argument, boundary) in [
-        ("(!false)", "only closed integer expressions"),
+        ("(!false)", "declaration-site proof checking"),
         ("(1 == 1)", "declaration-site proof checking"),
         ("ENABLED", "expected a boolean literal"),
     ] {
@@ -745,7 +745,7 @@ fn computed_boolean_domain_indices_retain_their_pending_typed_probe_boundary() {
              pub const VALUE: u64 in policy::Gate<{argument}> = 7;"
             ),
         );
-        // These should execute after parser admission, exact family discovery,
+        // These should execute after exact family discovery,
         // and pending declaration probes are connected. Do not fold them using
         // untyped facts: that would erase operand types and selection custody.
         let error = rejection(&root, package_inputs(&root, &library));

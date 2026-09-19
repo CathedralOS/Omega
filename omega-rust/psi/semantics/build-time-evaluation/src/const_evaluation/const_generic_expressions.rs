@@ -243,7 +243,7 @@ fn requires_typed_expression_probe(syntax: &SyntaxTrees, expression: ExpressionH
         }
         visited.push(expression);
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Match(_) => return true,
+            ExpressionNode::Match(_) | ExpressionNode::Unary(_) => return true,
             ExpressionNode::Name(_) => return true,
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);
@@ -364,6 +364,39 @@ pub(super) fn append_probe(
     }));
 }
 
+/// Unary operators have no authored dispatch surface. Before checked-tree
+/// finalization their receipt is still CheckedOperator, not BuiltinOperator.
+/// Admit only that pending binding on an actual unary node; a resolved receipt
+/// is not interchangeable. Operand types and nested selections remain separate
+/// obligations of scalar validation and the complete custody walk.
+fn has_builtin_operator_selection(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    target: language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget,
+) -> bool {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    use typed_trees::expression::ExpressionNode;
+    matches!(target, Target::Intrinsic(Intrinsic::BuiltinOperator))
+        || match program.expression_table.expression(expression) {
+            ExpressionNode::Unary(_) => {
+                matches!(target, Target::LateBound(Binding::CheckedOperator))
+            }
+            ExpressionNode::Binary(_) => validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ),
+            _ => false,
+        }
+}
+
 pub(super) fn expression_custody(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -374,7 +407,6 @@ pub(super) fn expression_custody(
     admitted_calls: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
 ) -> Result<(Vec<ConstArgumentOrigin>, Vec<SourceSpan>), String> {
     use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
         AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
     };
     use typed_trees::expression::ExpressionNode;
@@ -411,18 +443,13 @@ pub(super) fn expression_custody(
                 continue;
             }
             if selection.kind() == Kind::Operator {
-                let builtin = matches!(
-                    selection.target(),
-                    Target::Intrinsic(Intrinsic::BuiltinOperator)
-                ) || (matches!(
-                    program.expression_table.expression(expression),
-                    ExpressionNode::Binary(_)
-                ) && validation::has_builtin_binary_expression_meaning(
+                let builtin = has_builtin_operator_selection(
                     program,
                     machine,
-                    Some(state),
+                    state,
                     expression,
-                ));
+                    selection.target(),
+                );
                 if !builtin {
                     return Err("evaluated operator has no checked builtin meaning".to_owned());
                 }
@@ -477,6 +504,9 @@ pub(super) fn expression_custody(
         if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) {
             pending.push(binary.right);
             pending.push(binary.left);
+        } else if let ExpressionNode::Unary(unary) = program.expression_table.expression(expression)
+        {
+            pending.push(unary.operand);
         } else if let ExpressionNode::Match(dispatch) =
             program.expression_table.expression(expression)
         {

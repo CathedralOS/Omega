@@ -35,6 +35,9 @@ mod array_call_results;
 #[path = "module_machine_indices/comparisons.rs"]
 mod comparisons;
 
+#[path = "module_machine_indices/unary.rs"]
+mod unary;
+
 #[path = "module_machine_indices/value_dispatch.rs"]
 mod value_dispatch;
 

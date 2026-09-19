@@ -120,6 +120,7 @@ pub(super) fn validate_graph(program: &TypedTrees, root: ExpressionHandle) -> Re
                 }
                 pending.push((dispatch.subject, false));
             }
+            ExpressionNode::Unary(unary) => pending.push((unary.operand, false)),
             ExpressionNode::Binary(binary) => {
                 pending.push((binary.right, false));
                 pending.push((binary.left, false));
