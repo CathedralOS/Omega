@@ -65,6 +65,7 @@ macro_rules! normalized_digest {
 normalized_digest!(ArtifactContentDigest);
 normalized_digest!(ProofPayloadDigest);
 normalized_digest!(FinalBytesDigest);
+normalized_digest!(InstallationFactDigest);
 normalized_digest!(RetirementFactDigest);
 
 macro_rules! canonical_authority_digest {
@@ -235,6 +236,27 @@ impl ArtifactAuthorityCommitments {
                 == placement
                     .installation_scope()
                     .map_or(0, |identity| identity.normalized_identity())
+    }
+}
+
+impl InstallationFactDigest {
+    /// Derive one provider-defined installation fact from its canonical bytes.
+    ///
+    /// Install gates compare this complete domain-separated digest rather
+    /// than a compact provider-selected integer. The canonical bytes remain
+    /// provider vocabulary — a receiver can demand, for example, the
+    /// provider's exact cache-order or instruction-fetch completion fact —
+    /// and this layer assigns them no ambient meaning.
+    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.installation-fact.sha256.v1\0");
+        digest.update(
+            u64::try_from(canonical.len())
+                .expect("installation-fact canonical byte length fits u64")
+                .to_le_bytes(),
+        );
+        digest.update(canonical);
+        Self::from_digest(digest.finalize().into())
     }
 }
 

@@ -39,11 +39,12 @@ pub use artifacts::{
 pub use authority_digests::{
     AdmissionReceiptId, ArtifactAuthorityCommitments, ArtifactContentDigest, ArtifactId,
     CodePlacementId, DeclaredFootprintDigest, DestinationPreparationReceiptId, EntrySetId,
-    FinalBytesDigest, FinalValidationId, ImportedContractSetDigest, InstallationScopeDigest,
-    InstallationScopeId, InstalledCodeId, MachineContractSetId, MachineFootprintId,
-    MachineRegimeDigest, MappingQuarantineId, NonAuthoritativeContainerFingerprint64,
-    NonAuthoritativeInformationalFingerprint64, NonAuthoritativeWriterContextFingerprint64,
-    PlacementPlanId, ProofPayloadDigest, RelocationSetId, RetirementFactDigest,
+    FinalBytesDigest, FinalValidationId, ImportedContractSetDigest, InstallationFactDigest,
+    InstallationScopeDigest, InstallationScopeId, InstalledCodeId, MachineContractSetId,
+    MachineFootprintId, MachineRegimeDigest, MappingQuarantineId,
+    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
+    NonAuthoritativeWriterContextFingerprint64, PlacementPlanId, ProofPayloadDigest,
+    RelocationSetId, RetirementFactDigest,
 };
 pub use code_placement::{
     CodePlacement, CodePlacementAuthority, FinalValidationCertificate, FrozenPlacement,
@@ -181,6 +182,11 @@ pub fn install_validated(
         Some("installation did not complete instruction-fetch visibility")
     } else if receipt.wx == WxEnforcement::Unsupported {
         Some("provider does not support executable installation")
+    } else if !authority
+        .required_facts
+        .is_subset(&receipt.established_facts)
+    {
+        Some("installation receipt lacks required completion facts")
     } else {
         None
     };
