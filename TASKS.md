@@ -4076,16 +4076,13 @@ Owners include
   facts remain obligations and require fresh per-occurrence resource/profile
   admission.
 
-  Flag: `verify_component` decodes the embedded Terminal module and its proof
-  section (`let _proof_bundle = ...`, then discarded) and never runs
-  `terminal-verifier`, which `component-description` does not depend on.
-  `VerifiedComponent` therefore qualifies a module that was decoded and
-  subject-matched, not independently verified, while the spec assigns the
-  code-to-inventory claim to the verifier. The inventory scan also ends in a
-  `_ => {}` arm, so a future authority-bearing operation kind would default
-  to no outgoing authority where the spec requires `IncompleteAuthority`.
-  Derive the inventory from the verifier's admitted module and make the scan
-  exhaustive.
+  `verify_component` now runs `terminal-verifier` on the decoded module under
+  the request's `admission_profile` (a new `ComponentVerificationRequest`
+  field, bound into `profile_identity`) and derives the inventory from the
+  verified module; the authority scan enumerates every `OperationKind` so a
+  future authority-bearing kind stops compiling instead of silently reading
+  as empty coverage. An empty admission profile still admits only
+  kernel-dischargeable modules.
 
 - **FFIVAL.** Author and run the Windows `user32` boundary-coherence canary: an
   Omega window procedure registered with `RegisterClassEx`, entered through
