@@ -206,7 +206,7 @@ fn scalar_caller_retains_call_produced_record_local_before_getter() {
     let checked = checked(
         "data Region { base: u64; length: u64; }
          machine Region::new(base: u64, length: u64) -> Region {
-             Region { base, length: length }
+             Region { base: base, length: length }
          }
          machine Region::get_length(&self) -> u64 { self.length }
          machine invoke(left: u64, right: u64) -> u64 {

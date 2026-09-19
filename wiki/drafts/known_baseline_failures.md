@@ -44,24 +44,23 @@ three, with the production site each needs:
   fixture with an attached receiver, retaining a separate explicit-parameter
   control, and checking the real loan/custody route. This recorded failure is
   not closed by the documentation settlement or by restoring wildcard matching.
-- `tests::multiplicity::obligations_and_state_call_results::consuming_call_that_returns_an_obligation_transfers_its_origin`:
-  since 2dc27270bc
+- Repaired: `tests::multiplicity::obligations_and_state_call_results::consuming_call_that_returns_an_obligation_transfers_its_origin`
+  was a checker regression, not a stale pin. Since 2dc27270bc
   `validation/src/value_custody/permission_provenance.rs::static_namespace_receiver`
-  returns `Err("namespace differs from its selected nonself state")` when the
+  returned `Err("namespace differs from its selected nonself state")` when the
   callee takes `self` and is spelled through its data namespace
-  (`Receipt::forward(issued)`), so provenance falls back to a fresh
-  Statement-1 establishment for the result while `claim_identity` keeps the
-  Statement-0 origin. The `PermissionProvenance` contract says transfers
-  preserve the value and never mint a fresh origin, so this is a checker
-  regression: a bare data-namespace receiver of a self-taking state is a
-  non-operand (`Ok(true)`), and the explicit `self` argument supplies the
-  common origin. The file is under the live **MATCH-SELECTIVE-LOWERING**
-  claim (`validation/src/value_custody`); repair belongs to that holder or
-  after it lapses.
-- `execution::terminal_unit::calls::computation_arguments::tests::scalar_caller_retains_call_produced_record_local_before_getter`:
-  `ParseError` "expected ':', found ','" in its inline fixture (last touched
-  by 0ad7edc425); `src/execution` is under the live
-  **PROOF-RELEVANCE-MIGRATION/abi-stripping** claim.
+  (`Receipt::forward(issued)`), so provenance fell back to a fresh
+  Statement-1 establishment for the result while `claim_identity` kept the
+  Statement-0 origin. A bare data-namespace receiver is a non-operand
+  regardless of whether the selected state takes `self` — the explicit `self`
+  argument supplies the common origin — so the `is_self` rejection is gone
+  and the sibling pin in `permission_provenance/tests.rs` ("a self formal
+  cannot be replaced with a namespace") now asserts the namespace is omitted
+  for the self-target spelling as well.
+- Repaired: `execution::terminal_unit::calls::computation_arguments::tests::scalar_caller_retains_call_produced_record_local_before_getter`
+  was a broken fixture: its inline source spelled `Region { base, ... }`,
+  but struct literals require explicit `field: value` pairs; the fixture now
+  spells `base: base`.
 
 ## terminal-verifier
 
