@@ -3625,6 +3625,15 @@ Owners include
   the action's root home on the control-graph successor, which already
   carries `cleanup_actions`.
 
+  Landed: return-edge cleanup no longer consults the recognizer.
+  `plain_home_cleanup` realizes each `DiscardRoot` keyed by the root's own
+  evidence — a live affine home, an affine reference leaf, or the arrival
+  declaration of an unobserved owned parameter (function or block-entry) that
+  never received a home. `accepts` now only decides whether owned arrivals
+  suppress their storage homes. Still owed under this flag: residual
+  `DiscardResidual`/`InvokeNominal` actions and Jump/conditional edges, and
+  retiring `accepts` once no admission decision reads it.
+
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary evaluation/value transport
   in Psi argument normalization, checked scalar computations, call/result plans
   and Terminal production. Remaining operands include dynamic/borrowed/projected
