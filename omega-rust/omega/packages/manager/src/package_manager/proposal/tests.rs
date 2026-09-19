@@ -73,7 +73,7 @@ fn all_catalog_targets_round_trip_and_order_uses_canonical_names() {
     let mut proposal = pending();
     proposal.targets = TargetProfile::ALL.to_vec();
     proposal.targets.sort_by_key(|target| target.target_name());
-    assert_eq!(proposal.targets[0], TargetProfile::CrossPlatformCli);
+    assert_eq!(proposal.targets[0], TargetProfile::AlphaBootstrap);
     proposal.source = source(proposal.targets[0]);
     assert_eq!(
         PendingPackageChange::recover(&proposal.encode().unwrap())

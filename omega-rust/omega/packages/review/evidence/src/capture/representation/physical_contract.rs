@@ -67,7 +67,16 @@ pub(crate) fn project_representation_target(
                 "representation demand requires a selected native target",
             )]
         })?;
-    if profile.native_target() != native {
+    // A recognized profile can lack a Rust native realization (the
+    // bootstrap Alpha target); such a custody is rejected rather than
+    // interrogating `native_target()`.
+    let Some(profile_native) = profile.native_realization() else {
+        return Err(vec![Diagnostic::error(format!(
+            "native realization for target profile `{}` is not implemented",
+            profile.target_name()
+        ))]);
+    };
+    if profile_native != native {
         return Err(vec![Diagnostic::error(
             "representation demand target profile disagrees with its native target",
         )]);
@@ -90,6 +99,9 @@ pub(crate) fn project_representation_target(
             }
             target::TargetProfile::LocalUnchecked => {
                 PackageReviewRepresentationTargetProfile::LocalUnchecked
+            }
+            target::TargetProfile::AlphaBootstrap => {
+                unreachable!("alpha_bootstrap is rejected before realization capture")
             }
         },
         architecture: match native.architecture {
