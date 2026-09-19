@@ -23,6 +23,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     structural_types: &[StructuralTypeDeclaration],
     scalar_values: Option<&[ValueDeclaration]>,
+    caller_values: &[ValueDeclaration],
+    caller_erased_formals: &[ValueDeclaration],
+    scalar_calls: &mut super::super::scalar_calls::ComposedScalarCalls,
     byte_argument_places: &[PlaceId],
     next_place: &mut u64,
     result_places: &mut Vec<StructuralPlaceDeclaration>,
@@ -33,6 +36,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
         target_machine,
         target_state,
         structural_arguments,
+        erased_scalar_arguments,
         result_binding,
         source_site,
     ) = match operation {
@@ -42,12 +46,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             target_state,
             structural_arguments,
             claim_transfers,
+            erased_scalar_arguments,
             ..
         } if claim_transfers.is_empty() => (
             coordinate,
             target_machine,
             target_state,
             structural_arguments,
+            erased_scalar_arguments.as_slice(),
             None,
             None,
         ),
@@ -58,12 +64,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             target_state,
             structural_arguments,
             result,
+            erased_scalar_arguments,
             ..
         } => (
             coordinate,
             target_machine,
             target_state,
             structural_arguments,
+            erased_scalar_arguments.as_slice(),
             Some(result),
             *source_site,
         ),
@@ -75,6 +83,31 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
         .ok_or(LoweringError::Unsupported(
             "composed internal Unit target is absent",
         ))?;
+    if erased_scalar_arguments.len() != target.erased_scalar_formals.len() {
+        return unsupported("internal Unit call erased lane disagrees with its target roster");
+    }
+    let erased_arguments = erased_scalar_arguments
+        .iter()
+        .map(|argument| {
+            let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
+                return unsupported(
+                    "erased internal call actual must be a pure checked expression",
+                );
+            };
+            crate::proofs::crash_routes::checked_scalar_term(
+                expression,
+                caller_values,
+                caller_erased_formals,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut calls = scalar_calls.emission_context();
+    let requirement_obligations = target
+        .requires
+        .iter()
+        .map(|_| calls.allocate_requirement())
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    scalar_calls.next_call_obligation = calls.next_obligation_identity;
     let arguments = crate::unit::attached_unit::argument_evaluation::validated_values(
         scalar_values,
         &target.scalar_parameters,
@@ -156,9 +189,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             operation,
             crate::unit::attached_unit::ordinary_calls::PreparedCall {
                 arguments: arguments.into_iter().map(|value| value.id).collect(),
-                erased_arguments: Vec::new(),
+                erased_arguments,
                 structural_arguments,
-                requirement_obligations: Vec::new(),
+                requirement_obligations,
                 crash_continuations,
             },
             target.id,
@@ -196,10 +229,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
         kind: OperationKind::CallUnit {
             callee: target.id,
             arguments: arguments.into_iter().map(|value| value.id).collect(),
-            erased_arguments: Vec::new(),
+            erased_arguments,
             structural_arguments,
             claim_transfers: Vec::new(),
-            requirement_obligations: Vec::new(),
+            requirement_obligations,
             crash_continuations,
         },
     });

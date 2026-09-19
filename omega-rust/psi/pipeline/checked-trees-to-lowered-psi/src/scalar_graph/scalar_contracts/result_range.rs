@@ -53,6 +53,9 @@ pub(crate) fn with_result_range(
         plan.has_crash_clauses(),
         plan.has_outcome_specific_clauses(),
     )
+    // The rebuilt plan keeps the authored/deduced requires split verbatim so
+    // derived range rows stay out of the published authored clause.
+    .with_authored_requires_len(plan.authored_requires().len())
     // A result refinement cannot reconstruct the retained floating entry
     // roster; it rides back through unchanged so requires-tail `FloatRange`
     // clauses keep their delivery evidence.

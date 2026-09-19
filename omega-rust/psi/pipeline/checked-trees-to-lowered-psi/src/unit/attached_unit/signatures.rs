@@ -195,17 +195,14 @@ pub(super) fn lower(
         // Publish closed authored `requires` clauses as one merged
         // proposition ahead of the runtime requirements. A clause the closed
         // lane never retained keeps the historical runtime-only contract
-        // rather than a partial roster drifting from the checked plan.
-        if contract
-            .closed_scalar_values
-            .requires()
-            .iter()
-            .all(Option::is_some)
-        {
+        // rather than a partial roster drifting from the checked plan. The
+        // merged row covers authored clauses only: the derived parameter-range
+        // tail already publishes through the runtime-requirement rows, so
+        // folding it in here would double-publish the same facts.
+        let authored_requires = contract.closed_scalar_values.authored_requires();
+        if authored_requires.iter().all(Option::is_some) {
             signature.requires = crate::scalar_graph::scalar_contracts::clauses(
-                &crate::scalar_graph::scalar_contracts::covered_requires(
-                    &contract.closed_scalar_values,
-                )?,
+                authored_requires,
                 &signature.scalar_parameters,
                 &signature.erased_scalar_parameters,
             )?
@@ -215,6 +212,10 @@ pub(super) fn lower(
         signature
             .requires
             .extend(signature.runtime_requirements.iter().cloned());
+        // The codec publishes requires rows in canonical order, so merge then
+        // normalize rather than exposing clause/runtime ordering accidents.
+        signature.requires.sort();
+        signature.requires.dedup();
     }
     Ok(signatures)
 }

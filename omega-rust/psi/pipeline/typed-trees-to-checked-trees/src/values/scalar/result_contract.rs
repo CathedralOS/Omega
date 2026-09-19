@@ -105,7 +105,9 @@ impl ContractPredicates<'_, '_> {
                     .iter()
                     .filter(|parameter| {
                         parameter.relevance.is_erased()
-                            && crate::values::scalar::occupies_scalar_position(program, parameter)
+                            && program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
                     })
                     .count();
                 return Some((erased_position, parameter.type_reference, true));
