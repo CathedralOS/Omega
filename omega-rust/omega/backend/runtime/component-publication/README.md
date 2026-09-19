@@ -5,7 +5,7 @@ owns the required deployment contract. This crate joins independently admitted
 native installation, provider/progress closure, and lifecycle custody; it is not
 an executable implementation of arbitrary source `Independent` selections.
 
-## Runtime custody and journal
+## Runtime custody
 
 [lib.rs](src/lib.rs) retains the real installed runnable and root/progress
 custody through era retirement. The
@@ -14,28 +14,13 @@ binds exact entry contract/plan, profile-sealed executable manifest, and strong
 installed-artifact occurrence identity. Entry remains on its chosen era across
 routing changes; quiescence/retirement check active entries, retained holds,
 and complete dispositions. Era publication and program-local epoch leases retain
-complete candidates, not only compact coordinates. Concrete entry acquisition,
-durable ledger encoding, and OS policy remain separate work.
+complete candidates, not only compact coordinates. Concrete entry acquisition
+and OS policy remain separate work.
 
-[deployment_journal.rs](src/deployment_journal.rs) validates canonical phase
-records and exact predecessor transitions. Decoding produces report/replay data,
-not live authority. Activated custody retains the opaque installed-code context;
-finalization rejoins it and canonical installation bytes with the ledger's
-runnable occurrence. Serialized compact installed/artifact values remain reports;
-the collision-resistant occurrence digest is independently retained per era.
-
-[deployment_journal_storage.rs](src/deployment_journal_storage.rs) publishes a
-new phase record through same-directory staging, file synchronization, atomic
-no-clobber hard linking, staging-name removal, and directory synchronization.
-It never replaces an existing destination. A post-publication cleanup/sync error
-reports possibly visible publication, not rollback. The non-clonable receipt
-replays exact path and canonical bytes.
-
-Restart-to-runtime joining takes the caller's explicit rollback/roll-forward
-choice and durable receipt, rejoins the selected era with the current live ledger
-and runnable, and returns a non-clonable continuation. Rejection returns receipt,
-choice, and ledger. Joining does not publish, retire, redirect, or choose policy.
-Cathedral chooses journal location, retention, update cohort, and recovery policy.
+Deployment transactions, journal storage, and restart recovery belong to the
+consuming runtime/library package or OS. This crate neither persists deployment
+state nor reconstructs live authority from stored records; it checks the actual
+installation and retains its lifetime obligations independently of that policy.
 
 [callback_registration.rs](src/callback_registration.rs) separates process-lifetime
 gateway admission from direct registration with unregistration/quiescence.

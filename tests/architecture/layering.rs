@@ -4629,29 +4629,6 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
-fn deployment_journal_compact_byte_identity_is_report_only() {
-    let root = workspace_root();
-    let storage_path = root.join(
-        "omega-rust/omega/backend/runtime/component-publication/src/deployment_journal_storage.rs",
-    );
-    let storage = std::fs::read_to_string(&storage_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", storage_path.display()));
-
-    assert!(
-        storage.contains("byte_compatibility_report_fingerprint: u64")
-            && storage.contains("non_authoritative_byte_compatibility_fingerprint")
-            && !storage.contains("byte_fingerprint: u64"),
-        "durable deployment-journal FNV must remain explicitly report compatibility only",
-    );
-    assert!(
-        storage.contains("decoded != self.record")
-            && storage.contains("bytes != expected")
-            && storage.contains("bytes.len() != self.byte_count"),
-        "durable journal replay must authorize from the exact canonical record and bytes before consulting the compact report coordinate",
-    );
-}
-
-#[test]
 fn normalized_write_frame_compact_identity_is_report_only() {
     let root = workspace_root();
     let frame_path =
