@@ -139,10 +139,13 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // retained specialization row — `T`/`Arguments` derive `Token` and `Target`
 // selects `Worker::run`'s entry — so `TaskRuntime::start` carries a
 // substituted boundary plan and `probe` clears the boundary target check.
-// The remaining omission frontier is independent of the routed call: the
-// owned-`self` `settle` bodies stop at entry claims because a linear owned
-// receiver establishes no `StateEntry` claim event, so candidate closure
-// drops `Main::probe` on the unavailable `settle` callee.
+// An owned `self` on `[linear]` attached data then establishes its Unit entry
+// claim directly — the checker owns the consumption judgment and records no
+// `StateEntry` event for it, so `entry_claims` mints the established identity
+// — and both `settle` bodies plus `probe` carry full Unit plans. The
+// remaining frontier is in lowering: moving the linear `start` result into
+// `settle`'s `self` formal is a claim transfer the claim-free
+// structural-result custody path does not yet admit.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -182,7 +185,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 "#;
 
 #[test]
-fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
+fn a_routed_task_start_call_plans_and_owned_settle_stops_at_lowered_custody() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
@@ -269,7 +272,6 @@ fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
         })
         .expect("the Task<Token> receiver specialization is emitted");
     let specialized_symbol = specialized.symbol;
-    let specialized_name = specialized.name.as_str().to_owned();
     let task_token_identity = checked
         .typed
         .normalized_type_identity(specialized.attached_data_application)
@@ -323,82 +325,78 @@ fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
         }
         result => panic!("unexpected start result plan: {result:?}"),
     }
-    // `probe` now clears the boundary target check and stops one edge later:
-    // the specialized `settle` callee still has no admitted body because an
-    // owned `self` on `[linear]` data establishes no `StateEntry` claim event.
-    let omission = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .omission_for_machine(probe)
-        .expect("Main::probe has an omission row");
-    assert_eq!(
-        omission.stage,
-        checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
-            target: specialized_symbol,
-        }
-    );
-    // The specialized `settle` edge is real — checking emitted
-    // `Task::settle$specialized` for the `Task<Token>` receiver — but an owned
-    // `self` on `[linear]` data establishes no `StateEntry` claim event, so
-    // both `settle` bodies still stop at entry claims. That wall is about
-    // owned linear receivers in general, not the receiver specialization.
-    let settle_omission_phase = |name: &str| {
+    // An owned `self` on `[linear]` attached data IS the custody the unit
+    // consumes: `entry_claims` now mints the receiver's `StateEntry` claim
+    // itself rather than declining the body. Both `settle` bodies — the
+    // generic and the `Task<Token>` receiver specialization — carry one
+    // whole-value claim on parameter 0, and `probe` retains a full plan
+    // because its specialized `settle` callee is no longer unavailable.
+    let settle_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Task::settle")
+        .expect("Task::settle is declared")
+        .symbol;
+    let settle_state = |machine: symbols::SymbolHandle| {
         let machine = checked
             .typed
             .machines()
             .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .unwrap_or_else(|| panic!("{name} is declared"))
-            .symbol;
+            .find(|candidate| candidate.symbol == machine)
+            .expect("settle machine is declared");
         checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .omission_for_machine(machine)
-            .unwrap_or_else(|| panic!("{name} has an omission row"))
-            .stage
+            .typed
+            .machine_states(machine)
+            .first()
+            .expect("settle has a state")
+            .symbol
     };
-    assert!(matches!(
-        settle_omission_phase("Task::settle"),
-        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "entry claims",
-            ..
-        }
-    ));
-    assert!(matches!(
+    for machine in [settle_machine, specialized_symbol] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .unwrap_or_else(|| panic!("{machine:?} has a Unit plan"));
+        let [claim] = plan.entry_claims.as_slice() else {
+            panic!("an owned linear receiver holds exactly one entry claim: {plan:?}");
+        };
+        assert_eq!(claim.parameter_index, 0);
+        assert!(claim.path.is_empty());
+        assert_eq!(claim.carry, language_semantics::CarryPolicy::STRICT);
+        assert_eq!(
+            claim.claim_identity,
+            language_semantics::PermissionClaimIdentity::Established {
+                machine_symbol: machine,
+                state_symbol: settle_state(machine),
+                source: language_semantics::PermissionEventSource::StateEntry,
+                ordinal: 0,
+            }
+        );
+    }
+    assert!(
         checked
             .facts
             .flow
             .terminal_unit_effects
-            .omission_for_machine(specialized_symbol)
-            .expect("the specialized settle body has an omission row")
-            .stage,
-        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "entry claims",
-            ..
-        }
-    ));
+            .omission_for_machine(probe)
+            .is_none(),
+        "Main::probe plans once its specialized settle callee is admitted"
+    );
+    // The named frontier moves to lowering: moving the linear `start` result
+    // into `settle`'s `self` formal is a claim transfer the lowering layer's
+    // claim-free structural-result custody path does not yet admit.
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the provider-attached receiver has no checked Unit plan");
-    let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-        machine,
-        reason,
-        omission,
-    } = error
-    else {
-        panic!("unexpected error: {error:?}");
-    };
-    assert_eq!(machine, "Main::probe");
-    assert_eq!(
-        reason,
-        "attached Unit closure is missing a checked transitive machine plan"
+        .expect_err("the claim-carrying settle edge has no lowered custody yet");
+    assert!(
+        matches!(
+            error,
+            checked_trees_to_lowered_psi::LoweringError::Unsupported(message)
+                if message == "Unit structural result argument has invalid claim-free custody"
+        ),
+        "unexpected error: {error:?}"
     );
-    let expected_omission = format!(
-        "`Main::probe` calls `{specialized_name}`, which has no plan; \
-         `{specialized_name}` has no admitted body (local construction stopped at entry claims)"
-    );
-    assert_eq!(omission.as_deref(), Some(expected_omission.as_str()));
 }
 
 #[test]
