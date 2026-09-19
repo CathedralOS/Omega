@@ -1,5 +1,6 @@
 //! Guarded structural case arms and structural state leaves.
 
+use super::call_requirements::{CallRequirement, establish_citation};
 use crate::proof_contracts::contract_entailment::citations::{
     citation_call_in_statement, instantiate_citation, is_citation_statement, machine_requires_facts,
 };
@@ -211,6 +212,24 @@ pub(crate) fn recognize_structural_case_arms(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Vec<StructuralCaseArm>> {
+    recognize_structural_case_arms_with_requirement(
+        program,
+        machine,
+        judge,
+        classification,
+        diagnostics,
+        None,
+    )
+}
+
+pub(super) fn recognize_structural_case_arms_with_requirement(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    mut requirement: Option<&mut CallRequirement<'_>>,
+) -> Option<Vec<StructuralCaseArm>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
     let machine_name = machine
@@ -248,8 +267,10 @@ pub(crate) fn recognize_structural_case_arms(
         false,
         &mut path,
         &mut fresh,
+        &mut requirement,
+        Vec::new(),
     )?;
-    (!arms.is_empty()).then_some(arms)
+    (!arms.is_empty() || requirement.is_some()).then_some(arms)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -270,6 +291,8 @@ fn recognize_structural_state_leaves(
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
+    requirement: &mut Option<&mut CallRequirement<'_>>,
+    mut established_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
 ) -> Option<Vec<StructuralCaseArm>> {
     if !state.symbol.is_valid() || path.contains(&state.symbol) {
         return None;
@@ -279,9 +302,56 @@ fn recognize_structural_state_leaves(
     let result = (|| {
         let mut transitions = Vec::new();
         let mut saw_transition = false;
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for (statement_index, statement) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
             if is_arm_pattern_marker(statement) {
                 continue;
+            }
+            if let Some(requirement) = requirement.as_deref_mut()
+                && requirement.state == state.symbol
+                && requirement.statement_index == statement_index
+                && (!requirement.in_transition_target
+                    || !matches!(statement, StatementNode::Transition(_)))
+            {
+                requirement.visit(
+                    program,
+                    machine,
+                    judge,
+                    &environment,
+                    &case_hypotheses,
+                    &case_equations,
+                    &established_guarantees,
+                );
+                // Nothing after this call can establish its entry premises.
+                // Other incoming paths are still visited by the parent.
+                return Some(Vec::new());
+            }
+            if requirement.is_some()
+                && !saw_transition
+                && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+            {
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| judge.callee_term(*argument, &environment, 0))
+                    .collect::<Option<Vec<_>>>()?;
+                establish_citation(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    &environment,
+                    judge,
+                    classification,
+                    &case_hypotheses,
+                    &case_equations,
+                    &mut established_guarantees,
+                    target,
+                    &arguments,
+                );
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
@@ -318,12 +388,15 @@ fn recognize_structural_state_leaves(
                     if transition.continuation.is_valid() || !transition.target.is_valid() {
                         return None;
                     }
-                    transitions.push(transition);
+                    transitions.push((statement_index, transition));
                 }
                 _ => return None,
             }
         }
         if transitions.is_empty() {
+            if requirement.is_some() {
+                return Some(Vec::new());
+            }
             if state.return_type.is_valid() {
                 return None;
             }
@@ -344,13 +417,13 @@ fn recognize_structural_state_leaves(
         if transitions.len() > 1
             && transitions
                 .iter()
-                .any(|transition| matches!(transition.guard, TransitionGuardNode::Always))
+                .any(|(_, transition)| matches!(transition.guard, TransitionGuardNode::Always))
         {
             return None;
         }
 
         let mut leaves = Vec::new();
-        for transition in transitions {
+        for (statement_index, transition) in transitions {
             let mut branch_environment = environment.clone();
             let mut branch_hypotheses = case_hypotheses.clone();
             let mut branch_equations = case_equations.clone();
@@ -427,8 +500,27 @@ fn recognize_structural_state_leaves(
                 }
             }
 
+            if let Some(requirement) = requirement.as_deref_mut()
+                && requirement.state == state.symbol
+                && requirement.statement_index == statement_index
+                && requirement.in_transition_target
+            {
+                requirement.visit(
+                    program,
+                    machine,
+                    judge,
+                    &branch_environment,
+                    &branch_hypotheses,
+                    &branch_equations,
+                    &established_guarantees,
+                );
+                continue;
+            }
             match program.statement_table.transition_target(transition.target) {
                 TransitionTargetNode::Value(value) => {
+                    if requirement.is_some() {
+                        continue;
+                    }
                     let value = judge.callee_term(*value, &branch_environment, 0)?;
                     leaves.push(finalize_structural_case_arm(
                         program,
@@ -488,6 +580,8 @@ fn recognize_structural_state_leaves(
                         true,
                         path,
                         fresh,
+                        requirement,
+                        established_guarantees.clone(),
                     )?);
                 }
                 _ => return None,
@@ -514,23 +608,9 @@ fn finalize_structural_case_arm(
     pending_citations: Vec<PendingStructuralCitation>,
     value: StructuralTerm,
 ) -> StructuralCaseArm {
-    let mut arm_judge = judge.clone();
-    for (subject, constructor) in &case_equations {
-        arm_judge.intake_equation(subject.clone(), constructor.clone(), 0);
-    }
-    for (subject, constructor) in &case_hypotheses {
-        arm_judge
-            .substitutions
-            .insert(0, (subject.clone(), constructor.clone()));
-    }
-    let requires = machine_requires_facts(program, machine);
-    let mut vacuous = requires
-        .iter()
-        .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
-    for fact in &requires {
-        arm_judge.intake(program, *fact);
-    }
-    vacuous = vacuous || arm_judge.hypotheses_contradictory;
+    let mut arm_judge =
+        structural_arm_judge(program, machine, judge, &case_hypotheses, &case_equations);
+    let vacuous = arm_judge.hypotheses_contradictory;
 
     // The induction hypothesis is available before an authored citation only
     // when the recursive application's own preconditions are already proven
@@ -587,4 +667,31 @@ fn finalize_structural_case_arm(
         citations,
         value,
     }
+}
+
+pub(super) fn structural_arm_judge<'program>(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'program>,
+    case_hypotheses: &[(String, StructuralTerm)],
+    case_equations: &[(StructuralTerm, StructuralTerm)],
+) -> StructuralJudge<'program> {
+    let mut arm_judge = judge.clone();
+    for (subject, constructor) in case_equations {
+        arm_judge.intake_equation(subject.clone(), constructor.clone(), 0);
+    }
+    for (subject, constructor) in case_hypotheses {
+        arm_judge
+            .substitutions
+            .insert(0, (subject.clone(), constructor.clone()));
+    }
+    let requires = machine_requires_facts(program, machine);
+    let vacuous = requires
+        .iter()
+        .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
+    for fact in &requires {
+        arm_judge.intake(program, *fact);
+    }
+    arm_judge.hypotheses_contradictory |= vacuous;
+    arm_judge
 }

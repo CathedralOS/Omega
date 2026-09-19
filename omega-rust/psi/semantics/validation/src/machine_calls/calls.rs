@@ -58,10 +58,12 @@ use generic_bounds::{
 pub(crate) use inline_assembly::validate_asm_value_destination;
 use inline_assembly::{user_asm_contract, validate_asm_operand_constraint};
 pub(crate) use recursion::{
-    validate_proof_machine_recursion, validate_self_recursive_call_positions,
+    proof_call_has_structural_descent, validate_proof_machine_recursion,
+    validate_self_recursive_call_positions,
 };
 use result_use::validate_result_use;
 pub(crate) use write_frames::machine_state_by_symbol;
+pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
     state_reference_parameter_binding_is_stable,

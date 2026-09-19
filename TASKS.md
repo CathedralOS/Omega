@@ -3133,11 +3133,23 @@ Owners include
   Remaining work:
 
   - [Call preconditions](wiki/spec/language/machines.md#call-preconditions).
-    `typed-trees-to-checked-trees/src/checks/contracts.rs` skips
-    `check_call_requires` when caller and callee are both proof machines.
-    Remove that skip and its mathematical application/citation counterparts;
-    repair valid induction by carrying premises for the exact recursive
-    arguments, not by exempting recursive-component calls. Then migrate
+    Close mathematical term formation outside ordinary statement flow:
+    `validation/src/proof_contracts/contract_entailment/structural_terms.rs`
+    constructs applications and `structural_judgment.rs` unfolds bodies without
+    establishing the selected call's premises. The ordinary flow checker no
+    longer exempts proof-to-proof calls; reuse its positive, exact-site
+    `call_requirements.rs` judgment rather than treating an unrefuted fact as
+    proved. That route preserves constructor-refined induction, positional
+    state forwarding and earlier citations; earlier IH use independently
+    requires constructor-field descent. `proofs/mathematical_call_premises`
+    exercises the core import, including cancellation and `sub_le`;
+    `mathematical_call_missing_premise` rejects a discarded unknown call.
+    Next probe: a contract-only `restricted(value) == restricted(value)`
+    without the callee's premise must reject, with the premise-bearing twin
+    accepted even when the caller has no body call. This probe is unrun.
+    Nested value-call operands still hit the existing nested-call fence before
+    premise checking; do not count that refusal as proof of call-premise
+    coverage. Then migrate
     `core/nat.omg`'s `Nat::{subtract,less_or_equal}` from `operator` plus
     `satisfies` pairs to declaration-owned bodies; `Nat::saturating_sub` stays
     the separate total operation. Controls:

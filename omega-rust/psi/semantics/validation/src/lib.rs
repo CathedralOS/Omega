@@ -197,6 +197,7 @@ pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
+pub use proof_contracts::contract_entailment::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::transparent_proposition_application_entailed;
 pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,

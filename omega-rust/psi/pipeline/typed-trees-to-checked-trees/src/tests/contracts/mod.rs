@@ -29,6 +29,7 @@ mod instantiation;
 mod mutable_parameter_entry_contracts;
 mod mutable_parameter_results;
 mod nominal_parameter_fields;
+mod proof_call_requirements;
 mod proof_obligations;
 mod propositions;
 mod qualification_evidence;

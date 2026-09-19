@@ -73,7 +73,7 @@ pub(super) fn named_transition_subgraph_is_acyclic(
 /// a still-active ancestor during a depth-first walk; the resulting summary
 /// depends on the recursion stack that produced it and is valid only for the
 /// query that computed it.
-pub(super) fn named_state_transition_subgraph_is_acyclic(
+pub(crate) fn named_state_transition_subgraph_is_acyclic(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
