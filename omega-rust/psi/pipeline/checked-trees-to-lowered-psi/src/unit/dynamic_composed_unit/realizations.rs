@@ -10,22 +10,98 @@ use crate::unit::dynamic_composed_unit::dynamic_lanes::{
 use crate::unit::dynamic_composed_unit::store_operations::{
     empty_terminal_contract, lower_realization_operations,
 };
-use crate::unit::dynamic_composed_unit::structural_types::terminal_projected_source_multiplicity;
+use crate::unit::dynamic_composed_unit::structural_types::terminal_projected_source_multiplicity_for;
 use crate::unit::{
     CheckedTrees, LoweringError, allocate_dense, block_id, edge_id, evidence_lowering,
     lower_installation_machine_service_ceiling, machine_id, place_id, terminal_scalar_type,
     unsupported, value_id,
 };
-use checked_trees::{CheckedDynamicScalarCallPlan, CheckedStructuralAccess};
+use checked_trees::types::TypeReferenceNode;
+use checked_trees::{
+    CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
+    CheckedDynamicScalarCallPlan, CheckedDynamicUnitCallPlan, CheckedStructuralAccess,
+    DynamicConformanceBindingFact,
+};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Block, StructuralAccess, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    Block, ClosedConformanceCallableResult, StructuralAccess, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration,
 };
+
+/// Borrowed table inputs shared by scalar and Unit call sites. Invocation/result
+/// binding stays with the caller; table members retain their own result kinds.
+pub(crate) struct DynamicCallableTable<'a> {
+    pub(crate) selection: &'a DynamicConformanceBindingFact,
+    pub(crate) source_type_identity: &'a str,
+    pub(crate) selected_conformance: symbols::SymbolHandle,
+    pub(crate) target_trait: symbols::SymbolHandle,
+    pub(crate) declaring_trait: symbols::SymbolHandle,
+    pub(crate) requirement: symbols::SymbolHandle,
+    pub(crate) requirement_identity: &'a str,
+    pub(crate) family_tuple: &'a [String],
+    pub(crate) realization_machine: symbols::SymbolHandle,
+    pub(crate) realization_state: symbols::SymbolHandle,
+    pub(crate) realization_callables: &'a [CheckedDynamicRealizationCallablePlan],
+    pub(crate) caller_multiplicity: language_semantics::Multiplicity,
+    pub(crate) source_access: CheckedStructuralAccess,
+    pub(crate) forwarded: bool,
+    pub(crate) checked_call_service_reach: language_semantics::ServiceReachSummary,
+}
+
+impl<'a> From<&'a CheckedDynamicScalarCallPlan> for DynamicCallableTable<'a> {
+    fn from(plan: &'a CheckedDynamicScalarCallPlan) -> Self {
+        Self {
+            selection: &plan.selection,
+            source_type_identity: &plan.source_type_identity,
+            selected_conformance: plan.selected_conformance,
+            target_trait: plan.target_trait,
+            declaring_trait: plan.declaring_trait,
+            requirement: plan.requirement,
+            requirement_identity: &plan.requirement_identity,
+            family_tuple: &plan.family_tuple,
+            realization_machine: plan.realization_machine,
+            realization_state: plan.realization_state,
+            realization_callables: &plan.realization_callables,
+            caller_multiplicity: plan.caller_multiplicity,
+            source_access: plan.source_access,
+            forwarded: matches!(
+                plan.origin,
+                checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
+            ),
+            checked_call_service_reach: plan.checked_call_service_reach,
+        }
+    }
+}
+
+impl<'a> From<&'a CheckedDynamicUnitCallPlan> for DynamicCallableTable<'a> {
+    fn from(plan: &'a CheckedDynamicUnitCallPlan) -> Self {
+        Self {
+            selection: &plan.selection,
+            source_type_identity: &plan.source_type_identity,
+            selected_conformance: plan.selected_conformance,
+            target_trait: plan.target_trait,
+            declaring_trait: plan.declaring_trait,
+            requirement: plan.requirement,
+            requirement_identity: &plan.requirement_identity,
+            family_tuple: &plan.family_tuple,
+            realization_machine: plan.realization_machine,
+            realization_state: plan.realization_state,
+            realization_callables: &plan.realization_callables,
+            caller_multiplicity: plan.caller_multiplicity,
+            source_access: plan.source_access,
+            forwarded: matches!(
+                plan.origin,
+                checked_trees::CheckedDynamicUnitCallOrigin::Forwarded { .. }
+            ),
+            checked_call_service_reach: plan.checked_call_service_reach,
+        }
+    }
+}
 
 pub(crate) fn collect_dynamic_realizations(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallableTable<'_>,
     first_machine: u64,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     if plan.realization_callables.is_empty() {
@@ -49,7 +125,13 @@ pub(crate) fn collect_dynamic_realizations(
                 checked,
                 callable.realization_machine,
             )?;
-            let result = terminal_callable_result(callable.result_type)?;
+            let result = match &callable.body {
+                CheckedDynamicRealizationBodyPlan::Unit => ClosedConformanceCallableResult::Unit,
+                CheckedDynamicRealizationBodyPlan::Scalar { result_type, .. } => {
+                    terminal_callable_result(*result_type)?
+                }
+            };
+            validate_callable_result(checked, callable)?;
             let machine = machine_id(ordinal.checked_add(first_machine).ok_or(
                 LoweringError::Unsupported("dynamic realization machine identity overflowed"),
             )?);
@@ -67,7 +149,7 @@ pub(crate) fn collect_dynamic_realizations(
 
 pub(crate) fn retain_realizations_for_lane(
     all: &[LoweredDynamicRealization],
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallableTable<'_>,
     lane: DynamicLoweringLane<'_>,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     // Rebound descriptors and forwarded descriptor parameters both expose the
@@ -75,11 +157,7 @@ pub(crate) fn retain_realizations_for_lane(
     // full roster is retained. A strictly local direct dispatch names its
     // selected callable outright; its application keeps the unselected family
     // rows as evidence without materializing their instances.
-    let retains_full_roster = matches!(lane, DynamicLoweringLane::Rebound(_))
-        || matches!(
-            plan.origin,
-            checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
-        );
+    let retains_full_roster = matches!(lane, DynamicLoweringLane::Rebound(_)) || plan.forwarded;
     let retained = all
         .iter()
         .filter(|candidate| {
@@ -98,7 +176,7 @@ pub(crate) fn retain_realizations_for_lane(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn materialize_dynamic_realizations(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallableTable<'_>,
     lowered: &[LoweredDynamicRealization],
     source_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -156,7 +234,6 @@ pub(crate) fn materialize_dynamic_realizations(
                     &[],
                 )?
             };
-            let scalar_type = terminal_scalar_type(callable.result_type)?;
             let block = block_id(allocate_dense(next_block)?);
             let place = place_id(allocate_dense(next_place)?);
             let edge = edge_id(allocate_dense(next_edge)?);
@@ -165,32 +242,62 @@ pub(crate) fn materialize_dynamic_realizations(
                 position: 0,
                 is_self: true,
                 structural_type: source_type,
-                multiplicity: terminal_projected_source_multiplicity(plan),
+                multiplicity: terminal_projected_source_multiplicity_for(plan.caller_multiplicity),
                 access: match plan.source_access {
                     CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
                     CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-                    _ => unreachable!("borrowed dynamic source access was validated"),
+                    _ => return unsupported("dynamic realization requires a borrowed source"),
                 },
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             };
-            let operations = lower_realization_operations(
-                &callable.structural_scalar_field_stores,
-                &callable.return_expression,
-                scalar_type,
-                &parameter,
-                structural_types,
-                next_operation,
-                next_value,
-            )?;
-            let returned = operations
-                .last()
-                .and_then(|operation| operation.result.scalar())
-                .map(|value| value.id)
-                .ok_or(LoweringError::Unsupported(
-                    "dynamic realization did not emit one scalar result",
-                ))?;
-            let result_value = value_id(allocate_dense(next_value)?);
+            let (operations, result, terminator) = match &callable.body {
+                CheckedDynamicRealizationBodyPlan::Unit => (
+                    Vec::new(),
+                    TerminalMachineResult::Unit,
+                    Terminator::ReturnUnit {
+                        edge,
+                        trivial_affine_discards: Vec::new(),
+                    },
+                ),
+                CheckedDynamicRealizationBodyPlan::Scalar {
+                    result_type,
+                    structural_scalar_field_stores,
+                    return_expression,
+                } => {
+                    let scalar_type = terminal_scalar_type(*result_type)?;
+                    let operations = lower_realization_operations(
+                        structural_scalar_field_stores,
+                        return_expression,
+                        scalar_type,
+                        &parameter,
+                        structural_types,
+                        next_operation,
+                        next_value,
+                    )?;
+                    let returned = operations
+                        .last()
+                        .and_then(|operation| operation.result.scalar())
+                        .map(|value| value.id)
+                        .ok_or(LoweringError::Unsupported(
+                            "dynamic realization did not emit one scalar result",
+                        ))?;
+                    let result_value = value_id(allocate_dense(next_value)?);
+                    (
+                        operations,
+                        TerminalMachineResult::Scalar(ValueDeclaration {
+                            qualifications: Default::default(),
+                            id: result_value,
+                            scalar_type,
+                        }),
+                        Terminator::Return {
+                            cleanup_actions: Vec::new(),
+                            edge,
+                            value: returned,
+                        },
+                    )
+                }
+            };
             Ok(TerminalMachine {
                 closed_reach_application: None,
                 declared_service_reach: Vec::new(),
@@ -199,11 +306,7 @@ pub(crate) fn materialize_dynamic_realizations(
                 parameters: Vec::new(),
                 structural_parameters: vec![parameter.clone()],
                 ranked_scc: None,
-                result: TerminalMachineResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: result_value,
-                    scalar_type,
-                }),
+                result,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: parameter.place,
                     kind: StructuralPlaceKind::Parameter {
@@ -223,14 +326,57 @@ pub(crate) fn materialize_dynamic_realizations(
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
                     operations,
-                    terminator: Terminator::Return {
-                        cleanup_actions: Vec::new(),
-                        edge,
-                        value: returned,
-                    },
+                    terminator,
                 }],
                 contract: empty_terminal_contract(realization.machine.get()),
             })
         })
         .collect()
+}
+
+fn validate_callable_result(
+    checked: &CheckedTrees,
+    callable: &CheckedDynamicRealizationCallablePlan,
+) -> Result<(), LoweringError> {
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == callable.realization_machine)
+        .ok_or(LoweringError::Unsupported(
+            "dynamic callable machine is absent",
+        ))?;
+    let state = checked
+        .typed
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == callable.realization_state)
+        .ok_or(LoweringError::Unsupported(
+            "dynamic callable state is absent",
+        ))?;
+    let mut result_type = state.return_type;
+    while let TypeReferenceNode::Constrained { base_type, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(result_type)
+    {
+        result_type = *base_type;
+    }
+    let matches = match &callable.body {
+        CheckedDynamicRealizationBodyPlan::Unit => matches!(
+            checked
+                .typed
+                .type_reference_table
+                .type_reference(result_type),
+            TypeReferenceNode::Unit
+        ),
+        CheckedDynamicRealizationBodyPlan::Scalar {
+            result_type: primitive,
+            ..
+        } => checked.typed.primitive_type_reference(result_type) == Some(*primitive),
+    };
+    if !matches {
+        return unsupported("dynamic callable result kind drifted from its checked signature");
+    }
+    Ok(())
 }

@@ -129,8 +129,10 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     let call_result_value = value_id(if has_caller_store { 2 } else { 1 });
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
-    let all_realizations = collect_dynamic_realizations(checked, plan, 2)?;
-    let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
+    let callable_table = plan.into();
+    let all_realizations = collect_dynamic_realizations(checked, &callable_table, 2)?;
+    let lowered_realizations =
+        retain_realizations_for_lane(&all_realizations, &callable_table, lane)?;
     let selected_realizations = lowered_realizations
         .iter()
         .filter(|candidate| {
@@ -150,8 +152,12 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
         return unsupported("direct dynamic selected realization callable drifted");
     }
 
-    let (application, selected_row) =
-        lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let (application, selected_row) = lower_exact_application(
+        checked,
+        &callable_table,
+        caller_machine,
+        &lowered_realizations,
+    )?;
     let initial_application = match lane {
         DynamicLoweringLane::Rebound(initial)
             if initial.fact.conformance != plan.selection.conformance
@@ -245,7 +251,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     });
     let realization_machines = materialize_dynamic_realizations(
         checked,
-        plan,
+        &callable_table,
         &lowered_realizations,
         source_type,
         &structural_types,

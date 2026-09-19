@@ -3,6 +3,7 @@
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
 mod finite_family;
+mod mixed_results;
 mod mutating_realizations_and_effects;
 mod plan_isolation;
 mod rebound_dynamic_custody;

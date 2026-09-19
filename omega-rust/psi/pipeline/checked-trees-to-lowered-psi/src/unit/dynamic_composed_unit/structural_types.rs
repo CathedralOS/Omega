@@ -20,12 +20,6 @@ pub(crate) fn terminal_structural_multiplicity(
 
 /// A shared field projection retains its caller root's consumption bound even
 /// when the projected field's own declared carrier is copyable.
-pub(crate) fn terminal_projected_source_multiplicity(
-    plan: &CheckedDynamicScalarCallPlan,
-) -> StructuralMultiplicity {
-    terminal_projected_source_multiplicity_for(plan.caller_multiplicity)
-}
-
 pub(crate) fn terminal_projected_source_multiplicity_for(
     caller_multiplicity: Multiplicity,
 ) -> StructuralMultiplicity {

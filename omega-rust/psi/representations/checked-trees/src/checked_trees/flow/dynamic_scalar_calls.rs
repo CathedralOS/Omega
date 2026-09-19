@@ -131,7 +131,7 @@ pub struct CheckedDynamicUnitCallPlan {
     /// `realization_machine` and `realization_state` then name the tuple's
     /// specialization instance. Empty on a nongeneric requirement.
     pub family_tuple: Box<[String]>,
-    pub realization_callables: Vec<CheckedDynamicUnitRealizationCallablePlan>,
+    pub realization_callables: Vec<CheckedDynamicRealizationCallablePlan>,
     pub realization_contract_report_fingerprint: u64,
     pub realization_contract_commitment: MachineContractCommitment,
     pub checked_call_service_reach: ServiceReachSummary,
@@ -146,23 +146,6 @@ pub enum CheckedDynamicUnitCallOrigin {
         coordinate: CheckedUnitCallCoordinate,
         parameter: SymbolHandle,
     },
-}
-
-/// One exact operation-free checked Unit callable behind a closed dynamic
-/// table row.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedDynamicUnitRealizationCallablePlan {
-    pub declaring_trait: SymbolHandle,
-    pub requirement: SymbolHandle,
-    pub requirement_identity: String,
-    pub realization_machine: SymbolHandle,
-    pub realization_state: SymbolHandle,
-    pub realization_identity: String,
-    /// The finite-family value tuple this callable realizes: one roster tuple
-    /// per entry for a generic requirement, empty for a nongeneric one.
-    pub family_tuple: Box<[String]>,
-    pub contract_report_fingerprint: u64,
-    pub contract_commitment: MachineContractCommitment,
 }
 
 /// A Unit call after exactly one same-interface descriptor reassignment.
@@ -431,7 +414,7 @@ pub struct CheckedDynamicScalarCallPlan {
     pub realization_structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,
     /// Complete closed realization roster for the selected conformance. A
     /// rebound dynamic descriptor is materializable only when every table
-    /// slot retains its exact checked callable and scalar body; retaining only
+    /// slot retains its exact checked callable and body; retaining only
     /// the currently selected row would make the later indirect table a
     /// producer assertion rather than a reconstruction.
     pub realization_callables: Vec<CheckedDynamicRealizationCallablePlan>,
@@ -483,15 +466,22 @@ pub struct CheckedDynamicRealizationCallablePlan {
     /// The finite-family value tuple this callable realizes: one roster tuple
     /// per entry for a generic requirement, empty for a nongeneric one.
     pub family_tuple: Box<[String]>,
-    pub result_type: typed_trees::types::PrimitiveType,
-    /// Exact ordered primitive-field mutations performed before the return.
-    /// The bounded body shape admits at most three distinct literal stores
-    /// through mutable `self`; downstream lowering must not rediscover them
-    /// from source.
-    pub structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,
-    pub return_expression: CheckedScalarExpression,
+    pub body: CheckedDynamicRealizationBodyPlan,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: MachineContractCommitment,
+}
+
+/// Result and body belong to each callable, not to the enclosing trait table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedDynamicRealizationBodyPlan {
+    /// An operation-free checked body with no result carrier.
+    Unit,
+    Scalar {
+        result_type: typed_trees::types::PrimitiveType,
+        /// Ordered checked mutations; lowering does not rediscover source bodies.
+        structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,
+        return_expression: CheckedScalarExpression,
+    },
 }
 
 /// Checked custody for one local named-dynamic scalar call after exactly one

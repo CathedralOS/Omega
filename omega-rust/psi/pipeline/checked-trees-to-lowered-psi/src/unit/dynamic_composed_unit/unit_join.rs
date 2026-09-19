@@ -1,8 +1,10 @@
 //! Result-less lowering for the checked two-predecessor descriptor join.
 //!
 //! The descriptor/control structure is identical to the scalar join. Only the
-//! branch calls, realization results, and helper calls are Unit-typed.
+//! selected branch calls and helper calls are Unit-typed; each conformance
+//! member keeps its own result kind.
 
+use super::realizations::{collect_dynamic_realizations, materialize_dynamic_realizations};
 use super::{
     Block, CheckedStructuralAccess, CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence,
     LoweringError, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
@@ -14,7 +16,9 @@ use super::{
     edge_id, join, lookup_type_id, lower_installation_machine_service_ceiling,
     lower_root_service_reach, machine_id, operation_id, place_id, unit, unsupported, value_id,
 };
-use crate::unit::dynamic_composed_unit::applications::exact_machine_service_summary;
+use crate::unit::dynamic_composed_unit::applications::{
+    exact_machine_service_summary, lower_exact_application,
+};
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
     DynamicLoweringLane, LoweredDynamicRealization,
 };
@@ -93,15 +97,15 @@ pub(super) fn lower(
         .map(|branch| realizations_for_plan(branch, &lowered_realizations))
         .collect::<Result<Vec<_>, _>>()?;
     let caller_machine = machine_id(1);
-    let (first_application, first_row) = unit::lower_exact_unit_application(
+    let (first_application, first_row) = lower_exact_application(
         checked,
-        first,
+        &first.into(),
         caller_machine,
         &branch_realizations[0],
     )?;
-    let (second_application, second_row) = unit::lower_exact_unit_application(
+    let (second_application, second_row) = lower_exact_application(
         checked,
-        second,
+        &second.into(),
         caller_machine,
         &branch_realizations[1],
     )?;
@@ -120,6 +124,7 @@ pub(super) fn lower(
     let mut next_place = 2_u64;
     let mut next_operation = 3_u64;
     let mut next_edge = 5_u64;
+    let mut next_value = 2_u64;
     let helper_ids = unit::forwarded_unit_helper_ids(
         first,
         &lowered_realizations,
@@ -147,13 +152,16 @@ pub(super) fn lower(
             .ok_or(LoweringError::Unsupported(
                 "joined Unit realization has no checked branch owner",
             ))?;
-        realization_machines.extend(unit::materialize_unit_realizations(
+        realization_machines.extend(materialize_dynamic_realizations(
             checked,
-            owner,
+            &owner.into(),
             std::slice::from_ref(realization),
             source_type,
+            &structural_types,
             &mut next_block,
             &mut next_place,
+            &mut next_operation,
+            &mut next_value,
             &mut next_edge,
         )?);
     }
@@ -415,7 +423,7 @@ fn joined_realizations(
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     let mut joined = Vec::new();
     for branch in branches {
-        for candidate in unit::collect_unit_realizations(checked, branch)? {
+        for candidate in collect_dynamic_realizations(checked, &(*branch).into(), 2)? {
             if let Some(existing) = joined.iter().find(|existing: &&LoweredDynamicRealization| {
                 existing.source_machine == candidate.source_machine
                     && existing.source_state == candidate.source_state

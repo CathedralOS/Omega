@@ -426,12 +426,12 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
         panic!("one realization callable expected")
     };
     assert_eq!(
-        callable.structural_scalar_field_stores,
-        plan.realization_structural_scalar_field_stores
-    );
-    assert_eq!(
-        callable.return_expression,
-        plan.realization_return_expression
+        callable.body,
+        checked_trees::CheckedDynamicRealizationBodyPlan::Scalar {
+            result_type: plan.result.primitive_type,
+            structural_scalar_field_stores: plan.realization_structural_scalar_field_stores.clone(),
+            return_expression: plan.realization_return_expression.clone(),
+        }
     );
 }
 

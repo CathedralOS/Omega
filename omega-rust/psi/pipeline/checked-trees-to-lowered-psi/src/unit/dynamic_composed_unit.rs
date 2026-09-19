@@ -46,16 +46,14 @@ use checked_trees::{
 use language_semantics::Multiplicity;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Block, ClosedConformanceApplication, ClosedConformanceCallableResult,
-    ClosedConformanceRealizationCallable, ClosedConformanceRow, Operation, OperationKind,
-    OperationResult, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
-    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
-    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog,
-    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, Terminator,
-    ValueDeclaration, VocabularyMarker, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint,
+    Block, ClosedConformanceApplication, ClosedConformanceCallableResult, ClosedConformanceRow,
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalDirectDynamicDispatch,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalIndirectDynamicDispatch, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
+    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
 };
 
 pub(crate) fn lower_joined_dynamic_composed_unit_machine(
