@@ -10,6 +10,12 @@
 //! [`UnresolvedCallSite`] roster, the composed demand publishes as partial,
 //! and the roster rides the sealed projection so no `StackLease` can treat
 //! the covered subgraph as the whole call graph.
+//! Provider admission covers a sealed site by presenting a
+//! [`CallTargetBinding`]: [`cover_unresolved_call_sites`] moves the site to a
+//! checked callee edge, merges the bound callee's validated subtree into the
+//! demand's frame evidence, and recomposes — a projection whose roster
+//! empties publishes exact, while a site no binding names stays unresolved
+//! and keeps rejecting.
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
@@ -236,6 +242,40 @@ pub struct UnresolvedCallSite {
     pub kind: UnresolvedCallKind,
 }
 
+/// Provider admission's binding of one sealed [`UnresolvedCallSite`] to a
+/// concrete checked-body callee.
+///
+/// A requirement slot, machine parameter, or dynamic descriptor the checker
+/// could not resolve finally names its machine when the provider binds the
+/// call target at admission. The `(frame, state, statement_index,
+/// call_ordinal)` coordinate must match a sealed unresolved site exactly —
+/// a binding naming no site fails closed rather than covering anything.
+/// `callee` names the root frame of the bound callee subtree, and `subtree`
+/// carries every validated frame of that subtree, callee root included, as
+/// the provider-side whole-call-graph derivation produced them. Covering
+/// moves the site into a checked call edge and merges the subtree into the
+/// composition's frame evidence, so the bound callee's validated stack frame
+/// charges into the demand exactly as if the graph had resolved the call.
+/// Unresolved sites inside the presented subtree stay unresolved: binding a
+/// target never launders the callee's own partial evidence into exactness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallTargetBinding {
+    /// Frame owning the unresolved call the provider is binding.
+    pub frame: TaskStackFrameId,
+    /// Name of the reachable state inside `frame` whose flow row owns the
+    /// call — the frame spans several states of one machine, so the
+    /// statement/call index pair is only exact alongside it.
+    pub state: String,
+    /// Exact call coordinate inside the state's checked flow row.
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    /// Root frame of the bound callee subtree.
+    pub callee: TaskStackFrameId,
+    /// The bound callee's complete validated subtree: its root frame and
+    /// every frame reachable through its own checked calls.
+    pub subtree: Vec<ValidatedTaskStackFrameSummary>,
+}
+
 /// Compiler-produced local frame facts before whole-graph composition.
 /// `local_bytes` includes target calling/entry overhead owned by this frame;
 /// every child begins while those bytes remain live. `unresolved_calls`
@@ -317,6 +357,47 @@ fn validate_alignment(alignment: u64, subject: &str) -> Result<(), TaskPlanDiagn
         )));
     }
     Ok(())
+}
+
+/// Bind a frame's validated content: its identity, its exact local extent
+/// and alignment, the callee roster it can place beneath itself, and the
+/// unresolved call sites the bound does not cover. The rosters hash in
+/// canonical order, so the identity binds what the frame contains rather
+/// than the order a producer presented it — graph derivation and
+/// admission-time covering therefore mint the same identity for the same
+/// covered content.
+pub fn task_stack_frame_validation_identity(
+    frame: TaskStackFrameId,
+    local_bytes: u64,
+    alignment: u64,
+    calls: &[StackCallContribution],
+    unresolved_calls: &[UnresolvedCallSite],
+) -> TaskStackFrameValidationId {
+    let mut calls = calls.to_vec();
+    calls.sort_unstable();
+    let mut unresolved_calls = unresolved_calls.to_vec();
+    unresolved_calls.sort_unstable();
+    let mut hash = Fnv1a::new();
+    hash.byte(0x56);
+    hash.word(frame.normalized_identity());
+    hash.word(local_bytes);
+    hash.word(alignment);
+    hash.word(calls.len() as u64);
+    for call in &calls {
+        match call {
+            StackCallContribution::Checked { callee } => {
+                hash.byte(1);
+                hash.word(callee.normalized_identity());
+            }
+            StackCallContribution::AdmittedSameStack(contribution) => {
+                hash.byte(2);
+                hash.word(contribution.report_identity().normalized_identity());
+            }
+        }
+    }
+    hash_unresolved_calls(&mut hash, unresolved_calls.iter());
+    TaskStackFrameValidationId::from_normalized_identity(hash.finish())
+        .expect("normalized frame validation identity is never zero")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -404,9 +485,11 @@ impl ComposedTaskStackDemand {
 /// The compact composition identity is not used as a substitute for the facts
 /// a stack allocator and activation fingerprint rely on. The projection also
 /// retains the exact root, composed shape, frame-validation set, admitted
-/// contribution set, unresolved-call roster, and selected representation.
-/// A non-empty roster makes the projection partial: the retained shape is the
-/// covered subgraph's demand, not the whole-call-graph WCSU.
+/// contribution set, unresolved-call roster, selected representation, and the
+/// composition's frame evidence — admission-time call-target covering
+/// recomposes from that retained evidence, never from the published shape
+/// alone. A non-empty roster makes the projection partial: the retained
+/// shape is the covered subgraph's demand, not the whole-call-graph WCSU.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WcsuStackPlanProjection {
     identity: StackPlanProjectionId,
@@ -419,6 +502,7 @@ pub struct WcsuStackPlanProjection {
     admitted_contribution_commitments: BTreeSet<SameStackContributionCommitment>,
     unresolved_calls: BTreeSet<UnresolvedCallSite>,
     representation: StackRepresentationId,
+    evidence: TaskStackCompositionEvidence,
 }
 
 impl WcsuStackPlanProjection {
@@ -537,7 +621,139 @@ pub fn project_wcsu_stack_plan(
         admitted_contribution_commitments,
         unresolved_calls,
         representation,
+        evidence: demand.evidence.clone(),
     }
+}
+
+/// Cover sealed [`UnresolvedCallSite`] rows with provider-admission call
+/// target bindings and re-seal the projection.
+///
+/// Each [`CallTargetBinding`] names one unresolved site exactly — frame,
+/// state, statement index and call ordinal — and carries the bound callee's
+/// validated subtree, its root included. Covering first merges every bound
+/// subtree into the composition's retained frame evidence: a subtree frame
+/// whose validation does not bind its presented content, or whose content
+/// conflicts with retained evidence, fails closed. Then each owning frame is
+/// edited — the covered site leaves its unresolved roster and the bound
+/// callee root enters its checked callee roster — and its validation is
+/// re-minted by [`task_stack_frame_validation_identity`], so the covered
+/// frame binds exactly what graph derivation would have bound had it
+/// resolved the call itself.
+///
+/// The merged graph then recomposes through [`compose_task_stack_demand`] —
+/// checked-edge closure, reachability and acyclicity all re-run, so a
+/// binding that introduces a cycle, names a missing frame, or presents an
+/// unreachable subtree fails closed — and the covered demand re-projects
+/// into the same stack representation. The result publishes exact only when
+/// no unresolved site remains: bindings never erase rows they did not name,
+/// and a bound subtree's own unresolved sites stay in the roster.
+pub fn cover_unresolved_call_sites(
+    projection: &WcsuStackPlanProjection,
+    bindings: &[CallTargetBinding],
+) -> Result<WcsuStackPlanProjection, TaskPlanDiagnostic> {
+    if !projection.has_valid_identity() {
+        return Err(TaskPlanDiagnostic(
+            "call target binding requires a projection whose sealed identity matches its \
+             published bound"
+                .into(),
+        ));
+    }
+    let mut frames = projection.evidence.frames.clone();
+    // Merge every bound subtree before editing any owning frame: a bound
+    // subtree legitimately re-presents the caller frame in its pre-cover
+    // shape, so site edits must apply to the fully merged evidence.
+    for binding in bindings {
+        if !binding
+            .subtree
+            .iter()
+            .any(|summary| summary.summary().frame == binding.callee)
+        {
+            return Err(TaskPlanDiagnostic(format!(
+                "call target binding for frame 0x{:016x} state `{}` statement {} call {} does \
+                 not contain its callee root frame 0x{:016x}",
+                binding.frame.normalized_identity(),
+                binding.state,
+                binding.statement_index,
+                binding.call_ordinal,
+                binding.callee.normalized_identity()
+            )));
+        }
+        for subtree_summary in &binding.subtree {
+            let presented = subtree_summary.summary();
+            if presented.validation
+                != task_stack_frame_validation_identity(
+                    presented.frame,
+                    presented.local_bytes,
+                    presented.alignment,
+                    &presented.calls,
+                    &presented.unresolved_calls,
+                )
+            {
+                return Err(TaskPlanDiagnostic(format!(
+                    "call target binding merges frame 0x{:016x} whose validation does not bind \
+                     its presented content",
+                    presented.frame.normalized_identity()
+                )));
+            }
+            match frames.get(&presented.frame) {
+                Some(existing) if existing == subtree_summary => {}
+                Some(_) => {
+                    return Err(TaskPlanDiagnostic(format!(
+                        "call target binding merges frame 0x{:016x} that conflicts with the \
+                         composition's retained evidence",
+                        presented.frame.normalized_identity()
+                    )));
+                }
+                None => {
+                    frames.insert(presented.frame, subtree_summary.clone());
+                }
+            }
+        }
+    }
+    for binding in bindings {
+        let Some(existing) = frames.get(&binding.frame) else {
+            return Err(TaskPlanDiagnostic(format!(
+                "call target binding names frame 0x{:016x} absent from the composition's \
+                 evidence",
+                binding.frame.normalized_identity()
+            )));
+        };
+        let mut summary = existing.summary().clone();
+        let position = summary
+            .unresolved_calls
+            .iter()
+            .position(|site| {
+                site.frame == binding.frame
+                    && site.state == binding.state
+                    && site.statement_index == binding.statement_index
+                    && site.call_ordinal == binding.call_ordinal
+            })
+            .ok_or_else(|| {
+                TaskPlanDiagnostic(format!(
+                    "call target binding names no unresolved call site at frame 0x{:016x} \
+                     state `{}` statement {} call {}",
+                    binding.frame.normalized_identity(),
+                    binding.state,
+                    binding.statement_index,
+                    binding.call_ordinal
+                ))
+            })?;
+        summary.unresolved_calls.remove(position);
+        summary.calls.push(StackCallContribution::Checked {
+            callee: binding.callee,
+        });
+        summary.validation = task_stack_frame_validation_identity(
+            summary.frame,
+            summary.local_bytes,
+            summary.alignment,
+            &summary.calls,
+            &summary.unresolved_calls,
+        );
+        let summary = validate_task_stack_frame_summary(summary)?;
+        frames.insert(binding.frame, summary);
+    }
+    let covered = compose_task_stack_demand(projection.root, frames.into_values())?;
+    Ok(project_wcsu_stack_plan(&covered, projection.representation))
 }
 
 pub fn compose_task_stack_demand(
@@ -869,12 +1085,14 @@ impl Fnv1a {
 #[cfg(test)]
 mod tests {
     use super::{
-        AdmittedSameStackContribution, BTreeSet, SameStackContributionAdmissionCandidate,
-        SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
-        StackCallContribution, StackPlan, StackRepresentationId, TaskPlanDiagnostic,
-        TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId, UnresolvedCallKind,
-        UnresolvedCallSite, ValidatedTaskStackFrameSummary, admit_same_stack_contribution,
-        compose_task_stack_demand, project_wcsu_stack_plan, validate_task_stack_frame_summary,
+        AdmittedSameStackContribution, BTreeSet, CallTargetBinding,
+        SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
+        SameStackProviderPlanCommitment, StackCallContribution, StackPlan, StackRepresentationId,
+        TaskPlanDiagnostic, TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId,
+        UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
+        admit_same_stack_contribution, compose_task_stack_demand, cover_unresolved_call_sites,
+        project_wcsu_stack_plan, task_stack_frame_validation_identity,
+        validate_task_stack_frame_summary,
     };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
@@ -899,6 +1117,34 @@ mod tests {
             unresolved_calls: Vec::new(),
         })
         .expect("valid local frame")
+    }
+
+    /// A frame whose validation is minted by the canonical derivation — what
+    /// whole-call-graph derivation produces and what a call-target binding's
+    /// presented subtree must carry.
+    fn canonical_frame(
+        identity: u64,
+        bytes: u64,
+        alignment: u64,
+        calls: Vec<StackCallContribution>,
+        unresolved_calls: Vec<UnresolvedCallSite>,
+    ) -> ValidatedTaskStackFrameSummary {
+        let frame = id(identity, TaskStackFrameId::from_normalized_identity);
+        validate_task_stack_frame_summary(TaskStackFrameSummary {
+            frame,
+            local_bytes: bytes,
+            alignment,
+            validation: task_stack_frame_validation_identity(
+                frame,
+                bytes,
+                alignment,
+                &calls,
+                &unresolved_calls,
+            ),
+            calls,
+            unresolved_calls,
+        })
+        .expect("valid canonical frame")
     }
 
     fn provider_plan_commitment(marker: u8) -> SameStackProviderPlanCommitment {
@@ -1397,5 +1643,266 @@ mod tests {
             .0
             .contains("alignment overflow")
         );
+    }
+
+    /// A partial projection whose root frame seals `sites` — the canonical
+    /// validation derivation mints over the unresolved roster exactly as
+    /// whole-call-graph derivation does.
+    fn partial_projection(
+        root: u64,
+        sites: Vec<UnresolvedCallSite>,
+        representation: u64,
+    ) -> super::WcsuStackPlanProjection {
+        let root_frame = id(root, TaskStackFrameId::from_normalized_identity);
+        let partial_root = canonical_frame(root, 24, 8, Vec::new(), sites);
+        let demand = compose_task_stack_demand(root_frame, [partial_root])
+            .expect("the covered subgraph composes");
+        assert!(!demand.is_exact());
+        let projection = project_wcsu_stack_plan(
+            &demand,
+            id(
+                representation,
+                StackRepresentationId::from_normalized_identity,
+            ),
+        );
+        assert!(!projection.is_exact());
+        projection
+    }
+
+    fn site(
+        frame: u64,
+        state: &str,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> UnresolvedCallSite {
+        UnresolvedCallSite {
+            frame: id(frame, TaskStackFrameId::from_normalized_identity),
+            state: state.into(),
+            statement_index,
+            call_ordinal,
+            kind: UnresolvedCallKind::UnresolvedTarget,
+        }
+    }
+
+    fn binding(
+        site: &UnresolvedCallSite,
+        subtree: Vec<ValidatedTaskStackFrameSummary>,
+        callee: u64,
+    ) -> CallTargetBinding {
+        CallTargetBinding {
+            frame: site.frame,
+            state: site.state.clone(),
+            statement_index: site.statement_index,
+            call_ordinal: site.call_ordinal,
+            callee: id(callee, TaskStackFrameId::from_normalized_identity),
+            subtree,
+        }
+    }
+
+    #[test]
+    fn call_target_binding_covers_a_sealed_site_into_an_exact_bound() {
+        let callee = id(71, TaskStackFrameId::from_normalized_identity);
+        let unresolved = site(70, "run", 1, 0);
+        let projection = partial_projection(70, vec![unresolved.clone()], 72);
+
+        let covered = cover_unresolved_call_sites(
+            &projection,
+            &[binding(
+                &unresolved,
+                vec![canonical_frame(71, 32, 16, Vec::new(), Vec::new())],
+                71,
+            )],
+        )
+        .expect("the bound callee subtree covers the sealed site");
+
+        // The bound callee charges beneath the root's 24-byte extent: its
+        // base aligns to 16 -> 32, then its 32 bytes compose on top.
+        assert_eq!(covered.bytes(), 64);
+        assert_eq!(covered.alignment(), 16);
+        assert!(covered.is_exact());
+        assert!(covered.unresolved_calls().is_empty());
+        assert!(covered.has_valid_identity());
+        assert_ne!(
+            covered.identity(),
+            projection.identity(),
+            "covering re-seals a new projection identity"
+        );
+        assert_ne!(
+            covered.composition(),
+            projection.composition(),
+            "charging the bound callee composes a different demand"
+        );
+
+        // The covered projection is identical to the projection the graph
+        // would have sealed had the call resolved to this callee state
+        // directly — same shape, same frame evidence, same identity.
+        let root = id(70, TaskStackFrameId::from_normalized_identity);
+        let known = compose_task_stack_demand(
+            root,
+            [
+                canonical_frame(
+                    70,
+                    24,
+                    8,
+                    vec![StackCallContribution::Checked { callee }],
+                    Vec::new(),
+                ),
+                canonical_frame(71, 32, 16, Vec::new(), Vec::new()),
+            ],
+        )
+        .expect("the graph-known shape composes");
+        let known_projection = project_wcsu_stack_plan(
+            &known,
+            id(72, StackRepresentationId::from_normalized_identity),
+        );
+        assert_eq!(covered, known_projection);
+    }
+
+    #[test]
+    fn call_target_binding_rejects_sites_and_subtrees_it_cannot_prove() {
+        let unresolved = site(70, "run", 1, 0);
+        let projection = partial_projection(70, vec![unresolved.clone()], 72);
+
+        // A coordinate that names no sealed site covers nothing.
+        let wrong_call = UnresolvedCallSite {
+            call_ordinal: 1,
+            ..unresolved.clone()
+        };
+        assert!(
+            cover_unresolved_call_sites(
+                &projection,
+                &[binding(
+                    &wrong_call,
+                    vec![canonical_frame(71, 32, 16, Vec::new(), Vec::new())],
+                    71,
+                )],
+            )
+            .expect_err("a binding must name a sealed unresolved site")
+            .0
+            .contains("names no unresolved call site")
+        );
+
+        // A frame absent from the composition's evidence covers nothing.
+        let absent_frame = site(90, "run", 0, 0);
+        assert!(
+            cover_unresolved_call_sites(
+                &projection,
+                &[binding(
+                    &absent_frame,
+                    vec![canonical_frame(71, 32, 16, Vec::new(), Vec::new())],
+                    71,
+                )],
+            )
+            .expect_err("a binding must name a frame in the composition")
+            .0
+            .contains("absent from the composition")
+        );
+
+        // A subtree that omits its callee root cannot charge the edge it
+        // would create.
+        assert!(
+            cover_unresolved_call_sites(
+                &projection,
+                &[binding(
+                    &unresolved,
+                    vec![canonical_frame(73, 32, 16, Vec::new(), Vec::new())],
+                    71,
+                )],
+            )
+            .expect_err("a subtree must contain its callee root frame")
+            .0
+            .contains("does not contain its callee root")
+        );
+
+        // A subtree frame whose validation does not bind its content is
+        // drifted evidence, not a derivation product.
+        let mut drifted = canonical_frame(71, 32, 16, Vec::new(), Vec::new());
+        drifted.0.validation = id(0x7fff, TaskStackFrameValidationId::from_normalized_identity);
+        assert!(
+            cover_unresolved_call_sites(&projection, &[binding(&unresolved, vec![drifted], 71)])
+                .expect_err("subtree validation must bind its presented content")
+                .0
+                .contains("validation does not bind")
+        );
+
+        // A subtree frame that conflicts with retained evidence is a
+        // collision, not a shared callee.
+        let conflicting = canonical_frame(70, 64, 8, Vec::new(), Vec::new());
+        assert!(
+            cover_unresolved_call_sites(
+                &projection,
+                &[binding(&unresolved, vec![conflicting], 70)],
+            )
+            .expect_err("a subtree frame conflicting with retained evidence rejects")
+            .0
+            .contains("conflicts with the composition's retained evidence")
+        );
+
+        // Binding the site to a callee that calls back into the caller
+        // discovers the cycle the unresolved edge had hidden.
+        let root = id(70, TaskStackFrameId::from_normalized_identity);
+        let cyclic_subtree = vec![canonical_frame(
+            71,
+            32,
+            16,
+            vec![StackCallContribution::Checked { callee: root }],
+            Vec::new(),
+        )];
+        assert!(
+            cover_unresolved_call_sites(&projection, &[binding(&unresolved, cyclic_subtree, 71)])
+                .expect_err("a binding must not introduce a same-stack call cycle")
+                .0
+                .contains("non-lowered call cycle")
+        );
+    }
+
+    #[test]
+    fn call_target_binding_leaves_unbound_sites_partial() {
+        let covered_site = site(70, "run", 1, 0);
+        let still_unbound = site(70, "run", 5, 0);
+        let projection =
+            partial_projection(70, vec![covered_site.clone(), still_unbound.clone()], 72);
+
+        let covered = cover_unresolved_call_sites(
+            &projection,
+            &[binding(
+                &covered_site,
+                vec![canonical_frame(71, 32, 16, Vec::new(), Vec::new())],
+                71,
+            )],
+        )
+        .expect("the named site covers");
+        assert!(
+            !covered.is_exact(),
+            "a site no binding names stays unresolved"
+        );
+        assert_eq!(
+            covered.unresolved_calls(),
+            &BTreeSet::from([still_unbound]),
+            "the unbound row keeps the projection partial"
+        );
+
+        // A bound subtree's own unresolved sites stay unresolved too: the
+        // covered edge charges what the subtree bounds and keeps what it
+        // cannot.
+        let nested_site = site(73, "run", 0, 0);
+        let projection = partial_projection(70, vec![covered_site.clone()], 72);
+        let covered = cover_unresolved_call_sites(
+            &projection,
+            &[binding(
+                &covered_site,
+                vec![canonical_frame(
+                    73,
+                    32,
+                    16,
+                    Vec::new(),
+                    vec![nested_site.clone()],
+                )],
+                73,
+            )],
+        )
+        .expect("the bound subtree merges");
+        assert!(!covered.is_exact());
+        assert_eq!(covered.unresolved_calls(), &BTreeSet::from([nested_site]));
     }
 }

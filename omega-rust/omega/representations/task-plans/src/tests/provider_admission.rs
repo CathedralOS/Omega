@@ -3,14 +3,18 @@
 //! every rejection.
 
 use super::{
-    activation_fact_for, activation_set, canonical_crossing, id, marshal_arguments,
-    moved_arguments, receipt_candidate, runtime, stack_lease, wcsu_plan,
+    activation_fact_for, activation_set, candidate, canonical_crossing, id, marshal_arguments,
+    moved_arguments, partial_wcsu_plan, receipt_candidate, runtime, stack_lease, wcsu_plan,
 };
 use crate::{
-    ActivationInstanceId, ActivationPlanId, StackPlan, TaskActivationPlanSet,
-    TaskArgumentCustodyId, TaskRuntimeAdmission, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskSettlementOutcome, TaskStartOperation, TaskStartStorage, TaskStorageBinding,
-    TaskStorageOwnerId, TaskStorageProvenance,
+    ActivationInstanceId, ActivationPlanId, CallTargetBinding, StackPlan, StackRepresentationId,
+    TaskActivationPlanSet, TaskArgumentCustodyId, TaskRuntimeAdmission, TaskRuntimeId,
+    TaskRuntimeInstanceId, TaskSettlementOutcome, TaskStackFrameId, TaskStackFrameSummary,
+    TaskStartOperation, TaskStartStorage, TaskStorageBinding, TaskStorageOwnerId,
+    TaskStorageProvenance, UnresolvedCallKind, UnresolvedCallSite, ValidatedActivationPlan,
+    compose_task_stack_demand, establish_stack_lease, project_wcsu_stack_plan,
+    task_stack_frame_validation_identity, validate_task_stack_frame_summary,
+    validate_wcsu_activation_plan,
 };
 
 fn instance(identity: u64) -> TaskRuntimeInstanceId {
@@ -444,4 +448,182 @@ fn malformed_provisioning_rejects_at_construction() {
     let diagnostic = TaskRuntimeAdmission::new(runtime(), instance(410), owner(), vec![malformed])
         .expect_err("a malformed provisioned slot rejects at construction");
     assert!(diagnostic.0.contains("power of two"));
+}
+
+/// A partial WCSU plan whose root frame seals `sites` — like
+/// `partial_wcsu_plan` but with a caller-chosen unresolved roster.
+fn multi_site_partial_plan(sites: Vec<UnresolvedCallSite>) -> ValidatedActivationPlan {
+    let root = id(30, TaskStackFrameId::from_normalized_identity);
+    let frame = validate_task_stack_frame_summary(TaskStackFrameSummary {
+        frame: root,
+        local_bytes: 4096,
+        alignment: 16,
+        validation: task_stack_frame_validation_identity(root, 4096, 16, &[], &sites),
+        calls: Vec::new(),
+        unresolved_calls: sites,
+    })
+    .expect("validated partial WCSU frame");
+    let demand = compose_task_stack_demand(root, [frame]).expect("composed partial WCSU demand");
+    let projection = project_wcsu_stack_plan(
+        &demand,
+        id(6, StackRepresentationId::from_normalized_identity),
+    );
+    assert!(!projection.is_exact());
+    let mut candidate = candidate();
+    candidate.stack_plan = projection.stack_plan();
+    validate_wcsu_activation_plan(candidate, projection)
+        .expect("partial-WCSU-backed activation plan")
+}
+
+/// The provider's binding of a sealed site to a checked-body machine whose
+/// validated subtree is one leaf frame — what `task_call_graph` produces for
+/// a non-suspending callee.
+fn leaf_binding(
+    site: &UnresolvedCallSite,
+    callee: u64,
+    bytes: u64,
+    alignment: u64,
+) -> CallTargetBinding {
+    let callee = id(callee, TaskStackFrameId::from_normalized_identity);
+    CallTargetBinding {
+        frame: site.frame,
+        state: site.state.clone(),
+        statement_index: site.statement_index,
+        call_ordinal: site.call_ordinal,
+        callee,
+        subtree: vec![
+            validate_task_stack_frame_summary(TaskStackFrameSummary {
+                frame: callee,
+                local_bytes: bytes,
+                alignment,
+                validation: task_stack_frame_validation_identity(
+                    callee,
+                    bytes,
+                    alignment,
+                    &[],
+                    &[],
+                ),
+                calls: Vec::new(),
+                unresolved_calls: Vec::new(),
+            })
+            .expect("bound callee frame"),
+        ],
+    }
+}
+
+#[test]
+fn admission_binding_covers_the_unresolved_site_and_the_covered_plan_leases() {
+    let plan = partial_wcsu_plan(61);
+    let projection = plan
+        .wcsu_stack_projection()
+        .expect("sealed WCSU projection");
+    assert!(
+        !projection.is_exact(),
+        "the graph-time bound is partial while a call target is unresolved"
+    );
+    let site = projection
+        .unresolved_calls()
+        .iter()
+        .next()
+        .expect("one sealed site")
+        .clone();
+
+    // Provider admission resolves the requirement slot to a checked-body
+    // machine: the bound callee's validated frame charges into the
+    // recomposed demand and the covered site leaves the roster.
+    let covered =
+        TaskRuntimeAdmission::bind_call_targets(&plan, &[leaf_binding(&site, 40, 128, 16)])
+            .expect("admission binding covers the sealed site");
+
+    let covered_projection = covered.wcsu_stack_projection().expect("covered projection");
+    assert!(covered_projection.is_exact());
+    assert!(covered_projection.unresolved_calls().is_empty());
+    // The bound callee's 128-byte frame extends the root's 4096-byte live
+    // extent at its 16-byte alignment: 4096 is already aligned, so the
+    // covered demand is exactly 4096 + 128.
+    assert_eq!(covered.candidate().stack_plan.bytes, 4224);
+    assert_ne!(
+        covered.normalized_identity(),
+        plan.normalized_identity(),
+        "covering re-seals a different activation plan"
+    );
+
+    // The now-exact plan establishes a lease and admits through the gate.
+    let activations = activation_set(&covered);
+    let mut gate = gate(&[covered.candidate().stack_plan], 450);
+    let claim = gate
+        .admit_pending(
+            &activations,
+            receipt_candidate(&covered, instance(450), 451, 452, TaskStartOperation::Start),
+            activation(453),
+            moved_arguments(&covered, 454),
+        )
+        .expect("the covered plan admits and leases");
+    let record = gate.records().next().expect("one live dependency");
+    assert!(
+        matches!(record.storage, TaskStorageBinding::Persistent(_)),
+        "the covered plan leased provisioned backing"
+    );
+    gate.settle(claim, TaskSettlementOutcome::Completed)
+        .expect("settle the admitted claim");
+}
+
+#[test]
+fn an_unbound_unresolved_site_keeps_the_plan_rejecting() {
+    let root = id(30, TaskStackFrameId::from_normalized_identity);
+    let covered_site = UnresolvedCallSite {
+        frame: root,
+        state: "run".into(),
+        statement_index: 2,
+        call_ordinal: 0,
+        kind: UnresolvedCallKind::UnresolvedTarget,
+    };
+    let unbound_site = UnresolvedCallSite {
+        frame: root,
+        state: "run".into(),
+        statement_index: 7,
+        call_ordinal: 1,
+        kind: UnresolvedCallKind::UnresolvedTarget,
+    };
+    let plan = multi_site_partial_plan(vec![covered_site.clone(), unbound_site.clone()]);
+
+    // Admission binds one slot; the site it never bound keeps the covered
+    // projection partial, so the lease still refuses it.
+    let covered =
+        TaskRuntimeAdmission::bind_call_targets(&plan, &[leaf_binding(&covered_site, 40, 128, 16)])
+            .expect("the named site covers");
+    let projection = covered.wcsu_stack_projection().expect("covered projection");
+    assert!(!projection.is_exact());
+    assert_eq!(
+        projection.unresolved_calls().iter().collect::<Vec<_>>(),
+        vec![&unbound_site],
+        "only the bound site left the roster"
+    );
+    let error = establish_stack_lease(
+        &covered,
+        crate::StackLeaseBacking {
+            provenance: TaskStorageProvenance {
+                owner: owner(),
+                lease: id(455, crate::TaskStorageLeaseId::from_normalized_identity),
+            },
+            backing: covered.candidate().stack_plan,
+        },
+    )
+    .expect_err("an unbound site keeps the lease closed");
+    assert!(
+        error.0.contains("partial"),
+        "unexpected diagnostic: {}",
+        error.0
+    );
+
+    // And a binding naming a coordinate the plan never sealed covers nothing.
+    let foreign_site = UnresolvedCallSite {
+        frame: root,
+        state: "run".into(),
+        statement_index: 9,
+        call_ordinal: 0,
+        kind: UnresolvedCallKind::UnresolvedTarget,
+    };
+    TaskRuntimeAdmission::bind_call_targets(&plan, &[leaf_binding(&foreign_site, 40, 128, 16)])
+        .expect_err("a binding must name a sealed unresolved site");
 }

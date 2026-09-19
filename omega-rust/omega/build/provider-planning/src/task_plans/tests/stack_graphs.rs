@@ -5,7 +5,10 @@
 
 use crate::task_plans::CheckedTrees;
 use crate::task_plans::stack_graphs::task_call_graph;
-use task_plans::{UnresolvedCallKind, UnresolvedCallSite, compose_task_stack_demand};
+use task_plans::{
+    CallTargetBinding, UnresolvedCallKind, UnresolvedCallSite, compose_task_stack_demand,
+    cover_unresolved_call_sites, project_wcsu_stack_plan,
+};
 
 /// Two checked machines whose entry states call each other. `Alpha::run`
 /// calls `Beta::run`; `Beta::run` calls `Alpha::run` unless its call row is
@@ -249,6 +252,96 @@ fn task_call_graph_records_non_checked_supply_targets_in_a_partial_bound() {
     assert!(!demand.is_exact());
     assert_eq!(
         demand.unresolved_calls(),
+        &std::collections::BTreeSet::from([site])
+    );
+}
+
+#[test]
+fn admission_binding_covers_an_unresolved_target_with_the_bound_subtree() {
+    let (mut program, alpha_machine, _, beta_machine, beta_state) = mutual_call_fixture();
+    // Retire Beta's call so the subtree the provider binds is a leaf.
+    program
+        .facts
+        .flow
+        .control
+        .retired_calls
+        .push(checked_trees::RetiredFlowCall {
+            state_symbol: beta_state,
+            statement_index: 0,
+            call_ordinal: 0,
+        });
+    // Alpha's call names no machine state at graph time — the requirement
+    // slot the provider binds at admission.
+    program.facts.flow.control.calls.for_each_mut(|_, call| {
+        if call.target_symbol == beta_state {
+            call.target_symbol = symbols::SymbolHandle::from_arena_index(99);
+        }
+    });
+    let layouts = layout::build_layout_plan(&program, NativeTarget::macos_arm64(), &[])
+        .expect("synthetic machines lay out");
+    let (machine, entry) = frame_entry(&program, alpha_machine);
+    let graph = task_call_graph(
+        &program,
+        NativeTarget::macos_arm64(),
+        &[],
+        &layouts,
+        machine,
+        entry,
+    )
+    .expect("unresolved targets need no checked frame to elaborate");
+    let demand =
+        compose_task_stack_demand(graph.root, graph.frames).expect("the covered subgraph composes");
+    assert!(!demand.is_exact(), "the graph-time bound is partial");
+    let representation =
+        task_plans::StackRepresentationId::from_normalized_identity(9).expect("representation");
+    let projection = project_wcsu_stack_plan(&demand, representation);
+    let site = projection
+        .unresolved_calls()
+        .iter()
+        .next()
+        .expect("one sealed unresolved site")
+        .clone();
+
+    // Admission binds the slot to `Beta::run`: the bound callee's validated
+    // subtree is exactly the graph derivation produces for it.
+    let (beta, beta_entry) = frame_entry(&program, beta_machine);
+    let bound = task_call_graph(
+        &program,
+        NativeTarget::macos_arm64(),
+        &[],
+        &layouts,
+        beta,
+        beta_entry,
+    )
+    .expect("the bound callee subtree derives");
+    let covered = cover_unresolved_call_sites(
+        &projection,
+        &[CallTargetBinding {
+            frame: site.frame,
+            state: site.state.clone(),
+            statement_index: site.statement_index,
+            call_ordinal: site.call_ordinal,
+            callee: bound.root,
+            subtree: bound.frames,
+        }],
+    )
+    .expect("the admission binding covers the sealed site");
+
+    // Beta's eight-byte frame charges beneath Alpha's eight-byte live extent,
+    // and with the only site covered the projection publishes exact.
+    assert!(covered.is_exact());
+    assert!(covered.unresolved_calls().is_empty());
+    assert_eq!(covered.bytes(), 16);
+    assert_eq!(covered.alignment(), 8);
+    assert_eq!(covered.stack_plan().bytes, 16);
+
+    // A binding that names no sealed site covers nothing: the partial
+    // projection keeps its roster and still cannot lease.
+    let unbound = cover_unresolved_call_sites(&projection, &[])
+        .expect("an empty binding set re-seals the same partial projection");
+    assert!(!unbound.is_exact());
+    assert_eq!(
+        unbound.unresolved_calls(),
         &std::collections::BTreeSet::from([site])
     );
 }

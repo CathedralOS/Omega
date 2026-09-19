@@ -10,8 +10,9 @@
 //! at all — requirement slots, machine parameters, dynamic descriptors —
 //! carry no checked frame either. Neither kind is dropped: each enters the
 //! frame's `UnresolvedCallSite` roster, so the composed demand publishes as
-//! partial until provider admission covers the site with an
-//! `AdmittedSameStack` contribution or proves the transfer off this stack.
+//! partial until provider admission covers the site — binding it to a
+//! checked-body callee subtree through `CallTargetBinding`, moving it to an
+//! admitted same-stack contribution, or proving the transfer off this stack.
 //!
 //! A frame's local demand is its worst-case resident extent while any child
 //! runs: the resume-state word, the machine's own persistent storage layout,
@@ -34,8 +35,8 @@ use layout::TypeLayout;
 use symbols::SymbolHandle;
 use target::NativeTarget;
 use task_plans::{
-    StackCallContribution, TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId,
-    UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
+    StackCallContribution, TaskStackFrameId, TaskStackFrameSummary, UnresolvedCallKind,
+    UnresolvedCallSite, ValidatedTaskStackFrameSummary, task_stack_frame_validation_identity,
     validate_task_stack_frame_summary,
 };
 
@@ -340,10 +341,12 @@ fn task_frame_summary<'program>(
             .map_err(|_| vec![Diagnostic::error("task WCSU frame size exceeds u64")])?,
         alignment: u64::try_from(local_alignment)
             .map_err(|_| vec![Diagnostic::error("task WCSU frame alignment exceeds u64")])?,
-        validation: frame_validation_identity(
+        validation: task_stack_frame_validation_identity(
             frame,
-            local_bytes,
-            local_alignment,
+            u64::try_from(local_bytes)
+                .map_err(|_| vec![Diagnostic::error("task WCSU frame size exceeds u64")])?,
+            u64::try_from(local_alignment)
+                .map_err(|_| vec![Diagnostic::error("task WCSU frame alignment exceeds u64")])?,
             &calls,
             &unresolved_calls,
         ),
@@ -475,49 +478,6 @@ fn frame_identity(
     hash.string(callable.identity().as_str());
     hash.string(entry.name.as_str());
     super::normalized_id(hash.finish(), TaskStackFrameId::from_normalized_identity)
-}
-
-/// Bind a frame's validated content: its identity, its exact local extent and
-/// alignment, the ordered callee roster it can place beneath itself, and the
-/// unresolved call sites the bound does not cover.
-fn frame_validation_identity(
-    frame: TaskStackFrameId,
-    local_bytes: usize,
-    alignment: usize,
-    calls: &[StackCallContribution],
-    unresolved_calls: &[UnresolvedCallSite],
-) -> TaskStackFrameValidationId {
-    let mut hash = super::StableHash::new();
-    hash.byte(0x56);
-    hash.u64(frame.normalized_identity());
-    hash.usize(local_bytes);
-    hash.usize(alignment);
-    hash.usize(calls.len());
-    for call in calls {
-        match call {
-            StackCallContribution::Checked { callee } => {
-                hash.byte(1);
-                hash.u64(callee.normalized_identity());
-            }
-            StackCallContribution::AdmittedSameStack(contribution) => {
-                hash.byte(2);
-                hash.u64(contribution.report_identity().normalized_identity());
-            }
-        }
-    }
-    hash.usize(unresolved_calls.len());
-    for site in unresolved_calls {
-        hash.u64(site.frame.normalized_identity());
-        hash.string(&site.state);
-        hash.usize(site.statement_index);
-        hash.usize(site.call_ordinal);
-        hash.byte(match site.kind {
-            UnresolvedCallKind::UnresolvedTarget => 1,
-            UnresolvedCallKind::NonCheckedSupply => 2,
-        });
-    }
-    TaskStackFrameValidationId::from_normalized_identity(hash.finish())
-        .expect("normalized frame validation identity is never zero")
 }
 
 fn frame_value_layout(
