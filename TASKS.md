@@ -2579,8 +2579,7 @@ Owners include
     with the satisfier, not before it. The rejection is
     driven from authored source by
     `opaque_boundaries.rs::selected_realization_with_an_unresolved_installation_bound_row_rejects`,
-    so losing the fence early is a red test. The
-    component-contract bullet below is independent of this and claimable.
+    so losing the fence early is a red test.
     [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
     requires a bounded row beneath `MachineControl + PortIo`, and
     `InstalledInterruptCompletionRoute` in `external-roots` rejects a completion
@@ -2590,17 +2589,6 @@ Owners include
     exact provider execution, policy and token lineage; an x2APIC provider must
     not receive `PortIo`. Receiver-bearing requirement selection is
     `TOP-LEVEL-BOUNDARY-REQUIREMENTS`' work.
-  - Component contracts. `component-description` publishes one
-    `service_ceiling` that unions the module's concrete root reach with every
-    installation dependency's upper bound (`derive_component_inventory`).
-    `provider_planning/independent_components.rs` now applies the
-    selected-row rejection: a unique realizer whose verified module retains
-    `root_service_reach.installation_dependencies` rejects the `Independent`
-    join, naming the plan and retained requirement identities.
-    `verify_component`/`realizes_selected_plan` still does not check
-    unresolved rows, and the description still folds bounds into the ceiling.
-    Keep concrete reach and bounds separate in the description. The
-    `COMPONENT-SUBSTRATE` description carrier this waited on now exists.
 
   Acceptance: from the shipped core requirement, PIC completion resolves to
   `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
