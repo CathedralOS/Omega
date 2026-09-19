@@ -2,10 +2,11 @@
 
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, BlockId, EdgeId, IntegerSign, IntegerType,
-    IntegerValue, ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
-    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, ValueId,
+    AbstractOperationPlan, AbstractParameter, BlockId, CrashCause, CrashRouteBucket,
+    CrashRouteGuard, EdgeId, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, ValueId,
 };
 use calling_conventions::{ValueClass, ValueLocation};
 use proof_admission::AdmissionProfile;
@@ -138,6 +139,182 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
             assert!(
                 crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
                 "{native:?}, scalar result {scalar_result}, obligation mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn structural_calls_preserve_verified_crash_continuations() {
+    let source = source_plan(
+        r#"
+            data Packet { should_abort: bool; }
+            data Helper {}
+            machine Helper::inspect(packet: Packet)
+            crashes Abort
+                packet.should_abort
+            {}
+            data Main { value: u64; }
+            machine Main::put(&mut self, value: u64)
+            crashes Abort
+            {
+                self.value = value;
+            }
+            machine Main::get(&self) -> u64
+            crashes Abort
+            {
+                self.value
+            }
+            machine Main::run(&mut self, packet: Packet)
+            crashes Abort
+            {
+                Helper::inspect(packet);
+                self.put(3);
+                let observed: u64 = self.get();
+            }
+        "#,
+    );
+    // The authored call publishes the callee's surviving guarded route.
+    let mut calls = Vec::new();
+    for function in &source.functions {
+        for operation in &function.operations {
+            let (psi_operation, crash_continuations) = match operation {
+                AbstractOperation::CallUnit {
+                    psi_operation,
+                    crash_continuations,
+                    ..
+                }
+                | AbstractOperation::CallStructuralScalar {
+                    psi_operation,
+                    crash_continuations,
+                    ..
+                } => (*psi_operation, crash_continuations),
+                _ => continue,
+            };
+            assert_eq!(crash_continuations.len(), 1, "{operation:?}");
+            assert_eq!(crash_continuations[0].cause, CrashCause::Abort);
+            calls.push((psi_operation, crash_continuations.clone()));
+        }
+    }
+    // The owned-parameter Unit call and the `&self` scalar-result call ride
+    // the borrowed lane; the `&mut self` Unit call rides the structural lane.
+    assert_eq!(calls.len(), 3, "three crash-bearing calls");
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("verified call crash continuations lower");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        for (operation, expected) in &calls {
+            for mutation in 0..3 {
+                let changed = mutate_call_row(
+                    &target,
+                    |candidate| {
+                        matches!(
+                            candidate,
+                            TargetUnitOperation::Call { psi_operation, .. }
+                                | TargetUnitOperation::StructuralScalarCall {
+                                    psi_operation,
+                                    ..
+                                }
+                            if *psi_operation == *operation
+                        )
+                    },
+                    |call| {
+                        let (TargetUnitOperation::Call {
+                            crash_continuations,
+                            ..
+                        }
+                        | TargetUnitOperation::StructuralScalarCall {
+                            crash_continuations,
+                            ..
+                        }) = call
+                        else {
+                            unreachable!("selected crash-bearing call")
+                        };
+                        assert_eq!(crash_continuations, expected);
+                        match mutation {
+                            0 => crash_continuations.clear(),
+                            1 => crash_continuations[0].cause = CrashCause::Trap,
+                            _ => crash_continuations[0].alternatives.clear(),
+                        }
+                    },
+                );
+                assert!(
+                    crate::validate_abstract_to_target_translation(&source, native, &changed)
+                        .is_err(),
+                    "{native:?}, call {operation:?}, crash roster mutation {mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn structural_result_call_preserves_verified_crash_continuations() {
+    let mut source = structural_result_call_plan();
+    // A two-bucket roster also pins bucket order: reordering must replay as a
+    // mismatch, not a multiset match.
+    let roster = vec![
+        CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        },
+        CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Truth],
+        },
+    ];
+    let operation = {
+        let call = source.functions[0]
+            .operations
+            .iter_mut()
+            .find_map(|operation| match operation {
+                AbstractOperation::CallStructural {
+                    psi_operation,
+                    crash_continuations,
+                    ..
+                } => Some((*psi_operation, crash_continuations)),
+                _ => None,
+            })
+            .expect("authored structural result call");
+        *call.1 = roster.clone();
+        call.0
+    };
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("verified structural result call crash continuations lower");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        for mutation in 0..4 {
+            let changed = mutate_call_row(
+                &target,
+                |candidate| {
+                    matches!(
+                        candidate,
+                        TargetUnitOperation::StructuralResultCall { psi_operation, .. }
+                            if *psi_operation == operation
+                    )
+                },
+                |call| {
+                    let TargetUnitOperation::StructuralResultCall {
+                        crash_continuations,
+                        ..
+                    } = call
+                    else {
+                        unreachable!("selected structural result call")
+                    };
+                    assert_eq!(*crash_continuations, roster);
+                    match mutation {
+                        0 => crash_continuations.clear(),
+                        1 => crash_continuations[0].cause = CrashCause::Abort,
+                        2 => crash_continuations[0].alternatives.clear(),
+                        _ => crash_continuations.swap(0, 1),
+                    }
+                },
+            );
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "{native:?}, structural result call, crash roster mutation {mutation}"
             );
         }
     }
