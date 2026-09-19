@@ -2634,11 +2634,10 @@ Owners include
     This is source checking, not a Terminal/native allocator claim. Post-reset
     reuse still uses a runtime guard: reset's geometry-derived count has no
     published bound connecting it to the original capacity.
-    A second edge surfaced in `grow`: the requires discharger does not
-    reduce an inline constructor's field to the caller premise when a
-    sibling field binds a call-result local (`Bump { tail: widened, ... }`
-    leaves `... .remaining` unreduced), so `grow` re-carves through the
-    boundary `split` rather than reusing `allocate`.
+    `grow` reuses `allocate` after recomposition; its constructed capacity
+    field reads the surviving caller bound independently of the sibling
+    tail's call-result provenance. Content-preserving growth remains under
+    the container and placed-access dependencies above.
   - Partition theorems. No checked body splits one `Granted` extent into two;
     the fixture delegates that step to a boundary. Returning `Granted` custody
     from two consumed qualified inputs rejects as ambiguous at a boundary and

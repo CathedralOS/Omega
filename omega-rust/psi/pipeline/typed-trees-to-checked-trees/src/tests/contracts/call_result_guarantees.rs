@@ -35,6 +35,35 @@ fn result_field_guarantee_is_available_to_a_caller() {
 }
 
 #[test]
+fn constructed_field_bounds_use_caller_facts_without_a_return_guarantee() {
+    for (remaining, after, accepted) in [
+        ("capacity", "", true),
+        ("other", "", false),
+        ("capacity", "capacity = 0;", false),
+    ] {
+        check(
+            &format!(
+                "data Token {{ value: u64; }}
+                 data Count [copy] {{ remaining: u64; }}
+                 data Request {{ token: Token; count: Count; }}
+                 machine make() -> Token {{ Token {{ value: 0 }} }}
+                 machine consume(value: Request, needed: u64) -> Token
+                 requires needed <= value.count.remaining
+                 {{ value.token }}
+                 machine caller(mut capacity: u64, needed: u64, other: u64) -> Token
+                 requires needed <= capacity
+                 {{
+                     let token: Token = make();
+                     {after}
+                     consume(Request {{ token: token, count: Count {{ remaining: {remaining} }} }}, needed)
+                 }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
 fn returned_residual_establishes_the_next_capacity_requirement() {
     for (bound, source, after, accepted) in [
         ("48", "capacity", "", true),

@@ -119,22 +119,15 @@
 //
 // Growth (`grow`, `exercise_grow`) is spellable only as rebuffering:
 // the old buffer is folded back into the range by `merge` and a larger
-// extent is re-carved by `split`, which is exactly content-free growth —
+// extent is re-carved by `allocate`, which is exactly content-free growth —
 // nothing outlives the resize, matching what a `Vec<T>` reserve-without-
-// move can promise before element transfer exists. Two edges discovered
-// here fix its spelling:
-// - `merge` demands `Vacant` on both parts, so a buffer carrying a live
-//   resident cannot fold — content-preserving growth waits on the placed
-//   element operations, and the fence is pinned by
-//   `tests/omega/fail/memory/bump_allocator_grow_with_live_resident`.
-// - `allocate` cannot be reused for the re-carve: the requires
-//   discharger does not reduce an inline constructor's `remaining` field
-//   to the caller's `residual` premise once a sibling field binds a
-//   merge-result local (`tail: widened`), while the same constructor in
-//   `open` — whose `tail` binds a parameter — reduces fine. `grow`
-//   therefore calls the boundary `split` directly and does its own
-//   residual arithmetic, which its own `capacity <= residual` clause
-//   licenses exactly as `allocate`'s does.
+// move can promise before element transfer exists. `merge` demands
+// `Vacant` on both parts, so a buffer carrying a live resident cannot fold —
+// content-preserving growth waits on the placed element operations, and the
+// fence is pinned by `tests/omega/fail/memory/bump_allocator_grow_with_live_resident`.
+// Both `open` and `grow` use the same allocation operation and capacity
+// obligation. The sibling tail's provenance (entry backing or a merge
+// result) does not change the constructor's exact scalar capacity field.
 //
 // Resident custody over an issued extent (`exercise_resident`): one
 // establishment of an owned `Slot` into a `Vacant` allocation yielding
@@ -289,8 +282,7 @@ data BumpVec {
 
 // Open a reservation of `capacity` bytes. `residual` is the caller's stated
 // capacity premise for the backing, tied to its geometry by the second
-// requires clause — the same restated-premise pattern `exercise` uses for
-// its second request.
+// requires clause. Later allocations consume `allocate`'s returned residual.
 machine open(
     partition: &ExtentPartition,
     whole: Extent in Granted & Vacant,
@@ -368,13 +360,18 @@ reaches ExtentPartition
         taken: buffer,
         rest: tail,
     });
-    let parts: Split = partition.split(widened, capacity);
-    let next_buffer: Extent in Granted & Vacant = parts.taken;
-    let next_tail: Extent in Granted & Vacant = parts.rest;
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: widened, remaining: residual },
+        capacity,
+    );
+    let remaining: u64 = issued.strategy.remaining;
+    let next_tail: Extent in Granted & Vacant = issued.strategy.tail;
+    let next_buffer: Extent in Granted & Vacant = issued.allocation;
     BumpVec {
         strategy: Bump {
             tail: next_tail,
-            remaining: residual - capacity,
+            remaining: remaining,
         },
         buffer: next_buffer,
     }

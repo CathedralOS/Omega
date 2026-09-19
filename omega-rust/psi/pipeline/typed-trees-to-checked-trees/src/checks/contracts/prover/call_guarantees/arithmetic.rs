@@ -4,6 +4,9 @@
 //! initializer is replayed, and no callee precondition is imported as a premise.
 //! The existing scoped arithmetic engine owns entailment. This adapter owns
 //! field identity, current-value custody and Exact builtin operation meaning.
+//! Imported return guarantees are optional premises: an ordinary constructor
+//! can project a required field directly to an already bounded caller value.
+//! An unrelated call-result sibling does not change that scalar relationship.
 
 use super::{Invocation, actual_projection, bound_place, captured_place, direct_place};
 use checked_trees::{CheckFacts, FlowStateFact};
@@ -28,9 +31,6 @@ pub(super) fn proves(
     goal: ExpressionHandle,
     mut hypotheses: Vec<ScopedArithmeticHypothesis>,
 ) -> bool {
-    if hypotheses.is_empty() {
-        return false;
-    }
     let Some(goal) = at_call(program, facts, contexts, required, goal) else {
         return false;
     };
