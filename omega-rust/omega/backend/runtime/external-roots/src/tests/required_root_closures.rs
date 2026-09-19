@@ -327,6 +327,7 @@ fn installed_root_teardown_preflight_rejects_incomplete_ambiguous_and_stale_stat
                 stage: calling_conventions::EntryStackStage::Body,
                 depth: 1,
                 interrupted: None,
+                fatal: false,
             },
         );
         rows[0].receipt.entry_unreachable = true;

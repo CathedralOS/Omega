@@ -122,6 +122,11 @@ pub(crate) struct ActiveInterruptEntry {
     pub(crate) depth: u16,
     /// The live invocation this entry preempted, when nested.
     pub(crate) interrupted: Option<(ExternalRootId, InterruptInvocationId)>,
+    /// Whether this entry carries a fatal-exception obligation: it arrived
+    /// unconditionally — a processor fault cannot wait on a declared
+    /// stack-nesting edge — and its settle halts the ledger rather than
+    /// resuming the interrupted chain.
+    pub(crate) fatal: bool,
 }
 
 /// Provider evidence for one concrete invocation of an installed interrupt
@@ -555,6 +560,10 @@ pub struct CompletedInterruptEntry {
     /// so the completed record proves no epoch was left unrealized.
     pub settled_stage: EntryStackStage,
     pub acknowledgement_receipt: Option<InterruptAcknowledgementReceiptId>,
+    /// A settled fatal exception recorded the fault and ended ordinary work:
+    /// its completion halted the ledger, so nothing the entry interrupted
+    /// can resume.
+    pub fatal: bool,
 }
 
 /// Whether the interrupted entry's retained arrival context permits one more
@@ -608,6 +617,29 @@ impl InstalledRootLedger {
         root: &InstalledExternalRoot<'_>,
         receipt: InterruptEntryReceipt,
     ) -> Result<InterruptEntryObligations, InterruptEntryStartError> {
+        self.begin_interrupt_entry_as(root, receipt, false)
+    }
+
+    /// Begin one interrupt entry. `fatal` marks a fatal-exception arrival,
+    /// which the published-table dispatch supplies from the member's
+    /// declared obligation: the fault arrived on its dedicated critical
+    /// stack whether or not the artifact declared a nesting edge, and its
+    /// settle halts the ledger instead of resuming the interrupted chain.
+    pub(crate) fn begin_interrupt_entry_as(
+        &mut self,
+        root: &InstalledExternalRoot<'_>,
+        receipt: InterruptEntryReceipt,
+        fatal: bool,
+    ) -> Result<InterruptEntryObligations, InterruptEntryStartError> {
+        if self.halted_by.is_some() {
+            return Err(InterruptEntryStartError {
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt entry cannot arrive after a fatal exception settle halted the ledger"
+                        .into(),
+                ),
+            });
+        }
         let Some(record) = self.roots.get(&root.root) else {
             return Err(InterruptEntryStartError {
                 receipt,
@@ -742,6 +774,11 @@ impl InstalledRootLedger {
                         ),
                     });
                 };
+                // A fatal entry preempts unconditionally: the processor
+                // already faulted, and it arrives on its dedicated critical
+                // stack, so no declared stack-nesting edge or parent depth
+                // bound governs the arrival. The report still names the
+                // innermost live invocation and rejoins its retained stage.
                 let edge_declared = record
                     .stack
                     .realization
@@ -751,7 +788,7 @@ impl InstalledRootLedger {
                     .any(|edge| {
                         edge.interrupted == report.interrupted_root && edge.preemptor == record.root
                     });
-                if !edge_declared {
+                if !fatal && !edge_declared {
                     return Err(InterruptEntryStartError {
                         receipt,
                         diagnostic: ExternalRootDiagnostic(
@@ -791,7 +828,7 @@ impl InstalledRootLedger {
                             parent.depth,
                         )
                     });
-                if !depth_permitted {
+                if !fatal && !depth_permitted {
                     return Err(InterruptEntryStartError {
                         receipt,
                         diagnostic: ExternalRootDiagnostic(
@@ -816,6 +853,7 @@ impl InstalledRootLedger {
                 interrupted: receipt
                     .preemption
                     .map(|report| (report.interrupted_root, report.interrupted_invocation)),
+                fatal,
             },
         );
 
@@ -901,6 +939,15 @@ impl InstalledRootLedger {
         let reject = |report: InterruptEpochTurnReport, diagnostic: ExternalRootDiagnostic| {
             Err(InterruptEpochTurnError { report, diagnostic })
         };
+        if self.halted_by.is_some() {
+            return reject(
+                report,
+                ExternalRootDiagnostic(
+                    "interrupt epoch turn cannot advance after a fatal exception settle halted the ledger"
+                        .into(),
+                ),
+            );
+        }
         let Some(record) = self.roots.get(&root.root) else {
             return reject(
                 report,
@@ -1018,6 +1065,17 @@ impl InstalledRootLedger {
         control: InterruptMaskControl,
         acknowledgement: Option<CompletedInterruptAcknowledgement>,
     ) -> Result<CompletedInterruptEntry, Box<InterruptEntryFinishError>> {
+        if self.halted_by.is_some() {
+            return Err(Box::new(InterruptEntryFinishError {
+                pending,
+                control,
+                acknowledgement,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt exit cannot resume an interrupted chain a fatal exception settle halted"
+                        .into(),
+                ),
+            }));
+        }
         let acknowledgement_matches = match (
             pending.acknowledgement_policy,
             pending.acknowledgement,
@@ -1114,6 +1172,13 @@ impl InstalledRootLedger {
             }));
         }
         self.active_interrupts.remove(&active_key);
+        if active_entry.fatal {
+            // The fault was recorded and ordinary work never resumes: every
+            // still-live invocation stays held as halted evidence, so no
+            // later entry, epoch turn, or settle can reach the interrupted
+            // chain.
+            self.halted_by = Some(active_key);
+        }
         Ok(CompletedInterruptEntry {
             entry_receipt: pending.entry_receipt,
             root: pending.root,
@@ -1121,6 +1186,7 @@ impl InstalledRootLedger {
             arrival_context: pending.arrival_context,
             settled_stage: active_entry.stage,
             acknowledgement_receipt: acknowledgement.map(|completed| completed.receipt),
+            fatal: active_entry.fatal,
         })
     }
 }
