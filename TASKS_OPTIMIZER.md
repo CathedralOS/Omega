@@ -78,13 +78,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   [native representation ownership](omega-rust/omega/representations/README.md):
   one named program-root file beside `lib.rs`, concept-owned subdirectories,
   and current data independent of producer history.
-  `tests/architecture/representation_ownership.rs` already enforces the named
-  root for all ten Psi representations and for eight Omega programs (abstract,
-  target, legalized and selected operations, register homes, physical
-  instructions, machine code, representation selections) and rejects
-  `StagedOptimized` ancestry inside them. It does not cover the other ten
-  Omega representation crates, and consumers in the selected and allocation
-  stages still reach current data through producer history.
+  `tests/architecture/representation_ownership.rs` enforces the named root
+  for all ten Psi representations and the Omega program representations
+  (abstract, boundary, target, legalized and selected operations, register
+  homes, physical instructions, machine code, representation selections,
+  optimization unit) and rejects `StagedOptimized` ancestry inside them. The
+  shared-vocabulary table pins the root sets of optimization-core,
+  register-model, task-plans, effects, calling-conventions,
+  function-identity and installation-evidence. `representations/target` is
+  the one Omega representation crate the guard does not yet name, and
+  consumers in the selected and allocation stages still reach current data
+  through producer history.
 
   Remaining work:
 
@@ -108,10 +112,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     stages, and `optimized_semantic_wrapper_object/codec` in
     `native-realization` (see `PIPELINE-OWNER-CONSOLIDATION` for whether that
     owner survives).
-  - For `optimization-core`, `register-model`, `task-plans` and `effects`,
-    which keep several root files, decide whether each is shared vocabulary
-    (exempt under [pipeline.md](omega-rust/pipeline.md#placement-and-semantic-ownership))
-    or a program needing one root, and extend the guard's table to match.
+  - `representations/target` is the last unnamed crate: decide whether it is
+    shared vocabulary (exempt under
+    [pipeline.md](omega-rust/pipeline.md#placement-and-semantic-ownership)) or
+    a program needing one root, and extend the guard's table to match.
 
   Acceptance: current programs outlive their producers; ordinary consumers
   read current data directly; historical inputs remain separate replay
