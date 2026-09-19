@@ -21,6 +21,7 @@ syntax-trees = { path = "../../representations/syntax-trees" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 
 [dev-dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 source-files-to-tokens = { path = "../source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }
 

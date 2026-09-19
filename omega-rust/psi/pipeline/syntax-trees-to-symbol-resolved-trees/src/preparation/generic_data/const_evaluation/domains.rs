@@ -40,6 +40,8 @@ pub(in crate::preparation::generic_data) fn qualified_const_name(
 
 #[derive(Clone)]
 pub(in crate::preparation::generic_data) struct ClosedDomainFamily {
+    path: String,
+    declaration: Identifier,
     parameters: Vec<ClosedDomainParameter>,
 }
 
@@ -89,7 +91,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
-    let mut families = HashMap::<String, ClosedDomainFamily>::new();
+    let mut families = Vec::<ClosedDomainFamily>::new();
 
     for item in syntax.root_items() {
         let Item::Domain(definition) = item else {
@@ -181,9 +183,9 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 )));
             }
         }
-        // Families intern under the same complete logical path resolution
-        // gives the declaration: same-leaf families in different modules are
-        // distinct owners, while same-path declarations remain one family.
+        // The logical path is unique only within a checked package. Retain
+        // declaration custody for the selector's exact family join below;
+        // rendering its path again would collapse equal foreign paths.
         let family_path = match crate::preparation::generic_data::module_constants::module_path(
             syntax,
             definition.name.source_span().source_id,
@@ -191,20 +193,23 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             Some(module) => format!("{module}::{}", definition.name.as_str()),
             None => definition.name.as_str().to_owned(),
         };
-        if families
-            .insert(
-                family_path,
-                ClosedDomainFamily {
-                    parameters: family_parameters,
-                },
-            )
-            .is_some()
-        {
+        let declaration = definition.name.source_span();
+        if families.iter().any(|family| {
+            family.path == family_path
+                && selection.is_none_or(|selection| {
+                    selection.same_checked_package(family.declaration.source_span(), declaration)
+                })
+        }) {
             return Err(Diagnostic::error(format!(
                 "indexed domain family `{}` is declared more than once",
                 definition.name
             )));
         }
+        families.push(ClosedDomainFamily {
+            path: family_path,
+            declaration: definition.name.clone(),
+            parameters: family_parameters,
+        });
     }
 
     let mut applications = syntax
@@ -260,10 +265,17 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         // non-generic owners keep the authored arguments for ordinary
         // resolution rather than borrowing another declaration's telescope.
         let family = match selection {
-            Some(selection) => selection
-                .domain_family(syntax, &name, reference)
-                .and_then(|(symbol, _)| families.get(&selection.declaration_path(symbol))),
-            None => families.get(&name),
+            Some(selection) => {
+                selection
+                    .domain_family(syntax, &name, reference)
+                    .and_then(|(_, definition)| {
+                        families.iter().find(|family| {
+                            family.declaration.source_span() == definition.name.source_span()
+                                && family.declaration.as_str() == definition.name.as_str()
+                        })
+                    })
+            }
+            None => families.iter().find(|family| family.path == name),
         };
         let Some(family) = family else {
             continue;

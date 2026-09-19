@@ -114,21 +114,14 @@ pub(crate) fn normalize_qualification_casts_from(
             .type_reference_table
             .type_reference_handles(cast.semantic_domain_arguments)
             .to_vec();
-        let carrier_label = program.display_type_reference_with_constraints(cast.target_type);
-        let matches = program
-            .domain_definitions()
-            .iter()
-            .filter(|domain| {
-                same_semantic_name(domain.name.as_str(), &name)
-                    && crate::type_reference::domain_constraints::domain_accepts_carrier(
-                        program,
-                        domain,
-                        cast.target_type,
-                        &carrier_label,
-                    )
-            })
-            .cloned()
-            .collect::<Vec<_>>();
+        let matches = crate::type_reference::domain_constraints::select_domain_candidates(
+            source,
+            program,
+            cast.target_type,
+            &name,
+            Some(authored_selection.source_span()),
+            SymbolHandle::invalid(),
+        );
         let [domain] = matches.as_slice() else {
             updates.push((
                 handle,
@@ -198,6 +191,9 @@ pub(crate) fn normalize_qualification_casts_from(
             // establish membership: the original cast still owes that proof.
             let qualification = DomainConstraint {
                 name: declaration.name.clone(),
+                // This is a derived type, not another authored lookup. Preserve
+                // the exact selected owner through ordinary alias normalization.
+                symbol: domain,
                 arguments: program
                     .type_reference_table
                     .type_reference_handles(authored.semantic_domain_arguments)
@@ -228,10 +224,4 @@ pub(crate) fn normalize_qualification_casts_from(
         cast.result_type = result_type;
     }
     Ok(())
-}
-
-fn same_semantic_name(left: &str, right: &str) -> bool {
-    left == right
-        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
-        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
 }

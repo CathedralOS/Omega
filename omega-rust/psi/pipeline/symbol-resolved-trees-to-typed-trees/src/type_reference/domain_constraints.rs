@@ -69,7 +69,6 @@ fn normalize_constraint_span(
     carrier: typed_trees::types::TypeReferenceHandle,
     constraints: arena::HandleSpan<TypeConstraintNode>,
 ) -> Result<(), Diagnostic> {
-    let carrier_label = program.display_type_reference_with_constraints(carrier);
     let authored = program
         .type_reference_table
         .constraints(constraints)
@@ -87,53 +86,14 @@ fn normalize_constraint_span(
             .authored_selection
             .map(|selection| selection.source_span)
             .filter(|span| span.span.start != span.span.end);
-        // The resolved symbol table already knows module-local precedence,
-        // qualified paths, and import exposure; exact symbol selection wins
-        // before any declared-spelling match is considered.
-        let selected = reference.and_then(|span| {
-            source.symbols.find_top_level_by_name_and_kinds_from_source(
-                authored_name,
-                &[symbols::SymbolKind::Domain],
-                span,
-            )
-        });
-        let matches = program
-            .domain_definitions()
-            .iter()
-            .filter(|domain| {
-                if !source
-                    .symbols
-                    .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
-                {
-                    return false;
-                }
-                let name_matches = if let Some(symbol) = selected {
-                    domain.symbol == symbol
-                } else {
-                    let local = domain.name.as_str();
-                    let qualified = source.symbols.display_path(domain.symbol, "::");
-                    qualified == authored_name
-                        || ((local == authored_name
-                            || local.rsplit("::").next().unwrap_or(local) == authored_name)
-                            && domain_exposed_to(
-                                source,
-                                domain,
-                                &qualified,
-                                authored_name,
-                                reference,
-                            ))
-                };
-                name_matches && domain_accepts_carrier(program, domain, carrier, &carrier_label)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        // A carrier-compatible pool can still collide across scopes: a
-        // package-private declaration and a public dependency may carry the
-        // same `Carrier::Leaf` name. The occurrence's own module outranks
-        // same-spelled root or foreign declarations, then its own package
-        // outranks foreign packages; a foreign-only pool stays contested and
-        // is rejected by declaration validation rather than guessed here.
-        let matches = prefer_local_domain(source, matches, reference);
+        let matches = select_domain_candidates(
+            source,
+            program,
+            carrier,
+            authored_name,
+            reference,
+            domain_constraint.symbol,
+        );
         let [domain] = matches.as_slice() else {
             // Zero matches is either a compiler-known pseudo-domain or an
             // unknown spelling diagnosed later. Multiple matches are
@@ -278,6 +238,54 @@ fn normalize_constraint_span(
         }
     }
     Ok(())
+}
+
+/// Type annotations and qualification casts share source-aware selection.
+/// A retained symbol belongs to an already selected derived result; authored
+/// occurrences still resolve in their own dependency and visibility context.
+pub(crate) fn select_domain_candidates(
+    source: &SymbolResolvedTrees,
+    program: &TypedTrees,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    authored_name: &str,
+    reference: Option<source::SourceSpan>,
+    retained: symbols::SymbolHandle,
+) -> Vec<typed_trees::domain::DomainDefinition> {
+    let carrier_label = program.display_type_reference_with_constraints(carrier);
+    let selected = reference
+        .and_then(|span| {
+            source.symbols.find_top_level_by_name_and_kinds_from_source(
+                authored_name,
+                &[symbols::SymbolKind::Domain],
+                span,
+            )
+        })
+        .or_else(|| (reference.is_none() && retained.is_valid()).then_some(retained));
+    let matches = program
+        .domain_definitions()
+        .iter()
+        .filter(|domain| {
+            if !source
+                .symbols
+                .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
+            {
+                return false;
+            }
+            let name_matches = if let Some(symbol) = selected {
+                domain.symbol == symbol
+            } else {
+                let local = domain.name.as_str();
+                let qualified = source.symbols.display_path(domain.symbol, "::");
+                qualified == authored_name
+                    || ((local == authored_name
+                        || local.rsplit("::").next().unwrap_or(local) == authored_name)
+                        && domain_exposed_to(source, domain, &qualified, authored_name, reference))
+            };
+            name_matches && domain_accepts_carrier(program, domain, carrier, &carrier_label)
+        })
+        .cloned()
+        .collect();
+    prefer_local_domain(source, matches, reference)
 }
 
 /// Carrier-compatible candidates can still collide across lexical scopes:

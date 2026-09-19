@@ -19,6 +19,16 @@ pub(crate) struct ConstantSelection<'base> {
 }
 
 impl<'base> ConstantSelection<'base> {
+    /// The namespace boundary for early declaration consistency, including
+    /// dependency purpose. A logical path alone is not a foreign owner.
+    pub(super) fn same_checked_package(
+        &self,
+        left: source::SourceSpan,
+        right: source::SourceSpan,
+    ) -> bool {
+        self.symbols.same_source_package(left, right)
+    }
+
     pub(crate) fn new(
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,
@@ -318,14 +328,16 @@ impl<'base> ConstantSelection<'base> {
             return None;
         }
         let (first_symbol, first) = pool.first()?;
-        // Same complete logical path is one semantic candidate, matching the
-        // post-resolution lookup's name/identity collapse. Competing owners
+        // Same complete logical path within one checked package is one
+        // semantic candidate, matching post-resolution lookup. Competing owners
         // decline; the retained fact still owes its exact selection.
         let first_path = self.symbols.display_path(*first_symbol, "::");
-        if pool
-            .iter()
-            .any(|(symbol, _)| self.symbols.display_path(*symbol, "::") != first_path)
-        {
+        if pool.iter().any(|(symbol, _)| {
+            self.symbols.display_path(*symbol, "::") != first_path
+                || !self
+                    .symbols
+                    .same_symbol_source_package(*first_symbol, *symbol)
+        }) {
             return None;
         }
         Some(*first)
@@ -350,10 +362,12 @@ impl<'base> ConstantSelection<'base> {
         let pool = self.pooled_domains(syntax, authored, reference);
         let (first_symbol, first) = pool.first()?;
         let first_path = self.symbols.display_path(*first_symbol, "::");
-        if pool
-            .iter()
-            .any(|(symbol, _)| self.symbols.display_path(*symbol, "::") != first_path)
-        {
+        if pool.iter().any(|(symbol, _)| {
+            self.symbols.display_path(*symbol, "::") != first_path
+                || !self
+                    .symbols
+                    .same_symbol_source_package(*first_symbol, *symbol)
+        }) {
             return None;
         }
         (!first.type_parameters.is_empty()).then_some((*first_symbol, *first))
