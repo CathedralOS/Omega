@@ -1,9 +1,9 @@
 //! Stable computed values are not compile-time integer constants.
 use super::{
-    ExpressionHandle, ExpressionNode, ImmutableIntegerBoundOffset, StatementNode, SymbolHandle,
-    TableLocalData, TypedTrees, immutable_integer_bound_symbol_offset,
-    immutable_integer_bound_value_symbol, normalize_immutable_integer_bound_expression,
-    normalize_immutable_integer_bound_to_usize,
+    ExpressionHandle, ExpressionNode, ImmutableIntegerBoundOffset, ImmutableIntegerBoundSum,
+    StatementNode, SymbolHandle, TableLocalData, TypedTrees, immutable_integer_bound_sum,
+    immutable_integer_bound_symbol_offset, immutable_integer_bound_value_symbol,
+    normalize_immutable_integer_bound_expression, normalize_immutable_integer_bound_to_usize,
 };
 use typed_trees::expression::{BinaryOperator, Expression, NamePath, TableBinaryExpression};
 use typed_trees::machine::Machine;
@@ -375,4 +375,146 @@ fn immutable_integer_bound_offsets_accept_exact_parameters() {
         immutable_integer_bound_symbol_offset(&program, expression),
         Some(ImmutableIntegerBoundOffset { symbol, offset: 1 })
     );
+}
+
+fn sum_fixture() -> (
+    TypedTrees,
+    ExpressionHandle,
+    ExpressionHandle,
+    ExpressionHandle,
+    ExpressionHandle,
+) {
+    let mut program = TypedTrees::default();
+    let ty = integer_type(&mut program, numerics::arithmetic::ArithmeticDomain::Exact);
+    let i_symbol = SymbolHandle::from_arena_index(20);
+    let j_symbol = SymbolHandle::from_arena_index(30);
+    let k_symbol = SymbolHandle::from_arena_index(40);
+    let i = name(&mut program, "i", i_symbol);
+    let j = name(&mut program, "j", j_symbol);
+    let k = name(&mut program, "k", k_symbol);
+    let one = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(1),
+    ));
+    let mut machine = Machine::default();
+    let mut state = State::default();
+    for (symbol, spelling) in [(i_symbol, "i"), (j_symbol, "j"), (k_symbol, "k")] {
+        program.push_state_parameter(
+            &mut state,
+            typed_trees::signature::StateParameter {
+                symbol,
+                name: Identifier::generated_static(spelling),
+                type_reference: ty,
+                ..Default::default()
+            },
+        );
+    }
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+    (program, i, j, k, one)
+}
+
+#[test]
+fn immutable_integer_bound_sums_normalize_two_term_orderings() {
+    let (mut program, i, j, _k, one) = sum_fixture();
+    let i_plus_j = binary(&mut program, i, BinaryOperator::Add, j);
+    let j_plus_i = binary(&mut program, j, BinaryOperator::Add, i);
+    let expected = Some(ImmutableIntegerBoundSum {
+        first: SymbolHandle::from_arena_index(20),
+        second: SymbolHandle::from_arena_index(30),
+        offset: 0,
+    });
+    // `i + j` and `j + i` share one canonical spelling.
+    assert_eq!(immutable_integer_bound_sum(&program, i_plus_j), expected);
+    assert_eq!(immutable_integer_bound_sum(&program, j_plus_i), expected);
+
+    // Constants accumulate through association: `(i + 1) + (j + 2)` is
+    // `i + j + 3`.
+    let i_plus_one = binary(&mut program, i, BinaryOperator::Add, one);
+    let two = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(2),
+    ));
+    let j_plus_two = binary(&mut program, j, BinaryOperator::Add, two);
+    let shifted = binary(&mut program, i_plus_one, BinaryOperator::Add, j_plus_two);
+    assert_eq!(
+        immutable_integer_bound_sum(&program, shifted),
+        Some(ImmutableIntegerBoundSum {
+            first: SymbolHandle::from_arena_index(20),
+            second: SymbolHandle::from_arena_index(30),
+            offset: 3,
+        })
+    );
+
+    // `i - 1 + j` subtracts only the constant: `i + j - 1`.
+    let i_minus_one = binary(&mut program, i, BinaryOperator::Subtract, one);
+    let shifted_down = binary(&mut program, i_minus_one, BinaryOperator::Add, j);
+    assert_eq!(
+        immutable_integer_bound_sum(&program, shifted_down),
+        Some(ImmutableIntegerBoundSum {
+            first: SymbolHandle::from_arena_index(20),
+            second: SymbolHandle::from_arena_index(30),
+            offset: -1,
+        })
+    );
+}
+
+#[test]
+fn immutable_integer_bound_sums_reject_unspelled_terms() {
+    let (mut program, i, j, k, _one) = sum_fixture();
+    // `x + x` carries coefficient two: no spelling.
+    let doubled = binary(&mut program, i, BinaryOperator::Add, i);
+    assert!(immutable_integer_bound_sum(&program, doubled).is_none());
+    // A third distinct symbol exceeds the two-term vocabulary.
+    let i_plus_j = binary(&mut program, i, BinaryOperator::Add, j);
+    let triple = binary(&mut program, i_plus_j, BinaryOperator::Add, k);
+    assert!(immutable_integer_bound_sum(&program, triple).is_none());
+    // `i - j` needs a negative coefficient on `j`.
+    let difference = binary(&mut program, i, BinaryOperator::Subtract, j);
+    assert!(immutable_integer_bound_sum(&program, difference).is_none());
+    // `i * 2 + j` leaves an uninterpreted product.
+    let doubled_i = binary(&mut program, i, BinaryOperator::Multiply, j);
+    let product = binary(&mut program, doubled_i, BinaryOperator::Add, j);
+    assert!(immutable_integer_bound_sum(&program, product).is_none());
+    // A single term is the plain `symbol + offset` vocabulary, not a sum.
+    assert!(immutable_integer_bound_sum(&program, i).is_none());
+}
+
+#[test]
+fn immutable_integer_bound_sums_require_exact_immutable_terms() {
+    for (domain, mutable) in [
+        (numerics::arithmetic::ArithmeticDomain::Wrapping, false),
+        (numerics::arithmetic::ArithmeticDomain::Exact, true),
+    ] {
+        let mut program = TypedTrees::default();
+        let exact = integer_type(&mut program, numerics::arithmetic::ArithmeticDomain::Exact);
+        let other = integer_type(&mut program, domain);
+        let i_symbol = SymbolHandle::from_arena_index(20);
+        let j_symbol = SymbolHandle::from_arena_index(30);
+        let i = name(&mut program, "i", i_symbol);
+        let j = name(&mut program, "j", j_symbol);
+        let mut machine = Machine::default();
+        let mut state = State::default();
+        program.push_state_parameter(
+            &mut state,
+            typed_trees::signature::StateParameter {
+                symbol: i_symbol,
+                name: Identifier::generated_static("i"),
+                type_reference: exact,
+                ..Default::default()
+            },
+        );
+        program.push_state_parameter(
+            &mut state,
+            typed_trees::signature::StateParameter {
+                symbol: j_symbol,
+                name: Identifier::generated_static("j"),
+                type_reference: other,
+                is_mutable: mutable,
+                ..Default::default()
+            },
+        );
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        let expression = binary(&mut program, i, BinaryOperator::Add, j);
+        assert!(immutable_integer_bound_sum(&program, expression).is_none());
+    }
 }

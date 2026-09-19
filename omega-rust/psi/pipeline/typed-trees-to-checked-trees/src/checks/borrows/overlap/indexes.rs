@@ -11,7 +11,18 @@ use super::premises::{StatedOrderingPremise, premise_proves};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
     Integer(i64),
-    Symbol { symbol: SymbolHandle, offset: i64 },
+    Symbol {
+        symbol: SymbolHandle,
+        offset: i64,
+    },
+    /// `first + second + offset` over two distinct immutable symbols in
+    /// canonical arena order; `offset` may be zero because a two-symbol sum
+    /// has no simpler spelling.
+    SymbolSum {
+        first: SymbolHandle,
+        second: SymbolHandle,
+        offset: i64,
+    },
 }
 
 /// Record one normalized bound in the retained selector-value vocabulary.
@@ -26,6 +37,57 @@ pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelec
         NormalizedBound::Symbol { symbol, offset } => {
             BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
         }
+        NormalizedBound::SymbolSum {
+            first,
+            second,
+            offset,
+        } => BorrowCompatibilitySelectorValue::SymbolSum {
+            first,
+            second,
+            offset,
+        },
+    }
+}
+
+/// The term identity two bounds must share before their constant offsets can
+/// order them: the integer line, one symbol's offset line, or one canonical
+/// two-symbol sum. Distinct term sets stay unrelated, never negative
+/// evidence.
+fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
+    match (left, right) {
+        (NormalizedBound::Integer(_), NormalizedBound::Integer(_)) => true,
+        (
+            NormalizedBound::Symbol {
+                symbol: left_symbol,
+                ..
+            },
+            NormalizedBound::Symbol {
+                symbol: right_symbol,
+                ..
+            },
+        ) => left_symbol == right_symbol,
+        (
+            NormalizedBound::SymbolSum {
+                first: left_first,
+                second: left_second,
+                ..
+            },
+            NormalizedBound::SymbolSum {
+                first: right_first,
+                second: right_second,
+                ..
+            },
+        ) => left_first == right_first && left_second == right_second,
+        _ => false,
+    }
+}
+
+/// A bound's constant coordinate on its term line, when it has one.
+fn bound_offset(bound: NormalizedBound) -> Option<i64> {
+    match bound {
+        NormalizedBound::Integer(value) => Some(value),
+        NormalizedBound::Symbol { offset, .. } => Some(offset),
+        NormalizedBound::SymbolSum { offset, .. } => Some(offset),
     }
 }
 
@@ -250,6 +312,25 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
                     Some(NormalizedBound::Symbol { symbol, offset })
                 }
                 Some(BorrowCompatibilitySelectorValue::SymbolOffset { .. }) => {
+                    self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
+                    None
+                }
+                Some(BorrowCompatibilitySelectorValue::SymbolSum {
+                    first,
+                    second,
+                    offset,
+                }) if first.is_valid()
+                    && second.is_valid()
+                    && (first.arena_index(), first.generation())
+                        < (second.arena_index(), second.generation()) =>
+                {
+                    Some(NormalizedBound::SymbolSum {
+                        first,
+                        second,
+                        offset,
+                    })
+                }
+                Some(BorrowCompatibilitySelectorValue::SymbolSum { .. }) => {
                     self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                     None
                 }
@@ -485,20 +566,11 @@ pub(super) fn bound_is_at_or_before(
 }
 
 fn structural_bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
-    match (left, right) {
-        (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left <= right,
-        (
-            NormalizedBound::Symbol {
-                symbol: left_symbol,
-                offset: left_offset,
-            },
-            NormalizedBound::Symbol {
-                symbol: right_symbol,
-                offset: right_offset,
-            },
-        ) => left_symbol == right_symbol && left_offset <= right_offset,
-        _ => false,
-    }
+    bound_terms_equal(left, right)
+        && match (bound_offset(left), bound_offset(right)) {
+            (Some(left), Some(right)) => left <= right,
+            _ => false,
+        }
 }
 
 /// Strict `<` ordering for bounds; used where a window must be provably
@@ -519,20 +591,11 @@ pub(super) fn bound_is_strictly_before(
 }
 
 fn structural_bound_is_strictly_before(left: NormalizedBound, right: NormalizedBound) -> bool {
-    match (left, right) {
-        (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left < right,
-        (
-            NormalizedBound::Symbol {
-                symbol: left_symbol,
-                offset: left_offset,
-            },
-            NormalizedBound::Symbol {
-                symbol: right_symbol,
-                offset: right_offset,
-            },
-        ) => left_symbol == right_symbol && left_offset < right_offset,
-        _ => false,
-    }
+    bound_terms_equal(left, right)
+        && match (bound_offset(left), bound_offset(right)) {
+            (Some(left), Some(right)) => left < right,
+            _ => false,
+        }
 }
 
 /// Exact bound equality: literal values, the same symbol at the same offset,
@@ -550,20 +613,11 @@ pub(super) fn bound_equal(
 }
 
 fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
-    match (left, right) {
-        (NormalizedBound::Integer(left), NormalizedBound::Integer(right)) => left == right,
-        (
-            NormalizedBound::Symbol {
-                symbol: left_symbol,
-                offset: left_offset,
-            },
-            NormalizedBound::Symbol {
-                symbol: right_symbol,
-                offset: right_offset,
-            },
-        ) => left_symbol == right_symbol && left_offset == right_offset,
-        _ => false,
-    }
+    bound_terms_equal(left, right)
+        && match (bound_offset(left), bound_offset(right)) {
+            (Some(left), Some(right)) => left == right,
+            _ => false,
+        }
 }
 
 /// Evaluates an `Index` segment's normalized extent through the selector
@@ -629,6 +683,17 @@ fn exclusive_end_bound(
                 NormalizedBound::Symbol { symbol, offset } => offset
                     .checked_add(1)
                     .map(|offset| NormalizedBound::Symbol { symbol, offset }),
+                NormalizedBound::SymbolSum {
+                    first,
+                    second,
+                    offset,
+                } => offset
+                    .checked_add(1)
+                    .map(|offset| NormalizedBound::SymbolSum {
+                        first,
+                        second,
+                        offset,
+                    }),
             }
         },
     )
@@ -642,6 +707,13 @@ pub(super) fn normalized_bound(
         return Some(NormalizedBound::Symbol {
             symbol: offset.symbol,
             offset: offset.offset,
+        });
+    }
+    if let Some(sum) = validation::immutable_integer_bound_sum(program, expression) {
+        return Some(NormalizedBound::SymbolSum {
+            first: sum.first,
+            second: sum.second,
+            offset: sum.offset,
         });
     }
     let Some(expression) =

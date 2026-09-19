@@ -1,0 +1,11 @@
+data Main {
+    items: [i32; 4];
+}
+
+machine Main::main(&mut self, i: u64 [0..2], j: u64 [0..2], cut: u64 [0..4]) -> u64
+    requires i + j < cut;
+{
+    let left: &mut [i32] = self.items[cut..4];
+    self.items[i + j] = 7;
+    left.len
+}

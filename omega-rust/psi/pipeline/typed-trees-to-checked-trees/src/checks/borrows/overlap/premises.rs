@@ -234,9 +234,9 @@ pub(super) fn ordering_premise(
     }
 }
 
-/// `value - base` when both bounds sit on one symbol's offset line or both
-/// are integers. Distinct or missing symbols stay unrelated, never negative
-/// evidence.
+/// `value - base` when both bounds sit on one symbol's offset line, on one
+/// canonical two-symbol sum's offset line, or both are integers. Distinct
+/// term sets stay unrelated, never negative evidence.
 fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
     match (value, base) {
         (NormalizedBound::Integer(value), NormalizedBound::Integer(base)) => {
@@ -252,6 +252,20 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
                 offset: base_offset,
             },
         ) if value_symbol == base_symbol => value_offset.checked_sub(base_offset),
+        (
+            NormalizedBound::SymbolSum {
+                first: value_first,
+                second: value_second,
+                offset: value_offset,
+            },
+            NormalizedBound::SymbolSum {
+                first: base_first,
+                second: base_second,
+                offset: base_offset,
+            },
+        ) if value_first == base_first && value_second == base_second => {
+            value_offset.checked_sub(base_offset)
+        }
         _ => None,
     }
 }
@@ -274,6 +288,14 @@ mod tests {
     fn sym(index: u32, offset: i64) -> NormalizedBound {
         NormalizedBound::Symbol {
             symbol: symbol(index),
+            offset,
+        }
+    }
+
+    fn sum(first: u32, second: u32, offset: i64) -> NormalizedBound {
+        NormalizedBound::SymbolSum {
+            first: symbol(first),
+            second: symbol(second),
             offset,
         }
     }
@@ -442,6 +464,45 @@ mod tests {
             integer(4),
             Relation::LessOrEqual,
             sym(2, -1)
+        ));
+    }
+
+    #[test]
+    fn summed_premises_shift_on_their_own_offset_line() {
+        // `i + j < cut` proves the same sum strictly before `cut`, plus its
+        // constant shifts within the margin.
+        let sum_lt_cut = premise(sum(1, 2, 0), Relation::StrictlyBefore, sym(3, 0));
+        assert!(premise_proves(
+            &sum_lt_cut,
+            sum(1, 2, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        assert!(premise_proves(
+            &sum_lt_cut,
+            sum(1, 2, -1),
+            Relation::LessOrEqual,
+            sym(3, 0)
+        ));
+        // A shifted sum does not inherit the strict relation.
+        assert!(!premise_proves(
+            &sum_lt_cut,
+            sum(1, 2, 1),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        // A different term set stays unrelated even at the same offset.
+        assert!(!premise_proves(
+            &sum_lt_cut,
+            sum(1, 4, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        assert!(!premise_proves(
+            &sum_lt_cut,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
         ));
     }
 }

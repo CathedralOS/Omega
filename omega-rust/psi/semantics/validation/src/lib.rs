@@ -222,8 +222,9 @@ pub use proof_contracts::float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };
 pub use proof_contracts::immutable_integer_bounds::{
-    immutable_integer_bound_symbol_offset, immutable_integer_bound_value_symbol,
-    normalize_immutable_integer_bound_expression, normalize_immutable_integer_bound_to_usize,
+    immutable_integer_bound_sum, immutable_integer_bound_symbol_offset,
+    immutable_integer_bound_value_symbol, normalize_immutable_integer_bound_expression,
+    normalize_immutable_integer_bound_to_usize,
 };
 pub use proof_contracts::proof_embeddings::{
     ValidatedIntegerEmbeddingCall, integer_embedding_argument,
