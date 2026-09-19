@@ -4,9 +4,9 @@ use super::{
     SymbolHandle, SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_expression_roots, reject_runtime_bound_static_occurrences,
-    remap_machine_argument_symbols, rewrite_cloned_calls, statement_span_handles,
-    substitute_cloned_type_parameters,
+    cloned_expression_roots, rebind_state_scoped_range_endpoints,
+    reject_runtime_bound_static_occurrences, remap_machine_argument_symbols, rewrite_cloned_calls,
+    statement_span_handles, substitute_cloned_type_parameters,
 };
 use crate::monomorphization::{
     Candidate, candidate_conformance_fingerprint_arguments,
@@ -515,6 +515,10 @@ pub(super) fn clone_specialized_machine(
         &cloned_expression_roots,
     )?;
     substitute_cloned_type_parameters(source, program, candidate, type_start)?;
+    // Range endpoints are value positions, not static positions: a binder
+    // surviving in one names the realized trailing parameter so the clone's
+    // declared `-> u64[0..=Bound]` keeps qualifying the captured subject.
+    rebind_state_scoped_range_endpoints(program, &cloned, &state_realized_parameters);
     reject_runtime_bound_static_occurrences(program, candidate, &cloned)?;
     // A transition between cloned states forwards the containing state's
     // realized `Value` subjects, in telescope order, as trailing ordinary

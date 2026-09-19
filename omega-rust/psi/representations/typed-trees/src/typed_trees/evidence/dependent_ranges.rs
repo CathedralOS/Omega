@@ -11,7 +11,11 @@
 //! and normalizes to (count, -1) in bounded proof metadata. The sibling-length class
 //! (`[0..items.len]`, chapter 12's Buffer::get shape) admits `<name>.len`
 //! plus an offset, interpreted by policies as a SIBLING PARAMETER's slice
-//! length. Everything else stays behind the non-constant-bound fence.
+//! length. The scope-value class (`[0..=limit]`) admits a bare
+//! single-segment name plus an offset; POLICIES resolve the name's symbol to
+//! an integer scalar parameter (or, on a local declaration, an earlier local)
+//! of the owning state and bind it as a proof atom. Everything else stays
+//! behind the non-constant-bound fence.
 
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
@@ -157,4 +161,80 @@ fn bare_name_len(table: &ExpressionTable, expression: ExpressionHandle) -> Optio
         return None;
     };
     (only.as_str() != "self").then(|| only.clone())
+}
+
+/// The recognized scope-value maximum: the bare single-segment NAME
+/// expression itself plus a literal offset (`[0..=limit]` -> (limit, 0)).
+/// The handle is returned rather than the identifier so each policy can read
+/// the resolved `path.symbol` directly; symbol-keyed proof atoms never depend
+/// on display spellings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedNameBound {
+    pub name: ExpressionHandle,
+    pub offset: i64,
+}
+
+/// Recognizes `<name> [+/- k]` where `<name>` is a bare single-segment Name
+/// node. `None` is never unbounded; callers keep their fence. Whether the
+/// named symbol is admissible -- an integer scalar parameter of the same
+/// state, or an earlier local on a local declaration -- is the policy's
+/// scope check, not this recognizer's.
+pub fn scoped_name_bound(
+    table: &ExpressionTable,
+    bound: ExpressionHandle,
+) -> Option<ScopedNameBound> {
+    if !bound.is_valid() {
+        return None;
+    }
+    match table.expression(bound) {
+        ExpressionNode::Name(path) => {
+            let [only] = table.name_path_members(path.members) else {
+                return None;
+            };
+            (only.as_str() != "self" && path.head_symbol == path.symbol).then_some(
+                ScopedNameBound {
+                    name: bound,
+                    offset: 0,
+                },
+            )
+        }
+        ExpressionNode::Binary(binary) => {
+            let ExpressionNode::Name(path) = table.expression(binary.left) else {
+                return None;
+            };
+            let [only] = table.name_path_members(path.members) else {
+                return None;
+            };
+            if only.as_str() == "self" || path.head_symbol != path.symbol {
+                return None;
+            }
+            let ExpressionNode::Integer(literal) = table.expression(binary.right) else {
+                return None;
+            };
+            let magnitude = literal.value_i64()?;
+            let offset = match binary.operator {
+                BinaryOperator::Add => magnitude,
+                BinaryOperator::Subtract => magnitude.checked_neg()?,
+                _ => return None,
+            };
+            Some(ScopedNameBound {
+                name: binary.left,
+                offset,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The same checked boundary normalization for a scope-named value.
+pub fn scoped_range_maximum(
+    table: &ExpressionTable,
+    bound: ExpressionHandle,
+    end_inclusive: bool,
+) -> Option<ScopedNameBound> {
+    let mut result = scoped_name_bound(table, bound)?;
+    if !end_inclusive {
+        result.offset = result.offset.checked_sub(1)?;
+    }
+    Some(result)
 }

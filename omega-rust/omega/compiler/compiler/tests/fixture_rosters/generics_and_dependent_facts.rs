@@ -135,8 +135,6 @@ pub(crate) const RUNTIME_VALUE_GENERIC_SUBJECT_EXIT: &str =
 pub(crate) const CONST_GENERIC_RUNTIME_ARGUMENT: &str = "generics/const_generic_runtime_argument";
 pub(crate) const VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN: &str =
     "generics/value_generic_runtime_requires_unproven";
-pub(crate) const VALUE_GENERIC_RUNTIME_STATIC_BOUND: &str =
-    "generics/value_generic_runtime_static_bound";
 pub(crate) const VALUE_GENERIC_STATIC_ARGUMENT_OUT_OF_RANGE: &str =
     "generics/value_generic_static_argument_out_of_range";
 pub(crate) const VALUE_GENERIC_RUNTIME_SUBJECT_OUT_OF_RANGE: &str =
@@ -341,7 +339,6 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     OPEN_INDEX_UNESTABLISHED_EQUALITY,
     CONST_GENERIC_RUNTIME_ARGUMENT,
     VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN,
-    VALUE_GENERIC_RUNTIME_STATIC_BOUND,
     VALUE_GENERIC_STATIC_ARGUMENT_OUT_OF_RANGE,
     VALUE_GENERIC_RUNTIME_SUBJECT_OUT_OF_RANGE,
     VALUE_GENERIC_STATIC_REQUIRES_VIOLATION,

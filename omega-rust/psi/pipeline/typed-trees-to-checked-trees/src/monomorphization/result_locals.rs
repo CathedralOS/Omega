@@ -1,9 +1,11 @@
 //! Retype compiler-inferred temporaries from their exact selected call result.
 
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
@@ -286,15 +288,198 @@ pub(super) fn refresh(program: &mut TypedTrees) {
             {
                 // Retain the initializer occurrence and its evaluation point.
                 // Only its inferred destination follows the selected instance.
-                updates.push((body, offset, *return_type));
+                updates.push((
+                    body,
+                    offset,
+                    call.target_symbol,
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .to_vec(),
+                    *return_type,
+                ));
             }
         }
     }
-    for (body, offset, return_type) in updates {
+    for (body, offset, target, arguments, return_type) in updates {
+        let return_type =
+            substitute_runtime_bound_result_bounds(program, target, &arguments, return_type);
         if let StatementNode::LocalData(local) =
             &mut program.statement_table.statements_mut(body)[offset]
         {
             local.type_reference = return_type;
+        }
+    }
+}
+
+/// A specialized callee's result range can name the realized trailing
+/// parameter that carries a runtime-bound `Value` subject
+/// (`-> u64[0..=Bound]`). Retyping the caller's inferred local with the raw
+/// declaration would install a dead binder under a foreign scope: copy the
+/// declared type and substitute each parameter-named leaf in a range endpoint
+/// with the paired call argument, so the destination's index IS the captured
+/// subject (`u64[0..=n]`). Return types whose endpoints name no parameter
+/// keep the shared reference — ordinary calls allocate nothing.
+fn substitute_runtime_bound_result_bounds(
+    program: &mut TypedTrees,
+    callee_state: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    return_type: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    let Some(state) = crate::monomorphization::selection::state_by_symbol(program, callee_state)
+    else {
+        return return_type;
+    };
+    let substitutions = arguments
+        .iter()
+        .copied()
+        .zip(
+            program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| parameter.symbol),
+        )
+        .map(|(argument, symbol)| (symbol, argument))
+        .collect::<Vec<_>>();
+    if !range_endpoints_name_parameters(program, return_type, &substitutions) {
+        return return_type;
+    }
+    let copied = super::copy_type_reference(None, program, return_type, &[]);
+    substitute_named_endpoints(program, copied, &substitutions);
+    copied
+}
+
+/// True when any range endpoint under `root` names one of the callee's state
+/// parameters — the shape the runtime-bound specialization writes into its
+/// signature.
+fn range_endpoints_name_parameters(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, ExpressionHandle)],
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(handle) = pending.pop() {
+        if !handle.is_valid() || !visited.insert(handle) {
+            continue;
+        }
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(*base_type);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        TypeConstraintNode::Domain(domain) => {
+                            pending.extend(domain.arguments.iter().copied());
+                        }
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            if [*minimum, *maximum].into_iter().any(|endpoint| {
+                                let mut tree = Vec::new();
+                                super::collect_expression_tree(program, endpoint, &mut tree);
+                                tree.into_iter().any(|handle| {
+                                    matches!(
+                                        program.expression_table.expression(handle),
+                                        ExpressionNode::Name(path)
+                                            if substitutions
+                                                .iter()
+                                                .any(|(symbol, _)| *symbol == path.symbol)
+                                    )
+                                })
+                            }) {
+                                return true;
+                            }
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                    }
+                }
+            }
+            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
+            TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments),
+            ),
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Replace every name leaf inside the copied type's range endpoints that
+/// names a callee parameter with the paired call argument's node payload. The
+/// caller's argument subtree is shared read-only structure — reusing its
+/// payload in the copied endpoint is the same reference reuse
+/// `copy_expression` performs between arenas.
+fn substitute_named_endpoints(
+    program: &mut TypedTrees,
+    root: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, ExpressionHandle)],
+) {
+    let mut pending = vec![root];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(handle) = pending.pop() {
+        if !handle.is_valid() || !visited.insert(handle) {
+            continue;
+        }
+        let node = program.type_reference_table.type_reference(handle).clone();
+        match node {
+            TypeReferenceNode::Reference { referee, .. } => pending.push(referee),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(base_type);
+                for constraint in program
+                    .type_reference_table
+                    .constraints(constraints)
+                    .to_vec()
+                {
+                    match constraint {
+                        TypeConstraintNode::Domain(domain) => {
+                            pending.extend(domain.arguments.iter().copied());
+                        }
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            for endpoint in [minimum, maximum] {
+                                let mut tree = Vec::new();
+                                super::collect_expression_tree(program, endpoint, &mut tree);
+                                for member in tree {
+                                    let replacement =
+                                        match program.expression_table.expression(member) {
+                                            ExpressionNode::Name(path) => substitutions
+                                                .iter()
+                                                .find(|(symbol, _)| *symbol == path.symbol)
+                                                .map(|(_, argument)| *argument),
+                                            _ => None,
+                                        };
+                                    if let Some(argument) = replacement {
+                                        let payload =
+                                            program.expression_table.expression(argument).clone();
+                                        *program.expression_table.expression_mut(member) = payload;
+                                    }
+                                }
+                            }
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                    }
+                }
+            }
+            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(element_type),
+            TypeReferenceNode::Slice { element_type } => pending.push(element_type),
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(arguments),
+            ),
+            _ => {}
         }
     }
 }

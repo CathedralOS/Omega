@@ -2843,14 +2843,17 @@ Owners include
 
   Remaining work:
 
-  - Admit a runtime-bound subject in parameter and result qualifications
-    (range bounds, domain indices). Carry the exact captured subject as the
-    type's index through substitution, checked facts and Terminal production,
-    so a `-> u64[0..=Bound]` result stays related to the caller's argument
-    after that variable is reassigned. Keep rejecting layout-determining uses
-    such as array extents and `const` positions. Retire
-    `fail/generics/value_generic_runtime_static_bound`, which pins the
-    result-range rejection as the rule.
+  - Range bounds in parameter, result and local qualifications now admit a
+    runtime-bound subject: `-> u64[0..=Bound]` rebinds to the realized
+    trailing parameter inside the shared specialization, the caller's
+    inferred result indexes on the captured argument (`u64[0..=n]`), and the
+    strict scope-atom arithmetic engine discharges declared `u64[0..=n]`
+    bounds through Terminal publication and replay. Layout-determining uses
+    (array extents, `const` positions) still reject;
+    `fail/generics/value_generic_runtime_static_bound` is retired and
+    `pass/generics/value_generic_runtime_result_bound` is the acceptance
+    fixture. Remaining: domain-index qualifications, and bound subjects that
+    exist only under a dominating guard rather than a declared type.
   - Parse and check value binders on data declarations:
     `data Index<Limit: u32> { value: u32 [0..Limit]; }` owes the range at
     construction, erases a proof-only index, and keeps an executable index as
@@ -2889,13 +2892,12 @@ Owners include
   finite families and dynamic interfaces; this item depends on neither it nor
   general reflection.
 
-  Flag: the landed slice classifies every type-position use of a runtime-bound
-  binder as a static-only use, and the suite's two "indexed scalar field"
-  scenarios index a `[u8; 8]` receiver field with a literal, which involves no
-  value-indexed type. A runtime subject that reaches only executable positions
-  and `requires` clauses behaves as an ordinary parameter; the specification's
-  result-range and `u32 [0..Limit]` field cases are the feature, and they are
-  currently a fence.
+  Flag: range bounds were the fence and are now scope-admitted; every other
+  type-position use of a runtime-bound binder still classifies as a
+  static-only use. The value-indexed data-field case (`u32 [0..Limit]`) is
+  the bullet-2 fence, and the suite's two "indexed scalar field" scenarios
+  index a `[u8; 8]` receiver field with a literal, which involves no
+  value-indexed type.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
