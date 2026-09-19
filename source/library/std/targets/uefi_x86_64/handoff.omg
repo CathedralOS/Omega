@@ -1,38 +1,432 @@
-// Target-owned UEFI x86-64 OS-loader handoff contract.
+// Target-owned UEFI x86-64 OS-loader handoff.
 //
-// A bound OS loader reaches this surface to perform the nonreturning custody
-// transfer out of Boot Services into the loaded OS entry. This is the authored
-// invocation route for the runtime edge owned by `drive_uefi_os_handoff_cycle`:
-// the generated adapter acquires explicit map-buffer storage, retains the
-// allocation roster, Boot-Services identity, surviving-stack evidence, and
-// remaining attempt bound, then drives the bounded GetMemoryMap/ExitBootServices
-// retry ledger. A successful call never returns: Boot Services custody is
-// consumed and control transfers to `entry`. When every bounded attempt is
-// spent on a stale key the adapter performs the invocation's firmware return
-// with the target-authored exhaustion status, so this contract carries no
-// result on either branch.
+// An OS-loader profile binds a ProgramEntry machine that calls
+// `UefiOsHandoffCycle::run`: the authored machine below is the source form of
+// the runtime edge owned by `drive_uefi_os_handoff_cycle` — acquire or grow
+// map storage, retain the freshest snapshot/key, retry a stale key under a
+// decreasing explicit bound, and transfer custody only on a successful exit.
+// Custody storage lives on the `UefiOsHandoffLegs` record bound beneath the
+// entry frame: the adapter establishes the Boot Services table base and image
+// handle, the stale-key bound and exhaustion status are the target-authored
+// constants below, and every firmware-written cell is a leg field the
+// boundary machines borrow in place. The scalar-returning calls live on the
+// legs because the checked Unit surface does not yet admit boundary scalar
+// results across state edges; the cycle reads each leg's retained `status`
+// and owns the bounded-retry policy.
 //
-// Like `UefiApplication`, this remains a planned, non-invoked surface until the
-// settled bootstrap adapter and generated shell are built: the boundary machine
-// below names the target's realization of the edge, and the generated custody
-// transfer is the deferred emission. The surface alone establishes no Boot
-// Services authority.
+// Success never returns — Boot Services custody is consumed and control
+// transfers into the loaded image's entry — and bounded stale-key exhaustion
+// performs the invocation's firmware return with the target-authored
+// exhaustion status, so the edge carries no result on either branch.
+// Entry/stack-transition mechanics stay with the compiler: the nonreturning
+// transfer into the image and the invocation's firmware return are the two
+// generated terminal edges; no multi-call leaf or destructor hides the
+// cycle.
 
-// The invocable nonreturning custody-transfer surface. `entry` is the exact
-// loaded OS entry the adapter transfers control to after Boot Services are
-// consumed; the OS entry's own calling contract is a separate boundary.
-pub boundary trait UefiOsHandoff {
-    machine handoff(entry: addr)
-        reaches UefiOsHandoff;
+
+// EFI_STATUS codes the authored cycle dispatches on (the UEFI error bit is
+// bit 63, so these exceed i64 range by construction).
+pub const EFI_SUCCESS: u64 = 0;
+pub const EFI_INVALID_PARAMETER: u64 = 0x8000000000000002;
+pub const EFI_BUFFER_TOO_SMALL: u64 = 0x8000000000000005;
+// AllocatePages inputs for map-buffer growth.
+pub const EFI_ALLOCATE_ANY_PAGES: u32 = 0;
+pub const EFI_LOADER_DATA: u32 = 2;
+pub const EFI_PAGE_BYTES: u64 = 4096;
+// Deployment inputs the target authors: the stale-key attempt bound and the
+// status the invocation's firmware return reports when it is spent.
+pub const UEFI_OS_HANDOFF_ATTEMPT_BOUND: u64 = 4;
+pub const UEFI_OS_HANDOFF_EXHAUSTION_STATUS: u64 = EFI_INVALID_PARAMETER;
+
+// The narrowly contracted Boot Services leaves the authored cycle drives.
+// `this` is the Boot Services table base retained beneath the boundary edge;
+// each leaf's bound function address comes from its table field.
+pub boundary trait UefiBootServices {
+    machine allocate_pages(
+        this: u64,
+        allocate_type: u32,
+        memory_type: u32,
+        pages: u64,
+        memory: &mut u64
+    ) -> u64
+        reaches UefiBootServices;
+    machine free_pages(this: u64, memory: u64, pages: u64) -> u64;
+    machine get_memory_map(
+        this: u64,
+        map_size: &mut u64,
+        map: u64,
+        key: &mut u64,
+        descriptor_size: &mut u64,
+        descriptor_version: &mut u32
+    ) -> u64;
+    machine exit_boot_services(this: u64, image: u64, map_key: u64) -> u64
+        reaches UefiBootServices;
 }
 
-// Nominal owner of the complete selected handoff provider closure. The
-// boundary realization attaches to this type so provider selection never
-// assembles the nonreturning edge from unrelated implementations.
-pub data UefiOsHandoffNativeProvider { }
+// Canonical UEFI x64 Boot Services table prefix through `exit_boot_services`
+// (byte offset 232): a 24-byte header then one function pointer per field, in
+// firmware order. The table type owns field placement; each contracted leaf
+// names its field.
+pub data EfiBootServicesTable {
+    hdr_signature: u64;
+    hdr_revision: u32;
+    hdr_size: u32;
+    hdr_crc32: u32;
+    hdr_reserved: u32;
+    raise_tpl: addr;
+    restore_tpl: addr;
+    allocate_pages: addr;
+    free_pages: addr;
+    get_memory_map: addr;
+    allocate_pool: addr;
+    free_pool: addr;
+    create_event: addr;
+    set_timer: addr;
+    wait_for_event: addr;
+    signal_event: addr;
+    close_event: addr;
+    check_event: addr;
+    install_protocol_interface: addr;
+    reinstall_protocol_interface: addr;
+    uninstall_protocol_interface: addr;
+    handle_protocol: addr;
+    reserved: addr;
+    register_protocol_notify: addr;
+    locate_handle: addr;
+    locate_device_path: addr;
+    install_configuration_table: addr;
+    load_image: addr;
+    start_image: addr;
+    exit: addr;
+    unload_image: addr;
+    exit_boot_services: addr;
+}
 
-// The `boundary machine` supply is inferred from the exact realization symbol,
-// normalized signature, package custody, and selected target; the realization
-// is the runtime edge's generated custody transfer.
-uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::handoff(entry: addr)
-    satisfies UefiOsHandoff::handoff;
+uefi_x86_64 machine EfiBootServicesTable::allocate_pages_leaf(
+    this: u64,
+    allocate_type: u32,
+    memory_type: u32,
+    pages: u64,
+    memory: &mut u64
+) -> u64
+    satisfies UefiBootServices::allocate_pages
+    via Binding::TableFunction(allocate_pages);
+uefi_x86_64 machine EfiBootServicesTable::free_pages_leaf(
+    this: u64,
+    memory: u64,
+    pages: u64
+) -> u64
+    satisfies UefiBootServices::free_pages
+    via Binding::TableFunction(free_pages);
+uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
+    this: u64,
+    map_size: &mut u64,
+    map: u64,
+    key: &mut u64,
+    descriptor_size: &mut u64,
+    descriptor_version: &mut u32
+) -> u64
+    satisfies UefiBootServices::get_memory_map
+    via Binding::TableFunction(get_memory_map);
+uefi_x86_64 machine EfiBootServicesTable::exit_boot_services_leaf(
+    this: u64,
+    image: u64,
+    map_key: u64
+) -> u64
+    satisfies UefiBootServices::exit_boot_services
+    via Binding::TableFunction(exit_boot_services);
+
+// The compiler-owned terminal edges of the handoff invocation. `transfer`
+// consumes the bound image custody into the nonreturning entry/stack
+// transition that selects and enters the loaded OS entry; `firmware_return`
+// performs the invocation's physical return with a status. Both are
+// generated mechanics, declared as requirements so no authored body can
+// borrow their machinery.
+pub boundary trait UefiOsHandoffTermination {
+    machine transfer()
+        reaches UefiOsHandoffTermination;
+    machine firmware_return(status: u64)
+        reaches UefiOsHandoffTermination;
+}
+
+// The generated edges the authored cycle's terminal stages resolve to. The
+// adapter-established provider carries only the termination carrier: the
+// protocol above it is authored code, and the edges stay compiler-owned.
+pub data UefiOsHandoffNativeProvider {
+    termination: UefiOsHandoffTermination;
+}
+
+uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::transfer_to_entry()
+    satisfies UefiOsHandoffTermination::transfer;
+uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status: u64)
+    satisfies UefiOsHandoffTermination::firmware_return;
+
+// The authored cycle's terminal-stage carrier: one provider per record keeps
+// each machine inside the single-carrier admission shape.
+pub data UefiOsHandoffTerminal {
+    termination: UefiOsHandoffTermination;
+}
+
+pub machine UefiOsHandoffTerminal::firmware_return(&mut self, status: u64)
+    reaches UefiOsHandoffTermination
+    invokes UefiOsHandoffTermination;
+{
+    self.termination.firmware_return(status);
+}
+
+pub machine UefiOsHandoffTerminal::transfer(&mut self)
+    reaches UefiOsHandoffTermination
+    invokes UefiOsHandoffTermination;
+{
+    self.termination.transfer();
+}
+
+// The bound handoff cycle's custody storage and Boot Services carrier.
+// `table`/`image` are the adapter-established Boot Services table base and
+// image handle (carried as `u64` addresses, the leaf ABI width); `map`,
+// `map_capacity`, and `map_pages` are the retained map-buffer allocation;
+// `next_map`/`pages` stage a grown buffer until its adoption is certain;
+// `map_size`, `key`, `descriptor_size`, and `descriptor_version` carry the
+// freshest firmware snapshot evidence; and `status` is the last status each
+// leg's firmware call produced.
+pub data UefiOsHandoffLegs {
+    boot_services: UefiBootServices;
+    table: u64;
+    image: u64;
+    map: u64;
+    next_map: u64;
+    map_capacity: u64;
+    map_pages: u64;
+    pages: u64;
+    map_size: u64;
+    key: u64;
+    descriptor_size: u64;
+    descriptor_version: u32;
+    status: u64;
+}
+
+// Refresh the retained snapshot and key: seed `map_size` with the retained
+// capacity, then GetMemoryMap writes the freshest `map_size`/`key`/
+// `descriptor_size`/`descriptor_version` evidence or the required size. The
+// boundary lane owns the scalar-returning firmware call; the result lands on
+// `status` for the enclosing cycle's dispatch.
+uefi_x86_64 boundary machine UefiOsHandoffLegs::acquire(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    self.map_size = self.map_capacity;
+    let table_in: u64 = self.table;
+    let map_in: u64 = self.map;
+    let map_size_out: &mut u64 = &mut self.map_size;
+    let key_out: &mut u64 = &mut self.key;
+    let descriptor_size_out: &mut u64 = &mut self.descriptor_size;
+    let descriptor_version_out: &mut u32 = &mut self.descriptor_version;
+    let status_out: u64 = self.boot_services.get_memory_map(
+        table_in,
+        map_size_out,
+        map_in,
+        key_out,
+        descriptor_size_out,
+        descriptor_version_out
+    );
+    self.status = status_out;
+}
+
+// Allocate the staged replacement buffer. A rejected grow leaves the retained
+// `map`/`map_pages` storage live and untouched.
+uefi_x86_64 boundary machine UefiOsHandoffLegs::grow(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    let table_in: u64 = self.table;
+    let pages_in: u64 = self.pages;
+    let next_map_out: &mut u64 = &mut self.next_map;
+    let status_out: u64 = self.boot_services.allocate_pages(
+        table_in,
+        EFI_ALLOCATE_ANY_PAGES,
+        EFI_LOADER_DATA,
+        pages_in,
+        next_map_out
+    );
+    self.status = status_out;
+}
+
+// Release the superseded map storage before the grown buffer is adopted.
+uefi_x86_64 boundary machine UefiOsHandoffLegs::free_map(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    let table_in: u64 = self.table;
+    let map_in: u64 = self.map;
+    let map_pages_in: u64 = self.map_pages;
+    let status_out: u64 = self.boot_services.free_pages(table_in, map_in, map_pages_in);
+    self.status = status_out;
+}
+
+// The successful leg transfers custody out of Boot Services entirely; a
+// rejected exit leaves the retained evidence live for the cycle's retry.
+uefi_x86_64 boundary machine UefiOsHandoffLegs::attempt_exit(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    let table_in: u64 = self.table;
+    let image_in: u64 = self.image;
+    let key_in: u64 = self.key;
+    let status_out: u64 = self.boot_services.exit_boot_services(table_in, image_in, key_in);
+    self.status = status_out;
+}
+
+// The bound handoff cycle: the legs record performs every scalar-returning
+// Boot Services call, and this state graph owns the bounded retry policy —
+// `map` custody, the freshest snapshot/key, the stale-key `remaining` bound,
+// and the terminal edges on `terminal`.
+pub data UefiOsHandoffCycle {
+    legs: UefiOsHandoffLegs;
+    terminal: UefiOsHandoffTerminal;
+    remaining: u64;
+    exhaustion: u64;
+}
+
+// The authored bounded handoff cycle, the source route of
+// `drive_uefi_os_handoff_cycle`. `prepare` installs the deployment inputs;
+// `acquire`/`acquired`/`map_too_small`/`grow`/`release`/`free`/`adopt`
+// form the inner
+// map-acquisition leg that refreshes the retained snapshot and key without
+// spending a stale-key attempt; `attempt_exit`/`exit_rejected`/`retry`/
+// `split_rejection`/`split_exhaustion` form the outer bounded leg. Every rejecting stage performs
+// the firmware return with the live custody still on `legs`; `complete`
+// is the nonreturning transfer.
+pub machine UefiOsHandoffCycle::run(&mut self)
+    reaches UefiBootServices + UefiOsHandoffTermination
+    invokes UefiBootServices;
+    invokes UefiOsHandoffTermination;
+{
+    transition { _ -> prepare() }
+
+    // Deployment inputs: the stale-key bound and the exhaustion status are
+    // target-authored constants installed before the cycle begins.
+    state prepare(&mut self) {
+        self.remaining = UEFI_OS_HANDOFF_ATTEMPT_BOUND;
+        self.exhaustion = UEFI_OS_HANDOFF_EXHAUSTION_STATUS;
+        transition { _ -> acquire() }
+    }
+
+    state acquire(&mut self) {
+        self.legs.acquire();
+        transition { _ -> acquired() }
+    }
+
+    // A successful acquire presents the freshest key to the exit leg; a
+    // BUFFER_TOO_SMALL answer whose reported requirement exceeds the
+    // retained capacity grows the buffer instead of spending an attempt.
+    state acquired(&mut self) {
+        transition self.legs.status == EFI_SUCCESS {
+            true -> attempt_exit()
+            _ -> map_too_small()
+        }
+    }
+
+    state map_too_small(&mut self) {
+        transition self.legs.status == EFI_BUFFER_TOO_SMALL
+            && self.legs.map_size > self.legs.map_capacity {
+            true -> grow()
+            _ -> reject_status()
+        }
+    }
+
+    // Grow the retained buffer to the firmware-reported requirement without
+    // spending a stale-key attempt: allocate the replacement first so the old
+    // map storage stays live on a rejected grow.
+    state grow(&mut self) {
+        let required: u64 = (self.legs.map_size as u64 in Saturating)
+            + (EFI_PAGE_BYTES - 1);
+        self.legs.pages = required / EFI_PAGE_BYTES;
+        self.legs.grow();
+        transition { _ -> release() }
+    }
+
+    state release(&mut self) {
+        transition self.legs.status == EFI_SUCCESS {
+            true -> release_allocated()
+            _ -> reject_status()
+        }
+    }
+
+    state release_allocated(&mut self) {
+        transition self.legs.map_pages > 0 {
+            true -> free()
+            _ -> adopt()
+        }
+    }
+
+    state free(&mut self) {
+        self.legs.free_map();
+        transition { _ -> adopt() }
+    }
+
+    state adopt(&mut self) {
+        self.legs.map = self.legs.next_map;
+        self.legs.map_pages = self.legs.pages;
+        self.legs.map_capacity = (self.legs.pages as u64 in Saturating)
+            * EFI_PAGE_BYTES;
+        transition { _ -> acquire() }
+    }
+
+    // A successful acquire attempted no exit yet; the freshest `key` on the
+    // legs record is the snapshot the exit leg presents.
+    state attempt_exit(&mut self) {
+        self.legs.attempt_exit();
+        transition { _ -> exit_rejected() }
+    }
+
+    state exit_rejected(&mut self) {
+        transition self.legs.status == EFI_SUCCESS {
+            true -> complete()
+            _ -> split_rejection()
+        }
+    }
+
+    // An exit rejection forks on the stale-key policy: only an
+    // INVALID_PARAMETER key rejection may spend `remaining`, and only while
+    // attempts stay; once the bound is spent the exhaustion status is the
+    // target-authored answer.
+    state split_rejection(&mut self) {
+        transition self.legs.status == EFI_INVALID_PARAMETER && self.remaining > 1 {
+            true -> retry()
+            _ -> split_exhaustion()
+        }
+    }
+
+    state split_exhaustion(&mut self) {
+        transition self.legs.status == EFI_INVALID_PARAMETER {
+            true -> exhausted()
+            _ -> reject_status()
+        }
+    }
+
+    state retry(&mut self) {
+        self.remaining = (self.remaining as u64 in Saturating) - 1;
+        transition { _ -> acquire() }
+    }
+
+    // The live leg status is not an admitted rejection: the invocation's
+    // firmware return carries it with the retained custody intact.
+    state reject_status(&mut self) {
+        self.terminal.firmware_return(self.legs.status);
+        transition { _ -> reject_status() }
+    }
+
+    // Stale-key bound spent: the invocation's firmware return carries the
+    // target-authored exhaustion status.
+    state exhausted(&mut self) {
+        self.terminal.firmware_return(self.exhaustion);
+        transition { _ -> exhausted() }
+    }
+
+    // Boot Services consumed: the compiler-owned transfer enters the loaded
+    // image's entry and never returns to this cycle.
+    state complete(&mut self) {
+        self.terminal.transfer();
+        transition { _ -> complete() }
+    }
+}
