@@ -15,6 +15,42 @@ use package_compilation::PackageCompilationInputs;
 use source_files_to_assembled_syntax::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
+/// One `Independent` provider selection discovered while evaluating a checked
+/// child's build, paired with the dependency package it names.
+///
+/// The named component is the selected provider type's owning package: the
+/// dependency whose own checked compilation must publish a verified component
+/// description for the selection to settle. `None` means the selected
+/// provider carries no package identity — source-free or toolchain-owned — so
+/// no dependency description can answer it; a selection naming the compiling
+/// package itself is self-deployment, likewise unanswerable. Neither kind
+/// falls back to a fused edge: the component-closure fence in provider
+/// settlement still rejects them.
+#[derive(Debug, Clone)]
+pub struct IndependentComponentSelection {
+    /// The exact evaluated selection the build authored.
+    pub selection: provider_planning::ProviderSelection,
+    /// The owning package of the selected provider type.
+    pub component: Option<semantic_vocabulary::PackageKeyIdentity>,
+}
+
+/// Post-evaluation discovery one checked compile reports beside its verdict:
+/// the `Independent` provider selections the evaluated build authored and
+/// the usage of the evaluation that produced them. Both are recorded between
+/// build evaluation and provider settlement's component-closure fence, so
+/// they survive a rejection the fence issues. A settled compile reports the
+/// same evaluation through its retained review instead.
+#[derive(Debug, Default)]
+pub struct IndependentComponentDiscovery {
+    /// Every `Independent` selection, paired with the dependency package it
+    /// names. Empty when the build selected none.
+    pub selections: Vec<IndependentComponentSelection>,
+    /// The sponsored build evaluation this attempt consumed. A caller that
+    /// publishes the named components and compiles again reconciles it as
+    /// discarded session consumption against the shared sponsor.
+    pub evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
+}
+
 /// Inputs for checked-Psi compilation, without native publication authority.
 /// All requests use the same source identity, package admission, and
 /// sponsored build execution checks.
@@ -50,6 +86,15 @@ pub struct CheckedCompileRequest<'a> {
     /// before validation and populated only after successful checking. Retention
     /// copies parsed storage for this child; a later child can consume the result.
     pub prepared_source_output: Option<&'a mut Option<PreparedCheckedSource>>,
+    /// Optional destination for post-evaluation discovery: the evaluated
+    /// `Independent` provider selections this child's build authored and the
+    /// usage of the evaluation that produced them. Cleared before validation
+    /// and populated after build evaluation — before provider settlement's
+    /// component-closure fence runs — so a caller that finds the compile
+    /// rejected for an unanswered selection can publish the named components'
+    /// descriptions and compile again with them attached. The discovery is
+    /// reported whether the compile settles or rejects.
+    pub independent_component_discovery_output: Option<&'a mut IndependentComponentDiscovery>,
 }
 
 impl<'a> CheckedCompileRequest<'a> {
@@ -66,18 +111,21 @@ impl<'a> CheckedCompileRequest<'a> {
             build_snapshot: None,
             optimization_rollback: crate::OptimizationRollback::default(),
             prepared_source_output: None,
+            independent_component_discovery_output: None,
         }
     }
 
-    // Keep the caller's borrowed output on its thread; only owned compilation
+    // Keep the caller's borrowed outputs on its thread; only owned compilation
     // inputs cross the compiler worker's static lifetime boundary.
     fn into_worker_request(
         self,
     ) -> (
         CheckedCompileRequest<'static>,
         Option<&'a mut Option<PreparedCheckedSource>>,
+        Option<&'a mut IndependentComponentDiscovery>,
     ) {
-        let output = self.prepared_source_output;
+        let source_output = self.prepared_source_output;
+        let discovery_output = self.independent_component_discovery_output;
         (
             CheckedCompileRequest {
                 root_path: self.root_path,
@@ -90,8 +138,10 @@ impl<'a> CheckedCompileRequest<'a> {
                 build_snapshot: self.build_snapshot,
                 optimization_rollback: self.optimization_rollback,
                 prepared_source_output: None,
+                independent_component_discovery_output: None,
             },
-            output,
+            source_output,
+            discovery_output,
         )
     }
 }
@@ -122,6 +172,11 @@ struct CheckedChildExecution<'a> {
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
     build_snapshot: Option<&'a build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: crate::OptimizationRollback,
+    /// Discovery write target owned by the compiling call: the evaluated
+    /// `Independent` selections and evaluation usage are recorded between
+    /// build evaluation and provider settlement so the roster survives a
+    /// closure-fence rejection.
+    independent_component_discovery: Option<&'a mut IndependentComponentDiscovery>,
 }
 
 impl CheckedChildExecution<'_> {
@@ -136,6 +191,7 @@ impl CheckedChildExecution<'_> {
             evaluation_sponsor: None,
             build_snapshot: None,
             optimization_rollback: crate::OptimizationRollback::default(),
+            independent_component_discovery: None,
         }
     }
 }
@@ -153,6 +209,7 @@ impl PreparedCheckedSource {
     fn compile_request(
         self,
         request: CheckedCompileRequest<'_>,
+        independent_component_discovery: &mut IndependentComponentDiscovery,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         if request.root_path != self.root_path {
             return Err(vec![Diagnostic::error(
@@ -176,6 +233,7 @@ impl PreparedCheckedSource {
             evaluation_sponsor: request.evaluation_sponsor,
             build_snapshot: request.build_snapshot.as_ref(),
             optimization_rollback: request.optimization_rollback,
+            independent_component_discovery: Some(independent_component_discovery),
         })
     }
 
@@ -255,6 +313,7 @@ impl PreparedCheckedSource {
             // automatic package membership or silently fall back after failure.
             build_snapshot: build_snapshot.or(automatic_snapshot.as_ref()),
             optimization_rollback: optimization_rollback.clone(),
+            independent_component_discovery: None,
         })
     }
 
@@ -307,43 +366,66 @@ fn compile_checked_request(
     request: CheckedCompileRequest<'_>,
     prepared: Option<PreparedCheckedSource>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let (request, mut source_output) = request.into_worker_request();
+    let (request, mut source_output, mut discovery_output) = request.into_worker_request();
     if let Some(output) = source_output.as_deref_mut() {
         *output = None;
     }
+    if let Some(output) = discovery_output.as_deref_mut() {
+        *output = IndependentComponentDiscovery::default();
+    }
     let retain_source = source_output.is_some();
-    let (checked, retained_source) =
-        crate::checking::compile_thread::run_on_compile_thread(move || {
-            // Validate target selection before loading source, including fresh requests.
-            request
-                .target_name
-                .as_deref()
-                .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-                .transpose()
-                .map_err(|diagnostic| vec![diagnostic])?;
-            let prepared = match prepared {
-                Some(prepared) => prepared,
-                None => PreparedCheckedSource::prepare(
-                    &request.root_path,
-                    request
-                        .package_inputs
-                        .as_ref()
-                        .map(PackageCompilationInputs::source_inputs),
-                )?,
-            };
-            let retained_source = retain_source.then(|| prepared.clone());
-            let checked = prepared.compile_request(request)?;
-            Ok((checked, retained_source))
-        })?;
+    // The discovery record is owned by the worker and returned beside the
+    // compile verdict: a rejection loses only the sealed result, never the
+    // evaluated selections the caller needs to publish named components.
+    let (result, discovered) = crate::checking::compile_thread::run_on_compile_thread(move || {
+        let mut discovered = IndependentComponentDiscovery::default();
+        let result = compile_checked_worker(request, prepared, retain_source, &mut discovered);
+        Ok((result, discovered))
+    })?;
+    if let Some(output) = discovery_output {
+        *output = discovered;
+    }
+    let (checked, retained_source) = result?;
     if let Some(output) = source_output {
         *output = retained_source;
     }
     Ok(checked)
 }
 
+/// The worker body of one checked compile. Discovery output is written
+/// beside, never inside, the result: a component-closure rejection still
+/// returns the evaluated `Independent` selections it recorded.
+fn compile_checked_worker(
+    request: CheckedCompileRequest<'static>,
+    prepared: Option<PreparedCheckedSource>,
+    retain_source: bool,
+    independent_component_discovery: &mut IndependentComponentDiscovery,
+) -> Result<(CheckedCompilation, Option<PreparedCheckedSource>), Vec<Diagnostic>> {
+    // Validate target selection before loading source, including fresh requests.
+    request
+        .target_name
+        .as_deref()
+        .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
+        .transpose()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let prepared = match prepared {
+        Some(prepared) => prepared,
+        None => PreparedCheckedSource::prepare(
+            &request.root_path,
+            request
+                .package_inputs
+                .as_ref()
+                .map(PackageCompilationInputs::source_inputs),
+        )?,
+    };
+    let retained_source = retain_source.then(|| prepared.clone());
+    let checked = prepared.compile_request(request, independent_component_discovery)?;
+    Ok((checked, retained_source))
+}
+
 fn compile_assembled_checked_child(
     root_path: &Path,
-    child: CheckedChildExecution<'_>,
+    mut child: CheckedChildExecution<'_>,
     source_file_count: usize,
     syntax: source_files_to_assembled_syntax::AssembledSyntax,
     mut timings: CompileTimings,
@@ -351,6 +433,7 @@ fn compile_assembled_checked_child(
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
     let optimization_rollback = child.optimization_rollback.clone();
+    let independent_component_discovery = child.independent_component_discovery.take();
     let (built, sources) = build_continuation::evaluate_build_and_continue(
         root_path,
         child,
@@ -358,6 +441,28 @@ fn compile_assembled_checked_child(
         syntax,
         &mut timings,
     )?;
+    // The evaluated build configuration never leaves this crate, so the
+    // discovery stop records `Independent` selections and the evaluation's
+    // usage here — after the build computed them and before
+    // `check_selected_execution` runs the component-closure fence that
+    // rejects any of them left unanswered.
+    if let Some(output) = independent_component_discovery {
+        output.evaluation_usage = built.computed_build_config.evaluation_usage;
+        output.selections.extend(
+            built
+                .computed_build_config
+                .config
+                .provider_selections
+                .iter()
+                .filter(|selection| {
+                    selection.composition_mode == provider_planning::CompositionMode::Independent
+                })
+                .map(|selection| IndependentComponentSelection {
+                    selection: selection.clone(),
+                    component: selection.provider_type.package,
+                }),
+        );
+    }
     let execution = execution_settlement::check_selected_execution(
         built,
         selected_target_profile,

@@ -8,6 +8,8 @@
 
 mod independent_components;
 
+pub use independent_components::verify_independent_component_descriptions;
+
 use crate::admission::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;

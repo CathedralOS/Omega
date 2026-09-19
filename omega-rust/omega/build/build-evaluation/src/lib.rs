@@ -109,4 +109,6 @@ pub use evidence::observations::{
     BuildRequiredOutputSettlement,
 };
 pub use execution::execute_admitted_build_program;
-pub use provider_settlement::{CheckedProviderSelection, settle_checked_providers};
+pub use provider_settlement::{
+    CheckedProviderSelection, settle_checked_providers, verify_independent_component_descriptions,
+};

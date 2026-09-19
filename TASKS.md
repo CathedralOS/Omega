@@ -4758,23 +4758,25 @@ Owners include
   dependency's own checked compilation
   (`compiler/tests/package_compilation_inputs/independent_components.rs`). This
   is a checked-stage join driven by a test that attaches the description. The
-  producer has no non-test caller, and no stage after settlement reads the
-  composition mode, so a settled `Independent` edge carries no symbolic import,
-  separate artifact or installation obligation into the product.
+  producer now has a non-test caller: `compile_dependency_closure` retains
+  every dependency's checked compilation as a component candidate, and when a
+  package's compile rejects at the fence the loop publishes each named
+  component's description with `compiler::published_independent_component_description`
+  and recompiles once with them attached. The compiler reports the evaluated
+  `Independent` selections — with the dependency package each names — through
+  `IndependentComponentDiscovery`, a write-beside output recorded after build
+  evaluation and before settlement, so the roster survives a fence rejection;
+  a settled compilation retains the admitted descriptions as custody, and the
+  package-evidence replay re-verifies them under the build's admission profile
+  instead of hitting the fence again. The retry's abandoned build evaluation
+  is real sponsored consumption, reconciled through
+  `verify_build_session_accounting`'s discarded-usage roster. Still, no stage
+  after settlement reads the composition mode, so a settled `Independent`
+  edge carries no symbolic import, separate artifact or installation
+  obligation into the product.
 
   Remaining work:
 
-  - Drive the producer from the compiler. A root's `Independent` selections
-    are known only inside the sealed check
-    (`assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs`
-    hands `build_config.provider_selections` to `settle_checked_providers`, and
-    `ComputedBuildConfig` never leaves that crate), while speculative
-    attachment is refused by the unmatched-component rule. Add a discovery
-    stop returning the evaluated `Independent` selections with the dependency
-    package each names, then call the producer from `packages/manager`'s
-    `compile_dependency_closure`
-    (`src/review/candidate/compilation/package_pass.rs`), which already
-    compiles each package as its own root.
   - Admit a component that selects its own checked adapter.
     `derive_component_inventory` reads called requirements only from Terminal
     `BoundaryCall`, fused lowering erases that call, and `verify_component`

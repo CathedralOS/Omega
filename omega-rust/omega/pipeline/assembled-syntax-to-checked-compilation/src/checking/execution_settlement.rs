@@ -55,6 +55,12 @@ pub(super) struct CheckedExecution {
     /// The normalized restricted build-host requests the admitted build
     /// activation asked of the host before it executed.
     pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
+    /// The component descriptions this package compilation attached and
+    /// provider settlement verified, in package-identity order. Retained as
+    /// custody so consumers replaying the selected-provider join can re-verify
+    /// the same admission instead of rediscovering unattached inputs.
+    pub(super) independent_component_descriptions:
+        Vec<package_compilation::IndependentComponentDescription>,
 }
 
 pub(super) fn check_selected_execution(
@@ -304,5 +310,13 @@ pub(super) fn check_selected_execution(
         build_evaluation_usage,
         build_observation_summary,
         restricted_build_requests,
+        independent_component_descriptions: package_inputs
+            .map(|inputs| {
+                inputs
+                    .independent_component_descriptions()
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default(),
     })
 }

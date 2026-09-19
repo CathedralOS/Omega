@@ -21,6 +21,7 @@ use component_description::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageCompilationInputs};
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// The build's admission profile for one attached description.
 ///
@@ -44,25 +45,22 @@ fn verification_request(
     }
 }
 
-/// Verify every component description the package inputs attached, in
-/// package-identity order. A compilation without package inputs supplies no
-/// components, so its `Independent` selections reject at the join.
-pub(super) fn verify_independent_components(
-    package_inputs: Option<&PackageCompilationInputs>,
+/// Re-verify a roster of attached component descriptions under the build's
+/// admission profile, in iteration order. `package_name` names the owning
+/// package in rejection diagnostics; callers holding only custody identities
+/// supply a lookup that yields `None` and leave the package unnamed.
+pub fn verify_independent_component_descriptions<'a>(
+    descriptions: impl IntoIterator<Item = &'a IndependentComponentDescription>,
+    package_name: impl Fn(PackageKeyIdentity) -> Option<&'a str>,
 ) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
-    let Some(package_inputs) = package_inputs else {
-        return Ok(Vec::new());
-    };
     let mut components = Vec::new();
     let mut diagnostics = Vec::new();
-    for description in package_inputs.independent_component_descriptions() {
+    for description in descriptions {
         let request = verification_request(description);
         match verify_component(description.description(), &request) {
             Ok(component) => components.push(component),
             Err(rejection) => {
-                let package = package_inputs
-                    .package_name(description.package())
-                    .unwrap_or("<unnamed>");
+                let package = package_name(description.package()).unwrap_or("<unnamed>");
                 diagnostics.push(Diagnostic::error(format!(
                     "component description attached for dependency package `{package}` failed independent verification: {rejection}; the build cannot deploy that package as an independent component",
                 )));
@@ -74,4 +72,19 @@ pub(super) fn verify_independent_components(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Verify every component description the package inputs attached, in
+/// package-identity order. A compilation without package inputs supplies no
+/// components, so its `Independent` selections reject at the join.
+pub(super) fn verify_independent_components(
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
+    let Some(package_inputs) = package_inputs else {
+        return Ok(Vec::new());
+    };
+    verify_independent_component_descriptions(
+        package_inputs.independent_component_descriptions(),
+        |package| package_inputs.package_name(package),
+    )
 }
