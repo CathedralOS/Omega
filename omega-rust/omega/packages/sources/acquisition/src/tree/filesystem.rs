@@ -1,4 +1,9 @@
 //! Capability-relative filesystem primitives shared by source adapters.
+//!
+//! A captured file must retain its identity, length and change indicators across
+//! the bounded copy. These host observations only guard capture; they never enter
+//! canonical source identity. Per-file checks supplement the later tree recheck,
+//! not an atomic-tree snapshot or isolation from a process with the same authority.
 
 use std::ffi::OsStr;
 use std::io::Read;
@@ -104,6 +109,23 @@ pub(crate) fn read_capability_file_bounded(
     let metadata = file
         .metadata()
         .map_err(|error| io_error(display_path, error))?;
+    let bytes = read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit)?;
+    // Resolve the final name through the retained parent, never the diagnostic
+    // path: the parent may have been renamed since acquisition.
+    let final_entry = directory
+        .symlink_metadata(name)
+        .map_err(|error| io_error(display_path, error))?;
+    require_unchanged_source_file(&metadata, &final_entry, display_path)?;
+    Ok((bytes, capability_metadata_is_executable(&metadata)))
+}
+
+fn read_opened_file_bounded(
+    file: &mut cap_std::fs::File,
+    metadata: &cap_std::fs::Metadata,
+    display_path: &Path,
+    remaining: u64,
+    limit: u64,
+) -> Result<Vec<u8>, SourceResolveError> {
     if !metadata.is_file() {
         return Err(SourceResolveError::UnsupportedFileType {
             path: display_path.to_path_buf(),
@@ -136,7 +158,57 @@ pub(crate) fn read_capability_file_bounded(
         bytes.extend_from_slice(&chunk[..count]);
     }
 
-    Ok((bytes, capability_metadata_is_executable(&metadata)))
+    if bytes.len() as u64 != metadata.len() {
+        return Err(SourceResolveError::LocalSourceChanged {
+            path: display_path.to_path_buf(),
+        });
+    }
+    let completed = file
+        .metadata()
+        .map_err(|error| io_error(display_path, error))?;
+    require_unchanged_source_file(metadata, &completed, display_path)?;
+    Ok(bytes)
+}
+
+fn require_unchanged_source_file(
+    initial: &cap_std::fs::Metadata,
+    observed: &cap_std::fs::Metadata,
+    display_path: &Path,
+) -> Result<(), SourceResolveError> {
+    // Both observations must come from File::metadata or Dir::symlink_metadata.
+    // cap-std 4.0.3 obtains the latter through a no-follow metadata handle on
+    // Windows, retaining the by-handle identity required by MetadataExt. A
+    // DirEntry::metadata observation does not provide that guarantee.
+    let same_identity = cap_fs_ext::MetadataExt::dev(initial)
+        == cap_fs_ext::MetadataExt::dev(observed)
+        && cap_fs_ext::MetadataExt::ino(initial) == cap_fs_ext::MetadataExt::ino(observed);
+    let same_modified = initial
+        .modified()
+        .map_err(|error| io_error(display_path, error))?
+        == observed
+            .modified()
+            .map_err(|error| io_error(display_path, error))?;
+    #[cfg(unix)]
+    let same_change_time = {
+        use cap_fs_ext::OsMetadataExt;
+
+        initial.ctime() == observed.ctime() && initial.ctime_nsec() == observed.ctime_nsec()
+    };
+    #[cfg(not(unix))]
+    let same_change_time = true;
+
+    if !observed.is_file()
+        || !same_identity
+        || initial.len() != observed.len()
+        || initial.permissions() != observed.permissions()
+        || !same_modified
+        || !same_change_time
+    {
+        return Err(SourceResolveError::LocalSourceChanged {
+            path: display_path.to_path_buf(),
+        });
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -174,3 +246,6 @@ pub(crate) fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError
         message: error.to_string(),
     }
 }
+
+#[cfg(test)]
+mod read_tests;
