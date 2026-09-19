@@ -11,12 +11,15 @@ use crate::admission::vocabulary::{
 use crate::evidence::filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-use crate::evidence::observations::{BuildEvaluationUsage, BuildObservationSummary};
+use crate::evidence::observations::{
+    BuildCapturedSourceInventory, BuildEvaluationUsage, BuildObservationSummary,
+};
 use crate::execute_admitted_build_program;
 use crate::optimization;
 use build_output::{CapturedBuildSourceInput, PackageGeneratedSource};
 use build_time_evaluation::{
-    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineExecutionMode,
+    BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
     PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
@@ -177,6 +180,151 @@ pub enum AdmittedBuildAuthorityVerdict {
     Granted,
 }
 
+/// The restricted host operation one admitted build activation requests.
+///
+/// Members are the normalized review vocabulary for restricted build-time
+/// host reach (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+/// A new restricted operation lands here so package review can surface it
+/// beside — never inside — the package's product-authority rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RestrictedBuildOperation {
+    /// Execute the admitted build machine against scoped real filesystem
+    /// roots: reads land under granted read roots and writes under granted
+    /// write roots, and anything else is refused before the host is touched.
+    ScopedFilesystemExecution,
+    /// Execute against the real filesystem without path grants. Build
+    /// admission does not currently select this mode; it is named so a
+    /// review cannot silently drop it if an evaluator ever carries it.
+    UnscopedFilesystemExecution,
+}
+
+/// The logical grant root one restricted build request names. Compiler
+/// vocabulary only — never the host path the root maps to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RestrictedBuildGrantRoot {
+    /// The package's source inventory.
+    SourceInventory,
+    /// The activation's staged build-output tree.
+    StagedOutput,
+    /// A compiler-issued grant root identity this projection does not name.
+    Other(u32),
+}
+
+/// One logical root grant inside a restricted build request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestrictedBuildGrant {
+    root: RestrictedBuildGrantRoot,
+    /// The granted root's canonical metadata index narrows every operation
+    /// to captured membership and kind.
+    narrowed: bool,
+    /// The immutable captured inventory bound to the root, when one exists.
+    /// Reads then hit a fresh private materialization of that inventory,
+    /// never the live source root.
+    captured: Option<BuildCapturedSourceInventory>,
+}
+
+impl RestrictedBuildGrant {
+    pub const fn root(&self) -> RestrictedBuildGrantRoot {
+        self.root
+    }
+
+    pub const fn narrowed(&self) -> bool {
+        self.narrowed
+    }
+
+    pub const fn captured(&self) -> Option<BuildCapturedSourceInventory> {
+        self.captured
+    }
+}
+
+/// The bounds admission attached to one restricted build request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestrictedBuildBounds {
+    /// The shared filesystem sponsor account's staging ceilings, present
+    /// when a caller-installed sponsor binds every granted operation.
+    filesystem_sponsor_limits: Option<checked_interpreter::FilesystemSponsorLimits>,
+    /// The evaluation sponsor's resource ceilings, present when a
+    /// caller-installed sponsor caps this activation's evaluator.
+    evaluation_sponsor_limits: Option<BuildEvaluationSponsorLimits>,
+    /// The declared sealed outputs that must complete in the staged-output
+    /// tree before this activation's result may publish.
+    required_outputs: Vec<Vec<u8>>,
+    /// Whether this activation publishes retained outputs only.
+    artifact_only: bool,
+}
+
+impl RestrictedBuildBounds {
+    pub const fn filesystem_sponsor_limits(
+        &self,
+    ) -> Option<checked_interpreter::FilesystemSponsorLimits> {
+        self.filesystem_sponsor_limits
+    }
+
+    pub const fn evaluation_sponsor_limits(&self) -> Option<BuildEvaluationSponsorLimits> {
+        self.evaluation_sponsor_limits
+    }
+
+    pub fn required_outputs(&self) -> &[Vec<u8>] {
+        &self.required_outputs
+    }
+
+    pub const fn artifact_only(&self) -> bool {
+        self.artifact_only
+    }
+}
+
+/// One normalized restricted build-host request admitted on a build
+/// activation (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+///
+/// The request records, in compiler vocabulary, what the package's build
+/// machine asks of the host before that authority executes: the restricted
+/// operation, the logical resource roots it reaches, and the bounds
+/// admission attached. It carries no host paths, live handles, or ephemeral
+/// capabilities, so an installer may retain it as accepted-request meaning —
+/// for example in a lock — without storing machine state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestrictedBuildRequest {
+    operation: RestrictedBuildOperation,
+    read_grants: Vec<RestrictedBuildGrant>,
+    write_grants: Vec<RestrictedBuildGrant>,
+    bounds: RestrictedBuildBounds,
+    build_execution_profile: Option<target::TargetProfile>,
+    selected_target_profile: Option<target::TargetProfile>,
+}
+
+impl RestrictedBuildRequest {
+    pub const fn operation(&self) -> RestrictedBuildOperation {
+        self.operation
+    }
+
+    /// Logical roots this request may read, in grant order.
+    pub fn read_grants(&self) -> &[RestrictedBuildGrant] {
+        &self.read_grants
+    }
+
+    /// Logical roots this request may write, in grant order.
+    pub fn write_grants(&self) -> &[RestrictedBuildGrant] {
+        &self.write_grants
+    }
+
+    pub const fn bounds(&self) -> &RestrictedBuildBounds {
+        &self.bounds
+    }
+
+    /// The admitted build execution profile this request's build-scope
+    /// declarations were checked against. `None` names an admitted host no
+    /// catalogued profile describes.
+    pub const fn build_execution_profile(&self) -> Option<target::TargetProfile> {
+        self.build_execution_profile
+    }
+
+    /// The product target the requesting compilation selected for this
+    /// activation.
+    pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
+        self.selected_target_profile
+    }
+}
+
 /// Exact target vocabulary admitted for one selected build activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdmittedBuildTargetInputs {
@@ -324,6 +472,24 @@ impl AdmittedBuildProgram {
 
     pub const fn service_reach_plan(&self) -> &flow_effects::ServiceReachInferencePlan {
         &self.service_reach_plan
+    }
+
+    /// The normalized restricted build-host requests this activation asks of
+    /// the host, in issue order. They describe the admitted authority in
+    /// compiler vocabulary — never the host paths or live handles it binds —
+    /// so a consumer may retain accepted request meaning separately from the
+    /// actual invocation grants.
+    pub fn restricted_build_requests(&self) -> Vec<RestrictedBuildRequest> {
+        let AdmittedBuildMachine::Selected(selected) = &self.machine else {
+            return Vec::new();
+        };
+        restricted_build_requests(
+            &self.filesystem_scope,
+            self.evaluation_sponsor.as_ref(),
+            self.selected_target_profile,
+            self.artifact_only,
+            &selected.execution_mode,
+        )
     }
 
     /// Consume the exact admitted program through primary evaluation and any
@@ -602,4 +768,81 @@ pub fn admit_build_program(
         selected_target_profile,
         artifact_only,
     })
+}
+
+/// Project the admitted authority decision into normalized restricted
+/// build-host requests.
+///
+/// Only real host reach produces a request: replay reproduces retained
+/// receipts and the virtual provider installs no host authority, so neither
+/// asks anything new of the host. Logical roots are reported by compiler
+/// vocabulary identity — the host paths the roots map to never enter the
+/// projection.
+fn restricted_build_requests(
+    filesystem_scope: &BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<&BuildEvaluationSponsor>,
+    selected_target_profile: Option<target::TargetProfile>,
+    artifact_only: bool,
+    execution_mode: &BuildMachineExecutionMode,
+) -> Vec<RestrictedBuildRequest> {
+    let BuildMachineExecutionMode::Granted { filesystem, .. } = execution_mode else {
+        return Vec::new();
+    };
+    let (operation, read_roots, write_roots, filesystem_sponsor) = match filesystem {
+        BuildMachineFilesystemAccess::RealScoped(grants) => (
+            RestrictedBuildOperation::ScopedFilesystemExecution,
+            &grants.read_roots[..],
+            &grants.write_roots[..],
+            None,
+        ),
+        BuildMachineFilesystemAccess::RealScopedSponsored { grants, sponsor } => (
+            RestrictedBuildOperation::ScopedFilesystemExecution,
+            &grants.read_roots[..],
+            &grants.write_roots[..],
+            Some(sponsor),
+        ),
+        BuildMachineFilesystemAccess::RealUnscoped => (
+            RestrictedBuildOperation::UnscopedFilesystemExecution,
+            &[][..],
+            &[][..],
+            None,
+        ),
+        BuildMachineFilesystemAccess::Virtual
+        | BuildMachineFilesystemAccess::ReplayFilesystem(_) => return Vec::new(),
+    };
+    let captured = filesystem_scope.captured_source_inventory();
+    let grant = |grant_root: &BuildMachineFilesystemGrantRoot| {
+        let identity = grant_root.identity();
+        let (root, captured) = if identity == BUILD_SOURCE_ROOT_IDENTITY {
+            (RestrictedBuildGrantRoot::SourceInventory, captured)
+        } else if identity == BUILD_OUTPUT_ROOT_IDENTITY {
+            (RestrictedBuildGrantRoot::StagedOutput, None)
+        } else {
+            (RestrictedBuildGrantRoot::Other(identity.get()), None)
+        };
+        RestrictedBuildGrant {
+            root,
+            narrowed: grant_root.canonical_metadata().is_some(),
+            captured,
+        }
+    };
+    vec![RestrictedBuildRequest {
+        operation,
+        read_grants: read_roots.iter().map(&grant).collect(),
+        write_grants: write_roots.iter().map(&grant).collect(),
+        bounds: RestrictedBuildBounds {
+            filesystem_sponsor_limits: filesystem_sponsor.and_then(|sponsor| sponsor.limits().ok()),
+            evaluation_sponsor_limits: evaluation_sponsor.map(BuildEvaluationSponsor::limits),
+            required_outputs: filesystem_scope
+                .required_outputs()
+                .iter()
+                .cloned()
+                .collect(),
+            artifact_only,
+        },
+        build_execution_profile: filesystem_scope
+            .activation(selected_target_profile)
+            .build_execution_profile(),
+        selected_target_profile,
+    }]
 }

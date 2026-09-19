@@ -318,6 +318,12 @@ impl BuildMachineFilesystemScope {
         }
     }
 
+    /// The declared sealed outputs this occurrence must settle before its
+    /// result may publish, in canonical order.
+    pub(crate) fn required_outputs(&self) -> &BTreeSet<Vec<u8>> {
+        &self.required_outputs
+    }
+
     pub(crate) fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_input
             .as_ref()

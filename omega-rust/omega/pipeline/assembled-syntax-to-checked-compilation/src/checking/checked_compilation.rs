@@ -563,6 +563,16 @@ impl CheckedCompilation {
         self.execution.build_observation_summary.as_ref()
     }
 
+    /// The normalized restricted build-host requests this compilation's
+    /// admitted build activation asked of the host before it executed
+    /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). This
+    /// is admission intent, not execution evidence: it names the restricted
+    /// operation, logical resource roots, bounds, and activation profiles in
+    /// compiler vocabulary, never host paths or live grants.
+    pub fn restricted_build_requests(&self) -> &[build_evaluation::RestrictedBuildRequest] {
+        &self.execution.restricted_build_requests
+    }
+
     /// Exact compiler-owned coordinates of checked implementation claims that
     /// ordinary validation deliberately left unjudged. Package review rejects
     /// any row until a later-discharge ledger exists.
