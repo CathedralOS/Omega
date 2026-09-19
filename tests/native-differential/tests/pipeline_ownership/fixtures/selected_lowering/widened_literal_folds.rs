@@ -286,12 +286,22 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
 pub(crate) fn staged_widened_u8_exact_add_conditional(
     target: NativeTarget,
 ) -> StagedOptimizedSelectedInstructions {
+    staged_widened_u8_exact_add_conditional_with_selections(
+        target,
+        OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+    )
+}
+
+pub(crate) fn staged_widened_u8_exact_add_conditional_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+) -> StagedOptimizedSelectedInstructions {
     let (semantic, proof) = conditional_widened_u8_exact_add_artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        request(selections),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(
@@ -305,12 +315,22 @@ pub(crate) fn staged_widened_u8_exact_add_conditional(
 pub(crate) fn staged_widened_u8_exact_subtract_conditional(
     target: NativeTarget,
 ) -> StagedOptimizedSelectedInstructions {
+    staged_widened_u8_exact_subtract_conditional_with_selections(
+        target,
+        OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+    )
+}
+
+pub(crate) fn staged_widened_u8_exact_subtract_conditional_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+) -> StagedOptimizedSelectedInstructions {
     let (semantic, proof) = conditional_widened_u8_exact_subtract_artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        request(selections),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(

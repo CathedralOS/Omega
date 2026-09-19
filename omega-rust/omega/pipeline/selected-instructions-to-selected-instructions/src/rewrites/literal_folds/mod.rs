@@ -19,12 +19,16 @@ use crate::StagedOptimizedAllocationLegality;
 mod accounting;
 mod execution;
 mod model;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 
 pub use execution::{
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
     validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
 };
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 
 impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
     fn from(error: crate::SelectedLoweringRuleCatalogError) -> Self {

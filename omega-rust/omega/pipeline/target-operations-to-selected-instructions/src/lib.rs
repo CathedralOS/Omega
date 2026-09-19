@@ -22,6 +22,8 @@ pub use legalization::{
     legalization_validator_identity_v21_legacy, legalization_validator_identity_v22_legacy,
     legalize_target_operations, validate_legalized_operations,
 };
+#[cfg(feature = "test-support")]
+pub use optimized::OptimizedSelectionCustodyFieldForTest;
 pub use optimized::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,

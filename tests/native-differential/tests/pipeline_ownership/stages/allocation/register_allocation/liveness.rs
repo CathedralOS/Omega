@@ -1,8 +1,8 @@
 use crate::tests::{
     BlockId, EdgeId, LivenessError, MachineId, NativeTarget, OptimizedLivenessCustodyError,
-    RegisterOperandAccess, RegisterUnitId, VirtualRegisterId, analyze_liveness, liveness_identity,
-    named_units, stage_optimized_liveness, staged_conditional, staged_forwarded_conditional,
-    validate_liveness, validate_optimized_liveness_custody,
+    OptimizedLivenessCustodyFieldForTest, RegisterOperandAccess, RegisterUnitId, VirtualRegisterId,
+    analyze_liveness, liveness_identity, named_units, stage_optimized_liveness, staged_conditional,
+    staged_forwarded_conditional, validate_liveness, validate_optimized_liveness_custody,
 };
 #[test]
 fn selected_liveness_is_exact_on_both_architectures() {
@@ -402,4 +402,60 @@ fn liveness_custody_rejects_a_detached_same_shape_target() {
             LivenessError::RootMismatch
         ))
     ));
+}
+
+#[test]
+fn optimized_liveness_custody_rejects_every_one_field_substitution() {
+    use OptimizedLivenessCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedLivenessCustodyFieldForTest); 16] = [
+        ("psi", Psi),
+        ("target", Target),
+        ("entry", Entry),
+        ("optimization", Optimization),
+        ("projection", Projection),
+        ("manifest", Manifest),
+        ("optimization_unit", OptimizationUnit),
+        ("fuel_schedule", FuelSchedule),
+        ("register_environment", RegisterEnvironment),
+        ("selected", Selected),
+        ("liveness", Liveness),
+        ("function_count", FunctionCount),
+        ("block_count", BlockCount),
+        ("virtual_register_count", VirtualRegisterCount),
+        ("instruction_count", InstructionCount),
+        ("successor_count", SuccessorCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        // An authentic foreign liveness stage on the opposite architecture is
+        // the donor for nested-receipt fields.
+        let donor = stage_optimized_liveness(staged_conditional(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        }))
+        .unwrap();
+        for (name, field) in fields {
+            let mut substituted = stage_optimized_liveness(staged_conditional(target)).unwrap();
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_liveness_custody(
+                substituted.selected_stage(),
+                substituted.liveness(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted liveness-custody field {name}",
+            );
+        }
+    }
 }

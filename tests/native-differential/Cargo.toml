@@ -65,7 +65,7 @@ physical-instructions = { path = "../../omega-rust/omega/representations/physica
 register-environment = { path = "../../omega-rust/omega/backend/register-environment" }
 selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout" }
 resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/resolved-layout-to-resolved-layout", features = ["test-support"] }
-register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine" }
+register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine", features = ["test-support"] }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
 compiler = { path = "../../omega-rust/omega/compiler/compiler" }
 component-deployment = { path = "../../omega-rust/omega/build/component-deployment" }
@@ -73,9 +73,9 @@ effects = { path = "../../omega-rust/omega/representations/effects" }
 isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-x86_64" }
 optimization-core = { path = "../../omega-rust/omega/representations/optimization-core" }
-target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/target-operations-to-selected-instructions" }
+target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/target-operations-to-selected-instructions", features = ["test-support"] }
 abstract-operations-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/abstract-operations-to-abstract-operations" }
-selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/selected-instructions-to-register-homes" }
+selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/selected-instructions-to-register-homes", features = ["test-support"] }
 register-model = { path = "../../omega-rust/omega/representations/register-model" }
 optimization-unit = { path = "../../omega-rust/omega/representations/optimization-unit" }
 optimization-unit-semantics = { path = "../../omega-rust/omega/semantics/optimization-unit-semantics" }

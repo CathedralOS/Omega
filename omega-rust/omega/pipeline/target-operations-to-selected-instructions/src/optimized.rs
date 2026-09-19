@@ -7,10 +7,14 @@
 mod constraints;
 mod construction;
 mod model;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validation;
 
 pub use constraints::selection_constraints;
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 pub use validation::validate_optimized_selection_custody;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;

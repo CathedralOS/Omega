@@ -8,9 +8,13 @@ mod compute;
 mod custody;
 mod model;
 mod policies;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validation;
 
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 pub use validation::validate_optimized_allocation_legality_custody;
 
 use crate::ValidatedAllocatorAvailability;

@@ -79,6 +79,22 @@ pub use assignment::transformed::{
 };
 
 // Rematerialization staged by the active-resident recovery rule.
+#[cfg(feature = "test-support")]
+pub use assignment::baseline::{
+    OptimizedPostCopyRegisterHomeCustodyFieldForTest, OptimizedRegisterHomeCustodyFieldForTest,
+};
+#[cfg(feature = "test-support")]
+pub use assignment::transformed::{
+    OptimizedPostLiteralFoldHomeCustodyFieldForTest,
+    OptimizedPostSelectedLoweringHomeCustodyFieldForTest,
+};
+#[cfg(feature = "test-support")]
+pub use rewrites::{
+    OptimizedActiveResidentRematerializationCustodyFieldForTest,
+    OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
+    corrupt_active_resident_rematerialization_custody_for_test,
+    corrupt_active_resident_rematerialization_pressure_custody_for_test,
+};
 pub use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
@@ -89,11 +105,6 @@ pub use rewrites::{
     stage_optimized_active_resident_rematerialization_pressure,
     validate_optimized_active_resident_rematerialization,
     validate_optimized_active_resident_rematerialization_pressure,
-};
-#[cfg(feature = "test-support")]
-pub use rewrites::{
-    corrupt_active_resident_rematerialization_custody_for_test,
-    corrupt_active_resident_rematerialization_pressure_custody_for_test,
 };
 
 // Current allocation facts and replay evidence.

@@ -1,8 +1,19 @@
 use crate::tests::{
-    NativeTarget, PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
-    RegisterHomeError, RegisterHomePlan, register_home_identity,
+    AllocationReplayError, AllocationSource, LiteralFoldPolicy, NativeTarget, Optimization,
+    OptimizationSelections, OptimizedPostLiteralFoldHomeCustodyError,
+    OptimizedPostLiteralFoldHomeCustodyFieldForTest, OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedPostSelectedLoweringHomeCustodyFieldForTest, OptimizedRegisterHomeCustodyFieldForTest,
+    PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
+    RecoveryClassificationPolicy, RegisterHomeError, RegisterHomePlan, SpillChoicePolicy,
+    register_home_identity, run_selected_lowering_optimizations, selected_lowering_budget,
+    stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
     stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
-    stage_optimized_register_homes, staged_conditional, staged_forwarded_conditional,
+    stage_optimized_register_homes, stage_optimized_register_homes_after_literal_folds,
+    stage_optimized_register_homes_after_selected_lowering, staged_conditional,
+    staged_forwarded_conditional, staged_single_block_exact_add_fold_legality,
+    staged_widened_u8_exact_add_conditional_with_selections,
+    validate_optimized_register_home_after_literal_fold_custody,
+    validate_optimized_register_home_after_selected_lowering_custody,
     validate_optimized_register_home_custody, validate_post_allocation_optimization_manifest,
     validate_register_homes,
 };
@@ -212,4 +223,226 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
     .unwrap();
     let forwarded = stage_optimized_register_homes(forwarded).unwrap();
     assert_eq!(forwarded.custody().assignment_count(), 6);
+}
+
+#[test]
+fn optimized_register_home_custody_rejects_every_one_field_substitution() {
+    use OptimizedRegisterHomeCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedRegisterHomeCustodyFieldForTest); 18] = [
+        ("psi", Psi),
+        ("target", Target),
+        ("entry", Entry),
+        ("optimization", Optimization),
+        ("projection", Projection),
+        ("manifest", Manifest),
+        ("optimization_unit", OptimizationUnit),
+        ("fuel_schedule", FuelSchedule),
+        ("register_environment", RegisterEnvironment),
+        ("allocator_availability", AllocatorAvailability),
+        ("selected", Selected),
+        ("liveness", Liveness),
+        ("ranges", Ranges),
+        ("legality", Legality),
+        ("homes", Homes),
+        ("post_allocation_manifest", PostAllocationManifest),
+        ("function_count", FunctionCount),
+        ("assignment_count", AssignmentCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            stage_optimized_register_homes(
+                stage_optimized_allocation_legality(
+                    stage_optimized_live_ranges(
+                        stage_optimized_liveness(staged_conditional(target)).unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        };
+        // The donor keeps the corruptor signature uniform with nested-source
+        // families; no baseline field consumes it.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody(),
+            donor.custody(),
+            "{target:?}: the foreign target must produce a distinct custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            let rebuilt = validate_optimized_register_home_custody(
+                substituted.legality_stage(),
+                substituted.homes(),
+                substituted.post_allocation_manifest(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+                )
+            });
+            assert_ne!(
+                rebuilt,
+                substituted.custody(),
+                "{target:?}: independent replay must reject substituted homes-custody field {name}",
+            );
+            assert_eq!(
+                substituted.replay_allocation().err(),
+                Some(AllocationReplayError::ReceiptMismatch),
+                "{target:?}: allocation replay must reject substituted homes-custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn post_literal_fold_home_custody_rejects_every_one_field_substitution() {
+    use OptimizedPostLiteralFoldHomeCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedPostLiteralFoldHomeCustodyFieldForTest); 5] = [
+        ("source", Source),
+        ("homes", Homes),
+        ("post_allocation_manifest", PostAllocationManifest),
+        ("function_count", FunctionCount),
+        ("assignment_count", AssignmentCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let legality = staged_single_block_exact_add_fold_legality(target);
+            let folds = stage_first_optimized_literal_fold(
+                legality,
+                SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+            // The first step folds one arm's stranded literal; the second
+            // step folds the other arm's, after which every range seats in
+            // the single allowlisted view.
+            let folds = stage_next_optimized_literal_fold(
+                folds,
+                SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+            stage_optimized_register_homes_after_literal_folds(folds).unwrap()
+        };
+        // An authentic foreign homes stage on the opposite architecture is
+        // the donor for the nested literal-fold source custody receipt.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody().source(),
+            donor.custody().source(),
+            "{target:?}: the foreign target must produce a distinct source custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody().clone();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                &honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            assert_eq!(
+                validate_optimized_register_home_after_literal_fold_custody(&substituted),
+                Err(OptimizedPostLiteralFoldHomeCustodyError::ReceiptMismatch),
+                "{target:?}: independent replay must reject substituted literal-fold custody field {name}",
+            );
+            // The nested-source validator observes the custody mismatch first,
+            // so the replay surfaces it through the stage wrapper rather than
+            // the unreachable plain `ReceiptMismatch` arm.
+            assert_eq!(
+                substituted.replay_allocation().err(),
+                Some(AllocationReplayError::LiteralFolds(
+                    OptimizedPostLiteralFoldHomeCustodyError::ReceiptMismatch
+                )),
+                "{target:?}: allocation replay must reject substituted literal-fold custody field {name}",
+            );
+        }
+    }
+}
+
+#[test]
+fn post_selected_lowering_home_custody_rejects_every_one_field_substitution() {
+    use OptimizedPostSelectedLoweringHomeCustodyFieldForTest::*;
+    let fields: [(&str, OptimizedPostSelectedLoweringHomeCustodyFieldForTest); 5] = [
+        ("source", Source),
+        ("homes", Homes),
+        ("post_allocation_manifest", PostAllocationManifest),
+        ("function_count", FunctionCount),
+        ("assignment_count", AssignmentCount),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let build = |target: NativeTarget| {
+            let legality = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(
+                        staged_widened_u8_exact_add_conditional_with_selections(
+                            target,
+                            OptimizationSelections::new([
+                                Optimization::CopyPropagation,
+                                Optimization::SelectedIncomingU12ExactAddImmediate,
+                            ])
+                            .unwrap(),
+                        ),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let run = run_selected_lowering_optimizations(legality).unwrap();
+            stage_optimized_register_homes_after_selected_lowering(run).unwrap()
+        };
+        // An authentic foreign homes stage on the opposite architecture is
+        // the donor for the nested selected-lowering source custody receipt.
+        let donor = build(match target.architecture {
+            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            _ => NativeTarget::linux_x64(),
+        });
+        assert_ne!(
+            build(target).custody().source(),
+            donor.custody().source(),
+            "{target:?}: the foreign target must produce a distinct source custody receipt",
+        );
+        for (name, field) in fields {
+            let mut substituted = build(target);
+            let honest = substituted.custody().clone();
+            substituted.corrupt_custody_for_test(field, &donor);
+            assert_ne!(
+                substituted.custody(),
+                &honest,
+                "{target:?}: mutation `{name}` must change the retained custody receipt",
+            );
+            assert_eq!(
+                validate_optimized_register_home_after_selected_lowering_custody(&substituted),
+                Err(OptimizedPostSelectedLoweringHomeCustodyError::ReceiptMismatch),
+                "{target:?}: independent replay must reject substituted selected-lowering custody field {name}",
+            );
+            // Same wrapper shape as the literal-fold matrix above.
+            assert_eq!(
+                substituted.replay_allocation().err(),
+                Some(AllocationReplayError::SelectedLowering(
+                    OptimizedPostSelectedLoweringHomeCustodyError::ReceiptMismatch
+                )),
+                "{target:?}: allocation replay must reject substituted selected-lowering custody field {name}",
+            );
+        }
+    }
 }
