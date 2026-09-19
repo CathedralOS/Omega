@@ -174,6 +174,45 @@ fn validate_partial_moves(
             let mut windows = borrowed_windows::BorrowedStorageWindows::default();
             for (statement_index, statement) in statements.iter().enumerate() {
                 let is_transition = matches!(statement, StatementNode::Transition(_));
+                // Match arms join on one edge set: a move evaluated inside an
+                // arm opens a hole on that arm's joining edge only, so the
+                // window is admitted only when every reachable arm agrees on
+                // the resolved places it extracts. Transition edges can never
+                // repair before leaving, so their moves skip the planner.
+                let mut arm_plan = borrowed_windows::ArmWindowPlan::new(program, statement);
+                if !is_transition && arm_plan.has_frames() {
+                    for event in moves
+                        .iter()
+                        .filter(|event| {
+                            event_statement_index(event.source) == Some(statement_index)
+                        })
+                    {
+                        let path = segments.span_or_empty(event.segments);
+                        if path.is_empty()
+                            || move_event_is_production_target(program, state, event, path)
+                            || !projected_affine::is_borrowed_place_transfer(
+                                program,
+                                machine.symbol,
+                                state,
+                                event,
+                                path,
+                            )
+                            || borrowed_move_crosses_nominal_drop(program, state, event, path)
+                        {
+                            continue;
+                        }
+                        arm_plan.add_borrowed_move(
+                            program,
+                            machine,
+                            state,
+                            statements,
+                            statement_index,
+                            event,
+                            path,
+                        );
+                    }
+                    arm_plan.seal();
+                }
                 for step in borrowed_windows::statement_steps(
                     program,
                     machine,
@@ -229,13 +268,10 @@ fn validate_partial_moves(
                         )
                     {
                         // Moves evaluated on a transition edge cannot be
-                        // repaired before the edge leaves; match-arm moves
-                        // open a hole on only one joining edge; a nominal-drop
-                        // owner is entitled to a whole value. All keep the
+                        // repaired before the edge leaves, and a nominal-drop
+                        // owner is entitled to a whole value. Both keep the
                         // plain rejection.
                         if is_transition
-                            || conditional
-                            || event.source_arm.is_valid()
                             || borrowed_move_crosses_nominal_drop(program, state, event, path)
                         {
                             diagnostics.push(borrowed_windows::borrowed_transfer_diagnostic(
@@ -245,7 +281,7 @@ fn validate_partial_moves(
                             ));
                             continue;
                         }
-                        if let Some(diagnostic) = windows.open(
+                        match arm_plan.verdict(
                             program,
                             machine,
                             state,
@@ -254,7 +290,71 @@ fn validate_partial_moves(
                             event,
                             path,
                         ) {
-                            diagnostics.push(diagnostic);
+                            Some(borrowed_windows::ArmWindowVerdict::Open) => {
+                                if let Some(diagnostic) = windows.open(
+                                    program,
+                                    machine,
+                                    state,
+                                    statements,
+                                    statement_index,
+                                    event,
+                                    path,
+                                ) {
+                                    diagnostics.push(diagnostic);
+                                }
+                            }
+                            // An unattributed move evaluates outside every
+                            // match arm: an unconditional one opens normally,
+                            // a conditional one (`&&`/`||` right operand,
+                            // pattern subtree) still cannot prove the window
+                            // survives, so it keeps the plain rejection.
+                            None => {
+                                if conditional {
+                                    diagnostics.push(
+                                        borrowed_windows::borrowed_transfer_diagnostic(
+                                            machine,
+                                            state,
+                                            event_statement_index(event.source).unwrap_or(0),
+                                        ),
+                                    );
+                                } else if let Some(diagnostic) = windows.open(
+                                    program,
+                                    machine,
+                                    state,
+                                    statements,
+                                    statement_index,
+                                    event,
+                                    path,
+                                ) {
+                                    diagnostics.push(diagnostic);
+                                }
+                            }
+                            Some(borrowed_windows::ArmWindowVerdict::SiblingRoute) => {
+                                if !borrowed_windows::authored_route_exclusive(
+                                    program,
+                                    machine,
+                                    state,
+                                    statement_index,
+                                    event.root,
+                                    path,
+                                ) {
+                                    diagnostics.push(
+                                        borrowed_windows::borrowed_transfer_diagnostic(
+                                            machine,
+                                            state,
+                                            event_statement_index(event.source).unwrap_or(0),
+                                        ),
+                                    );
+                                }
+                            }
+                            Some(borrowed_windows::ArmWindowVerdict::Reject) => diagnostics.push(
+                                borrowed_windows::borrowed_transfer_diagnostic(
+                                    machine,
+                                    state,
+                                    event_statement_index(event.source).unwrap_or(0),
+                                ),
+                            ),
+                            Some(borrowed_windows::ArmWindowVerdict::DeadArm) => {}
                         }
                         continue;
                     }
