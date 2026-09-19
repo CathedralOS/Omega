@@ -258,24 +258,7 @@ fn prove(
     if let Some((measure, range_handle, entry_parameters)) = &site_invariant
         && let ExpressionNode::Range(range) = program.expression_table.expression(*range_handle)
     {
-        let rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
-            // A carried collection's produced length is the rank; the
-            // telescope's length bindings name the slice formal, or the
-            // record-carried slice leaf, that holds its role at this site.
-            let (length_roles, length_equalities) =
-                calls::telescoped_length_bindings(program, caller, caller_state, entry_parameters);
-            comparisons.extend(length_equalities);
-            program
-                .machine_states(caller)
-                .first()
-                .and_then(|root| lengths::parameter(program, root, *subject))
-                .and_then(|parameter| {
-                    length_roles
-                        .iter()
-                        .find(|(symbol, _)| *symbol == parameter.symbol)
-                        .map(|(_, identity)| Polynomial::atom(identity.clone()))
-                })
-        } else if let RankingRangeMeasure::Field { subject, measure } = measure {
+        let rank = if let RankingRangeMeasure::Field { subject, measure } = measure {
             // A field-view member's rank is the record's exact projection
             // coordinate, telescoped from its entry formal onto the unique
             // site carrier holding that role -- the same atom the member's
@@ -309,7 +292,61 @@ fn prove(
                 coordinates.value()
             })
         } else {
-            calls::rank_coordinate(program, caller, &mut source_engine, *measure)
+            // Every other measure still spells its endpoints -- and a
+            // member-chain subject such as `pair.left` -- in the entry scope:
+            // `remaining in 0..=limits.cap` reads `limits.cap`, which names no
+            // site atom until the projection telescopes onto the unique site
+            // carrier holding `limits`' role (`bounds.cap`). Install those
+            // member chains the same way the field arm does; a role with no
+            // unique carrier resolves nothing and the site abstains, as
+            // before. Bare-formal endpoints and subjects are already aliased
+            // by the telescoped bindings and leave nothing to install.
+            program.machine_states(caller).first().and_then(|entry| {
+                let mut spellings = vec![range.start, range.end];
+                match measure {
+                    RankingRangeMeasure::Single(subject)
+                    | RankingRangeMeasure::SliceLength(subject)
+                    | RankingRangeMeasure::Computed { subject, .. } => spellings.push(*subject),
+                    RankingRangeMeasure::Distance { lower, upper } => {
+                        spellings.extend([*lower, *upper])
+                    }
+                    RankingRangeMeasure::IncreasingTo { subject, limit } => {
+                        spellings.extend([*subject, *limit])
+                    }
+                    RankingRangeMeasure::Field { .. } => {}
+                }
+                let mut endpoints = FieldCoordinates::empty();
+                endpoints.install(
+                    program,
+                    caller_state,
+                    entry,
+                    Some(entry_parameters),
+                    &mut source_engine,
+                    &spellings,
+                )?;
+                comparisons.extend(endpoints.comparisons(program));
+                if let RankingRangeMeasure::SliceLength(subject) = measure {
+                    // A carried collection's produced length is the rank; the
+                    // telescope's length bindings name the slice formal, or
+                    // the record-carried slice leaf, that holds its role at
+                    // this site.
+                    let (length_roles, length_equalities) = calls::telescoped_length_bindings(
+                        program,
+                        caller,
+                        caller_state,
+                        entry_parameters,
+                    );
+                    comparisons.extend(length_equalities);
+                    lengths::parameter(program, entry, *subject).and_then(|parameter| {
+                        length_roles
+                            .iter()
+                            .find(|(symbol, _)| *symbol == parameter.symbol)
+                            .map(|(_, identity)| Polynomial::atom(identity.clone()))
+                    })
+                } else {
+                    calls::rank_coordinate(program, caller, &mut source_engine, *measure)
+                }
+            })
         };
         if let (Some(rank), Some(floor), Some(ceiling)) = (
             rank,

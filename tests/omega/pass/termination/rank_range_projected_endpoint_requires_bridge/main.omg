@@ -1,0 +1,47 @@
+// PASS CANARY. A ranged member's own proven range invariant is established
+// site evidence at a subordinate call even when the authored ceiling is a
+// field projection: `outer`'s scalar rank `remaining` is bounded by the
+// entry-spelled `limits.cap`, and its judgment re-proves `0 <= pending <=
+// bounds.cap` on every `hold` arrival through the discovered
+// `pending -> remaining, bounds -> limits` telescope. The endpoint member
+// chain telescopes onto the record formal carrying its entry role, so
+// `inner`'s public `requires n <= current.cap` is discharged without a
+// respelled guard. The invariant never leaks the callee's own requires or
+// the caller's entry premise -- it is the membership fact the member
+// already proved.
+
+data Limits {
+    cap: u64 [0..=9];
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(4, Limits { cap: 6 }) }
+}
+
+machine Main::outer(&mut self, remaining: u64, limits: Limits)
+requires remaining <= limits.cap;
+terminates by remaining in 0..=limits.cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> hold(remaining, limits)
+        false -> remaining
+    }
+    state hold(pending: u64, bounds: Limits) {
+        transition pending > 0 {
+            true -> self.inner(pending, bounds)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, current: Limits)
+requires n <= current.cap;
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= current.cap {
+        true -> self.outer(n - 1, current)
+        false -> n
+    }
+}

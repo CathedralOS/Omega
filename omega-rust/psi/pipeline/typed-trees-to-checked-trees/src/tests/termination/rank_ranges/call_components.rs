@@ -889,6 +889,102 @@ fn field_measure_member_reads_its_proven_invariant_at_a_subordinate_call() {
     ));
 }
 
+const PROJECTED_ENDPOINT_REQUIRES: &str = r#"
+data Limits {
+    cap: u64 [0..=9];
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(4, Limits { cap: 6 }) }
+}
+
+machine Main::outer(&mut self, remaining: u64, limits: Limits)
+requires remaining <= limits.cap;
+terminates by remaining in 0..=limits.cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> hold(remaining, limits)
+        false -> remaining
+    }
+    state hold(pending: u64, bounds: Limits) {
+        transition pending > 0 {
+            true -> self.inner(pending, bounds)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, current: Limits)
+requires n <= current.cap;
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= current.cap {
+        true -> self.outer(n - 1, current)
+        false -> n
+    }
+}
+"#;
+
+#[test]
+fn scalar_member_with_projected_endpoint_reads_its_invariant_at_a_subordinate_call() {
+    // `outer`'s rank is the scalar `remaining`; its authored ceiling is the
+    // entry-spelled projection `limits.cap`. The member's own state-edge
+    // judgment re-proves `0 <= pending <= bounds.cap` on every `hold`
+    // arrival through the `pending -> remaining, bounds -> limits`
+    // telescope, so `inner`'s public `requires n <= current.cap` is
+    // discharged without a respelled guard.
+    prove(PROJECTED_ENDPOINT_REQUIRES);
+    prove(&PROJECTED_ENDPOINT_REQUIRES.replace(
+        "transition pending > 0 {",
+        "transition pending > 0 && pending <= bounds.cap {",
+    ));
+    // A decreasing internal arrival keeps the endpoint pinned, so the
+    // re-established invariant still discharges the same requires.
+    prove(&PROJECTED_ENDPOINT_REQUIRES.replace(
+        "true -> hold(remaining, limits)",
+        "true -> hold(remaining - 1, limits)",
+    ));
+    // The invariant supplies exactly the membership it proves: a strictly
+    // stronger requires, or a conjunct the carried facts do not establish,
+    // still has no site evidence.
+    reject_requires(
+        &PROJECTED_ENDPOINT_REQUIRES
+            .replace("requires n <= current.cap;", "requires n < current.cap;"),
+    );
+    reject_requires(&PROJECTED_ENDPOINT_REQUIRES.replace(
+        "requires n <= current.cap;",
+        "requires n <= current.cap && current.cap <= 5;",
+    ));
+    // An actual that is not the carried record leaves the ceiling unpinned:
+    // the rebuilt literal's `cap` is `pending`, not the proven `bounds.cap`.
+    reject(&PROJECTED_ENDPOINT_REQUIRES.replace(
+        "true -> self.inner(pending, bounds)",
+        "true -> self.inner(pending, Limits { cap: pending })",
+    ));
+    // An intervening write to the record carrier invalidates the premise the
+    // invariant was read from.
+    reject(
+        &PROJECTED_ENDPOINT_REQUIRES
+            .replace(
+                "state hold(pending: u64, bounds: Limits)",
+                "state hold(pending: u64, mut bounds: Limits)",
+            )
+            .replace(
+                "        transition pending > 0 {",
+                "        bounds = bounds; transition pending > 0 {",
+            ),
+    );
+    // An arrival whose rebuilt record moves the authored endpoint fails the
+    // member's own state-edge judgment rather than feeding a stale premise:
+    // `bounds.cap` there is `remaining - 1`, not the pinned `limits.cap`.
+    reject(&PROJECTED_ENDPOINT_REQUIRES.replace(
+        "true -> hold(remaining, limits)",
+        "true -> hold(remaining, Limits { cap: remaining - 1 })",
+    ));
+}
+
 #[test]
 fn mixed_endpoint_arithmetic_equality_uses_only_live_caller_premises() {
     let source = PAIR
