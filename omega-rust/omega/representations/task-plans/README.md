@@ -87,12 +87,18 @@ conflicting row — then re-seals and revalidates the plan, so a bound
 callee that suspends parks at a crossing of its own subtree while a
 crossing no roster names still rejects.
 
-These carriers still do not establish a source `Task<T>`, and no selected
-runtime executes the transitions the ledger models: the marshalled argument
-image is provider-domain custody a real runtime would write into the
-activation's argument area, but real park/resume of a native stack and
-observation at a checked-source safe point remain separate consumers. The
-bounded
+Routed `Task<T>` establishment exists: `accept_invocation` mints the exact
+`provider`/`activation` field pair a source `Task<T>` value carries
+(`claim_route.rs`), the pair resolves back to exactly one live claim on the
+minting instance, and foreign-instance, fabricated, and settled pairs all
+fail closed — so a runtime serving `request_cancel`/`finish`/`settle` from
+a bare value needs no shadow map alongside the ledger, and every
+`*_by_route` transition shares the claim-object checks. What still does not
+exist is a selected runtime executing the transitions the ledger models:
+the marshalled argument image is provider-domain custody a real runtime
+would write into the activation's argument area, but real park/resume of a
+native stack and observation at a checked-source safe point remain separate
+consumers. The bounded
 scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; the plan frontier records the claims
 the checked producer already established but cannot yet authorize forms

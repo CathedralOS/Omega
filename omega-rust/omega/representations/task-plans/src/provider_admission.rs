@@ -30,18 +30,27 @@
 //! the subtree's canonical suspension crossings into the plan's roster, and
 //! re-seals the activation plan; a site no binding names stays unresolved,
 //! so the fail-closed lease rule is unchanged.
+//!
+//! The claim the gate issues mints its routed `Task<T>` identity — the
+//! `provider`/`activation` field pair a runtime writes into the source
+//! value it hands the starter. Once the claim object itself stays
+//! provider-side, the pair is the only authority crossing back in: every
+//! `*_by_route` operation resolves it against this instance's live set,
+//! so `request_cancel`, `finish`, `settle`, and the provider's own
+//! park/resume/observe transitions all fail closed on a fabricated,
+//! foreign-instance, or already-settled pair.
 
 use crate::stack_leases::{StackLeaseBacking, TaskStorageProvenance, establish_stack_lease};
 use crate::{
     ActivationInstanceId, ActivationPlanCandidate, CallTargetBinding, ClosedTaskRuntime,
     LiveCarryDemand, MovedTaskArguments, SettledTaskLifecycle, StackPlan, SuspensionCrossingId,
-    TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId,
-    TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskSettlementOutcome,
-    TaskStartRejection, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
-    TaskStorageOwnerId, ValidatedActivationPlan, ValidatedTaskRuntimeInvocationReceipt,
-    cover_unresolved_call_sites, validate_task_runtime_invocation_receipt,
-    validate_wcsu_activation_plan,
+    TaskActivationPlanSet, TaskClaimRoute, TaskDependencyRecord, TaskLifecycleClaim,
+    TaskLifecycleClaimId, TaskLifecycleLedger, TaskPlanDiagnostic, TaskRouteSettlementError,
+    TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationReceiptCandidate,
+    TaskSettlementError, TaskSettlementOutcome, TaskStartRejection, TaskStartStorage,
+    TaskStorageBinding, TaskStorageLeaseId, TaskStorageOwnerId, ValidatedActivationPlan,
+    ValidatedTaskRuntimeInvocationReceipt, cover_unresolved_call_sites,
+    validate_task_runtime_invocation_receipt, validate_wcsu_activation_plan,
 };
 use std::collections::BTreeMap;
 
@@ -358,6 +367,26 @@ impl TaskRuntimeAdmission {
         self.ledger.cancellation_requested(claim)
     }
 
+    /// Resolve the routed `Task<T>` identity — the `provider`/`activation`
+    /// pair a source value carries — to its live claim on this instance.
+    /// A foreign-instance route rejects; a fabricated or settled pair
+    /// resolves to nothing.
+    pub fn resolve_claim_route(
+        &self,
+        route: TaskClaimRoute,
+    ) -> Result<TaskLifecycleClaimId, TaskPlanDiagnostic> {
+        self.ledger.resolve_claim_route(route)
+    }
+
+    /// The `request_cancel(&self)` transition driven by the source
+    /// `Task<T>` route the value carries.
+    pub fn request_cancellation_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        self.ledger.request_cancellation_by_route(route)
+    }
+
     /// Park the claim's activation at one canonical suspension crossing of
     /// its plan. Parking keeps the claim's lease authority and every
     /// binding; it establishes no result or cleanup edge.
@@ -388,6 +417,35 @@ impl TaskRuntimeAdmission {
         crossing: SuspensionCrossingId,
     ) -> Result<(), TaskPlanDiagnostic> {
         self.ledger.observe_cancellation(claim, crossing)
+    }
+
+    /// The provider-side suspension transitions for a claim presented by
+    /// its source `Task<T>` route. The pair resolves through this
+    /// instance's ledger; the safe-point rules are unchanged.
+    pub fn park_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+        crossing: SuspensionCrossingId,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        self.ledger.park_by_route(route, crossing)
+    }
+
+    /// Resume a parked activation named by its source `Task<T>` route.
+    pub fn resume_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+    ) -> Result<SuspensionCrossingId, TaskPlanDiagnostic> {
+        self.ledger.resume_by_route(route)
+    }
+
+    /// The safe-point cancellation observation for a claim presented by
+    /// its source `Task<T>` route.
+    pub fn observe_cancellation_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+        crossing: SuspensionCrossingId,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        self.ledger.observe_cancellation_by_route(route, crossing)
     }
 
     /// The canonical crossing the claim's activation is parked at, or
@@ -436,12 +494,32 @@ impl TaskRuntimeAdmission {
         outcome: TaskSettlementOutcome,
     ) -> Result<SettledTaskLifecycle, TaskSettlementError> {
         let settled = self.ledger.settle(claim, outcome)?;
+        self.reclaim_backing(&settled);
+        Ok(settled)
+    }
+
+    /// Terminal settlement driven by the source `Task<T>` route the value
+    /// carries — the `finish`/`settle` path when the claim object stays
+    /// provider-side. A released pool slot rejoins the free set exactly as
+    /// the claim-object path does.
+    pub fn settle_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+        outcome: TaskSettlementOutcome,
+    ) -> Result<SettledTaskLifecycle, TaskRouteSettlementError> {
+        let settled = self.ledger.settle_by_route(route, outcome)?;
+        self.reclaim_backing(&settled);
+        Ok(settled)
+    }
+
+    /// Return settled pool backing to the free set. Caller-supplied
+    /// storage is not pool backing and is not tracked here.
+    fn reclaim_backing(&mut self, settled: &SettledTaskLifecycle) {
         if let TaskStorageBinding::Persistent(provenance) = settled.released_storage()
             && let Some(backing) = self.leased_backing.remove(&provenance)
         {
             self.free_backing.push(backing);
         }
-        Ok(settled)
     }
 
     /// Close consumes the gate only when every admitted claim has settled.

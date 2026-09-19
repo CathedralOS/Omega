@@ -6,16 +6,22 @@
 //! together, every rejection returns them whole, and the ledger retains the
 //! lease authority while the claim lives. `execution.rs` owns the live
 //! activation's execution state: park/resume at canonical suspension
-//! crossings and the safe-point cancellation observation. `mod.rs` owns the
-//! accounting itself: the live dependency map, the single-use identity sets,
-//! the recorded cancellation-request transition, settlement, reclaim
-//! validation, and close.
+//! crossings and the safe-point cancellation observation. `claim_route.rs`
+//! owns the routed `Task<T>` identity: the `provider`/`activation` field
+//! pair `accept_invocation` mints onto every claim, which is the only
+//! source-facing carrier a runtime writes into a returned `Task<T>` value
+//! and the only authority a value-carrying `request_cancel`/`finish`/`settle`
+//! needs to name. `mod.rs` owns the accounting itself: the live dependency
+//! map, the single-use identity sets, the recorded cancellation-request
+//! transition, settlement, reclaim validation, and close.
 
+mod claim_route;
 mod execution;
 mod start;
 
 use execution::TaskExecutionState;
 
+pub use claim_route::{TaskClaimRoute, TaskRouteSettlementError};
 pub use start::{MovedTaskArguments, TaskStartRejection, TaskStartStorage};
 
 use crate::report_fingerprints::task_claim_report_fingerprint;
@@ -60,6 +66,14 @@ pub struct TaskDependencyRecord {
     pub storage: TaskStorageBinding,
 }
 
+impl TaskDependencyRecord {
+    /// The routed `Task<T>` identity of this record's claim: the exact
+    /// `provider`/`activation` field pair the source value carries.
+    pub const fn route(&self) -> TaskClaimRoute {
+        TaskClaimRoute::for_record(self)
+    }
+}
+
 /// Source-level `Task<T>` is linear. This normalized carrier mirrors that
 /// property by withholding `Clone`/`Copy` and exposing no public constructor.
 #[derive(Debug, PartialEq, Eq)]
@@ -83,6 +97,16 @@ impl TaskLifecycleClaim {
 
     pub const fn storage(&self) -> TaskStorageBinding {
         self.record.storage
+    }
+
+    /// The routed `Task<T>` identity of this claim: the exact
+    /// `provider`/`activation` field pair a runtime writes into the source
+    /// `Task<T>` value it returns from `start`/`try_start`. The pair mints
+    /// only here and resolves only on this instance while the claim is
+    /// live, so no other route can name this claim and this pair can name
+    /// no other.
+    pub const fn route(&self) -> TaskClaimRoute {
+        TaskClaimRoute::for_record(&self.record)
     }
 }
 
@@ -189,6 +213,13 @@ impl SettledTaskLifecycle {
     pub fn into_released_lease(self) -> Option<StackLease> {
         self.storage_authority
     }
+
+    /// The routed `Task<T>` identity the settled claim carried — the pair
+    /// the source value held while live. It resolves to nothing after
+    /// settlement: the activation identity stays burned on the instance.
+    pub const fn route(&self) -> TaskClaimRoute {
+        TaskClaimRoute::for_record(&self.record)
+    }
 }
 
 #[derive(Debug)]
@@ -237,6 +268,47 @@ impl TaskRuntimeCloseError {
     pub fn into_ledger(self) -> TaskLifecycleLedger {
         *self.ledger
     }
+}
+
+/// The settlement rejections shared by the claim-object and routed paths:
+/// a parked activation must resume first, and `Cancelled` needs a recorded
+/// request plus a recorded safe-point observation on a non-inline claim.
+fn check_settlement(
+    dependency: &LiveTaskDependency,
+    outcome: TaskSettlementOutcome,
+) -> Result<(), TaskPlanDiagnostic> {
+    if let TaskExecutionState::Parked(_) = dependency.execution {
+        return Err(TaskPlanDiagnostic(
+            "task settlement reports a terminal outcome while the activation is \
+             parked at a canonical suspension crossing; resume must continue \
+             the same invocation first"
+                .into(),
+        ));
+    }
+    if outcome == TaskSettlementOutcome::Cancelled {
+        if !dependency.cancellation_requested {
+            return Err(TaskPlanDiagnostic(
+                "task settlement reports a cancelled outcome without a recorded \
+                 cancellation request on the claim"
+                    .into(),
+            ));
+        }
+        if dependency.record.storage == TaskStorageBinding::InlineCompletion {
+            return Err(TaskPlanDiagnostic(
+                "task settlement reports a cancelled outcome for an inline completion \
+                 whose activation finished before its claim existed"
+                    .into(),
+            ));
+        }
+        if dependency.cancellation_observed_at.is_none() {
+            return Err(TaskPlanDiagnostic(
+                "task settlement reports a cancelled outcome without a recorded \
+                 safe-point observation of the cancellation request"
+                    .into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Provider-local accounting for operational custody, physical storage, and
@@ -463,6 +535,66 @@ impl TaskLifecycleLedger {
         }
     }
 
+    /// Resolve the routed `Task<T>` identity to its live claim.
+    ///
+    /// This is the inbound half of routed establishment: an operation that
+    /// arrives carrying only the source value's `provider`/`activation`
+    /// fields names one live claim on the minting instance — or fails
+    /// closed. A route minted by another instance rejects immediately, and
+    /// a fabricated, never-minted, or already-settled pair resolves to
+    /// nothing: settlement burns the activation identity on the instance
+    /// rather than freeing it for a replay.
+    pub fn resolve_claim_route(
+        &self,
+        route: TaskClaimRoute,
+    ) -> Result<TaskLifecycleClaimId, TaskPlanDiagnostic> {
+        self.claim_id_for_route(route)
+    }
+
+    /// The live claim a route names. `provider` binds the route to this
+    /// instance; `activation` selects the claim inside it. Activation
+    /// identities are single-use for the instance's whole lifetime —
+    /// `used_activations` is never cleared — so a pair that once resolved
+    /// can never re-resolve into a later claim.
+    fn claim_id_for_route(
+        &self,
+        route: TaskClaimRoute,
+    ) -> Result<TaskLifecycleClaimId, TaskPlanDiagnostic> {
+        if route.provider() != self.instance.normalized_identity() {
+            return Err(TaskPlanDiagnostic(
+                "task claim route names a different runtime instance".into(),
+            ));
+        }
+        self.live
+            .iter()
+            .find(|(_, dependency)| {
+                dependency.record.activation.normalized_identity() == route.activation()
+            })
+            .map(|(claim, _)| *claim)
+            .ok_or_else(|| {
+                TaskPlanDiagnostic(
+                    "task claim route names no live claim on this runtime instance".into(),
+                )
+            })
+    }
+
+    /// The `request_cancel(&self)` transition for a claim presented by its
+    /// source `Task<T>` route — the pair a runtime reads out of the value.
+    /// Everything else is the claim-object path: the recorded request is a
+    /// provider-side fact that never alters the claim's issuance binding.
+    pub fn request_cancellation_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        let claim = self.claim_id_for_route(route)?;
+        let dependency = self
+            .live
+            .get_mut(&claim)
+            .expect("resolved claim route names a live claim");
+        dependency.cancellation_requested = true;
+        Ok(())
+    }
+
     /// Whether a cancellation request was recorded against a live claim.
     /// `false` for an unknown or already settled claim identity.
     pub fn cancellation_requested(&self, claim: TaskLifecycleClaimId) -> bool {
@@ -503,53 +635,40 @@ impl TaskLifecycleLedger {
             });
         }
         let dependency = dependency.expect("matched live claim");
-        if let TaskExecutionState::Parked(_) = dependency.execution {
-            return Err(TaskSettlementError {
-                claim,
-                diagnostic: TaskPlanDiagnostic(
-                    "task settlement reports a terminal outcome while the activation is \
-                     parked at a canonical suspension crossing; resume must continue \
-                     the same invocation first"
-                        .into(),
-                ),
-            });
-        }
-        if outcome == TaskSettlementOutcome::Cancelled {
-            if !dependency.cancellation_requested {
-                return Err(TaskSettlementError {
-                    claim,
-                    diagnostic: TaskPlanDiagnostic(
-                        "task settlement reports a cancelled outcome without a recorded \
-                         cancellation request on the claim"
-                            .into(),
-                    ),
-                });
-            }
-            if dependency.record.storage == TaskStorageBinding::InlineCompletion {
-                return Err(TaskSettlementError {
-                    claim,
-                    diagnostic: TaskPlanDiagnostic(
-                        "task settlement reports a cancelled outcome for an inline completion \
-                         whose activation finished before its claim existed"
-                            .into(),
-                    ),
-                });
-            }
-            if dependency.cancellation_observed_at.is_none() {
-                return Err(TaskSettlementError {
-                    claim,
-                    diagnostic: TaskPlanDiagnostic(
-                        "task settlement reports a cancelled outcome without a recorded \
-                         safe-point observation of the cancellation request"
-                            .into(),
-                    ),
-                });
-            }
+        if let Err(diagnostic) = check_settlement(dependency, outcome) {
+            return Err(TaskSettlementError { claim, diagnostic });
         }
         let dependency = self
             .live
             .remove(&claim.record.claim)
             .expect("matched live claim");
+        Ok(SettledTaskLifecycle {
+            record: dependency.record,
+            storage_authority: dependency.storage_authority,
+            outcome,
+        })
+    }
+
+    /// Terminal settlement of a claim presented by its source `Task<T>`
+    /// route — the `finish`/`settle` path a runtime drives when the value
+    /// carries only the minted `provider`/`activation` pair. Possession of
+    /// the pair is the claim: source `Task<T>` linearity is what keeps two
+    /// presenters from holding it. The resolution, parked-activation refusal
+    /// and recorded-then-observed `Cancelled` requirement are identical to
+    /// the claim-object path; a rejection consumes nothing and reports the
+    /// presented route back to the caller.
+    pub fn settle_by_route(
+        &mut self,
+        route: TaskClaimRoute,
+        outcome: TaskSettlementOutcome,
+    ) -> Result<SettledTaskLifecycle, TaskRouteSettlementError> {
+        let claim = self
+            .claim_id_for_route(route)
+            .map_err(|diagnostic| TaskRouteSettlementError::new(route, diagnostic))?;
+        let dependency = self.live.get(&claim).expect("resolved claim is live");
+        check_settlement(dependency, outcome)
+            .map_err(|diagnostic| TaskRouteSettlementError::new(route, diagnostic))?;
+        let dependency = self.live.remove(&claim).expect("resolved claim is live");
         Ok(SettledTaskLifecycle {
             record: dependency.record,
             storage_authority: dependency.storage_authority,

@@ -58,9 +58,10 @@ pub use identities::{
     TaskStackFrameValidationId, TaskStorageLeaseId, TaskStorageOwnerId, ValueLayoutId,
 };
 pub use lifecycle_ledger::{
-    ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskDependencyRecord,
-    TaskLifecycleClaim, TaskLifecycleLedger, TaskRuntimeCloseError, TaskSettlementError,
-    TaskSettlementOutcome, TaskStartRejection, TaskStartStorage, TaskStorageBinding,
+    ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskClaimRoute,
+    TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleLedger, TaskRouteSettlementError,
+    TaskRuntimeCloseError, TaskSettlementError, TaskSettlementOutcome, TaskStartRejection,
+    TaskStartStorage, TaskStorageBinding,
 };
 pub use provider_admission::{
     TaskAdmissionCloseError, TaskAdmissionRejection, TaskRuntimeAdmission,
