@@ -46,6 +46,7 @@ pub(crate) fn initial_linear_places(
                 live: true,
                 ever_established: true,
                 conditional: false,
+                case_excluded: false,
             });
         }
         for claim in claims {
@@ -63,6 +64,7 @@ pub(crate) fn initial_linear_places(
                 live: true,
                 ever_established: true,
                 conditional: claim.conditional,
+                case_excluded: false,
             });
         }
     }
@@ -82,6 +84,7 @@ pub(crate) fn initial_linear_places(
                 live: false,
                 ever_established: false,
                 conditional: claim.conditional,
+                case_excluded: false,
             });
         }
         // An explicitly initialized affine destination owns one whole value,
@@ -112,6 +115,7 @@ pub(crate) fn initial_linear_places(
                 live: false,
                 ever_established: false,
                 conditional: false,
+                case_excluded: false,
             });
         }
     }

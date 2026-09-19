@@ -83,11 +83,48 @@ fn reject_mathematical_declarations(checked: &CheckedTrees) -> Result<(), Loweri
     )
 }
 
+/// Source custody may select different claim lineages at different normal
+/// exits. Terminal's current structural return transfers carry one lineage,
+/// not that checked choice. Refuse only demanded owners: an unused source
+/// allocator must not prevent publishing an unrelated machine.
+fn reject_conditional_claim_joins(
+    checked: &CheckedTrees,
+    source_machines: &[symbols::SymbolHandle],
+) -> Result<(), LoweringError> {
+    if checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .any(|(_, event)| {
+            source_machines.contains(&event.machine_symbol)
+                && matches!(
+                    event.provenance,
+                    language_semantics::PermissionProvenance::Joined { .. }
+                )
+        })
+        || checked
+            .facts
+            .flow
+            .ownership
+            .claim_join_receipts
+            .iter()
+            .any(|(_, receipt)| source_machines.contains(&receipt.machine_symbol))
+    {
+        return unsupported(
+            "conditional result custody requires Terminal exit-alternative correspondence",
+        );
+    }
+    Ok(())
+}
+
 fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
     reject_mathematical_declarations(checked)?;
+    reject_conditional_claim_joins(checked, &[selection.machine])?;
     operation_crash_contracts::reject_unjoinable_named_sites(checked, selection.machine)?;
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let exact_guarded_payloadless = checked
@@ -120,6 +157,7 @@ fn lower_terminal_selection(
         source_machines,
         source_mapping,
     } = lower_selected_machine(checked, selection)?;
+    reject_conditional_claim_joins(checked, &source_machines)?;
     let has_exact_source_owners = source_mapping.exact_owners().is_some();
     // Reborrow custody belongs to every included source body, not only the
     // requested entry. Use the lowering route's exact source mapping; ordinal
@@ -399,6 +437,7 @@ pub fn lower_bounded_callback_identity_machine(
     source_entry: symbols::SymbolHandle,
 ) -> Result<LoweredCallbackPsi, LoweringError> {
     reject_mathematical_declarations(checked)?;
+    reject_conditional_claim_joins(checked, &[source_machine])?;
     let matching_selection_count = checked
         .facts
         .flow

@@ -156,3 +156,67 @@ pub struct FlowClaimOutcomeMapFact {
     pub state_symbol: SymbolHandle,
     pub entries: HandleSpan<FlowClaimOutcomeEntryFact>,
 }
+
+/// Exact source control edge; the two targets of one statement are distinct.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowClaimJoinExitKind {
+    #[default]
+    FinalExpression,
+    TransitionTarget,
+    TransitionContinuation,
+    /// Completion of a nested call whose result supplies the enclosing exit.
+    CallResult {
+        call_ordinal: usize,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowClaimJoinExit {
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub kind: FlowClaimJoinExitKind,
+}
+
+/// One complete normal-exit alternative and its exact argument substitution.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowClaimJoinAlternative {
+    pub exits: HandleSpan<FlowClaimJoinExit>,
+    pub source: FlowClaimJoinAlternativeSource,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum FlowClaimJoinAlternativeSource {
+    /// The exact returned case excludes this path, not an unknown origin.
+    #[default]
+    Inactive,
+    /// This exit requires an input payload proved absent at this invocation.
+    /// Preserve the callee origin and the exact caller establishment; absence
+    /// is not a claim and grants no fresh resource authority.
+    ExcludedInput {
+        source: FlowClaimOutcomeSource,
+        root: facts::PlaceRoot,
+        segments: HandleSpan<facts::PlaceSegment>,
+        established_at: usize,
+    },
+    Claim {
+        source: FlowClaimOutcomeSource,
+        bound_source: FlowClaimOutcomeSource,
+    },
+}
+
+/// Conditional returned custody for one call result path. The local claim id
+/// names the returned occurrence, not new authority. No alternative is an
+/// unconditional identity/content theorem.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowClaimJoinReceipt {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_symbol: SymbolHandle,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub result_root: facts::PlaceRoot,
+    pub result_segments: HandleSpan<facts::PlaceSegment>,
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+    pub alternatives: HandleSpan<FlowClaimJoinAlternative>,
+}

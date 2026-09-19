@@ -4,6 +4,65 @@ use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
 
+const OPTIONAL_RETURN: &str = r#"
+    data Receipt [linear] { code: i32; }
+    machine Receipt::ack(self) {}
+    data Slot { case Empty; case Held(receipt: Receipt); }
+    data Holder { slot: Slot; }
+    machine empty() -> Holder { Holder { slot: Slot::Empty } }
+    machine close(slot: Slot) {
+        transition slot {
+            Slot::Empty -> {}
+            Slot::Held { receipt } -> consume(receipt)
+        }
+        state consume(receipt: Receipt) { Receipt::ack(receipt); }
+    }
+    machine run() {
+        let holder: Holder = empty();
+        BODY
+    }
+"#;
+
+#[test]
+fn inactive_call_payload_moves_with_its_carrier_without_a_transfer() {
+    let checked = checked(&OPTIONAL_RETURN.replace(
+        "BODY",
+        "let rebuilt: Holder = Holder { slot: holder.slot }; close(rebuilt.slot);",
+    ));
+    crate::checks::validate_linear_permission_events(&checked.typed, &checked.facts)
+        .expect("a statically absent payload supplies no move event or debt");
+}
+
+#[test]
+fn inactive_call_payload_reconciliation_does_not_waive_real_moves() {
+    let held = OPTIONAL_RETURN.replace(
+        "machine empty() -> Holder { Holder { slot: Slot::Empty } }",
+        "machine empty() -> Holder { let receipt: Receipt = Receipt { code: 3 }; Holder { slot: Slot::Held { receipt: receipt } } }",
+    );
+    checked(&held.replace("BODY", "close(holder.slot);"));
+    for source in [
+        OPTIONAL_RETURN.replace(
+            "BODY",
+            "let receipt: Receipt = holder.slot.receipt; Receipt::ack(receipt);",
+        ),
+        held.replace(
+                "BODY",
+                "let first: Slot = holder.slot; let second: Slot = holder.slot; close(first); close(second);",
+            ),
+    ] {
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize ownership control");
+        let syntax = parse_syntax_trees(&tokens).expect("parse ownership control");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve ownership control");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type ownership control");
+        let diagnostics = match lower_typed_trees(typed) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("invalid ownership control was accepted:\n{source}"),
+        };
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains("already transferred")
+            || diagnostic.message.contains("not been established")), "{diagnostics:#?}");
+    }
+}
+
 #[test]
 fn permission_producer_reconstructs_transfers_from_typed_flow() {
     let checked = checked(

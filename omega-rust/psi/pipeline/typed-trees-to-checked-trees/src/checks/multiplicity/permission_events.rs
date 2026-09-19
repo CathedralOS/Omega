@@ -3,7 +3,7 @@
 
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
-    publish_claim_outcome_maps,
+    publish_claim_outcome_maps, publish_conditional_claim_joins,
 };
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeMap, ClaimIdentityAllocator, LinearPlace,
@@ -41,6 +41,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut permission_events = Vec::new();
+    let mut conditional_carrier_transfers = Vec::new();
     let mut selection_diagnostics = Vec::new();
     facts.flow.ownership.owned_selections = arena::Arena::default();
     facts.flow.ownership.selection_sources = arena::Arena::default();
@@ -141,6 +142,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
                 &mut places,
                 &mut permission_events,
                 &mut claim_identities,
+                &mut conditional_carrier_transfers,
             );
         }
 
@@ -174,6 +176,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
                     &mut outcome,
                     &mut permission_events,
                     &mut claim_identities,
+                    &mut conditional_carrier_transfers,
                 );
             }
         }
@@ -198,6 +201,23 @@ pub(crate) fn record_permission_events_with_incoming_guards(
     let claim_outcome_maps =
         reconcile_state_call_result_origins(program, &facts.flow.ownership, &mut permission_events);
 
+    // Reconciliation can prove that a returned sum never establishes a
+    // particular payload. The provisional carrier moves recorded above then
+    // contain no transfer for that payload. Keep its inactive establishment,
+    // but do not ask replay to consume a nonexistent claim. Only occurrences
+    // recorded while live and selected through a containing carrier qualify;
+    // neither duplicate moves nor explicit inactive payload access is waived.
+    let mut event_index = 0;
+    permission_events.retain(|event| {
+        let absent_carrier_transfer = conditional_carrier_transfers
+            .binary_search(&event_index)
+            .is_ok()
+            && !event.obligation_live
+            && event.claim_identity == PermissionClaimIdentity::Unknown;
+        event_index += 1;
+        !absent_carrier_transfer
+    });
+
     facts.flow.ownership.permissions = arena::Arena::default();
     facts
         .flow
@@ -205,6 +225,17 @@ pub(crate) fn record_permission_events_with_incoming_guards(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
+    publish_conditional_claim_joins(program, facts);
+    let joined_events = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event.clone())
+        .collect::<Vec<_>>();
+    let joined_maps =
+        derive_checked_claim_outcome_maps(program, &facts.flow.ownership, &joined_events);
+    publish_claim_outcome_maps(facts, joined_maps);
     record_crash_frontier_lower_bounds(program, facts, incoming_guards);
     if selection_diagnostics.is_empty() {
         Ok(())
@@ -658,6 +689,7 @@ pub(crate) fn exclude_case_alternative(
             && candidate.path.get(case_index) == Some(&facts::PlaceSegment::Case { variant })
     }) {
         candidate.live = false;
+        candidate.case_excluded = true;
     }
 }
 

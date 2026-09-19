@@ -6,9 +6,110 @@ use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource,
+    PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
+
+/// Reconstruct custody from source and prerequisite access facts, never from
+/// the ownership rows being checked. Receipt replay alone cannot detect a
+/// forged establishment and transfer that agree with one another but disagree
+/// with the authored initializer. Reuse production's semantic derivation with
+/// fresh output arenas; compare paths structurally rather than arena handles.
+pub(super) fn validate_permission_source_replay(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    // The source, not a removable receipt/provenance marker, selects replay.
+    // Only a bound call returning a linear frontier can publish this kind of
+    // join. Its alternatives may be hidden behind named states or wrappers,
+    // so do not guess ambiguity from the immediate callee's surface shape.
+    let has_claim_result_call = program.machines().iter().any(|machine| {
+        program.machine_states(machine).iter().any(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    let expression = match statement {
+                        typed_trees::statement::StatementNode::LocalData(local) => {
+                            local.initial_value
+                        }
+                        typed_trees::statement::StatementNode::Assignment(assignment) => {
+                            assignment.value
+                        }
+                        _ => return false,
+                    };
+                    if !expression.is_valid() {
+                        return false;
+                    }
+                    let typed_trees::expression::ExpressionNode::Call(call) =
+                        program.expression_table.expression(expression)
+                    else {
+                        return false;
+                    };
+                    crate::semantic_calls::find_state(program, call.target_symbol).is_some_and(
+                        |target| {
+                            super::super::type_multiplicity::type_carries_linear_obligation(
+                                program,
+                                target.return_type,
+                            )
+                        },
+                    )
+                })
+        })
+    });
+    if !has_claim_result_call {
+        return Ok(());
+    }
+    let mut reconstructed = CheckFacts {
+        borrow: facts.borrow.clone(),
+        operators: facts.operators.clone(),
+        flow: checked_trees::FlowFacts {
+            contexts: facts.flow.contexts.clone(),
+            control: facts.flow.control.clone(),
+            borrow_lifetimes: facts.flow.borrow_lifetimes.clone(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let call_frames = validation::CallFrameResolver::new(program);
+    let incoming_guards = crate::checks::ranges::incoming_guards::IncomingGuardIndex::build(
+        program,
+        call_frames.as_ref(),
+    );
+    crate::checks::multiplicity::permission_events::record_permission_events_with_incoming_guards(
+        program,
+        &mut reconstructed,
+        &incoming_guards,
+    )?;
+    let expected = &reconstructed.flow.ownership;
+    let recorded = &facts.flow.ownership;
+    let mut expected_events = expected.permissions.iter();
+    let mut recorded_events = recorded.permissions.iter();
+    loop {
+        match (expected_events.next(), recorded_events.next()) {
+            (None, None) => return Ok(()),
+            (Some((_, expected_event)), Some((_, recorded_event))) => {
+                let expected_path = expected.segments.span(expected_event.segments);
+                let recorded_path = recorded.segments.span(recorded_event.segments);
+                let mut expected_row = expected_event.clone();
+                let mut recorded_row = recorded_event.clone();
+                expected_row.segments = arena::HandleSpan::empty();
+                recorded_row.segments = arena::HandleSpan::empty();
+                if expected_path.is_some()
+                    && expected_path == recorded_path
+                    && expected_row == recorded_row
+                {
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        return Err(vec![Diagnostic::error(
+            "permission events differ from source-derived claim establishment and transfer",
+        )]);
+    }
+}
 
 pub(crate) fn apply_recorded_state_entry_events(
     events: &[&FlowPermissionEventFact],
@@ -30,6 +131,7 @@ pub(crate) fn apply_recorded_state_entry_events(
             continue;
         };
         place.live = event.obligation_live || place.multiplicity == Multiplicity::Affine;
+        place.case_excluded = place.conditional && !event.obligation_live;
         place.ever_established = true;
         place.claim_identity = Some(event.claim_identity);
         place.provenance = Some(event.provenance);
@@ -74,6 +176,20 @@ pub(crate) fn apply_recorded_statement_events(
                         "{ownership} value `{}` was already transferred or consumed; it cannot be moved here",
                         place.name
                     )));
+                } else if place
+                    .claim_identity
+                    .unwrap_or(PermissionClaimIdentity::Unknown)
+                    != event.claim_identity
+                    || place.provenance.unwrap_or(PermissionProvenance::Unknown) != event.provenance
+                {
+                    // Reconciliation rewrites an entire occurrence, including
+                    // its establishment. A transfer must still name the exact
+                    // claim currently held at this place; matching a forged
+                    // outcome receipt cannot substitute another live source.
+                    diagnostics.push(Diagnostic::error(format!(
+                        "permission transfer for `{}` does not match its established claim identity and provenance",
+                        place.name
+                    )));
                 } else {
                     place.live = false;
                 }
@@ -86,6 +202,7 @@ pub(crate) fn apply_recorded_statement_events(
                     )));
                 }
                 place.live = event.obligation_live || place.multiplicity == Multiplicity::Affine;
+                place.case_excluded = place.conditional && !event.obligation_live;
                 place.ever_established = true;
                 place.claim_identity = Some(event.claim_identity);
                 place.provenance = Some(event.provenance);
