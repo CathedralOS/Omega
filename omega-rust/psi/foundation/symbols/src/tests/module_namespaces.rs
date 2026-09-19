@@ -90,6 +90,52 @@ fn root_namespace_does_not_acquire_unimported_module_leaves() {
 }
 
 #[test]
+fn signature_free_synthetic_paths_do_not_acquire_a_module_from_source_id() {
+    let mut sources = SourceMap::default();
+    for name in ["alpha.omg", "beta.omg"] {
+        sources.add(PathBuf::from(name), "Token::issue".to_owned());
+    }
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        (0..2).map(|source_ordinal| {
+            (
+                SymbolKind::Machine,
+                SymbolNameRef::OwnedSource {
+                    value: "Token::issue",
+                    source_span: reference(source_ordinal),
+                },
+            )
+        }),
+    ))
+    .collect::<Vec<_>>();
+    let mut symbols = builder.finish();
+    register_module(&mut symbols, 0, &["alpha"]);
+    register_module(&mut symbols, 1, &["beta"]);
+    assert_eq!(
+        symbols.lookup_signature_free_top_level_from_source_matching(
+            "Token::issue",
+            &[SymbolKind::Machine],
+            reference(0),
+            |_| true,
+        ),
+        crate::SymbolLookup::Unique(declarations[0]),
+    );
+    for source_ordinal in 0..2 {
+        assert!(matches!(
+            symbols.lookup_signature_free_top_level_from_source_matching(
+                "Token::issue",
+                &[SymbolKind::Machine],
+                SourceSpan::new(SourceId(source_ordinal), Span::new(0, 0)),
+                |_| true,
+            ),
+            crate::SymbolLookup::Ambiguous { .. }
+        ));
+    }
+}
+
+#[test]
 fn explicit_leaf_imports_select_exact_symbols_and_ambiguity_rejects() {
     let bindings = vec![SourceScopedTopLevelBinding::module_import(
         SourceId(0),

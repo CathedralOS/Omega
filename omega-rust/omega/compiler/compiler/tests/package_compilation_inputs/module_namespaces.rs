@@ -18,6 +18,81 @@ fn root_inputs(root: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
+fn signature_free_issuer_selection_uses_the_authored_file_import() {
+    use language_semantics::DomainEstablishmentRoute;
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("issuer.omg"),
+        "module issuer; pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+    );
+    TempTree::write(
+        root.join("decoy.omg"),
+        "module decoy; pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+    );
+    for (imports, route) in [
+        ("use issuer::Issuer; use decoy;", "Issuer::issue"),
+        ("use issuer; use decoy;", "issuer::Issuer::issue"),
+    ] {
+        TempTree::write(
+            root.join("main.omg"),
+            &format!(
+                "{imports} pub data Token {{ value: u64; }} pub domain Token::Issued established by {route};"
+            ),
+        );
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("an exact module issuer survives source checking");
+        let domain = checked
+            .typed
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.name.as_str() == "Token::Issued")
+            .expect("issued domain");
+        let [
+            DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            },
+        ] = domain.establishment_routes.as_slice()
+        else {
+            panic!(
+                "one exact checked requirement: {:?}",
+                domain.establishment_routes
+            );
+        };
+        assert_eq!(
+            checked.symbols.display_path(*trait_definition, "::"),
+            "issuer::Issuer"
+        );
+        assert_eq!(
+            checked.symbols.display_path(*requirement, "::"),
+            "issuer::Issuer::issue"
+        );
+    }
+    // Loading the file is insufficient even when only one matching trait exists.
+    // Its module import exposes the module, not the trait's bare leaf.
+    TempTree::write(
+        root.join("main.omg"),
+        "use issuer; pub data Token { value: u64; } pub domain Token::Issued established by Issuer::issue;",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a module import does not expose a bare trait issuer");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("does not resolve to one exact")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn declaration_imports_join_the_loaded_module_not_the_file_name() {
     let tree = TempTree::new();
     let root = tree.package("root");

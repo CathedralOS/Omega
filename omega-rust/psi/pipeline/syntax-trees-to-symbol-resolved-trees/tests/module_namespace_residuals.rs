@@ -53,6 +53,168 @@ fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> 
     })
 }
 
+#[test]
+fn signature_free_route_rejects_unimported_module_trait() {
+    let error = lower_multi(&[
+        (
+            "issuer.omg",
+            "module issuer; pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+        ),
+        (
+            "main.omg",
+            "pub data Token { value: u64; } pub domain Token::Issued established by Issuer::issue;",
+        ),
+    ])
+    .map(|_| ()).expect_err("loading a module must not expose its trait to a bare route");
+    assert!(error.contains("does not resolve to one exact"), "{error}");
+}
+
+#[test]
+fn signature_free_routes_keep_imports_file_local_and_nontransitive() {
+    for (relay, imports) in [
+        ("use issuer::Issuer;", ""),
+        ("module relay; use issuer::Issuer;", "use relay;"),
+    ] {
+        let source = format!(
+            "{imports} pub data Token {{ value: u64; }} pub domain Token::Issued established by Issuer::issue;"
+        );
+        let error = lower_multi(&[
+            ("issuer.omg", "module issuer; pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }"),
+            ("relay.omg", relay),
+            ("main.omg", &source),
+        ]).map(|_| ()).expect_err("another file's import cannot authorize the route");
+        assert!(error.contains("does not resolve to one exact"), "{error}");
+    }
+}
+
+#[test]
+fn signature_free_route_rejects_unimported_module_machine() {
+    let error = lower_multi(&[
+        ("issuer.omg", "module issuer; pub data Issuer {} pub machine Issuer::issue(value: u64) -> Token in Token::Issued { Token { value: value } }"),
+        ("main.omg", "pub data Token { value: u64; } pub domain Token::Issued established by Issuer::issue;"),
+    ]).map(|_| ()).expect_err("loading a module must not expose its machine to a bare route");
+    assert!(error.contains("does not resolve to one exact"), "{error}");
+}
+
+#[test]
+fn signature_free_route_selects_the_imported_attached_machine() {
+    for (imports, route) in [
+        ("use issuer::Issuer;", "Issuer::issue"),
+        ("", "issuer::Issuer::issue"),
+    ] {
+        let source = format!(
+            "{imports} pub data Token {{ value: u64; }} pub domain Token::Issued established by {route};"
+        );
+        let program = lower_multi(&[
+            ("issuer.omg", "module issuer; pub data Issuer {} pub machine Issuer::issue(value: u64) -> Token in Token::Issued { Token { value: value } }"),
+            ("decoy.omg", "module decoy; pub data Issuer {} pub machine Issuer::issue(value: u64) -> Token in Token::Issued { Token { value: value } }"),
+            ("main.omg", &source),
+        ]).expect("the selected carrier owns the exact-machine route");
+        let domain = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == "Token::Issued")
+            .expect("issued domain");
+        let [language_semantics::DomainEstablishmentRoute::ExactMachine { machine }] =
+            domain.establishment_routes.as_slice()
+        else {
+            panic!("exact-machine route: {:?}", domain.establishment_routes);
+        };
+        assert_eq!(
+            program.symbols.display_path(*machine, "::"),
+            "issuer::Issuer::issue"
+        );
+    }
+}
+
+#[test]
+fn signature_free_route_rejects_applicable_flat_trait_competitors() {
+    let error = lower_multi(&[
+        (
+            "first.omg",
+            "pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+        ),
+        (
+            "second.omg",
+            "pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+        ),
+        (
+            "main.omg",
+            "pub data Token { value: u64; } pub domain Token::Issued established by Issuer::issue;",
+        ),
+    ])
+    .map(|_| ())
+    .expect_err("no first-candidate fallback for signature-free selection");
+    assert!(error.contains("does not resolve to one exact"), "{error}");
+}
+
+#[test]
+fn signature_free_route_keeps_the_imported_trait_with_an_unimported_competitor() {
+    for (imports, route) in [
+        ("use issuer::Issuer;", "Issuer::issue"),
+        ("", "issuer::Issuer::issue"),
+        ("use issuer;", "issuer::Issuer::issue"),
+    ] {
+        let source = format!(
+            "{imports} pub data Token {{ value: u64; }} pub domain Token::Issued established by {route};
+             machine register<machine Selected>() where machine Selected satisfies {route}; {{}}"
+        );
+        let program = lower_multi(&[
+        (
+            "issuer.omg",
+            "module issuer; pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+        ),
+        (
+            "decoy.omg",
+            "module decoy; pub trait Issuer { machine issue(value: u64) -> Token in Token::Issued; }",
+        ),
+        (
+            "main.omg",
+            &source,
+        ),
+    ])
+    .expect("the exact imported trait owns the route");
+        let domain = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == "Token::Issued")
+            .expect("issued domain");
+        let [
+            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            },
+        ] = domain.establishment_routes.as_slice()
+        else {
+            panic!("trait route: {:?}", domain.establishment_routes);
+        };
+        assert_eq!(
+            program.symbols.display_path(*trait_definition, "::"),
+            "issuer::Issuer"
+        );
+        assert_eq!(
+            program.symbols.display_path(*requirement, "::"),
+            "issuer::Issuer::issue"
+        );
+        let parameter = program
+            .tables
+            .declarations
+            .data_type_parameters
+            .iter()
+            .map(|(_, parameter)| parameter)
+            .find(|parameter| parameter.name.as_str() == "Selected")
+            .expect("nominal machine binder");
+        assert!(matches!(
+            parameter.kind,
+            symbol_resolved_trees::data::TypeParameterKind::Machine {
+                contract: symbol_resolved_trees::data::MachineParameterContract::Nominal {
+                    trait_definition: selected_trait, requirement: selected_requirement, ..
+                },
+            } if selected_trait == *trait_definition && selected_requirement == *requirement
+        ));
+    }
+}
+
 fn const_named(program: &SymbolResolvedTrees, name: &str) -> String {
     let declaration = program
         .const_declarations
