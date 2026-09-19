@@ -34,11 +34,15 @@
 //! or before it are untouched. Settlements carry no register references, so
 //! the substitution itself is invisible to them.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the function to equal the independently computed removals and rebinds,
-//! and restores the complete source by content — every other instruction,
-//! register, roster row, call, and settlement included.
+//! Proposal and validation decide legality independently. The producer's
+//! `admission` locates the copy, classifies the destination's mentions, and
+//! applies the substitution; `validation` re-derives the same contract from
+//! the source records on its own audit — sharing only the representation
+//! walkers in `block_edges` — then requires the proposal to equal the
+//! function its own record produces and restores the complete source by
+//! content — every other instruction, register, roster row, call, and
+//! settlement included. A wrong admission decision fails validation even
+//! when the proposal is exactly the producer's edit.
 
 mod admission;
 mod rewrite;

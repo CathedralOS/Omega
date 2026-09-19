@@ -33,10 +33,8 @@ pub(super) struct Admission<'source> {
     pub copy_index: usize,
     /// The surviving register the admitted uses rebind to.
     pub input: VirtualRegisterId,
-    /// The removed register: this copy is its only definition.
-    pub output: VirtualRegisterId,
-    /// The destination row's position in `virtual_registers`; replay
-    /// reinserts it at this index when restoring the source.
+    /// The destination row's position in `virtual_registers`; removal drops
+    /// it at this index.
     pub register_index: usize,
     /// Operands rebound to `input`, in source ordinals. A position below the
     /// block's body length indexes `instructions`; the body length itself
@@ -432,7 +430,6 @@ pub(super) fn admit<'source>(
         block: block.id,
         copy_index,
         input,
-        output,
         register_index,
         uses,
     })
@@ -463,20 +460,6 @@ pub(super) fn apply(
         shifted_boundary_settlements(admitted.function, admitted.block, admitted.copy_index)?;
     block.instructions.remove(admitted.copy_index);
     function.virtual_registers.remove(admitted.register_index);
-    Ok(())
-}
-
-/// Restore one rebound use site to the destination register while rebuilding
-/// the source for replay comparison.
-pub(super) fn restore_use(
-    block: &mut SelectedBlock,
-    site: &CopyUse,
-    output: VirtualRegisterId,
-) -> Result<(), CopyRemovalError> {
-    block_instruction_mut(block, site.position)
-        .and_then(|instruction| instruction.operands.get_mut(site.operand))
-        .ok_or(CopyRemovalError::ReplayMismatch)?
-        .virtual_register = output;
     Ok(())
 }
 
