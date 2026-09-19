@@ -40,65 +40,7 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **Does a transported contract instantiate its `FloatMeaning` projections
-    per use site?** (named decision: `float-meaning-use-site-source-identity`).
-    [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
-    ratifies two classes with no producer: "Non-call operation result | Owner,
-    unique producing non-call operation, exact declared scalar result, and
-    format." and "Call result | Owner, producing scalar-result call, exact
-    declared result, and format." Terminal carries both
-    (`DirectOperationFloatResult`, `DirectCallFloatResult`), the codec encodes
-    them as tags 6 and 8, and the verifier rejoins them independently
-    (`verify_direct_operation_float_result`, `verify_direct_call_float_result`).
-    No checked source class can name either one. Projections are collected only
-    from `TypedTrees::proof_facts` — signature, state, operator, domain and data
-    contracts; body `requires`/`ensures` statements are checked separately and
-    register no proof fact — and within such a contract the only float-valued
-    names are parameters, the reserved `result`, and literals, which is exactly
-    the five signature-relative classes that already exist. A call in proof
-    position cannot supply the missing one: "Import its `ensures` under exact
-    operand substitution; erase the call if fact-only"
-    ([proof contracts](wiki/spec/proofs/contracts.md)), so a fact-only
-    invocation emits no artifact operation. The only artifact carrier matching
-    the two open classes is the use site of a transported contract — a boundary
-    operator's or callee's `ensures Float::meaning32(result) == ...` where that
-    use lowers to a scalar float call (`OperationKind::BoundaryCall`, `Call`) or
-    to the one non-call float producer,
-    `OperationKind::NearestIeeeFloatFusedMultiplyAdd`. Use-site checked rows and
-    exact emitted-operation joins both already exist
-    (`ContractProofFactOwner::OperatorUse`, `ContractCallFact` carrying caller
-    machine/state/statement/call ordinal; `source_call_occurrences`,
-    `selected_ieee_float_fma_occurrences`). What does not exist is per-use proof
-    value identity: `float_meaning_projections` canonicalizes one row per
-    (source key, operation, contract) with a plan-local `CheckedProofValueId`,
-    and `float_meaning_equalities` key on one shared authored `source_expression`
-    that `ProofFacts::direct_result_float_meaning_reflexivity` requires to be
-    unique per owner. Measured at `a2c6676c37` (macOS ARM64): for a caller whose
-    body is `helper(value)` where both machines carry the reflexive `ensures`,
-    the checked table holds 2 projections and 2 equalities, both
-    `DirectMachineResult`, one per owning machine — no call-site row, and the
-    caller's `result` classifies as its own machine result rather than as the
-    call result that produces it. Motivating requirement: FLOAT-PROVIDERS' open
-    clause asks for these two producers, and a proof source that cannot be tied
-    to an exact operation or call must not be synthesized. Options:
-
-    - (a) A transported contract instantiates per use, so
-      `Float::meaning32(result)` in a callee or boundary operator denotes a
-      distinct canonical `FloatMeaning` value at every use site. This adds a
-      use-site coordinate to the checked source key, multiplies projection and
-      equality rows per site, and changes the reflexivity rejoin from
-      (owner, expression) to (owner, expression, use site).
-    - (b) Canonical projection identity stays per declaration. The two Terminal
-      classes then have no producer from any authored form now in the language,
-      and either await a new surface that names an operation or call result in
-      proof position, or are retired from the Terminal source vocabulary until
-      such a customer exists.
-
-    Until answered, FLOAT-PROVIDERS' artifact-aware proof-source clause stays
-    open with the Terminal identities, codec tags and verifier rejoins landed
-    and unreachable from any producer.
-
-2. **May the compiler-owned build vocabulary offer a constrained
+1. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** (named decision:
    `build-vocabulary-filesystem-chain`). The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
@@ -132,7 +74,7 @@ must be surfaced before relying on them.
    stands unused, and **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and
    **FILESYSTEM-RELEASE-CONTRACT** cannot close.
 
-3. **May a provider's selected plan resolve an installation-bound row it
+2. **May a provider's selected plan resolve an installation-bound row it
    owns, or does that wait on receiver-bearing selection?** (named decision:
    `installation-bound-row-nested-resolution`).
    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)

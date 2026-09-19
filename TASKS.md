@@ -3834,15 +3834,26 @@ Owners include
     [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity).
     Terminal carries `DirectOperationResult`/`DirectCallResult` with codec
     tags 6/8 and independent verifier rejoins, and no checked or lowered
-    producer exists. This part is owner-blocked on the named decision
-    `float-meaning-use-site-source-identity` in `OWNER_QUESTIONS.md`; do not
-    synthesize a source that cannot be tied to an exact operation or call.
+    producer exists. The cause is that `float_meaning_projections`
+    canonicalizes one row per (source key, operation, contract) with no
+    use-site coordinate, so a transported contract does not instantiate at
+    its use. That contradicts settled
+    [contract import](wiki/spec/proofs/contracts.md): "caller import requires
+    the matching result case and argument/result substitution." Measured at
+    `a2c6676c37`: for a caller whose body is `helper(value)` with both
+    machines carrying the reflexive `ensures`, the checked table holds two
+    projections and two equalities, both `DirectMachineResult`, and the
+    caller's `result` classifies as its own machine result rather than as the
+    call result that produces it. Give the checked source key its use-site
+    coordinate so the two classes gain the producer substitution already
+    implies; do not synthesize a source that cannot be tied to an exact
+    operation or call.
 
   Acceptance: every `FloatSemantics` obligation a `Float::*` slot contract
   cites is discharged through a checked kernel binding, not catalog identity
   alone, and `fail/float/float_semantics_lookalike_grants_no_primitive` still
-  rejects. The two open source classes gain a producer the verifier rejoins or
-  are retired, as the named decision directs.
+  rejects. The two open source classes gain a producer the verifier rejoins,
+  raised at a use site the checked source key distinguishes.
 
   DESIGN-BLOCKED (2026-09-18, measured) for the kernel-discharge bullet as well,
   not only the already-named source-identity bullet. `float_operations.omg`
