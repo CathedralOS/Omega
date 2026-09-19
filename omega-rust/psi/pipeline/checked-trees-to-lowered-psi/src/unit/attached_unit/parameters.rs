@@ -684,20 +684,34 @@ pub(crate) fn validate_transfer_shape(
                 // A completed whole result carries the exact target claim set,
                 // with source identities rebased but relative paths unchanged.
                 // Counts alone cannot distinguish missing or swapped siblings.
+                // A boundary target has no entry-claim roster, so its exact
+                // set is the completed result's own claim frontier.
                 let claims_match = !claims.is_empty()
-                    && claims.len() == expected.len()
                     && result.claims.len() == claims.len()
-                    && claims.iter().zip(&expected).all(|(claim, expected)| {
-                        result
+                    && if expected.is_empty() {
+                        let mut transferred = claims.clone();
+                        transferred.sort_unstable();
+                        let mut completed = result
                             .claims
                             .iter()
-                            .filter(|result| {
-                                result.claim == *claim
-                                    && result.path == lower_structural_path(&expected.path)
+                            .map(|binding| binding.claim)
+                            .collect::<Vec<_>>();
+                        completed.sort_unstable();
+                        transferred == completed
+                    } else {
+                        claims.len() == expected.len()
+                            && claims.iter().zip(&expected).all(|(claim, expected)| {
+                                result
+                                    .claims
+                                    .iter()
+                                    .filter(|result| {
+                                        result.claim == *claim
+                                            && result.path == lower_structural_path(&expected.path)
+                                    })
+                                    .count()
+                                    == 1
                             })
-                            .count()
-                            == 1
-                    });
+                    };
                 if results.next().is_some()
                     || result.place != source.id
                     || result.structural_type != structural_type

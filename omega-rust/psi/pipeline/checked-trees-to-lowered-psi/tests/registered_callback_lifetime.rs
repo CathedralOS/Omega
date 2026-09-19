@@ -9,9 +9,9 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{VerifiedProgramLocalRootProducerCatalog, decode_module, encode_module};
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalScalarValue, TerminalStructuralInputs, TerminalStructuralScalarFieldValue,
-    TerminalStructuralValue,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
+    TerminalExecutionResult, TerminalScalarValue, TerminalStructuralInputs,
+    TerminalStructuralScalarFieldValue, TerminalStructuralValue,
 };
 use terminal_psi::program_local_root_introduction_compatibility_report_identity;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -268,4 +268,180 @@ fn interpreted_unregister_dispatch_forwards_the_live_registration() {
     };
     assert_eq!(*identity, boundary.id);
     assert_eq!(arguments.as_slice(), &[registered]);
+}
+
+/// The completed round trip the ledger is built for: `register` hands the
+/// caller a live registration rooted under the routed domain, and
+/// `unregister` settles that exact occurrence — two boundary calls driven by
+/// one real caller rather than sequenced by hand. The result type carries
+/// the grant (`-> Registration in Registration::Live`): an `ensures` clause
+/// on a boundary signature is rejected by exact parameter qualification.
+const REGISTER_SOURCE: &str = r#"
+    data RegistrationSlot {}
+    data CountedQuantity<Unit> { magnitude: u64; }
+    trait Content<A> {
+        machine project(subject: &Self) -> A;
+    }
+
+    data Registration [linear] { slot: u64; }
+
+    domain Registration::Live
+    established by Registrar::register, Registrar::unregister;
+
+    machine Live::content(registration: &Registration) -> CountedQuantity<RegistrationSlot>
+    satisfies Content<CountedQuantity<RegistrationSlot>>::project
+    {
+        CountedQuantity { magnitude: 1 }
+    }
+
+    boundary trait Registrar {
+        machine register(registration: Registration) -> Registration in Registration::Live;
+
+        machine unregister(registration: Registration in Live);
+    }
+
+    data Customer {}
+    machine Customer::run(&mut self, registration: Registration)
+    reaches Registrar invokes Registrar;
+    {
+        let registered: Registration in Registration::Live = Registrar::register(registration);
+        Registrar::unregister(registered);
+    }
+"#;
+
+struct DriveRegistration {
+    register: BoundaryMachineId,
+    calls: Vec<(BoundaryMachineId, Vec<TerminalStructuralValue>)>,
+    registered: TerminalStructuralValue,
+}
+
+impl TerminalEffectHandler for DriveRegistration {
+    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall {
+            boundary,
+            structural_arguments,
+            ..
+        } = effect
+        else {
+            panic!("only boundary effects are expected")
+        };
+        self.calls.push((*boundary, structural_arguments.clone()));
+        Ok(())
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if matches!(
+            effect,
+            TerminalEffect::BoundaryCall { boundary, .. } if *boundary == self.register
+        ) {
+            self.handle_effect(effect)?;
+            return Ok(TerminalEffectResult::Structural(self.registered.clone()));
+        }
+        self.handle_effect(effect)?;
+        Ok(TerminalEffectResult::Unit)
+    }
+}
+
+/// `register`'s claimed linear result lands on the caller's claim frontier
+/// under its own place, so `unregister` can settle it — the ledger observes
+/// both boundary calls in order and forwards the live registration.
+#[test]
+fn interpreted_register_unregister_round_trip_drives_the_ledger() {
+    let tokens = Lexer::new(REGISTER_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
+    let module = &lowered.semantic_module;
+    let register_boundary = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.identity.contains("Registrar::register"))
+        .expect("register boundary retained");
+    let unregister = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.identity.contains("Registrar::unregister"))
+        .expect("unregister boundary retained");
+    let registration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.identity.contains("Registration"))
+        .expect("Registration declaration");
+    let domain = module
+        .structural_domains
+        .iter()
+        .find(|domain| domain.identity.contains("Registration::Live"))
+        .expect("Live domain");
+    let terminal_psi::StructuralTypeShape::Record { fields } = &registration.shape else {
+        panic!("Registration is a record")
+    };
+    let slot = fields
+        .iter()
+        .find(|field| field.identity.contains("slot"))
+        .expect("slot field");
+
+    terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
+        .expect("registration round trip verifies");
+    let module_bytes = encode_module(module).expect("encode module");
+    let proof_bytes =
+        terminal_codec::encode_proof_section(module, &lowered.proof_bundle).expect("encode proof");
+
+    let registration_input = TerminalStructuralValue {
+        opaque_identity: 7,
+        structural_type: registration.id,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let registered = TerminalStructuralValue {
+        opaque_identity: 41,
+        structural_type: registration.id,
+        qualifications: vec![domain.id],
+        path: Vec::new(),
+    };
+    let inputs = TerminalStructuralInputs {
+        arguments: std::slice::from_ref(&registration_input),
+        scalar_fields: &[TerminalStructuralScalarFieldValue {
+            argument_index: 0,
+            path: Vec::new(),
+            field: slot.id,
+            value: TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                value: IntegerValue::Unsigned(3),
+            },
+        }],
+        ..Default::default()
+    };
+    let mut ledger = DriveRegistration {
+        register: register_boundary.id,
+        calls: Vec::new(),
+        registered: registered.clone(),
+    };
+
+    let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+        &module_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+        inputs,
+        &mut ledger,
+    )
+    .expect("registration round trip interprets");
+
+    assert_eq!(execution.value(), TerminalExecutionResult::Unit);
+    let [
+        (register_call, register_arguments),
+        (unregister_call, unregister_arguments),
+    ] = ledger.calls.as_slice()
+    else {
+        panic!("register and unregister boundary calls observed in order")
+    };
+    assert_eq!(*register_call, register_boundary.id);
+    assert_eq!(register_arguments.as_slice(), &[registration_input]);
+    assert_eq!(*unregister_call, unregister.id);
+    assert_eq!(unregister_arguments.as_slice(), &[registered]);
 }

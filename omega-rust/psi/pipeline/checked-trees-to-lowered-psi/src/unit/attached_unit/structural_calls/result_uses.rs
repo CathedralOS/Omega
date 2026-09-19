@@ -1253,7 +1253,12 @@ pub(crate) fn validate_consumer(
                         )))
                     || checked
                         .typed
-                        .normalized_type_identity(local.type_reference)
+                        .normalized_type_identity(
+                            crate::unit::attached_unit::parameters::structural_carrier_type(
+                                checked,
+                                local.type_reference,
+                            )?,
+                        )
                         .into_string()
                         != result.type_identity
                 {
@@ -1369,6 +1374,23 @@ pub(crate) fn validate_consumer(
         let producer = producer(&caller.operations, binding_ordinal)?;
         let result = producer.result;
         let source_order = producer.precedes_consumer(*coordinate);
+        // A whole linear result moved into this call transfers its producer's
+        // live claim: the call's completion receipts publish that claim at
+        // this argument rather than leaving the operand claim-free. Target
+        // qualifications stay admissible — checking already joined the
+        // bound local's domains to the formal's exact requirement.
+        let linear_result_move = result.multiplicity == Multiplicity::Linear
+            && argument.path.is_empty()
+            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+            && argument.type_identity == result.type_identity
+            && parameter.access == checked_trees::CheckedStructuralAccess::Owned
+            && parameter.multiplicity == Multiplicity::Linear
+            && parameter.type_identity == argument.type_identity
+            && !parameter.is_self
+            && parameter.fused_service_erasure.is_none()
+            && claim_transfers
+                .iter()
+                .any(|transfer| transfer.argument_index as usize == index);
         if (producer.discard
             && argument.access == checked_trees::CheckedStructuralAccess::Owned
             && !loaned_record_projection(operation, argument))
@@ -1377,11 +1399,14 @@ pub(crate) fn validate_consumer(
             || matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result: consumer, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result: consumer, .. }
                 if result.binding_ordinal >= consumer.binding_ordinal)
-            || !matches!(
+        {
+            return unsupported("Unit structural result argument has invalid claim-free custody");
+        }
+        if !linear_result_move
+            && (!matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            )
-            || (result.multiplicity == Multiplicity::Unrestricted
+            ) || (result.multiplicity == Multiplicity::Unrestricted
                 && (!matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::CallUnit { .. }
@@ -1389,33 +1414,33 @@ pub(crate) fn validate_consumer(
                         | CheckedUnitEffectOperationPlan::StructuralCall { .. }
                 ) || !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned))
-            || (argument.path.is_empty() && argument.type_identity != result.type_identity)
-            || parameter.type_identity != argument.type_identity
-            || (!argument.path.is_empty()
-                && (!(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                    || loaned_record_projection(operation, argument))
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned))
-            || !matches!(
-                argument.access,
-                checked_trees::CheckedStructuralAccess::Owned
-                    | checked_trees::CheckedStructuralAccess::SharedBorrow
-            )
-            || argument.access != parameter.access
-            || parameter.multiplicity
-                != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
-                    Multiplicity::Unrestricted
-                } else {
-                    result.multiplicity
-                }
-            || parameter.is_self
-            || !parameter.qualifications.is_empty()
-            || parameter.fused_service_erasure.is_some()
-            || target_entry_claims
-                .iter()
-                .any(|claim| claim.parameter_index as usize == index)
-            || claim_transfers
-                .iter()
-                .any(|transfer| transfer.argument_index as usize == index)
+                || (argument.path.is_empty() && argument.type_identity != result.type_identity)
+                || parameter.type_identity != argument.type_identity
+                || (!argument.path.is_empty()
+                    && (!(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                        || loaned_record_projection(operation, argument))
+                        || argument.access != checked_trees::CheckedStructuralAccess::Owned))
+                || !matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                )
+                || argument.access != parameter.access
+                || parameter.multiplicity
+                    != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                        Multiplicity::Unrestricted
+                    } else {
+                        result.multiplicity
+                    }
+                || parameter.is_self
+                || !parameter.qualifications.is_empty()
+                || parameter.fused_service_erasure.is_some()
+                || target_entry_claims
+                    .iter()
+                    .any(|claim| claim.parameter_index as usize == index)
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index as usize == index))
         {
             return unsupported("Unit structural result argument has invalid claim-free custody");
         }

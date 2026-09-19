@@ -1,7 +1,9 @@
 //! Boundary requirements and completion receipts.
 
 use crate::validation::structural_operations::claim_transfers::claim_input;
-use crate::validation::structural_operations::structural_arguments::structural_occurrence_carries_qualification;
+use crate::validation::structural_operations::structural_arguments::{
+    linear_call_result, structural_occurrence_carries_qualification,
+};
 use crate::validation::{
     BTreeSet, BoundaryMachineDeclaration, CompletionReceipt, ModuleError, OperationId,
     StructuralArgument, TerminalMachine,
@@ -15,15 +17,31 @@ pub(crate) fn validate_boundary_requirements(
 ) -> Result<(), ModuleError> {
     for requirement in &boundary.requires {
         let argument = &arguments[requirement.argument_index as usize];
-        let actual = caller
+        // Literal and claim-free result operands cannot supply domain
+        // evidence; a claimed linear call result carries it on its own
+        // declared qualifications.
+        let supplied = caller
             .structural_parameters
             .iter()
-            .find(|parameter| parameter.place == argument.place);
-        // Literal and claim-free result operands cannot supply domain evidence.
-        if actual.is_none_or(|actual| {
+            .find(|parameter| parameter.place == argument.place)
+            .map(|parameter| {
+                (
+                    parameter.qualifications.as_slice(),
+                    parameter.projected_qualifications.as_slice(),
+                )
+            })
+            .or_else(|| {
+                linear_call_result(caller, argument.place).map(|(_, result)| {
+                    (
+                        result.qualifications.as_slice(),
+                        result.projected_qualifications.as_slice(),
+                    )
+                })
+            });
+        if supplied.is_none_or(|(qualifications, projected)| {
             !structural_occurrence_carries_qualification(
-                &actual.qualifications,
-                &actual.projected_qualifications,
+                qualifications,
+                projected,
                 &argument.path,
                 requirement.domain,
             )
@@ -59,6 +77,17 @@ pub(crate) fn validate_boundary_completion_receipts(
                 .chain(caller.content_entry_claims.iter().filter_map(move |claim| {
                     (claim.input.root == argument.place).then_some((index as u32, claim.claim))
                 }))
+                .chain(
+                    linear_call_result(caller, argument.place)
+                        .into_iter()
+                        .flat_map(move |(_, result)| {
+                            result.claims.iter().filter_map(move |binding| {
+                                (argument.path.is_empty()
+                                    || binding.path.as_slice() == argument.path.as_slice())
+                                .then_some((index as u32, binding.claim))
+                            })
+                        }),
+                )
         })
         .collect::<BTreeSet<_>>();
     let mut actual = BTreeSet::new();
@@ -74,7 +103,18 @@ pub(crate) fn validate_boundary_completion_receipts(
                 argument_index: receipt.argument_index,
             });
         };
-        let Some((claim_input, claim_path)) = claim_input(caller, receipt.claim) else {
+        // A receipted claim's home is its live holder: a moved result's
+        // own claim bindings before the caller's entry roster.
+        let result_home = linear_call_result(caller, argument.place).and_then(|(_, result)| {
+            result
+                .claims
+                .iter()
+                .find(|binding| binding.claim == receipt.claim)
+                .map(|binding| (result.place, binding.path.as_slice()))
+        });
+        let Some((claim_input, claim_path)) =
+            result_home.or_else(|| claim_input(caller, receipt.claim))
+        else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: receipt.claim,

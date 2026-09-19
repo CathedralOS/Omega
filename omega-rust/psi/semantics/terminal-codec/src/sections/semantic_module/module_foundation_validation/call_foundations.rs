@@ -11,8 +11,8 @@ use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, Operation, OperationKind,
-    OperationResult, StructuralPathSegment, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator,
+    OperationResult, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
 };
 
 pub(super) fn validate_call_unit(
@@ -358,7 +358,9 @@ pub(super) fn validate_boundary_call(
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),
         OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.scalar_type)),
         OperationResult::Structural(result)
-            if result.projected_qualifications.is_empty() && result.claims.is_empty() =>
+            if result.projected_qualifications.is_empty()
+                && (result.claims.is_empty()
+                    || result.multiplicity == StructuralMultiplicity::Linear) =>
         {
             Some(BoundaryMachineResult::Structural(
                 BoundaryStructuralResultDeclaration {
