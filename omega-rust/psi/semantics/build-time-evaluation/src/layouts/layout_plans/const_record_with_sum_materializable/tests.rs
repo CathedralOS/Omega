@@ -42,6 +42,7 @@ const SOURCE: &str = r#"
     data DeepEnvelope [copy] { inner: InnerEnvelope; }
     data MixedChoice [copy] { common: u8; case Empty; case Number(value: u8); }
     data MixedEnvelope [copy] { choice: MixedChoice; }
+    data MixedChoiceArray [copy] { choices: [MixedChoice; 2]; }
     data FloatingChoice [copy] { case Empty; case Number(value: f64); }
     data FloatingEnvelope [copy] { choice: FloatingChoice; }
     data BorrowedEnvelope [copy] { choice: Choice; borrowed: &u8; }
@@ -64,8 +65,8 @@ fn typed() -> TypedTrees {
 
 fn conventional_sum_layout(typed: &TypedTrees, schema_name: &str) -> ConventionalSumLayoutReport {
     let data = unique_data_by_name(typed, schema_name).expect("sum definition");
-    let cases = typed
-        .data_members(data)
+    let members = typed.data_members(data);
+    let cases = members
         .iter()
         .filter_map(|member| match member {
             DataMember::Variant(variant) => Some(variant),
@@ -92,8 +93,38 @@ fn conventional_sum_layout(typed: &TypedTrees, schema_name: &str) -> Conventiona
             .collect::<Vec<_>>();
         shapes.push(fields);
     }
-    let payload_base = checked_align_up(4, maximum_align).expect("payload base");
-    let mut maximum_end = 4;
+    // Common fields pack right after the tag; their aligned end is the floor
+    // under the shared payload overlay.
+    let mut common_align = 1;
+    let mut common_end = 4;
+    let common_fields = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .map(|field| {
+            let (size, align) =
+                reflected_nested_member_layout(typed, field.type_reference, &mut vec![data.symbol])
+                    .expect("fixed common field");
+            common_align = common_align.max(align);
+            common_end = checked_align_up(common_end, align).expect("common alignment");
+            let report = ConventionalSumPayloadFieldLayoutReport {
+                field: field.name.to_string(),
+                member_identity: field.identity,
+                offset: common_end,
+                size,
+                align,
+            };
+            common_end += size;
+            report
+        })
+        .collect::<Vec<_>>();
+    let common_end = checked_align_up(common_end, common_align)
+        .expect("common extent")
+        .max(4);
+    let payload_base = checked_align_up(common_end, maximum_align).expect("payload base");
+    let mut maximum_end = common_end;
     let cases = cases
         .iter()
         .zip(shapes)
@@ -124,12 +155,13 @@ fn conventional_sum_layout(typed: &TypedTrees, schema_name: &str) -> Conventiona
             }
         })
         .collect();
-    let align = 4.max(maximum_align);
+    let align = 4.max(common_align).max(maximum_align);
     ConventionalSumLayoutReport {
         schema_report_fingerprint: normalized_schema_report_fingerprint(typed, data),
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields,
         cases,
         size: checked_align_up(maximum_end, align).expect("sum extent"),
         align,
@@ -844,7 +876,7 @@ fn multiple_sum_arrays_retain_authored_fields_and_reject_row_set_drift() {
 }
 
 #[test]
-fn zero_multiple_nested_recursive_and_mixed_sum_shapes_remain_fenced() {
+fn zero_multiple_nested_and_recursive_sum_shapes_remain_fenced() {
     let typed = typed();
     let nested = conventional_sum_layout(&typed, "Choice");
 
@@ -962,37 +994,98 @@ fn zero_multiple_nested_recursive_and_mixed_sum_shapes_remain_fenced() {
         "a nested sum occurrence must not ride beside a direct sum-array field"
     );
 
-    let mixed_data = unique_data_by_name(&typed, "MixedEnvelope").unwrap();
-    let mixed_layout = LayoutPlanReport {
-        schema_report_fingerprint: normalized_schema_report_fingerprint(&typed, mixed_data),
-        entries: vec![LayoutFieldEntryReport {
-            field: "choice".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
-        offsets: Some(vec![0]),
-        size: Some(8),
-        align: 4,
+    // A record holding a mixed common-field/case member now materializes: the
+    // mixed member's value spells its common field inside the merged case
+    // payload beside the selected case's own members.
+    let mixed_inner = conventional_sum_layout(&typed, "MixedChoice");
+    assert_eq!(mixed_inner.common_fields.len(), 1);
+    assert_eq!(mixed_inner.common_fields[0].offset, 4);
+    assert_eq!(mixed_inner.size, 8);
+    let mixed_outer = outer_layout(&typed, "MixedEnvelope", &[0], 8, 4);
+    let mixed_value = BuildTimeValue::Struct {
+        type_name: "MixedEnvelope".into(),
+        fields: vec![(
+            "choice".into(),
+            BuildTimeValue::Case {
+                variant: "Number".into(),
+                payload: vec![
+                    ("common".into(), BuildTimeValue::Int(9)),
+                    ("value".into(), BuildTimeValue::Int(3)),
+                ],
+            },
+        )],
     };
-    let error = validate_const_materializable_record_with_conventional_sum(
+    let carrier = validate_const_materializable_record_with_conventional_sum(
         &typed,
         "MixedEnvelope",
-        &mixed_layout,
-        &nested,
-        &BuildTimeValue::Struct {
-            type_name: "MixedEnvelope".into(),
-            fields: vec![(
-                "choice".into(),
-                BuildTimeValue::Case {
-                    variant: "Empty".into(),
-                    payload: Vec::new(),
-                },
-            )],
-        },
+        &mixed_outer,
+        &mixed_inner,
+        &mixed_value,
         ByteOrder::LittleEndian,
     )
-    .expect_err("mixed common-field/case shape remains fenced");
-    assert!(error.0.contains("mixed common-field/case"), "{error:?}");
+    .expect("a direct mixed member materializes under the same conventional rung");
+    assert_eq!(carrier.bytes(), &[1, 0, 0, 0, 9, 3, 0, 0]);
+
+    // A mixed inner layout drifted from its declared common-field geometry
+    // still rejects.
+    let mut drifted_inner = mixed_inner.clone();
+    drifted_inner.common_fields[0].offset = 5;
+    assert!(
+        validate_const_materializable_record_with_conventional_sum(
+            &typed,
+            "MixedEnvelope",
+            &mixed_outer,
+            &drifted_inner,
+            &mixed_value,
+            ByteOrder::LittleEndian,
+        )
+        .is_err(),
+        "drifted mixed common geometry must reject"
+    );
+}
+
+#[test]
+fn mixed_sum_array_materializes_common_field_and_case_payload_per_element() {
+    let typed = typed();
+    let element = conventional_sum_layout(&typed, "MixedChoice");
+    let outer = outer_layout(&typed, "MixedChoiceArray", &[0], 16, 4);
+    let row = sum_array_row(&outer, "choices", 2, element);
+    let value = BuildTimeValue::Struct {
+        type_name: "MixedChoiceArray".into(),
+        fields: vec![(
+            "choices".into(),
+            BuildTimeValue::Array(vec![
+                BuildTimeValue::Case {
+                    variant: "Number".into(),
+                    payload: vec![
+                        ("common".into(), BuildTimeValue::Int(9)),
+                        ("value".into(), BuildTimeValue::Int(3)),
+                    ],
+                },
+                BuildTimeValue::Case {
+                    variant: "Empty".into(),
+                    payload: vec![("common".into(), BuildTimeValue::Int(7))],
+                },
+            ]),
+        )],
+    };
+    let carrier = validate_const_materializable_record_with_conventional_sum_arrays(
+        &typed,
+        "MixedChoiceArray",
+        &outer,
+        &[row],
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("a mixed-element sum array materializes under the same compact row");
+    assert_eq!(
+        carrier.bytes(),
+        &[
+            // element 0: tag 1, common 9, Number.value 3
+            1, 0, 0, 0, 9, 3, 0, 0, // element 1: tag 0, common 7, empty overlay
+            0, 0, 0, 0, 7, 0, 0, 0,
+        ]
+    );
 }
 
 #[test]

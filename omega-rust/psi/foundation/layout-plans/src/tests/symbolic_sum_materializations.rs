@@ -1,7 +1,7 @@
 use super::{
-    data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    recursive_record_array_report, recursive_sum_array_report, recursive_sum_report,
-    sum_array_layout, sum_field_layout, sum_layout,
+    data, deeply_nested_layout, entry, mixed_sum_array_layout, nested_layout, post_handoff_context,
+    record_interior, recursive_record_array_report, recursive_sum_array_report,
+    recursive_sum_report, sum_array_layout, sum_field_layout, sum_layout,
 };
 use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumOccurrenceLayoutReport,
@@ -271,6 +271,112 @@ fn symbolic_sum_array_materialization_assigns_the_exact_element_case_payload() {
 }
 
 #[test]
+fn symbolic_mixed_sum_array_materialization_assigns_common_and_case_members() {
+    let (layout, carrier) = mixed_sum_array_layout();
+    // `mixed[i].common` spells a mixed shape's common field directly — one
+    // hop below the element boundary — while `mixed[i].Run.callback` keeps
+    // the two-hop case/payload spelling inside the shared overlay.
+    let symbolic = [
+        SymbolicFieldValue::new_indexed("mixed", 1, 8, data())
+            .expect("repeated mixed field")
+            .with_inner_segment(SymbolicFieldPathSegment::new("sequence")),
+        SymbolicFieldValue::new_indexed("mixed", 0, 64, entry())
+            .expect("repeated mixed field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("Run")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+            ),
+    ];
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        &symbolic,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("a repeated mixed interior derives common-field and case payload writes");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => (
+                write.field.as_str(),
+                write.container_byte_offset,
+                write.width,
+            ),
+            _ => panic!("an unresolved symbolic derives a runtime writer"),
+        })
+        .collect::<Vec<_>>();
+    // `mixed` spans 8..40 at a 16-byte stride: element 1's `sequence` lands at
+    // 8 + 16 + 4 = 28, element 0's `Run.callback` at 8 + 0 + 8 = 16.
+    assert_eq!(
+        writes,
+        vec![
+            ("mixed[1].sequence", 28, 8),
+            ("mixed[0].Run.callback", 16, 64)
+        ]
+    );
+
+    let writer = plan.derive_post_handoff_writer().expect("writer");
+    let mut bytes = [0xa5_u8; 40];
+    writer
+        .execute(
+            &mut bytes,
+            PlacementSite {
+                base_address: 0,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |target| {
+                if target == entry() {
+                    Some(0x1122_3344_5566_7788)
+                } else {
+                    assert_eq!(target, data());
+                    Some(0x7f)
+                }
+            },
+        )
+        .expect("the mixed writer resolves each element member slot");
+
+    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(bytes[28], 0x7f);
+    assert!(
+        bytes[0..16]
+            .iter()
+            .chain(&bytes[24..28])
+            .chain(&bytes[29..])
+            .all(|byte| *byte == 0xa5),
+        "the mixed writer only realizes the addressed common and payload slots"
+    );
+
+    // A common-field spelling that continues below the member rejects: a
+    // common field is the leaf of a mixed sum path, same as a case payload.
+    let continues = SymbolicFieldValue::new_indexed("mixed", 0, 8, data())
+        .expect("repeated mixed field")
+        .with_inner_segment(
+            SymbolicFieldPathSegment::new("sequence")
+                .with_inner_segment(SymbolicFieldPathSegment::new("deeper")),
+        );
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&continues),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("no interior exists below a common field");
+    assert!(
+        error.0.contains(
+            "continues below sum common field `mixed[0].sequence`; a common field is the leaf of a sum path"
+        ),
+        "{}",
+        error.0
+    );
+}
+
+#[test]
 fn symbolic_sum_materialization_joins_case_and_payload_by_identity() {
     // Numbered sum schemas join case and payload hops on stable member
     // identities; every spelled name remains diagnostic presentation, so the
@@ -359,9 +465,9 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     )
     .expect_err("a spelled case the sum interior lacks must reject");
     assert!(
-        error
-            .0
-            .contains("spells no case `Bogus` of the inner sum layout for `choice`"),
+        error.0.contains(
+            "spells no case or common field `Bogus` of the inner sum layout for `choice`"
+        ),
         "{}",
         error.0
     );
@@ -481,7 +587,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     assert!(
         error
             .0
-            .contains("width 64 exceeds the 8-bit payload field `choice.Small.flags`"),
+            .contains("width 64 exceeds the 8-bit sum member `choice.Small.flags`"),
         "{}",
         error.0
     );

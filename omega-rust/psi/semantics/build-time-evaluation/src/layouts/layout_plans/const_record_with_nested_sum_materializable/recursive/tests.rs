@@ -9,7 +9,8 @@ use super::{
 };
 use layout_plans::{
     ConventionalRecordArrayFieldLayoutReport, ConventionalRecordSumOccurrenceLayoutReport,
-    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
+    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
 };
@@ -51,6 +52,7 @@ fn fixture() -> (
         tag_align: 4,
         size: 8,
         align: 4,
+        common_fields: Vec::new(),
         cases: vec![
             ConventionalSumCaseLayoutReport {
                 case: "Zero".into(),
@@ -203,6 +205,139 @@ fn retained_recursive_bytes_identity_and_coordinates_are_not_authority() {
         assert!(custody.apply(&typed, &mut destination).is_err());
         assert_eq!(destination, [0xa5; 34]);
     }
+}
+
+#[test]
+fn recursive_mixed_sum_array_materializes_common_and_case_members_per_element() {
+    let tokens = Lexer::new("data Mixed [copy] { sequence: u8; case Empty; case Hit(value: u8); } data Leaf [copy] { hits: [Mixed; 2]; } data Root [copy] { inner: Leaf; }").tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let fingerprint = |name| {
+        normalized_schema_report_fingerprint(&typed, unique_data_by_name(&typed, name).unwrap())
+    };
+    let record = |name, fields: &[(&str, u64)], size: u64| LayoutPlanReport {
+        schema_report_fingerprint: fingerprint(name),
+        entries: fields
+            .iter()
+            .map(|&(field, offset)| LayoutFieldEntryReport {
+                field: field.into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset },
+            })
+            .collect(),
+        offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+        size: Some(size),
+        align: 4,
+    };
+    // `Mixed` packs `sequence` beside the tag and overlays `Hit.value` right
+    // behind the common extent: 8 bytes at 4-byte alignment per element.
+    let mixed = ConventionalSumLayoutReport {
+        schema_report_fingerprint: fingerprint("Mixed"),
+        tag_offset: 0,
+        tag_size: 4,
+        tag_align: 4,
+        common_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+            field: "sequence".into(),
+            member_identity: None,
+            offset: 4,
+            size: 1,
+            align: 1,
+        }],
+        cases: vec![
+            ConventionalSumCaseLayoutReport {
+                case: "Empty".into(),
+                member_identity: None,
+                ordinal: 0,
+                payload_fields: vec![],
+            },
+            ConventionalSumCaseLayoutReport {
+                case: "Hit".into(),
+                member_identity: None,
+                ordinal: 1,
+                payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+                    field: "value".into(),
+                    member_identity: None,
+                    offset: 5,
+                    size: 1,
+                    align: 1,
+                }],
+            },
+        ],
+        size: 8,
+        align: 4,
+    };
+    let report = ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+        ConventionalRecordSumPathsLayoutReport {
+            outer_layout: record("Root", &[("inner", 0)], 16),
+            child_sum_layouts: Vec::new(),
+            child_sum_array_layouts: Vec::new(),
+            child_record_array_layouts: Vec::new(),
+            paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                outer_field: "inner".into(),
+                outer_member_identity: None,
+                inner: ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+                    outer_layout: record("Leaf", &[("hits", 0)], 16),
+                    child_sum_layouts: Vec::new(),
+                    child_sum_array_layouts: vec![ConventionalSumArrayFieldLayoutReport {
+                        field: "hits".into(),
+                        member_identity: None,
+                        element_count: 2,
+                        element_stride: 8,
+                        element_layout: mixed,
+                    }],
+                    child_record_array_layouts: Vec::new(),
+                },
+            }],
+        },
+    );
+    // A mixed case value merges its common field with the selected case
+    // payload fields in one spelling.
+    let value = BuildTimeValue::Struct {
+        type_name: "Root".into(),
+        fields: vec![(
+            "inner".into(),
+            BuildTimeValue::Struct {
+                type_name: "Leaf".into(),
+                fields: vec![(
+                    "hits".into(),
+                    BuildTimeValue::Array(vec![
+                        BuildTimeValue::Case {
+                            variant: "Hit".into(),
+                            payload: vec![
+                                ("sequence".into(), BuildTimeValue::Int(9)),
+                                ("value".into(), BuildTimeValue::Int(3)),
+                            ],
+                        },
+                        BuildTimeValue::Case {
+                            variant: "Empty".into(),
+                            payload: vec![("sequence".into(), BuildTimeValue::Int(7))],
+                        },
+                    ]),
+                )],
+            },
+        )],
+    };
+    let custody = validate_const_materializable_record_with_recursive_nested_sums(
+        &typed,
+        "Root",
+        &report,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("a recursive leaf retains mixed sum-array elements");
+    assert_eq!(
+        custody.bytes(),
+        &[
+            1, 0, 0, 0, 9, 3, 0, 0, // hits[0] = Hit(sequence 9, value 3)
+            0, 0, 0, 0, 7, 0, 0, 0, // hits[1] = Empty(sequence 7)
+        ]
+    );
+    let mut destination = [0xa5; 16];
+    custody
+        .apply(&typed, &mut destination)
+        .expect("the recursive writer replays the mixed element bytes");
+    assert_eq!(destination.as_slice(), custody.bytes());
 }
 
 #[test]

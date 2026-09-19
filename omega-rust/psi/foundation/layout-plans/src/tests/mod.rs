@@ -244,6 +244,7 @@ fn sum_layout() -> ConventionalSumLayoutReport {
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
+        common_fields: Vec::new(),
         cases: vec![
             ConventionalSumCaseLayoutReport {
                 case: "Empty".into(),
@@ -578,5 +579,73 @@ fn sum_array_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             align: 8,
         },
         SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 2, 24),
+    )
+}
+
+/// A mixed common-field/case interior: the tag sits at 0, `sequence` packs at
+/// 4, the shared payload base aligns to 8 under `Run.callback`'s u64
+/// alignment, and `Empty` contributes nothing past the common floor. The
+/// complete element extent is 16 bytes at 8-byte alignment.
+fn mixed_sum_layout() -> ConventionalSumLayoutReport {
+    ConventionalSumLayoutReport {
+        schema_report_fingerprint: 9,
+        tag_offset: 0,
+        tag_size: 4,
+        tag_align: 4,
+        common_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+            field: "sequence".into(),
+            member_identity: None,
+            offset: 4,
+            size: 1,
+            align: 1,
+        }],
+        cases: vec![
+            ConventionalSumCaseLayoutReport {
+                case: "Run".into(),
+                member_identity: None,
+                ordinal: 0,
+                payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+                    field: "callback".into(),
+                    member_identity: None,
+                    offset: 8,
+                    size: 8,
+                    align: 8,
+                }],
+            },
+            ConventionalSumCaseLayoutReport {
+                case: "Empty".into(),
+                member_identity: None,
+                ordinal: 1,
+                payload_fields: Vec::new(),
+            },
+        ],
+        size: 16,
+        align: 8,
+    }
+}
+
+/// A record carrying a literal array of mixed elements: `header` spans 0..8,
+/// `mixed` repeats two 16-byte elements at a 16-byte stride from offset 8.
+fn mixed_sum_array_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
+    (
+        LayoutPlanReport {
+            schema_report_fingerprint: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "header".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "mixed".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 8 },
+                },
+            ],
+            offsets: Some(vec![0, 8]),
+            size: Some(40),
+            align: 8,
+        },
+        SymbolicFieldInnerLayout::new_sum_array("mixed", mixed_sum_layout(), 2, 16),
     )
 }

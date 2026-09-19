@@ -58,11 +58,13 @@ pub fn derive_symbolic_materialization(
 /// the innermost element's retained interior layout, so the exact path stays
 /// symbolic until the write offset is assigned. Below a conventional sum
 /// boundary the next two hops spell `Case.payload` — the selected case, then
-/// that case's payload field — and a repeated sum field composes its hop's
-/// element index through the carrier's element stride before the case and
-/// payload resolve inside that element. The tag and the inactive cases'
+/// that case's payload field — while a mixed common-field/case shape also
+/// admits one hop spelling a common field packed between the tag and the
+/// shared overlay. A repeated sum field composes its hop's element index
+/// through the carrier's element stride before the member resolves inside
+/// that element. The tag and the inactive cases'
 /// payload bytes stay staged content; the writer only realizes the addressed
-/// payload slot. Each record carrier's own `inner_layouts` binds the next
+/// member slot. Each record carrier's own `inner_layouts` binds the next
 /// boundary's interior, so record depth is data the traversal walks rather
 /// than a family of depth-specific implementations; the walk is bounded by
 /// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`].
@@ -476,17 +478,20 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                     PreparedInterior::Sum {
                         layout: sum_layout, ..
                     } => {
-                        // A sum boundary ends the path exactly two hops later:
-                        // the selected case, then that case's payload field
-                        // leaf. The carrier retains the complete case
-                        // geometry, so the exact case and member stay
-                        // symbolic until this offset assignment; the tag and
-                        // the inactive cases' payload bytes are staged
-                        // content the writer does not produce.
+                        // A sum boundary ends the path one or two hops later.
+                        // Two hops spell `Case.payload` — the selected case,
+                        // then that case's payload field leaf. A mixed shape
+                        // also admits one hop spelling a common field leaf
+                        // packed between the tag and the shared overlay. The
+                        // carrier retains the complete case and common
+                        // geometry, so the exact member stays symbolic until
+                        // this offset assignment; the tag and the inactive
+                        // cases' payload bytes are staged content the writer
+                        // does not produce.
                         let Some(&(case_field, case_identity, case_index)) = hops.get(depth + 1)
                         else {
                             return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires the sum path `{prefix}` to spell a selected case and payload field"
+                                "symbolic field `{path_display}` requires the sum path `{prefix}` to spell a selected case and payload field or a common field"
                             )));
                         };
                         if case_index.is_some() {
@@ -495,60 +500,93 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                             )));
                         }
                         let case_key = materialization_field_key(case_field, case_identity);
-                        let Some(case) = sum_layout.cases.iter().find(|case| {
+                        let (leaf, leaf_display) = match sum_layout.cases.iter().find(|case| {
                             materialization_field_key(&case.case, case.member_identity) == case_key
-                        }) else {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` spells no case `{case_field}` of the inner sum layout for `{prefix}`"
-                            )));
+                        }) {
+                            Some(case) => {
+                                let Some(&(payload_field, payload_identity, payload_index)) =
+                                    hops.get(depth + 2)
+                                else {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` requires a payload field below case `{prefix}.{case_field}`"
+                                    )));
+                                };
+                                if depth + 2 != last {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` continues below sum payload `{prefix}.{case_field}.{payload_field}`; a case payload is the leaf of a sum path"
+                                    )));
+                                }
+                                if payload_index.is_some() {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` payload `{prefix}.{case_field}.{payload_field}` cannot carry an element index; a sum payload retains one extent per field"
+                                    )));
+                                }
+                                let payload_key =
+                                    materialization_field_key(payload_field, payload_identity);
+                                let payload = case
+                                    .payload_fields
+                                    .iter()
+                                    .find(|payload| {
+                                        materialization_field_key(
+                                            &payload.field,
+                                            payload.member_identity,
+                                        ) == payload_key
+                                    })
+                                    .ok_or_else(|| {
+                                        MaterializationDiagnostic(format!(
+                                            "symbolic field `{path_display}` spells no payload field `{payload_field}` of case `{prefix}.{case_field}`"
+                                        ))
+                                    })?;
+                                (
+                                    payload,
+                                    format!("{prefix}.{case_field}.{payload_field}"),
+                                )
+                            }
+                            None => {
+                                // No case owns the spelling: a mixed shape's
+                                // common field is the other leaf a sum path
+                                // may name, and it ends the path at once.
+                                let common = sum_layout
+                                    .common_fields
+                                    .iter()
+                                    .find(|common| {
+                                        materialization_field_key(
+                                            &common.field,
+                                            common.member_identity,
+                                        ) == case_key
+                                    })
+                                    .ok_or_else(|| {
+                                        MaterializationDiagnostic(format!(
+                                            "symbolic field `{path_display}` spells no case or common field `{case_field}` of the inner sum layout for `{prefix}`"
+                                        ))
+                                    })?;
+                                if depth + 1 != last {
+                                    return Err(MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` continues below sum common field `{prefix}.{case_field}`; a common field is the leaf of a sum path"
+                                    )));
+                                }
+                                (common, format!("{prefix}.{case_field}"))
+                            }
                         };
-                        let Some(&(payload_field, payload_identity, payload_index)) =
-                            hops.get(depth + 2)
-                        else {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires a payload field below case `{prefix}.{case_field}`"
-                            )));
-                        };
-                        if depth + 2 != last {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` continues below sum payload `{prefix}.{case_field}.{payload_field}`; a case payload is the leaf of a sum path"
-                            )));
-                        }
-                        if payload_index.is_some() {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` payload `{prefix}.{case_field}.{payload_field}` cannot carry an element index; a sum payload retains one extent per field"
-                            )));
-                        }
-                        let payload_key =
-                            materialization_field_key(payload_field, payload_identity);
-                        let Some(payload) = case.payload_fields.iter().find(|payload| {
-                            materialization_field_key(&payload.field, payload.member_identity)
-                                == payload_key
-                        }) else {
-                            return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` spells no payload field `{payload_field}` of case `{prefix}.{case_field}`"
-                            )));
-                        };
-                        // The destination slot is the payload field's own
+                        // The destination slot is the leaf member's own
                         // extent: a wider symbolic value would cross into the
-                        // other payload members the same case overlays.
-                        let payload_bits = payload.size.checked_mul(8).ok_or_else(|| {
+                        // other members the same sum overlays or packs beside
+                        // the tag.
+                        let leaf_bits = leaf.size.checked_mul(8).ok_or_else(|| {
                             MaterializationDiagnostic(format!(
                                 "symbolic field `{path_display}` composes an out-of-range payload extent"
                             ))
                         })?;
-                        if u64::from(symbolic.width_bits) > payload_bits {
+                        if u64::from(symbolic.width_bits) > leaf_bits {
                             return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` width {} exceeds the {payload_bits}-bit payload field `{prefix}.{case_field}.{payload_field}`",
+                                "symbolic field `{path_display}` width {} exceeds the {leaf_bits}-bit sum member `{leaf_display}`",
                                 symbolic.width_bits
                             )));
                         }
                         let leaf_entry = LayoutFieldEntryReport {
-                            field: payload.field.clone(),
-                            member_identity: payload.member_identity,
-                            placement: LayoutPlacementReport::At {
-                                offset: payload.offset,
-                            },
+                            field: leaf.field.clone(),
+                            member_identity: leaf.member_identity,
+                            placement: LayoutPlacementReport::At { offset: leaf.offset },
                         };
                         let mut write =
                             write_from_entry(&leaf_entry, symbolic, &path_display)?;
@@ -655,8 +693,8 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
 
 /// The prepared interior a carrier binds. The kind of interior is data on the
 /// node: a record interior supplies the next hop's field placements and
-/// carriers, while a sum interior ends the path two hops later at the
-/// selected case's payload field.
+/// carriers, while a sum interior ends the path at the selected member — two
+/// hops for a case's payload field, one hop for a mixed shape's common field.
 enum PreparedInterior<'a> {
     /// A nested record's interior plan with its nested carriers prepared.
     Record {
@@ -936,6 +974,20 @@ fn prepare_sum_interior(
             "inner layout for `{path_display}` places the sum tag outside its {}-byte extent",
             layout.size
         )));
+    }
+    for common in &layout.common_fields {
+        let common_end = common.offset.checked_add(common.size).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "inner layout for `{path_display}` composes an out-of-range sum common field `{}`",
+                common.field
+            ))
+        })?;
+        if common_end > layout.size {
+            return Err(MaterializationDiagnostic(format!(
+                "inner layout for `{path_display}` places common field `{}` outside the sum's {}-byte extent",
+                common.field, layout.size
+            )));
+        }
     }
     for case in &layout.cases {
         for payload in &case.payload_fields {

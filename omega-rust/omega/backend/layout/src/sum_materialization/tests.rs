@@ -104,7 +104,7 @@ fn projects_exact_authored_case_order_and_overlay_geometry() {
 }
 
 #[test]
-fn mixed_common_field_shape_is_not_projected_as_a_pure_sum() {
+fn mixed_common_field_shape_projects_common_rows_beside_the_case_overlay() {
     let checked = checked(
         r#"
         data Event [copy] {
@@ -120,9 +120,60 @@ fn mixed_common_field_shape_is_not_projected_as_a_pure_sum() {
         .find(|definition| definition.name.as_str() == "Event")
         .unwrap();
     let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let error = project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
-        .unwrap_err();
-    assert!(error.message.contains("pure sum"));
+    let report =
+        project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
+            .expect("a mixed common-field/case shape projects under the same rung");
+
+    // The tag leads at 0; `sequence` packs at 4; the shared payload base
+    // aligns to 6 under Ready.value's u16 alignment, so Ready.value sits at
+    // 6 and the 8-byte extent covers common plus payload.
+    assert_eq!(report.tag_offset, 0);
+    assert_eq!(report.tag_size, 4);
+    assert_eq!(report.size, 8);
+    assert_eq!(report.align, 4);
+    assert_eq!(
+        report
+            .common_fields
+            .iter()
+            .map(|field| (field.field.as_str(), field.offset, field.size, field.align))
+            .collect::<Vec<_>>(),
+        [("sequence", 4, 1, 1)]
+    );
+    assert_eq!(
+        report
+            .cases
+            .iter()
+            .map(|case| (case.case.as_str(), case.ordinal))
+            .collect::<Vec<_>>(),
+        [("Ready", 0), ("Waiting", 1)]
+    );
+    assert_eq!(
+        report.cases[0]
+            .payload_fields
+            .iter()
+            .map(|field| (field.field.as_str(), field.offset, field.size))
+            .collect::<Vec<_>>(),
+        [("value", 6, 2)]
+    );
+
+    // The projected report is authoritative: a merged value materializes the
+    // common field and the selected case payload at their exact offsets.
+    let value = BuildTimeValue::Case {
+        variant: "Ready".into(),
+        payload: vec![
+            ("sequence".into(), BuildTimeValue::Int(9)),
+            ("value".into(), BuildTimeValue::Int(0x1122)),
+        ],
+    };
+    let materialized = validate_const_materializable_conventional_sum(
+        &checked,
+        "Event",
+        &report,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("authoritative mixed report should materialize its active case");
+    assert_eq!(materialized.bytes(), &[0, 0, 0, 0, 9, 0, 0x22, 0x11]);
 }
 
 #[test]
@@ -985,6 +1036,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         data RecursiveOwner [copy] { inner: Inner; }
         data Mixed [copy] { common: u8; case Empty; }
         data MixedOwner [copy] { mixed: Mixed; }
+        data MixedArray [copy] { mixed: [Mixed; 2]; }
         "#,
     );
     let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
@@ -1454,7 +1506,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         );
     }
 
-    for name in ["ArrayOwner", "RecursiveOwner", "MixedOwner"] {
+    for name in ["ArrayOwner", "RecursiveOwner"] {
         let definition = checked
             .data_definitions()
             .iter()
@@ -1470,4 +1522,108 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             "{name} must remain outside the direct nested-sum rung"
         );
     }
+
+    // A direct mixed member is one case-bearing child of the level: the same
+    // compact row carries it, and its report spells the common fields.
+    let mixed_owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "MixedOwner")
+        .unwrap();
+    let (mixed_outer, mixed_rows) = project_conventional_record_with_sum_materialization_layout(
+        &checked,
+        &plan,
+        mixed_owner.symbol,
+    )
+    .expect("a direct mixed member projects under the same nested-sum rung");
+    assert_eq!(mixed_outer.offsets.as_deref(), Some(&[0][..]));
+    assert_eq!(mixed_rows.len(), 1);
+    assert_eq!(mixed_rows[0].field, "mixed");
+    assert_eq!(mixed_rows[0].layout.common_fields.len(), 1);
+    assert_eq!(mixed_rows[0].layout.common_fields[0].field, "common");
+    assert_eq!(mixed_rows[0].layout.common_fields[0].offset, 4);
+    assert_eq!(mixed_rows[0].layout.cases.len(), 1);
+    assert_eq!(mixed_rows[0].layout.size, 8);
+}
+
+#[test]
+fn mixed_sum_array_elements_project_with_common_fields_beside_the_overlay() {
+    let checked = checked(
+        r#"
+        data Event [copy] {
+            sequence: u8;
+            case Ready(value: u16);
+            case Waiting;
+        }
+        data Log [copy] { events: [Event; 2]; }
+        "#,
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Log")
+        .unwrap();
+    let (outer, row) = project_conventional_record_with_sum_array_materialization_layout(
+        &checked,
+        &plan,
+        owner.symbol,
+    )
+    .expect("a literal array of mixed elements projects under the same compact row");
+    assert_eq!(outer.offsets.as_deref(), Some(&[0][..]));
+    assert_eq!(outer.size, Some(16));
+    assert_eq!(row.field, "events");
+    assert_eq!(row.element_count, 2);
+    assert_eq!(row.element_stride, 8);
+    // The element report spells the mixed interior once: the common field
+    // packs between the tag and the shared payload base inside every element.
+    assert_eq!(row.element_layout.size, 8);
+    assert_eq!(
+        row.element_layout
+            .common_fields
+            .iter()
+            .map(|field| (field.field.as_str(), field.offset, field.size))
+            .collect::<Vec<_>>(),
+        [("sequence", 4, 1)]
+    );
+    assert_eq!(row.element_layout.cases[0].payload_fields[0].offset, 6);
+
+    // The compact report materializes each element's common field and case
+    // payload at its exact offsets inside the packed stride.
+    let value = BuildTimeValue::Struct {
+        type_name: "Log".into(),
+        fields: vec![(
+            "events".into(),
+            BuildTimeValue::Array(vec![
+                BuildTimeValue::Case {
+                    variant: "Ready".into(),
+                    payload: vec![
+                        ("sequence".into(), BuildTimeValue::Int(9)),
+                        ("value".into(), BuildTimeValue::Int(0x1122)),
+                    ],
+                },
+                BuildTimeValue::Case {
+                    variant: "Waiting".into(),
+                    payload: vec![("sequence".into(), BuildTimeValue::Int(7))],
+                },
+            ]),
+        )],
+    };
+    let materialized = validate_const_materializable_record_with_conventional_sum_array(
+        &checked,
+        "Log",
+        &outer,
+        &row,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("authoritative mixed element report should materialize each element");
+    assert_eq!(
+        materialized.bytes(),
+        &[
+            // element 0: tag 0 (Ready), sequence 9, pad, value 0x1122 LE
+            0, 0, 0, 0, 9, 0, 0x22, 0x11, // element 1: tag 1 (Waiting), sequence 7
+            1, 0, 0, 0, 7, 0, 0, 0,
+        ]
+    );
 }

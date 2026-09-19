@@ -120,8 +120,10 @@ pub fn validate_const_materializable_record_with_conventional_sum(
         .filter_map(
             |field| match exact_named_data(typed, field.type_reference) {
                 Ok(Some(named))
-                    if DataDefinition::shape_kind_from_members(typed.data_members(named))
-                        == DataShapeKind::Enum =>
+                    if matches!(
+                        DataDefinition::shape_kind_from_members(typed.data_members(named)),
+                        DataShapeKind::Enum | DataShapeKind::Mixed
+                    ) =>
                 {
                     Some(Ok(field))
                 }
