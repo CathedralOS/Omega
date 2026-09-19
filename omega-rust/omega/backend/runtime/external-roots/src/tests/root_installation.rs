@@ -122,33 +122,60 @@ fn opaque_callback_gateway_must_be_exact_current_dispatch_and_process_lifetime()
     let entry = entry_id(1001);
     let admitted_code = installed_code_with_fill(1, entry, 0x90);
     let substituted_code = installed_code_with_fill(1, entry, 0xcc);
+    let provider = root_id(72, OpaqueCallbackProviderId::from_normalized_identity);
+    let capacity_identity = root_id(
+        77,
+        OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+    );
+    let capacity =
+        OpaqueCallbackRegistrationCapacityOccurrence::from_provider(capacity_identity, provider);
     let receipt = ProcessLifetimeGatewayAdmissionReceipt::from_provider(
         root_id(70, GatewayAdmissionReceiptId::from_normalized_identity),
         root_id(71, OpaqueCallbackRegistrationId::from_normalized_identity),
-        root_id(72, OpaqueCallbackProviderId::from_normalized_identity),
         root_id(73, ProcessLifetimeGatewayId::from_normalized_identity),
         root_id(74, GatewayDispatchContractId::from_normalized_identity),
+        &capacity,
         &admitted_code,
         entry,
         true,
         true,
         true,
     );
-    let error = admit_process_lifetime_opaque_callback(&substituted_code, receipt)
+    let substituted_capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+        root_id(
+            78,
+            OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+        ),
+        provider,
+    );
+    let error = admit_process_lifetime_opaque_callback(
+        &admitted_code,
+        receipt,
+        substituted_capacity,
+    )
+    .expect_err("a distinct live-registration capacity occurrence must reject");
+    assert!(error.diagnostic().0.contains("capacity occurrence"));
+    let (receipt, _substituted_capacity) = (*error).into_parts();
+
+    let error = admit_process_lifetime_opaque_callback(&substituted_code, receipt, capacity)
         .expect_err("compact installed identities cannot substitute gateway code");
     assert!(error.diagnostic().0.contains("exact installed code"));
-    let receipt = (*error).into_receipt();
-    let gateway = admit_process_lifetime_opaque_callback(&admitted_code, receipt)
+    let (receipt, capacity) = (*error).into_parts();
+    let gateway = admit_process_lifetime_opaque_callback(&admitted_code, receipt, capacity)
         .expect("exact process-lifetime gateway");
     assert_eq!(gateway.entry(), entry);
     assert_eq!(gateway.installed_code(), admitted_code.identity());
+    assert_eq!(gateway.provider(), provider);
+    assert_eq!(gateway.capacity().identity(), capacity_identity);
 
+    let incomplete_capacity =
+        OpaqueCallbackRegistrationCapacityOccurrence::from_provider(capacity_identity, provider);
     let incomplete = ProcessLifetimeGatewayAdmissionReceipt::from_provider(
         root_id(75, GatewayAdmissionReceiptId::from_normalized_identity),
         root_id(76, OpaqueCallbackRegistrationId::from_normalized_identity),
-        root_id(72, OpaqueCallbackProviderId::from_normalized_identity),
         root_id(73, ProcessLifetimeGatewayId::from_normalized_identity),
         root_id(74, GatewayDispatchContractId::from_normalized_identity),
+        &incomplete_capacity,
         &admitted_code,
         entry,
         true,
@@ -156,7 +183,7 @@ fn opaque_callback_gateway_must_be_exact_current_dispatch_and_process_lifetime()
         true,
     );
     assert!(
-        admit_process_lifetime_opaque_callback(&admitted_code, incomplete)
+        admit_process_lifetime_opaque_callback(&admitted_code, incomplete, incomplete_capacity)
             .expect_err("replaceable gateway cannot be advertised as process lifetime")
             .diagnostic()
             .0
