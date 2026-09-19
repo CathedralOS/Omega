@@ -278,7 +278,10 @@ and Gamma's enclosing frame and arena, not a work-limit constant alone.
 The current request/work provisions are 8 MiB and 655,360 work; larger private
 provisions are candidates, not demonstrated fits or changes to language laws.
 
-**Decision — no provision change is taken.** Every derivable integrated
+**Decision — superseded by owner decision `beta-encoding-certificate-admission`,
+which selects the native-backing route; the provisions this section declined to
+change are now GAMMA-DERIVATION-CHECKER's work, and the reasoning below records
+why no smaller edit reaches them.** Every derivable integrated
 scenario lands ~9-41 times over the 655,360-work provision and ~1.6-3.1 times
 over the 8-MiB request, while the allocation ledger admits at most
 675,017 work under the selected 40,265,318-pair arena — the current provision

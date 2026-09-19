@@ -40,59 +40,7 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **Which route admits the complete Beta-encoding certificate, or does the
-    P1 obligation change?** (named decision:
-    `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
-    acceptance requires the produced
-    `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` derivation — `S` the
-    selected evaluator's complete 47,748-byte Beta source, `T` its 8,575-byte
-    persisted tape — to check under the selected
-    [result/resource profile](bootstrap/proofs/checker/FORMAT.md). The
-    complete 18-sort/361-constructor/108-function theory, the independently
-    reconstructed owner root, and the full untrusted derivation now exist,
-    and the measurement reproduces exactly from the checked-in stepper
-    (24.2s on macOS arm64 at `6a1751fe08`): 3,182,484 proof rows over
-    2,130,039 witness terms, 134,800,268 certificate bytes, a 135,451,492-byte
-    request — 16.1 times the 8,388,608-byte request provision — projecting
-    ~45-52M checker work against the 655,360-unit provision and the
-    ~675,017-work ceiling the allocation ledger admits under the selected
-    40,265,318-pair arena, which that provision already fills to ~97%. The
-    same gap blocks production through the selected chain: a Gamma producer
-    cannot emit 135,451,492 bytes under the evaluator's 16,777,212-byte
-    buffered-output limit. The
-    [cost review](wiki/drafts/bootstrap_cost_review.md) measured the named
-    reduction levers (count out of state, concat-collapse flatten, denser
-    row sharing): even a tenfold reduction leaves ~13.5MB and ~5M work, so
-    the shortfall is structural, not a constants problem. Motivating
-    requirement: this is the first artifact-specific proof in the audited
-    chain; until a certificate is admitted, the evaluator's raw
-    source-to-tape encoding remains a disclosed trust assumption rather
-    than a checked edge. Options:
-
-    - (a) Checked closed-lemma composition: a checker rule letting one
-      request cite the checked conclusion of a separately admitted bounded
-      request, so the certificate splits into on the order of 80 bounded
-      sub-requests plus a small root. Extends the trusted calculus; the
-      cost review names it as needing owner escalation. Recommended
-      default: it preserves the small fixed provisions and the 1.75GiB
-      realization, and each sub-request remains independently checkable.
-    - (b) More native backing: a larger pair arena and request provision in
-      the selected realization — a fixed zeroed startup allocation compared
-      against the static image constraints — covering both the producer's
-      buffered output and checker admission. At the measured density this
-      is roughly 16 times the request and ~55-62 times the pair arena
-      (~90-100GB at 40 bytes per pair). An owner-level realization decision
-      already named in the review.
-    - (c) Restate or retire the obligation: accept a weaker root or a
-      different evidence shape for the encoding edge — itself an assurance
-      change — or drop the artifact-specific proof and keep the evaluator's
-      encoding permanently under the disclosed trust assumption.
-
-    Until answered, GAMMA-DERIVATION-CHECKER remains open with the produced
-    certificate measured but inadmissible, and the chain retains its
-    explicit assumption that the selected evaluator implements Gamma.
-
-2. **Does a transported contract instantiate its `FloatMeaning` projections
+1. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
@@ -150,7 +98,7 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
-3. **May the compiler-owned build vocabulary offer a constrained
+2. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** (named decision:
    `build-vocabulary-filesystem-chain`). The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
@@ -184,7 +132,7 @@ must be surfaced before relying on them.
    stands unused, and **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and
    **FILESYSTEM-RELEASE-CONTRACT** cannot close.
 
-4. **May a provider's selected plan resolve an installation-bound row it
+3. **May a provider's selected plan resolve an installation-bound row it
    owns, or does that wait on receiver-bearing selection?** (named decision:
    `installation-bound-row-nested-resolution`).
    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)

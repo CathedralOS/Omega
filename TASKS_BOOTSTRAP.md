@@ -159,16 +159,34 @@ prerequisite to every lower-rung milestone.
   it. [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md) holds the
   measurements.
 
-  Blocked on owner decision `beta-encoding-certificate-admission` in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). The
-  [cost review](wiki/drafts/bootstrap_cost_review.md) shows the shortfall is
-  structural: a tenfold reduction still exceeds both provisions. Until the
-  decision is answered, keep the
+  Owner decision `beta-encoding-certificate-admission` selects more native
+  backing over a checker composition rule, recorded at the
+  [checking ledger](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision).
+  The [cost review](wiki/drafts/bootstrap_cost_review.md) established that no
+  reduction closes the gap, so the provisions grow instead and the five-rule
+  calculus stays. The
   [encoder candidate](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md)'s
-  pause: no further isolated helper families, checker rules, or provision
-  changes. Independent bootstrap work continues.
+  pause is unaffected: the decision settles which route admission takes, not
+  when provisions are selected, and that
+  [continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
+  still requires one complete definition package and integrated recipe to pin
+  the extrapolated coefficients first.
 
-  Remaining work once a route is selected:
+  Remaining work:
+
+  - Rederive the ground, index, memo and allocation bounds at the selected
+    extent, then select the three coupled provisions: an evaluator frame that
+    holds the request (about 129 MiB against 16,777,216 bytes), the work
+    counter (about 45-52M against 655,360), and the arena this ledger implies
+    for that work (about 2.17-2.50 billion pairs against 40,265,318). A larger
+    request is not a candidate before those bounds exist.
+  - Supply that extent from the Alpha realization. `M` is the static
+    container's zero-filled section today, a 1.766 GiB image sized under
+    [PE32+'s 2 GiB bound](bootstrap/0_alpha/README.md), so the seeds must
+    obtain the extent at startup instead. Alpha's semantics do not change:
+    `M` stays a flat zeroed array of `MEMSIZE` bytes, no opcode transition
+    moves, and execution stays a function of tape and input alone. Both
+    audited seed containers change and must agree on identical tape and input.
 
   - Produce the certificate through the selected chain from source-owned
     definitions. Today the full-subject derivation comes from the host-side
