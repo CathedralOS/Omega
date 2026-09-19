@@ -1769,19 +1769,27 @@ Owners include
   parameters normalize to the two-word `{instance, table}` descriptor shape
   (`provider-planning/src/calling_policy_plans/value_shapes.rs::value_shape_from_type`),
   and `TargetUnitOperation::NormalizedForeignCall` lowers, replays against the
-  boundary declaration and legalizes with its provider custody. None of it
-  emits: `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`
-  rejects the legalized kind, no target declares a normalized-foreign
-  constraint row, both ISAs reject the selected form, and machine emission
-  reports an unsupported relocation shape.
+  boundary declaration and legalizes with its provider custody. Selection,
+  register homes and machine emission now emit the call (`d5e8ceef51`):
+  per-plan `call_normalized_foreign` constraint rosters on every target,
+  `SelectedNormalizedForeignCall` roster rows,
+  `MachineSemanticKind::NormalizedForeignCall` with the
+  `DirectExternalNormalReturnV1` effect, per-ISA encoding states and fixup
+  kinds, and text placement's `unresolved_normalized_foreign_calls` producing
+  import relocations. The emitted image still carries no foreign-call custody
+  record, so independent replay rejects the artifact's admitted provider
+  execution (`native artifact provider execution reports disagree with its
+  image`, pinned by
+  `efb3_flat_record_probe.rs::flat_record_via_call_native_realization_probe`).
 
   Remaining work:
 
-  - Emit normalized foreign calls as one bounded slice, in order: selection,
-    register homes, machine emission, object import plans, image custody,
-    physical derivation. `compiler/tests/efb3_flat_record_probe.rs` pins the
-    Terminal precondition; **EVALUATED-FOREIGN-BINDINGS** owns locators and
-    import evidence.
+  - Emit normalized foreign calls: selection, register homes and machine
+    emission landed at `d5e8ceef51`; the remaining stages are object import
+    plans, image custody, and physical derivation, in that order.
+    `compiler/tests/efb3_flat_record_probe.rs` pins the Terminal precondition
+    and the image-custody rejection; **EVALUATED-FOREIGN-BINDINGS** owns
+    locators and import evidence.
   - Widen foreign arguments and results. The scalar lane admits fixed-width
     integers only. The structural lane admits one source-rooted borrowed flat
     record, and only while the scalar lane is empty, because the Terminal
