@@ -8,6 +8,8 @@ use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
 use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
+use super::evidence::CallCompatibility;
+use checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject};
 
 mod aliases;
 
@@ -102,6 +104,7 @@ pub(super) fn check_receiver_conflicts(
     target_name: &str,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
+    recording: &mut CallCompatibility<'_>,
 ) {
     if !call.has_receiver {
         return;
@@ -208,18 +211,29 @@ pub(super) fn check_receiver_conflicts(
         )));
         return;
     };
-    let overlaps = |place: CapturedPlace, access: &BorrowAccessKind| {
-        !captured_place_compatibility(
+    let mut overlaps = |subject, place: CapturedPlace, access: &BorrowAccessKind| {
+        !recording.non_interfering(
             program,
-            &attached_place(program, machine, receiver.place.clone()),
-            &receiver_access,
-            &attached_place(program, machine, place),
-            access,
+            BorrowCallCompatibilityOperand {
+                subject: BorrowCallCompatibilitySubject::Receiver,
+                place: attached_place(program, machine, receiver.place.clone()),
+                access: receiver_access.clone(),
+            },
+            BorrowCallCompatibilityOperand {
+                subject,
+                place: attached_place(program, machine, place),
+                access: access.clone(),
+            },
             stated_premises,
         )
-        .non_interfering
     };
-    for argument in facts.borrow.argument_accesses.span_or_empty(call.accesses) {
+    for (ordinal, argument) in facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .iter()
+        .enumerate()
+    {
         // Two reads are compatible even when their storage overlaps. A
         // derived view need not resolve its storage for that judgment.
         // Receiver-ancestor exemptions still require exact reborrow lineage.
@@ -248,7 +262,11 @@ pub(super) fn check_receiver_conflicts(
             )));
             continue;
         };
-        if overlaps(argument_place.place, &argument.kind) {
+        if overlaps(
+            BorrowCallCompatibilitySubject::Argument(ordinal),
+            argument_place.place,
+            &argument.kind,
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives {receiver_name} receiver overlapping another argument in the same call"
             )));
@@ -263,6 +281,7 @@ pub(super) fn check_receiver_conflicts(
         }
         let loan = facts.borrow.loans.get(loan_handle);
         if overlaps(
+            BorrowCallCompatibilitySubject::ActiveLoan(loan_handle),
             CapturedPlace {
                 root_symbol: loan.root_symbol,
                 segments: facts.borrow.loan_segments(loan).to_vec(),

@@ -26,17 +26,32 @@ pub(super) fn build_call_entry_contexts(
     ctx: &mut FlowBuildContext,
     active_contexts: HandleSpan<FlowSemanticContextRef>,
     active_constraints: HandleSpan<FlowConstraintRef>,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
     borrow_call: &BorrowCallFact,
 ) -> CallFlowContexts {
     let contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, active_contexts);
     let mut constraints =
         retained_constraint_refs(&ctx.contexts.constraint_refs, active_constraints);
-    if let Some((borrow_call_handle, _)) = borrow.calls.iter().find(|(_, call)| {
-        call.statement_index == borrow_call.statement_index
-            && call.call_ordinal == borrow_call.call_ordinal
-            && call.target_symbol == borrow_call.target_symbol
-            && call.receiver_symbol == borrow_call.receiver_symbol
-    }) {
+    // Coordinates repeat across states. The state owns the call identity;
+    // a global first-match can attach another invocation's authority.
+    let owned_call = borrow.states.iter().find_map(|(_, state)| {
+        if state.machine_symbol != machine_symbol || state.state_symbol != state_symbol {
+            return None;
+        }
+        borrow
+            .calls
+            .span_or_empty(state.calls)
+            .iter()
+            .position(|call| call == borrow_call)
+            .map(|offset| {
+                arena::Handle::from_parts(
+                    state.calls.start().arena_index() + offset as u32,
+                    state.calls.start().generation(),
+                )
+            })
+    });
+    if let Some(borrow_call_handle) = owned_call {
         append_constraint_ref(
             &mut ctx.contexts.constraint_refs,
             &mut constraints,

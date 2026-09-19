@@ -1,13 +1,14 @@
-use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
+use checked_trees::{
+    BorrowAccessKind, BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject,
+    BorrowCallFact, CheckFacts, FlowStateFact,
+};
 use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
-use super::super::overlap::{
-    StatedOrderingPremise, borrow_access_compatibility, borrow_access_loan_compatibility,
-    canonical_place_loan_compatibility,
-};
+use super::super::overlap::{StatedOrderingPremise, canonical_place_for_loan};
+use super::evidence::{CallCompatibility, argument_operand, loan_operand};
 
 pub(super) fn check_call_access_conflicts(
     program: &typed_trees::TypedTrees,
@@ -18,6 +19,7 @@ pub(super) fn check_call_access_conflicts(
     target_name: &str,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
+    recording: &mut CallCompatibility<'_>,
 ) {
     let accesses: Vec<_> = facts
         .borrow
@@ -31,23 +33,29 @@ pub(super) fn check_call_access_conflicts(
         .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();
 
-    for transferred in crate::flow::owned_call_operand_places(
+    for (transfer_ordinal, transferred) in crate::flow::owned_call_operand_places(
         program,
         &facts.operators,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         borrow_call,
-    ) {
+    )
+    .into_iter()
+    .enumerate()
+    {
         for (loan_handle, loan) in &active_loans {
-            if canonical_place_loan_compatibility(
-                program,
-                &transferred,
-                loan,
-                &facts.borrow,
-                stated_premises,
-            )
-            .non_interfering
-            {
+            if canonical_place_for_loan(&transferred, loan).is_some_and(|place| {
+                recording.non_interfering(
+                    program,
+                    BorrowCallCompatibilityOperand {
+                        subject: BorrowCallCompatibilitySubject::TransferredPlace(transfer_ordinal),
+                        place,
+                        access: BorrowAccessKind::Mutable,
+                    },
+                    loan_operand(&facts.borrow, *loan_handle, loan),
+                    stated_premises,
+                )
+            }) {
                 continue;
             }
             let detail =
@@ -63,10 +71,13 @@ pub(super) fn check_call_access_conflicts(
     }
 
     for (index, access) in accesses.iter().enumerate() {
-        for other_access in accesses.iter().skip(index + 1) {
-            if borrow_access_compatibility(program, facts, access, other_access, stated_premises)
-                .non_interfering
-            {
+        for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
+            if recording.non_interfering(
+                program,
+                argument_operand(&facts.borrow, index, access),
+                argument_operand(&facts.borrow, other_index, other_access),
+                stated_premises,
+            ) {
                 continue;
             }
 
@@ -110,9 +121,12 @@ pub(super) fn check_call_access_conflicts(
         }
 
         for (loan_handle, loan) in &active_loans {
-            if borrow_access_loan_compatibility(program, facts, access, loan, stated_premises)
-                .non_interfering
-            {
+            if recording.non_interfering(
+                program,
+                argument_operand(&facts.borrow, index, access),
+                loan_operand(&facts.borrow, *loan_handle, loan),
+                stated_premises,
+            ) {
                 continue;
             }
             let detail =

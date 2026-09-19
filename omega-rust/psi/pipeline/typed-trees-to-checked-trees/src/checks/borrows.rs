@@ -10,7 +10,6 @@ mod statements;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
-use self::calls::check_call_borrows;
 use self::elision::check_view_return_elision;
 use self::escape::check_view_return_escape;
 use self::persistent::check_persistent_borrow_assignments;
@@ -22,10 +21,16 @@ pub(crate) fn check_flow_call_borrows(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
     let mut retained_diagnostics =
         validate_checked_borrow_compatibility_certificates(program, facts);
     retained_diagnostics.extend(validate_checked_borrow_mutation_certificates(
         program, facts,
+    ));
+    retained_diagnostics.extend(calls::validate_compatibility(
+        program,
+        facts,
+        &mut diagnostics,
     ));
     if retained_diagnostics.is_empty() {
         resources::replay_checked_direct_borrow_resources(program, facts, mutation_summaries)?;
@@ -43,9 +48,9 @@ pub(crate) fn check_flow_call_borrows(
         ) {
             retained_diagnostics.append(&mut resource_diagnostics);
         }
+        retained_diagnostics.append(&mut diagnostics);
         return Err(retained_diagnostics);
     }
-    let mut diagnostics = Vec::new();
     let mut compatibility_certificates = Vec::new();
     let retained_compatibility_certificates = facts
         .borrow
@@ -70,9 +75,9 @@ pub(crate) fn check_flow_call_borrows(
     check_persistent_borrow_assignments(program, call_frames, &mut diagnostics);
 
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(borrow_state) = matching_borrow_state(facts, state_flow) else {
+        if matching_borrow_state(facts, state_flow).is_none() {
             continue;
-        };
+        }
 
         // Ordering premises are established by this state's own signature
         // scope: machine `requires` at the entry state plus the state's
@@ -90,17 +95,6 @@ pub(crate) fn check_flow_call_borrows(
         })
         .map(|(machine, state)| overlap::stated_ordering_premises(program, facts, machine, state))
         .unwrap_or_default();
-
-        for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
-            check_call_borrows(
-                program,
-                facts,
-                state_flow,
-                borrow_call,
-                &stated_premises,
-                &mut diagnostics,
-            );
-        }
 
         check_statement_borrows(
             program,
@@ -199,6 +193,13 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     resources::initialize_checked_direct_borrow_resources(program, facts, mutation_summaries)
+}
+
+pub(super) fn initialize_checked_borrow_call_certificates(
+    program: &typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) {
+    calls::initialize_compatibility(program, facts)
 }
 
 fn validate_checked_borrow_compatibility_certificates(

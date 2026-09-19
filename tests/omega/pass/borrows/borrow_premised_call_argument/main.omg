@@ -1,0 +1,13 @@
+data Main { items: [i32; 4]; }
+
+machine take(slot: &mut i32) {
+    slot = 7;
+}
+
+machine Main::main(&mut self, index: u64, cut: u64) -> u64
+    requires index < cut && cut <= 4 && index < 4;
+{
+    let held: &mut [i32] = self.items[cut..4];
+    take(&mut self.items[index]);
+    held.len
+}

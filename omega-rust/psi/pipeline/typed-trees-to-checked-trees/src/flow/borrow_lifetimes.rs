@@ -6,7 +6,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-pub(super) fn filter_expired_borrow_loans(
+pub(crate) fn filter_expired_borrow_loans(
     borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
@@ -53,7 +53,7 @@ pub(super) fn filter_expired_borrow_loans(
     )
 }
 
-pub(super) fn filter_reassigned_borrow_loans(
+pub(crate) fn filter_reassigned_borrow_loans(
     borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
