@@ -170,15 +170,21 @@ fn exit_admission_rejects_an_operation_after_the_boundary() {
 
 #[test]
 fn process_exit_retains_provider_specialization_and_service_custody_without_storage() {
-    provider_specialization_and_service_custody(false);
+    provider_specialization_and_service_custody(false, false);
 }
 
 #[test]
 fn process_exit_composes_receiver_storage_with_provider_specialization_custody() {
-    provider_specialization_and_service_custody(true);
+    provider_specialization_and_service_custody(true, false);
 }
 
-fn provider_specialization_and_service_custody(with_receiver: bool) {
+#[test]
+fn process_exit_composes_primitive_storage_with_provider_specialization_custody() {
+    provider_specialization_and_service_custody(false, true);
+    provider_specialization_and_service_custody(true, true);
+}
+
+fn provider_specialization_and_service_custody(with_receiver: bool, with_local: bool) {
     use semantic_vocabulary::{
         PlaceId, ServiceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
     };
@@ -207,6 +213,8 @@ fn provider_specialization_and_service_custody(with_receiver: bool) {
     source.functions[0].attachment = Some(attachment);
     source.functions[0].published_service_ceiling = vec![service];
     source.boundary_machines[0].published_service_ceiling = vec![service];
+    let scalar = source.functions[0].parameters[0];
+    let local_place = PlaceId::new(3).unwrap();
     let provider_place = PlaceId::new(if with_receiver { 2 } else { 1 }).unwrap();
     if with_receiver {
         let parameter = source.functions[0].parameters.remove(0);
@@ -248,6 +256,65 @@ fn provider_specialization_and_service_custody(with_receiver: bool) {
             },
         );
     }
+    if with_local {
+        let primitive = StructuralTypeId::new(3).unwrap();
+        source
+            .structural_types
+            .make_mut()
+            .push(terminal_psi::StructuralTypeDeclaration {
+                id: primitive,
+                identity: "exit::Primitive".into(),
+                shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar.scalar_type),
+            });
+        let operations = &mut source.functions[0].operations;
+        let boundary_position = operations
+            .iter()
+            .position(|operation| matches!(operation, AbstractOperation::BoundaryCall { .. }))
+            .unwrap();
+        let read_value = ValueId::new(20).unwrap();
+        let AbstractOperation::BoundaryCall { arguments, .. } = &mut operations[boundary_position]
+        else {
+            panic!("boundary call");
+        };
+        arguments[0] = read_value;
+        operations.splice(
+            boundary_position..boundary_position,
+            [
+                AbstractOperation::EstablishPrimitiveLocal {
+                    psi_operation: OperationId::new(20).unwrap(),
+                    result: terminal_psi::StructuralOperationResult {
+                        place: local_place,
+                        structural_type: primitive,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                    value: abstract_operations::AbstractResult {
+                        value: scalar.value,
+                        scalar_type: scalar.scalar_type,
+                    },
+                },
+                AbstractOperation::PrimitiveLocalStore {
+                    psi_operation: OperationId::new(21).unwrap(),
+                    destination: local_place,
+                    value: abstract_operations::AbstractResult {
+                        value: scalar.value,
+                        scalar_type: scalar.scalar_type,
+                    },
+                },
+                AbstractOperation::PrimitiveScalarRead {
+                    psi_operation: OperationId::new(22).unwrap(),
+                    source: local_place,
+                    path: Vec::new(),
+                    result: abstract_operations::AbstractResult {
+                        value: read_value,
+                        scalar_type: scalar.scalar_type,
+                    },
+                },
+            ],
+        );
+    }
     let target = lower(
         &source,
         native,
@@ -278,9 +345,82 @@ fn provider_specialization_and_service_custody(with_receiver: bool) {
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     assert_eq!(
         legal.plan().scalar_functions[0].structural.is_some(),
-        with_receiver
+        with_receiver || with_local
     );
     validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let constraints = crate::selection_constraints(&legal, &environment);
+    let selected = crate::select_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .unwrap();
+    crate::validate_selected_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .unwrap();
+    if with_local {
+        for remove in [false, true] {
+            let mut changed = unit.clone();
+            let places = &mut changed.functions[0].structural_places;
+            let position = places
+                .iter()
+                .position(|place| place.id == local_place)
+                .unwrap();
+            if remove {
+                places.remove(position);
+            } else {
+                let StructuralPlaceKind::OperationResult { producer, .. } =
+                    &mut places[position].kind
+                else {
+                    panic!("primitive producer");
+                };
+                *producer = OperationId::new(99).unwrap();
+            }
+            changed.identity =
+                optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+            assert!(legalize_target_operations(&target, &source, &changed).is_err());
+            assert!(
+                validate_legalized_operations(&target, &source, &changed, legal.plan().clone())
+                    .is_err()
+            );
+
+            let mut proposed = legal.plan().clone();
+            let instructions = &mut proposed.scalar_functions[0].blocks[0].instructions;
+            let position = instructions.iter().position(|instruction| matches!(
+                instruction.kind, legalized_operations::LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
+            )).unwrap();
+            if remove {
+                instructions.remove(position);
+            } else {
+                instructions[position].operation = OperationId::new(99).unwrap();
+            }
+            assert!(validate_legalized_operations(&target, &source, &unit, proposed).is_err());
+        }
+        let mut proposed = selected.plan().clone();
+        proposed.functions[0]
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_places
+            .retain(|place| place.id != local_place);
+        assert!(
+            crate::validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                proposed,
+            )
+            .is_err()
+        );
+    }
     for mutation in 0..8 {
         let mut changed = unit.clone();
         match mutation {

@@ -65,11 +65,16 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
                 .iter()
                 .zip(&source.call_plan.parameters)
                 .all(|(parameter, placement)| parameter.placement == *placement)
-            && !signature.structural_places.is_empty()
+            // Specialization metadata neither needs a frame home nor creates
+            // a local-storage contract. At least one real local must remain.
+            && signature.structural_places.iter().any(|place| local(source, place.id).is_some())
             && signature
                 .structural_places
                 .iter()
-                .all(|place| local(source, place.id).is_some())
+                .all(|place| match place.kind {
+                    StructuralPlaceKind::ProviderAttachment { attachment, .. } => source.attachment == Some(attachment),
+                    _ => local(source, place.id).is_some(),
+                })
     })
 }
 pub(super) fn readable(

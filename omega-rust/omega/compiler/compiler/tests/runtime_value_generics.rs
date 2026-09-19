@@ -1254,17 +1254,7 @@ machine Main::main(&mut self) reaches Console {
         );
     }
 
-    /// The requirement is owed on each call's own subject, the generic caller
-    /// forwards its realized parameter, and a reassigned source binds its
-    /// current value: 3 + 3 + 6. The mutable source lives in a helper machine
-    /// because native legalization does not yet admit a provider-attachment
-    /// receiver and a mutable primitive local in one machine
-    /// (`Selection(Legalization(SourceCustodyMismatch))`).
-    #[test]
-    fn runtime_bound_requirements_stay_explicit_and_forward_natively() {
-        run_native(
-            "forwarding",
-            r#"
+    const FORWARDING_SOURCE: &str = r#"
 use omega_language_std::console;
 use omega::language::core::service;
 
@@ -1302,9 +1292,35 @@ machine Main::main(&mut self) reaches Console {
     let total: i32 in Wrapping = obliged + chained + current;
     self.console.exit_process(total as i32);
 }
-"#,
-            12,
+"#;
+
+    /// Each call owes its own requirement; forwarding and reassignment retain
+    /// the captured runtime subject: 3 + 3 + 6.
+    #[test]
+    fn runtime_bound_requirements_stay_explicit_and_forward_natively() {
+        run_native("forwarding", FORWARDING_SOURCE, 12);
+    }
+
+    #[test]
+    fn runtime_bound_inline_mutable_subject_composes_with_provider_natively() {
+        let source = FORWARDING_SOURCE.replace(
+            "let current: i32 in Wrapping = reassigned_source();",
+            "let mut source: i32 = 4; source = 6; let current: i32 in Wrapping = bounded<source>(0);",
         );
+        run_native("inline-mutable-subject", &source, 12);
+    }
+
+    #[test]
+    fn runtime_bound_distinct_mutable_locals_keep_captured_subjects_natively() {
+        let source = FORWARDING_SOURCE.replace(
+            "let current: i32 in Wrapping = reassigned_source();",
+            "let mut source: i32 = 4;
+             let saved: i32 in Wrapping = bounded<source>(0);
+             source = 6;
+             let mut other: i32 = 7; other = 8;
+             let current: i32 in Wrapping = bounded<source>(0) + saved + bounded<other>(0);",
+        );
+        run_native("distinct-mutable-subjects", &source, 24);
     }
 
     /// A dominating transition guard establishes the requirement for the
@@ -1350,9 +1366,8 @@ machine Main::main(&mut self) reaches Console {
     /// The captured subject flows through a literal-indexed scalar field on
     /// the receiver: each `put` stores its own realized `Count`, each `at`
     /// reads it back, and the authored argument stays distinct: 3 + 5 + 30.
-    /// The Unit setter requires a bound on its own captured subject. Adding
-    /// the same contract to the scalar getter still requires scalar-call
-    /// obligation admission in instruction legalization.
+    /// Both the Unit setter and scalar getter require a bound on their own
+    /// captured subject; native selection retains each ordered obligation.
     #[test]
     fn runtime_bound_subject_flows_through_indexed_field_writes_natively() {
         run_native(
@@ -1366,7 +1381,9 @@ data Main {
     values: [u8; 8];
 }
 
-machine Main::at<Count: u8>(&self) -> u8 {
+machine Main::at<Count: u8>(&self) -> u8
+requires Count <= 7;
+{
     self.values[3]
 }
 
