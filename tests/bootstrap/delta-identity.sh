@@ -258,12 +258,9 @@ do
     "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_PROFILE.md" ||
     fail "4_epsilon EVALUATOR_PROFILE.md lacks bound support record $needle"
 done
-grep -q "147,840" \
-  "$OMEGA_REPO_ROOT/tests/gamma/product-comparison-experiment/README.md" ||
-  fail "product-comparison README lacks bound packed record 147,840"
 grep -q "$GAMMA_EVALUATOR_TAPE_SHA256" \
   "$OMEGA_REPO_ROOT/bootstrap/2_gamma/EVALUATOR_PROFILE.md" ||
   fail "EVALUATOR_PROFILE.md lacks bound evaluator identity"
-echo "records: bound identities match delta_compiler.composed, README.md, every gate record of the packed closure and support section, execution_storage.md, both EVALUATOR_PROFILE.md records, the staged-compiler records, and the product-comparison README"
+echo "records: bound identities match delta_compiler.composed, README.md, every gate record of the packed closure and support section, execution_storage.md, both EVALUATOR_PROFILE.md records, and the staged-compiler records"
 
 echo "Delta identity: bound closure materialized exactly; corrupted entry, manifest, member, record, and driver refused"

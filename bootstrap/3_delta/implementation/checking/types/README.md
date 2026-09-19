@@ -129,6 +129,85 @@ the original value: decrementing `INT64_MIN` would wrap to `INT64_MAX` and could
 otherwise fabricate a row. Negative depth still asserts. Positive counts keep
 the ordinary type-before-later-arity order unchanged.
 
+## Argument-continuation payload decision
+
+`calls.gamma` builds and decodes the kind-5 argument payload by a shared
+seven-field order: node, remaining actual count, remaining actual spine,
+remaining expected count, remaining expected-type spine, result type, and
+outer locals, in that right-nested pair order. The agreement between
+`typing_arguments` and `typing_resume_argument` is manual; no field position
+or role is checked anywhere. The `GAMMA-PRODUCT-COMPARISON` board item asked
+whether that payload should instead be a dynamically checked named product
+or a nominal type. Recorded decision: retain the plain nested-pair payload
+under the frame's existing kind word. The candidates were measured against
+this customer, and this record keeps the evidence the decision cites.
+
+- **A — nested pairs (retained).** Six `pair` constructions and seven spine
+  projections on this payload; 6 pairs and 101,859 reference steps on the
+  measured fixture shape. The producer/consumer order is a source-level
+  convention inside one file. Its enforcement is the bound-identity chain:
+  a changed member refuses packing, and any decode divergence that altered
+  an emitted byte would fail the exact-receipt pins.
+- **B — source-emulated checked product.** Identity and arity words ahead of
+  the same spine: 8 pairs and 147,419 reference steps on the same shape, two
+  `eq` checks per decode. A header check observes only the header — the
+  seeded order swap below produced identical observations with and without
+  it, and a forged header still admits a malformed spine (the fixture-level
+  analog trapped exactly like A). B removes no manual layout obligation.
+- **C — kind-checked boundary.** Already owned: the frame's kind word is
+  checked at dispatch and an unknown kind is `InternalFailure` code 1 at the
+  frame's row. The same check inside the payload costs one pair and one `eq`
+  (131,359 reference steps on the fixture shape) and, like B, does not
+  inspect the spine.
+- **D — static nominal typing.** The only candidate that removes the manual
+  agreement, at compile time: the customer's own Delta judgments reject
+  wrong arity, field type, and nominal owner with a code and source
+  coordinate (measured rejects: code 16 at byte 515; code 15 at bytes 598,
+  740, and 1,224 for the per-field-wrapper variant), and the lowered runtime
+  is the same `(pair tag spine)` shape A already uses — no new record kind,
+  region, or capacity arithmetic. Adoption inside Gamma means new `data`,
+  construction, and `match` forms, a second census table, construction,
+  scrutinee-owner, binder-scope, and exhaustiveness judgments in the trusted
+  evaluator, `LANGUAGE.md`/`EVALUATOR_PROFILE.md` contract growth, and new
+  Beta-encoding and derivation clauses. Representation, the pair heap, and
+  per-frame runtime cost are unchanged.
+
+The residual hole is invariant across candidates: order among same-typed
+fields is unchecked under A, B, and C, and under D only until each field
+buys a distinct declared type — the measured cost of closing it. Nothing in
+the customer's defect history justifies paying D's trusted-evaluator cost,
+and B and C change only *when* a disagreement is decided, not which
+disagreements are caught.
+
+### Seeded-defect observations
+
+Measured on this customer on 2026-09-18/19 UTC (macOS arm64, selected evaluator
+tape `ad55c3f1…`, canonical DCREQ entry): each defect below was seeded in a
+scratch copy of `calls.gamma`, repacked as a diagnostic compiler, and run
+against five Delta sources covering accepted, arity-rejected, and
+type-rejected calls. A no-call control
+(`(def main ((source Bytes)) Bytes source)`) compiled byte-identically under
+every mutation, and a B-style header port produced byte-identical receipts
+and rejections on all five sources.
+
+| Seeded producer/consumer defect | Observation under A |
+| --- | --- |
+| Same-width order swap (`result_type`/`locals` in the decoder) | status 249 authored trap, empty stdout, no coordinate |
+| Short spine (producer drops the `locals` cell) | status 249 on the first resumed frame, empty stdout |
+| Corrupt stored count (producer writes `actual_count - 2`) | exit 3, `InternalFailure` code 1, coordinate = the corrupt frame's row |
+| Header disagreement under the B port (consumer expects a different identity word) | exit 3, `InternalFailure` code 1 at the frame row — the only defect class B adds, and reachable only because the header exists |
+
+The order and shape classes trap loudly but anonymously; the class with a
+recorded history — nonpositive stored counts, given internal-failure
+ownership in `d69a7476ed` — is the one that already localizes. No
+producer/consumer layout-agreement defect is recorded for this file; the
+seeded runs are the first exercised disagreements. Defect-localization
+measurement therefore does not reopen the decision: it confirms that the
+only covered class is the one that has occurred, and that the uncovered
+order hole is identical under every affordable candidate. Revisit if a real
+agreement defect is ever recorded or an evaluator-owned product primitive
+changes the counted adoption costs.
+
 ## Remaining boundaries
 
 Explicit continuations remove source-nesting-dependent Gamma return contexts
