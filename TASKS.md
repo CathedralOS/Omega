@@ -3362,17 +3362,10 @@ Owners include
     lexical selection. No source-spelling fallback, and no runtime value used
     as a static cache key.
   - Native legs for three scenarios. Repair the owning ordinary call/storage
-    routes, not generic-specific substitutes. A scalar-returning receiver
-    method with `requires` now reaches instruction legalization, where
-    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`
-    still rejects nonempty `CallStructuralScalar::requirement_obligations`.
-    Reproduce by adding `requires Count <= 7;` to `Main::at` in
-    `runtime_value_generics::native::runtime_bound_subject_flows_through_indexed_field_writes_natively`;
-    its Unit setter already retains that requirement and the macOS ARM64
-    executable exits 38. Target lowering retains and independently checks the
-    ordered call obligations. Keep that custody through legalization and
-    selection; `entry_claims` are distinct ownership evidence and their
-    restrictions must not be removed to admit proof-only requirements.
+    routes, not generic-specific substitutes. Keep
+    `scalar_case_results::record_reads::call_requirements` as the working
+    indexed-field receiver-call control: scalar requirements preserve their
+    ordered proof custody without relaxing ownership `entry_claims`.
     At `29ca2fd46e`, the guarded-subject and state-transition tests (Terminal
     and native) additionally fail before target lowering with `Terminal
     proposal must retain every integer comparison occurrence exactly once`.
