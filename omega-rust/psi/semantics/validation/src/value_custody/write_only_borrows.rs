@@ -81,29 +81,35 @@ pub(crate) fn validate_checked_write_only_slice(
                         })
                     }),
             );
-            if roots.is_empty() {
-                continue;
-            }
-
-            if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim",
-                    machine.name,
-                    state.name,
-                )));
-            }
-
-            for root in &roots {
-                if !is_supported_checked_referee(program, root.referee)
-                    && receiver::record(program, root).is_none()
-                {
+            // Declared `&write` parameters and locals are the state's
+            // write-only roots. Mutable parameters and `&mut` locals are not:
+            // ordinary reads through them stay legal, but each one is still a
+            // formation source for `&write` borrows — an `&mut`→`&write`
+            // attenuation is sound only when the lent place keeps every
+            // declared constraint atom. The walk therefore runs whether or
+            // not any write-only root exists, so `&write` formations from
+            // mutable places take the same exact-atom gate in every state.
+            if !roots.is_empty() {
+                if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
+                        "machine `{}` state `{}` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim",
                         machine.name,
                         state.name,
-                        root.name,
-                        program.display_type_reference_with_constraints(root.referee),
                     )));
+                }
+
+                for root in &roots {
+                    if !is_supported_checked_referee(program, root.referee)
+                        && receiver::record(program, root).is_none()
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
+                            machine.name,
+                            state.name,
+                            root.name,
+                            program.display_type_reference_with_constraints(root.referee),
+                        )));
+                    }
                 }
             }
 
@@ -491,6 +497,87 @@ fn write_only_record_field_assignment(
         .is_some_and(|field_type| write_only_assignment_leaf(program, field_type))
 }
 
+/// Mutable-authority bindings that may source a `&write` formation alongside
+/// the state's declared write-only roots: `&mut` state parameters and the
+/// immutable `&mut` locals declared before `stop_before_local` (or every such
+/// local when `None`). Mutable parameters may attenuate at formation, and an
+/// earlier immutable carrier preserves mutable authority until attenuation —
+/// but neither is a write-only root: ordinary reads through them stay legal,
+/// so they join the walk only where a `&write` borrow is being formed.
+fn mutable_formation_sources(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    stop_before_local: Option<SymbolHandle>,
+) -> Vec<WriteOnlyRoot> {
+    let mut sources = Vec::new();
+    sources.extend(
+        program
+            .state_parameters(state)
+            .iter()
+            .filter_map(|parameter| {
+                let TypeReferenceNode::Reference {
+                    referee,
+                    access: ReferenceAccess::Mutable,
+                    ..
+                } = program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                else {
+                    return None;
+                };
+                Some(WriteOnlyRoot {
+                    symbol: parameter.symbol,
+                    receiver_machine: if parameter.is_self {
+                        machine.symbol
+                    } else {
+                        SymbolHandle::invalid()
+                    },
+                    name: parameter.name.as_str().to_owned(),
+                    referee: *referee,
+                })
+            }),
+    );
+    sources.extend(
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .take_while(|statement| {
+                !matches!(
+                    statement,
+                    StatementNode::LocalData(candidate)
+                        if Some(candidate.symbol) == stop_before_local
+                )
+            })
+            .filter_map(|statement| {
+                let StatementNode::LocalData(source) = statement else {
+                    return None;
+                };
+                if source.is_mutable || !source.symbol.is_valid() {
+                    return None;
+                }
+                let TypeReferenceNode::Reference {
+                    referee,
+                    access: ReferenceAccess::Mutable,
+                    ..
+                } = program
+                    .type_reference_table
+                    .type_reference(source.type_reference)
+                else {
+                    return None;
+                };
+                Some(WriteOnlyRoot {
+                    symbol: source.symbol,
+                    receiver_machine: SymbolHandle::invalid(),
+                    name: source.name.as_str().to_owned(),
+                    referee: *referee,
+                })
+            }),
+    );
+    sources
+}
+
 /// One `&write` borrow at a checked-call argument boundary. The lent place
 /// keeps every constraint atom it declared: a write-only subloan is sound
 /// only when the callee's declared `&write` referee is the place's type
@@ -523,6 +610,16 @@ fn write_only_call_subloan(
             _ => None,
         }
     });
+
+    // `&write` formation is also the `&mut`→`&write` attenuation boundary:
+    // a borrow lent from a mutable place faces the same exact-atom gate as a
+    // write-only reborrow, so the subloan rungs resolve the lent place over
+    // the state's write-only roots plus its mutable formation sources. The
+    // added bindings never become write-only roots elsewhere — expression
+    // validation keeps reading through them.
+    let mut sources = roots.to_vec();
+    sources.extend(mutable_formation_sources(program, machine, state, None));
+    let roots = &sources;
 
     // Whole-root forwarding lends the complete declared place.
     if let Some(root) = direct_write_only_root(program, target, roots) {

@@ -893,6 +893,251 @@ fn projected_write_only_local_does_not_widen_access() {
 }
 
 #[test]
+fn mut_rooted_exact_atom_write_only_subloans_are_forwardable() {
+    // An `&mut` place may lend `&write` when the lent place carries the
+    // callee's declared referee atom-for-atom: the `&mut`→`&write`
+    // attenuation keeps every constraint atom the place declared. The gate
+    // runs whether or not an unrelated `&write` root exists in the state —
+    // the same call that a declared `&write` parameter once pushed into the
+    // generic projection fence is admitted on its own atoms.
+    for (name, source) in [
+        (
+            "whole mutable root",
+            r#"
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(limited: &mut u8 [0..=10]) {
+                    replace(&write limited);
+                }
+            "#,
+        ),
+        (
+            "mutable record field",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(outer: &mut Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable record field beside a write-only root",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(outer: &mut Outer, pad: &write u16) {
+                    pad = 3;
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable carrier local",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine forward(outer: &mut Outer) {
+                    let alias: &mut Outer = &mut outer;
+                    replace(&write alias.value);
+                }
+            "#,
+        ),
+        (
+            "attached field under a mutable receiver",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine Boxed::forward(&mut self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!(
+                "{name}: an exact-atom `&write` subloan lent from a mutable place should lower: {errors:?}"
+            )
+        });
+    }
+}
+
+#[test]
+fn mut_rooted_write_only_subloans_reject_non_exact_referees() {
+    // The same place lent through `&write` instead of `&mut` produced this
+    // directed diagnostic; the `&mut`→`&write` attenuation must face the
+    // identical atom-exact gate — with and without an unrelated declared
+    // `&write` root — rather than silently dropping or strengthening atoms.
+    for (name, place, source) in [
+        (
+            "whole mutable root sheds its range",
+            "lends `limited` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                machine replace(value: &write u8) {}
+
+                machine forward(limited: &mut u8 [0..=10]) {
+                    replace(&write limited);
+                }
+            "#,
+        ),
+        (
+            "mutable record field sheds its range",
+            "lends `outer.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine forward(outer: &mut Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable record field beside a write-only root",
+            "lends `outer.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine forward(outer: &mut Outer, pad: &write u16) {
+                    pad = 3;
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable record field takes a stronger range",
+            "lends `outer.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8[0..=5]`",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=5]) {}
+
+                machine forward(outer: &mut Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+        (
+            "mutable carrier local sheds its range",
+            "lends `alias.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Outer { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine forward(outer: &mut Outer) {
+                    let alias: &mut Outer = &mut outer;
+                    replace(&write alias.value);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(place)
+                && rendered.contains("must preserve the callee-declared constraint atoms exactly"),
+            "{name}: an `&mut`-rooted `&write` subloan with a non-exact referee must take the directed diagnostic: {rendered}"
+        );
+        assert!(
+            !rendered.contains("unsupported projection"),
+            "{name}: the directed atom diagnostic, not the generic projection fence, should report the mismatch: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn mut_rooted_write_only_subloans_keep_the_projection_envelope() {
+    // The wider sources only name where a `&write` formation may begin; the
+    // lent place still walks the same content-independent projection envelope,
+    // so a computed expression, a runtime index, or a field beneath a
+    // non-eligible record keeps the generic rejection.
+    for (name, source) in [
+        (
+            "computed expression",
+            r#"
+                machine replace(value: &write u8) {}
+
+                machine forward(outer: &mut u8) {
+                    replace(&write outer.clone());
+                }
+            "#,
+        ),
+        (
+            "runtime index",
+            r#"
+                machine replace(value: &write u16) {}
+
+                machine forward(values: &mut [u16; 2], index: u64) {
+                    replace(&write values[index]);
+                }
+            "#,
+        ),
+        (
+            "affine record field",
+            r#"
+                data Leaf { value: u16; }
+                data Outer { leaf: Leaf; }
+
+                machine replace(value: &write Leaf) {}
+
+                machine forward(outer: &mut Outer) {
+                    replace(&write outer.leaf);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("forms `&write` from an unsupported projection"),
+            "{name}: an `&mut`-rooted `&write` outside the projection envelope must stay fenced: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn mut_rooted_write_only_reads_stay_legal() {
+    // Mutable formation sources are never write-only roots: ordinary reads
+    // through an `&mut` place in a state that forms `&write` subloans must
+    // keep passing expression validation unchanged.
+    lower_typed_trees(typed(
+        r#"
+            data Outer { value: u8 [0..=10]; }
+
+            machine replace(value: &write u8 [0..=10]) {
+                value = 7;
+            }
+
+            machine inspect(outer: &mut Outer) -> u8 {
+                replace(&write outer.value);
+                outer.value
+            }
+        "#,
+    ))
+    .expect("reading through a mutable place beside a `&write` formation must stay legal");
+}
+
+#[test]
 fn sum_case_payload_cannot_form_a_write_only_subloan() {
     let rendered = rendered_rejection(
         r#"
