@@ -4266,6 +4266,29 @@ Owners include
   selection. Hung-worker recovery requiring termination must use process
   isolation.
 
+  Contract surface landed as bundled package `blocking-executor` at
+  `source/library/blocking-executor/` (`library` lane — the `source/`
+  topology gate admits only library/psi/omega owners, and bundled packages
+  are consumed through ordinary `builder.depend` edges like `std`):
+  `BoundedQueue<T, const N: u64>` with proof-discharged capacity admission;
+  `Submission`/`SubmitOutcome` moving custody by value on the accept and
+  reject edges; linear `Ticket<T>` completion claims consumed by
+  `Ticket::settle`; `suspends; blocks` worker/settle requirements over a
+  `WaitSubstrate` word-wait + wake-one/wake-many boundary; and the
+  `WorkerProvider` boundary trait selected through ordinary build
+  `select_provider` — the package declares its own trait because core's
+  `TaskRuntime` is not public outside the bundled library. Witnessed by
+  `omega --check` compiling the package and an ephemeral consumer across a
+  `builder.depend` edge; the corpus pass canary under
+  `tests/omega/pass/tasks/` is fenced until the live claim on
+  `omega-rust/omega/compiler/compiler/tests` releases — register the
+  fixture in `fixture_rosters/task_runtime.rs` plus a driving test in
+  `canary_suite/task_runtime.rs` then. Remaining legs: queue/executor
+  machine bodies (generic-machine frontier, recorded in
+  `source/library/core/fixed_vec.omg`), real provider admission joining
+  TR3-TR8's execution route, and the process-isolation boundary for
+  hung-worker recovery.
+
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned
   operations under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations).

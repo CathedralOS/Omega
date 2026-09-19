@@ -1,0 +1,7 @@
+// Product package: an ordinary hosted blocking executor (TASKS.md BLOCKEXEC).
+// A package, not a task-runtime mode — see wiki/spec/build/task_runtime.md
+// ("Library and foreign providers").
+
+machine build(builder: &mut Build) {
+    builder.package("blocking-executor");
+}
