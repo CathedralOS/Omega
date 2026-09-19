@@ -3,15 +3,16 @@
 use super::{
     BlockId, CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError,
     CheckedFloatProjectionSource, CheckedProofOnlyValueType, DirectBlockFloatParameter,
-    DirectMachineFloatParameter, DirectMachineFloatResult, FloatMeaningProjectionLoweringError,
-    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
-    FloatProjectionInputId, IeeeFloatFormat, MachineId, PrimitiveType, ProofValueId, ScalarType,
-    TerminalMachine, TerminalMachineResult, lower_float_meaning_projection,
-    resolve_direct_float_source_binding,
+    DirectCallFloatResult, DirectMachineFloatParameter, DirectMachineFloatResult,
+    FloatMeaningProjectionLoweringError, FloatMeaningProjectionOperation, FloatMeaningSource,
+    FloatProjectionInput, FloatProjectionInputId, IeeeFloatFormat, MachineId, PrimitiveType,
+    ProofValueId, ScalarType, TerminalMachine, TerminalMachineResult,
+    lower_float_meaning_projection, resolve_direct_float_source_binding,
 };
 use checked_trees::{
-    CheckedDirectBlockFloatParameter, CheckedDirectMachineFloatParameter,
-    CheckedDirectMachineFloatResult, CheckedFloatProjectionInput, CheckedFloatProjectionInputId,
+    CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
+    CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
+    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatUseSite,
     CheckedProofValueDeclaration, CheckedProofValueId,
 };
 use numerics::float_projection::FloatProjectionOperation;
@@ -410,6 +411,8 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
         &[(machine.symbol, terminal_owner)],
         &[terminal_machine],
         &[],
+        &[],
+        &[],
         projection.clone(),
     )
     .expect("the emitted artifact admits the exact binding")
@@ -438,6 +441,8 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
         &[],
         &[],
         &[],
+        &[],
+        &[],
         checked
             .facts
             .proof
@@ -454,6 +459,274 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     )
     .expect("an unemitted owner is not an error");
     assert_eq!(unbound, None);
+}
+
+/// A callee's transported `ensures` instantiates at the call use: `result`
+/// re-binds to the exact scalar the emitted call operation produces, so the
+/// Terminal module carries a `DirectCallResult` source the verifier rejoins.
+#[test]
+fn transported_ensures_result_lowers_to_the_emitted_call_result() {
+    let checked = checked_float_fixture(
+        r#"
+                machine helper(value: f32) -> f32
+                requires Float::meaning32(value) == Float::meaning32(value);
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { value }
+
+                machine caller(value: f32) -> f32
+                requires Float::meaning32(value) == Float::meaning32(value);
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { helper(value) }
+            "#,
+    );
+    let use_site_row = checked
+        .facts
+        .proof
+        .float_meaning_projections
+        .iter()
+        .find(|projection| {
+            matches!(
+                projection.source,
+                CheckedFloatProjectionSource::DirectCallResult(_)
+            )
+        })
+        .expect("the imported ensures instantiates at the call site");
+    let CheckedFloatProjectionSource::DirectCallResult(checked_result) = use_site_row.source else {
+        unreachable!("found by source class")
+    };
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .name(checked_result.use_site.owner_machine),
+        "caller"
+    );
+    assert_eq!(checked_result.use_site.statement_index, 0);
+    assert_eq!(checked_result.use_site.call_ordinal, 0);
+    // The lowered scalar contract admits no meaning-equality clause yet, so
+    // stage the join the pipeline produces: the caller's terminal machine
+    // carries the exact Call operation, and the sidecar occurrence maps the
+    // authored (state, statement, ordinal) coordinate onto it.
+    let caller = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| checked.typed.symbols.name(machine.symbol) == "caller")
+        .expect("caller machine");
+    let helper = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| checked.typed.symbols.name(machine.symbol) == "helper")
+        .expect("helper machine");
+    let terminal_owner = MachineId::new(1).unwrap();
+    let produced = semantic_vocabulary::ValueId::new(3).unwrap();
+    let producer_id = semantic_vocabulary::OperationId::new(7).unwrap();
+    let terminal_machine = TerminalMachine {
+        id: terminal_owner,
+        attachment: None,
+        parameters: vec![terminal_psi::ValueDeclaration {
+            id: semantic_vocabulary::ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        }],
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+            id: semantic_vocabulary::ValueId::new(4).unwrap(),
+            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        }),
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        declared_service_reach: Vec::new(),
+        closed_reach_application: None,
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(1).unwrap(),
+        blocks: vec![terminal_psi::Block {
+            id: BlockId::new(1).unwrap(),
+            erased_scalar_formals: Vec::new(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: vec![terminal_psi::Operation {
+                static_reach_binding: None,
+                id: producer_id,
+                result: terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                    id: produced,
+                    scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+                    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                }),
+                kind: terminal_psi::OperationKind::Call {
+                    callee: MachineId::new(2).unwrap(),
+                    arguments: vec![semantic_vocabulary::ValueId::new(1).unwrap()],
+                    erased_arguments: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: terminal_psi::Terminator::ReturnUnit {
+                edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: terminal_psi::MachineContract {
+            erased_scalar_formals: Vec::new(),
+            id: crate::terminal_identities::contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    };
+    let occurrence = lowered_psi::LoweredSourceCallOccurrence {
+        source_site: None,
+        source_state: checked_result.use_site.owner_state,
+        statement_index: checked_result.use_site.statement_index,
+        call_ordinal: checked_result.use_site.call_ordinal,
+        terminal_operation: producer_id,
+        source_target: helper.symbol,
+        source_values_before_call: Vec::new(),
+    };
+    let direct = resolve_direct_float_source_binding(
+        &checked,
+        &[(caller.symbol, terminal_owner)],
+        std::slice::from_ref(&terminal_machine),
+        &[],
+        std::slice::from_ref(&occurrence),
+        &[],
+        use_site_row.clone(),
+    )
+    .expect("the emitted artifact admits the exact binding")
+    .expect("the owner machine is emitted");
+    assert_eq!(
+        direct,
+        FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
+            owner: terminal_owner,
+            producer: producer_id,
+            result: produced,
+            format: IeeeFloatFormat::Binary32,
+        })
+    );
+    let lowered = lower_float_meaning_projection(use_site_row.clone(), Some(direct.clone()))
+        .expect("the resolved source lowers");
+    assert_eq!(lowered.source, direct);
+
+    // A non-call producer at the same coordinate rejects rather than rejoining
+    // a result the call boundary does not own.
+    let mut non_call_machine = terminal_machine.clone();
+    non_call_machine.blocks[0].operations[0].kind =
+        terminal_psi::OperationKind::BooleanConstant { value: true };
+    assert!(
+        resolve_direct_float_source_binding(
+            &checked,
+            &[(caller.symbol, terminal_owner)],
+            &[non_call_machine],
+            &[],
+            std::slice::from_ref(&occurrence),
+            &[],
+            use_site_row.clone(),
+        )
+        .is_err(),
+        "a non-call producer at the use-site coordinate must reject"
+    );
+    // An owner outside the emitted module, or an emitted owner with no
+    // occurrence at the coordinate, retains the transitional fallback rather
+    // than fabricating a producer.
+    let unbound = resolve_direct_float_source_binding(
+        &checked,
+        &[],
+        &[],
+        &[],
+        &[],
+        &[],
+        use_site_row.clone(),
+    )
+    .expect("an owner outside the emitted module is not an error");
+    assert_eq!(unbound, None);
+    let unjoined = resolve_direct_float_source_binding(
+        &checked,
+        &[(caller.symbol, terminal_owner)],
+        &[terminal_machine],
+        &[],
+        &[],
+        &[],
+        use_site_row.clone(),
+    )
+    .expect("a missing occurrence is not an error");
+    assert_eq!(unjoined, None);
+}
+
+/// Two call sites of the same callee produce two distinct call-result
+/// identities; nothing collapses back to the callee's declaration row.
+#[test]
+fn transported_ensures_result_is_distinct_per_use_site() {
+    let checked = checked_float_fixture(
+        r#"
+                machine helper(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { value }
+
+                machine first(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { helper(value) }
+
+                machine second(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { helper(value) }
+            "#,
+    );
+    let sites = checked
+        .facts
+        .proof
+        .float_meaning_projections
+        .iter()
+        .filter(|projection| {
+            matches!(
+                projection.source,
+                CheckedFloatProjectionSource::DirectCallResult(_)
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(sites.len(), 2);
+    assert_ne!(sites[0].source, sites[1].source);
+    assert_ne!(sites[0].result.id, sites[1].result.id);
+    let CheckedFloatProjectionSource::DirectCallResult(first) = sites[0].source else {
+        unreachable!()
+    };
+    let CheckedFloatProjectionSource::DirectCallResult(second) = sites[1].source else {
+        unreachable!()
+    };
+    assert_ne!(first.use_site.owner_machine, second.use_site.owner_machine);
+}
+
+/// A use-site coordinate with no emitted occurrence retains the transitional
+/// fallback rather than synthesizing a producer it cannot rejoin.
+#[test]
+fn unjoined_call_result_falls_back_to_transitional_input() {
+    let mut checked = checked_projection();
+    checked.source = CheckedFloatProjectionSource::DirectCallResult(CheckedDirectCallFloatResult {
+        use_site: CheckedFloatUseSite {
+            owner_machine: symbols::SymbolHandle::from_arena_index(3),
+            owner_state: symbols::SymbolHandle::from_arena_index(4),
+            statement_index: 0,
+            call_ordinal: 0,
+        },
+        fallback: CheckedFloatProjectionInput {
+            id: CheckedFloatProjectionInputId(9),
+            primitive: PrimitiveType::F64,
+        },
+    });
+    let lowered = lower_float_meaning_projection(checked, None).unwrap();
+    assert_eq!(
+        lowered.source,
+        FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(9),
+            format: IeeeFloatFormat::Binary64,
+        })
+    );
 }
 
 const CORE_FLOAT_MEANING: &str = "data FloatMeaning { }";

@@ -310,12 +310,33 @@ fn lower_terminal_selection(
                 &direct_float_source_machines,
                 &lowered.semantic_module.machines,
                 &lowered.semantic_module.structural_types,
+                &lowered.source_call_occurrences,
+                &lowered.selected_ieee_float_fma_occurrences,
                 projection.clone(),
             )?;
             lower_float_meaning_projection(projection, direct_source)
                 .map_err(LoweringError::InvalidFloatMeaningProjection)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // Resolved direct sources never emit their checked transitional fallback,
+    // so surviving fallback identities renumber densely in emission order.
+    let mut transitional_sources = Vec::<u32>::new();
+    for projection in &mut lowered.semantic_module.float_meaning_projections {
+        if let terminal_psi::FloatMeaningSource::TransitionalInput(input) = &mut projection.source {
+            let next = match transitional_sources.iter().position(|id| *id == input.id.0) {
+                Some(index) => index,
+                None => {
+                    transitional_sources.push(input.id.0);
+                    transitional_sources.len() - 1
+                }
+            };
+            input.id = terminal_psi::FloatProjectionInputId(u32::try_from(next).map_err(|_| {
+                LoweringError::Unsupported(
+                    "float-meaning transitional sources exceed their dense identity space",
+                )
+            })?);
+        }
+    }
     lowered.semantic_module.float_meaning_equalities = checked
         .facts
         .proof
