@@ -429,6 +429,33 @@ fn closed_ranged_record_field_subloan_remains_fenced() {
 }
 
 #[test]
+fn policy_qualified_record_field_subloan_remains_fenced() {
+    // Assignment stores may displace a policy-only leaf in place — the policy
+    // is a behaviour tag, not a membership bound. A `&write` subloan still
+    // attenuates to the callee's declared referee — `&write u32` here — and
+    // would shed the field's `Wrapping` atom at the boundary; call-argument
+    // checking rejects that drop as implicit domain weakening in any case.
+    // Until policy write-only referees exist, the lent leaf stays fenced.
+    let rendered = rendered_rejection(
+        r#"
+            data Outer { value: u32 in Wrapping; }
+
+            machine replace(value: &write u32) {
+                value = 0;
+            }
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.value);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("forms `&write` from an unsupported projection"),
+        "a policy leaf must not attenuate into a policy-free `&write` referee: {rendered}"
+    );
+}
+
+#[test]
 fn write_only_subloan_remains_checked_body_only() {
     let rendered = rendered_rejection(
         r#"

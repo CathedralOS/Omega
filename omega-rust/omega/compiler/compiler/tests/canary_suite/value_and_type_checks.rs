@@ -71,18 +71,20 @@ fn write_only_record_field_observation_is_rejected() {
 #[test]
 fn write_only_constrained_record_field_is_accepted() {
     let canary = pass_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD);
-    check_canary(&canary)
-        .expect("stores proven within a closed literal-ranged record field should be checked");
+    check_canary(&canary).expect(
+        "stores into closed literal-ranged or arithmetic-policy-only record fields should be checked",
+    );
 }
 
 #[test]
 fn write_only_constrained_record_field_is_rejected() {
-    // The admitted slice is one constraint kind only: a closed literal-ranged
-    // integer primitive. An arithmetic-policy qualified leaf stays outside the
-    // write-only projection envelope.
+    // The admitted slice is qualified INTEGER leaves only: a closed literal
+    // range proven at the store, or an arithmetic-policy behaviour tag. A
+    // declared domain on the leaf is a membership predicate the write-only
+    // place cannot establish, so it stays outside the projection envelope.
     let canary = fail_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD);
-    let diagnostics = check_canary(&canary)
-        .expect_err("an arithmetic-policy qualified leaf must remain outside this rung");
+    let diagnostics =
+        check_canary(&canary).expect_err("a domain-qualified leaf must remain outside this rung");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -90,7 +92,7 @@ fn write_only_constrained_record_field_is_rejected() {
         .join("\n");
     assert!(
         combined.contains("unsupported write-only projection")
-            && combined.contains("closed literal-ranged integer primitive"),
+            && combined.contains("named and domain qualification"),
         "expected directed constrained-field diagnostic, got:\n{combined}"
     );
 }

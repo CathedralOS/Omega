@@ -256,7 +256,7 @@ fn non_discardable_record_leaf_write_remains_rejected() {
     assert!(
         rendered.contains("unsupported write-only projection")
             && rendered.contains(
-                "leaf is an unrestricted primitive or a closed literal-ranged integer primitive proven in range at the store, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
+                "leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, or an integer primitive carrying only an arithmetic-policy constraint, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
             ),
         "unexpected diagnostic: {rendered}"
     );
@@ -376,19 +376,100 @@ fn closed_ranged_record_field_wider_source_remains_rejected() {
 }
 
 #[test]
-fn policy_qualified_record_field_remains_rejected() {
+fn policy_qualified_record_field_write_is_writable() {
+    lower_typed_trees(typed(
+        r#"
+            data Limited { value: u32 in Wrapping; depth: i32 in Wrapping; }
+            data Outer { inner: Limited; }
+
+            machine replace(limited: &write Limited, next: u32 in Wrapping) {
+                limited.value = next;
+                limited.depth = 4;
+            }
+
+            machine fill(outer: &write Outer, next: u32 in Wrapping) {
+                outer.inner.value = next;
+            }
+        "#,
+    ))
+    .expect("an arithmetic-policy-only integer leaf carries no membership obligation");
+}
+
+#[test]
+fn literal_indexed_policy_record_field_is_writable() {
+    lower_typed_trees(typed(
+        r#"
+            data Inner [copy] { value: u32 in Wrapping; }
+            data Outer { items: [Inner; 2]; }
+
+            machine fill(outer: &write Outer, next: u32 in Wrapping) {
+                outer.items[1].value = next;
+            }
+        "#,
+    ))
+    .expect("a policy-qualified field beneath a literal fixed-array element should lower");
+}
+
+#[test]
+fn policy_qualified_record_field_mismatched_store_remains_rejected() {
+    // The admitted leaf keeps every value-level obligation: storing a
+    // differently-policed value still drops a semantic atom, which requires
+    // an explicit `as`.
     let rendered = rendered_rejection(
         r#"
             data Limited { value: u32 in Wrapping; }
 
-            machine replace(limited: &write Limited, next: u32 in Wrapping) {
+            machine replace(limited: &write Limited, next: u32 in Saturating) {
                 limited.value = next;
             }
         "#,
     );
     assert!(
+        rendered.contains("implicit domain weakening") && rendered.contains("drops `Saturating`"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn float_policy_record_field_remains_rejected() {
+    // The admitted policy leaf is an INTEGER primitive: float policies
+    // (`f64 in Saturating`) stay outside the envelope.
+    let rendered = rendered_rejection(
+        r#"
+            data Reading { value: f64 in Saturating; }
+
+            machine replace(reading: &write Reading, next: f64 in Saturating) {
+                reading.value = next;
+            }
+        "#,
+    );
+    assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("closed literal-ranged integer primitive"),
+            && rendered.contains("arithmetic-policy constraint"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn domain_qualified_record_field_remains_rejected() {
+    // A declared domain on the leaf (`[u8; 8] in Utf8`) is a membership
+    // predicate the write-only place cannot establish — still fenced.
+    let rendered = rendered_rejection(
+        r#"
+            domain [u8; 8]::Utf8
+            requires
+                valid_utf8(self);
+
+            data Limited { label: [u8; 8] in Utf8; }
+
+            machine replace(limited: &write Limited, next: [u8; 8] in Utf8) {
+                limited.label = next;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("named and domain qualification"),
         "unexpected diagnostic: {rendered}"
     );
 }

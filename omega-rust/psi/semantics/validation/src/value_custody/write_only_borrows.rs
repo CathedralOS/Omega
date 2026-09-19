@@ -124,15 +124,16 @@ fn is_unrestricted_scalar(program: &TypedTrees, type_reference: TypeReferenceHan
         && program.primitive_type_reference(type_reference).is_some()
 }
 
-/// The one qualified leaf a common-field store may displace: an exact integer
+/// One qualified leaf a common-field store may displace: an exact integer
 /// primitive whose only constraints are closed literal `[lo..=hi]` ranges.
 /// The bounded-assignment obligation downstream re-derives the same integer
 /// interval from the declaration and enforces every store into the place, so
 /// admission adds no new proof burden — this gate still owns only the
-/// content-independent place, never the value's containment proof. Every
-/// other constraint kind (named, domain, arithmetic policy), symbolic or
-/// unclosed endpoints, and non-integer carriers stay unsupported leaves: the
-/// proof layer cannot turn them into an enforced integer range.
+/// content-independent place, never the value's containment proof. Named and
+/// domain constraints, symbolic or unclosed endpoints, and non-integer
+/// carriers stay unsupported leaves here: the proof layer cannot turn them
+/// into an enforced integer range. `write_only_assignment_leaf` separately
+/// admits the arithmetic-policy-only integer leaf.
 fn is_closed_ranged_integer_scalar(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -406,14 +407,20 @@ fn is_unrestricted_write_only_field_leaf(
         || is_unrestricted_write_only_sum(program, field_type)
 }
 
-/// A stored leaf additionally admits one closed literal-ranged integer
-/// primitive: the field's declared range re-enters the assignment as the
-/// ordinary bounded-value obligation, so the store is proven against the same
-/// evidence a `&mut` store already supplies. Nothing else about the path or
-/// the value relaxes.
+/// A stored leaf additionally admits two qualified integer primitives: a
+/// closed literal-ranged one, whose declared range re-enters the assignment
+/// as the ordinary bounded-value obligation, and an arithmetic-policy-only
+/// one (`u32 in Wrapping`). Decision 17 makes `in <policy>` a behaviour tag
+/// on the carrier's operations, not a value-range predicate — every carrier
+/// value is already a member, and `range-constraints-require-exact-domain`
+/// keeps a hidden range from riding beneath the policy, so the store owes no
+/// containment proof at all. Cross-class, narrowing, and domain-atom
+/// weakening checks on the value are unchanged. Nothing else about the path
+/// or the value relaxes.
 fn write_only_assignment_leaf(program: &TypedTrees, field_type: TypeReferenceHandle) -> bool {
     is_unrestricted_write_only_field_leaf(program, field_type)
         || is_closed_ranged_integer_scalar(program, field_type)
+        || crate::is_arithmetic_policy_only_integer(program, field_type)
 }
 
 fn write_only_record_field_assignment(
@@ -426,9 +433,11 @@ fn write_only_record_field_assignment(
 }
 
 /// An `&write` field subloan attenuates to the callee's declared parameter
-/// referee, so a ranged leaf would shed its bound at the borrow boundary.
-/// Keep the lent leaf to the unrestricted kinds until ranged write-only
-/// parameter referees exist.
+/// referee, so a ranged leaf would shed its bound at the borrow boundary. A
+/// policy-qualified leaf would likewise shed its policy atom at a plain
+/// referee, which call-argument checking already rejects as implicit domain
+/// weakening. Keep the lent leaf to the unrestricted kinds until ranged or
+/// policy write-only parameter referees exist.
 fn write_only_record_field_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -850,7 +859,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or a closed literal-ranged integer primitive proven in range at the store, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, or an integer primitive carrying only an arithmetic-policy constraint, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named and domain qualification, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
