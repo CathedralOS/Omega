@@ -15,6 +15,11 @@ pub enum SymbolKind {
     /// A package-private ranking declaration owning its measured parameter.
     Measure,
     Proposition,
+    /// A top-level mathematical `let`/`boundary let` declaration: a proof-side
+    /// term definition or named assumption with a dependent result type
+    /// (PROOF-CONTRACT-MIGRATION). Deliberately distinct from `Proposition`,
+    /// which is the retired dedicated-formula surface this kind replaces.
+    MathematicalDefinition,
     State,
     Trait,
     Conformance,

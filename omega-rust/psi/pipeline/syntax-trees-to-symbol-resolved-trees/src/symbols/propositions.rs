@@ -38,6 +38,7 @@ pub(super) fn assign_proposition_expression_symbols(
             child_type_references,
             symbols,
             proposition.symbol,
+            &[SymbolKind::Proposition],
             &local_type_parameters,
             body,
         );
@@ -48,7 +49,8 @@ fn assign_expression_span_symbols(
     expressions: &mut ExpressionTable,
     child_type_references: &mut Arena<TypeReference>,
     symbols: &SymbolTable,
-    proposition_symbol: SymbolHandle,
+    owner_symbol: SymbolHandle,
+    call_kinds: &[SymbolKind],
     local_type_parameters: &[TypeParameter],
     span: HandleSpan<ExpressionHandle>,
 ) {
@@ -58,18 +60,26 @@ fn assign_expression_span_symbols(
             expressions,
             child_type_references,
             symbols,
-            proposition_symbol,
+            owner_symbol,
+            call_kinds,
             local_type_parameters,
             child,
         );
     }
 }
 
-fn assign_expression_symbols(
+/// Resolve the authored names inside one proof-surface expression.
+/// `owner_symbol` is the declaration whose binder/parameter children are in
+/// scope; `call_kinds` lists the top-level declaration kinds a bare call
+/// target may name, tried in order before builtins and machine entry states.
+/// Shared by proposition formulas and mathematical `let`/`boundary let`
+/// terms (PROOF-CONTRACT-MIGRATION).
+pub(super) fn assign_expression_symbols(
     expressions: &mut ExpressionTable,
     child_type_references: &mut Arena<TypeReference>,
     symbols: &SymbolTable,
-    proposition_symbol: SymbolHandle,
+    owner_symbol: SymbolHandle,
+    call_kinds: &[SymbolKind],
     local_type_parameters: &[TypeParameter],
     expression: ExpressionHandle,
 ) {
@@ -79,7 +89,8 @@ fn assign_expression_symbols(
                 expressions,
                 child_type_references,
                 symbols,
-                proposition_symbol,
+                owner_symbol,
+                call_kinds,
                 local_type_parameters,
                 $expression,
             )
@@ -100,7 +111,8 @@ fn assign_expression_symbols(
             expressions,
             child_type_references,
             symbols,
-            proposition_symbol,
+            owner_symbol,
+            call_kinds,
             local_type_parameters,
             values,
         ),
@@ -148,34 +160,34 @@ fn assign_expression_symbols(
                 expressions,
                 child_type_references,
                 symbols,
-                proposition_symbol,
+                owner_symbol,
+                call_kinds,
                 local_type_parameters,
                 call.arguments,
             );
             let target_symbol = if call.receiver.is_valid() {
                 SymbolHandle::invalid()
             } else {
-                let proposition =
-                    top_level_symbol_for_source(symbols, SymbolKind::Proposition, &call.target);
-                if proposition.is_valid() {
-                    proposition
-                } else {
-                    let builtin = top_level_symbol_by_kinds(
-                        symbols,
-                        &[SymbolKind::BuiltinFunction],
-                        call.target.as_str(),
-                    );
-                    if builtin.is_valid() {
-                        builtin
-                    } else {
+                call_kinds
+                    .iter()
+                    .map(|kind| top_level_symbol_for_source(symbols, *kind, &call.target))
+                    .find(|symbol| symbol.is_valid())
+                    .or_else(|| {
+                        let builtin = top_level_symbol_by_kinds(
+                            symbols,
+                            &[SymbolKind::BuiltinFunction],
+                            call.target.as_str(),
+                        );
+                        builtin.is_valid().then_some(builtin)
+                    })
+                    .unwrap_or_else(|| {
                         resolve_free_machine_entry_state_symbol(symbols, &call.target)
-                    }
-                }
+                    })
             };
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
-                    assign_static_argument_symbols(symbols, proposition_symbol, argument, true);
+                    assign_static_argument_symbols(symbols, owner_symbol, argument, true);
                 }
             }
         }
@@ -191,7 +203,7 @@ fn assign_expression_symbols(
             let symbol = if let [name] = members {
                 child_symbol_by_kinds(
                     symbols,
-                    proposition_symbol,
+                    owner_symbol,
                     &[
                         SymbolKind::Parameter,
                         SymbolKind::TypeParameter,

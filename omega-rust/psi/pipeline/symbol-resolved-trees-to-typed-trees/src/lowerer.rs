@@ -16,6 +16,17 @@ pub(crate) mod seeded_continuation;
 pub fn lower_symbol_resolved_trees(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {
+    // Mathematical `let`/`boundary let` declarations resolve into their own
+    // root arena; typed-tree elaboration is a separate PROOF-CONTRACT-
+    // MIGRATION leg. Refuse here — before any declaration lowering — rather
+    // than silently dropping a declaration the author wrote.
+    if let Some(definition) = symbol_resolved_trees.mathematical_definitions.iter().next() {
+        return Err(Diagnostic::error(
+            "mathematical `let`/`boundary let` declarations are resolved but typed-tree \
+                 elaboration for them is not implemented yet (PROOF-CONTRACT-MIGRATION)",
+        )
+        .with_source_span(definition.name.source_span()));
+    }
     // Decision 11: user-written `==` against bare payload-bearing case names
     // must be rejected BEFORE membership lowering synthesizes its internal
     // tag-equality compares, which are deliberately the same typed shape.

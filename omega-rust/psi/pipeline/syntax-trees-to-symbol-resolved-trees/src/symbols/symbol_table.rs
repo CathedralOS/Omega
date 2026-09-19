@@ -13,8 +13,9 @@ use symbols::{
 use crate::symbols::symbol_table::children::{
     insert_builtin_type_symbol_children, insert_conformance_symbol_children,
     insert_data_symbol_children, insert_domain_symbol_children, insert_machine_symbol_children,
-    insert_measure_symbol_children, insert_operator_symbol_children,
-    insert_proposition_symbol_children, insert_trait_symbol_children,
+    insert_mathematical_symbol_children, insert_measure_symbol_children,
+    insert_operator_symbol_children, insert_proposition_symbol_children,
+    insert_trait_symbol_children,
 };
 use crate::symbols::symbol_table::names::{
     machine_symbol_seed, measure_symbol_name, measure_symbol_seed, operator_symbol_name,
@@ -89,6 +90,22 @@ pub(super) fn extend_symbol_table(
             has_sources,
         );
         program.propositions[index].symbol = symbol;
+    }
+    for index in roots.mathematical_definitions..program.mathematical_definitions.len() {
+        let definition = program.mathematical_definitions[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::MathematicalDefinition,
+            &definition.name,
+            has_sources,
+        )])[0];
+        insert_mathematical_symbol_children(
+            &mut extension,
+            program,
+            symbol,
+            &definition,
+            has_sources,
+        );
+        program.mathematical_definitions[index].symbol = symbol;
     }
     for index in roots.operators..program.operators.len() {
         let operator = program.operators[index].clone();
@@ -206,6 +223,13 @@ pub(super) fn build_symbol_table(
             .chain(program.propositions.iter().map(|proposition| {
                 symbol_seed(SymbolKind::Proposition, &proposition.name, has_sources)
             }))
+            .chain(program.mathematical_definitions.iter().map(|definition| {
+                symbol_seed(
+                    SymbolKind::MathematicalDefinition,
+                    &definition.name,
+                    has_sources,
+                )
+            }))
             .chain(
                 root_operator_names
                     .iter()
@@ -297,6 +321,17 @@ pub(super) fn build_symbol_table(
                 program,
                 proposition_symbol,
                 proposition,
+                has_sources,
+            );
+        }
+    }
+    for definition in &program.mathematical_definitions {
+        if let Some(definition_symbol) = root_children.next() {
+            insert_mathematical_symbol_children(
+                &mut builder,
+                program,
+                definition_symbol,
+                definition,
                 has_sources,
             );
         }

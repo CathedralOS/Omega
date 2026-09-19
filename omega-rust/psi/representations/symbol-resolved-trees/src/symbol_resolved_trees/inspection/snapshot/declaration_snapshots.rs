@@ -2,8 +2,11 @@
 //! quotient definitions, domains, propositions and proof facts.
 
 use crate::SymbolResolvedTrees;
-use crate::data::{DataDefinition, DataMember};
+use crate::data::{DataDefinition, DataMember, TypeParameterKind};
 use crate::domain::{DomainDefinition, ProofFact};
+use crate::mathematical::{
+    MathematicalBody, MathematicalDefinition, MathematicalType, MathematicalTypeHandle,
+};
 use crate::operator::OperatorDefinition;
 use crate::proposition::{PropositionBinderKind, PropositionBody, PropositionDefinition};
 use crate::symbol_resolved_trees::inspection::snapshot::machine_snapshots::state_parameter_snapshot;
@@ -383,6 +386,148 @@ pub(crate) fn proposition_snapshot(
             },
             PropositionBody::Transparent { proposition } => PropositionBodySnapshot::Transparent {
                 proposition: table_expression_snapshot(program, *proposition),
+            },
+        },
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MathematicalDefinitionSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub is_public: bool,
+    pub binders: Vec<MathematicalBinderSnapshot>,
+    pub parameters: Vec<MathematicalParameterSnapshot>,
+    pub result: MathematicalTypeSnapshot,
+    pub body: MathematicalBodySnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MathematicalBinderSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub carrier: Option<TypeReferenceSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MathematicalParameterSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub erased: bool,
+    pub ty: MathematicalTypeSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MathematicalTypeSnapshot {
+    Ordinary {
+        reference: TypeReferenceSnapshot,
+    },
+    Arrow {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        binder: Option<String>,
+        domain: Box<MathematicalTypeSnapshot>,
+        codomain: Box<MathematicalTypeSnapshot>,
+    },
+    Application {
+        callee: Box<MathematicalTypeSnapshot>,
+        arguments: Vec<ExpressionSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MathematicalBodySnapshot {
+    Assumption,
+    Definition { term: ExpressionSnapshot },
+}
+
+fn mathematical_type_snapshot(
+    program: &SymbolResolvedTrees,
+    handle: MathematicalTypeHandle,
+) -> MathematicalTypeSnapshot {
+    match program.mathematical_type(handle) {
+        MathematicalType::Ordinary(reference) => MathematicalTypeSnapshot::Ordinary {
+            reference: type_reference_snapshot(program, reference),
+        },
+        MathematicalType::Arrow {
+            binder,
+            domain,
+            codomain,
+        } => MathematicalTypeSnapshot::Arrow {
+            binder: binder.as_ref().map(ToString::to_string),
+            domain: Box::new(mathematical_type_snapshot(program, *domain)),
+            codomain: Box::new(mathematical_type_snapshot(program, *codomain)),
+        },
+        MathematicalType::Application { callee, arguments } => {
+            MathematicalTypeSnapshot::Application {
+                callee: Box::new(mathematical_type_snapshot(program, *callee)),
+                arguments: program
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression_handles(*arguments)
+                    .iter()
+                    .map(|argument| table_expression_snapshot(program, *argument))
+                    .collect(),
+            }
+        }
+    }
+}
+
+pub(crate) fn mathematical_definition_snapshot(
+    program: &SymbolResolvedTrees,
+    definition: &MathematicalDefinition,
+) -> MathematicalDefinitionSnapshot {
+    MathematicalDefinitionSnapshot {
+        has_symbol: definition.symbol.is_valid(),
+        name: definition.name.to_string(),
+        is_public: definition.is_public,
+        binders: program
+            .tables
+            .declarations
+            .data_type_parameters
+            .span_or_empty(definition.binders)
+            .iter()
+            .map(|binder| {
+                let (kind, carrier) = match &binder.kind {
+                    TypeParameterKind::Type => ("type", None),
+                    TypeParameterKind::Const { type_reference } => (
+                        "const",
+                        Some(type_reference_snapshot(program, type_reference)),
+                    ),
+                    TypeParameterKind::Value { type_reference } => (
+                        "value",
+                        Some(type_reference_snapshot(program, type_reference)),
+                    ),
+                    TypeParameterKind::Machine { .. } => ("machine", None),
+                    TypeParameterKind::Proposition { .. } => ("proposition", None),
+                };
+                MathematicalBinderSnapshot {
+                    has_symbol: binder.symbol.is_valid(),
+                    name: binder.name.to_string(),
+                    kind,
+                    carrier,
+                }
+            })
+            .collect(),
+        parameters: program
+            .mathematical_parameters(definition.parameters)
+            .iter()
+            .map(|parameter| MathematicalParameterSnapshot {
+                has_symbol: parameter.symbol.is_valid(),
+                name: parameter.name.to_string(),
+                erased: parameter.relevance == language_core::BindingRelevance::Erased,
+                ty: mathematical_type_snapshot(program, parameter.ty),
+            })
+            .collect(),
+        result: mathematical_type_snapshot(program, definition.result),
+        body: match &definition.body {
+            MathematicalBody::Assumption => MathematicalBodySnapshot::Assumption,
+            MathematicalBody::Definition(term) => MathematicalBodySnapshot::Definition {
+                term: table_expression_snapshot(program, *term),
             },
         },
     }

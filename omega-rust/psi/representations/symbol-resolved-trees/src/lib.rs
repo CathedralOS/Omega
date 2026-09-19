@@ -21,7 +21,7 @@ pub use symbol_resolved_trees::control_flow::{machine, state, statement};
 pub use symbol_resolved_trees::declarations::{
     constant, data, domain, measure, operator, trait_definition, wire,
 };
-pub use symbol_resolved_trees::evidence::proposition;
+pub use symbol_resolved_trees::evidence::{mathematical, proposition};
 pub use symbol_resolved_trees::inspection::snapshot;
 pub use symbol_resolved_trees::names::{identity, name};
 pub use symbol_resolved_trees::storage::tables;

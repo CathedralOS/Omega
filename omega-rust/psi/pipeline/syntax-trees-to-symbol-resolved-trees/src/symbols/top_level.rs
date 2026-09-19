@@ -1,6 +1,7 @@
 mod data;
 mod domains;
 mod machines;
+mod mathematical;
 mod measures;
 mod operators;
 mod propositions;
@@ -15,6 +16,7 @@ use symbols::{
 use super::top_level::data::assign_data_symbols;
 use super::top_level::domains::assign_domain_symbols;
 use super::top_level::machines::assign_machine_symbols;
+use super::top_level::mathematical::assign_mathematical_symbols;
 use super::top_level::operators::assign_root_operator_symbols;
 use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
@@ -52,6 +54,7 @@ pub(super) fn assign_top_level_symbols(
     attach_conformance_parameter_scopes(program);
     let diagnostics = assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
+    assign_mathematical_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);
     measures::assign_measure_symbols(program, symbols, &mut root_children);
     assign_trait_symbols(program, symbols, &mut root_children);

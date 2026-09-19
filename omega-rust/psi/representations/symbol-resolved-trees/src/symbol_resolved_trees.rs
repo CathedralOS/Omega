@@ -17,8 +17,8 @@ use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
     AuthoredDeclarationSelectionRecordError, AuthoredDeclarationSelections, data, domain,
-    expression, measure, operator, proposition, signature, snapshot, state, statement, tables,
-    types, wire,
+    expression, mathematical, measure, operator, proposition, signature, snapshot, state,
+    statement, tables, types, wire,
 };
 use arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use diagnostics::PhaseSnapshot;
@@ -87,6 +87,10 @@ pub struct SymbolResolvedRoots {
     pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub propositions: OrderedRootArena<proposition::PropositionDefinition>,
+    /// Mathematical `let`/`boundary let` declarations (PROOF-CONTRACT-
+    /// MIGRATION): a distinct root category carrying a dependent result type
+    /// and a transparent term or named assumption, with no executable body.
+    pub mathematical_definitions: OrderedRootArena<mathematical::MathematicalDefinition>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
     pub conformances: OrderedRootArena<crate::trait_definition::Conformance>,
     pub wire_schemas: OrderedRootArena<wire::WireSchema>,
@@ -108,6 +112,7 @@ impl SymbolResolvedRoots {
             measures: OrderedRootArena::default(),
             operators,
             propositions: OrderedRootArena::default(),
+            mathematical_definitions: OrderedRootArena::default(),
             traits,
             conformances: OrderedRootArena::default(),
             wire_schemas: OrderedRootArena::default(),
@@ -134,6 +139,8 @@ pub struct SymbolResolvedDeclarationStorage {
     pub operator_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_definitions: Arena<operator::OperatorDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
+    pub mathematical_types: Arena<mathematical::MathematicalType>,
+    pub mathematical_parameters: Arena<mathematical::MathematicalParameter>,
     pub machine_owned_data: Arena<crate::machine::OwnedData>,
     pub machine_trait_conformances: Arena<crate::machine::TraitConformance>,
     pub machine_state_handles: Arena<Handle<state::State>>,
@@ -496,6 +503,26 @@ impl SymbolResolvedTrees {
 
     pub fn proof_facts(&self, span: HandleSpan<domain::ProofFact>) -> &[domain::ProofFact] {
         self.tables.declarations.proof_facts.span_or_empty(span)
+    }
+
+    /// One resolved mathematical type node (`Ordinary`/`Arrow`/`Application`)
+    /// in a `let`/`boundary let` declaration's signature surface.
+    pub fn mathematical_type(
+        &self,
+        handle: mathematical::MathematicalTypeHandle,
+    ) -> &mathematical::MathematicalType {
+        self.tables.declarations.mathematical_types.get(handle)
+    }
+
+    /// The ordered ordinary telescope of a mathematical declaration.
+    pub fn mathematical_parameters(
+        &self,
+        span: HandleSpan<mathematical::MathematicalParameter>,
+    ) -> &[mathematical::MathematicalParameter] {
+        self.tables
+            .declarations
+            .mathematical_parameters
+            .span_or_empty(span)
     }
 
     pub fn proof_fact_source_span(
