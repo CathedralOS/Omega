@@ -1,0 +1,17 @@
+machine below(value: u64, bound: u64)
+requires
+    value < bound
+{
+}
+
+machine below_eight(value: u64)
+requires
+    value <= 8
+{
+    below(value, 8);
+}
+
+data Main { }
+machine Main::main(&mut self) {
+    below_eight(8);
+}

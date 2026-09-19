@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("kernel-integer-discreteness");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

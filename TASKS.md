@@ -1516,9 +1516,9 @@ Owners include
   kernel theorem and scheme is a Rust-built term (`scheme_dsl.rs`),
   `terminal-codec`'s `encode_mathematical_certificate` and
   `decode_mathematical_certificate` have no caller outside tests, and the only
-  source fixture written against the kernel route proves scalar `==` symmetry
-  and transitivity (`pass/proofs/kernel_theorem_equality_certificates`, driven
-  by `compiler/tests/proof_kernel_canaries.rs`).
+  source customers cover scalar `==` symmetry/transitivity and fixed-literal
+  discreteness (`compiler/tests/proof_kernel_canaries.rs` and
+  `compiler/tests/kernel_discreteness.rs`), not general dependent theorems.
 
   Remaining work:
 
@@ -1526,15 +1526,19 @@ Owners include
     certificate producer whose output the kernel checks or an explicitly
     justified checked rule (see Flag). Integer carrier, order and equality
     declarations are landed in `mathematical_core/bounded_denotation.rs`:
-    `Int`, `IntLt`/`IntLe` and `Int`-valued term constants are interned
-    assumptions with exact statements — closed mathematical terms intern
-    by the shared evaluator's exact value — and the order/equality rules
+    `Int`, `IntLt`/`IntLe` and open `Int`-valued term constants are interned
+    assumptions with exact statements. Closed mathematical terms intern
+    by exact evaluated value; fixed scalar magnitudes have shared signed
+    binary definitions, while larger values retain opaque exact-value
+    constants. The order/equality rules
     cite one fixed roster (`eq_le`, `lt_le`, `le_trans`/`lt_trans`/
     `lt_le_trans`/`le_lt_trans`, `lt`/`le_subst_left`/`_right`) while
     `Id` symmetry/transitivity, the `Equal`↔`IntegerMathEqual` citation
     crossing and single-equation `ValueEqualityTransport` over `Int` are
-    `J`-re-decided, not assumed. Still to do: the remaining `rule_axiom`
-    families (discreteness, subtract-order, the bound-witness rules,
+    `J`-re-decided, not assumed. Discreteness derives adjacent literal order
+    from five fixed numeral laws and composes it with the inclusive premise;
+    those laws remain explicit assumptions. Still to do: the remaining
+    `rule_axiom` families (subtract-order, the bound-witness rules,
     `ContentConservation` transitivity, transport inside non-`Int`
     propositions) and open arithmetic — non-closed `IntegerMathTerm`
     equations still name opaque `Int` constants, so `x + 0 = x` assumes
@@ -1577,7 +1581,7 @@ Owners include
   denotes the integer order and equality rules through a fixed roster of
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
-  terms by exact evaluated value — but discreteness, subtract-order, the
+  terms by exact evaluated value — but subtract-order, the
   bound-witness rules, `ContentConservation` transitivity and transport
   outside the `Int` vocabulary remain per-instance `rule_axiom`s whose
   statements carry no arithmetic a receiver could audit, and open
