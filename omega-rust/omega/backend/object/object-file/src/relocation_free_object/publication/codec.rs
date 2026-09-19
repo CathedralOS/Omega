@@ -75,11 +75,15 @@ impl FunctionFragmentObjectContainerManifest {
         }
         let object = RelocationFreeObjectPlanIdentity::from_bytes(cursor.array()?);
         let object_container = RelocationFreeObjectContainerIdentity::from_bytes(cursor.array()?);
-        if cursor.byte()? != 1 {
-            return Err(
-                FunctionFragmentObjectContainerManifestDecodeError::UnknownRelocationRequirements,
-            );
-        }
+        let relocation_requirements = match cursor.byte()? {
+            1 => RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            2 => RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
+            _ => {
+                return Err(
+                    FunctionFragmentObjectContainerManifestDecodeError::UnknownRelocationRequirements,
+                );
+            }
+        };
         let statistics = FunctionFragmentObjectContainerStatistics {
             sections: u64::from_le_bytes(cursor.array()?),
             function_symbols: u64::from_le_bytes(cursor.array()?),
@@ -112,12 +116,10 @@ impl FunctionFragmentObjectContainerManifest {
             target,
             semantic_entry,
             semantic_entry_symbol,
-            symbol_policy:
-                RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
+            symbol_policy: RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
             object,
             object_container,
-            relocation_requirements:
-                RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            relocation_requirements,
             statistics,
             external_entry_bridge: unavailable,
             executable_image: unavailable,
@@ -147,7 +149,12 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     bytes.push(1);
     bytes.extend_from_slice(&record.object.bytes());
     bytes.extend_from_slice(&record.object_container.bytes());
-    bytes.push(1);
+    bytes.push(match record.relocation_requirements {
+        RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => {
+            1
+        }
+        RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
+    });
     bytes.extend_from_slice(&record.statistics.sections.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.function_symbols.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.object_local_symbols.to_le_bytes());

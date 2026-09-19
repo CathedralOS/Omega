@@ -14,7 +14,8 @@ pub fn relocation_free_object_statistics(
         sections: 1,
         function_symbols: symbols,
         object_local_symbols: symbols,
-        external_symbols: 0,
+        external_symbols: u64::try_from(object.normalized_imports.len())
+            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?,
         text_bytes: object.text_section.byte_count,
         container_bytes,
         relocation_records: object.relocation_record_count,
