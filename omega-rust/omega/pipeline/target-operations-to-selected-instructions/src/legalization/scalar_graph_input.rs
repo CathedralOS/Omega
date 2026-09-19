@@ -124,6 +124,15 @@ pub(super) fn supports_signed_wrapping_remainder(integer: IntegerType) -> bool {
         && matches!(integer.bits(), 8 | 16 | 32 | 64)
 }
 
+/// Signed i64 is the only admitted wrapping-division carrier: its MIN / -1
+/// quotient wraps back to MIN, while a narrower signed carrier's widened
+/// i64 quotient is the out-of-range value rather than the wrapped one.
+pub(super) fn supports_wrapping_divide_i64(integer: IntegerType) -> bool {
+    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+        && integer.sign() == IntegerSign::Signed
+        && integer.bits() == 64
+}
+
 /// The admitted exact-cast slice excludes sub-64-bit signed-to-signed casts
 /// and 16-bit-source widening.
 pub(super) fn exact_cast_has_native_carriers(source: IntegerType, target: IntegerType) -> bool {
@@ -266,7 +275,22 @@ pub(super) fn match_input(
             obligation,
             ..
         }
+        | AbstractOperation::ExactIntegerDivide {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::ExactIntegerRemainder {
+            psi_operation,
+            obligation,
+            ..
+        }
         | AbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerDivide {
             psi_operation,
             obligation,
             ..

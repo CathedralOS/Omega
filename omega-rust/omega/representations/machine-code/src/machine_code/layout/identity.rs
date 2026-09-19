@@ -216,6 +216,9 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::SaturatingDivide(carrier) => {
             selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
         }
+        Family::SaturatingRemainder(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Remainder, carrier)
+        }
         Family::Load8 => 33,
         Family::Load16 => 34,
         Family::Load32 => 30,
@@ -232,6 +235,12 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ReturnAggregate => 36,
         Family::NormalizedForeignCall => 87,
         Family::ExactMultiplyI64 => 88,
+        Family::ExactRemainderU64 => 89,
+        Family::WrappingSubtractI64 => 90,
+        Family::WrappingMultiplyI64 => 91,
+        Family::WrappingDivideI64 => 92,
+        Family::BitwiseOrI64 => 93,
+        Family::BitwiseNotI64 => 94,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

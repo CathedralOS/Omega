@@ -347,10 +347,11 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
     }
 }
 
-const SATURATING_OPERATIONS: [SaturatingOperation; 3] = [
+const SATURATING_OPERATIONS: [SaturatingOperation; 4] = [
     SaturatingOperation::Add,
     SaturatingOperation::Subtract,
     SaturatingOperation::Divide,
+    SaturatingOperation::Remainder,
 ];
 
 fn saturating_kind(
@@ -361,6 +362,11 @@ fn saturating_kind(
         SaturatingOperation::Add => SelectedInstructionKind::SaturatingAdd { carrier },
         SaturatingOperation::Subtract => SelectedInstructionKind::SaturatingSubtract { carrier },
         SaturatingOperation::Divide => SelectedInstructionKind::SaturatingDivide {
+            carrier,
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        },
+        SaturatingOperation::Remainder => SelectedInstructionKind::SaturatingRemainder {
             carrier,
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
@@ -377,6 +383,9 @@ fn saturating_key(
             SaturatingOperation::Add => MachineAlternativeFamily::SaturatingAdd(carrier),
             SaturatingOperation::Subtract => MachineAlternativeFamily::SaturatingSubtract(carrier),
             SaturatingOperation::Divide => MachineAlternativeFamily::SaturatingDivide(carrier),
+            SaturatingOperation::Remainder => {
+                MachineAlternativeFamily::SaturatingRemainder(carrier)
+            }
         },
         0,
     )
@@ -642,7 +651,7 @@ fn independently_assembled_saturating_forms() -> Vec<(
         (
             Divide,
             I64,
-            low_divide,
+            low_divide.clone(),
             vec![
                 0x48, 0x83, 0xfe, 0xff, 0x48, 0x19, 0xd2, 0x48, 0x09, 0xc2, 0x48, 0xf7, 0xda, 0x48,
                 0x8d, 0x50, 0x01, 0x48, 0x0f, 0x40, 0xc2, 0x48, 0x99, 0x48, 0xf7, 0xfe,
@@ -651,10 +660,77 @@ fn independently_assembled_saturating_forms() -> Vec<(
         (
             Divide,
             I64,
-            high_divide,
+            high_divide.clone(),
             vec![
                 0x49, 0x83, 0xf9, 0xff, 0x48, 0x19, 0xd2, 0x48, 0x09, 0xc2, 0x48, 0xf7, 0xda, 0x48,
                 0x8d, 0x50, 0x01, 0x48, 0x0f, 0x40, 0xc2, 0x48, 0x99, 0x49, 0xf7, 0xf9,
+            ],
+        ),
+        // clang: xor rdx, rdx; div rsi; mov rax, rdx for every unsigned
+        // carrier — the zeroed high half cannot overflow the quotient.
+        (
+            Remainder,
+            U8,
+            low_divide.clone(),
+            vec![0x48, 0x31, 0xd2, 0x48, 0xf7, 0xf6, 0x48, 0x89, 0xd0],
+        ),
+        (
+            Remainder,
+            U32,
+            low_divide.clone(),
+            vec![0x48, 0x31, 0xd2, 0x48, 0xf7, 0xf6, 0x48, 0x89, 0xd0],
+        ),
+        // clang: xor rdx, rdx; div r9; mov rax, rdx.
+        (
+            Remainder,
+            U16,
+            high_divide.clone(),
+            vec![0x48, 0x31, 0xd2, 0x49, 0xf7, 0xf1, 0x48, 0x89, 0xd0],
+        ),
+        (
+            Remainder,
+            U64,
+            high_divide.clone(),
+            vec![0x48, 0x31, 0xd2, 0x49, 0xf7, 0xf1, 0x48, 0x89, 0xd0],
+        ),
+        // clang: xor rdx, rdx; cmp rsi, -1; je over cqo/idiv; mov rax, rdx
+        // for every signed carrier — x % -1 is zero for every dividend, so
+        // skipping IDIV leaves the pre-cleared zero and avoids the MIN / -1
+        // quotient fault.
+        (
+            Remainder,
+            I8,
+            low_divide.clone(),
+            vec![
+                0x48, 0x31, 0xd2, 0x48, 0x83, 0xfe, 0xff, 0x74, 0x05, 0x48, 0x99, 0x48, 0xf7, 0xfe,
+                0x48, 0x89, 0xd0,
+            ],
+        ),
+        (
+            Remainder,
+            I32,
+            low_divide.clone(),
+            vec![
+                0x48, 0x31, 0xd2, 0x48, 0x83, 0xfe, 0xff, 0x74, 0x05, 0x48, 0x99, 0x48, 0xf7, 0xfe,
+                0x48, 0x89, 0xd0,
+            ],
+        ),
+        (
+            Remainder,
+            I16,
+            high_divide.clone(),
+            vec![
+                0x48, 0x31, 0xd2, 0x49, 0x83, 0xf9, 0xff, 0x74, 0x05, 0x48, 0x99, 0x49, 0xf7, 0xf9,
+                0x48, 0x89, 0xd0,
+            ],
+        ),
+        (
+            Remainder,
+            I64,
+            high_divide,
+            vec![
+                0x48, 0x31, 0xd2, 0x49, 0x83, 0xf9, 0xff, 0x74, 0x05, 0x48, 0x99, 0x49, 0xf7, 0xf9,
+                0x48, 0x89, 0xd0,
             ],
         ),
     ]
@@ -713,6 +789,8 @@ fn saturating_forms_match_independent_assembler_for_every_carrier() {
         SaturatingForm::OverflowSelectI64,
         SaturatingForm::DivideSignedNarrow,
         SaturatingForm::DivideI64,
+        SaturatingForm::RemainderUnsigned,
+        SaturatingForm::RemainderSigned,
     ] {
         for high in [false, true] {
             assert!(
@@ -761,9 +839,20 @@ fn saturating_forms_reject_every_mutation_substitution_and_sibling_carrier() {
                 let rdx = physical.model().view_named("rdx").unwrap().units.clone();
                 let clobbers = &encoded.footprint().encoded.implicit_unit_clobbers;
                 assert!(!clobbers.is_empty());
+                // Only the divide forms implicitly clobber RDX: their row
+                // declares it a Use whose incoming value CQO discards while
+                // DIV still writes the pair's high half. The remainder rows
+                // declare RDX an explicit Def, so the write is operand
+                // custody rather than an implicit clobber.
+                let rdx_is_implicit_clobber = matches!(
+                    form,
+                    SaturatingForm::DivideUnsigned
+                        | SaturatingForm::DivideSignedNarrow
+                        | SaturatingForm::DivideI64
+                );
                 assert_eq!(
                     rdx.iter().all(|unit| clobbers.contains(unit)),
-                    form.is_division(),
+                    rdx_is_implicit_clobber,
                     "{operation:?} {carrier:?} RDX clobber"
                 );
                 assert_eq!(
@@ -807,8 +896,9 @@ fn saturating_forms_reject_every_mutation_substitution_and_sibling_carrier() {
     }
     // Bytes replayed under another carrier's kind (of any operation) are
     // rejected wherever that carrier's realization differs. The unsigned
-    // subtract and unsigned divide are the only forms shared verbatim across
-    // carriers, so those are the only replays that can be accepted here.
+    // subtract, unsigned divide, and the two remainder forms are shared
+    // verbatim across carriers of their sign class, so those are the only
+    // replays that can be accepted here.
     for (operation, carrier, _, _, _, encoded) in &canonical {
         for (other_operation, other_carrier, other_kind, other_key, other_operands, other) in
             &canonical
@@ -828,7 +918,10 @@ fn saturating_forms_reject_every_mutation_substitution_and_sibling_carrier() {
                 && encoded.bytes() == other.bytes()
                 && matches!(
                     SaturatingForm::of(*operation, *carrier),
-                    SaturatingForm::SubtractUnsigned | SaturatingForm::DivideUnsigned
+                    SaturatingForm::SubtractUnsigned
+                        | SaturatingForm::DivideUnsigned
+                        | SaturatingForm::RemainderUnsigned
+                        | SaturatingForm::RemainderSigned
                 );
             assert_eq!(
                 accepted, shared,
@@ -1075,6 +1168,27 @@ fn execute_saturating(bytes: &[u8], mut registers: [u64; 16]) -> [u64; 16] {
                 registers[0] = quotient as u64;
                 flags = SaturatingFlags::undefined();
             }
+            DecodedInstruction::Xor {
+                source,
+                destination,
+            } => {
+                registers[usize::from(destination)] ^= registers[usize::from(source)];
+                flags = SaturatingFlags::arithmetic(
+                    signed(registers[usize::from(destination)]),
+                    false,
+                    false,
+                );
+            }
+            DecodedInstruction::JumpEqualShort { displacement } => {
+                // JE reads ZF: defined here by the sign flags of a compare.
+                let equal = !(flags.greater.expect("JE reads defined SF/OF")
+                    || flags.less.expect("JE reads defined SF/OF"));
+                if equal {
+                    byte_position = byte_position
+                        .checked_add_signed(displacement as isize)
+                        .unwrap();
+                }
+            }
             DecodedInstruction::UnsignedDivide { divisor } => {
                 let dividend = (u128::from(registers[2]) << 64) | u128::from(registers[0]);
                 let divisor = u128::from(registers[usize::from(divisor)]);
@@ -1107,6 +1221,9 @@ fn saturating_reference(
                 SaturatingOperation::Add => left.saturating_add(right),
                 SaturatingOperation::Subtract => left.saturating_sub(right),
                 SaturatingOperation::Divide => left.saturating_div(right),
+                // A mathematical remainder already lies inside its carrier,
+                // so saturating remainder is the wrapping remainder.
+                SaturatingOperation::Remainder => left.wrapping_rem(right),
             };
             // Truncating the lossless i128 widening to 64 bits yields the
             // sign- or zero-normalized register pattern for every carrier.
@@ -1182,7 +1299,10 @@ fn saturating_decoded_arithmetic_clamps_every_carrier_edge() {
                 for (left, right) in inputs {
                     if !in_range(left)
                         || !in_range(right)
-                        || (operation == SaturatingOperation::Divide && right == 0)
+                        || (matches!(
+                            operation,
+                            SaturatingOperation::Divide | SaturatingOperation::Remainder
+                        ) && right == 0)
                     {
                         continue;
                     }

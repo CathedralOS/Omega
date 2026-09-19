@@ -176,6 +176,94 @@ fn wrapping_remainder_identity_binds_policy_width_operands_and_nonzero_fact() {
 }
 
 #[test]
+fn wrapping_divide_identity_binds_operands_and_nonzero_fact() {
+    let mut plan = operation_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
+    row.result.as_mut().unwrap().scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    row.kind = LegalizedScalarInstructionKind::WrappingDivide {
+        left: id(200),
+        right: id(201),
+        obligation: id(300),
+        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..6 {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[2];
+        let LegalizedScalarInstructionKind::WrappingDivide {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        } = &mut row.kind
+        else {
+            panic!("divide");
+        };
+        match mutation {
+            0 => std::mem::swap(left, right),
+            1 => *left = id(999),
+            2 => *obligation = id(999),
+            3 => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
+            4 => {
+                row.result.as_mut().unwrap().scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+            }
+            _ => {
+                row.kind = LegalizedScalarInstructionKind::WrappingRemainder {
+                    left: *left,
+                    right: *right,
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                }
+            }
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+#[test]
+fn bitwise_and_wrapping_kind_identity_binds_the_named_operation() {
+    let plan = operation_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    for kind in [
+        LegalizedScalarInstructionKind::WrappingSubtract {
+            left: id(200),
+            right: id(201),
+        },
+        LegalizedScalarInstructionKind::WrappingMultiply {
+            left: id(200),
+            right: id(201),
+        },
+        LegalizedScalarInstructionKind::BitwiseOr {
+            left: id(200),
+            right: id(201),
+        },
+        LegalizedScalarInstructionKind::BitwiseNot { operand: id(200) },
+    ] {
+        let mut changed = plan.clone();
+        changed.scalar_functions[0].blocks[0].instructions[2].kind = kind;
+        assert_identity_drift(identity, &changed);
+    }
+    // Operand and result custody still bind inside each new row.
+    let mut multiply = plan.clone();
+    multiply.scalar_functions[0].blocks[0].instructions[2].kind =
+        LegalizedScalarInstructionKind::WrappingMultiply {
+            left: id(200),
+            right: id(201),
+        };
+    let multiply_identity = legalized_operation_plan_identity(&multiply);
+    let mut changed = multiply.clone();
+    let LegalizedScalarInstructionKind::WrappingMultiply { left, .. } =
+        &mut changed.scalar_functions[0].blocks[0].instructions[2].kind
+    else {
+        panic!("multiply fixture")
+    };
+    *left = id(999);
+    assert_identity_drift(multiply_identity, &changed);
+}
+
+#[test]
 fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
     let plan = operation_plan();
     let identity = legalized_operation_plan_identity(&plan);
@@ -222,12 +310,12 @@ fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
 fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
     let plan = operation_plan();
     let identity = legalized_operation_plan_identity(&plan);
-    for mutation in 0..14 {
+    for mutation in 0..15 {
         let mut changed = plan.clone();
         let rows = &mut changed.scalar_functions[0].blocks[0].instructions;
         match mutation {
             0 => rows[0].kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(8)),
-            1..=5 | 12 | 13 => {
+            1..=5 | 12..=14 => {
                 let LegalizedScalarInstructionKind::ExactBinary {
                     operator,
                     left,
@@ -242,6 +330,7 @@ fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
                     1 => *operator = LegalizedExactIntegerOperator::Subtract,
                     12 => *operator = LegalizedExactIntegerOperator::Divide,
                     13 => *operator = LegalizedExactIntegerOperator::Multiply,
+                    14 => *operator = LegalizedExactIntegerOperator::Remainder,
                     2 => *left = id(999),
                     3 => *right = id(999),
                     4 => *obligation = id(999),

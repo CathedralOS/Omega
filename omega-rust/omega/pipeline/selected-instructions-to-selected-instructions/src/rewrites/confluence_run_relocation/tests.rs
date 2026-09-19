@@ -1784,6 +1784,31 @@ fn run_must_be_pure_work() {
         relocate(&saturating_divide, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRunRelocationError::UnsupportedInstruction
     );
+    // Saturating remainder divides at the machine level; its carried
+    // nonzero-divisor obligation does not make the fault unreachable on
+    // the arrivals it would newly execute on.
+    let saturating_remainder = mutated(target, |function, environment| {
+        let remainder = environment
+            .constraint(environment.selected_keys().remainder_i64)
+            .unwrap()
+            .clone();
+        function.blocks[1].instructions[2] = instruction(
+            RUN_B,
+            SelectedInstructionKind::SaturatingRemainder {
+                carrier: selected_instructions::SaturatingCarrier::I64,
+                obligation: ObligationId::new(11).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [7; 32],
+                ),
+            },
+            &remainder,
+            &[POINTER, R_MOVE_B, R_MOVE_B, R_MOVE_B],
+        );
+    });
+    assert_eq!(
+        relocate(&saturating_remainder, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+        ConfluenceRunRelocationError::UnsupportedInstruction
+    );
     // Memory work on the other inflow never moves: a rostered store in F
     // runs before the landing index on its own arrivals whatever it reads.
     let inflow_store = mutated(target, |function, environment| {

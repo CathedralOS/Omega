@@ -122,6 +122,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             saturating_family_tag(SaturatingOperation::Divide, carrier)
         }
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            saturating_family_tag(SaturatingOperation::Remainder, carrier)
+        }
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -149,6 +152,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
+        SelectedInstructionKind::ExactRemainderU64 { .. } => 89,
+        SelectedInstructionKind::WrappingSubtractI64 => 90,
+        SelectedInstructionKind::WrappingMultiplyI64 => 91,
+        SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
+        SelectedInstructionKind::BitwiseOrI64 => 93,
+        SelectedInstructionKind::BitwiseNotI64 => 94,
     };
     bytes.push(tag);
     match kind {
@@ -209,7 +218,20 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::ExactRemainderU64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::WrappingDivideI64 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::SaturatingDivide {
+            obligation,
+            accepted_fact,
+            ..
+        }
+        | SelectedInstructionKind::SaturatingRemainder {
             obligation,
             accepted_fact,
             ..
@@ -434,6 +456,15 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
                     cursor.array()?,
                 ),
             },
+            (SaturatingOperation::Remainder, carrier) => {
+                SelectedInstructionKind::SaturatingRemainder {
+                    carrier,
+                    obligation: decode_id(cursor, ObligationId::new)?,
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        cursor.array()?,
+                    ),
+                }
+            }
         },
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_id(cursor, ObligationId::new)?,
@@ -453,6 +484,22 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
                 cursor.array()?,
             ),
         },
+        89 => SelectedInstructionKind::ExactRemainderU64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
+        90 => SelectedInstructionKind::WrappingSubtractI64,
+        91 => SelectedInstructionKind::WrappingMultiplyI64,
+        92 => SelectedInstructionKind::WrappingDivideI64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
+        93 => SelectedInstructionKind::BitwiseOrI64,
+        94 => SelectedInstructionKind::BitwiseNotI64,
         26 => SelectedInstructionKind::Float32ToBits,
         27 => SelectedInstructionKind::Float64ToBits,
         28 => SelectedInstructionKind::BitsToFloat32,
@@ -781,6 +828,7 @@ fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> 
         SaturatingOperation::Add,
         SaturatingOperation::Subtract,
         SaturatingOperation::Divide,
+        SaturatingOperation::Remainder,
     ]
     .into_iter()
     .flat_map(|operation| {

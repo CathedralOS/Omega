@@ -115,6 +115,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             saturating_family_tag(SaturatingOperation::Divide, carrier)
         }
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            saturating_family_tag(SaturatingOperation::Remainder, carrier)
+        }
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -146,6 +149,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallScalar { .. } => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
+        SelectedInstructionKind::ExactRemainderU64 { .. } => 89,
+        SelectedInstructionKind::WrappingSubtractI64 => 90,
+        SelectedInstructionKind::WrappingMultiplyI64 => 91,
+        SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
+        SelectedInstructionKind::BitwiseOrI64 => 93,
+        SelectedInstructionKind::BitwiseNotI64 => 94,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::LoadPacked { .. } => 46,
@@ -217,12 +226,25 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::WrappingDivideI64 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::SaturatingDivide {
             obligation,
             accepted_fact,
             ..
         }
+        | SelectedInstructionKind::SaturatingRemainder {
+            obligation,
+            accepted_fact,
+            ..
+        }
         | SelectedInstructionKind::ExactDivideU64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactRemainderU64 {
             obligation,
             accepted_fact,
         }
@@ -263,8 +285,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
         | SelectedInstructionKind::BitwiseXorI64
+        | SelectedInstructionKind::BitwiseNotI64
         | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::WrappingSubtractI64
+        | SelectedInstructionKind::WrappingMultiplyI64
         | SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::Float32ToBits

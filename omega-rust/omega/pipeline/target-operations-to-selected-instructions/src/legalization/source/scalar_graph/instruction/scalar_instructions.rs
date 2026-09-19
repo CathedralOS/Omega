@@ -131,6 +131,45 @@ pub(super) fn project_saturating_integer_divide(
     })
 }
 
+/// Saturating remainder names the carrier the source operation declares.
+/// The mathematical remainder always lies inside the carrier, so saturation
+/// adds no clamp; the accepted nonzero-divisor fact stays with the
+/// instruction because saturating does not define a zero divisor.
+pub(super) fn project_saturating_integer_remainder(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::SaturatingIntegerRemainder {
+        psi_operation,
+        obligation,
+        scalar_type,
+        left,
+        right,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_saturating_integer_remainder")
+    };
+    let carrier =
+        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::SourceCustodyMismatch)?;
+    if [left, right].iter().any(|value| {
+        scalar_graph_input::value_type(optimized, **value)
+            != Some(ScalarType::Integer(*scalar_type))
+    }) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    let accepted_fact =
+        accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?;
+    Ok(LegalizedScalarInstructionKind::SaturatingRemainder {
+        carrier,
+        left: *left,
+        right: *right,
+        obligation: *obligation,
+        accepted_fact,
+    })
+}
+
 /// The single accepted fact discharging this operation's divisor obligation,
 /// which the optimized function must also reference from the operation.
 fn accepted_nonzero_divisor_fact(
@@ -205,6 +244,55 @@ pub(super) fn project_wrapping_integer_remainder(
     Ok(kind)
 }
 
+/// Signed i64 is the only admitted wrapping-division carrier: its MIN / -1
+/// quotient wraps back to MIN, while a narrower signed carrier's widened
+/// quotient is the true out-of-range value. Division by zero stays the
+/// accepted obligation carried by the instruction.
+pub(super) fn project_wrapping_integer_divide(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::WrappingIntegerDivide {
+        psi_operation,
+        obligation,
+        scalar_type,
+        left,
+        right,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_wrapping_integer_divide")
+    };
+    if !scalar_graph_input::supports_wrapping_divide_i64(*scalar_type)
+        || [left, right].iter().any(|value| {
+            scalar_graph_input::value_type(optimized, **value)
+                != Some(ScalarType::Integer(*scalar_type))
+        })
+    {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == *psi_operation
+            && fact.obligation == *obligation
+    });
+    let fact = facts.next().ok_or(Error::SourceCustodyMismatch)?;
+    if facts.next().is_some()
+        || !optimized.facts.iter().any(|fact| matches!(fact,
+            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+            if referenced == obligation && support == psi_operation))
+    {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(LegalizedScalarInstructionKind::WrappingDivide {
+        left: *left,
+        right: *right,
+        obligation: *obligation,
+        accepted_fact: fact.identity,
+    })
+}
+
 pub(super) fn project_exact_integer_add(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -225,6 +313,13 @@ pub(super) fn project_exact_integer_add(
         ..
     }
     | AbstractOperation::ExactIntegerDivide {
+        psi_operation,
+        obligation,
+        left,
+        right,
+        ..
+    }
+    | AbstractOperation::ExactIntegerRemainder {
         psi_operation,
         obligation,
         left,
@@ -261,6 +356,11 @@ pub(super) fn project_exact_integer_add(
                 LegalizedExactIntegerOperator::Add
             } else if matches!(node.operation, AbstractOperation::ExactIntegerDivide { .. }) {
                 LegalizedExactIntegerOperator::Divide
+            } else if matches!(
+                node.operation,
+                AbstractOperation::ExactIntegerRemainder { .. }
+            ) {
+                LegalizedExactIntegerOperator::Remainder
             } else if matches!(
                 node.operation,
                 AbstractOperation::ExactIntegerMultiply { .. }

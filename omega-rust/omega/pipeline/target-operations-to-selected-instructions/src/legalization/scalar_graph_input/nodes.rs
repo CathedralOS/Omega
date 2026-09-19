@@ -11,7 +11,7 @@ use crate::legalization::scalar_graph_input::u8_type;
 use crate::legalization::scalar_graph_input::u64_type;
 use crate::legalization::scalar_graph_input::value_type;
 use crate::legalization::scalar_graph_input::{
-    saturating_carrier, supports_signed_wrapping_remainder,
+    saturating_carrier, supports_signed_wrapping_remainder, supports_wrapping_divide_i64,
 };
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
@@ -161,6 +161,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             scalar_type,
             ..
         }
+        | AbstractOperation::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
         | AbstractOperation::IntegerBitwiseXor {
             psi_operation,
             result,
@@ -169,7 +175,27 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
             Ok((*psi_operation, *result))
         }
+        AbstractOperation::IntegerBitwiseNot {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            Ok((*psi_operation, *result))
+        }
         AbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerMultiply {
             psi_operation,
             result,
             scalar_type,
@@ -183,6 +209,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             scalar_type,
             ..
         } if supports_signed_wrapping_remainder(*scalar_type) => Ok((*psi_operation, *result)),
+        AbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if supports_wrapping_divide_i64(*scalar_type) => Ok((*psi_operation, *result)),
         AbstractOperation::SaturatingIntegerAdd {
             psi_operation,
             result,
@@ -200,8 +232,20 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             scalar_type,
             ..
+        }
+        | AbstractOperation::SaturatingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
         } if saturating_carrier(*scalar_type).is_some() => Ok((*psi_operation, *result)),
         AbstractOperation::ExactIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerRemainder {
             psi_operation,
             result,
             scalar_type,
@@ -570,6 +614,12 @@ pub(super) fn validate(
                 right,
                 ..
             }
+            | AbstractOperation::IntegerBitwiseOr {
+                scalar_type,
+                left,
+                right,
+                ..
+            }
             | AbstractOperation::IntegerBitwiseXor {
                 scalar_type,
                 left,
@@ -579,6 +629,16 @@ pub(super) fn validate(
                 if value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*scalar_type)
+            }
+            AbstractOperation::IntegerBitwiseNot {
+                scalar_type,
+                operand,
+                ..
+            } => {
+                if value_type(optimized, *operand) != Some(ScalarType::Integer(*scalar_type)) {
                     return Err(invalid);
                 }
                 ScalarType::Integer(*scalar_type)
@@ -608,6 +668,12 @@ pub(super) fn validate(
                 left,
                 right,
                 ..
+            }
+            | AbstractOperation::SaturatingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+                ..
             } => {
                 if saturating_carrier(*scalar_type).is_none()
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
@@ -622,11 +688,37 @@ pub(super) fn validate(
                 left,
                 right,
                 ..
+            }
+            | AbstractOperation::WrappingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+                ..
+            }
+            | AbstractOperation::WrappingIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+                ..
             } => {
                 if scalar_shape(ScalarType::Integer(*scalar_type)).is_none()
                     || [left, right].iter().any(|value| {
                         value_type(optimized, **value) != Some(ScalarType::Integer(*scalar_type))
                     })
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*scalar_type)
+            }
+            AbstractOperation::WrappingIntegerDivide {
+                scalar_type,
+                left,
+                right,
+                ..
+            } => {
+                if !supports_wrapping_divide_i64(*scalar_type)
+                    || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
+                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
                     return Err(invalid);
                 }
@@ -649,7 +741,8 @@ pub(super) fn validate(
             AbstractOperation::ExactIntegerAdd { scalar_type, .. }
             | AbstractOperation::ExactIntegerSubtract { scalar_type, .. }
             | AbstractOperation::ExactIntegerMultiply { scalar_type, .. }
-            | AbstractOperation::ExactIntegerDivide { scalar_type, .. } => {
+            | AbstractOperation::ExactIntegerDivide { scalar_type, .. }
+            | AbstractOperation::ExactIntegerRemainder { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }
             AbstractOperation::IntegerEqual { left, right, .. }

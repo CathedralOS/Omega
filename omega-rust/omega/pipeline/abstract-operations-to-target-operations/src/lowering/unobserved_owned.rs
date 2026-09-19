@@ -53,6 +53,12 @@ pub(super) fn accepts(
         | AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
         | AbstractOperation::ExactIntegerMultiply { .. }
+        | AbstractOperation::ExactIntegerRemainder { .. }
+        | AbstractOperation::WrappingIntegerSubtract { .. }
+        | AbstractOperation::WrappingIntegerMultiply { .. }
+        | AbstractOperation::WrappingIntegerDivide { .. }
+        | AbstractOperation::IntegerBitwiseOr { .. }
+        | AbstractOperation::IntegerBitwiseNot { .. }
         | AbstractOperation::Call { .. } => true,
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => !declarations
             .iter()

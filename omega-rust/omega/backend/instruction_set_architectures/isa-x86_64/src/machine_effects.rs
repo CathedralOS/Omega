@@ -266,7 +266,9 @@ fn selected_keys(
         saturating_subtract_unsigned: crate::register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED,
         saturating_add_u64: crate::register_model::X86_64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::X86_64_DIVIDE_U64,
+        remainder_u64: crate::register_model::X86_64_REMAINDER_U64,
         remainder_i64: crate::register_model::X86_64_REMAINDER_I64,
+        divide_i64: crate::register_model::X86_64_DIVIDE_I64,
         saturating_add_clamped: crate::register_model::X86_64_SATURATING_ADD_CLAMPED,
         saturating_subtract_clamped: crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
         saturating_divide_signed: crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED,
@@ -289,10 +291,13 @@ fn declaration(
 ) -> MachineEffectDeclaration {
     let alternatives = match semantic {
         MachineSemanticKind::ExactDivideU64
+        | MachineSemanticKind::ExactRemainderU64
         | MachineSemanticKind::WrappingRemainderI64
+        | MachineSemanticKind::WrappingDivideI64
         | MachineSemanticKind::SaturatingAdd(_)
         | MachineSemanticKind::SaturatingSubtract(_)
-        | MachineSemanticKind::SaturatingDivide(_) => {
+        | MachineSemanticKind::SaturatingDivide(_)
+        | MachineSemanticKind::SaturatingRemainder(_) => {
             vec![alternative(
                 semantic,
                 0,
@@ -301,6 +306,8 @@ fn declaration(
             )]
         }
         MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::BitwiseOrI64
+        | MachineSemanticKind::BitwiseNotI64
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::WrappingAddI64
@@ -312,7 +319,7 @@ fn declaration(
                 size(semantic),
             )]
         }
-        MachineSemanticKind::ExactSubtractI64 => vec![
+        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => vec![
             alternative(
                 semantic,
                 0,
@@ -356,7 +363,7 @@ fn declaration(
         ],
         // `imul r64, r64` is one REX.W + 0F AF form in every alias case; only
         // the distinct-result variant prepends a three-byte `mov`.
-        MachineSemanticKind::ExactMultiplyI64 => vec![
+        MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => vec![
             alternative(
                 semantic,
                 0,
@@ -494,24 +501,37 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
-        MachineSemanticKind::WrappingRemainderI64 => (vec![0, 1], vec![2, 3]),
+        MachineSemanticKind::WrappingRemainderI64
+        | MachineSemanticKind::ExactRemainderU64
+        | MachineSemanticKind::WrappingDivideI64 => (vec![0, 1], vec![2, 3]),
         MachineSemanticKind::SaturatingAdd(carrier)
         | MachineSemanticKind::SaturatingSubtract(carrier)
-        | MachineSemanticKind::SaturatingDivide(carrier) => {
+        | MachineSemanticKind::SaturatingDivide(carrier)
+        | MachineSemanticKind::SaturatingRemainder(carrier) => {
             saturating_form(semantic, carrier).operand_reads_and_writes()
         }
         MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::BitwiseOrI64
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
+        MachineSemanticKind::BitwiseNotI64 => (vec![0], vec![1]),
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
-        MachineSemanticKind::ExactSubtractI64 if variant == 0 => (vec![], vec![2]),
-        MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
+        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64
+            if variant == 0 =>
+        {
+            (vec![], vec![2])
+        }
+        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => {
+            (vec![0, 1], vec![2])
+        }
         // `imul r, r` genuinely reads its input to square it, so even the
         // fully-aliased variant 0 reads both external operands.
-        MachineSemanticKind::ExactMultiplyI64 => (vec![0, 1], vec![2]),
+        MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => {
+            (vec![0, 1], vec![2])
+        }
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
@@ -585,7 +605,10 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::WrappingRemainderI64 => (
+            MachineSemanticKind::WrappingRemainderI64
+            | MachineSemanticKind::ExactRemainderU64
+            | MachineSemanticKind::WrappingDivideI64
+            | MachineSemanticKind::SaturatingRemainder(_) => (
                 vec![],
                 vec![],
                 units("rflags"),
@@ -595,11 +618,14 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedControlEffect::FallThroughV1,
             ),
             MachineSemanticKind::BitwiseAndI64
+            | MachineSemanticKind::BitwiseOrI64
             | MachineSemanticKind::BitwiseXorI64
             | MachineSemanticKind::SaturatingAdd(_)
             | MachineSemanticKind::SaturatingSubtract(_)
             | MachineSemanticKind::ExactMultiplyI64
-            | MachineSemanticKind::ExactSubtractI64 => (
+            | MachineSemanticKind::WrappingMultiplyI64
+            | MachineSemanticKind::ExactSubtractI64
+            | MachineSemanticKind::WrappingSubtractI64 => (
                 vec![],
                 vec![],
                 units("rflags"),
@@ -688,6 +714,7 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
         MachineSemanticKind::SaturatingAdd(_) => SaturatingOperation::Add,
         MachineSemanticKind::SaturatingSubtract(_) => SaturatingOperation::Subtract,
         MachineSemanticKind::SaturatingDivide(_) => SaturatingOperation::Divide,
+        MachineSemanticKind::SaturatingRemainder(_) => SaturatingOperation::Remainder,
         _ => unreachable!("saturating semantics carry their operation"),
     };
     SaturatingForm::of(operation, carrier)
@@ -726,17 +753,25 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
+        // `xor` the RDX high half, unsigned `div`, then move the remainder
+        // from RDX into the RAX result home.
+        MachineSemanticKind::ExactRemainderU64 => MachineSizeKnowledge::ExactBytes(9),
+        // `cmp` the divisor against -1, `jne` to the divide, `neg` the
+        // dividend for the wrapping MIN / -1 answer, `jmp` over `cqo; idiv`.
+        MachineSemanticKind::WrappingDivideI64 => MachineSizeKnowledge::ExactBytes(16),
         MachineSemanticKind::SaturatingAdd(carrier)
         | MachineSemanticKind::SaturatingSubtract(carrier)
-        | MachineSemanticKind::SaturatingDivide(carrier) => {
+        | MachineSemanticKind::SaturatingDivide(carrier)
+        | MachineSemanticKind::SaturatingRemainder(carrier) => {
             MachineSizeKnowledge::ExactBytes(saturating_form(semantic, carrier).byte_count())
         }
-        MachineSemanticKind::BitwiseAndI64 | MachineSemanticKind::BitwiseXorI64 => {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 3,
-                maximum_bytes: Some(6),
-            }
-        }
+        MachineSemanticKind::BitwiseAndI64
+        | MachineSemanticKind::BitwiseOrI64
+        | MachineSemanticKind::BitwiseNotI64
+        | MachineSemanticKind::BitwiseXorI64 => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 3,
+            maximum_bytes: Some(6),
+        },
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64 => MachineSizeKnowledge::EncoderResolved {
@@ -762,7 +797,10 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::ReturnUnit => MachineSizeKnowledge::ExactBytes(1),
-        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::ExactMultiplyI64 => {
+        MachineSemanticKind::ExactSubtractI64
+        | MachineSemanticKind::WrappingSubtractI64
+        | MachineSemanticKind::ExactMultiplyI64
+        | MachineSemanticKind::WrappingMultiplyI64 => {
             unreachable!("subtraction and multiplication declare alias-dependent alternatives")
         }
         MachineSemanticKind::CallScalar

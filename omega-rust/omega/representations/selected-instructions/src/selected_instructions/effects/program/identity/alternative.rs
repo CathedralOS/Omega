@@ -42,6 +42,9 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::SaturatingDivide(carrier) => {
             saturating_family_tag(SaturatingOperation::Divide, carrier)
         }
+        MachineAlternativeFamily::SaturatingRemainder(carrier) => {
+            saturating_family_tag(SaturatingOperation::Remainder, carrier)
+        }
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,
         MachineAlternativeFamily::ConditionalBranchNonZero => 6,
@@ -78,6 +81,12 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::CallUnit => 19,
         MachineAlternativeFamily::NormalizedForeignCall => 87,
         MachineAlternativeFamily::ExactMultiplyI64 => 88,
+        MachineAlternativeFamily::ExactRemainderU64 => 89,
+        MachineAlternativeFamily::WrappingSubtractI64 => 90,
+        MachineAlternativeFamily::WrappingMultiplyI64 => 91,
+        MachineAlternativeFamily::WrappingDivideI64 => 92,
+        MachineAlternativeFamily::BitwiseOrI64 => 93,
+        MachineAlternativeFamily::BitwiseNotI64 => 94,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     encode_applicability(bytes, alternative.applicability);

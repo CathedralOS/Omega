@@ -95,7 +95,27 @@ fn selected_arithmetic_rules(
                 SaturatingDivide(SaturatingCarrier::U64),
             ][..],
         ),
-        (Some(keys.remainder_i64), &[WrappingRemainderI64][..]),
+        // Saturating remainder shares the ordinary remainder rows: the
+        // mathematical remainder already lies inside its carrier.
+        (
+            Some(keys.remainder_u64),
+            &[
+                SaturatingRemainder(SaturatingCarrier::U8),
+                SaturatingRemainder(SaturatingCarrier::U16),
+                SaturatingRemainder(SaturatingCarrier::U32),
+                SaturatingRemainder(SaturatingCarrier::U64),
+            ][..],
+        ),
+        (
+            Some(keys.remainder_i64),
+            &[
+                WrappingRemainderI64,
+                SaturatingRemainder(SaturatingCarrier::I8),
+                SaturatingRemainder(SaturatingCarrier::I16),
+                SaturatingRemainder(SaturatingCarrier::I32),
+                SaturatingRemainder(SaturatingCarrier::I64),
+            ][..],
+        ),
         (
             Some(keys.saturating_add_clamped),
             &[
@@ -238,6 +258,12 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes(22)
             }
             SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(3),
+            // Signed remainder is cqo + idiv + the mov out of RDX; unsigned
+            // remainder is xor-edx + div + the same move.
+            SaturatingRemainder(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(17)
+            }
+            SaturatingRemainder(_) => MachineSizeKnowledge::ExactBytes(9),
             CompareI64Immediate => MachineSizeKnowledge::ExactBytes(7),
             BitwiseAndI64 | BitwiseXorI64 => resolved(3, 6),
             ByteViewAddress | WrappingAddI64 | ExactAddI64 => resolved(4, 5),
@@ -268,6 +294,8 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes(16)
             }
             SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(4),
+            // Divide plus MSUB: two words like the ordinary remainder row.
+            SaturatingRemainder(_) => MachineSizeKnowledge::ExactBytes(8),
             _ => MachineSizeKnowledge::ExactBytes(4),
         },
     }
@@ -526,6 +554,37 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
+        // Saturating remainder rides the shared remainder rows: x86-64 pins
+        // the divisor to RCX and defines RDX as the quotient-side scratch;
+        // AArch64 divides then recovers the remainder through MSUB under an
+        // early-clobber result.
+        SaturatingRemainder(_) => ArithmeticContract {
+            early_clobbers: if x86 { &[] } else { &[2] },
+            fixed_views: if x86 {
+                &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")]
+            } else {
+                &[]
+            },
+            flags: if x86 {
+                FlagsCustody::Clobber
+            } else {
+                FlagsCustody::None
+            },
+            faulting: x86,
+            alternatives: if x86 {
+                one(&[0, 1], &[2, 3])
+            } else {
+                one(&[0, 1], &[2])
+            },
+            ..ArithmeticContract::plain(
+                if x86 {
+                    &[Use, Use, Def, Def]
+                } else {
+                    &[Use, Use, Def]
+                },
+                Vec::new(),
+            )
+        },
         // The clamped saturating forms (every add but u64, every signed
         // subtract) clamp through an early-clobber bound scratch; x86-64
         // additionally accumulates in an early-clobber result.
@@ -613,7 +672,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         let arithmetic_rules = selected_arithmetic_rules(&environment);
         assert_eq!(
             arithmetic_rules.len(),
-            55,
+            63,
             "{} selects an unexpected arithmetic roster",
             case.convention
         );

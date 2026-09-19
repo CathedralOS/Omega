@@ -308,7 +308,9 @@ fn replay_classification(
         SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactAddI64Immediate { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+        | SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::ExactRemainderU64 { .. }
+        | SelectedInstructionKind::WrappingDivideI64 { .. } => {
             return replay_no(NoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         SelectedInstructionKind::MaterializeI64 { value } => value,

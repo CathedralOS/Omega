@@ -174,7 +174,9 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         saturating_subtract_unsigned: instruction_key(8),
         saturating_add_u64: instruction_key(8),
         divide_u64: instruction_key(8),
+        remainder_u64: instruction_key(48),
         remainder_i64: instruction_key(38),
+        divide_i64: instruction_key(49),
         saturating_add_clamped: instruction_key(40),
         saturating_subtract_clamped: instruction_key(41),
         saturating_divide_signed: instruction_key(42),
@@ -343,7 +345,15 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
+            remainder_u64: instruction_key(50),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
             remainder_i64: instruction_key(39),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            divide_i64: instruction_key(51),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

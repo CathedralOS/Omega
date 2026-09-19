@@ -132,6 +132,7 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::SaturatingAdd(_)
                 | MachineAlternativeFamily::SaturatingSubtract(_)
                 | MachineAlternativeFamily::SaturatingDivide(_)
+                | MachineAlternativeFamily::SaturatingRemainder(_)
                 | MachineAlternativeFamily::Float32ToBits
                 | MachineAlternativeFamily::Float64ToBits
                 | MachineAlternativeFamily::BitsToFloat32
@@ -151,6 +152,12 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::ExactAddI64
                 | MachineAlternativeFamily::ExactAddI64Immediate
                 | MachineAlternativeFamily::ExactMultiplyI64
+                | MachineAlternativeFamily::ExactRemainderU64
+                | MachineAlternativeFamily::WrappingSubtractI64
+                | MachineAlternativeFamily::WrappingMultiplyI64
+                | MachineAlternativeFamily::WrappingDivideI64
+                | MachineAlternativeFamily::BitwiseOrI64
+                | MachineAlternativeFamily::BitwiseNotI64
                 | MachineAlternativeFamily::ExactSubtractI64
                 | MachineAlternativeFamily::ExactSubtractI64Immediate => {
                     if row.branch.is_some()

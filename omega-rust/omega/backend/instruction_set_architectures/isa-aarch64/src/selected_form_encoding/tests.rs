@@ -343,13 +343,23 @@ fn saturating_kinds() -> Vec<(
             },
             MachineAlternativeFamily::SaturatingDivide(carrier),
         ));
+        kinds.push((
+            SaturatingOperation::Remainder,
+            carrier,
+            SelectedInstructionKind::SaturatingRemainder {
+                carrier,
+                obligation: ObligationId::new(1).unwrap(),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+            },
+            MachineAlternativeFamily::SaturatingRemainder(carrier),
+        ));
     }
     kinds
 }
 
 /// Every saturating form over `x1, x2 -> x3` with bound scratch `x4`,
 /// independently assembled with Apple clang 17; not derived from this encoder.
-const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]); 24] = [
+const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]); 32] = [
     (
         SaturatingOperation::Add,
         SaturatingCarrier::I8,
@@ -525,6 +535,48 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
         SaturatingCarrier::U64,
         &[0x9ac2_0823],
     ),
+    // sdiv/udiv x3, x1, x2 then msub x3, x3, x2, x1; the remainder needs no
+    // clamp and the wrapped MIN / -1 quotient still recovers zero.
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::I8,
+        &[0x9ac2_0c23, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::I16,
+        &[0x9ac2_0c23, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::I32,
+        &[0x9ac2_0c23, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::I64,
+        &[0x9ac2_0c23, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::U8,
+        &[0x9ac2_0823, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::U16,
+        &[0x9ac2_0823, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::U32,
+        &[0x9ac2_0823, 0x9b02_8463],
+    ),
+    (
+        SaturatingOperation::Remainder,
+        SaturatingCarrier::U64,
+        &[0x9ac2_0823, 0x9b02_8463],
+    ),
 ];
 
 fn clang_words(operation: SaturatingOperation, carrier: SaturatingCarrier) -> Vec<u8> {
@@ -556,7 +608,8 @@ fn every_saturating_carrier_matches_independent_assembler_and_rejects_mutation()
         assert_eq!(encoded.footprint().register_writes, operands[2..]);
         assert_eq!(
             encoded.footprint().writes_nzcv,
-            !(operation == SaturatingOperation::Divide && !carrier.is_signed()),
+            !(operation == SaturatingOperation::Divide && !carrier.is_signed())
+                && operation != SaturatingOperation::Remainder,
             "{kind:?}"
         );
         assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
@@ -605,11 +658,13 @@ fn every_saturating_carrier_matches_independent_assembler_and_rejects_mutation()
     }
 }
 
-/// The realizations that share bytes are exactly the unsigned subtracts and
-/// the unsigned divides: a zero-normalized narrow difference borrows when
-/// the u64 one does, and unsigned division never overflows.
+/// The realizations that share bytes are exactly the unsigned subtracts, the
+/// unsigned divides, and every remainder: a zero-normalized narrow difference
+/// borrows when the u64 one does, unsigned division never overflows, and the
+/// divide/`msub` remainder pair is carrier-width independent within each
+/// sign class.
 #[test]
-fn only_unsigned_subtract_and_divide_share_a_realization_across_carriers() {
+fn only_unsigned_subtract_divide_and_remainders_share_a_realization_across_carriers() {
     let mut shared = Vec::new();
     for (operation, carrier, _, _) in saturating_kinds() {
         let words = clang_words(operation, carrier);
@@ -622,16 +677,15 @@ fn only_unsigned_subtract_and_divide_share_a_realization_across_carriers() {
             }
         }
     }
-    assert!(
-        shared
-            .iter()
-            .all(|(operation, carrier)| !carrier.is_signed()
-                && matches!(
-                    operation,
-                    SaturatingOperation::Subtract | SaturatingOperation::Divide
-                ))
-    );
-    assert_eq!(shared.len(), 8);
+    assert!(shared.iter().all(|(operation, carrier)| {
+        (!carrier.is_signed()
+            && matches!(
+                operation,
+                SaturatingOperation::Subtract | SaturatingOperation::Divide
+            ))
+            || *operation == SaturatingOperation::Remainder
+    }));
+    assert_eq!(shared.len(), 16);
 }
 
 #[test]
@@ -671,6 +725,7 @@ fn reference(
         SaturatingOperation::Add => left + right,
         SaturatingOperation::Subtract => left - right,
         SaturatingOperation::Divide => left / right,
+        SaturatingOperation::Remainder => left % right,
     };
     let (minimum, maximum) = carrier_bounds(carrier);
     exact.clamp(minimum, maximum)
@@ -759,6 +814,15 @@ fn interpret(decoded: &[DecodedWord], left: i128, right: i128) -> i128 {
             } => {
                 registers[destination as usize] =
                     read(&registers, dividend) / read(&registers, divisor);
+            }
+            DecodedWord::MultiplySubtract {
+                left,
+                right,
+                minuend,
+                destination,
+            } => {
+                registers[destination as usize] = read(&registers, minuend)
+                    .wrapping_sub(read(&registers, left).wrapping_mul(read(&registers, right)));
             }
             DecodedWord::AddWithFlags {
                 left,
@@ -904,7 +968,11 @@ fn every_saturating_carrier_clamps_its_edges_in_the_decoded_words() {
         }
         for &left in &samples {
             for &right in &samples {
-                if operation == SaturatingOperation::Divide && right == 0 {
+                if matches!(
+                    operation,
+                    SaturatingOperation::Divide | SaturatingOperation::Remainder
+                ) && right == 0
+                {
                     continue;
                 }
                 // Registers hold the carrier's normalized 64-bit pattern;

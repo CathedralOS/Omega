@@ -137,11 +137,18 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
             | ExactSubtractI64Immediate { .. }
             | SaturatingAdd { .. }
             | WrappingAddI64
+            | WrappingSubtractI64
+            | WrappingMultiplyI64
             | SaturatingSubtract { .. }
             | SaturatingDivide { .. }
+            | SaturatingRemainder { .. }
             | ExactDivideU64 { .. }
+            | ExactRemainderU64 { .. }
             | WrappingRemainderI64 { .. }
+            | WrappingDivideI64 { .. }
             | BitwiseAndI64
+            | BitwiseOrI64
+            | BitwiseNotI64
             | BitwiseXorI64
             | ZeroExtendU8
             | ZeroExtendU16

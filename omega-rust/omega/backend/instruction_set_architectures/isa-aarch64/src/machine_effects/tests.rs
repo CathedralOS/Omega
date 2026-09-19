@@ -51,6 +51,10 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                     SaturatingOperation::Divide,
                     MachineSemanticKind::SaturatingDivide(carrier),
                 ),
+                (
+                    SaturatingOperation::Remainder,
+                    MachineSemanticKind::SaturatingRemainder(carrier),
+                ),
             ] {
                 // Operand shape selects the constraint row and the word count.
                 let (key, size, writes): (_, u16, &[u16]) = match operation {
@@ -86,6 +90,14 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                         if narrow { 16 } else { 24 },
                         &[2, 3],
                     ),
+                    // The divide/MSUB remainder pair keeps the plain
+                    // three-operand remainder row on both signs.
+                    SaturatingOperation::Remainder if !signed => {
+                        (crate::register_model::AARCH64_REMAINDER_U64, 8, &[2])
+                    }
+                    SaturatingOperation::Remainder => {
+                        (crate::register_model::AARCH64_REMAINDER_I64, 8, &[2])
+                    }
                 };
                 let declaration = catalog
                     .declarations
@@ -102,7 +114,8 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                 );
                 assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
                 assert_eq!(alternative.encoded.external_operand_writes, writes);
-                let defines_nzcv = !(operation == SaturatingOperation::Divide && !signed);
+                let defines_nzcv = !(operation == SaturatingOperation::Divide && !signed)
+                    && operation != SaturatingOperation::Remainder;
                 assert_eq!(
                     alternative.encoded.implicit_unit_defs,
                     if defines_nzcv {
@@ -145,6 +158,9 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                                 }
                                 SaturatingOperation::Divide => {
                                     MachineSemanticKind::SaturatingDivide(sibling)
+                                }
+                                SaturatingOperation::Remainder => {
+                                    MachineSemanticKind::SaturatingRemainder(sibling)
                                 }
                             }
                             .into();

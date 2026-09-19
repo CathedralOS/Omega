@@ -57,7 +57,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 }
                 Instruction::BooleanNot { operand }
                 | Instruction::IntegerWiden { operand, .. }
-                | Instruction::IntegerExactCast { operand, .. } => pending.push(*operand),
+                | Instruction::IntegerExactCast { operand, .. }
+                | Instruction::BitwiseNot { operand } => pending.push(*operand),
                 Instruction::Call(call) => pending.extend(
                     call.arguments
                         .iter()
@@ -71,10 +72,15 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::SaturatingAdd { left, right, .. }
                 | Instruction::SaturatingSubtract { left, right, .. }
                 | Instruction::SaturatingDivide { left, right, .. }
+                | Instruction::SaturatingRemainder { left, right, .. }
                 | Instruction::ExactBinary { left, right, .. }
                 | Instruction::WrappingRemainder { left, right, .. }
+                | Instruction::WrappingDivide { left, right, .. }
                 | Instruction::WrappingAdd { left, right }
+                | Instruction::WrappingSubtract { left, right }
+                | Instruction::WrappingMultiply { left, right }
                 | Instruction::BitwiseAnd { left, right }
+                | Instruction::BitwiseOr { left, right }
                 | Instruction::BitwiseXor { left, right }
                 | Instruction::IeeeFloatCompare { left, right, .. }
                 | Instruction::Compare { left, right, .. } => pending.extend([*left, *right]),

@@ -106,6 +106,16 @@ pub(crate) enum DecodedWord {
         right: u8,
         destination: u8,
     },
+    BitwiseOr {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+    /// `orn destination, xzr, source` — the MVN alias for complement.
+    BitwiseNot {
+        source: u8,
+        destination: u8,
+    },
     BitwiseAnd {
         left: u8,
         right: u8,
@@ -387,6 +397,19 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             destination: register,
         });
     }
+    if word & 0xffe0_fc00 == 0xaa00_0000 {
+        return Ok(DecodedWord::BitwiseOr {
+            left: ((word >> 5) & 0x1f) as u8,
+            right: ((word >> 16) & 0x1f) as u8,
+            destination: register,
+        });
+    }
+    if word & 0xffe0_ffe0 == 0xaa20_03e0 {
+        return Ok(DecodedWord::BitwiseNot {
+            source: ((word >> 16) & 0x1f) as u8,
+            destination: register,
+        });
+    }
     if word & 0xffff_fc1f == 0xf100_001f {
         return Ok(DecodedWord::CompareZero {
             source: ((word >> 5) & 0x1f) as u8,
@@ -577,6 +600,21 @@ pub(crate) fn validate_decoded(
                     destination: registers[2],
                 }]
         }
+        SelectedInstructionKind::BitwiseOrI64 => {
+            decoded
+                == [DecodedWord::BitwiseOr {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: registers[2],
+                }]
+        }
+        SelectedInstructionKind::BitwiseNotI64 => {
+            decoded
+                == [DecodedWord::BitwiseNot {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::SaturatingDivide { .. } => {
@@ -587,6 +625,15 @@ pub(crate) fn validate_decoded(
                     && !registers[..3].contains(&registers[3]));
             distinct_outputs && decoded == expected_saturating(realization, registers)
         }
+        SelectedInstructionKind::SaturatingRemainder { .. } => {
+            let realization = SaturatingRealization::of_kind(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+            // The result doubles as the quotient scratch, so it must be
+            // distinct from both inputs while `msub` still reads them.
+            registers[2] != registers[0]
+                && registers[2] != registers[1]
+                && decoded == expected_saturating(realization, registers)
+        }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             decoded
                 == [DecodedWord::UnsignedDivide {
@@ -594,6 +641,32 @@ pub(crate) fn validate_decoded(
                     divisor: registers[1],
                     destination: registers[2],
                 }]
+        }
+        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+            decoded
+                == [DecodedWord::SignedDivide {
+                    dividend: registers[0],
+                    divisor: registers[1],
+                    destination: registers[2],
+                }]
+        }
+        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+            registers[2] != registers[0]
+                && registers[2] != registers[1]
+                && decoded
+                    == [
+                        DecodedWord::UnsignedDivide {
+                            dividend: registers[0],
+                            divisor: registers[1],
+                            destination: registers[2],
+                        },
+                        DecodedWord::MultiplySubtract {
+                            left: registers[2],
+                            right: registers[1],
+                            minuend: registers[0],
+                            destination: registers[2],
+                        },
+                    ]
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             registers[2] != registers[0]
@@ -629,7 +702,8 @@ pub(crate) fn validate_decoded(
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => {
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::WrappingSubtractI64 => {
             decoded
                 == [DecodedWord::Subtract {
                     left: registers[0],
@@ -637,7 +711,8 @@ pub(crate) fn validate_decoded(
                     destination: registers[2],
                 }]
         }
-        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+        SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::WrappingMultiplyI64 => {
             decoded
                 == [DecodedWord::Multiply {
                     left: registers[0],
@@ -803,13 +878,16 @@ pub(crate) fn footprint(
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::ExactDivideU64 { .. }
-        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        | SelectedInstructionKind::ExactRemainderU64 { .. }
+        | SelectedInstructionKind::WrappingRemainderI64 { .. }
+        | SelectedInstructionKind::WrappingDivideI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
-        | SelectedInstructionKind::SaturatingDivide { .. } => {
+        | SelectedInstructionKind::SaturatingDivide { .. }
+        | SelectedInstructionKind::SaturatingRemainder { .. } => {
             let realization =
                 SaturatingRealization::of_kind(kind).expect("saturating kinds have a realization");
             (
@@ -818,10 +896,14 @@ pub(crate) fn footprint(
                 realization.defines_nzcv(),
             )
         }
+        SelectedInstructionKind::BitwiseNotI64 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
         | SelectedInstructionKind::BitwiseXorI64
         | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::WrappingSubtractI64
+        | SelectedInstructionKind::WrappingMultiplyI64
         | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
@@ -929,7 +1011,8 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingRemainderI64 { .. }
                 | SelectedInstructionKind::SaturatingAdd { .. }
                 | SelectedInstructionKind::SaturatingSubtract { .. }
-                | SelectedInstructionKind::SaturatingDivide { .. } => vec![0, 1],
+                | SelectedInstructionKind::SaturatingDivide { .. }
+                | SelectedInstructionKind::SaturatingRemainder { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
@@ -968,7 +1051,8 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2],
                 SelectedInstructionKind::SaturatingAdd { .. }
                 | SelectedInstructionKind::SaturatingSubtract { .. }
-                | SelectedInstructionKind::SaturatingDivide { .. } => (2
+                | SelectedInstructionKind::SaturatingDivide { .. }
+                | SelectedInstructionKind::SaturatingRemainder { .. } => (2
                     ..SaturatingRealization::of_kind(kind)
                         .expect("saturating kinds have a realization")
                         .operand_count() as u16)
@@ -1036,6 +1120,27 @@ fn expected_saturating(realization: SaturatingRealization, registers: &[u8]) -> 
             divisor: right,
             destination: value,
         }],
+        SaturatingRealization::Remainder { signed } => vec![
+            if signed {
+                DecodedWord::SignedDivide {
+                    dividend: left,
+                    divisor: right,
+                    destination: value,
+                }
+            } else {
+                DecodedWord::UnsignedDivide {
+                    dividend: left,
+                    divisor: right,
+                    destination: value,
+                }
+            },
+            DecodedWord::MultiplySubtract {
+                left: value,
+                right,
+                minuend: left,
+                destination: value,
+            },
+        ],
         SaturatingRealization::ClampNarrow { operation, .. } => {
             let scratch = registers[3];
             let mut expected = vec![match operation {
@@ -1054,6 +1159,9 @@ fn expected_saturating(realization: SaturatingRealization, registers: &[u8]) -> 
                     divisor: right,
                     destination: value,
                 },
+                selected_instructions::SaturatingOperation::Remainder => {
+                    unreachable!("remainder is realized through the divide/MSUB pair")
+                }
             }];
             for (index, bound) in realization.clamp_bounds().into_iter().enumerate() {
                 expected.push(DecodedWord::MaterializeBound {

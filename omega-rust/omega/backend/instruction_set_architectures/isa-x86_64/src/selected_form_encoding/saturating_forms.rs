@@ -45,6 +45,16 @@ pub(crate) enum SaturatingForm {
     /// when the divisor is -1 and the dividend is i64::MIN, and the dividend
     /// then becomes MIN + 1 so IDIV yields i64::MAX instead of faulting.
     DivideI64,
+    /// `xor rdx, rdx; div divisor; mov rax, rdx` — the shared unsigned
+    /// remainder shape (9 bytes). A zero-extended dividend cannot overflow
+    /// the quotient, and a mathematical remainder already lies inside every
+    /// carrier.
+    RemainderUnsigned,
+    /// `xor rdx, rdx; cmp divisor, -1; je over cqo/idiv; mov rax, rdx` —
+    /// the shared signed remainder shape (17 bytes). x % -1 is zero for
+    /// every dividend, so skipping IDIV leaves the pre-cleared zero and
+    /// avoids the MIN / -1 quotient fault.
+    RemainderSigned,
 }
 
 impl SaturatingForm {
@@ -62,6 +72,8 @@ impl SaturatingForm {
             (SaturatingOperation::Divide, false, _) => Self::DivideUnsigned,
             (SaturatingOperation::Divide, true, true) => Self::DivideSignedNarrow,
             (SaturatingOperation::Divide, true, false) => Self::DivideI64,
+            (SaturatingOperation::Remainder, false, _) => Self::RemainderUnsigned,
+            (SaturatingOperation::Remainder, true, _) => Self::RemainderSigned,
         }
     }
 
@@ -80,12 +92,18 @@ impl SaturatingForm {
             Self::DivideSignedNarrow => 22,
             // CMP/SBB/OR/NEG/LEA/CMOVO (21) plus CQO/IDIV (5).
             Self::DivideI64 => 26,
+            // XOR (3) plus DIV (3) plus MOV (3).
+            Self::RemainderUnsigned => 9,
+            // XOR (3) plus CMP/JE (6) plus CQO/IDIV (5) plus MOV (3).
+            Self::RemainderSigned => 17,
         }
     }
 
-    /// Every division uses the fixed `[rax Use, divisor Use, rax Def, rdx
-    /// Use]` shape of unsigned division; the clamped and overflow-select
-    /// forms add an early-clobber scratch after the early-clobber result.
+    /// Every division uses the fixed `[rax Use, divisor Use, rax Def, rdx]`
+    /// shape of unsigned division, and both remainder forms share the same
+    /// four-operand fixed row with RDX as an output; the clamped and
+    /// overflow-select forms add an early-clobber scratch after the
+    /// early-clobber result.
     pub(crate) const fn operand_count(self) -> usize {
         match self {
             Self::AddU64 | Self::SubtractUnsigned => 3,
@@ -94,14 +112,22 @@ impl SaturatingForm {
             | Self::ClampUnsignedNarrow
             | Self::OverflowSelectI64
             | Self::DivideSignedNarrow
-            | Self::DivideI64 => 4,
+            | Self::DivideI64
+            | Self::RemainderUnsigned
+            | Self::RemainderSigned => 4,
         }
     }
 
+    /// Whether the form sits on the fixed RAX/RDX divide pair with the
+    /// divisor kept out of RDX; the remainder forms share those pins.
     pub(crate) const fn is_division(self) -> bool {
         matches!(
             self,
-            Self::DivideUnsigned | Self::DivideSignedNarrow | Self::DivideI64
+            Self::DivideUnsigned
+                | Self::DivideSignedNarrow
+                | Self::DivideI64
+                | Self::RemainderUnsigned
+                | Self::RemainderSigned
         )
     }
 
@@ -132,6 +158,9 @@ impl SaturatingForm {
             Self::DivideUnsigned | Self::DivideSignedNarrow | Self::DivideI64 => {
                 (vec![0, 1, 3], vec![2])
             }
+            // The remainder forms define both outputs: RDX carries the
+            // remainder until the final move into the RAX result home.
+            Self::RemainderUnsigned | Self::RemainderSigned => (vec![0, 1], vec![2, 3]),
             Self::ClampSignedNarrow | Self::ClampUnsignedNarrow | Self::OverflowSelectI64 => {
                 (vec![0, 1], vec![2, 3])
             }
@@ -153,6 +182,9 @@ pub(crate) const fn saturating_operation(
         }
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             Some((SaturatingOperation::Divide, carrier))
+        }
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            Some((SaturatingOperation::Remainder, carrier))
         }
         _ => None,
     }

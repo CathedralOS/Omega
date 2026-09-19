@@ -113,15 +113,22 @@ pub(super) fn folded_literal<'a>(
                 LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
                 | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
                 | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
-
-                        | LegalizedScalarInstructionKind::WrappingAdd { left, right }
+                | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
+                | LegalizedScalarInstructionKind::WrappingAdd { left, right }
+                | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
+                | LegalizedScalarInstructionKind::WrappingMultiply { left, right }
+                | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
                 | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                 | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                | LegalizedScalarInstructionKind::BitwiseOr { left, right }
                 | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                 | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }
                 | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
                     *left == definition.value || *right == definition.value
+                }
+                LegalizedScalarInstructionKind::BitwiseNot { operand } => {
+                    *operand == definition.value
                 }
             };
             if uses {

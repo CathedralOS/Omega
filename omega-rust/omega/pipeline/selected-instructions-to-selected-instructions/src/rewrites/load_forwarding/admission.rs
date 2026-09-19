@@ -1336,12 +1336,19 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoa
         | ExactAddI64Immediate { .. }
         | ExactSubtractI64Immediate { .. }
         | WrappingAddI64
+        | WrappingSubtractI64
+        | WrappingMultiplyI64
         | ExactDivideU64 { .. }
+        | ExactRemainderU64 { .. }
         | WrappingRemainderI64 { .. }
+        | WrappingDivideI64 { .. }
         | SaturatingAdd { .. }
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }
+        | SaturatingRemainder { .. }
         | BitwiseAndI64
+        | BitwiseOrI64
+        | BitwiseNotI64
         | BitwiseXorI64
         | ZeroExtendU8
         | ZeroExtendU16

@@ -65,11 +65,20 @@ pub(super) fn project(
                 right: *right,
             }
         }
+        AbstractOperation::IntegerBitwiseOr { left, right, .. } => {
+            LegalizedScalarInstructionKind::BitwiseOr {
+                left: *left,
+                right: *right,
+            }
+        }
         AbstractOperation::IntegerBitwiseXor { left, right, .. } => {
             LegalizedScalarInstructionKind::BitwiseXor {
                 left: *left,
                 right: *right,
             }
+        }
+        AbstractOperation::IntegerBitwiseNot { operand, .. } => {
+            LegalizedScalarInstructionKind::BitwiseNot { operand: *operand }
         }
         AbstractOperation::IeeeFloatCompare {
             comparison,
@@ -258,8 +267,23 @@ pub(super) fn project(
         AbstractOperation::SaturatingIntegerDivide { .. } => {
             scalar_instructions::project_saturating_integer_divide(node, optimized, unit)?
         }
+        AbstractOperation::SaturatingIntegerRemainder { .. } => {
+            scalar_instructions::project_saturating_integer_remainder(node, optimized, unit)?
+        }
         AbstractOperation::WrappingIntegerAdd { left, right, .. } => {
             LegalizedScalarInstructionKind::WrappingAdd {
+                left: *left,
+                right: *right,
+            }
+        }
+        AbstractOperation::WrappingIntegerSubtract { left, right, .. } => {
+            LegalizedScalarInstructionKind::WrappingSubtract {
+                left: *left,
+                right: *right,
+            }
+        }
+        AbstractOperation::WrappingIntegerMultiply { left, right, .. } => {
+            LegalizedScalarInstructionKind::WrappingMultiply {
                 left: *left,
                 right: *right,
             }
@@ -267,10 +291,14 @@ pub(super) fn project(
         AbstractOperation::WrappingIntegerRemainder { .. } => {
             scalar_instructions::project_wrapping_integer_remainder(node, optimized, unit)?
         }
+        AbstractOperation::WrappingIntegerDivide { .. } => {
+            scalar_instructions::project_wrapping_integer_divide(node, optimized, unit)?
+        }
         AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
         | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerDivide { .. } => {
+        | AbstractOperation::ExactIntegerDivide { .. }
+        | AbstractOperation::ExactIntegerRemainder { .. } => {
             scalar_instructions::project_exact_integer_add(node, optimized, unit)?
         }
         AbstractOperation::BooleanEqual { .. }

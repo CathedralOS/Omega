@@ -99,11 +99,21 @@ fn family_and_operand_count(
         SelectedInstructionKind::BitwiseAndI64 => {
             (MachineAlternativeFamily::BitwiseAndI64, 3, 0..=0)
         }
+        SelectedInstructionKind::BitwiseOrI64 => (MachineAlternativeFamily::BitwiseOrI64, 3, 0..=0),
+        SelectedInstructionKind::BitwiseNotI64 => {
+            (MachineAlternativeFamily::BitwiseNotI64, 2, 0..=0)
+        }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 4, 0..=0)
         }
+        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+            (MachineAlternativeFamily::ExactRemainderU64, 4, 0..=0)
+        }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (MachineAlternativeFamily::WrappingRemainderI64, 4, 0..=0)
+        }
+        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+            (MachineAlternativeFamily::WrappingDivideI64, 4, 0..=0)
         }
         // The carrier's realization shape fixes the operand count: the u64
         // add and every unsigned subtract are three-operand forms, everything
@@ -123,14 +133,25 @@ fn family_and_operand_count(
             SaturatingForm::of(SaturatingOperation::Divide, carrier).operand_count(),
             0..=0,
         ),
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => (
+            MachineAlternativeFamily::SaturatingRemainder(carrier),
+            SaturatingForm::of(SaturatingOperation::Remainder, carrier).operand_count(),
+            0..=0,
+        ),
         SelectedInstructionKind::BitwiseXorI64 => {
             (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
         }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3, 0..=3)
         }
+        SelectedInstructionKind::WrappingSubtractI64 => {
+            (MachineAlternativeFamily::WrappingSubtractI64, 3, 0..=3)
+        }
         SelectedInstructionKind::ExactMultiplyI64 { .. } => {
             (MachineAlternativeFamily::ExactMultiplyI64, 3, 0..=3)
+        }
+        SelectedInstructionKind::WrappingMultiplyI64 => {
+            (MachineAlternativeFamily::WrappingMultiplyI64, 3, 0..=3)
         }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (MachineAlternativeFamily::ExactAddI64Immediate, 2, 0..=0)
@@ -262,7 +283,9 @@ pub(crate) fn validate_alias_partition(
     if !matches!(
         kind,
         SelectedInstructionKind::ExactSubtractI64 { .. }
+            | SelectedInstructionKind::WrappingSubtractI64
             | SelectedInstructionKind::ExactMultiplyI64 { .. }
+            | SelectedInstructionKind::WrappingMultiplyI64
     ) {
         return Ok(());
     }

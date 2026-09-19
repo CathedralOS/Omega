@@ -1561,6 +1561,31 @@ fn member_must_be_pure_work() {
         relocate(&saturating_divide, &environment, MOVING, LEAD).unwrap_err(),
         ArmRelocationError::UnsupportedInstruction
     );
+    // Saturating remainder divides at the machine level too: its carried
+    // nonzero-divisor obligation is a proof fact, not a speculative
+    // guarantee, so the same faulting-member refusal applies.
+    let saturating_remainder = mutated(target, |function, environment| {
+        let remainder = environment
+            .constraint(environment.selected_keys().remainder_i64)
+            .unwrap()
+            .clone();
+        function.blocks[1].instructions[1] = instruction(
+            MOVING,
+            SelectedInstructionKind::SaturatingRemainder {
+                carrier: selected_instructions::SaturatingCarrier::I64,
+                obligation: ObligationId::new(11).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [7; 32],
+                ),
+            },
+            &remainder,
+            &[POINTER, R_MOVE, R_MOVE, R_MOVE],
+        );
+    });
+    assert_eq!(
+        relocate(&saturating_remainder, &environment, MOVING, LEAD).unwrap_err(),
+        ArmRelocationError::UnsupportedInstruction
+    );
     // Memory work on the speculative paths never moves: a store in F
     // refuses only if it would read a live member definition.
     let skipped_store = mutated(target, |function, environment| {

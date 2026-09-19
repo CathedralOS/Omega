@@ -6,7 +6,7 @@ use crate::legalization::scalar_graph_input::target::Checker;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::{
-    saturating_carrier, supports_signed_wrapping_remainder,
+    saturating_carrier, supports_signed_wrapping_remainder, supports_wrapping_divide_i64,
 };
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
@@ -199,7 +199,51 @@ pub(super) fn observation(
             }
             (*psi_operation, *result, ScalarType::Integer(*target_type))
         }
+        AbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            if !supports_wrapping_divide_i64(*scalar_type)
+                || checker.available.is_none_or(|sources| {
+                    [left, right].iter().any(|operand| {
+                        !sources.iter().any(|(value, source)| {
+                            value == *operand
+                                && source.scalar_type() == ScalarType::Integer(*scalar_type)
+                        })
+                    })
+                })
+            {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
+        AbstractOperation::IntegerBitwiseNot {
+            psi_operation,
+            result,
+            scalar_type,
+            operand,
+        } => {
+            if checker.available.is_none_or(|sources| {
+                !sources.iter().any(|(value, source)| {
+                    value == operand && source.scalar_type() == ScalarType::Integer(*scalar_type)
+                })
+            }) {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
         AbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::IntegerBitwiseOr {
             psi_operation,
             result,
             scalar_type,
@@ -221,6 +265,20 @@ pub(super) fn observation(
             right,
         }
         | AbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::WrappingIntegerMultiply {
             psi_operation,
             result,
             scalar_type,
@@ -259,6 +317,14 @@ pub(super) fn observation(
             ..
         }
         | AbstractOperation::ExactIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | AbstractOperation::ExactIntegerRemainder {
             psi_operation,
             result,
             scalar_type,

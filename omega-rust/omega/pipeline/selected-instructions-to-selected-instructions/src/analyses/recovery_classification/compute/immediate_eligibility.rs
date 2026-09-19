@@ -61,7 +61,9 @@ pub(super) fn classify(
         SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactAddI64Immediate { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+        | SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::ExactRemainderU64 { .. }
+        | SelectedInstructionKind::WrappingDivideI64 { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         SelectedInstructionKind::MaterializeI64 { .. } => {}

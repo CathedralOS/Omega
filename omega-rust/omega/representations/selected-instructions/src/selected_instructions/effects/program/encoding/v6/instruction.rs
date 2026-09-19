@@ -207,6 +207,18 @@ fn decode_kind(
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
+        89 => SelectedInstructionKind::ExactRemainderU64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
+        90 => SelectedInstructionKind::WrappingSubtractI64,
+        91 => SelectedInstructionKind::WrappingMultiplyI64,
+        92 => SelectedInstructionKind::WrappingDivideI64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
+        93 => SelectedInstructionKind::BitwiseOrI64,
+        94 => SelectedInstructionKind::BitwiseNotI64,
         tag if saturating_kind(tag).is_some() => {
             let (operation, carrier) = saturating_kind(tag).unwrap();
             match operation {
@@ -214,11 +226,22 @@ fn decode_kind(
                 SaturatingOperation::Subtract => {
                     SelectedInstructionKind::SaturatingSubtract { carrier }
                 }
-                SaturatingOperation::Divide => SelectedInstructionKind::SaturatingDivide {
-                    carrier,
-                    obligation: decode_obligation(cursor)?,
-                    accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
-                },
+                SaturatingOperation::Divide | SaturatingOperation::Remainder => {
+                    let obligation = decode_obligation(cursor)?;
+                    let accepted_fact = AcceptedObligationFactIdentity::from_bytes(cursor.array()?);
+                    match operation {
+                        SaturatingOperation::Divide => SelectedInstructionKind::SaturatingDivide {
+                            carrier,
+                            obligation,
+                            accepted_fact,
+                        },
+                        _ => SelectedInstructionKind::SaturatingRemainder {
+                            carrier,
+                            obligation,
+                            accepted_fact,
+                        },
+                    }
+                }
             }
         }
         3 => SelectedInstructionKind::ExactAddI64 {
@@ -432,6 +455,12 @@ fn decode_alternative_for_version(
         57 => MachineAlternativeFamily::WrappingRemainderI64,
         58 => MachineAlternativeFamily::WrappingAddI64,
         88 => MachineAlternativeFamily::ExactMultiplyI64,
+        89 => MachineAlternativeFamily::ExactRemainderU64,
+        90 => MachineAlternativeFamily::WrappingSubtractI64,
+        91 => MachineAlternativeFamily::WrappingMultiplyI64,
+        92 => MachineAlternativeFamily::WrappingDivideI64,
+        93 => MachineAlternativeFamily::BitwiseOrI64,
+        94 => MachineAlternativeFamily::BitwiseNotI64,
         tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
             (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
             (SaturatingOperation::Subtract, carrier) => {
@@ -439,6 +468,9 @@ fn decode_alternative_for_version(
             }
             (SaturatingOperation::Divide, carrier) => {
                 MachineAlternativeFamily::SaturatingDivide(carrier)
+            }
+            (SaturatingOperation::Remainder, carrier) => {
+                MachineAlternativeFamily::SaturatingRemainder(carrier)
             }
         },
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
@@ -730,6 +762,7 @@ fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> 
         SaturatingOperation::Add,
         SaturatingOperation::Subtract,
         SaturatingOperation::Divide,
+        SaturatingOperation::Remainder,
     ]
     .into_iter()
     .flat_map(|operation| {
