@@ -632,16 +632,12 @@ fn reconstruct_action(
                 LiteralFoldError::ConsumerMismatch {
                     function: function_index,
                 }
-            } else if future_use.operand == 1
+            } else if (future_use.operand == 1
                 && (rows.saturating_subtract_zero.is_some()
-                    || (!carrier.is_signed() && rows.saturating_subtract_upper_bound.is_some()))
-            {
-                LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                }
-            } else if future_use.operand == 0
-                && !carrier.is_signed()
-                && rows.saturating_subtract_zero_minuend.is_some()
+                    || (!carrier.is_signed() && rows.saturating_subtract_upper_bound.is_some())))
+                || (future_use.operand == 0
+                    && !carrier.is_signed()
+                    && rows.saturating_subtract_zero_minuend.is_some())
             {
                 LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
