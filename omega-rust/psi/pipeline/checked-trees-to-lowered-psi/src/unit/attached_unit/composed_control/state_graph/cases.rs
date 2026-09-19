@@ -324,6 +324,7 @@ pub(super) fn validate(
         !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
     }) { return unsupported("Unit case has unrelated owned parameter cleanup"); }
     let mut has_result_discard = false;
+    super::result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
     for (_, event) in checked
         .facts
         .flow
@@ -337,20 +338,23 @@ pub(super) fn validate(
                 && event.kind == language_semantics::PermissionEventKind::AffineDrop
         })
     {
-        if event.root != facts::PlaceRoot::Symbol(result_symbol)
-            || event.access != language_semantics::PermissionAccess::Owned
+        if event.root != facts::PlaceRoot::Symbol(result_symbol) {
+            if checked
+                .state_parameters(source)
+                .iter()
+                .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            {
+                return unsupported("Unit case discards an unrelated entry parameter");
+            }
+            continue;
+        }
+        if event.access != language_semantics::PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
             || event.provenance != expected_provenance
             || has_result_discard
             || event.obligation_live
-            || !checked
-                .facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .is_empty()
+            || !event.segments.is_empty()
         {
             return unsupported("Unit case affine exit custody escaped its result local");
         }
@@ -369,6 +373,27 @@ pub(super) fn validate(
     }
     let mut previous_case_order = None;
     for (offset, case) in cases.iter().enumerate() {
+        if case.successor.transfers.iter().any(|transfer| {
+            match (&subject.source, &transfer.source) {
+                (
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
+                ) => parameter_index == index,
+                (
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: subject,
+                    },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    },
+                ) => subject == binding_ordinal,
+                _ => false,
+            }
+        }) {
+            return unsupported("Unit case transfers its consumed subject");
+        }
         let source_offset = (case.successor.statement_ordinal as usize)
             .checked_sub(ordinal)
             .ok_or(LoweringError::Unsupported(
@@ -541,6 +566,13 @@ pub(super) fn validate(
             &case.successor,
             case.successor.statement_ordinal as usize,
             &case.payloads,
+        )?;
+        super::result_custody::local_discards(
+            checked,
+            plan.machine,
+            source,
+            state,
+            Some(&case.successor),
         )?;
     }
     if tail.iter().enumerate().any(|(offset, _)| {

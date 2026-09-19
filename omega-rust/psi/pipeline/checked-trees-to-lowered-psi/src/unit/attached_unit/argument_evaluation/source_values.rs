@@ -274,10 +274,15 @@ impl Evaluation {
                 state,
                 statement,
                 role,
-                if matches!(role, CheckedScalarExpressionRole::LocalInitializer { .. }) {
-                    symbols::SymbolHandle::invalid()
-                } else {
+                if matches!(
+                    role,
+                    CheckedScalarExpressionRole::StorageInitializer
+                        | CheckedScalarExpressionRole::AssignmentValue
+                        | CheckedScalarExpressionRole::ArrayElement { .. }
+                ) {
                     source.destination
+                } else {
+                    symbols::SymbolHandle::invalid()
                 },
                 &bindings,
                 &source_types,

@@ -36,6 +36,18 @@ fn selected_roots(
 ) -> Result<Vec<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
     let mut pending = Vec::new();
     for state in states {
+        for edge in super::state_graph::successors(state) {
+            for argument in &edge.scalar_arguments {
+                if matches!(
+                    argument.source,
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                ) && let CheckedCallScalarArgument::Computation(root) =
+                    super::state_graph::scalars::successor_value(checked, state, edge, argument)?
+                {
+                    pending.push(root);
+                }
+            }
+        }
         if let CheckedComposedUnitControlTerminatorPlan::Guarded { arms, .. } = &state.terminator {
             let guards = checked
                 .facts

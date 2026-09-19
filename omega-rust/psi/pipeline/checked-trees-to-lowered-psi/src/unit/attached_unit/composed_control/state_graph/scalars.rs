@@ -10,6 +10,89 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};
 
+/// Select the retained value at its authored successor coordinate. Storage
+/// reads use computation nodes; pure expressions keep their ordinary binding.
+pub(in crate::unit::attached_unit::composed_control) fn successor_value(
+    checked: &CheckedTrees,
+    state: &CheckedComposedUnitControlStatePlan,
+    edge: &super::CheckedStructuralControlSuccessorPlan,
+    argument: &checked_trees::CheckedStructuralScalarArgumentPlan,
+) -> Result<checked_trees::CheckedCallScalarArgument, LoweringError> {
+    let role = CheckedScalarExpressionRole::TransitionArgument {
+        argument_ordinal: argument.argument_ordinal,
+    };
+    let source = crate::expression_preparation::source_custody::locate(
+        checked,
+        state.state,
+        edge.statement_ordinal,
+        role,
+    )?;
+    if source.primitive_type != argument.primitive_type {
+        return unsupported("Unit graph successor value type disagrees with source");
+    }
+    let pure = &checked.facts.values.scalar_expressions;
+    let computations = &checked.facts.values.scalar_computations;
+    let mut roots = computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.state == state.state
+                && root.statement_ordinal == edge.statement_ordinal
+                && root.role == role
+        });
+    let root = roots.next();
+    if roots.next().is_some() {
+        return unsupported("Unit graph successor computation has duplicate source roots");
+    }
+    if let Some(root) = root {
+        // Failed uniqueness is not absence: an incomplete or duplicated pure
+        // roster must not disappear behind the computation lane.
+        let has_pure = pure.source_bindings.iter().any(|(_, binding)| {
+            binding.state == state.state
+                && binding.statement_ordinal == edge.statement_ordinal
+                && binding.role == role
+        }) || pure.expressions.iter().any(|expression| {
+            expression.state == state.state
+                && expression.statement_ordinal == edge.statement_ordinal
+                && expression.role == role
+        });
+        if has_pure
+            || root.machine != source.machine
+            || !computations.nodes.is_valid(root.root)
+            || computations.nodes.get(root.root).authored_root != source.expression
+            || computations.nodes.get(root.root).primitive_type != argument.primitive_type
+        {
+            return unsupported("Unit graph successor computation disagrees with source");
+        }
+        crate::expression_preparation::source_custody::validate_computation_calls(
+            checked,
+            source.machine,
+            state.state,
+            edge.statement_ordinal,
+            root.root,
+            source.expression,
+        )?;
+        Ok(checked_trees::CheckedCallScalarArgument::Computation(
+            root.root,
+        ))
+    } else {
+        let (binding, value) = pure
+            .bound_expression_at(state.state, edge.statement_ordinal, role)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph scalar successor has no checked source expression",
+            ))?;
+        crate::expression_preparation::source_custody::validate_pure(
+            checked,
+            binding,
+            terminal_scalar_type(argument.primitive_type)?,
+        )?;
+        Ok(checked_trees::CheckedCallScalarArgument::Pure(
+            value.clone(),
+        ))
+    }
+}
+
 fn role(
     binding: &checked_trees::CheckedScalarBinding,
     immutable_ordinal: u32,

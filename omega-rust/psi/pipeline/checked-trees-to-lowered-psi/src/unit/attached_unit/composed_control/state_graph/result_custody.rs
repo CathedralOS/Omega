@@ -218,6 +218,46 @@ pub(super) fn validate(
     Ok(())
 }
 
+/// Every local exit disposition must belong to a retained result. Parameter
+/// dispositions are checked separately against their entry custody.
+pub(super) fn validate_disposition_roster(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Result<(), LoweringError> {
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    for (_, event) in checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state.state
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+    {
+        if checked
+            .state_parameters(source)
+            .iter()
+            .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+        {
+            continue;
+        }
+        let matching = state.operations.iter().filter_map(result).filter(|result| {
+            matches!(statements.get(result.statement_index as usize),
+                Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
+        }).count();
+        if matching != 1 {
+            return unsupported("Unit graph edge leaves an unaccounted local disposition");
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn local_discards(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,

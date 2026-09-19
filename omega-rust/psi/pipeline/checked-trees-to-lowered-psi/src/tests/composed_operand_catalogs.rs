@@ -4,6 +4,7 @@ use lowered_psi::LoweredPsi;
 use terminal_psi::{OperationKind, Terminator};
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
+mod closed_sum_cleanup;
 mod dynamic_unit;
 
 fn roundtrip(checked: &CheckedTrees) -> LoweredPsi {

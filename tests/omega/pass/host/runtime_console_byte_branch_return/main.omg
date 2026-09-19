@@ -1,4 +1,5 @@
-// Each returning arm owns a distinct uninspected result from its second read.
+// Case selection consumes only its subject. Unrelated locals remain available
+// to selected successor arguments, then transfer or clean up on that edge.
 use omega::language::core::service;
 use omega_language_std::console;
 
@@ -6,21 +7,27 @@ data Main {
     console: Service<Console>;
 }
 
+data Scratch {
+    value: i32;
+}
+
 machine Main::main(&mut self)
 reaches Console
 {
+    let before: Scratch = Scratch { value: 7 };
     let first: ByteRead = block self.console.read_byte();
+    let after: Scratch = Scratch { value: 9 };
     transition first {
-        ByteRead::Byte { value } -> byte(value)
-        ByteRead::Eof -> eof()
+        ByteRead::Byte { value } -> byte(value, before, after.value)
+        ByteRead::Eof -> eof(before.value)
     }
 
-    state byte(&mut self, value: i32) {
+    state byte(&mut self, value: i32 [0..=255], retained: Scratch, observed: i32) {
         self.console.write_byte(value);
         let second: ByteRead = block self.console.read_byte();
     }
 
-    state eof(&mut self) {
+    state eof(&mut self, observed: i32) {
         let second: ByteRead = block self.console.read_byte();
     }
 }
