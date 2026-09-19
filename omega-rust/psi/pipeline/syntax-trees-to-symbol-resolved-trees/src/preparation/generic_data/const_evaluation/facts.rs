@@ -18,11 +18,13 @@ use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_
 /// instantiation time. `None` means the fact still depends on a runtime field
 /// and must remain on the synthesized record. `self_value` is the concrete
 /// scalar a selected domain binds to `self` while its facts replay.
+/// Integer synthesis callers and mixed domain binders share the same fact
+/// operations without copying their environments or encoding Booleans as 0/1.
 pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
-    parameter_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
     self_value: Option<ConstScalarValue>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
@@ -46,7 +48,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
                 .collect::<Vec<_>>()
                 .join("::");
             if let Some(value) = parameter_values.get(&name) {
-                return Ok(Some(ConstFactValue::Integer(*value)));
+                return Ok(Some((*value).into().into_fact_value()));
             }
             crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                 syntax,
@@ -251,7 +253,7 @@ fn evaluate_selected_domain_facts(
     carrier: &str,
     value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
-    parameter_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, ConstScalarValue>,
     visiting: &mut Vec<String>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
@@ -385,11 +387,11 @@ fn nested_membership_operand<'a>(
 /// domains (a qualified path names its exact owner, module-local precedence
 /// ranks same-leaf candidates, and relative spellings stay import-gated);
 /// contested, unreachable, or non-generic owners decline. Every index
-/// parameter must be an integer const binder and every supplied argument must
-/// close to a concrete integer against the enclosing scope's bindings; the
+/// parameter must be an integer or Boolean const binder and every argument
+/// must close to that exact carrier against the enclosing scope's bindings; the
 /// family's facts then replay through the same evaluator monomorphic domains
 /// use, with `self` bound to `value` and each binder mapped to its argument.
-/// A carrier-polymorphic target, a non-integer or non-const index parameter,
+/// A carrier-polymorphic target, a non-scalar or non-const index parameter,
 /// an argument that stays open (enclosing binders, module-constant spellings,
 /// names still owned by resolved selection), and an unprovable fact all
 /// decline with `None` so the declaration keeps its fence instead of
@@ -401,7 +403,7 @@ fn evaluate_indexed_const_domain(
     carrier: &str,
     value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
-    argument_values: &HashMap<String, i128>,
+    argument_values: &HashMap<String, ConstScalarValue>,
     argument_parameters: &[syntax_trees::item::TypeParameter],
     visiting: &mut Vec<String>,
     reference: source::SourceSpan,
@@ -501,7 +503,24 @@ fn evaluate_indexed_const_domain(
         };
         let required =
             crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
-        crate::preparation::generic_data::validate_syntax_integer_range(&required, bound)?;
+        match bound {
+            ConstScalarValue::Integer(bound) => {
+                if required == "bool" {
+                    return Err(format!(
+                        "index argument for `{authored}::{}` is an integer, expected `bool`",
+                        parameter.name.as_str(),
+                    ));
+                }
+                crate::preparation::generic_data::validate_syntax_integer_range(&required, bound)?;
+            }
+            ConstScalarValue::Boolean(_) if required != "bool" => {
+                return Err(format!(
+                    "index argument for `{authored}::{}` has canonical type `bool`, expected `{required}`",
+                    parameter.name.as_str(),
+                ));
+            }
+            ConstScalarValue::Boolean(_) => {}
+        }
         parameter_values.insert(parameter.name.as_str().to_owned(), bound);
     }
     evaluate_selected_domain_facts(
@@ -519,12 +538,12 @@ fn evaluate_indexed_const_domain(
 }
 
 /// Evaluate one supplied index argument of a domain-family application to the
-/// integer its const binder receives, under the same admissible forms the
+/// scalar its const binder receives, under the same admissible forms the
 /// closed-index canonicalizer accepts: literal and canonical leaves, the
 /// caller's bound index parameters, exactly selected constant declarations,
 /// and the scoped integer ledger. `Ok(None)` means the argument cannot be
 /// decided at this point — an unresolved name, a spelling ordinary resolution
-/// still owns, or a non-integer canonical value — so the application stays
+/// still owns, or a non-scalar canonical value — so the application stays
 /// fenced rather than binding a guessed value.
 fn evaluate_domain_index_argument(
     syntax: &SyntaxTrees,
@@ -533,18 +552,21 @@ fn evaluate_domain_index_argument(
     parameter_type: TypeReferenceHandle,
     argument: TypeReferenceHandle,
     const_values: &HashMap<String, i128>,
-    argument_values: &HashMap<String, i128>,
+    argument_values: &HashMap<String, ConstScalarValue>,
     argument_parameters: &[syntax_trees::item::TypeParameter],
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
-) -> Result<Option<i128>, String> {
-    let Some(integer_type) =
-        crate::preparation::generic_data::const_integer_type(syntax, parameter_type)
-    else {
-        // Non-integer const index parameters (bool, data carriers) still owe
-        // their own checked evidence; keep the application fenced.
+) -> Result<Option<ConstScalarValue>, String> {
+    let integer_type = crate::preparation::generic_data::const_integer_type(syntax, parameter_type);
+    let boolean_type = matches!(
+        syntax.type_references.type_reference(parameter_type),
+        TypeReferenceNode::Named(name) if name.as_str() == "bool"
+    );
+    // A constrained binder cannot borrow its base carrier's eligibility:
+    // its qualification still needs separate evidence.
+    if integer_type.is_none() && !boolean_type {
         return Ok(None);
-    };
+    }
     match syntax.type_references.type_reference(argument) {
         TypeReferenceNode::Named(name) => {
             if let Some(atom) = CanonicalConstValue::from_atom(name.as_str()) {
@@ -556,25 +578,13 @@ fn evaluate_domain_index_argument(
                         atom.type_name,
                     ));
                 }
-                return match atom.decode_encoding() {
-                    Some(
-                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                            value,
-                            ..
-                        },
-                    ) => Ok(Some(value)),
-                    _ => Ok(None),
-                };
+                return Ok(ConstScalarValue::from_canonical(&atom));
             }
             if let Ok(value) = name.as_str().parse::<i128>() {
-                return Ok(Some(value));
+                return Ok(Some(ConstScalarValue::Integer(value)));
             }
             if matches!(name.as_str(), "true" | "false") {
-                let required =
-                    crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
-                return Err(format!(
-                    "index argument for `{family_name}::{parameter_name}` has canonical type `bool`, expected `{required}`"
-                ));
+                return Ok(Some(ConstScalarValue::Boolean(name.as_str() == "true")));
             }
             if let Some(value) = argument_values.get(name.as_str()) {
                 // Forwarding binds a declared value, not an anonymous integer.
@@ -623,15 +633,7 @@ fn evaluate_domain_index_argument(
                             "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
                         )
                     })?;
-                    return match value.decode_encoding() {
-                        Some(
-                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                                value,
-                                ..
-                            },
-                        ) => Ok(Some(value)),
-                        _ => Ok(None),
-                    };
+                    return Ok(ConstScalarValue::from_canonical(&value));
                 }
             }
             if let Some(value) = const_values.get(name.as_str()) {
@@ -640,7 +642,7 @@ fn evaluate_domain_index_argument(
                     name.as_str(),
                     name.source_span(),
                 )?;
-                return Ok(Some(*value));
+                return Ok(Some(ConstScalarValue::Integer(*value)));
             }
             // Without source-aware selection, a non-literal scoped const
             // still evaluates through its own declaration. Module constants
@@ -676,13 +678,7 @@ fn evaluate_domain_index_argument(
             .map_err(|reason| {
                 format!("index argument for `{family_name}::{parameter_name}` is invalid: {reason}")
             })?;
-            match value.decode_encoding() {
-                Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                    value,
-                    ..
-                }) => Ok(Some(value)),
-                _ => Ok(None),
-            }
+            Ok(ConstScalarValue::from_canonical(&value))
         }
         TypeReferenceNode::ConstExpression(expression) => {
             // Open arguments (enclosing binders, names awaiting resolved
@@ -693,13 +689,19 @@ fn evaluate_domain_index_argument(
             {
                 return Ok(None);
             }
+            if boolean_type {
+                // The typed index probe must establish operand carriers and
+                // selected operations before producing a Boolean atom. Fact
+                // evaluation alone cannot certify an authored comparison.
+                return Ok(None);
+            }
             let value = crate::preparation::generic_data::evaluate_const_argument_expression(
                 syntax,
                 *expression,
                 const_values,
-                argument_values,
+                &HashMap::new(),
                 &HashSet::new(),
-                Some(integer_type),
+                integer_type,
                 warnings,
             )
             .and_then(crate::preparation::generic_data::EvaluatedConst::into_concrete)
@@ -709,7 +711,7 @@ fn evaluate_domain_index_argument(
             let required =
                 crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
             crate::preparation::generic_data::validate_syntax_integer_range(&required, value)?;
-            Ok(Some(value))
+            Ok(Some(ConstScalarValue::Integer(value)))
         }
         _ => Ok(None),
     }
@@ -838,7 +840,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
-    parameter_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, ConstScalarValue>,
     self_value: ConstScalarValue,
     carrier: &str,
     visiting: &mut Vec<String>,

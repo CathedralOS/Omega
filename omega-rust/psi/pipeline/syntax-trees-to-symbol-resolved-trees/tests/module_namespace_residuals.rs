@@ -772,6 +772,16 @@ fn constrained_bool_const_discharges_nested_membership() {
 }
 
 #[test]
+fn constrained_boolean_index_publishes_the_selected_constant() {
+    let program = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain<const F: bool> u64::Tag<F> requires self > 0; const X: u64 in u64::Tag<true> = 3;",
+    )])
+    .expect("a closed Boolean index discharges its declaration facts");
+    assert_eq!(const_named(&program, "X"), "mine::X");
+}
+
+#[test]
 fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
     for (tag, sources) in [
         // `Pos` exists only inside the unimported sibling `units`; the
@@ -840,15 +850,6 @@ fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
             &[(
                 "mine.omg",
                 "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<K> = 3;",
-            )][..],
-        ),
-        // A non-integer const index parameter still owes its own checked
-        // evidence.
-        (
-            "non-integer index parameter",
-            &[(
-                "mine.omg",
-                "module mine; domain<const F: bool> u64::Tag<F> requires self > 0; const X: u64 in u64::Tag<true> = 3;",
             )][..],
         ),
         // An unindexed application of a generic family names no concrete
