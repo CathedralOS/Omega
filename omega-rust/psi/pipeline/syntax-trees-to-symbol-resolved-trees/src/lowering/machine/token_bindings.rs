@@ -32,7 +32,7 @@
 //! denotation role exactly as a domain-homed `operator` declaration did, so
 //! implicit weakening and result-dispatch keep treating it as semantic.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -87,11 +87,8 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
                 .map_or_else(String::new, |attached| attached.as_str().to_owned()),
             spelling,
             owner: binding_owner(program, machine),
-            operand_shape: operand_shape(
-                program,
-                entry_parameters(program, machine),
-                &own_binders(program, machine.type_parameters),
-            ),
+            operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
+                .operand_shape(entry_parameters(program, machine)),
         };
         if let Some(diagnostic) = binding.missing_semantic_home(program) {
             diagnostics.push(diagnostic);
@@ -354,28 +351,28 @@ fn operator_token_binding<'program>(
         owner_spelling,
         spelling,
         owner,
-        operand_shape: operand_shape(
-            program,
-            program.state_parameters(operator.parameters),
-            &own_binders(program, operator.type_parameters),
-        ),
+        operand_shape: ShapeNormalizer::new(program, operator.type_parameters)
+            .operand_shape(program.state_parameters(operator.parameters)),
     }
 }
 
-/// The declaration's own generic binders, mapped to their telescope
-/// position, so `operator + Vec2::f<T>` and `operator + Vec2::g<U>` render
-/// one operand shape. Binders owned by another declaration — the attached
-/// data's `T` inside `Vec2<T>` — are not in this map and keep their symbol
+/// The declaration's own generic binder symbols. Each renders as its
+/// first-occurrence position in the operand telescope (see
+/// [`ShapeNormalizer`]), so renaming or reordering binders without changing
+/// their occurrence relationships — `index<T>(&[T], u64) -> T` and
+/// `index<U>(&[U], u64) -> U`, or `combine<T,U>(T,U)` and
+/// `combine<A,B>(B,A)` — renders one shape and the declarations collide as
+/// duplicates. Binders owned by another declaration — the attached data's
+/// `T` inside `Vec2<T>` — are not in this set and keep their symbol
 /// identity, so `Vec2<T>` and `Vec2<U>` under one owner stay distinct.
 fn own_binders(
     program: &SymbolResolvedTrees,
     type_parameters: HandleSpan<TypeParameter>,
-) -> HashMap<SymbolHandle, usize> {
+) -> HashSet<SymbolHandle> {
     program
         .data_type_parameters(type_parameters)
         .iter()
-        .enumerate()
-        .map(|(ordinal, parameter)| (parameter.symbol, ordinal))
+        .map(|parameter| parameter.symbol)
         .collect()
 }
 
@@ -626,180 +623,180 @@ pub(crate) fn mark_token_bound_domain_homes(program: &mut SymbolResolvedTrees) {
     });
 }
 
-/// The complete operand telescope rendered by resolved identity: symbols
+/// Renders the complete operand telescope by resolved identity: symbols
 /// where resolution assigned them, authored spelling only for the remaining
 /// unsymbolled leaves, and the declaration's own generic binders as
-/// telescope-position ordinals. Reference lifetimes are borrow-region tags
-/// and never distinguish operand shapes.
-fn operand_shape(
-    program: &SymbolResolvedTrees,
-    parameters: &[StateParameter],
-    binders: &HashMap<SymbolHandle, usize>,
-) -> String {
-    parameters
-        .iter()
-        .map(|parameter| parameter_shape(program, binders, parameter))
-        .collect::<Vec<_>>()
-        .join(", ")
+/// first-occurrence positions across the telescope. Reference lifetimes are
+/// borrow-region tags and never distinguish operand shapes.
+struct ShapeNormalizer<'program> {
+    program: &'program SymbolResolvedTrees,
+    /// The declaration's own binder symbols; every other symbol keeps its
+    /// resolved identity.
+    own_binders: HashSet<SymbolHandle>,
+    /// Own binder symbol → its first-occurrence position in the telescope,
+    /// assigned during the single rendering pass.
+    ordinals: HashMap<SymbolHandle, usize>,
 }
 
-fn parameter_shape(
-    program: &SymbolResolvedTrees,
-    binders: &HashMap<SymbolHandle, usize>,
-    parameter: &StateParameter,
-) -> String {
-    let mut shape = String::new();
-    if parameter.is_self {
-        shape.push_str("self ");
+impl<'program> ShapeNormalizer<'program> {
+    fn new(
+        program: &'program SymbolResolvedTrees,
+        type_parameters: HandleSpan<TypeParameter>,
+    ) -> Self {
+        Self {
+            program,
+            own_binders: own_binders(program, type_parameters),
+            ordinals: HashMap::new(),
+        }
     }
-    if parameter.is_mutable {
-        shape.push_str("mut ");
-    }
-    if parameter.is_const {
-        shape.push_str("const ");
-    }
-    shape.push_str(&type_shape(program, binders, &parameter.type_reference));
-    shape
-}
 
-/// Render `symbol` as its binder ordinal when the declaring signature owns
-/// it, else by resolved identity or authored spelling.
-fn binder_or_symbol(
-    binders: &HashMap<SymbolHandle, usize>,
-    symbol: SymbolHandle,
-    spelling: &str,
-) -> String {
-    if let Some(ordinal) = binders.get(&symbol) {
-        return format!("binder{ordinal}");
+    fn operand_shape(&mut self, parameters: &[StateParameter]) -> String {
+        parameters
+            .iter()
+            .map(|parameter| self.parameter_shape(parameter))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
-    symbol_or_spelling(symbol, spelling)
-}
 
-fn type_shape(
-    program: &SymbolResolvedTrees,
-    binders: &HashMap<SymbolHandle, usize>,
-    type_reference: &TypeReference,
-) -> String {
-    match type_reference {
-        TypeReference::Reference(reference) => {
-            let access = match reference.access {
-                ReferenceAccess::Shared => "&",
-                ReferenceAccess::Mutable => "&mut ",
-                ReferenceAccess::WriteOnly => "&write ",
-            };
-            format!(
-                "{access}{}",
-                type_shape(
-                    program,
-                    binders,
-                    program.child_type_reference(reference.referee)
+    fn parameter_shape(&mut self, parameter: &StateParameter) -> String {
+        let mut shape = String::new();
+        if parameter.is_self {
+            shape.push_str("self ");
+        }
+        if parameter.is_mutable {
+            shape.push_str("mut ");
+        }
+        if parameter.is_const {
+            shape.push_str("const ");
+        }
+        shape.push_str(&self.type_shape(&parameter.type_reference));
+        shape
+    }
+
+    /// Render `symbol` as the position where it first occurs in the
+    /// telescope when the declaring signature owns it, else by resolved
+    /// identity or authored spelling.
+    fn binder_or_symbol(&mut self, symbol: SymbolHandle, spelling: &str) -> String {
+        if self.own_binders.contains(&symbol) {
+            let ordinal = self.ordinals.len();
+            return format!("binder{}", *self.ordinals.entry(symbol).or_insert(ordinal));
+        }
+        symbol_or_spelling(symbol, spelling)
+    }
+
+    fn type_shape(&mut self, type_reference: &TypeReference) -> String {
+        match type_reference {
+            TypeReference::Reference(reference) => {
+                let access = match reference.access {
+                    ReferenceAccess::Shared => "&",
+                    ReferenceAccess::Mutable => "&mut ",
+                    ReferenceAccess::WriteOnly => "&write ",
+                };
+                let referee = self.program.child_type_reference(reference.referee);
+                format!("{access}{}", self.type_shape(referee))
+            }
+            TypeReference::Constrained(constrained) => {
+                // An indexed domain application is part of the shape: `Quantity<
+                // Units::METER>` and `Quantity<Units::KILOMETER>` are distinct
+                // operand shapes for one token under one domain owner.
+                let constraints = self
+                    .program
+                    .tables
+                    .types
+                    .constraints
+                    .span_or_empty(constrained.constraints)
+                    .iter()
+                    .map(|constraint| match constraint {
+                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+                            if !domain.arguments.is_empty() =>
+                        {
+                            let arguments = self
+                                .program
+                                .child_type_references(domain.arguments)
+                                .iter()
+                                .map(|argument| self.type_shape(argument))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            format!("{}<{arguments}>", domain.name.as_str())
+                        }
+                        _ => constraint.display_name(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let base_type = self.program.child_type_reference(constrained.base_type);
+                format!("{}[{constraints}]", self.type_shape(base_type))
+            }
+            TypeReference::FixedArray(fixed_array) => {
+                let element_type = self.program.child_type_reference(fixed_array.element_type);
+                format!(
+                    "[{}; {}]",
+                    self.type_shape(element_type),
+                    fixed_array.length
                 )
-            )
-        }
-        TypeReference::Constrained(constrained) => {
-            // An indexed domain application is part of the shape: `Quantity<
-            // Units::METER>` and `Quantity<Units::KILOMETER>` are distinct
-            // operand shapes for one token under one domain owner.
-            let constraints = program
-                .tables
-                .types
-                .constraints
-                .span_or_empty(constrained.constraints)
-                .iter()
-                .map(|constraint| match constraint {
-                    symbol_resolved_trees::types::TypeConstraint::Domain(domain)
-                        if !domain.arguments.is_empty() =>
-                    {
-                        let arguments = program
-                            .child_type_references(domain.arguments)
-                            .iter()
-                            .map(|argument| type_shape(program, binders, argument))
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        format!("{}<{arguments}>", domain.name.as_str())
-                    }
-                    _ => constraint.display_name(),
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!(
-                "{}[{constraints}]",
-                type_shape(
-                    program,
-                    binders,
-                    program.child_type_reference(constrained.base_type)
+            }
+            TypeReference::Slice(slice) => {
+                let element_type = self.program.child_type_reference(slice.element_type);
+                format!("[{}]", self.type_shape(element_type))
+            }
+            TypeReference::Generic(generic) => {
+                let arguments = self
+                    .program
+                    .child_type_references(generic.arguments)
+                    .iter()
+                    .map(|argument| self.type_shape(argument))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{}<{arguments}>",
+                    self.binder_or_symbol(generic.base_symbol, generic.base_name.as_str())
                 )
-            )
-        }
-        TypeReference::FixedArray(fixed_array) => format!(
-            "[{}; {}]",
-            type_shape(
-                program,
-                binders,
-                program.child_type_reference(fixed_array.element_type)
+            }
+            TypeReference::ConstExpression(expression) => format!(
+                "const({})",
+                self.program
+                    .tables
+                    .bodies
+                    .expressions
+                    .display_name(*expression)
             ),
-            fixed_array.length
-        ),
-        TypeReference::Slice(slice) => format!(
-            "[{}]",
-            type_shape(
-                program,
-                binders,
-                program.child_type_reference(slice.element_type)
-            )
-        ),
-        TypeReference::Generic(generic) => {
-            let arguments = program
-                .child_type_references(generic.arguments)
-                .iter()
-                .map(|argument| type_shape(program, binders, argument))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!(
-                "{}<{arguments}>",
-                binder_or_symbol(binders, generic.base_symbol, generic.base_name.as_str())
-            )
+            TypeReference::DynamicTrait {
+                symbol,
+                name,
+                conformance,
+                ..
+            } => match conformance {
+                Some(conformance) => format!(
+                    "dyn {} via #{}",
+                    self.binder_or_symbol(*symbol, name.as_str()),
+                    conformance.arena_index()
+                ),
+                None => format!("dyn {}", self.binder_or_symbol(*symbol, name.as_str())),
+            },
+            TypeReference::Named { symbol, name } => self.binder_or_symbol(*symbol, name.as_str()),
+            TypeReference::SelfType { symbol } => {
+                // `Self` inside an attached machine's signature resolves to that
+                // machine's own symbol. The operand shape is the attached data's,
+                // so `&self` bindings on one owner collide as duplicate shapes
+                // instead of each spelling their own machine symbol.
+                let attached = self
+                    .program
+                    .machines
+                    .iter()
+                    .find(|machine| machine.symbol == *symbol)
+                    .filter(|machine| machine.attached_data_symbol.is_valid());
+                attached.map_or_else(
+                    || symbol_or_spelling(*symbol, "Self"),
+                    |machine| {
+                        let name = machine
+                            .attached_data
+                            .as_ref()
+                            .map_or("Self", |name| name.as_str());
+                        symbol_or_spelling(machine.attached_data_symbol, name)
+                    },
+                )
+            }
+            TypeReference::Unit => "()".to_owned(),
         }
-        TypeReference::ConstExpression(expression) => format!(
-            "const({})",
-            program.tables.bodies.expressions.display_name(*expression)
-        ),
-        TypeReference::DynamicTrait {
-            symbol,
-            name,
-            conformance,
-            ..
-        } => match conformance {
-            Some(conformance) => format!(
-                "dyn {} via #{}",
-                binder_or_symbol(binders, *symbol, name.as_str()),
-                conformance.arena_index()
-            ),
-            None => format!("dyn {}", binder_or_symbol(binders, *symbol, name.as_str())),
-        },
-        TypeReference::Named { symbol, name } => binder_or_symbol(binders, *symbol, name.as_str()),
-        TypeReference::SelfType { symbol } => {
-            // `Self` inside an attached machine's signature resolves to that
-            // machine's own symbol. The operand shape is the attached data's,
-            // so `&self` bindings on one owner collide as duplicate shapes
-            // instead of each spelling their own machine symbol.
-            let attached = program
-                .machines
-                .iter()
-                .find(|machine| machine.symbol == *symbol)
-                .filter(|machine| machine.attached_data_symbol.is_valid());
-            attached.map_or_else(
-                || symbol_or_spelling(*symbol, "Self"),
-                |machine| {
-                    let name = machine
-                        .attached_data
-                        .as_ref()
-                        .map_or("Self", |name| name.as_str());
-                    symbol_or_spelling(machine.attached_data_symbol, name)
-                },
-            )
-        }
-        TypeReference::Unit => "()".to_owned(),
     }
 }
 
