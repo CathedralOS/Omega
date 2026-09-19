@@ -2611,9 +2611,25 @@ Owners include
   - Custody-carrying sums. A destructured case payload and a call-result
     record's fields do not surface their declared `in Granted` domains. A
     sum-typed fallible request, an optional retired slot and a retired-buffer
-    list construct but cannot be consumed, and each record field is restated
-    through an exactly typed `let` whose siblings then share custody.
-    `NOMINAL-FIELD-FLOW` owns declared-field evidence; repair it there.
+    list construct but cannot be consumed. At `88b3599e7d`, removing only the
+    `taken`/`rest` typed locals from `allocate` and using `parts.taken` and
+    `parts.rest` directly in `Issued` rejects both `Granted` field obligations
+    under the focused canary command below. The typed-local workaround is
+    not evidence of an authority-preserving transfer: `flow/transfers.rs`
+    seeds initialized locals' declared domains without proving introduction.
+    Repair that gap together with owned field transport; do not copy it into
+    `flow/transfers/projected.rs` or broaden its predicate-only rule.
+    `checks/content/retained_custody` rejects borrowed-only sources hidden in
+    structural inputs/results, but that rejection grants no result authority.
+    Recursive expansion and unresolved array extents retain explicit finite
+    source-analysis fences, not new language restrictions.
+    The next acceptance needs the exact invocation, consumed claim paths,
+    domain instances and checked conservation/result correspondence before
+    direct fields or restated locals can acquire routed qualifications.
+    Preserve missing-theorem, borrowed-source, duplicate-sibling, wrong-call,
+    consumed/written-source and indexed-domain rejection controls.
+    `NOMINAL-FIELD-FLOW` owns this declared-field evidence repair; Terminal
+    and native allocation remain separate unfinished dependencies.
   - Counted residual. `split`'s law never pins `result.taken.length`.
     Separate scalar and content-conservation guarantees are supported and
     independently checked (`scalar_and_content_guarantees_are_checked_independently`);

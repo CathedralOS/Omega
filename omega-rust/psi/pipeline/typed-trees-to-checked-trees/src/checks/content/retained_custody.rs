@@ -1,6 +1,8 @@
 //! Lifetime-bound borrow custody of retained content and the domain
 //! applications it admits.
 
+mod borrowed_fields;
+
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
 use language_semantics::content::{
@@ -58,7 +60,7 @@ pub(crate) fn check_callable(
         })
         .count();
 
-    for result_domain in result_domains {
+    for result_domain in &result_domains {
         let Some(result_plan) = facts
             .qualifications
             .content
@@ -182,6 +184,19 @@ pub(crate) fn check_callable(
             if borrowed_sources.len() == 1 { "" } else { "s" },
         )));
     }
+
+    borrowed_fields::check_structural_borrow_sources(
+        program,
+        facts,
+        label,
+        callable,
+        parameters,
+        return_type,
+        contracts,
+        &result_domains,
+        retained_borrow_custodies,
+        diagnostics,
+    );
 }
 
 struct BorrowedContentSource<'a> {
