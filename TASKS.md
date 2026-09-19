@@ -148,16 +148,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Repair the harness before treating it as ordinary-production coverage:
 
-  - `compile_native_and_publish` still copies package permission rows into an
-    explicit receiving policy. Ordinary compilation now defaults that policy to
-    absent; remove the harness's artificial requirement, retaining test-owned
-    package acceptance and separate explicit receiver-admission controls under
+  - Done — `compile_native_and_publish` no longer copies package permission rows
+    into an explicit receiving policy: the harness's artificial requirement is
+    removed while ordinary compilation defaults the policy to absent, retaining
+    test-owned package acceptance and separate explicit receiver-admission
+    controls under
     [the artifact/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission).
     A harness pass does not complete the user's project review.
-  - The runtime oracle and `cli_mvp_preserves_both_lines_with_eof_and_enter`
-    discard the published report and run `build_dir/omega-program`. Use
-    `checked_native_executable_path()` from that report, including bundled paths;
-    do not force every application's output name to fit the test.
+  - Done — the runtime oracle and `cli_mvp_preserves_both_lines_with_eof_and_enter`
+    run the executable the published report receipts through
+    `checked_native_executable_path()`, including bundled paths, instead of a
+    guessed `build_dir/omega-program`; no application's output name is forced to
+    fit the test.
   - Migrate bare service fields and `Service<Console> in Bound` to intrinsic
     `Service<Console>` establishment with **ENTRY-CONTENT-ROOTS**. Never weaken
     missing-provider or exact occurrence checks to preserve obsolete examples.
