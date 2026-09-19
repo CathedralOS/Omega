@@ -3299,21 +3299,6 @@ Owners include
     still fence aggregate values and indices,
     carrier-polymorphic families, open applications, non-domain constraints
     and unprovable facts (`generic_data/const_evaluation/facts.rs`).
-    Remaining predicate-constrained and module-qualified Boolean index expressions
-    need exact family discovery in
-    `generic_data/mod.rs::unique_domain_index_parameters` and the existing
-    typed `build-time-evaluation/const_evaluation/const_generic_expressions.rs`
-    probe, whose provisional `false` must not discharge a real constrained
-    declaration. Computed module Boolean constants also need materialization
-    before dependent declarations select their value. Unary operators in named
-    initializer receipts still need traversal in
-    `syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization.rs`;
-    direct unary indices do not exercise that declaration-owned replay path.
-    `cargo nextest run -p compiler --test module_machine_indices -E 'test(indexed_domains)'`
-    retains those observed boundaries beside source-free literal/named Boolean
-    and mixed forwarded-index controls. `(!false)` now reaches the
-    declaration-site proof boundary, not a parser refusal.
-    Recheck live assignments on discovery and typed-probe owners before editing.
     Reuse typed expression evaluation, not untyped fact folding that erases
     operand widths and selected-operation custody.
   - Extend concrete failure discharge in `const_initializers/invocations.rs`

@@ -132,11 +132,18 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
 }
 
 fn normalized() -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
-    let tokens = source_files_to_tokens::Lexer::new(
-        "const BASE: u64 = 2; pub const COUNT: u64 = BASE + 1; machine main() -> u64 { COUNT }",
-    )
-    .tokenize()
-    .expect("tokenize initializer receipt");
+    normalized_expression(false)
+}
+
+fn normalized_expression(unary: bool) -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
+    let text = if unary {
+        "const BASE: bool = false; pub const COUNT: bool = !BASE; machine main() -> bool { COUNT }"
+    } else {
+        "const BASE: u64 = 2; pub const COUNT: u64 = BASE + 1; machine main() -> u64 { COUNT }"
+    };
+    let tokens = source_files_to_tokens::Lexer::new(text)
+        .tokenize()
+        .expect("tokenize initializer receipt");
     let mut syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse initializer receipt");
     let definitions = syntax
@@ -150,10 +157,12 @@ fn normalized() -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
     let (_, base) = &definitions[0];
     let (item, mut definition) = definitions[1].clone();
     let original = definition.value;
-    let ExpressionNode::Binary(binary) = syntax.expressions.expression(original) else {
-        panic!("binary initializer")
+    let dependency = match syntax.expressions.expression(original) {
+        ExpressionNode::Binary(binary) => binary.left,
+        ExpressionNode::Unary(unary) => unary.operand,
+        _ => panic!("operator initializer"),
     };
-    let ExpressionNode::Name(path) = syntax.expressions.expression(binary.left) else {
+    let ExpressionNode::Name(path) = syntax.expressions.expression(dependency) else {
         panic!("named dependency")
     };
     let members = syntax.expressions.identifier_path_members(*path);
@@ -162,9 +171,11 @@ fn normalized() -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
         crate::preparation::generic_data::canonicalize_declared_const_definition(&syntax, base)
             .expect("canonical BASE")
             .encoding;
-    let value = syntax.expressions.insert(ExpressionNode::Integer(
-        numerics::literals::IntegerLiteral::from_value(3),
-    ));
+    let value = syntax.expressions.insert(if unary {
+        ExpressionNode::Boolean(true)
+    } else {
+        ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(3))
+    });
     let original_span = syntax.expressions.source_span(original);
     syntax.expressions.set_source_span(value, original_span);
     definition.value = value;
@@ -245,6 +256,31 @@ fn initializer_receipt_rejects_changed_or_missing_custody() {
         assert!(
             crate::resolve(crate::ResolutionRequest::new(&syntax)).is_err(),
             "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn unary_initializer_receipt_rejoins_operand_and_operator_custody() {
+    let (syntax, item) = normalized_expression(true);
+    crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("a normalized unary initializer retains its dependency and operator");
+    for mutation in 0..3 {
+        let mut changed = syntax.clone();
+        let Item::Const(mut definition) = changed.root_item(item).clone() else {
+            panic!("constant")
+        };
+        let receipt = definition.normalization.as_mut().expect("receipt");
+        match mutation {
+            0 => receipt.selections.clear(),
+            1 => receipt.builtin_operators.clear(),
+            2 => receipt.selections[0].canonical_value_encoding.push('0'),
+            _ => unreachable!(),
+        }
+        changed.items.replace_item(item, Item::Const(definition));
+        assert!(
+            crate::resolve(crate::ResolutionRequest::new(&changed)).is_err(),
+            "unary receipt mutation {mutation}"
         );
     }
 }

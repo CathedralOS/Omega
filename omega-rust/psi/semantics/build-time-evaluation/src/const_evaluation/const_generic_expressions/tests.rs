@@ -411,7 +411,9 @@ fn data_index_discovery_excludes_shadowed_machine_scope() {
     .expect("tokenize owner scopes");
     let syntax = parse_syntax_trees(&tokens).expect("parse owner scopes");
     let positions =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(&syntax);
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        ).expect("data argument discovery");
     assert_eq!(
         positions.len(),
         1,
@@ -475,8 +477,9 @@ fn aggregate_indices_preserve_static_paths_before_later_local_bindings() {
     let syntax = parse_syntax_trees(&tokens).expect("aggregate syntax");
     let positions =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            &syntax,
-        );
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("machine argument discovery");
     assert_eq!(positions.len(), 3);
     let normalized = super::evaluate(syntax, None, &[], None)
         .expect("later local cannot capture prior static selections");

@@ -1075,7 +1075,7 @@ fn boolean_domain_indices_require_public_and_file_local_constant_selection() {
     let library = tree.package("library");
     Sources::write(
         library.join("flags.omg"),
-        "module flags; const ENABLED: bool = true;",
+        "module flags; const ENABLED: bool = !false;",
     );
     Sources::write(
         root.join("main.omg"),
@@ -1118,7 +1118,7 @@ fn boolean_domain_indices_require_public_and_file_local_constant_selection() {
 }
 
 #[test]
-fn computed_boolean_domain_indices_retain_their_pending_typed_probe_boundary() {
+fn computed_boolean_domain_indices_reach_source_free_terminal() {
     let tree = Sources::new();
     let root = tree.package("root");
     let library = tree.package("library");
@@ -1128,24 +1128,71 @@ fn computed_boolean_domain_indices_retain_their_pending_typed_probe_boundary() {
     );
     Sources::write(
         root.join("main.omg"),
-        "use library::settings; machine read() -> u64 { settings::VALUE }",
+        "use library::settings;
+         domain<const Enabled: u8> u64::Gate<Enabled>;
+         machine read() -> u64 { settings::VALUE }",
     );
-    for (argument, boundary) in [
-        ("(!false)", "declaration-site proof checking"),
-        ("(1 == 1)", "declaration-site proof checking"),
-        ("ENABLED", "expected a boolean literal"),
+    for (argument, initializer) in [
+        ("(!false)", "1 == 1"),
+        ("(1 == 1)", "1 == 1"),
+        ("ENABLED", "1 == 1"),
+        ("ENABLED", "!false"),
+        ("ENABLED", "!(1u8 != 1u8)"),
     ] {
         Sources::write(
             library.join("settings.omg"),
             &format!(
-                "module settings; use policy; const ENABLED: bool = 1 == 1;
+                "module settings; use policy; const ENABLED: bool = {initializer};
              pub const VALUE: u64 in policy::Gate<{argument}> = 7;"
             ),
         );
-        // These should execute after exact family discovery,
-        // and pending declaration probes are connected. Do not fold them using
-        // untyped facts: that would erase operand types and selection custody.
+        assert_source_free_seven(compile(&root, package_inputs(&root, &library)));
+    }
+}
+
+#[test]
+fn computed_boolean_domain_indices_do_not_publish_placeholder_membership() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; pub domain<const Enabled: bool> u64::Gate<Enabled> requires Enabled;
+         pub domain u64::Small requires self < 3;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings; machine read() -> u64 { settings::RESULT }",
+    );
+    for (initializer, argument, extra, expected) in [
+        ("!true", "ENABLED", "", "for const `VALUE` is false"),
+        ("!false", "(!true)", "", "for const `VALUE` is false"),
+        (
+            "!false",
+            "ENABLED",
+            " & policy::Small",
+            "constrained const declarations require declaration-site proof checking",
+        ),
+        (
+            "1u8 == 1u64",
+            "ENABLED",
+            "",
+            "incompatible landed integer carriers",
+        ),
+        ("(255u8 + 1u8) == 0u8", "ENABLED", "", "overflow"),
+    ] {
+        Sources::write(
+            library.join("settings.omg"),
+            &format!(
+                "module settings; use policy; const ENABLED: bool = {initializer};
+                 pub const VALUE: u64 in policy::Gate<{argument}>{extra} = 7;
+                 pub const RESULT: u64 = VALUE + 0;"
+            ),
+        );
         let error = rejection(&root, package_inputs(&root, &library));
-        assert!(error.contains(boundary), "{argument}: {error}");
+        assert!(
+            error.contains(expected),
+            "{initializer}, {argument}, {extra}: {error}"
+        );
     }
 }
