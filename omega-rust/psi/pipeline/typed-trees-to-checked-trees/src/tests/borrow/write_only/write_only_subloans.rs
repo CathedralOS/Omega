@@ -1488,3 +1488,371 @@ fn sum_case_payload_cannot_form_a_write_only_subloan() {
         "a case/payload-derived subloan unexpectedly bypassed tag and payload observation fences: {rendered}"
     );
 }
+
+#[test]
+fn consuming_receiver_exact_atom_write_only_subloans_are_forwardable() {
+    // A consuming `self` owns its attached storage outright — the receiver
+    // contract already treats that storage as mutable without a `mut`
+    // marker — so the owned binding lends `&write` on the same exact-atom
+    // terms a `&mut` place takes. The whole receiver, an explicit
+    // `self.field` path, and a bare attached-field name all resolve through
+    // the same non-observing walk.
+    for (name, source) in [
+        (
+            "whole consuming receiver",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine consume(value: &write Boxed) {}
+
+                machine Boxed::forward(self) {
+                    consume(&write self);
+                }
+            "#,
+        ),
+        (
+            "attached field through the receiver",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {
+                    value = 7;
+                }
+
+                machine Boxed::forward(self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+        (
+            "bare attached field",
+            r#"
+                data Boxed { value: u8; }
+
+                machine replace(value: &write u8) {
+                    value = 7;
+                }
+
+                machine Boxed::forward(self) {
+                    replace(&write value);
+                }
+            "#,
+        ),
+        (
+            "whole receiver after an in-place store",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine consume(value: &write Boxed) {}
+
+                machine Boxed::forward(self) {
+                    self.value = 3;
+                    consume(&write self);
+                }
+            "#,
+        ),
+        (
+            "write-only local formed from a receiver field",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine Boxed::forward(self) {
+                    let held: &write u8 [0..=10] = &write self.value;
+                    held = 7;
+                }
+            "#,
+        ),
+        (
+            "write-only local formed from a bare receiver field",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine Boxed::forward(self) {
+                    let held: &write u8 [0..=10] = &write value;
+                    held = 7;
+                }
+            "#,
+        ),
+        (
+            "attached field in a transition argument",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine Boxed::forward(self) {
+                    transition true { true -> next(&write self.value) }
+                    state next(self, pad: &write u8 [0..=10]) {}
+                }
+            "#,
+        ),
+    ] {
+        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+            panic!(
+                "{name}: an exact-atom `&write` subloan lent from a consuming `self` should lower: {errors:?}"
+            )
+        });
+    }
+}
+
+#[test]
+fn consuming_receiver_write_only_subloans_reject_non_exact_referees() {
+    // The owned receiver faces the identical atom-exact gate a `&mut` place
+    // takes: shedding the field's range, strengthening it onto a narrower
+    // referee, or naming another data type are the same mismatch, reported by
+    // the directed subloan diagnostic rather than the generic projection
+    // fence — with no unrelated declared `&write` root required.
+    for (name, place, source) in [
+        (
+            "attached field sheds its range",
+            "lends `self.value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine Boxed::forward(self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+        (
+            "bare attached field sheds its range",
+            "lends `value` of type `u8[0..=10]` as `&write` to a parameter declared `&write u8`",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine Boxed::forward(self) {
+                    replace(&write value);
+                }
+            "#,
+        ),
+        (
+            "attached field takes a stronger range",
+            "lends `self.value` of type `u8` as `&write` to a parameter declared `&write u8[0..=5]`",
+            r#"
+                data Boxed { value: u8; }
+
+                machine replace(value: &write u8 [0..=5]) {}
+
+                machine Boxed::forward(self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+        (
+            "whole receiver names another data",
+            "lends `self` of type `Self` as `&write` to a parameter declared `&write Other`",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+                data Other { value: u8 [0..=10]; }
+
+                machine consume(value: &write Other) {}
+
+                machine Boxed::forward(self) {
+                    consume(&write self);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(place)
+                && rendered.contains("must preserve the callee-declared constraint atoms exactly"),
+            "{name}: a consuming-`self` `&write` subloan with a non-exact referee must take the directed diagnostic: {rendered}"
+        );
+        assert!(
+            !rendered.contains("unsupported projection"),
+            "{name}: the directed atom diagnostic, not the generic projection fence, should report the mismatch: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn consuming_receiver_write_only_local_captures_keep_exact_atoms() {
+    // A `&write` local formed from an owned place must carry the declared
+    // referee atom-for-atom too: before this rung a bare-name target whose
+    // atoms did not match fell through the expression walk with no
+    // diagnostic and silently compiled.
+    for (name, place, source) in [
+        (
+            "receiver field capture sheds its range",
+            "captures `self.value` of type `u8[0..=10]` as `&write u8`",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine Boxed::forward(self) {
+                    let held: &write u8 = &write self.value;
+                    held = 7;
+                }
+            "#,
+        ),
+        (
+            "bare receiver field capture sheds its range",
+            "captures `value` of type `u8[0..=10]` as `&write u8`",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine Boxed::forward(self) {
+                    let held: &write u8 = &write value;
+                    held = 7;
+                }
+            "#,
+        ),
+        (
+            "mutable local capture sheds its range",
+            "captures `x` of type `u8[0..=10]` as `&write u8`",
+            r#"
+                machine forward() {
+                    let mut x: u8 [0..=10] = 0;
+                    let held: &write u8 = &write x;
+                    held = 7;
+                }
+            "#,
+        ),
+        (
+            "write-only local capture sheds its range",
+            "captures `limited` of type `u8[0..=10]` as `&write u8`",
+            r#"
+                machine forward(limited: &write u8 [0..=10]) {
+                    let held: &write u8 = &write limited;
+                    held = 7;
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(place)
+                && rendered.contains("must preserve the declared constraint atoms exactly"),
+            "{name}: a `&write` local capture with a non-exact referee must take the directed diagnostic: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn consuming_receiver_write_only_subloans_keep_the_authority_fences() {
+    // Owning the storage is the only authority a consuming `self` adds:
+    // `&self`, `const self`, an erased attached field, and reference-typed
+    // bindings keep their existing rejections — `&write` on a `&u8`
+    // parameter answers to the reborrow lattice, not this gate.
+    for (name, expected, source) in [
+        (
+            "shared receiver field path",
+            "forms `&write` from an unsupported projection",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {}
+
+                machine Boxed::forward(&self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+        (
+            "shared receiver whole place",
+            "is not writable in this state",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine consume(value: &write Boxed) {}
+
+                machine Boxed::forward(&self) {
+                    consume(&write self);
+                }
+            "#,
+        ),
+        (
+            "const consuming receiver",
+            "forms `&write` from an unsupported projection",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8 [0..=10]) {}
+
+                machine Boxed::forward(const self) {
+                    replace(&write self.value);
+                }
+            "#,
+        ),
+        (
+            "erased attached field",
+            "erased field `scratch` has no runtime value",
+            r#"
+                data Boxed { value: u8 [0..=10]; scratch [erased]: u8; }
+
+                machine replace(value: &write u8) {}
+
+                machine Boxed::forward(self) {
+                    replace(&write self.scratch);
+                }
+            "#,
+        ),
+        (
+            "shared reference parameter",
+            "is not writable in this state",
+            r#"
+                data Boxed { value: u8 [0..=10]; }
+
+                machine replace(value: &write u8) {}
+
+                machine Boxed::forward(self, source: &u8) {
+                    replace(&write source);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(expected),
+            "{name}: `&write` formation without owned mutable authority must stay rejected: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn consuming_receiver_write_only_subloan_needs_a_write_only_parameter() {
+    // Admission is only ever to a declared `&write` parameter: the same
+    // exact place lent to a parameter that may read keeps its widening
+    // rejection.
+    let rendered = rendered_rejection(
+        r#"
+            data Boxed { value: u8; }
+
+            machine read(value: u8) -> u8 {
+                value
+            }
+
+            machine Boxed::forward(self) -> u8 {
+                read(&write self.value)
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("supplies `&write` to a parameter that may read"),
+        "an owned place must not widen `&write` onto a readable parameter: {rendered}"
+    );
+}
+
+#[test]
+fn consuming_receiver_stays_readable_beside_write_only_formation() {
+    // A consuming `self` is a formation source, never a write-only root:
+    // ordinary reads through it in a state that forms `&write` subloans keep
+    // passing expression validation unchanged.
+    lower_typed_trees(typed(
+        r#"
+            data Boxed { value: u8 [0..=10]; }
+
+            machine replace(value: &write u8 [0..=10]) {
+                value = 7;
+            }
+
+            machine Boxed::inspect(self) -> u8 {
+                replace(&write self.value);
+                self.value
+            }
+        "#,
+    ))
+    .expect("reading through a consuming `self` beside a `&write` formation must stay legal");
+}
