@@ -16,6 +16,7 @@ use crate::machine_calls::calls::write_frames::boundary_calls::{
     known_boundary_call_written_paths_for_parts, known_requirement_call_written_paths_for_parts,
 };
 use crate::machine_calls::calls::write_frames::caller_aliases::AssignmentWriteTarget;
+use crate::machine_calls::calls::write_frames::caller_aliases::CallOriginContext;
 use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
 use crate::machine_calls::calls::write_frames::demand::{
     collect_expression_call_written_paths, statement_value_expression_roots,
@@ -117,9 +118,8 @@ pub(crate) struct StateWritePrefix {
     written: Vec<String>,
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
     /// Exclusive-reference locals whose proven referents form a divergent
-    /// candidate set rather than one origin. The set is not representable in
-    /// `aliases`: a caller-side query whose boundary statement mentions one of
-    /// these roots must fail closed instead of spelling the bare local.
+    /// candidate set rather than one origin. Call substitution consumes the
+    /// complete set; no raw local name may replace it at a write boundary.
     pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
     pub(crate) assignment: Option<AssignmentWriteTarget>,
@@ -180,7 +180,7 @@ fn walk_state_write_prefix_inner(
     // Exclusive-reference locals bound to a divergent conditional result keep
     // their whole proven referent set here rather than a single origin. A
     // write through such a binding lands on one of its candidates, so the
-    // frame unions every route; any other mention still fails closed below.
+    // frame unions every route, including through nested call substitution.
     let mut divergent_alias_origins = Vec::<(String, Vec<FramePlaceOrigin>)>::new();
     let include_shared = matches!(
         query,
@@ -358,13 +358,8 @@ fn walk_state_write_prefix_inner(
                 .map(|(name, _)| name.clone())
                 .collect::<Vec<_>>();
             if local_aliases::statement_mentions_place_roots(program, statement, &divergent_roots) {
-                // A statement touching a divergent binding is admitted only
-                // when it writes through it, rebinds it to another proven
-                // set, lends the whole referent set through a direct
-                // exclusive reborrow call argument, or re-exports it through
-                // the pure tail return. Every other use — a member-read
-                // actual, a nested call mention, or a transport into another
-                // binding — would lose part of the referent set.
+                // Assignment transfer distinguishes replacing the local
+                // reference binding from writing through its referent set.
                 if let StatementNode::Assignment(assignment) = statement
                     && let Some(relative) = coarse_place_path(program, assignment.target)
                     && let Some(position) = divergent_alias_origins
@@ -480,25 +475,22 @@ fn walk_state_write_prefix_inner(
                     }
                     continue;
                 }
-                let admitted_reborrow_call = matches!(
-                    statement,
-                    StatementNode::Call(call)
-                        if local_aliases::call_mentions_divergent_roots_only_through_reborrow_arguments(
-                            program,
-                            call,
-                            &divergent_roots,
-                        )
-                );
-                if !admitted_reborrow_call
-                    && !alias_bindings::statement_returns_reference_without_effects(
-                        program, state, statement,
-                    )
-                {
-                    return None;
-                }
             }
         }
+        let origins = CallOriginContext {
+            parameters,
+            isolated_locals: &isolated_local_roots,
+            aliases: &local_alias_origins,
+            divergent: &divergent_alias_origins,
+            stored: &stored,
+        };
         for expression in statement_value_expression_roots(program, statement) {
+            local_aliases::validate_divergent_projections(
+                program,
+                machine,
+                expression,
+                &divergent_alias_origins,
+            )?;
             let exposes_reference_binding = if include_shared {
                 local_aliases::expression_reborrows_stable_alias_binding(
                     program,
@@ -544,6 +536,7 @@ fn walk_state_write_prefix_inner(
                 inference,
                 &mut expression_writes,
                 complete_state_summaries,
+                &origins,
             )?;
             for relative in expression_writes
                 .iter()
@@ -717,6 +710,11 @@ fn walk_state_write_prefix_inner(
                 let arguments = program
                     .statement_table
                     .expression_handles(nested_call.arguments);
+                if nested_receiver_members.first().is_some_and(|root| {
+                    divergent_alias_origins.iter().any(|(name, _)| name == root)
+                }) {
+                    return None;
+                }
                 // A synthesized wire codec has no body to summarize and no
                 // parameters to instantiate; its frame is its exclusively
                 // borrowed arguments. The type-name receiver must never reach
@@ -740,53 +738,28 @@ fn walk_state_write_prefix_inner(
                     }
                     wire_codecs::known_wire_codec_call_written_paths(program, nested_call)
                 } else {
-                    // Each argument contributes its proven candidate set: a
-                    // divergent helper result or conditional actual keeps the
-                    // exact finite union, and the callee's parameter writes
-                    // instantiate through every route it admits.
-                    let argument_origins = arguments
+                    let argument_types = super::call_targets::call_argument_types(
+                        program,
+                        machine,
+                        nested_call.target_symbol,
+                        nested_call.target.as_str(),
+                        &nested_receiver_members,
+                        CallerWriteSite::Call(nested_call),
+                        &machine_symbols,
+                        symbols,
+                    );
+                    let argument_origins = origins.argument_origins(
+                        program,
+                        machine,
+                        &machine_symbols,
+                        symbols,
+                        inference,
+                        arguments,
+                        &argument_types,
+                    )?;
+                    let has_divergent_actual = arguments
                         .iter()
-                        .map(|argument| {
-                            stable_alias_initializer_origins(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                inference,
-                                *argument,
-                                parameters,
-                                &isolated_local_roots,
-                                &local_alias_origins,
-                                &divergent_alias_origins,
-                                symbols,
-                                true,
-                                &stored,
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    // An admitted divergent mention must resolve the whole
-                    // referent set at this boundary. Falling back to the bare
-                    // local name would lose the write, so an unresolved set
-                    // fails the call closed instead.
-                    if !divergent_alias_origins.is_empty() {
-                        let divergent_roots = divergent_alias_origins
-                            .iter()
-                            .map(|(name, _)| name.clone())
-                            .collect::<Vec<_>>();
-                        if arguments
-                            .iter()
-                            .zip(&argument_origins)
-                            .any(|(argument, origins)| {
-                                origins.is_none()
-                                    && local_aliases::expression_mentions_place_roots(
-                                        program,
-                                        *argument,
-                                        &divergent_roots,
-                                    )
-                            })
-                        {
-                            return None;
-                        }
-                    }
+                        .any(|argument| origins.mentions_divergent(program, *argument));
                     known_call_written_paths_for_parts_with_origins(
                         program,
                         nested_call.target_symbol,
@@ -841,6 +814,9 @@ fn walk_state_write_prefix_inner(
                         .flatten()
                     })
                     .or_else(|| {
+                        if has_divergent_actual {
+                            return None;
+                        }
                         syntactic_call_written_paths(
                             program,
                             &nested_receiver_members,
@@ -850,7 +826,8 @@ fn walk_state_write_prefix_inner(
                         )
                     })
                 }?;
-                for relative in nested_writes
+                for relative in origins
+                    .close_paths(nested_writes)
                     .iter()
                     .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
                 {
@@ -863,6 +840,20 @@ fn walk_state_write_prefix_inner(
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
+                    if target.is_valid()
+                        && let TransitionTargetNode::Named { arguments, .. } =
+                            program.statement_table.transition_target(target)
+                        && program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .any(|argument| origins.mentions_divergent(program, *argument))
+                    {
+                        // Named-state transfer does not yet substitute finite
+                        // candidate sets. It must not drop the raw local as
+                        // private storage after instantiating target writes.
+                        return None;
+                    }
                     if (!local_alias_origins.is_empty()
                         || !stored.is_empty()
                         || !divergent_alias_origins.is_empty())
@@ -943,9 +934,8 @@ fn walk_state_write_prefix_inner(
                         .flatten()
                     {
                         // A divergent exclusive-reference binding keeps its
-                        // whole proven referent set. The mention gate above
-                        // the statement dispatch admits only a write through
-                        // it, a proven rebind, or a pure tail re-export.
+                        // whole proven referent set for later assignment and
+                        // call substitution, including copies of this binding.
                         divergent_alias_origins.push((local.name.as_str().to_owned(), origins));
                     } else {
                         // A binding the transfer cannot name stays opaque —

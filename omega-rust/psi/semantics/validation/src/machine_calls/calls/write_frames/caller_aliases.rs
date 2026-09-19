@@ -306,11 +306,99 @@ mod tests;
 /// origins: the enclosing state's parameters, the prefix's established
 /// single-origin bindings and divergent referent sets, and its stored
 /// carriers. Every slice is empty for an untracked site.
-pub(super) struct StatementCallPrefix<'prefix> {
+pub(super) struct CallOriginContext<'prefix> {
     pub parameters: &'prefix [StateParameter],
+    pub isolated_locals: &'prefix [String],
     pub aliases: &'prefix [(String, FramePlaceOrigin)],
     pub divergent: &'prefix [(String, Vec<FramePlaceOrigin>)],
     pub stored: &'prefix [StoredLocalOrigins],
+}
+
+impl CallOriginContext<'_> {
+    /// Expand finite local referents before a state summary filters private
+    /// roots. Do not back-map canonical writes to coarse aggregate aliases;
+    /// that observer-only closure belongs to the public demand boundary.
+    pub fn close_paths(&self, paths: Vec<String>) -> Vec<String> {
+        let mut expanded = Vec::new();
+        for path in paths {
+            let (root, suffix) = super::split_place_root(&path);
+            if let Some((_, candidates)) = self.divergent.iter().find(|(name, _)| name == root) {
+                for candidate in candidates {
+                    let path = match candidate.precision {
+                        FramePathPrecision::Exact => append_place_suffix(&candidate.path, suffix),
+                        FramePathPrecision::CollectionCoarse => candidate.path.clone(),
+                    };
+                    if !expanded.contains(&path) {
+                        expanded.push(path);
+                    }
+                }
+            } else if !expanded.contains(&path) {
+                expanded.push(path);
+            }
+        }
+        expanded
+    }
+
+    pub fn mentions_divergent(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
+        self.divergent.iter().any(|(name, _)| {
+            super::local_aliases::expression_mentions_place_roots(
+                program,
+                expression,
+                std::slice::from_ref(name),
+            )
+        })
+    }
+
+    /// Resolve actual referents before substituting a callee's relative writes.
+    /// Scalar actuals need their operand effects, not a fictitious place origin.
+    #[allow(clippy::too_many_arguments)]
+    pub fn argument_origins(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        machine_symbols: &super::MachineSymbols<'_>,
+        symbols: &TopLevelSymbols<'_>,
+        inference: &mut FrameInference,
+        arguments: &[ExpressionHandle],
+        argument_types: &[super::TypeReferenceHandle],
+    ) -> Option<Vec<Option<Vec<FramePlaceOrigin>>>> {
+        arguments
+            .iter()
+            .enumerate()
+            .map(|(index, argument)| {
+                super::local_aliases::validate_divergent_projections(
+                    program,
+                    machine,
+                    *argument,
+                    self.divergent,
+                )?;
+                let origins = super::alias_origins::stable_alias_initializer_origins(
+                    program,
+                    machine,
+                    machine_symbols,
+                    inference,
+                    *argument,
+                    self.parameters,
+                    self.isolated_locals,
+                    self.aliases,
+                    self.divergent,
+                    symbols,
+                    true,
+                    self.stored,
+                );
+                if origins.is_none()
+                    && self.mentions_divergent(program, *argument)
+                    && !argument_types.get(index).is_some_and(|reference| {
+                        type_is_caller_isolated_local(program, *reference)
+                            && !super::type_reference_is_reference(program, *reference)
+                    })
+                {
+                    return None;
+                }
+                Some(origins)
+            })
+            .collect()
+    }
 }
 
 /// Freeze the caller prefix once before resolving a demand, then use exactly
@@ -320,18 +408,19 @@ pub(super) fn with_caller_origins(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    resolve: impl FnOnce(&mut FrameInference, &StatementCallPrefix<'_>) -> Option<Vec<String>>,
+    resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
     let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
     let mut inference = FrameInference::default();
     for local in &evidence.stored {
         inference.record_local(local);
     }
-    let prefix = StatementCallPrefix {
+    let prefix = CallOriginContext {
         parameters: evidence
             .state
             .map(|state| program.state_parameters(state))
             .unwrap_or(&[]),
+        isolated_locals: &[],
         aliases: &evidence.aliases,
         divergent: &evidence.divergent,
         stored: &evidence.stored,
@@ -533,38 +622,6 @@ fn caller_aliases_at_prefix<'program>(
         &prefix.stored,
         &prefix.aliases,
     ) {
-        return None;
-    }
-    // A divergent binding's referent set cannot be spelled through the
-    // single-origin alias map: a member-read actual, nested call mention, or
-    // transport that touches it at this boundary must stay opaque rather than
-    // frame the bare local alone. A statement call that lends the whole
-    // referent set through a direct exclusive reborrow argument (or passes
-    // the binding itself) is admitted; the resolve closure instantiates the
-    // callee's writes through that candidate set. Result-relation queries use
-    // `Before` directly and resolve the returned name through its own
-    // initializer route instead.
-    let divergent_roots = prefix
-        .divergent
-        .iter()
-        .map(|(name, _)| name.as_str().to_owned())
-        .collect::<Vec<_>>();
-    if !divergent_roots.is_empty()
-        && super::local_aliases::statement_mentions_place_roots(
-            program,
-            statement,
-            &divergent_roots,
-        )
-        && !matches!(
-            statement,
-            StatementNode::Call(call)
-                if super::local_aliases::call_mentions_divergent_roots_only_through_reborrow_arguments(
-                    program,
-                    call,
-                    &divergent_roots,
-                )
-        )
-    {
         return None;
     }
     Some(CallerPrefixEvidence {
