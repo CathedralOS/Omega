@@ -4451,25 +4451,25 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   the gate's checked compilation is red before the documented `source_full`
   Unit omission and `test-parser.sh` cannot mint the artifact it runs.
   `omega --check
-  source/omega/main.omg` reaches the end of the Psi checked stage and std
-  calling-policy admission before stopping on the first item below.
+  source/omega/main.omg` now clears target-profile admission and stops at
+  selected-dispatch service custody (`selected ProgramEntry establishment
+  rejoins 0 Terminal attachment identities; expected one`) — the same stop
+  the parser-gate check reports — observed on Linux x86-64 through
+  `cargo run -p omega -- --check source/omega/main.omg`.
 
   Remaining work:
 
-  - Target-profile recognition. The product check stops on `root slot
-    alpha_bootstrap::ProgramEntry belongs to unknown target profile
-    alpha_bootstrap`, raised by
-    `omega-rust/omega/build/build-evaluation/src/admission/selection.rs`
-    because `target::TargetProfile` enumerates seven profiles and no Alpha row.
-    Recognize the Alpha profile and slot through the ordinary target-package
-    route under settled
-    [target recognition and availability](wiki/spec/build/configuration.md#target-recognition-and-implementation-availability);
-    keep the binding at `source/omega/build.omg:11` and add no parallel
-    bootstrap selection mechanism. An inactive recognized Alpha row must not
-    demand Alpha realization, unknown profile and slot names must still reject,
-    and a selected unimplemented Alpha operation must report not implemented
-    without claiming a checked result or emitting an artifact. Rust Alpha
-    emission is not part of this task.
+  - Target-profile recognition (landed at af052a232e): `alpha_bootstrap` is a
+    recognized `TargetProfile` reached through the ordinary canonical-name,
+    root-slot-owner, and build-case routes; the binding at
+    `source/omega/build.omg:11` is unchanged and no parallel bootstrap
+    selection exists. An inactive Alpha row demands no realization, unknown
+    profile and slot names still reject, and a selected Alpha reports
+    "native realization for target profile `alpha_bootstrap` is not
+    implemented" from `NativeTarget::from_omega_target_name` — never a
+    checked result or artifact; `compiler/tests/alpha_profile_selection.rs`
+    pins all three through `compiler::compile`. Rust Alpha emission stays
+    out of scope.
   - Exact narrowing with no positive evidence. Checking accepts
     `self.lexer.append_source_byte(value as u8)` where `value` is an unbounded
     `i32` field, contrary to
