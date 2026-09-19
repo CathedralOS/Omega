@@ -127,7 +127,7 @@ pub(crate) fn build_check_facts(
     let borrow = build_borrow_facts(program);
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
-    let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators);
+    let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators)?;
     crate::proof::bind_float_meaning_projection_facts(
         program,
         &mut proof,

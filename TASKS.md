@@ -1606,9 +1606,15 @@ Owners include
   and prefix applications now parse
   (`tokens-to-syntax-trees/src/declarations/let_definition.rs`), resolve, and
   type into the typed-tree mirror
-  (`typed-trees/src/typed_trees/evidence/mathematical.rs`); checked-tree
-  elaboration into `CheckedMathematicalDeclaration` refuses loudly in
-  `typed-trees-to-checked-trees/src/checking.rs`. No `core::Level`, `Type`,
+  (`typed-trees/src/typed_trees/evidence/mathematical.rs`), and elaborate to
+  `CheckedMathematicalDeclaration` records in
+  `typed-trees-to-checked-trees/src/proof/mathematical_declarations.rs`:
+  binder carriers classify `core::Level`/`core::Type` by authored name,
+  arrows and applications render their nested-Pi identities, and
+  `boundary let` records its named-assumption absence. `checking.rs` still
+  refuses programs carrying them — kernel-term elaboration into
+  `mathematical_core::signature::Declaration`, body-against-result checking,
+  and downstream consumption are pending legs. No `core::Level`, `Type`,
   `Strict` or `Squash` declaration exists, and the dedicated `proposition`
   declaration with its named-witness call lanes
   (`typed-trees-to-checked-trees/src/proof/proof_output_calls.rs`) still
@@ -1619,10 +1625,13 @@ Owners include
   - Parse, resolve and type of the top-level `let`/`boundary let` grammar —
     closed parameterized declarations, dependent function types, curried
     prefix application, parameter binders and named assumptions — has landed
-    structurally. Remaining here: elaborate typed mathematical definitions to
-    `PROOF-KERNEL-CORE` terms through `CheckedMathematicalDeclaration`,
-    classify core-named universe/level binders, and interpret arrows,
-    applications and assumptions. Preserve ordinary local bindings, complete
+    structurally; checked elaboration into `CheckedMathematicalDeclaration`
+    has landed (binder classification, nested-Pi and application identities,
+    named assumptions). Remaining here: elaborate the checked records to
+    `PROOF-KERNEL-CORE` terms, check definition bodies against their declared
+    results, replace authored-name carrier classification with symbol
+    identity once the fixed `core::*` declarations exist, and admit the
+    surface downstream of checking. Preserve ordinary local bindings, complete
     machine calls and executable callback selection. Add no quantifier
     keywords, and do not substitute declaration enumeration or an
     optional-returning decider for mathematical quantification.

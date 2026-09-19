@@ -30,6 +30,7 @@ pub(crate) use evidence_forwarding::{
     bind_evidence_forwarding_facts, bind_evidence_projection_facts,
 };
 pub(crate) use float_meaning::bind_float_meaning_projection_facts;
+pub(crate) use mathematical_declarations::build_checked_mathematical_declarations;
 pub(crate) use outcome_arms::{bind_outcome_specific_arm_facts, exact_outcome_case_test};
 pub(crate) use proof_output_calls::bind_proof_output_call_facts;
 pub(crate) use proposition_vocabulary::lower_checked_proposition_application;
@@ -39,7 +40,6 @@ use checked_trees::{
     BorrowFacts, CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 
-use crate::proof::mathematical_declarations::build_checked_mathematical_declarations;
 use crate::proof::proposition_vocabulary::{
     build_checked_proposition_vocabulary, fact_handles, lower_checked_evidence_interface,
 };
@@ -63,6 +63,7 @@ pub(crate) fn build_proof_facts(
         borrow,
         &CheckedOperatorFacts::default(),
     )
+    .expect("test fixture programs elaborate or are refused before fact construction")
 }
 
 pub(crate) fn build_proof_facts_with_operators(
@@ -70,7 +71,7 @@ pub(crate) fn build_proof_facts_with_operators(
     proof_plan: &proof::obligations::ProofPlan,
     borrow: &BorrowFacts,
     operators: &CheckedOperatorFacts,
-) -> ProofFacts {
+) -> Result<ProofFacts, Vec<diagnostics::Diagnostic>> {
     let mut obligations = arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts = arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
     let mut inherited_contract_scopes = arena::Arena::default();
@@ -252,9 +253,9 @@ pub(crate) fn build_proof_facts_with_operators(
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
     let proposition_vocabulary = build_checked_proposition_vocabulary(program);
-    let mathematical_declarations = build_checked_mathematical_declarations(program);
+    let mathematical_declarations = build_checked_mathematical_declarations(program)?;
 
-    ProofFacts {
+    Ok(ProofFacts {
         obligations,
         contract_facts,
         inherited_contract_scopes,
@@ -267,5 +268,5 @@ pub(crate) fn build_proof_facts_with_operators(
         proposition_vocabulary,
         mathematical_declarations,
         ..ProofFacts::default()
-    }
+    })
 }

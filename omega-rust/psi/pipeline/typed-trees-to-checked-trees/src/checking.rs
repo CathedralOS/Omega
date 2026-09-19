@@ -27,14 +27,18 @@ fn check_program(
     selected_boundary_families: &[crate::SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    // Mathematical `let`/`boundary let` declarations now reach typed trees;
-    // checked-tree elaboration into the proof surface is a separate
-    // PROOF-CONTRACT-MIGRATION leg. Refuse at the checking boundary rather
-    // than silently dropping a declaration the author wrote.
+    // Mathematical `let`/`boundary let` declarations elaborate into
+    // `CheckedMathematicalDeclaration` records; run that elaboration so a
+    // declaration the checked surface cannot record fails with its own
+    // diagnostic. Kernel-term elaboration and downstream consumption remain
+    // separate PROOF-CONTRACT-MIGRATION legs, so an elaborated declaration
+    // still refuses here rather than silently dropping from checked trees.
     if let Some(definition) = program.mathematical_definitions().first() {
+        crate::proof::build_checked_mathematical_declarations(&program)?;
         let mut diagnostic = diagnostics::Diagnostic::error(
-            "mathematical `let`/`boundary let` declarations are typed but checked-tree \
-                 elaboration for them is not implemented yet (PROOF-CONTRACT-MIGRATION)",
+            "mathematical `let`/`boundary let` declarations elaborate to the checked \
+                 surface, but kernel-term elaboration and downstream consumption are \
+                 not implemented yet (PROOF-CONTRACT-MIGRATION)",
         );
         if let Some(span) = program.symbols.symbol_source_span(definition.symbol) {
             diagnostic = diagnostic.with_source_span(span);
@@ -406,6 +410,30 @@ mod tests {
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.message.contains("PROOF-CONTRACT-MIGRATION")),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn unelaboratable_mathematical_declarations_fail_with_their_own_diagnostic() {
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+        use tokens_to_syntax_trees::parse_syntax_trees;
+
+        let tokens = Lexer::new("let bad<A: core::Type<u, v>>(x: A): A = x;")
+            .tokenize()
+            .expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+        let diagnostics = crate::lower_typed_trees(typed)
+            .expect_err("a malformed `core::Type` carrier is unelaboratable");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("core::Type")),
             "unexpected diagnostics: {diagnostics:?}"
         );
     }
