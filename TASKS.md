@@ -2488,7 +2488,8 @@ Owners include
     installation-bound entry settles the linear acknowledgement and retains
     the nested bounded row, and no satisfier for `complete` can be authored
     while a checked body cannot discharge the linear receiver, so the route
-    now waits on [owner question 5](OWNER_QUESTIONS.md). The rejection is
+    now waits on the `installation-bound-row-nested-resolution` decision in
+    [owner questions](OWNER_QUESTIONS.md). The rejection is
     driven from authored source by
     `opaque_boundaries.rs::selected_realization_with_an_unresolved_installation_bound_row_rejects`,
     so losing the fence is a red test whichever route is chosen. The
@@ -3202,8 +3203,8 @@ Owners include
     evidence-bound explicit-empty row needs a retained occurrence, and no
     authored source can produce one;
     `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
-    that stop. Which customer earns the row is the constrained
-    build-filesystem chain question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+    that stop. Which customer earns the row is owner-blocked on the named
+    decision `build-vocabulary-filesystem-chain` in `OWNER_QUESTIONS.md`.
     FILESYSTEM-RELEASE-CONTRACT owns the occurrence evidence. Generic close
     need not be supported to admit a separately proved constrained
     occurrence.
@@ -3242,8 +3243,9 @@ Owners include
   Remaining work:
 
   - A producer. Whether the build vocabulary may issue the constrained chain,
-    or the row is earned only by program-side release, is the constrained
-    build-filesystem chain question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+    or the row is earned only by program-side release, is owner-blocked on
+    the named decision `build-vocabulary-filesystem-chain` in
+    `OWNER_QUESTIONS.md`.
     Add no further consumers of the record until it is answered;
     `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
     the stop.

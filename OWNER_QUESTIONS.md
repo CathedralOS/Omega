@@ -167,7 +167,8 @@ must be surfaced before relying on them.
     and unreachable from any producer.
 
 4. **May the compiler-owned build vocabulary offer a constrained
-   filesystem open/query/close chain?** The two-axis review's remaining
+   filesystem open/query/close chain?** (named decision:
+   `build-vocabulary-filesystem-chain`). The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
    explicit-empty release row. No authored source can produce the retained
    occurrence that witness needs. `BUILD_PRELUDE`
@@ -200,7 +201,8 @@ must be surfaced before relying on them.
    **FILESYSTEM-RELEASE-CONTRACT** cannot close.
 
 5. **May a provider's selected plan resolve an installation-bound row it
-   owns, or does that wait on receiver-bearing selection?**
+   owns, or does that wait on receiver-bearing selection?** (named decision:
+   `installation-bound-row-nested-resolution`).
    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
    settles what the completion row should be without ambiguity:
    acknowledgement "has a provider-neutral bounded abstract row beneath
