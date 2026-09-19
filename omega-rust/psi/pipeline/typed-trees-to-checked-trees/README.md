@@ -555,14 +555,19 @@ remain separate work; accepted evidence counts cannot stand in for them.
 
 [resources.rs](src/checks/borrows/resources.rs) owns checked resource lifecycle
 and restored-use planning. Resource and compatibility arenas remain separate.
-Automatic non-interference retains zero-premise structural certificates with
+Automatic non-interference retains structural or premised certificates with
 formation coordinates, state-owned loan identities, frozen places, normalized
 conclusions, and ordered selector snapshots. Replay normalizes the original
 typed expression and reconstructs spatial relations and access compatibility.
 Selector snapshots retain shared immutable-symbol boundaries with constant
 offsets, ordered as mathematical integers only under Exact arithmetic.
-This precursor does not implement general proof-premise admission or portable
-compatibility evidence.
+Stated entry/state `requires` can supply integer ordering, equality, or
+disequality over those immutable bounds. Disequality separates singleton
+elements, not windows, and survives only equal translation of both bounds.
+Premised certificates retain the exact consumed contract tokens; replay
+reconstructs their availability and rejects altered selectors or premises.
+Guard/callee-established premises, general proof admission, retained call
+judgments, and portable compatibility evidence remain unfinished.
 
 Direct reference-local reborrows require one exact prior parent. Resource rows
 retain typed parent handles, activation, weakening, formation availability,

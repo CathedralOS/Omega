@@ -1,0 +1,21 @@
+// In-range disequal indexes select disjoint singleton elements. The stated
+// relation supplies compatibility evidence, not additional loan authority.
+// The otherwise equivalent borrow_unknown_index_pair_mut remains a failure.
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine Main::main(&mut self, left_index: u64 [0..=1], right_index: u64 [0..=1])
+requires
+    left_index != right_index
+{
+    let view: &mut [Entry] = self.entries.as_mut_slice();
+    let left: &mut Entry = &mut view[left_index];
+    let right: &mut Entry = &mut view[right_index];
+    left = Entry { value: 1 };
+    right = Entry { value: 2 };
+}

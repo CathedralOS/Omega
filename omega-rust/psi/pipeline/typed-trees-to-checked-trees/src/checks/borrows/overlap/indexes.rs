@@ -383,9 +383,9 @@ pub(super) fn index_expressions_may_overlap(
 /// selector session -- a point bound or a half-open window -- and compared by
 /// the shared bound-ordering layer, so symbolic points order against window
 /// bounds the same way window bounds order against each other. Unknown bounds
-/// stay conservatively overlapping; only a provable ordering proves
-/// disjointness, and a stated premise is consulted only when the structural
-/// order cannot.
+/// stay conservatively overlapping. Disjointness needs ordering or singleton
+/// disequality, and a stated premise is consulted only when structural
+/// relations cannot settle it.
 pub(super) fn index_expressions_may_overlap_with_selectors(
     program: &typed_trees::TypedTrees,
     left: ExpressionHandle,
@@ -405,7 +405,7 @@ pub(super) fn index_expressions_may_overlap_with_selectors(
 }
 
 /// Whether two evaluated `Index` extents may select the same element. Two
-/// points are disjoint only when a provable strict order separates them; a
+/// points are disjoint when strict ordering or disequality separates them; a
 /// point and a window are disjoint only when the point provably sits outside
 /// or the window is provably empty; two windows are disjoint when one ends at
 /// or before the other starts. Every unproven ordering stays overlapping.
@@ -418,6 +418,11 @@ pub(super) fn index_extents_may_overlap(
         (EvaluatedIndexExtent::Point(Some(left)), EvaluatedIndexExtent::Point(Some(right))) => {
             !bound_is_strictly_before(left, right, selectors)
                 && !bound_is_strictly_before(right, left, selectors)
+                && !selectors.prove_ordering(
+                    left,
+                    BorrowCompatibilityPremiseRelation::NotEqual,
+                    right,
+                )
         }
         (EvaluatedIndexExtent::Point(_), EvaluatedIndexExtent::Point(_)) => true,
         (EvaluatedIndexExtent::Window { start, end }, EvaluatedIndexExtent::Point(point))
