@@ -17,7 +17,7 @@ fi
 
 build_dir=$(mktemp -d "${TMPDIR:-/tmp}/omega-psi-parser.XXXXXX")
 trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
-"$omega_cli" --output-only --target "$target" --build-dir "$build_dir" \
+"$omega_cli" --target "$target" --build-dir "$build_dir" \
     "$repo_root/source/psi/gates/parser/main.omg"
 cli_identity=$(shasum -a 256 "$omega_cli" | awk '{print $1}')
 artifact_identity=$(shasum -a 256 "$build_dir/omega-program" | awk '{print $1}')
