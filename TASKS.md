@@ -15,7 +15,11 @@ Keep each task's missing behavior, owner, real dependencies, and acceptance
 condition. Delete completed work; Git holds checkpoint results and superseded
 diagnoses. Link the specification for semantics rather than restating it.
 Retain a dated/revision-bound failure only when it determines where to resume;
-rerun that customer before assuming the old diagnosis still applies.
+rerun that customer before assuming the old diagnosis still applies. New
+evidence supersedes, never accrues: a landing or rerun replaces the dated
+paragraph it makes stale, so an open item states its current frontier once.
+Cite revisions as published on `main` (landing rewrites worktree SHAs) and
+prefer symbol or test names over line numbers, which drift.
 Live assignments belong in the [timestamped, expiring work-claim registry](tools/claims.md),
 not historical board prose. Check `python tools/claims.py status` (`python3` on
 macOS) before taking over a path; a retained checkpoint is resume material, not
@@ -3158,6 +3162,16 @@ Owners include
   receiver-admission claim with no supplied policy — the replay rejects it —
   and binds the supplied policy's exact identity when given one, admitting
   only under that identity and rejecting under any other.
+
+  Windows x86_64 observation at `e07e5c7a25` (2026-09-17, Windows host): the
+  `cli_mvp` outer command, `--check`, `audit packages`, and the filtered
+  `samples_compile` probe all stop inside the fresh review's checked
+  compilation — `selected ProgramEntry establishment rejoins 0 Terminal
+  attachment identities; expected one` — under both `windows_x86_64` and
+  `macos_arm64` targets, producing no review findings; details in the
+  [cli_mvp README](samples/cli/basics/cli_mvp/README.md). The probe fixture has
+  test-owned entry bindings for `macos_arm64`/`linux_x86_64` only, and std's
+  `windows_x86_64` target def authors no entry contract.
 
   Remaining work:
 
