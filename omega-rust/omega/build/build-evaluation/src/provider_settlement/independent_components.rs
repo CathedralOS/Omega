@@ -16,8 +16,8 @@
 use std::collections::BTreeSet;
 
 use component_description::{
-    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentVerificationRequest,
-    VerifiedComponent, verify_component,
+    verify_component, AdmissionProfile, ComponentVerificationRequest, VerifiedComponent,
+    COMPONENT_DESCRIPTION_SCHEMA_V2,
 };
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageCompilationInputs};
@@ -38,7 +38,7 @@ fn verification_request(
 ) -> ComponentVerificationRequest {
     ComponentVerificationRequest {
         expected_subject: description.expected_subject(),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
         accepted_assumptions: BTreeSet::new(),
         admission_profile: AdmissionProfile::default(),
     }

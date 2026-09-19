@@ -21,9 +21,9 @@ use terminal_psi::{
 };
 
 use crate::{
-    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescriptionFacts,
-    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
-    encode_component_description, verify_component,
+    describe_component_facts, encode_component_description, verify_component, AdmissionProfile,
+    ComponentDescriptionFacts, ComponentVerificationRequest, VerifiedComponent,
+    COMPONENT_DESCRIPTION_SCHEMA_V2,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -201,7 +201,7 @@ pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
 pub fn verified_component(module: &TerminalModule) -> VerifiedComponent {
     let request = ComponentVerificationRequest {
         expected_subject: module_subject(module),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
         accepted_assumptions: BTreeSet::new(),
         admission_profile: AdmissionProfile::default(),
     };

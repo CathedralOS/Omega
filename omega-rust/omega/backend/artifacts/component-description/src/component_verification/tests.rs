@@ -3,33 +3,34 @@
 use std::collections::BTreeSet;
 
 use super::{
-    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
-    VerifiedComponent, verify_component,
+    verify_component, ComponentVerificationRejection, ComponentVerificationRequest,
+    IndependentRealizationMismatch, VerifiedComponent,
 };
 use crate::component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
-    ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
-    DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot, InstallationObligation,
-    MAX_IDENTITY_BYTES, ObligationKind, OutgoingAuthorityClass, OutgoingEvidence,
     component_description_identity, decode_component_description, encode_component_description,
-    requirement_contract_identity, requirement_export_identity,
+    requirement_contract_identity, requirement_export_identity, ComponentDescription,
+    ComponentDescriptionFacts, ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
+    InstallationObligation, InstallationServiceBound, ObligationKind, OutgoingAuthorityClass,
+    OutgoingEvidence, COMPONENT_DESCRIPTION_SCHEMA_V2, MAX_IDENTITY_BYTES,
 };
-use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
+use effects::SelectedProviderPlanFacts;
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, StructuralTypeId,
-    SuspensionCrossingId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
+    StructuralTypeId, SuspensionCrossingId,
 };
 use terminal_psi::ProofBundle;
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract, Operation,
-    OperationKind, OperationResult, ProviderCandidateConformance, ProviderRefinement,
-    ProviderSignature, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
-    TerminalSuspensionCallTarget, Terminator, VocabularyMarker,
+    Block, BoundaryMachineDeclaration, BoundaryMachineResult, InstallationReachDependency,
+    MachineContract, Operation, OperationKind, OperationResult, ProviderCandidateConformance,
+    ProviderRefinement, ProviderSignature, ServiceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
+    Terminator, VocabularyMarker,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -197,6 +198,57 @@ fn provider_module() -> TerminalModule {
     module
 }
 
+/// A provider component whose root entry also calls an installation-bound
+/// boundary (`reaches <= Bound`): the verified module retains the declared
+/// dependency row, so its concrete root reach stays empty while the bound
+/// publishes as the description's one service-bound roster entry.
+fn bounded_provider_module() -> TerminalModule {
+    let mut module = provider_module();
+    let bound_service = ServiceId::new(1).expect("service identity");
+    module.services.push(ServiceDeclaration {
+        id: bound_service,
+        identity: "PortIo".into(),
+        parents: Vec::new(),
+    });
+    let bounded = BoundaryMachineId::new(2).expect("boundary identity");
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: bounded,
+        identity: "MachineControl::mask".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: vec![bound_service],
+    });
+    module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(1).expect("operation identity"),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: bounded,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    // The caller's published ceiling conservatively covers the dependency's
+    // bound; `installation_dependencies` keeps the unresolved row distinct.
+    module.machines[0].published_service_ceiling = vec![bound_service];
+    module
+        .root_service_reach
+        .installation_dependencies
+        .push(InstallationReachDependency {
+            requirement_identity: "MachineControl::mask".into(),
+            upper_bound: vec![bound_service],
+        });
+    module
+}
+
 fn artifact_for(module: &TerminalModule) -> terminal_codec::CanonicalTerminalArtifact {
     let proof = ProofBundle::default();
     let record = terminal_codec::build_identity_optimization_execution_record(module, &proof)
@@ -271,7 +323,7 @@ fn request_for(
 ) -> ComponentVerificationRequest {
     ComponentVerificationRequest {
         expected_subject: terminal_codec::terminal_psi_identity(module).expect("module identity"),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
         accepted_assumptions,
         admission_profile: super::AdmissionProfile::default(),
     }
@@ -294,12 +346,10 @@ fn verifies_a_complete_minimal_description() {
         verified.frontier(),
         DescriptionFrontier::TerminalArtifactClosure
     );
-    assert!(
-        verified
-            .entries()
-            .iter()
-            .any(|entry| entry.kind == ComponentEntryKind::Canonical)
-    );
+    assert!(verified
+        .entries()
+        .iter()
+        .any(|entry| entry.kind == ComponentEntryKind::Canonical));
     assert!(verified.imports().is_empty());
     assert!(verified.providers().is_empty());
 }
@@ -464,6 +514,24 @@ fn selected_plan_join_rejects_every_substitution() {
         })
     );
 
+    // A component whose module still retains an unresolved
+    // installation-bound reach row is not a closed callable component even
+    // when the selected realization itself matches: the published bound is
+    // an obligation installation still owes.
+    let bounded = bounded_provider_module();
+    let bounded_description = describe(&bounded, &empty_selection());
+    let bounded_verified = verify(
+        &bounded_description,
+        &request_for(&bounded, BTreeSet::new()),
+    )
+    .expect("a component retaining a bound still verifies");
+    assert_eq!(
+        bounded_verified.realizes_selected_plan(&selected_plan()),
+        Err(IndependentRealizationMismatch::UnresolvedInstallationRows {
+            requirement_identities: vec!["MachineControl::mask".into()],
+        })
+    );
+
     let mut partial = selected_plan();
     partial.rows.clear();
     assert!(matches!(
@@ -527,10 +595,14 @@ fn rejects_an_incompatible_schema() {
     let module = minimal_module();
     let description = describe(&module, &empty_selection());
     let mut request = request_for(&module, BTreeSet::new());
-    request.accepted_schemas = BTreeSet::from([2]);
+    // The retired V1 envelope — no separate service-bound roster — is not
+    // admitted for a V2 description.
+    request.accepted_schemas = BTreeSet::from([1]);
     assert!(matches!(
         verify(&description, &request),
-        Err(ComponentVerificationRejection::IncompatibleSchema { schema: 1 })
+        Err(ComponentVerificationRejection::IncompatibleSchema {
+            schema: COMPONENT_DESCRIPTION_SCHEMA_V2
+        })
     ));
 }
 
@@ -604,6 +676,74 @@ fn rejects_omitted_authority_obligation_and_import() {
     assert!(matches!(
         verify(&no_obligation, &request),
         Err(ComponentVerificationRejection::MissingObligation(_))
+    ));
+}
+
+#[test]
+fn publishes_installation_bounds_separately_from_concrete_reach() {
+    let module = bounded_provider_module();
+    let description = describe(&module, &empty_selection());
+
+    // The retained dependency's declared bound is its own roster entry; it
+    // never appears as a `ServiceCeiling` outgoing row, because the bound is
+    // what installation still owes — not reach the component's own closure
+    // already publishes.
+    assert_eq!(
+        description.service_bounds,
+        vec![InstallationServiceBound {
+            requirement_identity: "MachineControl::mask".into(),
+            bound: vec![ServiceId::new(1).expect("service identity")],
+        }]
+    );
+    assert!(
+        !description
+            .outgoing
+            .iter()
+            .any(|row| row.class == OutgoingAuthorityClass::ServiceCeiling),
+        "the module's concrete root reach is empty: {:?}",
+        description.outgoing
+    );
+
+    let request = request_for(&module, BTreeSet::new());
+    let verified = verify(&description, &request).expect("bounded component verifies");
+    assert_eq!(
+        verified.service_bounds(),
+        description.service_bounds.as_slice()
+    );
+
+    // Omitting or forging the bound roster rejects on replay; the verifier
+    // re-derives it from the module, never from producer claims.
+    let mut omitted = describe(&module, &empty_selection());
+    omitted.service_bounds.clear();
+    assert!(matches!(
+        verify(&omitted, &request),
+        Err(ComponentVerificationRejection::MissingServiceBound(_))
+    ));
+    let mut forged = describe(&module, &empty_selection());
+    forged.service_bounds.push(InstallationServiceBound {
+        requirement_identity: "Forged::requirement".into(),
+        bound: vec![ServiceId::new(1).expect("service identity")],
+    });
+    assert!(matches!(
+        verify(&forged, &request),
+        Err(ComponentVerificationRejection::UnexpectedServiceBound(_))
+    ));
+
+    // Nor can the bound masquerade as concrete reach: adding the service as
+    // a ceiling row is authority the artifact lacks.
+    let mut masquerade = describe(&module, &empty_selection());
+    masquerade
+        .outgoing
+        .push(crate::component_description::OutgoingAuthority {
+            class: OutgoingAuthorityClass::ServiceCeiling,
+            identity: "service-ceiling:1".into(),
+            evidence: OutgoingEvidence::ModuleDerived,
+        });
+    assert!(matches!(
+        verify(&masquerade, &request),
+        Err(ComponentVerificationRejection::UnexpectedDerivedAuthority(
+            _
+        ))
     ));
 }
 
@@ -689,12 +829,22 @@ fn codec_round_trips_and_rejects_noncanonical_order() {
 // One-field substitution coverage
 // ---------------------------------------------------------------------------
 
-/// A module whose entry performs two bare `BoundaryCall`s — one sealed by the
-/// retained selected provider, one left unsealed as an installation import —
-/// and records one suspension call site, so every component-description
-/// roster is populated for one-field substitution coverage.
+/// A module whose entry performs three bare `BoundaryCall`s — one sealed by
+/// the retained selected provider, one left unsealed as an installation
+/// import, one installation-bound (`reaches <= Bound`) — and records one
+/// suspension call site, so every component-description roster is populated
+/// for one-field substitution coverage. The entry also declares the bound
+/// service concretely, so the same service publishes both as a
+/// `ServiceCeiling` outgoing row and inside the retained bound: the two
+/// stay distinct fields even when they name the same service.
 fn described_module() -> TerminalModule {
     let mut module = boundary_module();
+    let bound_service = ServiceId::new(1).expect("service identity");
+    module.services.push(ServiceDeclaration {
+        id: bound_service,
+        identity: "PortIo".into(),
+        parents: Vec::new(),
+    });
     module.boundary_machines.push(BoundaryMachineDeclaration {
         id: BoundaryMachineId::new(2).expect("boundary identity"),
         identity: "Unsealed::requirement".into(),
@@ -709,6 +859,20 @@ fn described_module() -> TerminalModule {
         fixed_service_reach: Vec::new(),
         published_service_ceiling: Vec::new(),
     });
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: BoundaryMachineId::new(3).expect("boundary identity"),
+        identity: "Bound::requirement".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: vec![bound_service],
+    });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
         id: OperationId::new(2).expect("operation identity"),
@@ -720,6 +884,31 @@ fn described_module() -> TerminalModule {
             completion_receipts: Vec::new(),
         },
     });
+    module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(3).expect("operation identity"),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: BoundaryMachineId::new(3).expect("boundary identity"),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    // The caller's published ceiling covers both its own declared reach and
+    // the bound boundary's published ceiling. The retained dependency row's
+    // bound overlaps the concrete reach on purpose: the description must
+    // publish them as distinct rosters anyway.
+    module.machines[0].declared_service_reach = vec![bound_service];
+    module.machines[0].published_service_ceiling = vec![bound_service];
+    module.root_service_reach.concrete = vec![bound_service];
+    module
+        .root_service_reach
+        .installation_dependencies
+        .push(InstallationReachDependency {
+            requirement_identity: "Bound::requirement".into(),
+            upper_bound: vec![bound_service],
+        });
     // A suspension call site contributes a resumption entry row and a custody
     // row. The verifier requires every site to pair with an exact plan: same
     // operation, crossing, and target, plus the plan's replayed frontier
@@ -904,16 +1093,18 @@ fn component_description_rejects_every_one_field_substitution() {
     let request = request_for(&module, BTreeSet::new());
     verify(&description, &request).expect("authentic description verifies");
 
-    // The fixture populates every roster: one sealed requirement, one
-    // unsealed import, canonical plus suspension-resumption entries, one
-    // custody row, one retained provider, and both obligation kinds.
-    assert_eq!(description.imports.len(), 1);
+    // The fixture populates every roster: one sealed requirement, two
+    // unsealed imports (one ordinary, one installation-bound), canonical
+    // plus suspension-resumption entries, one custody row, one retained
+    // provider, one service bound, and both obligation kinds.
+    assert_eq!(description.imports.len(), 2);
     assert_eq!(description.exports.len(), 1);
     assert_eq!(description.entries.len(), 2);
-    assert_eq!(description.outgoing.len(), 2);
+    assert_eq!(description.outgoing.len(), 4);
+    assert_eq!(description.service_bounds.len(), 1);
     assert_eq!(description.custody.len(), 1);
     assert_eq!(description.providers.len(), 1);
-    assert_eq!(description.obligations.len(), 2);
+    assert_eq!(description.obligations.len(), 3);
     let sealed_digest = description.providers[0].plan_digest;
     let other_artifact = artifact_for(&minimal_module()).to_bytes();
 
@@ -925,7 +1116,7 @@ fn component_description_rejects_every_one_field_substitution() {
         // Scalar envelope fields.
         (
             "schema",
-            Box::new(|d| d.schema = COMPONENT_DESCRIPTION_SCHEMA_V1 + 1),
+            Box::new(|d| d.schema = COMPONENT_DESCRIPTION_SCHEMA_V2 + 1),
             |r| matches!(r, ComponentVerificationRejection::IncompatibleSchema { .. }),
         ),
         (
@@ -940,7 +1131,8 @@ fn component_description_rejects_every_one_field_substitution() {
         ),
         // Import-slot fields. Renaming the requirement leaves the real
         // unsealed requirement unbound, which rejects first; the smuggled
-        // name would reject too.
+        // name would reject too. (`imports[0]` binds `Bound::requirement`,
+        // the installation-bound call.)
         (
             "imports[0].requirement_identity",
             Box::new(|d| {
@@ -1129,6 +1321,56 @@ fn component_description_rejects_every_one_field_substitution() {
                     ComponentVerificationRejection::MissingOutgoingAuthority(_)
                 )
             },
+        ),
+        // The concrete reach's ceiling row stays required even though the
+        // same service also appears in the retained bound: a bound cannot
+        // stand in for resolved reach, and reach cannot hide a bound.
+        (
+            "outgoing::drop-service-ceiling",
+            Box::new(|d| {
+                d.outgoing
+                    .retain(|row| row.class != OutgoingAuthorityClass::ServiceCeiling);
+            }),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::MissingOutgoingAuthority(_)
+                )
+            },
+        ),
+        // Service-bound roster fields: the retained installation-bound reach
+        // row is replayed from the module — renaming, retargeting, dropping,
+        // or forging it rejects.
+        (
+            "service_bounds[0].requirement_identity",
+            Box::new(|d| {
+                d.service_bounds[0].requirement_identity = "Other::requirement".into();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingServiceBound(_)),
+        ),
+        (
+            "service_bounds[0].bound",
+            Box::new(|d| {
+                d.service_bounds[0]
+                    .bound
+                    .push(ServiceId::new(2).expect("service identity"));
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingServiceBound(_)),
+        ),
+        (
+            "service_bounds::drop",
+            Box::new(|d| d.service_bounds.clear()),
+            |r| matches!(r, ComponentVerificationRejection::MissingServiceBound(_)),
+        ),
+        (
+            "service_bounds::insert-forged",
+            Box::new(|d| {
+                d.service_bounds.push(InstallationServiceBound {
+                    requirement_identity: "Forged::requirement".into(),
+                    bound: vec![ServiceId::new(1).expect("service identity")],
+                });
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnexpectedServiceBound(_)),
         ),
         // Custody-roster fields.
         (
@@ -1327,6 +1569,22 @@ fn component_description_rejects_every_one_field_substitution() {
             DescriptionDecodeRejection::NonCanonicalOrder("outgoing authority"),
         ),
         (
+            "service_bounds::duplicate",
+            Box::new(|d| {
+                let row = d.service_bounds[0].clone();
+                d.service_bounds.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("service bound"),
+        ),
+        (
+            "service_bounds[0].bound::duplicate",
+            Box::new(|d| {
+                let service = d.service_bounds[0].bound[0];
+                d.service_bounds[0].bound.push(service);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("service bound services"),
+        ),
+        (
             "custody::duplicate",
             Box::new(|d| {
                 let row = d.custody[0].clone();
@@ -1469,7 +1727,7 @@ fn component_description_declared_fields_stay_identity_bound() {
     let request = request_for(&module, BTreeSet::new());
 
     let identity_bound: Vec<(&'static str, Box<dyn Fn(&mut ComponentDescription)>)> = vec![
-        ("imports[0].slot", Box::new(|d| d.imports[0].slot = 7)),
+        ("imports[1].slot", Box::new(|d| d.imports[1].slot = 7)),
         (
             "providers[0].report_identity",
             Box::new(|d| d.providers[0].report_identity += 1),
@@ -1490,7 +1748,7 @@ fn component_description_declared_fields_stay_identity_bound() {
             "imports::insert-second-slot",
             Box::new(|d| {
                 d.imports.push(ImportSlot {
-                    slot: 1,
+                    slot: 2,
                     requirement_identity: "Unsealed::requirement".into(),
                     contract_identity: requirement_contract_identity("Unsealed::requirement"),
                 });

@@ -17,8 +17,8 @@ use std::collections::BTreeSet;
 
 use component_description::test_support::{bare_module, describe_module, module_subject};
 use component_description::{
-    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentVerificationRequest,
-    verify_component,
+    verify_component, AdmissionProfile, ComponentVerificationRequest,
+    COMPONENT_DESCRIPTION_SCHEMA_V2,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
@@ -173,7 +173,7 @@ pub fn admit_with(
 ) -> AdmittedComponent {
     let request = ComponentVerificationRequest {
         expected_subject: module_subject(module),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V1]),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
         accepted_assumptions,
         admission_profile: AdmissionProfile::default(),
     };

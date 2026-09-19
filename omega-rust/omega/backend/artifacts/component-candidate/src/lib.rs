@@ -18,16 +18,16 @@
 //! API so deployment-side callers keep one import root.
 
 pub use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
-    ComponentEntry, ComponentEntryKind, ComponentVerificationRejection,
-    ComponentVerificationRequest, CustodyConstraint, CustodyEvidence, CustodyKind, DescribeError,
-    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
-    IndependentRealizationMismatch, InstallationObligation, ObligationKind, OutgoingAuthority,
+    component_description_identity, decode_component_description, describe_component_facts,
+    description_subject, encode_component_description, port_mechanism_assumption,
+    requirement_contract_identity, requirement_export_identity, verify_component,
+    ComponentDescription, ComponentDescriptionFacts, ComponentEntry, ComponentEntryKind,
+    ComponentVerificationRejection, ComponentVerificationRequest, CustodyConstraint,
+    CustodyEvidence, CustodyKind, DescribeError, DescriptionDecodeRejection, DescriptionFrontier,
+    EntryEvidence, ExportSurface, ImportSlot, IndependentRealizationMismatch,
+    InstallationObligation, InstallationServiceBound, ObligationKind, OutgoingAuthority,
     OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider, StackDemandFacts,
-    VerifiedComponent, component_description_identity, decode_component_description,
-    describe_component_facts, description_subject, encode_component_description,
-    port_mechanism_assumption, requirement_contract_identity, requirement_export_identity,
-    verify_component,
+    VerifiedComponent, COMPONENT_DESCRIPTION_SCHEMA_V2,
 };
 pub use native_artifact::{
     NativeArtifact, NativeArtifactParts, NativeProviderExecution,
@@ -234,13 +234,13 @@ fn validate_selected_provider_closure(
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
-        validate_selected_provider_closure,
+        validate_selected_provider_closure, NativeSelectedProviderClosureDigest,
+        NativeSelectedProviderPlan,
     };
-    use effects::SelectedProviderPlanFacts;
     use effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
     };
+    use effects::SelectedProviderPlanFacts;
 
     fn selected_plan() -> ProviderPlan {
         ProviderPlan {

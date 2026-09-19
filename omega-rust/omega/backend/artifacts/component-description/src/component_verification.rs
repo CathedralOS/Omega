@@ -28,12 +28,12 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 pub use proof_admission::AdmissionProfile;
 
 use crate::component_description::{
-    ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
-    InstallationObligation, MAX_COMPONENT_DESCRIPTION_BYTES, ObligationKind, OutgoingAuthority,
-    OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider, component_description_identity,
-    decode_component_description, derive_component_inventory, hex, requirement_contract_identity,
-    requirement_export_identity,
+    component_description_identity, decode_component_description, derive_component_inventory, hex,
+    requirement_contract_identity, requirement_export_identity, ComponentDescription,
+    ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
+    DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot, InstallationObligation,
+    InstallationServiceBound, ObligationKind, OutgoingAuthority, OutgoingAuthorityClass,
+    OutgoingEvidence, RetainedProvider, MAX_COMPONENT_DESCRIPTION_BYTES,
 };
 
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";
@@ -150,6 +150,12 @@ pub enum ComponentVerificationRejection {
     MissingCustodyConstraint(String),
     /// A row claims module-derived custody the artifact does not contain.
     UnexpectedDerivedCustody(String),
+    /// A retained installation-bound reach row is absent from the
+    /// description's service-bound roster.
+    MissingServiceBound(String),
+    /// The description publishes a service-bound row the artifact does not
+    /// retain.
+    UnexpectedServiceBound(String),
     /// A required installation obligation is absent from the description.
     MissingObligation(String),
     /// The provider roster and closure digest are not internally consistent.
@@ -243,6 +249,14 @@ impl std::fmt::Display for ComponentVerificationRejection {
                 formatter,
                 "custody `{identity}` claims a fact the artifact lacks"
             ),
+            Self::MissingServiceBound(identity) => write!(
+                formatter,
+                "installation-bound service bound `{identity}` is missing"
+            ),
+            Self::UnexpectedServiceBound(identity) => write!(
+                formatter,
+                "service bound `{identity}` names a bound the artifact does not retain"
+            ),
             Self::MissingObligation(identity) => {
                 write!(formatter, "installation obligation `{identity}` is missing")
             }
@@ -323,6 +337,13 @@ impl VerifiedComponent {
         &self.description.outgoing
     }
 
+    /// Every retained installation-bound reach row with its declared
+    /// conservative bound — the roster of bounds installation still owes,
+    /// published separately from the concrete reach's `ServiceCeiling` rows.
+    pub fn service_bounds(&self) -> &[InstallationServiceBound] {
+        &self.description.service_bounds
+    }
+
     /// Every custody constraint the component carries.
     pub fn custody(&self) -> &[CustodyConstraint] {
         &self.description.custody
@@ -365,7 +386,10 @@ impl VerifiedComponent {
     /// candidate in the *verified* module (never a description row), and
     /// the description must export that realization. External, syscall, or
     /// evaluated rows are not exported callable surfaces of a checked
-    /// closure and reject.
+    /// closure and reject. A component whose module still retains
+    /// unresolved installation-bound reach rows also rejects: its declared
+    /// service bounds are obligations installation still owes, not the
+    /// resolved reach a callable component contract must carry.
     ///
     /// Success establishes only that the realization exists inside this
     /// exact subject. It grants no callable authority and discharges none of
@@ -458,6 +482,24 @@ impl VerifiedComponent {
                 });
             }
         }
+        // Only after every row matched is the component's own closure in
+        // question: a realizer that still retains unresolved
+        // installation-bound reach rows is not a closed callable component.
+        // Its service bounds publish what installation still owes, so the
+        // join must not treat the retained bound as the resolved reach the
+        // selected row names.
+        let unresolved: Vec<String> = self
+            .module
+            .root_service_reach
+            .installation_dependencies
+            .iter()
+            .map(|dependency| dependency.requirement_identity.clone())
+            .collect();
+        if !unresolved.is_empty() {
+            return Err(IndependentRealizationMismatch::UnresolvedInstallationRows {
+                requirement_identities: unresolved,
+            });
+        }
         Ok(())
     }
 }
@@ -492,6 +534,11 @@ pub enum IndependentRealizationMismatch {
     DuplicateRealization { requirement_identity: String },
     /// The description omits the export row the realization requires.
     MissingExport { requirement_identity: String },
+    /// The realization matched, but the component still retains unresolved
+    /// installation-bound reach rows: its declared service bounds are
+    /// obligations installation still owes, not the resolved service reach
+    /// the selected row names.
+    UnresolvedInstallationRows { requirement_identities: Vec<String> },
 }
 
 impl std::fmt::Display for IndependentRealizationMismatch {
@@ -543,6 +590,14 @@ impl std::fmt::Display for IndependentRealizationMismatch {
             } => write!(
                 formatter,
                 "description exports no realization row for `{requirement_identity}`"
+            ),
+            Self::UnresolvedInstallationRows {
+                requirement_identities,
+            } => write!(
+                formatter,
+                "verified component retains {} unresolved installation-bound requirement row(s) ({}); its service bounds are obligations installation still owes, not resolved reach",
+                requirement_identities.len(),
+                requirement_identities.join(", ")
             ),
         }
     }
@@ -622,6 +677,7 @@ pub fn verify_component(
     check_exports(&description, &inventory)?;
     let sealed = check_outgoing(&description, &inventory)?;
     check_providers(&description, &inventory, &sealed)?;
+    check_service_bounds(&description, &inventory)?;
     check_custody(&description, &inventory)?;
     check_imports(&description)?;
     check_obligations(&description, &inventory)?;
@@ -747,7 +803,7 @@ fn check_outgoing(
         let identity = format!("port-write:{}:{port}:{value}", service.get());
         derived_keys.insert((OutgoingAuthorityClass::PortSpaceWrite, identity));
     }
-    for service in &inventory.service_ceiling {
+    for service in &inventory.concrete_service_reach {
         derived_keys.insert((
             OutgoingAuthorityClass::ServiceCeiling,
             format!("service-ceiling:{}", service.get()),
@@ -941,6 +997,30 @@ fn check_custody(
                 identity.to_string(),
             ));
         }
+    }
+    Ok(())
+}
+
+/// The service-bound roster must replay the module's retained
+/// installation-bound reach rows exactly: each requirement identity carries
+/// the same declared bound it does in the module. Bounds publish here and
+/// never inside the concrete reach's `ServiceCeiling` outgoing rows, so this
+/// roster is the only place a consumer reads what installation still owes.
+fn check_service_bounds(
+    description: &ComponentDescription,
+    inventory: &crate::component_description::DerivedInventory,
+) -> Result<(), ComponentVerificationRejection> {
+    let derived: BTreeSet<&InstallationServiceBound> = inventory.service_bounds.iter().collect();
+    let declared: BTreeSet<&InstallationServiceBound> = description.service_bounds.iter().collect();
+    for row in derived.difference(&declared) {
+        return Err(ComponentVerificationRejection::MissingServiceBound(
+            row.requirement_identity.clone(),
+        ));
+    }
+    for row in declared.difference(&derived) {
+        return Err(ComponentVerificationRejection::UnexpectedServiceBound(
+            row.requirement_identity.clone(),
+        ));
     }
     Ok(())
 }
