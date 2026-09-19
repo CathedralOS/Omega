@@ -1504,10 +1504,12 @@ file, and the failing root .omg:
 
   python tools/proof_advisor.py \
     --omega <worktree>/target/debug/omega.exe \
-    --key-file C:/SoftwareDevelopmentKits/Omega/build/typesafe.env.txt \
     <failing root.omg>
 
-Or `set OMEGA=<binary>` and drop --omega. On macOS the same relative path
+Or `set OMEGA=<binary>` and drop --omega. No key flag is needed: the tool
+resolves TYPESAFE_API_KEY from the env, --key-file, a repo-local
+build/typesafe.env.txt, or the machine-wide
+~/.config/typesafe/typesafe.env.txt. On macOS the same relative path
 works under that checkout's root.
 
 When an advance/local-swarm run hits an in-scope proof rejection, run it
@@ -1625,11 +1627,14 @@ Follow-ups to the corpus-scale run, `build/experiments/proof-advisor-multiclause
 - Multi-clause culprit: 2/2 exact picks — `x >= 9` as the middle of three
   ensures facts, `a >= 20` as the first of two. The clause-extraction +
   choice-question mechanism localizes correctly among plausible neighbors.
-- Vacuity edge: `requires x>=10; x<=4` compiles clean — unsatisfiable
-  premises make the ensures vacuously true and Omega does not lint requires
-  vacuity at check time. No rejection → correctly no advisory. Noted as an
-  Omega diagnostics gap (unsatisfiable requires is a logic bug the checker
-  admits silently), outside advisor scope.
+- Vacuity edge: `requires x>=10; x<=4` compiles clean — and the engine
+  *detects* it: `contract_entailment.rs` `requires_unsatisfiable` applies
+  the proof-theoretic `absurd` rule (contradictory hypotheses entail
+  everything) and silently accepts. The gap is reporting, not detection —
+  a contradictory requires is almost always an author bug, and surfacing
+  the already-computed flag as a diagnostic is a ~20-line change and a
+  design question (vacuous machines may be intentional in generated code).
+  No rejection → correctly no advisory; outside advisor scope.
 - Multi-file exposure: 0/299 firing fixtures have sibling .omg files — the
   advisor's main.omg-only source window covers the entire corpus residue
   surface. The single-file comment in the tool is validated at scale.
