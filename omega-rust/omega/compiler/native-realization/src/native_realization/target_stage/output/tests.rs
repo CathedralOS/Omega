@@ -44,7 +44,10 @@ fn empty_and_selected_target_results_share_the_original_current_program() {
         ] {
             let evidence = optimized_target(target, selections);
             let original = evidence.shared_program();
-            assert!(std::ptr::eq(&original.plan, evidence.target_operations()));
+            assert!(std::ptr::eq(
+                original.as_ref(),
+                evidence.target_operations()
+            ));
             let stage = NativeTargetStageResult::new(evidence);
             assert!(Arc::ptr_eq(&stage.program, &original));
             let (program, evidence) = stage.into_parts().expect("exact current/evidence join");
@@ -52,8 +55,8 @@ fn empty_and_selected_target_results_share_the_original_current_program() {
             drop(evidence);
             drop(original);
             assert_eq!(Arc::strong_count(&program), 1);
-            assert_eq!(program.plan.target, target);
-            assert_eq!(program.plan.functions.len(), 1);
+            assert_eq!(program.target, target);
+            assert_eq!(program.functions.len(), 1);
             assert!(program.native_callback_arguments.is_empty());
         }
     }
@@ -64,15 +67,11 @@ fn changed_target_contents_reject_even_with_unchanged_root_ids() {
     let evidence = optimized_target(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = evidence.shared_program();
     let mut stage = NativeTargetStageResult::new(evidence);
-    Arc::make_mut(&mut stage.program).plan.functions.clear();
-    assert_eq!(stage.program.plan.psi, original.plan.psi);
-    assert_eq!(stage.program.plan.entry, original.plan.entry);
-    assert_eq!(stage.program.plan.target, original.plan.target);
-    assert_eq!(
-        original.plan.functions.len(),
-        1,
-        "replay input stays unchanged"
-    );
+    Arc::make_mut(&mut stage.program).functions.clear();
+    assert_eq!(stage.program.psi, original.psi);
+    assert_eq!(stage.program.entry, original.entry);
+    assert_eq!(stage.program.target, original.target);
+    assert_eq!(original.functions.len(), 1, "replay input stays unchanged");
     assert!(matches!(
         stage.into_parts(),
         Err("current target program differs from its retained translation evidence")
@@ -84,8 +83,8 @@ fn substituted_target_profile_rejects_without_rewriting_retained_evidence() {
     let evidence = optimized_target(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = evidence.shared_program();
     let mut stage = NativeTargetStageResult::new(evidence);
-    Arc::make_mut(&mut stage.program).plan.target = NativeTarget::linux_arm64();
-    assert_eq!(original.plan.target, NativeTarget::linux_x64());
+    Arc::make_mut(&mut stage.program).target = NativeTarget::linux_arm64();
+    assert_eq!(original.target, NativeTarget::linux_x64());
     assert!(matches!(
         stage.into_parts(),
         Err("current target program differs from its retained translation evidence")

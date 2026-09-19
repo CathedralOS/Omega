@@ -21,7 +21,7 @@ mod unobserved_owned;
 use abstract_operations::AbstractOperationPlan;
 use installation_evidence::ProviderInstallationEvidence;
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetOperationPlanWithNativeCallbacks};
+use target_operations::TargetOperationPlan;
 
 use crate::{AdmittedBoundarySettlement, LoweringError};
 use coordination::lower_to_target_operations_with_settlements_and_installation;
@@ -62,16 +62,18 @@ pub fn lower_to_target_operations(
     plan: &AbstractOperationPlan,
     request: TargetLoweringRequest<'_>,
 ) -> Result<TargetOperationPlan, LoweringError> {
-    Ok(lower_to_target_operations_and_native_callbacks(plan, request, &[])?.plan)
+    lower_to_target_operations_and_native_callbacks(plan, request, &[])
 }
 
 /// Lower one abstract plan while consuming exact target-owned native callback
-/// argument admissions; the result carries those admissions beside the plan.
+/// argument admissions; the admitted roster is retained on the returned plan
+/// itself in `native_callback_arguments`, joined to each consuming row by its
+/// Terminal operation.
 pub fn lower_to_target_operations_and_native_callbacks(
     plan: &AbstractOperationPlan,
     request: TargetLoweringRequest<'_>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
-) -> Result<TargetOperationPlanWithNativeCallbacks, LoweringError> {
+) -> Result<TargetOperationPlan, LoweringError> {
     let TargetLoweringRequest {
         target,
         settlements,

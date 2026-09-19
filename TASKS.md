@@ -2071,12 +2071,12 @@ Owners include
   `BoundaryCall`, and one canonical thunk artifact per placement
   (`compiler/tests/callback_terminal_custody.rs`,
   `reachable_private_callback_registrar_binds_its_terminal_occurrence`). No
-  native product exists for any callback. `emit_realization_object`
-  (`native-realization/src/native_realization/object_emission.rs`) rejects
-  every request carrying a callback thunk or native callback, so the
-  direct-parameter witness
-  `direct_callback_relocation_resolves_to_its_private_function`, which expects
-  a realized image, cannot pass either.
+  native product exists for any callback yet: the `emit_realization_object`
+  callback rejection arm is gone and the direct-parameter witness
+  `direct_callback_relocation_resolves_to_its_private_function` now reaches
+  selection, where `construction::build_plan` rejects the materialized
+  registrar row with `Selection(SourceCustodyMismatch)` — the common
+  instruction pipeline still carries no callback ABI transport.
 
   Remaining work:
 
@@ -2092,11 +2092,12 @@ Owners include
     `build_function_fragment_object_artifact`, which has no such channel, and
     `validate_private_functions` admits at most one private function where
     the fixture needs two.
-  - Retain the admitted registrar context in the target plan. Normalized
-    foreign call legalization
-    (`target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/normalized_foreign.rs`)
-    fails closed on a non-empty `callback_materializations` roster because it
-    cannot replay one.
+  - Give the common instruction pipeline callback ABI transport. Selection's
+    `construction::build_plan`
+    (`target-operations-to-selected-instructions/src/selection/construction/`)
+    has no callback awareness and rejects the materialized registrar's extra
+    private parameter slot with `SourceCustodyMismatch`; the retained roster
+    the transport needs already lands on `TargetOperationPlan`.
   - Add a layout-field address destination. `CallbackAddressDestination`
     (`machine-code/src/machine_code/calls/callbacks.rs`) has only `Register`
     and `OutgoingStack`; `validate_callback_address_bytes` and relocation

@@ -7,9 +7,12 @@
 //! claims; both fail closed on missing, duplicated, or mismatched custody.
 use super::{AbstractOperationPlan, MachineId, PsiOptimizationFunction, TargetOperationPlan};
 use crate::LegalizationError;
-use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
+use calling_conventions::{BoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape};
 use semantic_vocabulary::OperationId;
-use target_operations::{TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation};
+use target_operations::{
+    TargetNativeCallbackArgument, TargetStructuralArgument, TargetStructuralParameter,
+    TargetUnitOperation,
+};
 
 /// The unique normalized foreign row one boundary call emitted, if any.
 /// Duplicate rows for one source operation are a custody failure, not an
@@ -42,6 +45,99 @@ pub(in crate::legalization) fn row(
         return Err(invalid);
     }
     Ok(row)
+}
+
+/// Replay the retained native-callback roster against the target rows.
+///
+/// Every admitted argument must join to one unique `NormalizedForeignCall` row
+/// by its Terminal operation, and that row's evaluated binding must carry the
+/// argument's exact registrar entry plan. A roster entry no call consumed, a
+/// duplicated operation, and a substituted registrar plan all fail closed; an
+/// empty roster is inert.
+pub(in crate::legalization) fn validate_native_callback_roster(
+    native: &TargetOperationPlan,
+) -> Result<(), LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    for (index, callback) in native.native_callback_arguments.iter().enumerate() {
+        if native.native_callback_arguments[..index]
+            .iter()
+            .any(|prior| prior.terminal_operation == callback.terminal_operation)
+        {
+            return Err(invalid);
+        }
+        let mut rows = native
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|row| {
+                matches!(
+                    row,
+                    TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
+                        if *psi_operation == callback.terminal_operation
+                )
+            });
+        let Some(row) = rows.next() else {
+            return Err(invalid);
+        };
+        let TargetUnitOperation::NormalizedForeignCall { binding, .. } = row else {
+            unreachable!("filtered on NormalizedForeignCall")
+        };
+        if rows.next().is_some()
+            || binding.boundary_entry_plan != callback.registrar_boundary_entry_plan
+        {
+            return Err(invalid);
+        }
+    }
+    Ok(())
+}
+
+/// The retained native callback argument one normalized foreign row consumes,
+/// or `None` when the row's evaluated plan carries no callback
+/// materializations.
+///
+/// The roster is the only carrier of binder and demand custody for the
+/// callback's private parameter slot, so the join is exact in both
+/// directions: a materialized call without a retained argument, a retained
+/// argument whose registrar plan differs from the row's, a claimed
+/// application placement the plan does not carry at its native ordinal, and a
+/// retained argument naming a row whose materializations were dropped all
+/// fail closed.
+pub(in crate::legalization) fn native_callback_at<'a>(
+    native: &'a TargetOperationPlan,
+    operation: OperationId,
+    boundary_entry_plan: &BoundaryEntryPlan,
+) -> Result<Option<&'a TargetNativeCallbackArgument>, LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    let materialized = !boundary_entry_plan
+        .call
+        .callback_materializations
+        .is_empty();
+    let mut matching = native
+        .native_callback_arguments
+        .iter()
+        .filter(|callback| callback.terminal_operation == operation);
+    let Some(callback) = matching.next() else {
+        return if materialized { Err(invalid) } else { Ok(None) };
+    };
+    let pointer_size = u16::try_from(native.target.pointer_size).map_err(|_| invalid.clone())?;
+    let pointer_alignment =
+        u16::try_from(native.target.pointer_alignment).map_err(|_| invalid.clone())?;
+    let ordinal =
+        usize::try_from(callback.application.native_ordinal).map_err(|_| invalid.clone())?;
+    if !materialized
+        || matching.next().is_some()
+        || callback.registrar_boundary_entry_plan != *boundary_entry_plan
+        || !callback.callback_function.is_valid()
+        || callback.callback_function.callback_thunk_placement_index()
+            != Some(callback.placement_index)
+        || callback.application.shape != callback.application.placement.shape
+        || callback.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
+        || boundary_entry_plan.call.parameters.get(ordinal) != Some(&callback.application.placement)
+    {
+        return Err(invalid);
+    }
+    Ok(Some(callback))
 }
 
 /// Re-derive one source-rooted borrowed flat-record argument for the boundary

@@ -24,6 +24,9 @@ pub(crate) fn derive_source_function_rosters(
     verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     validate_source_custody(target, abstract_plan, unit, verified_input)?;
+    // A retained callback argument must join to one exact normalized foreign
+    // row before any roster derives from this plan.
+    super::scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
 
     let mut rosters = SourceFunctionRosters {
         scalar_functions: Vec::new(),

@@ -18,6 +18,9 @@ pub(crate) fn replay_terminal_legalized_plan(
     verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<(), LegalizationError> {
     validate_replay_custody(target, abstract_plan, unit, proposed, verified_input)?;
+    // A retained callback argument must join to one exact normalized foreign
+    // row before any legalized instruction replays against this plan.
+    super::scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
 
     ordinary_roster::replay_remaining(target, abstract_plan, unit, proposed)
 }

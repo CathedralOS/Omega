@@ -19,6 +19,12 @@ pub struct TargetOperationPlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<TargetFunction>,
+    /// The exact native-only callback arguments this plan's normalized
+    /// foreign calls consume. Each row is admission-retained custody joined to
+    /// its registrar by Terminal operation and registrar entry plan; a
+    /// callback has no semantic `ValueId`, so it lives on the plan itself
+    /// rather than inside an argument roster.
+    pub native_callback_arguments: Vec<TargetNativeCallbackArgument>,
 }
 
 pub mod calls;

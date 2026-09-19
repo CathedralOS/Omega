@@ -1,7 +1,7 @@
 use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use std::sync::Arc;
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetOperationPlanWithNativeCallbacks};
+use target_operations::TargetOperationPlan;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ValidatedOptimizedTargetOperations {
     pub(super) optimized: ValidatedOptimizedAbstractPlan,
-    current_program: Arc<TargetOperationPlanWithNativeCallbacks>,
+    current_program: Arc<TargetOperationPlan>,
     pub(super) translation_validation: AbstractToTargetTranslationValidationReceipt,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
 }
@@ -27,16 +27,16 @@ impl ValidatedOptimizedTargetOperations {
     }
 
     pub fn target(&self) -> NativeTarget {
-        self.current_program.plan.target
+        self.current_program.target
     }
 
     pub fn target_operations(&self) -> &TargetOperationPlan {
-        &self.current_program.plan
+        &self.current_program
     }
 
     /// The original current program, not a snapshot recovered from replay inputs.
     /// This owner exposes raw data only; it cannot reconstruct this admission.
-    pub fn shared_program(&self) -> Arc<TargetOperationPlanWithNativeCallbacks> {
+    pub fn shared_program(&self) -> Arc<TargetOperationPlan> {
         Arc::clone(&self.current_program)
     }
 
@@ -78,12 +78,12 @@ fn lower_validated_abstract_to_target_operations(
     // Semantic replay can establish that a candidate implements a boundary, but
     // cannot establish which candidate the caller selected. Join against the
     // independently supplied admitted installation before sealing this owner.
-    crate::validation::installed_calls::validate(&program.plan, installed)?;
+    crate::validation::installed_calls::validate(&program, installed)?;
     let translation_validation =
         validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             optimized.plan(),
             target,
-            &program.plan,
+            &program,
             ieee_float_fma,
         )?;
     Ok(ValidatedOptimizedTargetOperations {

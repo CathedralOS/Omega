@@ -176,6 +176,7 @@ fn native_callback_admission_is_unique_exact_and_transactionally_consumed() {
         psi: plan.psi,
         target: NativeTarget::linux_x64(),
         entry: plan.entry,
+        native_callback_arguments: Vec::new(),
         functions: Vec::new(),
     };
     assert_eq!(

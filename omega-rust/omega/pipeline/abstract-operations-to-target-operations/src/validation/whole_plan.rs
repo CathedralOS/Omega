@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use target::NativeTarget;
-use target_operations::TargetOperationPlan;
+use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
 use super::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
@@ -33,6 +33,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
 ) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
 {
     validate_plan_identity(source, expected_target, target)?;
+    validate_native_callback_roster(target)?;
     for function in &source.functions {
         for operation in &function.operations {
             if let AbstractOperation::Jump {
@@ -106,6 +107,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             &source.structural_types,
             &source.boundary_machines,
             expected_target,
+            &target.native_callback_arguments,
         )
         .map_err(|operation| {
             AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
@@ -150,6 +152,42 @@ fn validate_plan_identity(
     }
     if source.functions.len() != target.functions.len() {
         return Err(AbstractToTargetTranslationValidationError::FunctionCountMismatch);
+    }
+    Ok(())
+}
+
+/// Every retained native-callback argument must name exactly one normalized
+/// foreign call row that agrees it consumed that admission: the roster is a
+/// plan-level custody carrier, so a dangling, duplicated, or substituted row
+/// fails closed here rather than inside one function's replay.
+fn validate_native_callback_roster(
+    target: &TargetOperationPlan,
+) -> Result<(), AbstractToTargetTranslationValidationError> {
+    for callback in &target.native_callback_arguments {
+        let mut matching = target
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.blocks.iter())
+            .flat_map(|block| block.operations.iter())
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::NormalizedForeignCall {
+                    psi_operation,
+                    binding,
+                    ..
+                } => Some((*psi_operation, binding)),
+                _ => None,
+            })
+            .filter(|(psi_operation, binding)| {
+                *psi_operation == callback.terminal_operation
+                    && binding.boundary_entry_plan == callback.registrar_boundary_entry_plan
+            });
+        if matching.next().is_none() || matching.next().is_some() {
+            return Err(
+                AbstractToTargetTranslationValidationError::NativeCallbackRosterMismatch(
+                    callback.terminal_operation,
+                ),
+            );
+        }
     }
     Ok(())
 }
