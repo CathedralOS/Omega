@@ -3,8 +3,9 @@ name: local-swarm
 description: >-
   Coordinate a local swarm wave on this machine: partition board items into a
   wave manifest, render per-agent prompts with tools/swarm/launch.py local,
-  spawn one in-session subagent per worktree, keep the tank filled by
-  backfilling, and recover or drain the wave cleanly. Use when the user asks to launch a local
+  spawn one in-session subagent per worktree, work your own item as the 7th
+  slot, backfill automatically on every completion, and recover or drain the
+  wave cleanly. Use when the user asks to launch a local
   swarm, run N concurrent subagents on the Omega boards, fill a wave to N, or
   resume an interrupted local wave. Not for cloud waves (launch.py launch),
   a single advance, or a named bug fix.
@@ -13,7 +14,9 @@ description: >-
 # Local swarm waves
 
 A local wave is N subagents on this machine, one per Git worktree, each running
-the ordinary `advance` protocol on one board item. The shared claims registry
+the ordinary `advance` protocol on one board item; the coordinator also works
+one item itself as the last slot, matching the cloud-swarm shape — 6 subagents
+plus the coordinator makes 7 workers on the machine. The shared claims registry
 and `tools/landing.py` provide the fences; `tools/swarm/README.md` is the full
 reference and carries the evidence behind every rule here. This skill is the
 coordinator's procedure — the agents get rendered prompts, not this file.
@@ -23,7 +26,10 @@ coordinator's procedure — the agents get rendered prompts, not this file.
 1. `python3 tools/claims.py status` — every live claim is off-limits.
 2. Pick items from `TASKS*.md` that are unclaimed, path-disjoint from each
    other and from live claims, and suited to this host. Read
-   `tools/swarm/README.md` coordinator selection rules first.
+   `tools/swarm/README.md` coordinator selection rules first. Reserve one
+   path-disjoint item for the coordinator's own slot — it goes in the wave
+   report like every other slot and follows the same claim/land/release
+   protocol in the coordinator's checkout or its own worktree.
 3. Write `tools/swarm/waves/<wave>.json` — copy `local-example.json`; each
    session gets `"host": "local"`, its board item, and owning paths. Keep
    `TASKS*.md` out of owning paths.
@@ -38,6 +44,12 @@ coordinator's procedure — the agents get rendered prompts, not this file.
    `scale_hint` means the item is a multi-layer decomposition, not a slice.
 
 ## Launch
+
+Pull the coordinator's main checkout (`git pull origin main`) before running
+`local` and before every spawn that creates a worktree — the launcher fetches
+`origin/main`, but an up-to-date local checkout is also what the coordinator
+reads for board text, claims scripts, and its own slot's base. Never spawn a
+worktree while main is behind.
 
 Run `local` once with `--create-worktrees` so every slot starts from a clean
 `swarm/<wave>-<name>` branch. It fetches `origin/main` first and reports the
@@ -69,10 +81,13 @@ count.
 Concurrency is bounded by the org-wide message budget shared with cloud waves
 and other machines, not by this host. A burst of ~20 died in minutes; 8 held
 while the budget was quiet. When the user gives no count, run 6 subagents in
-parallel constantly: backfill a freed slot immediately on landing, report, or
-confirmed death, and treat a slot showing zero filesystem output for ~30
+parallel plus the coordinator's own item — 7 workers total on the machine —
+and keep the tank there constantly: every completion notification (landed,
+blocked, superseded, or death) immediately frees a slot, and the coordinator
+spawns the next unclaimed path-disjoint item into it on the same turn, without
+waiting for the user. Treat a slot showing zero filesystem output for ~30
 minutes (clean worktree, no commits, no new files) as dead — relaunch it in a
-fresh worktree rather than waiting. Keep the tank at 6 only while the user
+fresh worktree rather than waiting. Keep the tank full only while the user
 asked the wave to keep running.
 
 Host capacity bounds the wave separately from the message budget. On an
@@ -92,7 +107,10 @@ file indexers.
 `python3 tools/swarm/worktree_status.py` is the local `status`/`report`:
 worktree dirt, ahead/behind, landed state, claim↔owner matching, queue state.
 When a slot lands, report the commit and item; when it reports `superseded` or
-`blocked`, release its claim ticket before backfilling.
+`blocked`, release its claim ticket before backfilling. Every completion
+notification is a refill trigger: handle the report, release the ticket, pull
+main, and spawn the replacement subagent in that same turn — the wave does not
+wait for a user message to backfill.
 
 Silent deaths produce no completion notification. At every checkpoint —
 completion, backfill, user ping — verify the liveness of EVERY running slot
