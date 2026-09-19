@@ -154,24 +154,31 @@ fn data_graph_requires_nominal_drop_with_substitutions(
     }) {
         return true;
     }
+    // An erased member stays semantically present but owns no runtime
+    // representation, so it can never produce runtime cleanup even when its
+    // type would otherwise require a nominal drop.
     program
         .data_members(data)
         .iter()
         .any(|member| match member {
-            DataMember::Field(field) => type_graph_requires_nominal_drop_with_substitutions(
-                program,
-                field.type_reference,
-                substitutions,
-                visited,
-            ),
-            DataMember::Variant(variant) => {
-                program.data_payload_fields(variant).iter().any(|field| {
-                    type_graph_requires_nominal_drop_with_substitutions(
+            DataMember::Field(field) => {
+                !field.relevance.is_erased()
+                    && type_graph_requires_nominal_drop_with_substitutions(
                         program,
                         field.type_reference,
                         substitutions,
                         visited,
                     )
+            }
+            DataMember::Variant(variant) => {
+                program.data_payload_fields(variant).iter().any(|field| {
+                    !field.relevance.is_erased()
+                        && type_graph_requires_nominal_drop_with_substitutions(
+                            program,
+                            field.type_reference,
+                            substitutions,
+                            visited,
+                        )
                 })
             }
         })

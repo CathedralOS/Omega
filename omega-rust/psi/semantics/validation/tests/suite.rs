@@ -5,6 +5,7 @@
 mod assembly_value_scope;
 mod cast_result_ranges;
 mod cast_result_types;
+mod cleanup_ownership;
 mod declared_operator_results;
 mod evaluated_via;
 mod float_operator_meaning;

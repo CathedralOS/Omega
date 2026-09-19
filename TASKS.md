@@ -3583,10 +3583,19 @@ Owners include
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook
   selection, under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup)
   and [explicit early disposal](wiki/language_guide/chapter_17_drops_and_cleanup.md#explicit-early-disposal).
-  Erased fields remain semantically present but never produce runtime cleanup.
-  Source selection of a reserved `T::drop` already rejects
-  (`validation/src/value_custody/cleanup.rs`). `omega::core::drop` is not yet
-  declared in `source/library/core`, and no corpus source calls it. **CML4**
+  Erased fields remain semantically present but never produce runtime cleanup:
+  `data_graph_requires_nominal_drop_with_substitutions`
+  (`validation/src/value_custody/cleanup.rs`) now skips erased record and case
+  members, so an erased-only owner stays an ordinary affine record instead of
+  poisoning every Unit lane. Source selection of a reserved `T::drop` already
+  rejects (same file). `omega::language::core::drop` is declared
+  (`source/library/core/drop.omg`) and a corpus call site checks
+  (`tests/omega/pass/drops/core_drop_explicit_consume`; register it in
+  `compiler/tests/canary_suite.rs` once that file is unclaimed — its owner
+  holds a live claim). The generic `drop<T>` signature is still outside the
+  terminal-Psi source slice, so its parameter's hook edge cannot yet be
+  lowered or invoked at runtime; explicit early disposal discharges by
+  transfer into the consuming machine. **CML4**
   owns residual cleanup order; this item owns the hook target, the generic
   consuming machine and their invocation.
 

@@ -388,3 +388,21 @@ fn shared_source_failure_is_retained_for_every_exact_target() {
         .expect("Windows child should retain shared parse failure");
     assert_eq!(linux, windows);
 }
+
+#[test]
+fn core_drop_consuming_call_site_checks() {
+    // `omega::language::core::drop` is declared in the bundled core library;
+    // the corpus call site consumes a nominal-cleanup `Guard` and a `Carrier`
+    // whose only nominal member is erased, so both die by transfer and the
+    // fixture checks without a `Carrier::drop`.
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate should have the repository above it");
+    let root = repository
+        .join("tests/omega/pass")
+        .join(fixture_roster::CORE_DROP_EXPLICIT_CONSUME)
+        .join("main.omg");
+    crate::compile_to_checked(crate::CheckedCompileRequest::new(&root, None))
+        .expect("the corpus `omega::language::core::drop` call site must check");
+}
