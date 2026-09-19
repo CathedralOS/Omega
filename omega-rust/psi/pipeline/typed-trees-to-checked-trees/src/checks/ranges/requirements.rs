@@ -15,40 +15,58 @@ pub(super) fn seed_state_requires(
     machine: &Machine,
     state: &State,
 ) {
+    for fact in state_requires_facts(program, machine, state) {
+        match program.proof_facts.get(fact) {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                seed_guard_facts(program, machine, state, facts, *expression);
+                seed_index_proofs_from_expression(program, facts, *expression);
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                seed_index_proofs_from_expression(program, facts, membership.value);
+            }
+            typed_trees::domain::ProofFact::Proposition(application) => {
+                for argument in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    seed_index_proofs_from_expression(program, facts, *argument);
+                }
+            }
+        }
+    }
+}
+
+/// The authored preconditions established at this exact state entry, shared
+/// by range seeding and borrow evidence. Inherited or foreign-state facts
+/// are not implicitly re-established here.
+pub(in crate::checks) fn state_requires_facts<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program Machine,
+    state: &'program State,
+) -> impl Iterator<Item = arena::Handle<typed_trees::domain::ProofFact>> + 'program {
     let is_entry = state.symbol.is_valid()
         && program
             .machine_states(machine)
             .first()
             .is_some_and(|entry| entry.symbol == state.symbol);
-    for contract in program
+    program
         .machine_contracts(machine)
         .iter()
-        .filter(|_| is_entry)
+        .filter(move |_| is_entry)
         .chain(program.state_contracts(state))
-    {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            match fact {
-                typed_trees::domain::ProofFact::Expression(expression) => {
-                    seed_guard_facts(program, machine, state, facts, *expression);
-                    seed_index_proofs_from_expression(program, facts, *expression);
-                }
-                typed_trees::domain::ProofFact::Membership(membership) => {
-                    seed_index_proofs_from_expression(program, facts, membership.value);
-                }
-                typed_trees::domain::ProofFact::Proposition(application) => {
-                    for argument in program
-                        .expression_table
-                        .expression_handles(application.arguments)
-                    {
-                        seed_index_proofs_from_expression(program, facts, *argument);
-                    }
-                }
-            }
-        }
-    }
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| {
+            (0..contract.facts.count()).filter_map(move |offset| {
+                contract
+                    .facts
+                    .start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .map(|index| {
+                        arena::Handle::from_parts(index, contract.facts.start().generation())
+                    })
+            })
+        })
 }
 
 /// Seeds slice proof vocabulary implied by an assumed-valid subslice access.

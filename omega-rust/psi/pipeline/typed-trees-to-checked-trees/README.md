@@ -561,11 +561,17 @@ conclusions, and ordered selector snapshots. Replay normalizes the original
 typed expression and reconstructs spatial relations and access compatibility.
 Selector snapshots retain shared immutable-symbol boundaries with constant
 offsets, ordered as mathematical integers only under Exact arithmetic.
-Stated entry/state `requires` can supply integer ordering, equality, or
-disequality over those immutable bounds. Disequality separates singleton
+Stated entry/state `requires` and incoming guards can supply integer ordering,
+equality, or disequality over those immutable bounds. Incoming guards use the
+shared range-checking edge analysis, including external entry and self backedges.
+Queries cross named-state edges only through immutable owned integer bindings
+at every hop; a composed place identity alone is not value-preservation evidence.
+Disequality separates singleton
 elements, not windows, and survives only equal translation of both bounds.
-Premised certificates retain the exact consumed contract tokens; replay
-reconstructs their availability and rejects altered selectors or premises.
+Premised certificates retain the exact contract or guard/polarity tokens; replay
+reconstructs availability, evaluation scope, and parameter transport and rejects
+altered selectors or premises. The source witness is
+`tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg`.
 Call comparisons retain a separate ledger naming the exact state-owned call,
 argument-access ordinal, receiver, transferred place, or live loan. Replay
 recollects the call/access roster from typed source, checks the call-entry loan
@@ -574,8 +580,8 @@ in order. Construction and replay are distinct: deleting a ledger cannot ask
 replay to regenerate it. Lexical calls omitted by short-circuit flow still
 receive the conservative statement-entry check. These records are visible in
 state and statement admissibility; they are not a Terminal wire format.
-Guard/callee-established premises, general proof admission, and portable
-compatibility evidence remain unfinished.
+Callee-established premises, mutable/computed guard transport, general proof
+admission, and portable compatibility evidence remain unfinished.
 
 Direct reference-local reborrows require one exact prior parent. Resource rows
 retain typed parent handles, activation, weakening, formation availability,

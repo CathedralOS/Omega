@@ -212,7 +212,13 @@ fn check(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let summaries = crate::flow::StateMutationSummaryCache::default();
-    super::check_flow_call_borrows(program, facts, &summaries, None)
+    super::check_flow_call_borrows(
+        program,
+        facts,
+        &summaries,
+        None,
+        &super::IncomingGuardIndex::build(program, None),
+    )
 }
 
 /// One machine with one state whose body is `let p = 0; x = 0`; the
@@ -464,9 +470,13 @@ fn interfering_certificate_replay_requires_carried_authority() {
         },
     };
 
-    let unrelated_source =
-        super::replay_checked_borrow_compatibility_certificate(&program, &facts, &certificate)
-            .expect_err("an interfering admission with no recorded provenance must not replay");
+    let unrelated_source = super::replay_checked_borrow_compatibility_certificate(
+        &program,
+        &facts,
+        &certificate,
+        &super::IncomingGuardIndex::build(&program, None),
+    )
+    .expect_err("an interfering admission with no recorded provenance must not replay");
     assert!(
         unrelated_source.message.contains("carried authority"),
         "unexpected diagnostic: {unrelated_source:?}"
@@ -480,8 +490,13 @@ fn interfering_certificate_replay_requires_carried_authority() {
         facts.borrow.loans.get(forming).source_owner_symbol,
         facts.borrow.loans.get(active).owner_symbol
     );
-    super::replay_checked_borrow_compatibility_certificate(&program, &facts, &certificate)
-        .expect("a recorded carried-authority edge replays");
+    super::replay_checked_borrow_compatibility_certificate(
+        &program,
+        &facts,
+        &certificate,
+        &super::IncomingGuardIndex::build(&program, None),
+    )
+    .expect("a recorded carried-authority edge replays");
 }
 
 /// The provenance edge itself is narrow: it needs an exclusive active loan, a
@@ -837,9 +852,13 @@ fn interfering_mutation_certificate_has_no_admission_basis() {
         },
     };
 
-    let diagnostic =
-        super::replay_checked_borrow_mutation_certificate(&program, &facts, &certificate)
-            .expect_err("an interfering mutation verdict has no admission basis");
+    let diagnostic = super::replay_checked_borrow_mutation_certificate(
+        &program,
+        &facts,
+        &certificate,
+        &super::IncomingGuardIndex::build(&program, None),
+    )
+    .expect_err("an interfering mutation verdict has no admission basis");
     assert!(
         diagnostic.message.contains("no admission basis"),
         "unexpected diagnostic: {diagnostic:?}"

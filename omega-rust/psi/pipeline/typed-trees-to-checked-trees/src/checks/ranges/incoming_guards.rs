@@ -9,12 +9,13 @@ use typed_trees::statement::{
 use super::facts::RangeFacts;
 use super::guards::{seed_guard_facts, seed_negated_guard_facts};
 
-/// A guard that provably holds at a state's entry: walking back from the state
-/// along single-predecessor edges reaches this guarded arm, and no field the
-/// guard names is rewritten between that arm and the state's entry.
+/// A guard available at state entry through the predecessor walk or meet.
+/// Field-write survival and parameter place transport are separate from the
+/// immutable scalar transport required to reuse an integer ordering premise.
 #[derive(Clone)]
 pub(in crate::checks) struct IncomingGuard {
     state: SymbolHandle,
+    evaluation_state: SymbolHandle,
     guard: ExpressionHandle,
     /// True when the edge is the negated (continuation / `_`) arm.
     negated: bool,
@@ -27,7 +28,12 @@ pub(in crate::checks) struct IncomingGuard {
     /// makes only its own binding unknown. A single-predecessor walk composes
     /// this map through every named edge; ambiguous joins discard it.
     parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
+    /// Separate from place identity: every transported binding must be an
+    /// immutable owned integer at every hop. Zero symbols are unknown values.
+    immutable_argument_symbols: Option<ImmutableArgumentSymbols>,
 }
+
+type ImmutableArgumentSymbols = Vec<(SymbolHandle, SymbolHandle)>;
 
 /// Program-wide incoming-guard analysis shared by checker consumers.
 ///
@@ -83,6 +89,21 @@ impl IncomingGuard {
         self.guard
     }
 
+    pub(in crate::checks) fn evaluation_state(&self) -> SymbolHandle {
+        self.evaluation_state
+    }
+
+    /// The source guard's scalar value corresponding to this entry parameter.
+    /// Place identity alone cannot establish this relation after reassignment.
+    pub(in crate::checks) fn immutable_argument_symbol_for_parameter(
+        &self,
+        parameter: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        let symbol =
+            substituted_immutable_symbol(parameter, self.immutable_argument_symbols.as_ref()?);
+        symbol.is_valid().then_some(symbol)
+    }
+
     pub(in crate::checks) fn is_negated(&self) -> bool {
         self.negated
     }
@@ -108,17 +129,28 @@ impl IncomingGuard {
 struct Edge {
     source: SymbolHandle,
     target: SymbolHandle,
-    arguments: arena::HandleSpan<ExpressionHandle>,
+    arguments: EdgeArguments,
     /// Every predicate established by selecting this dispatch arm. Later arms
     /// carry the negations of all earlier guards in their consecutive run.
     guards: Vec<(ExpressionHandle, bool)>,
 }
 
+#[derive(Clone, Copy)]
+enum EdgeArguments {
+    Named(arena::HandleSpan<ExpressionHandle>),
+    /// A `self` transition keeps the current state's parameter storage.
+    Preserved,
+    /// External invocation or ambiguous convergent arguments.
+    Unknown,
+}
+
 #[derive(Clone)]
 struct CarriedGuard {
+    evaluation_state: SymbolHandle,
     guard: ExpressionHandle,
     negated: bool,
     parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
+    immutable_argument_symbols: Option<ImmutableArgumentSymbols>,
 }
 
 /// The caller-visible machine paths a state's statements may write.
@@ -158,6 +190,16 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<IncomingGuard> {
     let mut edges: Vec<Edge> = Vec::new();
+    // External invocation reaches entry without any transition guard, even
+    // when named backedges also target it. Include it in both walk and meet.
+    if let Some(entry) = program.machine_states(machine).first() {
+        edges.push(Edge {
+            source: SymbolHandle::invalid(),
+            target: entry.symbol,
+            arguments: EdgeArguments::Unknown,
+            guards: Vec::new(),
+        });
+    }
     for state in program.machine_states(machine) {
         let mut prior_misses = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {
@@ -235,6 +277,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
         let mut written_any = false;
         let mut visited: Vec<SymbolHandle> = vec![state.symbol];
         let mut current = state.symbol;
+        let mut immutable_argument_symbols = Some(immutable_parameter_symbols(program, state));
         let mut parameter_argument_places = Some(
             program
                 .state_parameters(state)
@@ -251,16 +294,40 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
 
         while let Some(edge) = single_incoming_edge(&edges, current) {
             parameter_argument_places = parameter_argument_places.and_then(|bindings| {
-                compose_parameter_argument_places(program, edge.target, edge.arguments, &bindings)
+                let replacements = direct_edge_parameter_argument_places(program, &edge)?;
+                Some(
+                    bindings
+                        .into_iter()
+                        .map(|(parameter, place)| {
+                            (
+                                parameter,
+                                place.as_ref().and_then(|place| {
+                                    substitute_parameter_place(place, &replacements)
+                                }),
+                            )
+                        })
+                        .collect(),
+                )
+            });
+            immutable_argument_symbols = immutable_argument_symbols.and_then(|bindings| {
+                let replacements = direct_edge_immutable_argument_symbols(program, &edge)?;
+                Some(compose_immutable_argument_symbols(&bindings, &replacements))
             });
             for &(guard, negated) in &edge.guards {
                 if guard_survives(program, guard, &written, written_any) {
                     result.push(IncomingGuard {
                         state: state.symbol,
+                        evaluation_state: edge.source,
                         guard,
                         negated,
-                        direct_arguments: (edge.target == state.symbol).then_some(edge.arguments),
+                        direct_arguments: match edge.arguments {
+                            EdgeArguments::Named(arguments) if edge.target == state.symbol => {
+                                Some(arguments)
+                            }
+                            _ => None,
+                        },
                         parameter_argument_places: parameter_argument_places.clone(),
+                        immutable_argument_symbols: immutable_argument_symbols.clone(),
                     });
                 }
             }
@@ -316,7 +383,9 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
                 .iter()
                 .map(|facts| {
                     facts.iter().find(|fact| {
-                        fact.guard == candidate.guard && fact.negated == candidate.negated
+                        fact.guard == candidate.guard
+                            && fact.negated == candidate.negated
+                            && fact.evaluation_state == candidate.evaluation_state
                     })
                 })
                 .collect::<Option<Vec<_>>>();
@@ -330,12 +399,20 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
                     .flatten();
                 result.push(IncomingGuard {
                     state: state.symbol,
+                    evaluation_state: candidate.evaluation_state,
                     guard: candidate.guard,
                     negated: candidate.negated,
                     direct_arguments: None,
                     // A parameter binding survives the meet only when every
                     // incoming edge composes to the exact same final map.
                     parameter_argument_places: common_parameter_argument_places,
+                    immutable_argument_symbols: matching
+                        .iter()
+                        .all(|fact| {
+                            fact.immutable_argument_symbols == candidate.immutable_argument_symbols
+                        })
+                        .then(|| candidate.immutable_argument_symbols.clone())
+                        .flatten(),
                 });
             }
         }
@@ -365,24 +442,37 @@ fn edge_carried_facts(
         .filter(|fact| fact.state == edge.source)
         .filter(|fact| guard_survives(program, fact.guard, &written, written_any))
         .map(|fact| CarriedGuard {
+            evaluation_state: fact.evaluation_state,
             guard: fact.guard,
             negated: fact.negated,
             parameter_argument_places: compose_carried_parameter_argument_places(
                 program, edge, fact,
             ),
+            immutable_argument_symbols: direct_edge_immutable_argument_symbols(program, edge)
+                .and_then(|direct| {
+                    Some(compose_immutable_argument_symbols(
+                        &direct,
+                        fact.immutable_argument_symbols.as_ref()?,
+                    ))
+                }),
         })
         .collect();
     let direct_parameter_argument_places = direct_edge_parameter_argument_places(program, edge);
+    let direct_immutable_argument_symbols = direct_edge_immutable_argument_symbols(program, edge);
     carried.extend(edge.guards.iter().map(|(guard, negated)| CarriedGuard {
+        evaluation_state: edge.source,
         guard: *guard,
         negated: *negated,
         parameter_argument_places: direct_parameter_argument_places.clone(),
+        immutable_argument_symbols: direct_immutable_argument_symbols.clone(),
     }));
     carried
 }
 
 /// The single incoming edge of `target`, or `None` when it has zero (an entry
 /// state) or several FROM DIFFERENT SOURCES (a real join the meet must handle).
+/// External invocation is an explicit unguarded predecessor of machine entry;
+/// `self` transitions participate as ordinary backedges.
 ///
 /// Multiple incoming edges that ALL share one source are a guard whose arms
 /// CONVERGE on `target` (`d < 0 { true -> t _ -> t }`): `target` is then reached
@@ -402,7 +492,7 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
             many.iter().all(|edge| edge.source == source).then(|| Edge {
                 source,
                 target,
-                arguments: arena::HandleSpan::default(),
+                arguments: EdgeArguments::Unknown,
                 guards: Vec::new(),
             })
         }
@@ -462,7 +552,13 @@ fn direct_edge_parameter_argument_places(
             )
         })
         .collect::<Vec<_>>();
-    compose_parameter_argument_places(program, edge.target, edge.arguments, &identity)
+    match edge.arguments {
+        EdgeArguments::Named(arguments) => {
+            compose_parameter_argument_places(program, edge.target, arguments, &identity)
+        }
+        EdgeArguments::Preserved => Some(identity),
+        EdgeArguments::Unknown => None,
+    }
 }
 
 fn compose_carried_parameter_argument_places(
@@ -494,6 +590,175 @@ fn compose_carried_parameter_argument_places(
             })
             .collect(),
     )
+}
+
+fn immutable_parameter_symbols(
+    program: &typed_trees::TypedTrees,
+    state: &State,
+) -> ImmutableArgumentSymbols {
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| {
+            (
+                parameter.symbol,
+                if immutable_integer_binding(program, state, parameter.symbol) {
+                    parameter.symbol
+                } else {
+                    SymbolHandle::invalid()
+                },
+            )
+        })
+        .collect()
+}
+
+/// Scalar transport follows the same edges as place transport, but cannot
+/// substitute away a mutable intermediate binding's changed value.
+fn direct_edge_immutable_argument_symbols(
+    program: &typed_trees::TypedTrees,
+    edge: &Edge,
+) -> Option<ImmutableArgumentSymbols> {
+    let target = crate::semantic_calls::find_state(program, edge.target)?;
+    let mut bindings = immutable_parameter_symbols(program, target);
+    let arguments = match edge.arguments {
+        EdgeArguments::Preserved => return Some(bindings),
+        EdgeArguments::Unknown => return None,
+        EdgeArguments::Named(arguments) => program.statement_table.expression_handles(arguments),
+    };
+    if arguments.len() != bindings.len() {
+        return None;
+    }
+    let source = crate::semantic_calls::find_state(program, edge.source)?;
+    for ((_, symbol), argument) in bindings.iter_mut().zip(arguments) {
+        if symbol.is_valid() {
+            *symbol = immutable_argument_symbol(program, source, *argument)
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+    }
+    Some(bindings)
+}
+
+fn compose_immutable_argument_symbols(
+    bindings: &[(SymbolHandle, SymbolHandle)],
+    replacements: &[(SymbolHandle, SymbolHandle)],
+) -> ImmutableArgumentSymbols {
+    bindings
+        .iter()
+        .map(|(parameter, symbol)| {
+            (
+                *parameter,
+                substituted_immutable_symbol(*symbol, replacements),
+            )
+        })
+        .collect()
+}
+
+fn substituted_immutable_symbol(
+    symbol: SymbolHandle,
+    replacements: &[(SymbolHandle, SymbolHandle)],
+) -> SymbolHandle {
+    // A source-local capture cannot be transported further backward unless
+    // normalization already reduced its immutable copies to a parameter.
+    replacements
+        .iter()
+        .find_map(|(parameter, replacement)| {
+            (symbol.is_valid() && *parameter == symbol).then_some(*replacement)
+        })
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
+fn immutable_argument_symbol(
+    program: &typed_trees::TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || !immutable_integer_binding(program, state, path.symbol)
+    {
+        return None;
+    }
+    let symbol = if let Some(normalized) =
+        validation::normalize_immutable_integer_bound_expression(program, expression)
+    {
+        let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
+            return None;
+        };
+        path.symbol
+    } else {
+        validation::immutable_integer_bound_value_symbol(program, expression)?
+    };
+    immutable_integer_binding(program, state, symbol).then_some(symbol)
+}
+
+fn immutable_integer_binding(
+    program: &typed_trees::TypedTrees,
+    state: &State,
+    symbol: SymbolHandle,
+) -> bool {
+    if !symbol.is_valid() {
+        return false;
+    }
+    let type_reference = if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+    {
+        if parameter.is_mutable || parameter.is_self {
+            return false;
+        }
+        parameter.type_reference
+    } else {
+        let Some(local) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+                _ => None,
+            })
+        else {
+            return false;
+        };
+        if local.is_mutable {
+            return false;
+        }
+        local.type_reference
+    };
+    // Constraint shells preserve an owned integer; reference and projection
+    // subjects do not. Check builtin identity rather than a type's spelling.
+    let mut reference = type_reference;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type
+            }
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                return matches!(
+                    program.symbols.builtin_type_atom(*symbol),
+                    Some(
+                        symbols::BuiltinTypeAtom::I8
+                            | symbols::BuiltinTypeAtom::I16
+                            | symbols::BuiltinTypeAtom::I32
+                            | symbols::BuiltinTypeAtom::I64
+                            | symbols::BuiltinTypeAtom::U8
+                            | symbols::BuiltinTypeAtom::U16
+                            | symbols::BuiltinTypeAtom::U32
+                            | symbols::BuiltinTypeAtom::U64
+                    )
+                );
+            }
+            _ => return false,
+        }
+    }
 }
 
 fn source_independent_argument_place(
@@ -668,21 +933,22 @@ fn push_edge(
     if !target.is_valid() {
         return;
     }
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(target)
-    else {
-        return;
+    let (target, arguments) = match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => (path.symbol, EdgeArguments::Named(*arguments)),
+        TransitionTargetNode::SelfTarget => (source, EdgeArguments::Preserved),
+        _ => return,
     };
     if program
         .machine_states(machine)
         .iter()
-        .any(|state| state.symbol == path.symbol)
+        .any(|state| state.symbol == target)
     {
         edges.push(Edge {
             source,
-            target: path.symbol,
-            arguments: *arguments,
+            target,
+            arguments,
             guards: guards.to_vec(),
         });
     }
@@ -746,5 +1012,234 @@ fn guard_uses_machine_storage_only(
         | ExpressionNode::Float(_)
         | ExpressionNode::String(_) => true,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IncomingGuardIndex;
+
+    fn typed(source: &str) -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolved source");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("typed source")
+    }
+
+    fn incoming(program: &typed_trees::TypedTrees) -> IncomingGuardIndex {
+        let frames = validation::CallFrameResolver::new(program).expect("call frames");
+        IncomingGuardIndex::build(program, Some(&frames))
+    }
+
+    const FORWARDING: &str = r#"
+        machine walk(index: u64, cut: u64) -> u64 {
+            transition index < cut { true -> middle(index, cut) false -> 0 }
+            state middle(position: u64, boundary: u64) -> u64 {
+                transition { _ -> finish(boundary, position) }
+            }
+            state finish(limit: u64, cursor: u64) -> u64 { cursor }
+        }
+    "#;
+
+    #[test]
+    fn immutable_forwarding_preserves_guard_scope_and_reordered_symbols() {
+        for source in [
+            FORWARDING.to_owned(),
+            FORWARDING.replace(
+                "transition { _ -> finish(boundary, position) }",
+                "let saved: u64 = position; transition { _ -> finish(boundary, saved) }",
+            ),
+        ] {
+            let program = typed(&source);
+            let machine = &program.machines()[0];
+            let states = program.machine_states(machine);
+            let entry_parameters = program.state_parameters(&states[0]);
+            let final_parameters = program.state_parameters(&states[2]);
+            let incoming = incoming(&program);
+            let guard = incoming
+                .for_machine(machine.symbol)
+                .iter()
+                .find(|guard| guard.holds_at(states[2].symbol))
+                .expect("forwarded guard");
+            assert_eq!(guard.evaluation_state(), states[0].symbol);
+            assert_eq!(
+                guard.immutable_argument_symbol_for_parameter(final_parameters[0].symbol),
+                Some(entry_parameters[1].symbol)
+            );
+            assert_eq!(
+                guard.immutable_argument_symbol_for_parameter(final_parameters[1].symbol),
+                Some(entry_parameters[0].symbol)
+            );
+        }
+    }
+
+    #[test]
+    fn mutable_intermediate_loses_scalar_transport_without_losing_place_transport() {
+        let source = FORWARDING
+            .replace("middle(position: u64", "middle(mut position: u64")
+            .replace(
+                "transition { _ -> finish",
+                "position = boundary; transition { _ -> finish",
+            );
+        let program = typed(&source);
+        let machine = &program.machines()[0];
+        let states = program.machine_states(machine);
+        let parameters = program.state_parameters(&states[2]);
+        let incoming = incoming(&program);
+        let guard = incoming
+            .for_machine(machine.symbol)
+            .iter()
+            .find(|guard| guard.holds_at(states[2].symbol))
+            .expect("guard place provenance");
+        assert!(
+            guard
+                .argument_place_for_parameter(parameters[1].symbol)
+                .is_some()
+        );
+        assert_eq!(
+            guard.immutable_argument_symbol_for_parameter(parameters[1].symbol),
+            None
+        );
+        assert!(
+            guard
+                .immutable_argument_symbol_for_parameter(parameters[0].symbol)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn references_and_noninteger_values_keep_only_generic_place_transport() {
+        for carrier in ["&mut u64", "bool"] {
+            let program = typed(&format!(
+                r#"
+                machine walk(flag: bool, value: {carrier}) -> u64 {{
+                    transition flag {{ true -> middle(value) false -> 0 }}
+                    state middle(value: {carrier}) -> u64 {{
+                        transition {{ _ -> finish(value) }}
+                    }}
+                    state finish(value: {carrier}) -> u64 {{ 0 }}
+                }}
+            "#
+            ));
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[2];
+            let parameter = program.state_parameters(state)[0].symbol;
+            let incoming = incoming(&program);
+            let guard = incoming
+                .for_machine(machine.symbol)
+                .iter()
+                .find(|guard| guard.holds_at(state.symbol))
+                .expect("generic forwarded guard");
+            assert!(guard.argument_place_for_parameter(parameter).is_some());
+            assert_eq!(
+                guard.immutable_argument_symbol_for_parameter(parameter),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn join_requires_the_same_immutable_transport_on_every_arm() {
+        for mutable_left in [false, true] {
+            let mut source = r#"
+                machine walk(index: u64, cut: u64, flag: bool) -> u64 {
+                    transition index < cut { true -> fork(index, cut, flag) false -> 0 }
+                    state fork(position: u64, boundary: u64, flag: bool) -> u64 {
+                        transition flag {
+                            true -> left(position, boundary)
+                            false -> right(position, boundary)
+                        }
+                    }
+                    state left(position: u64, boundary: u64) -> u64 {
+                        transition { _ -> finish(position, boundary) }
+                    }
+                    state right(position: u64, boundary: u64) -> u64 {
+                        transition { _ -> finish(position, boundary) }
+                    }
+                    state finish(position: u64, boundary: u64) -> u64 { position }
+                }
+            "#
+            .to_owned();
+            if mutable_left {
+                source = source.replace("state left(position:", "state left(mut position:");
+            }
+            let program = typed(&source);
+            let machine = &program.machines()[0];
+            let states = program.machine_states(machine);
+            let entry = &states[0];
+            let finish = states
+                .iter()
+                .find(|state| state.name.as_str() == "finish")
+                .expect("join state");
+            let incoming = incoming(&program);
+            let guard = incoming
+                .for_machine(machine.symbol)
+                .iter()
+                .find(|guard| {
+                    guard.holds_at(finish.symbol) && guard.evaluation_state() == entry.symbol
+                })
+                .expect("common guard survives the meet");
+            let symbol = guard.immutable_argument_symbol_for_parameter(
+                program.state_parameters(finish)[0].symbol,
+            );
+            assert_eq!(
+                symbol,
+                (!mutable_left).then_some(program.state_parameters(entry)[0].symbol)
+            );
+        }
+    }
+
+    #[test]
+    fn entry_backedge_cannot_establish_a_guard_at_entry_or_its_descendant() {
+        let program = typed(
+            r#"
+            machine walk(index: u64, cut: u64) -> u64 {
+                transition { _ -> body(index, cut) }
+                state body(position: u64, boundary: u64) -> u64 {
+                    transition position < boundary {
+                        true -> walk(position, boundary)
+                        false -> 0
+                    }
+                }
+            }
+        "#,
+        );
+        let incoming = incoming(&program);
+        assert!(
+            incoming
+                .for_machine(program.machines()[0].symbol)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn self_backedge_participates_in_the_guard_meet() {
+        let program = typed(
+            r#"
+            data Main { index: u64; cut: u64; }
+            machine Main::walk(&mut self) -> u64 {
+                transition self.index < self.cut { true -> body() false -> 0 }
+                state body(&mut self) -> u64 {
+                    self.index = self.cut;
+                    transition { _ -> self }
+                }
+            }
+        "#,
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[1];
+        let incoming = incoming(&program);
+        assert!(
+            !incoming
+                .for_machine(machine.symbol)
+                .iter()
+                .any(|guard| guard.applies_at(state.symbol))
+        );
     }
 }

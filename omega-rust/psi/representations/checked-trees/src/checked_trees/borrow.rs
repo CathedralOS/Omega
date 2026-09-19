@@ -1,5 +1,6 @@
 use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 
 /// One exact structural place captured for compatibility checking.
 ///
@@ -77,19 +78,29 @@ pub enum BorrowCompatibilityPremiseRelation {
     NotEqual,
 }
 
-/// One exact stated ordering premise consumed by a `Premised` derivation.
+/// The establishment point replay must reconstruct before using a premise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowCompatibilityPremiseSource {
+    Requires(Handle<crate::ContractProofFact>),
+    IncomingGuard {
+        expression: ExpressionHandle,
+        negated: bool,
+    },
+}
+
+/// One exact ordering premise consumed by a `Premised` derivation.
 ///
-/// `fact` identifies the `ContractProofFact` requires row the relation was
-/// decomposed from; `left`/`right` are that row's normalized immutable-bound
-/// operands. Replay re-derives the available premise set from the owning
-/// signature's contracts and consumes recorded tokens positionally, so a
-/// token the current contracts do not reproduce is drift, not evidence. A
+/// `source` identifies the requires row or incoming guard the relation was
+/// decomposed from; `left`/`right` are its normalized immutable-bound
+/// operands at establishment. Replay reconstructs availability and parameter
+/// transport from typed source and consumes recorded tokens positionally.
+/// A token the current program does not reproduce is drift, not evidence. A
 /// premise establishes only a relational fact over already-formed places: it
 /// cannot create a loan, extend a lifetime, widen access, or substitute for
 /// resource accounting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BorrowCompatibilityPremise {
-    pub fact: Handle<crate::ContractProofFact>,
+    pub source: BorrowCompatibilityPremiseSource,
     pub relation: BorrowCompatibilityPremiseRelation,
     pub left: BorrowCompatibilitySelectorValue,
     pub right: BorrowCompatibilitySelectorValue,

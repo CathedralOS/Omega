@@ -164,7 +164,10 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
                 "premise tokens drifted"
             }
             "fact" => {
-                certificate.premises[0].fact = arena::Handle::invalid();
+                certificate.premises[0].source =
+                    checked_trees::BorrowCompatibilityPremiseSource::Requires(
+                        arena::Handle::invalid(),
+                    );
                 "premise tokens drifted"
             }
             "selectors" => {
@@ -366,7 +369,10 @@ fn stated_ordering_premise_certifies_disjoint_symbolic_windows() {
         )],
         "only the `cut <= last` conjunct is consumed; unrelated conjuncts stay unrecorded",
     );
-    assert_eq!(certificate.premises[0].fact, requires_fact(&checked));
+    assert_eq!(
+        certificate.premises[0].source,
+        checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
+    );
     assert!(certificate.conclusion.disjoint);
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(
@@ -650,7 +656,8 @@ fn rejects_retained_premise_fact_retarget() {
         .compatibility_certificates
         .get_mut(row)
         .premises[0]
-        .fact = arena::Handle::invalid();
+        .source =
+        checked_trees::BorrowCompatibilityPremiseSource::Requires(arena::Handle::invalid());
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }
@@ -888,7 +895,10 @@ fn stated_ordering_premise_certifies_summed_index_bounds() {
         )],
         "the retained premise is the stated `i + j < cut` conjunct on the canonical pair",
     );
-    assert_eq!(certificate.premises[0].fact, requires_fact(&checked));
+    assert_eq!(
+        certificate.premises[0].source,
+        checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
+    );
     assert!(
         checked
             .facts

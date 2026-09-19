@@ -2282,7 +2282,8 @@ Owners include
 
   Index extents compare as normalized bounds inside one replayed selector
   session (`overlap/indexes.rs`, `overlap/segments.rs`), `overlap/premises.rs`
-  supplies ordering premises from the forming scope's own `requires` rows, and
+  supplies ordering premises from the forming scope's own `requires` rows and
+  shared incoming-guard analysis, and
   forming-loan, statement-mutation, and call admissions retain replayable
   `Structural` or `Premised` certificates. Bounds admit an integer, one
   immutable symbol plus a constant, or the canonical sum of two distinct
@@ -2297,15 +2298,14 @@ Owners include
 
   Remaining work:
 
-  - Take premises from every establishment point the loan contract names, not
-    only machine-entry and state `requires`: dominating guards, callee
-    `ensures`, domain membership and theorem-call conclusions, each valid for
-    the captured value and place versions at formation. `premises.rs` states
-    that it mirrors `ranges::requirements::seed_state_requires`; read the
-    range checker's established facts (`checks/ranges/guards.rs`,
-    `incoming_guards.rs`, `requirements.rs`) through one shared reader instead
-    of growing a second collector. Mutable, computed and foreign subjects stay
-    unproven until that reader supplies version evidence.
+  - Extend establishment beyond authored preconditions and incoming guards to
+    callee `ensures`, domain membership and theorem-call conclusions, valid
+    for the captured value and place versions at formation. Guard-derived
+    window writes and calls use the range checker's shared
+    `incoming_guards.rs` and `requirements.rs` readers; immutable owned
+    scalar parameters survive renaming and forwarding only with preservation
+    at every hop. Mutable, computed and foreign subjects remain unproven until
+    the shared reader supplies version evidence. Do not add a second collector.
   - Range-premise read sets (`checks/ranges/facts/dependencies/reads.rs`) stay
     incomplete for requirement-dispatched calls, machine-valued and nested
     static applications, quotient and private-layout operations,
@@ -2316,10 +2316,10 @@ Owners include
     in `record_dependencies` (`facts/dependencies.rs`) decides what may be a
     range premise. It is not a read-set limit; do not widen it under this item.
 
-  Acceptance: `tests/omega` pass canaries admit two mutable element loans
-  under `i != j`, and a write and an exclusive call operand beside a borrowed
-  symbolic window under a guard-established ordering; every admission replays
-  from its retained certificate. An absent, non-strict, stale, reordered or
+  Acceptance: `tests/omega` pass canaries exercise each newly supported
+  establishment point with disjoint loans, writes, and exclusive call operands;
+  every admission replays from its retained certificate. An absent, non-strict,
+  stale, reordered or
   tampered premise, a write inside the borrowed extent, and a second mutable
   loan licensed only by proven containment all reject. No certificate extends
   a lifetime, duplicates a loan or replaces resource accounting. Start from
@@ -2342,6 +2342,8 @@ Owners include
   These are implementation gaps under the settled loan contract, not owner
   design decisions. Preserve `pass/borrows/borrow_stated_index_disequality_mut`
   and the unknown-index negative control while extending premise sources.
+  Preserve `pass/borrows/borrow_guarded_window_write_and_call` and its mutable
+  forwarding, backedge, and tampered-source controls in `certificates/guarded_premises.rs`.
   Existing compatibility certificates are checked-stage records; their
   relation enum is not a persisted Terminal wire format.
 

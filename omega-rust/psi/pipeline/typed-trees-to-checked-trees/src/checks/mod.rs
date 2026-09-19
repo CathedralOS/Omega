@@ -113,9 +113,13 @@ fn check_checked_facts_recording_with_crash_admission(
         diagnostics.append(&mut evidence_diagnostics);
     }
 
-    if let Err(mut borrow_diagnostics) =
-        borrows::check_flow_call_borrows(program, facts, mutation_summaries, call_frames.as_ref())
-    {
+    if let Err(mut borrow_diagnostics) = borrows::check_flow_call_borrows(
+        program,
+        facts,
+        mutation_summaries,
+        call_frames.as_ref(),
+        &incoming_guards,
+    ) {
         diagnostics.append(&mut borrow_diagnostics);
     }
 

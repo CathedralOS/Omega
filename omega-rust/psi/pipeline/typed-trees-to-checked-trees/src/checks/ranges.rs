@@ -13,7 +13,7 @@ pub(in crate::checks) mod incoming_guards;
 mod indexes;
 mod loop_invariants;
 mod proofs;
-mod requirements;
+pub(in crate::checks) mod requirements;
 mod state_arguments;
 mod statement_transfer;
 mod statements;

@@ -485,8 +485,12 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
         BorrowCompatibilityPremiseRelation::StrictlyBefore,
         symbolic_bound(symbol(11)),
     );
-    let (may_overlap, containment, closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    let (may_overlap, containment, closure) = place_segments_compatibility_with_snapshot(
+        &program,
+        &left,
+        &right,
+        std::slice::from_ref(&premise),
+    );
     assert!(
         !may_overlap,
         "`i < cut` proves the point sits below `[cut, 4)`"
@@ -504,7 +508,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
             &left,
             &right,
             &closure.snapshot,
-            &[premise],
+            std::slice::from_ref(&premise),
             &closure.premises,
         ),
         Ok((false, CapturedPlaceContainment::None))
@@ -533,7 +537,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
             &left,
             &right,
             &closure.snapshot,
-            &[premise],
+            std::slice::from_ref(&premise),
             &tampered,
         ),
         Err(CompatibilityReplayDrift::Premise)
@@ -562,8 +566,12 @@ fn stated_premise_disjoins_two_symbolic_points() {
         BorrowCompatibilityPremiseRelation::StrictlyBefore,
         symbolic_bound(symbol(12)),
     );
-    let (may_overlap, containment, closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    let (may_overlap, containment, closure) = place_segments_compatibility_with_snapshot(
+        &program,
+        &left,
+        &right,
+        std::slice::from_ref(&premise),
+    );
     assert!(!may_overlap);
     assert_eq!(containment, CapturedPlaceContainment::None);
     assert_eq!(closure.premises, vec![premise.token()]);
@@ -573,7 +581,7 @@ fn stated_premise_disjoins_two_symbolic_points() {
             &left,
             &right,
             &closure.snapshot,
-            &[premise],
+            std::slice::from_ref(&premise),
             &closure.premises,
         ),
         Ok((false, CapturedPlaceContainment::None))
@@ -600,8 +608,12 @@ fn stated_premise_disjoins_a_fixed_index_before_a_symbolic_window() {
         BorrowCompatibilityPremiseRelation::StrictlyBefore,
         symbolic_bound(symbol(11)),
     );
-    let (may_overlap, containment, closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    let (may_overlap, containment, closure) = place_segments_compatibility_with_snapshot(
+        &program,
+        &left,
+        &right,
+        std::slice::from_ref(&premise),
+    );
     assert!(
         !may_overlap,
         "`0 < cut` proves element 0 precedes `[cut, 4)`"
@@ -627,8 +639,12 @@ fn stated_equality_premise_proves_two_points_the_same_extent() {
         BorrowCompatibilityPremiseRelation::Equal,
         symbolic_bound(symbol(12)),
     );
-    let (may_overlap, containment, closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    let (may_overlap, containment, closure) = place_segments_compatibility_with_snapshot(
+        &program,
+        &left,
+        &right,
+        std::slice::from_ref(&premise),
+    );
     assert!(may_overlap);
     assert_eq!(containment, CapturedPlaceContainment::Same);
     assert_eq!(closure.premises, vec![premise.token()]);
@@ -653,8 +669,12 @@ fn a_stated_ordering_premise_cannot_move_a_point_inside_the_window() {
         BorrowCompatibilityPremiseRelation::StrictlyBefore,
         symbolic_bound(symbol(11)),
     );
-    let (may_overlap, _, closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    let (may_overlap, _, closure) = place_segments_compatibility_with_snapshot(
+        &program,
+        &left,
+        &right,
+        std::slice::from_ref(&premise),
+    );
     assert!(may_overlap);
     assert!(
         closure.premises.is_empty(),
