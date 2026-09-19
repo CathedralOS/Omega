@@ -256,7 +256,7 @@ fn non_discardable_record_leaf_write_remains_rejected() {
     assert!(
         rendered.contains("unsupported write-only projection")
             && rendered.contains(
-                "leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
+                "leaf is an unrestricted primitive or a closed literal-ranged integer primitive proven in range at the store, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
             ),
         "unexpected diagnostic: {rendered}"
     );
@@ -288,20 +288,107 @@ fn nested_invariant_bearing_record_field_write_remains_rejected() {
 }
 
 #[test]
-fn constrained_record_field_write_remains_rejected() {
+fn closed_ranged_record_field_write_is_writable() {
+    lower_typed_trees(typed(
+        r#"
+            data Limited { value: u8 [0..=10]; }
+            data Outer { inner: Limited; }
+
+            machine replace(limited: &write Limited, next: u8 [0..=10]) {
+                limited.value = next;
+            }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.value = 4;
+            }
+        "#,
+    ))
+    .expect("a store proven within a field's closed literal integer range is a write-only place");
+}
+
+#[test]
+fn literal_indexed_closed_ranged_record_field_is_writable() {
+    lower_typed_trees(typed(
+        r#"
+            data Inner [copy] { value: u8 [0..=10]; }
+            data Outer { items: [Inner; 2]; }
+
+            machine fill(outer: &write Outer, next: u8 [0..=10]) {
+                outer.items[1].value = next;
+            }
+        "#,
+    ))
+    .expect("a closed-ranged field beneath a literal fixed-array element should lower");
+}
+
+#[test]
+fn closed_ranged_record_field_out_of_range_literal_remains_rejected() {
     let rendered = rendered_rejection(
         r#"
             data Limited { value: u8 [0..=10]; }
 
-            machine replace(limited: &write Limited, next: u8 [0..=10]) {
+            machine fill(limited: &write Limited) {
+                limited.value = 20;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("cannot prove assignment value `20`")
+            && rendered.contains("expected 0..=10"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn closed_ranged_record_field_unproven_value_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Limited { value: u8 [0..=10]; }
+
+            machine replace(limited: &write Limited, next: u8) {
+                limited.value = next;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("cannot prove assignment value `next`")
+            && rendered.contains("expected 0..=10"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn closed_ranged_record_field_wider_source_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Limited { value: u8 [0..=10]; }
+
+            machine replace(limited: &write Limited, next: u8 [0..=11]) {
+                limited.value = next;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("cannot prove assignment value `next`")
+            && rendered.contains("expected 0..=10"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn policy_qualified_record_field_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Limited { value: u32 in Wrapping; }
+
+            machine replace(limited: &write Limited, next: u32 in Wrapping) {
                 limited.value = next;
             }
         "#,
     );
     assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("every field is relevant and unconstrained")
-            && rendered.contains("leaf is an unrestricted primitive"),
+            && rendered.contains("closed literal-ranged integer primitive"),
         "unexpected diagnostic: {rendered}"
     );
 }

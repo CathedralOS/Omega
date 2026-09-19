@@ -404,6 +404,31 @@ fn non_field_and_non_closed_field_write_only_subloans_remain_fenced() {
 }
 
 #[test]
+fn closed_ranged_record_field_subloan_remains_fenced() {
+    // Assignment stores may displace a closed-ranged leaf in place, but a
+    // `&write` subloan attenuates to the callee's declared referee — `&write
+    // u8` here — where the field's bound is no longer visible. Until ranged
+    // write-only referees exist, that boundary keeps ranged leaves fenced.
+    let rendered = rendered_rejection(
+        r#"
+            data Outer { value: u8 [0..=10]; }
+
+            machine replace(value: &write u8) {
+                value = 0;
+            }
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.value);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("forms `&write` from an unsupported projection"),
+        "a ranged leaf must not attenuate into a wider `&write` referee: {rendered}"
+    );
+}
+
+#[test]
 fn write_only_subloan_remains_checked_body_only() {
     let rendered = rendered_rejection(
         r#"

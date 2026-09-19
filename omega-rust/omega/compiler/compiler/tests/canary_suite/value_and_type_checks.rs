@@ -69,10 +69,20 @@ fn write_only_record_field_observation_is_rejected() {
 }
 
 #[test]
+fn write_only_constrained_record_field_is_accepted() {
+    let canary = pass_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD);
+    check_canary(&canary)
+        .expect("stores proven within a closed literal-ranged record field should be checked");
+}
+
+#[test]
 fn write_only_constrained_record_field_is_rejected() {
+    // The admitted slice is one constraint kind only: a closed literal-ranged
+    // integer primitive. An arithmetic-policy qualified leaf stays outside the
+    // write-only projection envelope.
     let canary = fail_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD);
     let diagnostics = check_canary(&canary)
-        .expect_err("qualified record-field replacement must remain outside this rung");
+        .expect_err("an arithmetic-policy qualified leaf must remain outside this rung");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -80,9 +90,42 @@ fn write_only_constrained_record_field_is_rejected() {
         .join("\n");
     assert!(
         combined.contains("unsupported write-only projection")
-            && combined.contains("every field is relevant and unconstrained")
-            && combined.contains("leaf is an unrestricted primitive"),
+            && combined.contains("closed literal-ranged integer primitive"),
         "expected directed constrained-field diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_constrained_record_field_out_of_range_is_rejected() {
+    let canary = fail_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD_OUT_OF_RANGE);
+    let diagnostics = check_canary(&canary)
+        .expect_err("an out-of-range literal must not reach a ranged field through &write");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("cannot prove assignment value `20`")
+            && combined.contains("expected 0..=10"),
+        "expected the ordinary bounded-assignment diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn write_only_constrained_record_field_unbounded_is_rejected() {
+    let canary = fail_canary(fixture_roster::WRITE_ONLY_CONSTRAINED_RECORD_FIELD_UNBOUNDED);
+    let diagnostics = check_canary(&canary)
+        .expect_err("an unbounded source cannot seed a ranged field through &write");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("cannot prove assignment value `next`")
+            && combined.contains("expected 0..=10"),
+        "expected the ordinary bounded-assignment diagnostic, got:\n{combined}"
     );
 }
 
