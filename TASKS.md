@@ -2505,11 +2505,14 @@ Owners include
   - Component contracts. `component-description` publishes one
     `service_ceiling` that unions the module's concrete root reach with every
     installation dependency's upper bound (`derive_component_inventory`).
-    Neither `verify_component`/`realizes_selected_plan` nor
-    `provider_planning/independent_components.rs` checks unresolved rows. Keep
-    concrete reach and bounds separate in the description and apply the
-    selected-row rejection to `Independent` joins. The `COMPONENT-SUBSTRATE`
-    description carrier this waited on now exists.
+    `provider_planning/independent_components.rs` now applies the
+    selected-row rejection: a unique realizer whose verified module retains
+    `root_service_reach.installation_dependencies` rejects the `Independent`
+    join, naming the plan and retained requirement identities.
+    `verify_component`/`realizes_selected_plan` still does not check
+    unresolved rows, and the description still folds bounds into the ceiling.
+    Keep concrete reach and bounds separate in the description. The
+    `COMPONENT-SUBSTRATE` description carrier this waited on now exists.
 
   Acceptance: from the shipped core requirement, PIC completion resolves to
   `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
