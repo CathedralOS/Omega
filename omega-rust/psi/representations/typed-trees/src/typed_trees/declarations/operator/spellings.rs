@@ -5,7 +5,7 @@ use crate::operator::indexing;
 use crate::typed_trees::declarations::operator::operand_signatures::normalized_operand_parameters;
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
 use crate::typed_trees::declarations::operator::{
-    OperatorDefinition, SpelledOperator, selected_trait_operator_meanings,
+    OperatorConstBinding, OperatorDefinition, SpelledOperator, selected_trait_operator_meanings,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
@@ -157,7 +157,7 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                 } else {
                     (actual, expected.type_reference)
                 };
-                type_reference_matches(
+                (type_reference_matches(
                     program,
                     matched_actual,
                     matched_expected,
@@ -165,10 +165,52 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                     type_parameters,
                     &mut bindings,
                     &mut const_bindings,
-                ) && declared_domain_constraints_match(program, actual, expected.type_reference)
+                ) || indexed_receiver_self_match(
+                    program,
+                    indexed_collection && position == 0 && expected.is_self,
+                    actual,
+                    expected.type_reference,
+                    type_parameters,
+                    &mut bindings,
+                    &mut const_bindings,
+                )) && declared_domain_constraints_match(program, actual, expected.type_reference)
                     && declared_domain_constraints_match(program, matched_actual, matched_expected)
             })
         })
+}
+
+/// The `[]`/`[..]` receiver loan behind the ordinary match: position zero as
+/// a machine's `self` parameter borrows the collection exactly as a named
+/// `collection.at(index)` does. A failed direct attempt can leave speculative
+/// type-parameter bindings behind, so the loan retries on copies that replace
+/// the working sets only when the retry succeeds.
+fn indexed_receiver_self_match(
+    program: &TypedTrees,
+    applies: bool,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+    type_parameters: &[crate::data::TypeParameter],
+    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    const_bindings: &mut Vec<OperatorConstBinding>,
+) -> bool {
+    if !applies {
+        return false;
+    }
+    let mut retry_bindings = bindings.clone();
+    let mut retry_const_bindings = const_bindings.clone();
+    let matched = indexing::receiver_self_match(
+        program,
+        actual,
+        expected,
+        type_parameters,
+        &mut retry_bindings,
+        &mut retry_const_bindings,
+    );
+    if matched {
+        *bindings = retry_bindings;
+        *const_bindings = retry_const_bindings;
+    }
+    matched
 }
 
 /// Operator operand matching is structurally permissive about refinements, but

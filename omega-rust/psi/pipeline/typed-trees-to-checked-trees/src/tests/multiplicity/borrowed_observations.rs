@@ -152,7 +152,7 @@ fn indexed_operand_access_preserves_shared_collection_and_owned_index() {
     let source = r#"
         data Buffer { value: i32; }
         data Index {}
-        operator [] Buffer::index(items: &Buffer, index: Index) -> i32;
+        machine [] Buffer::index(&self, index: Index) -> i32 { self.value }
         machine consume(index: Index) {}
         data Main { buffer: Buffer; }
         machine Main::read(&self, index: Index) {
