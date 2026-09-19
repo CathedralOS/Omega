@@ -26,7 +26,7 @@ ensures
     state find_room_at(
         &mut self,
         rooms: &[Room],
-        room_count: u64 in Wrapping,
+        room_count: u64 [0..=16],
         cell: CellId,
         out_room: &mut Room,
         index: u64 in Wrapping
@@ -85,7 +85,7 @@ machine RoomLookup::find_room_mut(
     state find_room_mut_at(
         &mut self,
         rooms: &mut [Room],
-        room_count: u64 in Wrapping,
+        room_count: u64 [0..=16],
         cell: CellId,
         index: u64 in Wrapping
     ) {

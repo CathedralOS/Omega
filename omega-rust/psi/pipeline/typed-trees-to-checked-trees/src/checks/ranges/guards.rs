@@ -29,6 +29,23 @@ pub(super) fn seed_value_vs_value_endpoints(
     if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
         return;
     }
+    // A boolean local's name stands for its comparison: `has_next ->
+    // target(next_index)` under `has_next = next_index < count` mints
+    // `next_index`'s bound from `count`'s declared range exactly as the
+    // spelled comparison would. Same resolution `seed_guard_facts` runs.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(guard) {
+        let name = program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .map(|name| name.as_str());
+        if let Some(alias_guard) = facts.boolean_guard_local(path.symbol, name)
+            && alias_guard != guard
+        {
+            seed_value_vs_value_endpoints(program, machine, state, facts, alias_guard);
+        }
+        return;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return;
     };

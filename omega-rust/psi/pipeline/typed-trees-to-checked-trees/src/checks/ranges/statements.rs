@@ -3,348 +3,103 @@ pub(in crate::checks::ranges) mod aliases;
 mod tests;
 mod transitions;
 
-use self::aliases::{seed_local_alias_facts, seed_subslice_window_facts};
 use self::transitions::check_transition_target;
 use super::arrays::fixed_array_type_length;
-use super::expressions::{expression_indexable_length, expression_integer_value, expression_name};
 use super::facts::RangeFacts;
-use super::guards::{seed_guard_facts, seed_negated_guard_facts};
 use super::indexes::check_expression;
+use super::statement_transfer::{StatementTransferSink, transfer_statement_facts};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetHandle};
 
 pub(super) fn check_statement<'program>(
     program: &'program typed_trees::TypedTrees,
     machine: &'program Machine,
-    state: &State,
+    state: &'program State,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
     statement: &'program StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
-        StatementNode::Assignment(assignment) => {
+    /// The checking pass's sink: every read expression emits index
+    /// diagnostics and transition targets are checked under their
+    /// edge-narrowed facts. The captured-extent decision stays deferred so
+    /// its diagnostic still lands after the value's checks, matching the
+    /// original statement order.
+    struct CheckSink<'a, 'program> {
+        program: &'program typed_trees::TypedTrees,
+        machine: &'program Machine,
+        state: &'program State,
+        call_frames: Option<&'a validation::CallFrameResolver<'program>>,
+        diagnostics: &'a mut Vec<Diagnostic>,
+        extent_failed: bool,
+    }
+    impl<'a, 'program> StatementTransferSink<'program> for CheckSink<'a, 'program> {
+        fn visit_expression(&mut self, facts: &mut RangeFacts<'_>, expression: ExpressionHandle) {
             check_expression(
-                program,
-                machine,
-                state,
-                call_frames,
+                self.program,
+                self.machine,
+                self.state,
+                self.call_frames,
                 facts,
-                assignment.target,
-                diagnostics,
+                expression,
+                self.diagnostics,
             );
-            let extent_survives = super::assignment_lengths::value_preserves_indexed_extent(
-                program,
-                machine,
-                state,
-                call_frames,
-                facts,
-                assignment.target,
-                assignment.value,
-            );
-            check_expression(
-                program,
-                machine,
-                state,
-                call_frames,
-                facts,
-                assignment.value,
-                diagnostics,
-            );
-            if !extent_survives {
-                diagnostics.push(Diagnostic::error(
-                    "cannot prove index remains within the captured byte collection's live length across RHS mutation",
-                ));
-            }
-            // RHS effects and values are evaluated before replacing the target.
-            let mut next_length = super::assignment_lengths::replacement_length(
-                program,
-                machine,
-                state,
+        }
+        fn check_assignment_extent_window(
+            &mut self,
+            facts: &mut RangeFacts<'_>,
+            assignment: &'program TableAssignment,
+        ) {
+            self.extent_failed |= !super::assignment_lengths::value_preserves_indexed_extent(
+                self.program,
+                self.machine,
+                self.state,
+                self.call_frames,
                 facts,
                 assignment.target,
                 assignment.value,
             );
-            // A rebound reference takes its NEW referent's extent the way the
-            // `let` binding does: `view = borrow_rows(other)` re-lends
-            // `other.rooms`, so the write-origins prefix proves the
-            // replacement slice's length evidence the same way.
-            let mut referent_floor = None;
-            if next_length.is_none()
-                && let Some((symbol, _)) = expression_name(program, assignment.target)
-                && let Some(declared) =
-                    assigned_local_declared_type(program, state, facts.statement_index, symbol)
-                && let Some(referent) = bound_reference_referent_extent(
-                    program,
-                    machine,
-                    state,
-                    call_frames,
-                    facts,
-                    symbol,
-                    declared,
-                )
-            {
-                next_length = referent.exact;
-                referent_floor = referent.minimum;
-            }
-            let next_integer = expression_integer_value(program, facts, assignment.value);
-            let extent = super::assignment_lengths::assigned_extent(
-                program,
-                machine,
-                state,
-                facts,
-                assignment.target,
-                assignment.value,
-            );
-            facts.invalidate_assignment_bounds(program, machine, state, statement);
-            if let Some((symbol, name)) = expression_name(program, assignment.target) {
-                facts.assign_local(symbol, name, next_length, next_integer);
-                // The referent's floor describes the NEW binding, so it seeds
-                // only after the rebound label sheds the old value's facts.
-                if let Some(floor) = referent_floor {
-                    facts.prove_minimum_length(
-                        program.expression_table.display_name(assignment.target),
-                        floor,
-                    );
-                }
-                seed_boolean_guard_local(
-                    program,
-                    machine,
-                    call_frames,
-                    facts,
-                    symbol,
-                    name,
-                    assignment.value,
-                );
-                seed_local_alias_facts(
-                    program,
-                    machine,
-                    state,
-                    facts,
-                    assignment.value,
-                    symbol,
-                    name,
-                );
-                seed_subslice_window_facts(program, facts, assignment.value, name);
-            } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
-            {
-                facts.assign_field_integer(symbol, name, next_integer);
-                seed_offset_index_bound(program, facts, assignment.target, assignment.value);
-                aliases::seed_ensured_call_result_bounds(
-                    program,
-                    facts,
-                    &program.expression_table.display_name(assignment.target),
-                    assignment.value,
-                );
-            }
-            super::assignment_lengths::seed_assigned_extent(program, machine, state, facts, extent);
         }
-        StatementNode::Call(call) => {
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                check_expression(
-                    program,
-                    machine,
-                    state,
-                    call_frames,
-                    facts,
-                    *argument,
-                    diagnostics,
-                );
-            }
-            let paths = call_frames
-                .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
-            facts.invalidate_call_writes(
-                program,
-                machine,
-                state,
-                paths.as_deref(),
-                Some(&crate::semantic_calls::CallSite::Statement(call)),
-            );
-            // R4 witness mint, checker tier: a BOUNDARY callee's `ensures
-            // <param> <= K` bounds the `&mut` out-argument's place the
-            // moment the call returns (the boundary model's citable fact).
-            // Any prior upper-bound fact for a written place is dropped
-            // first; the ensures then re-proves what it states.
-            seed_boundary_call_ensures_facts(program, machine, call, facts);
-        }
-        StatementNode::Expression(expression) => {
-            check_expression(
-                program,
-                machine,
-                state,
-                call_frames,
+        fn visit_transition_target(
+            &mut self,
+            facts: &mut RangeFacts<'_>,
+            target: TransitionTargetHandle,
+        ) {
+            check_transition_target(
+                self.program,
+                self.machine,
+                self.state,
+                self.call_frames,
                 facts,
-                *expression,
-                diagnostics,
+                target,
+                self.diagnostics,
             );
-        }
-        StatementNode::LocalData(local) => {
-            check_expression(
-                program,
-                machine,
-                state,
-                call_frames,
-                facts,
-                local.initial_value,
-                diagnostics,
-            );
-            let mut length = fixed_array_type_length(program, local.type_reference).or_else(|| {
-                expression_indexable_length(program, machine, state, facts, local.initial_value)
-            });
-            // A returned `&mut [T]` binding has no indexable initializer the
-            // expression lane can measure: the callee chose the referent. The
-            // write-origins prefix recovers that referent, whose declared
-            // extent (or recorded live length) is the slice's length.
-            if length.is_none()
-                && let Some(referent) = bound_reference_referent_extent(
-                    program,
-                    machine,
-                    state,
-                    call_frames,
-                    facts,
-                    local.symbol,
-                    local.type_reference,
-                )
-            {
-                length = referent.exact;
-                if let Some(minimum) = referent.minimum {
-                    facts.prove_minimum_length(local.name.to_string(), minimum);
-                }
-            }
-            let integer = expression_integer_value(program, facts, local.initial_value);
-            facts.define_local(local.symbol, local.name.to_string(), length, integer);
-            seed_boolean_guard_local(
-                program,
-                machine,
-                call_frames,
-                facts,
-                local.symbol,
-                Some(local.name.as_str()),
-                local.initial_value,
-            );
-            seed_local_alias_facts(
-                program,
-                machine,
-                state,
-                facts,
-                local.initial_value,
-                local.symbol,
-                Some(local.name.as_str()),
-            );
-            seed_subslice_window_facts(
-                program,
-                facts,
-                local.initial_value,
-                Some(local.name.as_str()),
-            );
-        }
-        StatementNode::Transition(transition) => {
-            let readonly_guard = match transition.guard {
-                TransitionGuardNode::When(guard) => {
-                    check_expression(
-                        program,
-                        machine,
-                        state,
-                        call_frames,
-                        facts,
-                        guard,
-                        diagnostics,
-                    );
-                    if call_frames.is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(machine, guard)
-                            .into_complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
-                    }) {
-                        Some(guard)
-                    } else {
-                        None
-                    }
-                }
-                TransitionGuardNode::Always => None,
-            };
-            if transition.target.is_valid() {
-                let mut target_facts = facts.clone();
-                if let Some(guard) = readonly_guard {
-                    seed_guard_facts(program, machine, state, &mut target_facts, guard);
-                    super::guards::seed_value_vs_value_endpoints(
-                        program,
-                        machine,
-                        state,
-                        &mut target_facts,
-                        guard,
-                    );
-                }
-                check_transition_target(
-                    program,
-                    machine,
-                    state,
-                    call_frames,
-                    &mut target_facts,
-                    transition.target,
-                    diagnostics,
-                );
-            }
-            if transition.continuation.is_valid() {
-                let mut continuation_facts = facts.clone();
-                if let Some(guard) = readonly_guard {
-                    seed_negated_guard_facts(
-                        program,
-                        machine,
-                        state,
-                        &mut continuation_facts,
-                        guard,
-                    );
-                }
-                check_transition_target(
-                    program,
-                    machine,
-                    state,
-                    call_frames,
-                    &mut continuation_facts,
-                    transition.continuation,
-                    diagnostics,
-                );
-            }
-            // Reaching the next statement refutes a prior exit arm. Guard
-            // evaluation has already retired its write-affected facts, and
-            // only the existing read-only frame gate seeds a new complement.
-            // Target effects belong to the selected exit, not fall-through.
-            // An absent continuation already owns `facts`; cloning it only to
-            // replace the original would copy every name and dependency twice.
-            if transition.target.is_valid()
-                && !transition.continuation.is_valid()
-                && let Some(guard) = readonly_guard
-            {
-                seed_negated_guard_facts(program, machine, state, facts, guard);
-            }
         }
     }
-}
-
-fn seed_boolean_guard_local<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program Machine,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
-    facts: &mut RangeFacts<'_>,
-    symbol: symbols::SymbolHandle,
-    name: Option<&str>,
-    expression: ExpressionHandle,
-) {
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Binary(_)
-    ) && call_frames.is_some_and(|frames| {
-        frames
-            .expression_write_frame(machine, expression)
-            .into_complete_paths()
-            .is_some_and(|paths| paths.is_empty())
-    }) {
-        facts.define_boolean_guard_local(symbol, name.unwrap_or_default().to_owned(), expression);
+    let mut sink = CheckSink {
+        program,
+        machine,
+        state,
+        call_frames,
+        diagnostics,
+        extent_failed: false,
+    };
+    transfer_statement_facts(
+        program,
+        machine,
+        state,
+        call_frames,
+        facts,
+        statement,
+        &mut sink,
+    );
+    if sink.extent_failed {
+        sink.diagnostics.push(Diagnostic::error(
+            "cannot prove index remains within the captured byte collection's live length across RHS mutation",
+        ));
     }
 }
 

@@ -21,7 +21,7 @@ data Room [copy] {
 
 data Level [copy] {
     rooms: [Room; 16];
-    room_count: u64 in Wrapping;
+    room_count: u64 [0..=16];
     start_cell: CellId;
     deepest_depth: u32 in Wrapping;
 }
