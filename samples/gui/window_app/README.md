@@ -34,12 +34,14 @@ This publishes `omega.lock` beside `main.omg`. The lock records
 checkout-specific local source identities, so a relocated checkout reviews
 again rather than reusing another machine's acceptance.
 
-The latest fresh-checkout probe stops at ordinary package review after compiling
-the dependencies. It does not establish a current application-lowering failure.
-The sample's bare service fields also need migration to the settled
-[`Service<R>` entry contract](../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
-After review and that migration, rerun the unchanged render loop before treating
-the historical `InvalidUnitMachinePlan` diagnosis as current. See
+The receiver uses the settled
+[`Service<R>` entry contract](../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge):
+public boundary requirements, intrinsically established service fields, and no
+authored `in Bound` qualification. The render loop and its storage are unchanged.
+The native harness currently reaches entry establishment but rejects because
+the selected entry rejoins no Terminal attachment identity. It does not launch
+the app. The ordinary CLI also needs checkout-specific package review; test-owned
+acceptance does not complete that review. See
 [MACOS-APPLICATION-PUBLICATION](../../../TASKS.md#immediate-product-closure)
 for resume evidence.
 
