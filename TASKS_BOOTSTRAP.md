@@ -79,56 +79,6 @@ Rust remains a comparator, not bootstrap authority. Optimization matters where
 measured execution or audit feasibility requires it, not as an unbounded
 prerequisite to every lower-rung milestone.
 
-## Measured complexity follow-through
-
-<a id="gamma-product-checking"></a>
-
-- **GAMMA-PRODUCT-COMPARISON.** Decide how the seven-field continuation in
-  [Delta argument checking](bootstrap/3_delta/implementation/checking/types/calls.gamma)
-  should be represented: ordinary nested pairs, a dynamically checked named
-  product, or static nominal typing. `typing_arguments` builds the payload and
-  `typing_resume_argument` decodes it; the two agree on the nested-pair layout
-  by hand, and grouped bindings expose the decoding without checking it. This
-  is exploratory engineering, not owner-blocked work or accepted syntax.
-
-  The [product comparison experiment](tests/gamma/product-comparison-experiment/README.md)
-  now covers every candidate on that payload: pairs, a source-emulated product
-  with identity and arity words, the kind word the checker's frame already
-  carries, and nominal data compiled by the canonical Delta compiler. It
-  checks construction order, scope, tail behavior, arity, forged identities,
-  and failure mapping, and counts without building the evaluator, contract,
-  test, and proof cost of an evaluator-minted product and of nominal typing
-  inside Gamma. Its finding retains plain pairs with the existing
-  kind-boundary status: source-level checks remove no layout obligation, only
-  nominal typing does, and nothing measured justifies that cost in the
-  trusted evaluator. Same-typed field order stays unchecked under every
-  candidate.
-
-  Remaining work:
-
-  - Measure seeded-defect localization on the customer under each candidate,
-    or state in the README why the decision does not need it. No record shows
-    how often the manual layout agreement has failed.
-  - Record the decision in `checking/types/README.md`, keep only the evidence
-    that decision cites, and delete the experiment directory together with its
-    README check in `tests/bootstrap/delta-identity.sh`, per the
-    [retention row](tests/gamma/README.md).
-
-  Acceptance: the recorded decision compares Beta implementation,
-  representation, validation, resources, tests, and proof obligations against
-  the customer code and manual layout obligations removed. Experiments stay
-  separate from the selected language; adoption requires reconciled contracts
-  and evidence. Do not repeat per-field accessor wrappers: they grew
-  `calls.gamma` from four to twelve definitions with no layout guarantee.
-
-  Flag: three experiment slices (`1c2f473404`, `ee7fef49c8`, `a7aa9c4006`)
-  each ended at "retain plain pairs", and the directory is now 23 files with a
-  gate that compiles nine Delta fixtures through the canonical compiler. The
-  chain identity gate also depends on it: `tests/bootstrap/delta-identity.sh`
-  fails when the experiment README lacks the packed-closure size. The original
-  acceptance named no exit for a negative result, so non-authoritative
-  evidence is accumulating as permanent validation.
-
 ## Alpha execution hardening
 
 - **ALPHA-WINDOWS-CONFORMANCE.** Owners: `bootstrap/0_alpha/` semantics, native
@@ -297,34 +247,37 @@ prerequisite to every lower-rung milestone.
   checking covers every closed rejection reason, and the
   [evaluator edge profile](bootstrap/4_epsilon/EVALUATOR_PROFILE.md) derives
   one resource/request/observation profile with exact/adjacent refusals and
-  the large-sparse and repeated-update array workloads. That profile covers
-  the private diagnostic adapter only. It is not the
+  the large-sparse and repeated-update array workloads over the private
+  diagnostic adapter. The canonical
   [section 11](bootstrap/4_epsilon/LANGUAGE.md#11-evaluator-application-and-observation-boundary)
-  envelope, and its refusals are raw lower-chain statuses with empty stdout,
-  not [section 10](bootstrap/4_epsilon/LANGUAGE.md#10-resource-classification)'s
-  outer `Incomplete(resource, limit, requested, coordinate?)`.
+  envelope now exists beside it
+  ([EVALUATOR_ENTRY.md](bootstrap/4_epsilon/EVALUATOR_ENTRY.md), 96e270b6fb):
+  `tests/epsilon/evaluator-entry/` reconstructs the canonical evaluator
+  receipt over the packed closure plus the bound `evaluator_entry.delta`
+  main, consumes the versioned EREQ envelope, and publishes canonical
+  Exit/Trap/Reject observations or EEOUT refusal frames. The edge carries
+  every lower-chain refusal to the
+  [section 10](bootstrap/4_epsilon/LANGUAGE.md#10-resource-classification)
+  outer `Incomplete` — no evaluator-internal budget was needed
+  (158a0e41b8) — and the formerly pending status-252 pin is an executed
+  evaluator-edge witness (e0127683a1). `tests/epsilon/refinement/` holds an
+  independent contract-derived CheckEpsilon/RunEpsilon model driving the
+  edge through source, stdin, profile and observation mutations
+  (71c2bbdc22), and `tests/epsilon/d-composition/` checks and executes the
+  whole 509,267-byte D closure through the canonical edge — including D's
+  own `compile` emitting the exact Alpha tape for an Omega source — and
+  records the allocation split the retired flag asked for: checking the
+  whole closure consumes 9.56% of the pair arena, so the earlier 80.05%
+  whole-customer reading was execution-dominated and no complete-D leg
+  approaches the boundary (8e63b21300).
 
   Remaining work:
 
-  - The final request/observation envelope and evaluator `main`: bind the
-    evaluator artifact, exact source closure, sealed stdin, resource profile,
-    and complete `RunEpsilon` observation without host parsing.
-  - Carry lower-chain refusals (Gamma statuses 250, 252, 253, 254) to the
-    outer `Incomplete`. Add an evaluator-internal budget only if the envelope
-    cannot classify them, and no hypothetical dense-storage sizing pass. The
-    profile records one pending pin, a direct evaluator-level status-252
-    witness.
-  - Complete D composition: check and execute the whole D closure through the
-    selected lower chain. The six
-    [whole-member D customers](tests/epsilon/interpreted-omega-experiment/README.md)
-    (`run.sh --customer '<name>'`) and the complete-source parser regression
-    `sh tests/bootstrap/omega-parser/run.sh` cover concrete D dependencies,
-    not final checking, resource/entry conformance, or whole-D compilation.
-    Do not replace those requirements with more emitter-only or parser-only
-    controls.
-  - Independent `RunEpsilon` refinement with source, stdin, profile, and
-    observation mutations, per
-    [section 12](bootstrap/4_epsilon/LANGUAGE.md#12-conformance-and-change-control).
+  - Independent `RunEpsilon` refinement over the exact D source, per
+    [section 12](bootstrap/4_epsilon/LANGUAGE.md#12-conformance-and-change-control):
+    the refinement gate reconstructs the contract and agrees with the edge
+    on its corpus, but D itself is not in that corpus — the d-composition
+    README names it the last leg of section-11 acceptance.
   - Fix checking/runtime conformance defects when a D slice or contract
     control witnesses one; none is recorded now.
 
@@ -332,17 +285,6 @@ prerequisite to every lower-rung milestone.
   selected lower chain and refines `RunEpsilon`, with no Epsilon-owned Alpha
   backend or hidden host implementation. Sparse diagnostic success is not
   final-profile admission; do not restore the retired Epsilon Alpha backend.
-
-  Flag: the only recorded whole-D allocation measurement
-  ([parser comparison](tests/bootstrap/omega-parser/README.md#field-identity-comparison))
-  checked the then 470,766-byte customer and made twelve short `parse_view`
-  calls in 2,951 seconds, using 80.05% of the 40,265,318-pair arena, which
-  Gamma never reclaims. D is now 509,267 bytes and compiles only nullary
-  literal-returning machines. No record separates checking from execution
-  allocation or projects a complete D compiling the C closure against that
-  arena. Measure that before adding evaluator or D machinery; an overrun is
-  the first [owner-escalation](bootstrap/MINIMIZATION.md#owner-escalation)
-  finding, not an optimization task.
 
 ## P4 - Epsilon to Omega and self-hosting
 
