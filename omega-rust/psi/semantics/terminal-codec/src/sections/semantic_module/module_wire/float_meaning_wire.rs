@@ -9,9 +9,25 @@ use terminal_psi::{
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
     DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType,
+    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, FloatSemanticApplication,
+    FloatSemanticApplicationOperand, FloatSemanticContractIdentity, ProofOnlyValueType,
     ProofPropositionId, ProofValueDeclaration, ProofValueId,
 };
+
+fn encode_ieee_format(writer: &mut Writer, format: IeeeFloatFormat) {
+    writer.u8(match format {
+        IeeeFloatFormat::Binary32 => 1,
+        IeeeFloatFormat::Binary64 => 2,
+    });
+}
+
+fn decode_ieee_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
+    match reader.u8()? {
+        1 => Ok(IeeeFloatFormat::Binary32),
+        2 => Ok(IeeeFloatFormat::Binary64),
+        tag => Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+    }
+}
 
 pub(super) fn encode_float_meaning_projection(
     writer: &mut Writer,
@@ -94,6 +110,29 @@ pub(super) fn encode_float_meaning_projection(
         FloatMeaningSource::ExactBinary64Literal(bits) => {
             writer.u8(3);
             writer.u64(*bits);
+        }
+        FloatMeaningSource::SemanticApplication(application) => {
+            writer.u8(10);
+            writer.u8(application.contract.row);
+            writer.u16(application.contract.catalog_version);
+            writer.bytes(&application.contract.commitment);
+            encode_ieee_format(writer, application.format);
+            writer.len(
+                "float semantic application operands",
+                application.operands.len(),
+            )?;
+            for operand in &application.operands {
+                match operand {
+                    FloatSemanticApplicationOperand::Format(format) => {
+                        writer.u8(1);
+                        encode_ieee_format(writer, *format);
+                    }
+                    FloatSemanticApplicationOperand::Meaning(value) => {
+                        writer.u8(2);
+                        writer.u32(value.0);
+                    }
+                }
+            }
         }
     }
     writer.u8(match projection.operation {
@@ -191,12 +230,36 @@ pub(super) fn decode_float_meaning_projection(
             9 => FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
                 owner: reader.id("float-meaning direct structural-leaf owner")?,
                 field: decode_ieee_float_field(reader)?,
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
+            10 => {
+                let contract = FloatSemanticContractIdentity {
+                    row: reader.u8()?,
+                    catalog_version: reader.u16()?,
+                    commitment: reader.array()?,
+                };
+                let format = decode_ieee_format(reader)?;
+                let operand_count = reader.count()?;
+                let mut operands =
+                    Vec::with_capacity(usize::try_from(operand_count).unwrap_or(usize::MAX));
+                for _ in 0..operand_count {
+                    operands.push(match reader.u8()? {
+                        1 => FloatSemanticApplicationOperand::Format(decode_ieee_format(reader)?),
+                        2 => FloatSemanticApplicationOperand::Meaning(ProofValueId(reader.u32()?)),
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "FloatSemanticApplicationOperand",
+                                tag,
+                            ));
+                        }
+                    });
+                }
+                FloatMeaningSource::SemanticApplication(FloatSemanticApplication {
+                    contract,
+                    format,
+                    operands,
+                })
+            }
             tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
         },
         operation: match reader.u8()? {

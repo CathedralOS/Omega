@@ -902,6 +902,25 @@ impl FloatSemanticOperation {
         })
     }
 
+    /// The reverse lookup an artifact-verifier performs: the identity carried
+    /// beside a discharged application selects the one row whose ordinal,
+    /// catalog version, and recomputed commitment all match. An identity that
+    /// names no live row, or a row whose recomputed commitment drifted,
+    /// rejoins to nothing.
+    pub fn for_contract_identity(
+        identity: &FloatSemanticContractIdentity,
+    ) -> Option<&'static FloatSemanticOperation> {
+        if identity.catalog_version != FLOAT_SEMANTICS_CATALOG_VERSION {
+            return None;
+        }
+        let row = FLOAT_SEMANTIC_OPERATIONS.get(usize::from(identity.row))?;
+        if row.contract_identity() == *identity {
+            Some(row)
+        } else {
+            None
+        }
+    }
+
     /// The row's stable ordinal in the catalog order.
     pub fn ordinal(&self) -> u8 {
         FLOAT_SEMANTIC_OPERATIONS
@@ -1040,6 +1059,31 @@ mod tests {
     ) -> &'static FloatSemanticOperation {
         FloatSemanticOperation::from_source_identity("FloatSemantics", name, parameters, result)
             .expect("catalog row")
+    }
+
+    #[test]
+    fn contract_identities_rejoin_to_their_own_rows_only() {
+        for row in FLOAT_SEMANTIC_OPERATIONS {
+            let identity = row.contract_identity();
+            let rejoined =
+                FloatSemanticOperation::for_contract_identity(&identity).expect("rejoin");
+            assert_eq!(
+                rejoined.ordinal(),
+                row.ordinal(),
+                "{} rejoins to the declared row ordinal",
+                row.name
+            );
+            assert_eq!(rejoined.contract_identity(), identity);
+            let mut drifted = identity;
+            drifted.commitment[0] ^= 1;
+            assert!(FloatSemanticOperation::for_contract_identity(&drifted).is_none());
+            let mut stale_version = identity;
+            stale_version.catalog_version += 1;
+            assert!(FloatSemanticOperation::for_contract_identity(&stale_version).is_none());
+        }
+        let mut out_of_range = FLOAT_SEMANTIC_OPERATIONS[0].contract_identity();
+        out_of_range.row = u8::MAX;
+        assert!(FloatSemanticOperation::for_contract_identity(&out_of_range).is_none());
     }
 
     #[test]

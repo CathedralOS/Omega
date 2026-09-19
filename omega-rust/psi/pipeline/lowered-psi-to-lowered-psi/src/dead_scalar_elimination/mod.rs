@@ -52,7 +52,8 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
             | terminal_psi::FloatMeaningSource::DirectMachineResult(_)
             | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
             | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_) => {}
+            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
+            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
         }
     }
     for plan in &before.semantic_module.suspension_call_plans {

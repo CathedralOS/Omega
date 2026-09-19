@@ -1,8 +1,10 @@
 //! Source-independent proof-value vocabulary.
 //!
 //! Proof values have no runtime `ValueId`, storage, ABI, or execution result.
-//! This first closed carrier retains only `FloatMeaning` projections from one
-//! landed IEEE input through the shared format-specific projection catalog.
+//! This closed carrier retains `FloatMeaning` projections from landed IEEE
+//! sources through the shared format-specific projection catalog, plus
+//! applications of the shared `FloatSemantics` catalog discharged against
+//! earlier proof rows.
 
 use semantic_vocabulary::{
     BlockId, IeeeFloatFormat, IeeeFloatStructuralField, MachineId, OperationId, ValueId,
@@ -143,12 +145,65 @@ pub struct DirectStructuralFloatLeaf {
     pub format: IeeeFloatFormat,
 }
 
+/// Closed artifact identity of one `FloatSemantics` catalog row.
+///
+/// `row` is the catalog ordinal and `commitment` the row's SHA-256 identity
+/// over its complete signature; the verifier rejoins this identity to the
+/// shared catalog independently, so the artifact names the contract the
+/// discharged application proves rather than asserting an evaluation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FloatSemanticContractIdentity {
+    pub row: u8,
+    pub catalog_version: u16,
+    pub commitment: [u8; 32],
+}
+
+/// One operand position of a semantic application.
+///
+/// Only the catalog's `Format` and `Meaning` parameter kinds carry an
+/// artifact operand today: a `Meaning` operand names an earlier row of the
+/// same proof-value table, so applications stay acyclic by construction and
+/// need no separate operand table. `Integer` parameters (the `from_integer`
+/// overloads) still lack a runtime integer source vocabulary and remain
+/// unrepresentable here rather than being approximated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FloatSemanticApplicationOperand {
+    /// One sealed IEEE binary format supplied to a `Format` parameter.
+    Format(IeeeFloatFormat),
+    /// The proof value of a `Meaning` parameter, by dense row index.
+    Meaning(ProofValueId),
+}
+
+/// One discharged `FloatSemantics` kernel application: the contract identity
+/// the artifact claims, the result format the produced meaning carries, and
+/// the operand list the catalog row's signature dictates.
+///
+/// `format` is the result's declared IEEE format. For rows whose signature
+/// takes a `Format` parameter it must equal the format operand; for the
+/// parameter-free pair rows (`minimum`, `maximum`) it is the shared format of
+/// the meaning operands. The verifier rederives it rather than trusting the
+/// declared value.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FloatSemanticApplication {
+    pub contract: FloatSemanticContractIdentity,
+    pub format: IeeeFloatFormat,
+    pub operands: Vec<FloatSemanticApplicationOperand>,
+}
+
 /// Verifier-reconstructible source of one float-meaning projection.
 ///
 /// Exact literals own their raw landed bits and therefore need no producer ID.
 /// The transitional coordinate is retained only for source forms whose
 /// artifact-relative carrier is still open; it is not interchangeable with an
 /// exact literal and cannot manufacture literal correspondence.
+///
+/// A semantic application is a proof value of the same `FloatMeaning` type
+/// justified by a discharged catalog row instead of a landed runtime
+/// coordinate. It rides this table deliberately: equality propositions and
+/// downstream applications then reach it through the shared `ProofValueId`
+/// space with no second table or proposition class. Rows whose catalog result
+/// is not `Meaning` (Boolean comparisons, `classify`, integer conversions)
+/// cannot occupy this carrier; they need proof value types of their own.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FloatMeaningSource {
     TransitionalInput(FloatProjectionInput),
@@ -160,6 +215,7 @@ pub enum FloatMeaningSource {
     DirectStructuralLeaf(DirectStructuralFloatLeaf),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
+    SemanticApplication(FloatSemanticApplication),
 }
 
 impl FloatMeaningSource {
@@ -174,6 +230,7 @@ impl FloatMeaningSource {
             Self::DirectStructuralLeaf(leaf) => leaf.format,
             Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
             Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,
+            Self::SemanticApplication(application) => application.format,
         }
     }
 }
