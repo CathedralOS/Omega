@@ -1314,6 +1314,103 @@ fn structural_return_cleans_locals_then_every_affine_tail_parameter_in_reverse_o
 }
 
 #[test]
+fn affine_local_composes_with_claim_bearing_state_transition() {
+    // `local_control` left the exact affine-local slice when the composed
+    // state-graph route learned to replay each edge's checked Transfer event:
+    // the `in Owned` claim on `region` binds the successor's parameter place
+    // instead of becoming a fresh block claim, so the machine lowers, verifies,
+    // and interprets rather than rejecting.
+    let checked = checked_source();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::local_control")
+        .expect("claim-bearing state transition lowers through the composed graph");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("one composed machine")
+    };
+    let [entry_block, next_block] = machine.blocks.as_slice() else {
+        panic!("entry and next blocks")
+    };
+    let terminal_psi::OperationKind::EstablishRecord { fields } = &entry_block.operations[0].kind
+    else {
+        panic!("trivial affine local establishment")
+    };
+    assert!(fields.is_empty());
+    let local_place = machine
+        .structural_places
+        .iter()
+        .find(|place| {
+            matches!(
+                place.kind,
+                semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
+            )
+        })
+        .expect("local operation result place");
+    let terminal_psi::Terminator::Jump {
+        target,
+        trivial_affine_discards,
+        ..
+    } = &entry_block.terminator
+    else {
+        panic!("unconditional transition")
+    };
+    assert_eq!(*target, next_block.id);
+    assert_eq!(trivial_affine_discards, &[local_place.id]);
+    let terminal_psi::Terminator::ReturnStructural {
+        source,
+        returned_claims,
+        ..
+    } = &next_block.terminator
+    else {
+        panic!("structural return")
+    };
+    assert_eq!(*source, machine.structural_parameters[0].place);
+    assert_eq!(returned_claims, &[machine.entry_claims[0].claim]);
+
+    let semantic = encode_module(&lowered.semantic_module).expect("semantics encode");
+    assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("claim transport verifies through the transition");
+
+    let TerminalMachineResult::Structural(result) = &machine.result else {
+        unreachable!()
+    };
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0x10ca1,
+        structural_type: result.structural_type,
+        qualifications: result.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
+    )
+    .expect("artifact starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
+            TerminalStructuralResult {
+                value: argument,
+                claims: vec![machine.entry_claims[0].claim],
+            }
+        ))
+    );
+}
+
+#[test]
 fn producer_fences_locals_and_authored_contracts() {
     let checked = checked_source();
     let planned_names = checked
@@ -1346,11 +1443,7 @@ fn producer_fences_locals_and_authored_contracts() {
     );
     assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::through_local").is_err());
     assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::contracted").is_err());
-    for rejected in [
-        "Main::local_partial_value",
-        "Main::local_nominal_cleanup",
-        "Main::local_control",
-    ] {
+    for rejected in ["Main::local_partial_value", "Main::local_nominal_cleanup"] {
         assert!(
             checked_trees_to_lowered_psi::lower_machine(&checked, rejected).is_err(),
             "{rejected} must remain outside the exact affine-local slice"
