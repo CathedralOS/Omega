@@ -2184,13 +2184,31 @@ Owners include
   registration capacity is named only in `component-publication` and
   `external-roots`.
 
+  The authored contract is pinned through the generic program-local chain in
+  `checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs`:
+  `Registration [linear]` is the authority token, `domain Registration::Live`
+  is established by `Registrar::register` and `Registrar::unregister`, and
+  `Live::content` bounds each live registration at one `RegistrationSlot`
+  (capacity counts registrations, not thunks). `unregister`'s `in Live`
+  argument lowers a `ProgramLocalRootIntroductionSchema` that survives the
+  codec and verifier, `VerifiedProgramLocalRootProducerCatalog` exposes the
+  producer row, and an interpreted `Customer::run` entry forwards the
+  host-installed live registration to the provider boundary on `unregister`.
+
   Remaining work:
 
   - An authored registrar customer under the linked contract: success yields
     the linear registration holding the exact live-registration capacity
     occurrence, failure returns that capacity with no root, and unregister
     consumes the registration. Use ordinary linear custody; add no
-    registration-specific checker rule.
+    registration-specific checker rule. Two grammar seams block the full
+    program today: a boundary requirement returning a `linear` structural
+    result is inadmissible in a Unit statement sequence (affine structural
+    results bind; linear ones stop at `call operation`), so the authority
+    `register`/`unregister` return cannot cross provider to program; and a
+    routed domain cannot authorize a case payload (`Registered(registration:
+    Registration in Live)` fails `cannot prove requires contract`), so the
+    observed-rejection sum cannot yet be written.
   - Omega: join that boundary outcome to the ledger, so root admission, lease
     acquisition, quiescence and lease release follow the program's operations
     and not a Rust caller's sequence.
