@@ -3779,14 +3779,18 @@ Owners include
   already derives exact frozen-input projections for captured constructors,
   owned and nested checked helper results, constructed results and constructor
   operands that select one operand, write-clean mutable helper bindings,
-  shared-reference leaves through their slot stores, helper-returned
+  shared-reference leaves through their slot stores including leaf reads
+  spelled through an exclusive `&mut` carrier binding when every frontier
+  names the leaf's writes exactly, helper-returned
   reference leaves resolved through caller slot stores including callee-local
   binding transfers and nested helper calls, and nested call-result
   arguments; partition replay follows reference and generic-application leaves
   with exact declared-field provenance. Do not rebuild those as new slices.
   Remaining work:
 
-  - Complete owned value loads through references, additional
+  - Complete owned value loads through references — a leaf demanded directly
+    as a call operand through an exclusive binding still cannot run the
+    operand-prefix check on its unresolvable spelling — additional
     reference-boundary loads, and indexed or replaced carriers.
   - Mutable demanded paths, helper bodies that may write the demanded
     projection, write-tainted nested calls, generic or dispatched callees,

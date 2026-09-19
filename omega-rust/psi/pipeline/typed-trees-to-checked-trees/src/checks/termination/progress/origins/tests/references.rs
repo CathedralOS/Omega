@@ -197,6 +197,68 @@ fn shared_reference_leaf_loads_through_its_stored_referent() {
     }
 }
 
+/// A leaf load spelled through an exclusive `&mut` binding of the carrier
+/// still names the leaf slot's storage exactly: the binding's declaration is
+/// the referent's evidence, so `r.view.scheduler` reconstructs the referent
+/// the carrier's latest store supplied. The exclusive binding's own type only
+/// gates how that leaf is named — it does not mint the referent.
+#[test]
+fn shared_reference_leaf_load_through_an_exclusive_binding_uses_exact_provenance() {
+    for (statements, argument, subject, expected) in [
+        // Captured into an owned local's initializer.
+        (
+            "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed; let saved: SchedulerHandle = r.view.scheduler;",
+            "saved",
+            ("saved", &[][..]),
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+        // Captured into a store on an exclusive input's field.
+        (
+            "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed; dual.spare = r.view.scheduler;",
+            "dual.spare",
+            ("dual", &[("Dual", "spare")][..]),
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+    ] {
+        let fixture =
+            Fixture::with_machines(statements, argument, &[], "data RefBox { view: &Context; }");
+        assert_eq!(
+            fixture.query(fixture.subject(subject.0, subject.1)),
+            Some(fixture.subject(expected.0, expected.1))
+        );
+    }
+}
+
+/// An exclusive-binding leaf read stays unproven whenever the frontier cannot
+/// name its writes exactly: a store spelled through the `&mut` alias replaces
+/// the leaf but cannot be matched to the slot, and a demand spelled directly
+/// as the call's operand cannot run the operand-prefix check on a root the
+/// shared reference query cannot name.
+#[test]
+fn shared_reference_leaf_load_through_an_exclusive_binding_after_an_alias_store_stays_unproven() {
+    for (statements, argument, subject) in [
+        // `r.view` is rebound through the alias; the replacement's provenance
+        // is reachable only through storage the write frame cannot name.
+        (
+            "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed; r.view = &holder.view; let saved: SchedulerHandle = r.view.scheduler;",
+            "saved",
+            ("saved", &[][..]),
+        ),
+        // Demanded directly at the call: the operand-prefix check needs both
+        // the literal and resolved spellings, and the exclusive binding has
+        // no resolvable spelling.
+        (
+            "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed;",
+            "r.view.scheduler",
+            ("r", &[("RefBox", "view"), ("Context", "scheduler")][..]),
+        ),
+    ] {
+        let fixture =
+            Fixture::with_machines(statements, argument, &[], "data RefBox { view: &Context; }");
+        assert_eq!(fixture.query(fixture.subject(subject.0, subject.1)), None);
+    }
+}
+
 /// The referent is resolved at the store nearest the demand, so a write to
 /// the referent between the slot store and the demand is answered through the
 /// ordinary write scan — the latest value source, not the store snapshot.
