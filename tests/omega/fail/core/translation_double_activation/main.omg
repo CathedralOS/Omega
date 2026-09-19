@@ -1,0 +1,102 @@
+// Receipt crossings are one-shot: `activate` consumes the `Pending` carrier
+// and hands back `Installed`, so replaying the crossing on the installed
+// carrier must reject -- a second activation would pretend the provider
+// established the mapping twice
+// (wiki/spec/resources/extents.md "Mapping and reclamation").
+use omega::language::core::extent;
+
+data TranslationActivationFact {
+    identity: u64;
+}
+
+data TranslationCompletionFact {
+    identity: u64;
+}
+
+data TranslationInstallObligations {
+    facts: [TranslationActivationFact; 2];
+}
+
+data TranslationReleaseObligations {
+    facts: [TranslationCompletionFact; 2];
+}
+
+boundary data MappingToken [linear];
+
+data Mapping [linear] {
+    token: MappingToken;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
+}
+
+domain Mapping::Pending
+established by TranslationAuthority::map;
+
+domain Mapping::Installed
+established by TranslationAuthority::activate;
+
+boundary data Shootdown [linear];
+
+domain Shootdown::Owed;
+
+data Unmapped {
+    destination: Extent in Granted;
+    source: Extent in Granted;
+    shootdown: Shootdown in Owed;
+}
+
+boundary trait TranslationAuthority {
+    machine map(
+        source: Extent in Granted,
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
+    ) -> Mapping
+    requires
+        source.length == destination.length
+    ensures
+        result in Mapping::Pending;
+
+    machine activate(pending: Mapping in Pending) -> Mapping
+    ensures
+        result in Mapping::Installed;
+
+    machine unmap(active: Mapping in Installed) -> Unmapped;
+}
+
+machine activate_twice(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Mapping
+requires
+    source.length == destination.length
+reaches TranslationAuthority
+{
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 1 },
+            TranslationActivationFact { identity: 2 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 3 },
+            TranslationCompletionFact { identity: 4 }
+        ],
+    };
+    let pending: Mapping in Pending =
+        authority.map(source, destination, install, release);
+    let installed: Mapping in Installed = authority.activate(pending);
+    authority.activate(installed)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

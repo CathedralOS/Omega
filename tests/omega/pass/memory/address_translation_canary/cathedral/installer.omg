@@ -101,3 +101,59 @@ invokes hardware;
     );
     hardware.invalidate_leaf(virtual_base);
 }
+
+// The second level of mapping authority: a terminal entry stored at depth 2
+// maps the level's whole 2MiB span, so a huge leaf ends the walk one level
+// earlier and needs no `pt` table at all. The entry encoding is unchanged --
+// granularity is which table slot the terminal lands in, not a different
+// bit pattern -- and the provider still finishes by activating the root.
+pub machine CathedralPageTables::install_huge(
+    &mut self,
+    hardware: &TranslationHardware,
+    source_base: addr,
+    destination_base: addr
+)
+reaches TranslationHardware + MachineControl
+invokes hardware;
+{
+    let virtual_base: u64 = destination_base as u64;
+    let source_frame: u64 = source_base as u64;
+    let pdpt_base: u64 = self.pdpt.storage.base as u64;
+    let pd_base: u64 = self.pd.storage.base as u64;
+    hardware.store_entry(
+        &mut self.pml4,
+        level_index(virtual_base, 0),
+        TableEntry::next_level(pdpt_base)
+    );
+    hardware.store_entry(
+        &mut self.pdpt,
+        level_index(virtual_base, 1),
+        TableEntry::next_level(pd_base)
+    );
+    hardware.store_entry(
+        &mut self.pd,
+        level_index(virtual_base, 2),
+        TableEntry::terminal(source_frame, true)
+    );
+    hardware.activate_root(&self.pml4);
+}
+
+// Release the depth-2 leaf serving `virtual_base`: the same deterministic
+// index one level up, the same `EMPTY` overwrite, and the same local
+// invalidation -- a stale huge translation is still one page-mapping entry
+// to the hardware, only spanning more of the address space.
+pub machine CathedralPageTables::remove_huge(
+    &mut self,
+    hardware: &TranslationHardware,
+    virtual_base: addr
+)
+reaches TranslationHardware + MachineControl
+invokes hardware;
+{
+    hardware.store_entry(
+        &mut self.pd,
+        level_index(virtual_base as u64, 2),
+        TableEntry::EMPTY
+    );
+    hardware.invalidate_leaf(virtual_base);
+}
