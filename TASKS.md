@@ -3241,10 +3241,14 @@ Owners include
     evidence-bound explicit-empty row needs a retained occurrence, and no
     authored source can produce one;
     `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
-    that stop. Which customer earns the row follows from the named decision
-    `build-authority-reach-or-vocabulary` in `OWNER_QUESTIONS.md`, which
-    settles whether build authority is declared reach checked against a bound
-    or stays a blessed facet list.
+    that stop. The customer is a program, not a compile: every build
+    activation, including a dependency's own, runs against its own package
+    snapshot with no ambient host filesystem under
+    [inputs and default filesystem](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem),
+    and the `$OmegaBuildSourceRoot`/`$OmegaBuildOutputRoot` facets enforce
+    that root in `build_paths.rs`. Confined activity inside that box is not
+    authority the shipped artifact carries, so restate the acceptance above
+    to name a program customer rather than an ordinary compile.
     FILESYSTEM-RELEASE-CONTRACT owns the occurrence evidence. Generic close
     need not be supported to admit a separately proved constrained
     occurrence.
@@ -3282,15 +3286,25 @@ Owners include
 
   Remaining work:
 
-  - A producer. Whether a build can issue the constrained chain, or the row is
-    earned only by program-side release, follows from the named decision
-    `build-authority-reach-or-vocabulary` in `OWNER_QUESTIONS.md`. The chain
-    requests access zero and reads nothing, while the blessed baseline
+  - A producer, which is program-side. A build cannot supply one: its
+    activation holds only its own package snapshot behind root-scoped facets,
+    so a chain it issued would prove a property of that confined view rather
+    than of the shipped artifact. Adding the chain to the build vocabulary is
+    therefore a library-surface choice, not an authority grant — it requests
+    access zero and reads nothing, where the existing
     `BuildSource::{open, read}` already opens with arbitrary flags and reads
-    contents, so this is not a question of granting authority.
-    Add no further consumers of the record until it is answered;
-    `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
-    the stop.
+    contents. `compiler/tests/terminal_authority/filesystem_release_witness.rs`
+    pins the stop until the program-side leg below lands.
+  - Unbind the cross-execution join the flag below records.
+    `classify_terminal_mechanism`
+    (`native-realization/src/native_realization/providers/settlements/source_imports.rs`)
+    narrows any mechanism in the release cohort from
+    `filesystem_release_contracts` derived from the compile's own `build.omg`
+    replay, with no program call occurrence joined. Those contracts describe a
+    confined build activation, so no amount of build-side evidence can settle
+    a claim about the emitted program. Remove that preference and take the
+    release narrowing only from the program's own checked-flow derivation,
+    rejoined per call site at realization.
   - Program-side native acceptance through
     `tests/omega/pass/filesystem/windows_canonicalize_exit`. It stops at
     `structural field store: scalar field type`
