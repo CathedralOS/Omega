@@ -1,13 +1,16 @@
 //! The independent source-free plan consumer.
 //!
-//! `verify_plan` is given the candidate plan bytes and the *current* owner
-//! request bytes — never the plan's own claim about either. It reconstructs
-//! the graph from the plan's records, compares the request exactly, and
-//! replays every required predicate itself before checking the recorded
+//! `verify_plan` is given the candidate plan bytes, the *current* owner
+//! request bytes, and the admitted component descriptions the consumer
+//! actually verified — never the plan's own claim about any of them. It
+//! reconstructs the graph from the plan's records, compares the request
+//! exactly, replays every required predicate itself, and checks the recorded
 //! certificates against the real edges. Nothing is trusted: a stored success
 //! flag, a correctly signed stale request, a roster that merely names the
-//! right subjects, and a policy executable the owner did not select all fail
-//! here by comparison or replay — never by loading code.
+//! right subjects, a policy executable the owner did not select, and a
+//! component record or endpoint inventory substituted for what the admitted
+//! description establishes all fail here by comparison or replay — never by
+//! loading code.
 //!
 //! Success produces `CheckedPlan`: `composition checked` only. It is
 //! deliberately not an `installation admitted` value — this crate binds no
@@ -22,13 +25,24 @@ use crate::deployment_plan::{
     Completeness, DeploymentPlan, Identity, InstanceName, PolicyCall, PolicyOutcome,
     TopologyRequest, plan_subject, request_commitment,
 };
+use crate::verified_components::{
+    AdmittedComponent, ComponentBindingFailure, check_instance_binding,
+};
 use std::collections::BTreeMap;
 use std::fmt;
 
 /// Reconstruct and independently check a candidate plan against the current
-/// owner request. All policies are checked in canonical order; the first
-/// rejection is returned deterministically.
-pub fn verify_plan(plan_bytes: &[u8], request_bytes: &[u8]) -> Result<CheckedPlan, PlanRejection> {
+/// owner request and the admitted component descriptions. Every
+/// `Component`-role instance must bind to a supplied admission — subject,
+/// admission profile, completeness closure, assumptions, and endpoint
+/// inventory are reconstructed from it, so a forged or substituted record
+/// rejects. All policies are checked in canonical order; the first rejection
+/// is returned deterministically.
+pub fn verify_plan(
+    plan_bytes: &[u8],
+    request_bytes: &[u8],
+    components: &[AdmittedComponent],
+) -> Result<CheckedPlan, PlanRejection> {
     let request = decode_request(request_bytes).map_err(PlanRejection::MalformedRequest)?;
     let plan = decode_plan(plan_bytes).map_err(|error| match error {
         CodecError::UnverifiedCompleteness { tag } => PlanRejection::UnverifiedCompleteness { tag },
@@ -73,6 +87,15 @@ pub fn verify_plan(plan_bytes: &[u8], request_bytes: &[u8]) -> Result<CheckedPla
                 ),
             });
         }
+        // The record must be the admission's, not merely carry the right
+        // subject: profile, completeness closure, assumptions, and endpoint
+        // inventory are reconstructed from the verified description.
+        check_instance_binding(planned, components).map_err(|failure| {
+            PlanRejection::ComponentBinding {
+                instance: planned.name.clone(),
+                failure,
+            }
+        })?;
         // Completeness is enforced structurally at decode (only
         // VerifiedComplete is representable); the assumptions the description
         // consumed must each be owner-accepted.
@@ -188,6 +211,13 @@ pub enum PlanRejection {
         instance: InstanceName,
         assumption: Identity,
     },
+    /// The instance's component record or endpoint inventory does not equal
+    /// what a supplied admission verifies: a missing admission, an external
+    /// claim over a verified subject, or a forged or substituted record.
+    ComponentBinding {
+        instance: InstanceName,
+        failure: ComponentBindingFailure,
+    },
     /// A binding selects a transport outside the request's allowed profile.
     UnselectedTransport { binding: usize },
     /// A policy row names an executable other than the selected verifier.
@@ -237,6 +267,12 @@ impl fmt::Display for PlanRejection {
                 write!(
                     formatter,
                     "instance `{instance}` needs an assumption the owner did not accept"
+                )
+            }
+            Self::ComponentBinding { instance, failure } => {
+                write!(
+                    formatter,
+                    "instance `{instance}` does not bind an admitted component: {failure}"
                 )
             }
             Self::UnselectedTransport { binding } => {

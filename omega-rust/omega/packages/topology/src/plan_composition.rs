@@ -1,13 +1,16 @@
 //! Producer-side composition: the reference builder the eventual build-only
 //! Omega package mirrors.
 //!
-//! `compose_plan` consumes the owner request, the instance records built from
-//! verified component descriptions, and the chosen bindings. It checks the
-//! roster against the request exactly, normalizes the graph (establishing
-//! complete binding coverage), and evaluates every required policy in
-//! canonical order. Only when all of them are satisfied does it assemble a
-//! plan — a failed composition returns the evaluations and emits no artifact,
-//! so an unsuccessful result cannot be serialized into a checked plan.
+//! `compose_plan` consumes the owner request, the instance records built
+//! from verified component descriptions (see [`crate::verified_components`]),
+//! the admitted components they came from, and the chosen bindings. It checks
+//! the roster against the request exactly, re-binds every instance's record
+//! and endpoint inventory to its admission, normalizes the graph
+//! (establishing complete binding coverage), and evaluates every required
+//! policy in canonical order. Only when all of them are satisfied does it
+//! assemble a plan — a failed composition returns the evaluations and emits
+//! no artifact, so an unsuccessful result cannot be serialized into a
+//! checked plan.
 //!
 //! The builder may choose bindings that satisfy the request; it may not add
 //! an undeclared instance, swap component code, omit a required policy, or
@@ -16,8 +19,11 @@
 use crate::deployment_plan::graph::{GraphError, NormalizedGraph};
 use crate::deployment_plan::predicate::{PolicyEvaluation, SelectorError, evaluate_policy};
 use crate::deployment_plan::{
-    Binding, DeploymentPlan, ExecutedPolicy, Identity, PlanInstance, PolicyOutcome,
+    Binding, DeploymentPlan, ExecutedPolicy, Identity, InstanceName, PlanInstance, PolicyOutcome,
     TopologyRequest, Violation, request_commitment,
+};
+use crate::verified_components::{
+    AdmittedComponent, ComponentBindingFailure, check_instance_binding,
 };
 use std::fmt;
 
@@ -31,6 +37,7 @@ pub fn compose_plan(
     instances: Vec<PlanInstance>,
     bindings: Vec<Binding>,
     verifier: Identity,
+    components: &[AdmittedComponent],
 ) -> Result<(DeploymentPlan, Vec<PolicyOutcome>), CompositionError> {
     // The producer's selected verifier must be the owner's selected one —
     // otherwise the plan would name an unselected executable by construction.
@@ -60,6 +67,17 @@ pub fn compose_plan(
             return Err(CompositionError::Rejected(
                 CompositionFailure::RosterMismatch {
                     detail: format!("instance `{}` differs from the request", required.name),
+                },
+            ));
+        }
+        // The producer's records must be the admission's: a hand-authored
+        // inventory can never compose into a plan an independent verifier
+        // would accept.
+        if let Err(failure) = check_instance_binding(supplied, components) {
+            return Err(CompositionError::Rejected(
+                CompositionFailure::ComponentBinding {
+                    instance: supplied.name.clone(),
+                    failure,
                 },
             ));
         }
@@ -124,6 +142,12 @@ pub enum CompositionFailure {
     RosterMismatch { detail: String },
     /// The builder supplied a verifier other than the request's selected one.
     UnselectedVerifier,
+    /// An instance's component record or endpoint inventory does not equal
+    /// what a supplied admission verifies.
+    ComponentBinding {
+        instance: InstanceName,
+        failure: ComponentBindingFailure,
+    },
     /// The records do not normalize: duplicates, undeclared endpoints, wrong
     /// directions, or incomplete binding coverage.
     InvalidGraph(GraphError),
@@ -176,6 +200,12 @@ impl fmt::Display for CompositionFailure {
             }
             Self::UnselectedVerifier => {
                 formatter.write_str("supplied verifier is not the request's selected verifier")
+            }
+            Self::ComponentBinding { instance, failure } => {
+                write!(
+                    formatter,
+                    "instance `{instance}` does not bind an admitted component: {failure}"
+                )
             }
             Self::InvalidGraph(error) => write!(formatter, "graph is invalid: {error}"),
             Self::InvalidPolicy { call, .. } => {

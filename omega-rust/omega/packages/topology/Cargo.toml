@@ -9,4 +9,10 @@ name = "topology_plan"
 path = "src/lib.rs"
 
 [dependencies]
+component-description = { path = "../../backend/artifacts/component-description" }
 sha2 = "0.10.9"
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+
+[dev-dependencies]
+component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

@@ -617,11 +617,21 @@ an implementation shortcut.
   Remaining work:
 
   - Connect admitted component facts to the package producer and independent plan
-    consumer. The reference codec decodes a caller-supplied `VerifiedComplete`
-    tag/closure digest; `verify_plan` checks that model, not the component artifact
-    establishing its inventory. A valid tag is not proof of completeness.
-    Reconstruct and bind endpoints, entries, authority, profile and assumptions
-    from the actual verified descriptions; reject forged or substituted records.
+    consumer (reference leg landed): `verify_plan` and `compose_plan` now take
+    `components: &[AdmittedComponent]`, and every roster entry naming
+    `InstanceRole::Component` must bind an admission whose subject joins the
+    owner roster — an unadmitted record rejects as `MissingVerifiedComponent`,
+    a verified subject relabeled external rejects as `ExternalSubjectVerified`,
+    and any divergent field (verification profile, `VerifiedComplete` closure,
+    demanded-assumption roster, endpoint inventory) rejects as
+    `Substituted { field }`. Entries, authority and custody bind transitively
+    through the completeness closure; endpoints, profile and assumptions bind
+    directly from `VerifiedComponent` (`verified_components.rs`,
+    `cargo nextest run -p topology-plan`; linux-x86_64). The demand/supply
+    contract join is still unbound: `ExportSurface.identity` is an opaque
+    string, so a demanded import's contract cannot yet be checked against the
+    offered export's requirement identity — that is a `COMPONENT-SUBSTRATE`
+    description gap, not a parallel census.
   - Reuse `compiler/src/compiler/package.rs`'s description producer and
     `build-evaluation/src/provider_settlement/independent_components.rs`'s
     consumer. The shared representation/verifier now lives in

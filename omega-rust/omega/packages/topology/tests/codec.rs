@@ -20,7 +20,8 @@ fn golden_fixtures_decode_and_verify() {
     assert_eq!(request, payment_request());
     let plan = decode_plan(GOLDEN_PLAN).unwrap();
     assert_eq!(plan.request_commitment, request_commitment(GOLDEN_REQUEST));
-    let checked = verify_plan(GOLDEN_PLAN, GOLDEN_REQUEST).expect("golden plan verifies");
+    let checked = verify_plan(GOLDEN_PLAN, GOLDEN_REQUEST, &payment_components())
+        .expect("golden plan verifies");
     assert_eq!(checked.subject, plan_subject(GOLDEN_PLAN));
 }
 

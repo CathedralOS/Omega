@@ -24,6 +24,8 @@
 
 mod support;
 
+use std::collections::BTreeSet;
+
 use support::*;
 use topology_plan::topology_installation::{
     AdmittedArtifact, InstallationLifecycle, InstallationRejection, InstallationRequest,
@@ -110,37 +112,49 @@ impl PipeAdapter for SimAdapter {
 // ---- shared fixtures -----------------------------------------------------
 
 /// The golden payment composition: request value and bytes, plan value and
-/// bytes, all consistent.
-fn baseline() -> (TopologyRequest, Vec<u8>, DeploymentPlan, Vec<u8>) {
+/// bytes, and the admissions the roster entries bind, all consistent.
+fn baseline() -> (
+    TopologyRequest,
+    Vec<u8>,
+    DeploymentPlan,
+    Vec<u8>,
+    Vec<AdmittedComponent>,
+) {
     let request = payment_request();
     let (request_bytes, plan_bytes, plan) = payment_pair();
-    (request, request_bytes, plan, plan_bytes)
+    (
+        request,
+        request_bytes,
+        plan,
+        plan_bytes,
+        payment_components(),
+    )
 }
 
 fn checked_baseline(plan_bytes: &[u8], request_bytes: &[u8]) -> CheckedPlan {
-    verify_plan(plan_bytes, request_bytes).expect("the baseline plan verifies")
+    verify_plan(plan_bytes, request_bytes, &payment_components())
+        .expect("the baseline plan verifies")
 }
 
 /// Owner intent the supervisor could issue: the commitment under test, one
-/// fresh occurrence, and the admitted artifact roster in canonical order.
-fn installation_request(expected_request: Identity, occurrence: u64) -> InstallationRequest {
+/// fresh occurrence, and the admitted artifact roster in canonical order —
+/// each artifact bound to its instance's real component subject.
+fn installation_request(
+    expected_request: Identity,
+    occurrence: u64,
+    components: &[AdmittedComponent],
+) -> InstallationRequest {
     InstallationRequest {
         expected_request,
         occurrence,
-        artifacts: vec![
-            AdmittedArtifact {
-                artifact: identity(0xA1),
-                component_subject: identity(0x11),
-            },
-            AdmittedArtifact {
-                artifact: identity(0xA2),
-                component_subject: identity(0x22),
-            },
-            AdmittedArtifact {
-                artifact: identity(0xA3),
-                component_subject: identity(0x33),
-            },
-        ],
+        artifacts: components
+            .iter()
+            .enumerate()
+            .map(|(index, admission)| AdmittedArtifact {
+                artifact: identity(0xA1 + index as u8),
+                component_subject: subject_of(admission),
+            })
+            .collect(),
     }
 }
 
@@ -152,10 +166,11 @@ fn assert_unauthorized_request(
     checked: CheckedPlan,
     expected: Identity,
     found: Identity,
+    components: &[AdmittedComponent],
 ) {
     let mut lifecycle = InstallationLifecycle::default();
     let authorization = lifecycle
-        .authorize(installation_request(expected, 7))
+        .authorize(installation_request(expected, 7, components))
         .expect("fresh issuance");
     let error = prepare_installation(checked, authorization, SimAdapter::new())
         .expect_err("a mismatched commitment pairing must reject");
@@ -190,6 +205,7 @@ fn assert_plan_rejected(
     mutated: &DeploymentPlan,
     baseline_subject: Identity,
     request_bytes: &[u8],
+    components: &[AdmittedComponent],
     expected: impl Fn(&PlanRejection) -> bool,
 ) {
     let bytes = encode_plan(mutated)
@@ -207,7 +223,7 @@ fn assert_plan_rejected(
         baseline_subject,
         "{name}: the recomputed subject must diverge"
     );
-    let error = verify_plan(&bytes, request_bytes)
+    let error = verify_plan(&bytes, request_bytes, components)
         .expect_err("a one-field substitution must be rejected by replay");
     assert!(expected(&error), "{name}: unexpected rejection: {error}");
 }
@@ -221,6 +237,7 @@ fn assert_plan_identity_bound(
     mutated: &DeploymentPlan,
     baseline_subject: Identity,
     request_bytes: &[u8],
+    components: &[AdmittedComponent],
 ) {
     let bytes = encode_plan(mutated)
         .unwrap_or_else(|error| panic!("{name}: the substitution must stay encodable: {error}"));
@@ -232,7 +249,7 @@ fn assert_plan_identity_bound(
         subject, baseline_subject,
         "{name}: the recomputed subject must diverge"
     );
-    let checked = verify_plan(&bytes, request_bytes)
+    let checked = verify_plan(&bytes, request_bytes, components)
         .expect("an evidence-field substitution stays verifiable");
     assert_ne!(
         checked.subject, baseline_subject,
@@ -262,6 +279,7 @@ fn assert_plan_decode_rejected(
     name: &str,
     mutated: &DeploymentPlan,
     request_bytes: &[u8],
+    components: &[AdmittedComponent],
     expected: impl Fn(&CodecError) -> bool,
 ) {
     let bytes = encode_plan(mutated).unwrap_or_else(|error| {
@@ -271,7 +289,7 @@ fn assert_plan_decode_rejected(
     assert!(expected(&error), "{name}: unexpected rejection: {error}");
     assert!(
         matches!(
-            verify_plan(&bytes, request_bytes),
+            verify_plan(&bytes, request_bytes, components),
             Err(PlanRejection::MalformedPlan(_))
         ),
         "{name}: replay must surface the same rejection as a malformed plan"
@@ -296,7 +314,7 @@ enum Rebound {
 /// direction, and the honestly re-committed plan meeting its classified
 /// replay outcome.
 fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: Rebound) {
-    let (request, request_bytes, plan, plan_bytes) = baseline();
+    let (request, request_bytes, plan, plan_bytes, components) = baseline();
     let baseline_commitment = request_commitment(&request_bytes);
     let baseline_subject = plan_subject(&plan_bytes);
     assert_ne!(
@@ -321,7 +339,7 @@ fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: R
 
     // The baseline plan answers the baseline request only: under mutated
     // intent its recorded commitment is stale before any semantic check.
-    let error = verify_plan(&plan_bytes, &mutated_bytes)
+    let error = verify_plan(&plan_bytes, &mutated_bytes, &components)
         .expect_err("the baseline plan must be stale under mutated intent");
     assert!(
         matches!(
@@ -339,6 +357,7 @@ fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: R
         checked_baseline(&plan_bytes, &request_bytes),
         mutated_commitment,
         baseline_commitment,
+        &components,
     );
 
     // Honestly re-commit the plan's records to the mutated request: the
@@ -352,7 +371,7 @@ fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: R
         baseline_subject,
         "{name}: the rebound plan's subject must diverge"
     );
-    let error = verify_plan(&rebound_bytes, &request_bytes)
+    let error = verify_plan(&rebound_bytes, &request_bytes, &components)
         .expect_err("a rebound plan must be stale under the baseline request");
     assert!(
         matches!(
@@ -365,13 +384,13 @@ fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: R
 
     match rebound {
         Rebound::Rejected(expected) => {
-            let error = verify_plan(&rebound_bytes, &mutated_bytes).expect_err(
+            let error = verify_plan(&rebound_bytes, &mutated_bytes, &components).expect_err(
                 "the honestly re-committed substitution must still reject semantically",
             );
             assert!(expected(&error), "{name}: unexpected rejection: {error}");
         }
         Rebound::Verifies => {
-            let checked = verify_plan(&rebound_bytes, &mutated_bytes)
+            let checked = verify_plan(&rebound_bytes, &mutated_bytes, &components)
                 .expect("an intent-widening substitution verifies under its own commitment");
             assert_eq!(
                 checked.plan.request_commitment, mutated_commitment,
@@ -379,7 +398,13 @@ fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: R
             );
             // The verified substitution still cannot pose as the baseline:
             // an authorization for the original intent refuses it.
-            assert_unauthorized_request(name, checked, baseline_commitment, mutated_commitment);
+            assert_unauthorized_request(
+                name,
+                checked,
+                baseline_commitment,
+                mutated_commitment,
+                &components,
+            );
         }
     }
 }
@@ -399,7 +424,7 @@ fn assert_request_encode_rejected(
 
 #[test]
 fn deployment_plan_rejects_every_one_field_substitution() {
-    let (_request, request_bytes, plan, plan_bytes) = baseline();
+    let (_request, request_bytes, plan, plan_bytes, components) = baseline();
     let baseline_subject = plan_subject(&plan_bytes);
     let baseline_commitment = request_commitment(&request_bytes);
     // Control: the baseline replays to its own published subject and the
@@ -420,9 +445,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.request_commitment = commitment;
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |error| {
-            matches!(error, PlanRejection::StaleRequest { .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| matches!(error, PlanRejection::StaleRequest { .. }),
+        );
     }
 
     // ── `instances[i].name`: the roster's `InstanceKey`. Renames that keep
@@ -435,9 +465,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.instances[index].name = support::name(renamed);
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |error| {
-            matches!(error, PlanRejection::RosterMismatch { .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| matches!(error, PlanRejection::RosterMismatch { .. }),
+        );
     }
     let mut mutated = plan.clone();
     mutated.instances[2].name = support::name("aaa"); // sorts before api
@@ -450,11 +485,12 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         matches!(error, CodecError::Duplicate { .. })
     });
 
-    // ── `instances[i].component`: the description identity the plan
-    //    consumes. `subject` joins the request roster; the verification
-    //    profile and completeness closure are evidence the upstream
-    //    description verifier adjudicates — this crate carries them inside
-    //    the digest without interpreting them. ──
+    // ── `instances[i].component`: the description record the plan claims.
+    //    `subject` joins the request roster; every other field must equal
+    //    what the instance's admitted component establishes — verification
+    //    profile, completeness closure, assumptions — so a substituted
+    //    record rejects rather than merely verifying under a divergent
+    //    published subject. ──
     for (name, index, subject) in [
         ("instances[0].component.subject", 0usize, identity(0x12)),
         ("instances[1].component.subject", 1, identity(0x23)),
@@ -462,9 +498,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.instances[index].component.subject = subject;
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |error| {
-            matches!(error, PlanRejection::RosterMismatch { .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| matches!(error, PlanRejection::RosterMismatch { .. }),
+        );
     }
     for (name, index, profile) in [
         (
@@ -485,7 +526,24 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.instances[index].component.verification_profile = profile;
-        assert_plan_identity_bound(name, &mutated, baseline_subject, &request_bytes);
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| {
+                matches!(
+                    error,
+                    PlanRejection::ComponentBinding {
+                        failure: ComponentBindingFailure::Substituted {
+                            field: "verification_profile"
+                        },
+                        ..
+                    }
+                )
+            },
+        );
     }
     for (name, index, closure) in [
         (
@@ -507,119 +565,254 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         let mut mutated = plan.clone();
         mutated.instances[index].component.completeness =
             Completeness::VerifiedComplete { closure };
-        assert_plan_identity_bound(name, &mutated, baseline_subject, &request_bytes);
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| {
+                matches!(
+                    error,
+                    PlanRejection::ComponentBinding {
+                        failure: ComponentBindingFailure::Substituted {
+                            field: "completeness"
+                        },
+                        ..
+                    }
+                )
+            },
+        );
     }
-    // A demanded assumption the owner did not accept rejects at the roster
-    // join; the only representable completeness tag is `VerifiedComplete`.
+    // A forged assumption digest is a substituted record — it rejects
+    // before owner acceptance is ever consulted; the only representable
+    // completeness tag is `VerifiedComplete`.
     let mut mutated = plan.clone();
     mutated.instances[0].component.assumptions = vec![identity(0xAA)];
     assert_plan_rejected(
-        "instances[0].component.assumptions::unaccepted",
+        "instances[0].component.assumptions::forged",
         &mutated,
         baseline_subject,
         &request_bytes,
-        |error| matches!(error, PlanRejection::UnacceptedAssumption { .. }),
+        &components,
+        |error| {
+            matches!(
+                error,
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted {
+                        field: "assumptions"
+                    },
+                    ..
+                }
+            )
+        },
     );
-    // A second fixture whose request accepts two assumptions makes the
-    // roster field's remaining axes representable: an element substitution
-    // to another accepted identity and a dropped row are admissible but
-    // divergent, while an unaccepted identity still rejects.
+    // A second fixture whose api really writes the port makes the roster
+    // field's remaining axes representable: the description demands the
+    // port-mechanism assumption and the owner accepts it.
+    let (assumption_module, assumption) = assumption_api_module();
+    let rich_components = vec![
+        admit_with(&assumption_module, BTreeSet::from([assumption])),
+        admit(&authorization_module()),
+        admit(&billing_module()),
+    ];
     let mut rich_request = payment_request();
-    rich_request.accepted_assumptions = vec![identity(0xAA), identity(0xBB)];
+    rich_request.instances[0].subject = subject_of(&rich_components[0]);
+    rich_request.accepted_assumptions = vec![assumption];
     let rich_request_bytes = encode_request(&rich_request).unwrap();
-    let mut rich_instances = payment_instances();
-    rich_instances[0].component.assumptions = vec![identity(0xAA)];
+    let rich_instances = vec![
+        verified_instance(support::name("api"), &rich_components[0]),
+        verified_instance(support::name("authorization"), &rich_components[1]),
+        verified_instance(support::name("billing"), &rich_components[2]),
+    ];
     let (rich_plan, _) = compose_plan(
         &rich_request,
         &rich_request_bytes,
         rich_instances,
         payment_bindings(),
         verifier(),
+        &rich_components,
     )
     .expect("assumption-bearing composition");
     let rich_plan_bytes = encode_plan(&rich_plan).unwrap();
     let rich_subject = plan_subject(&rich_plan_bytes);
+    // Element substitutions to a foreign digest — even one the owner also
+    // accepts — and a dropped row are all substituted records now.
     let mut mutated = rich_plan.clone();
     mutated.instances[0].component.assumptions = vec![identity(0xBB)];
-    assert_plan_identity_bound(
-        "instances[0].component.assumptions[0]::other-accepted",
+    assert_plan_rejected(
+        "instances[0].component.assumptions[0]::other",
         &mutated,
         rich_subject,
         &rich_request_bytes,
+        &rich_components,
+        |error| {
+            matches!(
+                error,
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted {
+                        field: "assumptions"
+                    },
+                    ..
+                }
+            )
+        },
     );
     let mut mutated = rich_plan.clone();
     mutated.instances[0].component.assumptions = vec![identity(0xCC)];
     assert_plan_rejected(
-        "instances[0].component.assumptions[0]::unaccepted",
+        "instances[0].component.assumptions[0]::foreign",
         &mutated,
         rich_subject,
         &rich_request_bytes,
-        |error| matches!(error, PlanRejection::UnacceptedAssumption { .. }),
+        &rich_components,
+        |error| {
+            matches!(
+                error,
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted {
+                        field: "assumptions"
+                    },
+                    ..
+                }
+            )
+        },
     );
     let mut mutated = rich_plan.clone();
     mutated.instances[0].component.assumptions = Vec::new();
-    assert_plan_identity_bound(
+    assert_plan_rejected(
         "instances[0].component.assumptions::dropped",
         &mutated,
         rich_subject,
         &rich_request_bytes,
+        &rich_components,
+        |error| {
+            matches!(
+                error,
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted {
+                        field: "assumptions"
+                    },
+                    ..
+                }
+            )
+        },
+    );
+    // And the owner-acceptance check itself still bites on the *honest*
+    // record: verified inventory demands the assumption, the owner does
+    // not accept it.
+    let mut unaccepting_request = rich_request.clone();
+    unaccepting_request.accepted_assumptions = Vec::new();
+    let unaccepting_bytes = encode_request(&unaccepting_request).unwrap();
+    let (unaccepting_plan, _) = compose_plan(
+        &unaccepting_request,
+        &unaccepting_bytes,
+        vec![
+            verified_instance(support::name("api"), &rich_components[0]),
+            verified_instance(support::name("authorization"), &rich_components[1]),
+            verified_instance(support::name("billing"), &rich_components[2]),
+        ],
+        payment_bindings(),
+        verifier(),
+        &rich_components,
+    )
+    .expect("composition does not adjudicate owner acceptance");
+    let unaccepting_plan_bytes = encode_plan(&unaccepting_plan).unwrap();
+    assert!(
+        matches!(
+            verify_plan(&unaccepting_plan_bytes, &unaccepting_bytes, &rich_components),
+            Err(PlanRejection::UnacceptedAssumption { assumption: found, .. })
+                if found == assumption
+        ),
+        "instances[0].component.assumptions::unaccepted must reject"
     );
 
     // ── `instances[i].role`: the component/external-participant marker.
-    //    Neither `verify_plan` nor graph normalization adjudicates it — it
-    //    is roster evidence inside the digest. ──
+    //    Relabeling a verified subject claims unverified inventory — the
+    //    binding rejects it. ──
     let mut mutated = plan.clone();
     mutated.instances[1].role = InstanceRole::ExternalParticipant;
-    assert_plan_identity_bound(
+    assert_plan_rejected(
         "instances[1].role::external-participant",
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
+        |error| {
+            matches!(
+                error,
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::ExternalSubjectVerified,
+                    ..
+                }
+            )
+        },
     );
 
-    // ── `instances[i].endpoints[j]`: slot, direction, and contract. ──
+    // ── `instances[i].endpoints[j]`: the public inventory the verified
+    //    description establishes. Slot, direction, and contract are bound
+    //    fields — a touched row is a substituted record, and roster axes on
+    //    the inventory (dropped or invented endpoints, bound or not) reject
+    //    the same way. ──
+    // Slot mutations must keep `(slot, direction)` canonical order to stay
+    // encodable: rename billing's and authorization's requirement exports
+    // forward, not api's import backward.
+    for (name, index, endpoint_index, slot) in [
+        (
+            "instances[1].endpoints[2].slot::export",
+            1usize,
+            2usize,
+            9u32,
+        ),
+        ("instances[2].endpoints[1].slot", 2, 1, 9),
+    ] {
+        let mut mutated = plan.clone();
+        mutated.instances[index].endpoints[endpoint_index].slot = slot;
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| {
+                matches!(
+                    error,
+                    PlanRejection::ComponentBinding {
+                        failure: ComponentBindingFailure::Substituted { field: "endpoints" },
+                        ..
+                    }
+                )
+            },
+        );
+    }
+    // Renaming api's import slot forward leaves the roster unsorted — an
+    // inventory-order violation the decoder itself refuses.
     let mut mutated = plan.clone();
     mutated.instances[0].endpoints[0].slot = 7;
-    assert_plan_rejected(
-        "instances[0].endpoints[0].slot",
+    assert_plan_decode_rejected(
+        "instances[0].endpoints[0].slot::unsorted",
         &mutated,
-        baseline_subject,
         &request_bytes,
-        |error| {
-            matches!(
-                error,
-                PlanRejection::InvalidGraph(GraphError::UnknownEndpoint { .. })
-            )
-        },
+        &components,
+        |error| matches!(error, CodecError::NotCanonical { .. }),
     );
-    // Renaming authorization's export to slot 9 leaves slot 1 declared — as
-    // an import — so the binding's export key resolves to the wrong
-    // direction rather than a missing endpoint.
+    // Relabeling billing's requirement export as an import stays sorted and
+    // unique — representable, and bound-side substitution.
     let mut mutated = plan.clone();
-    mutated.instances[1].endpoints[1].slot = 9; // authorization's export
+    mutated.instances[2].endpoints[1].direction = EndpointDirection::Import;
     assert_plan_rejected(
-        "instances[1].endpoints[1].slot::export",
+        "instances[2].endpoints[1].direction",
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |error| {
             matches!(
                 error,
-                PlanRejection::InvalidGraph(GraphError::WrongDirection { .. })
-            )
-        },
-    );
-    let mut mutated = plan.clone();
-    mutated.instances[0].endpoints[0].direction = EndpointDirection::Export;
-    assert_plan_rejected(
-        "instances[0].endpoints[0].direction",
-        &mutated,
-        baseline_subject,
-        &request_bytes,
-        |error| {
-            matches!(
-                error,
-                PlanRejection::InvalidGraph(GraphError::WrongDirection { .. })
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted { field: "endpoints" },
+                    ..
+                }
             )
         },
     );
@@ -640,12 +833,27 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.instances[instance_index].endpoints[endpoint_index].contract = contract;
-        assert_plan_identity_bound(name, &mutated, baseline_subject, &request_bytes);
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |error| {
+                matches!(
+                    error,
+                    PlanRejection::ComponentBinding {
+                        failure: ComponentBindingFailure::Substituted { field: "endpoints" },
+                        ..
+                    }
+                )
+            },
+        );
     }
-    // Roster axes on the endpoint inventory: a dropped demanded import and
-    // an added demanded import both break complete binding coverage; an
-    // added *export* is representable and admissible — unbound exports are
-    // legal — so only the published identity refuses it.
+    // Roster axes on the endpoint inventory: a dropped demanded import, an
+    // invented demanded import, and an invented *export* — unbound exports
+    // are legal in the graph but never in the verified roster — are all
+    // substituted records.
     let mut mutated = plan.clone();
     mutated.instances[0].endpoints.remove(0);
     assert_plan_rejected(
@@ -653,13 +861,19 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |error| {
             matches!(
                 error,
-                PlanRejection::InvalidGraph(GraphError::UnknownEndpoint { .. })
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted { field: "endpoints" },
+                    ..
+                }
             )
         },
     );
+    // An invented import must append past billing's highest slot to stay
+    // canonical on the wire.
     let mut mutated = plan.clone();
     mutated.instances[2].endpoints.push(Endpoint {
         slot: 2,
@@ -671,10 +885,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |error| {
             matches!(
                 error,
-                PlanRejection::InvalidGraph(GraphError::UnboundImport { .. })
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted { field: "endpoints" },
+                    ..
+                }
             )
         },
     );
@@ -684,21 +902,33 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         direction: EndpointDirection::Export,
         contract: identity(0xC1),
     });
-    assert_plan_identity_bound(
+    assert_plan_rejected(
         "instances[0].endpoints::added-export",
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
+        |error| {
+            matches!(
+                error,
+                PlanRejection::ComponentBinding {
+                    failure: ComponentBindingFailure::Substituted { field: "endpoints" },
+                    ..
+                }
+            )
+        },
     );
     // A duplicated `(slot, direction)` pair is representable in the value
-    // domain but never canonical on the wire.
+    // domain but never canonical on the wire — insert it at its own sorted
+    // position so the duplicate check, not the order check, sees it.
     let mut mutated = plan.clone();
     let duplicated = mutated.instances[0].endpoints[0].clone();
-    mutated.instances[0].endpoints.push(duplicated);
+    mutated.instances[0].endpoints.insert(0, duplicated);
     assert_plan_decode_rejected(
         "instances[0].endpoints::duplicated",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::Duplicate { .. }),
     );
     let mut mutated = plan.clone();
@@ -707,6 +937,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         "instances[1].endpoints::reordered",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::NotCanonical { .. }),
     );
 
@@ -718,6 +949,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::RosterMismatch { .. }),
     );
     let mut mutated = plan.clone();
@@ -729,6 +961,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::RosterMismatch { .. }),
     );
     let mut mutated = plan.clone();
@@ -742,7 +975,9 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         matches!(error, CodecError::Duplicate { .. })
     });
 
-    // ── `bindings[i]`: import key, export key, transport. ──
+    // ── `bindings[i]`: import key, export key, transport. The inventory
+    //    the keys resolve against is bound — so a mutated *key* still
+    //    reaches graph normalization and rejects there. ──
     let mut mutated = plan.clone();
     mutated.bindings[0].import = endpoint(0, 7);
     assert_plan_rejected(
@@ -750,6 +985,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -760,12 +996,13 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     // An out-of-roster import instance must keep binding order canonical to
     // stay encodable — an index on the second row does so.
     let mut mutated = plan.clone();
-    mutated.bindings[1].import = endpoint(9, 1);
+    mutated.bindings[1].import = endpoint(9, 0);
     assert_plan_rejected(
         "bindings[1].import.instance",
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -776,12 +1013,13 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     // Re-pointing api's import at authorization's own import is
     // representable; the demanded import is then bound twice.
     let mut mutated = plan.clone();
-    mutated.bindings[0].import = endpoint(1, 1);
+    mutated.bindings[0].import = endpoint(1, 0);
     assert_plan_rejected(
         "bindings[0].import::other-import",
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -796,6 +1034,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -810,6 +1049,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -817,15 +1057,17 @@ fn deployment_plan_rejects_every_one_field_substitution() {
             )
         },
     );
-    // Re-pointing a binding's export at an *import* endpoint resolves to the
-    // wrong direction.
+    // Every import slot also carries an export at slot 0, so an
+    // export-at-import mutation must come through the import key: billing's
+    // canonical slot is export-only, and binding order still sorts it last.
     let mut mutated = plan.clone();
-    mutated.bindings[1].export = endpoint(0, 1);
+    mutated.bindings[1].import = endpoint(2, 0);
     assert_plan_rejected(
-        "bindings[1].export::import-endpoint",
+        "bindings[1].import::export-endpoint",
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -843,6 +1085,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::ReplayMismatch { index: 1 }),
     );
     for (name, index, transport) in [
@@ -852,9 +1095,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.bindings[index].transport = transport;
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |e| {
-            matches!(e, PlanRejection::UnselectedTransport { .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |e| matches!(e, PlanRejection::UnselectedTransport { .. }),
+        );
     }
     // ── `bindings` roster axes. ──
     let mut mutated = plan.clone();
@@ -864,6 +1112,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| {
             matches!(
                 e,
@@ -891,9 +1140,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.policies[index].verifier = executable;
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |e| {
-            matches!(e, PlanRejection::UnselectedPolicyExecutable { .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |e| matches!(e, PlanRejection::UnselectedPolicyExecutable { .. }),
+        );
     }
 
     // ── `policies[i].call`: predicate identity and its exact selector
@@ -911,6 +1165,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -920,6 +1175,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     // Selector membership is part of the key: adding a member changes it.
@@ -931,6 +1187,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -940,6 +1197,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -949,6 +1207,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -958,6 +1217,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     // A `via` member the roster does not contain keeps the key off the
@@ -969,6 +1229,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     // `via` arity is a wire rule the writer does not enforce: a non-empty
@@ -980,6 +1241,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         "policies[0].call.via::arity",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::ViaArity),
     );
     let mut mutated = plan.clone();
@@ -990,6 +1252,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         "policies[1].call.via::arity",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::ViaArity),
     );
     // Selector member order and uniqueness are wire rules too.
@@ -1001,6 +1264,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         "policies[0].call.sources::unordered",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::NotCanonical { .. }),
     );
     let mut mutated = plan.clone();
@@ -1011,6 +1275,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         "policies[0].call.sources::duplicated",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::Duplicate { .. }),
     );
 
@@ -1031,9 +1296,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.policies[0].outcome = PolicyOutcome::Violated { violation };
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |e| {
-            matches!(e, PlanRejection::PolicyNotSatisfied { index: 0 })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |e| matches!(e, PlanRejection::PolicyNotSatisfied { index: 0 }),
+        );
     }
     let mut mutated = plan.clone();
     mutated.policies[1].outcome = PolicyOutcome::Violated {
@@ -1044,6 +1314,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::PolicyNotSatisfied { index: 1 }),
     );
     // Every certificate axis rejects at structural checking.
@@ -1076,9 +1347,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.policies[0].outcome = PolicyOutcome::Satisfied { certificate };
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |e| {
-            matches!(e, PlanRejection::InvalidCertificate { index: 0, .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |e| matches!(e, PlanRejection::InvalidCertificate { index: 0, .. }),
+        );
     }
     for (name, certificate) in [
         // no edge api(0) -> billing(2) exists in the baseline graph
@@ -1131,9 +1407,14 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     ] {
         let mut mutated = plan.clone();
         mutated.policies[1].outcome = PolicyOutcome::Satisfied { certificate };
-        assert_plan_rejected(name, &mutated, baseline_subject, &request_bytes, |e| {
-            matches!(e, PlanRejection::InvalidCertificate { index: 1, .. })
-        });
+        assert_plan_rejected(
+            name,
+            &mutated,
+            baseline_subject,
+            &request_bytes,
+            &components,
+            |e| matches!(e, PlanRejection::InvalidCertificate { index: 1, .. }),
+        );
     }
     // A certificate of the other predicate's shape is not even
     // representable: the outcome's wire layout is keyed by the call's
@@ -1173,7 +1454,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         );
         assert!(
             matches!(
-                verify_plan(&bytes, &request_bytes),
+                verify_plan(&bytes, &request_bytes, &components),
                 Err(PlanRejection::MalformedPlan(_))
             ),
             "{name}: replay surfaces the malformed plan"
@@ -1193,6 +1474,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
     );
 
     // ── `policies` roster axes. ──
@@ -1203,6 +1485,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::MissingRequiredPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -1212,6 +1495,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::MissingRequiredPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -1233,6 +1517,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
         &mutated,
         baseline_subject,
         &request_bytes,
+        &components,
         |e| matches!(e, PlanRejection::UnexpectedPolicy { .. }),
     );
     let mut mutated = plan.clone();
@@ -1259,7 +1544,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
     );
     assert!(
         matches!(
-            verify_plan(&bytes, &request_bytes),
+            verify_plan(&bytes, &request_bytes, &components),
             Err(PlanRejection::MalformedPlan(_))
         ),
         "policies::outcomes-swapped: replay surfaces the malformed plan"
@@ -1271,7 +1556,7 @@ fn deployment_plan_rejects_every_one_field_substitution() {
 #[test]
 fn topology_request_rejects_every_one_field_substitution() {
     // Control: the baseline request commits and its plan verifies.
-    let (request, request_bytes, plan, plan_bytes) = baseline();
+    let (request, request_bytes, plan, plan_bytes, components) = baseline();
     let baseline_commitment = request_commitment(&request_bytes);
     assert_eq!(plan.request_commitment, baseline_commitment);
     checked_baseline(&plan_bytes, &request_bytes);
@@ -1422,7 +1707,7 @@ fn topology_request_rejects_every_one_field_substitution() {
     );
     assert!(
         matches!(
-            verify_plan(&plan_bytes, &bytes),
+            verify_plan(&plan_bytes, &bytes, &components),
             Err(PlanRejection::MalformedRequest(CodecError::ViaArity))
         ),
         "policies[0].via::arity must surface as a malformed request"
@@ -1461,15 +1746,15 @@ fn topology_request_rejects_every_one_field_substitution() {
         Rebound::Rejected(|e| matches!(e, PlanRejection::UnselectedTransport { .. })),
     );
     let mut mutated = request.clone();
-    mutated.transports = vec![identity(0x77), identity(0x78)];
+    mutated.transports = vec![identity(0x78), transport()];
     assert_request_substitution("transports::widened", &mutated, Rebound::Verifies);
     let mut mutated = request.clone();
-    mutated.transports = vec![identity(0x78), identity(0x77)];
+    mutated.transports = vec![transport(), identity(0x78)];
     assert_request_encode_rejected("transports::reordered", &mutated, |error| {
         matches!(error, CodecError::NotCanonical { .. })
     });
     let mut mutated = request.clone();
-    mutated.transports = vec![identity(0x77), identity(0x77)];
+    mutated.transports = vec![transport(), transport()];
     assert_request_encode_rejected("transports::duplicated", &mutated, |error| {
         matches!(error, CodecError::Duplicate { .. })
     });
@@ -1500,7 +1785,7 @@ fn topology_request_rejects_every_one_field_substitution() {
 /// can express.
 #[test]
 fn canonical_wire_rejects_unrepresentable_substitutions() {
-    let (_request, request_bytes, plan, plan_bytes) = baseline();
+    let (_request, request_bytes, plan, plan_bytes, components) = baseline();
     let baseline_subject = plan_subject(&plan_bytes);
 
     // Raw name bytes inside the first plan instance record: the value domain
@@ -1537,7 +1822,7 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
         assert!(expected(&error), "{name}: unexpected rejection: {error}");
         assert!(
             matches!(
-                verify_plan(&corrupted, &request_bytes),
+                verify_plan(&corrupted, &request_bytes, &components),
                 Err(PlanRejection::MalformedPlan(_))
             ),
             "{name}: replay must surface the malformed plan"
@@ -1561,6 +1846,7 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
         "component.assumptions::unordered",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::NotCanonical { .. }),
     );
     let mut mutated = plan.clone();
@@ -1569,6 +1855,7 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
         "component.assumptions::duplicated",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::Duplicate { .. }),
     );
 
@@ -1586,6 +1873,7 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
         "instances[0].endpoints::over-ceiling",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::LimitExceeded { .. }),
     );
     let mut mutated = plan.clone();
@@ -1596,6 +1884,7 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
         "selector.members::over-ceiling",
         &mutated,
         &request_bytes,
+        &components,
         |error| matches!(error, CodecError::LimitExceeded { .. }),
     );
 
@@ -1651,13 +1940,14 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
         payment_instances(),
         payment_bindings(),
         verifier(),
+        &components,
     )
     .expect("foreign composition");
     let foreign_bytes = encode_plan(&foreign_plan).unwrap();
     assert_ne!(plan_subject(&foreign_bytes), baseline_subject);
     assert!(
         matches!(
-            verify_plan(&foreign_bytes, &request_bytes),
+            verify_plan(&foreign_bytes, &request_bytes, &components),
             Err(PlanRejection::StaleRequest { .. })
         ),
         "a foreign plan is stale under the baseline request"
@@ -1672,7 +1962,7 @@ fn canonical_wire_rejects_unrepresentable_substitutions() {
 /// plan.
 #[test]
 fn installation_request_rejects_every_one_field_substitution() {
-    let (_request, request_bytes, _plan, plan_bytes) = baseline();
+    let (_request, request_bytes, _plan, plan_bytes, components) = baseline();
     let commitment = request_commitment(&request_bytes);
     let checked = || checked_baseline(&plan_bytes, &request_bytes);
 
@@ -1680,7 +1970,7 @@ fn installation_request_rejects_every_one_field_substitution() {
     // with clean custody, then disarms it.
     let mut lifecycle = InstallationLifecycle::default();
     let authorization = lifecycle
-        .authorize(installation_request(commitment, 7))
+        .authorize(installation_request(commitment, 7, &components))
         .expect("fresh issuance");
     let prepared = prepare_installation(checked(), authorization, SimAdapter::new())
         .expect("the baseline request prepares");
@@ -1695,7 +1985,7 @@ fn installation_request_rejects_every_one_field_substitution() {
     ] {
         let mut lifecycle = InstallationLifecycle::default();
         let authorization = lifecycle
-            .authorize(installation_request(expected, 7))
+            .authorize(installation_request(expected, 7, &components))
             .expect("fresh issuance");
         let error = prepare_installation(checked(), authorization, SimAdapter::new())
             .expect_err("a substituted expected request must reject");
@@ -1717,14 +2007,14 @@ fn installation_request_rejects_every_one_field_substitution() {
     // checked plan is even consulted.
     let mut lifecycle = InstallationLifecycle::default();
     lifecycle
-        .authorize(installation_request(commitment, 7))
+        .authorize(installation_request(commitment, 7, &components))
         .expect("first issuance");
     for (name, occurrence) in [
         ("occurrence::replayed", 7u64),
         ("occurrence::moved-back", 6),
     ] {
         let error = lifecycle
-            .authorize(installation_request(commitment, occurrence))
+            .authorize(installation_request(commitment, occurrence, &components))
             .expect_err("a non-increasing occurrence must reject");
         assert!(
             matches!(error, InstallationRejection::ReplayedOccurrence { .. }),
@@ -1808,7 +2098,7 @@ fn installation_request_rejects_every_one_field_substitution() {
         ),
     ];
     for (name, mutate, expected) in artifact_cases {
-        let mut request = installation_request(commitment, 7);
+        let mut request = installation_request(commitment, 7, &components);
         mutate(&mut request);
         let mut lifecycle = InstallationLifecycle::default();
         let authorization = lifecycle.authorize(request).expect("fresh issuance");
@@ -1828,7 +2118,7 @@ fn installation_request_rejects_every_one_field_substitution() {
     // because the installer's join binds the component subject, not the
     // provider's issuance record. The receipt carries the substitution
     // forward as divergent evidence.
-    let mut request = installation_request(commitment, 7);
+    let mut request = installation_request(commitment, 7, &components);
     request.artifacts[0].artifact = identity(0xA9);
     let mut lifecycle = InstallationLifecycle::default();
     let authorization = lifecycle.authorize(request).expect("fresh issuance");
@@ -1843,7 +2133,7 @@ fn installation_request_rejects_every_one_field_substitution() {
     adapter.collide = true;
     let mut lifecycle = InstallationLifecycle::default();
     let authorization = lifecycle
-        .authorize(installation_request(commitment, 7))
+        .authorize(installation_request(commitment, 7, &components))
         .expect("fresh issuance");
     let error = prepare_installation(checked(), authorization, adapter)
         .expect_err("an endpoint token collision must reject");
