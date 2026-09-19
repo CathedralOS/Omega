@@ -204,34 +204,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   tests for every remaining manifest, receipt, codec, and artifact-custody
   family, as
   [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
-  requires. 85 `*_rejects_every_one_field_substitution` tests already cover the
+  requires. 86 `*_rejects_every_one_field_substitution` tests already cover the
   image-emission installation records, executable installation and its wire
   container, component publication and description, external-root admission,
   the compiler's object-artifact, object-container, realization, text-section,
-  callable-entry and fragment-emission custody, build and package records, and
-  the Terminal codec sections. Each mutates one field, recomputes the
-  containing identity honestly, and requires independent replay to reject.
-  None of them covers this board's own physical-pipeline stages.
+  callable-entry and fragment-emission custody, the production compilation
+  manifest, the post-allocation machine staged plan, build and package
+  records, and the Terminal codec sections. Each mutates one field, recomputes
+  the containing identity honestly, and requires independent replay to reject.
 
   Remaining work:
 
-  - `omega-rust/omega/pipeline/` has no one-field substitution test at all,
-    while 16 `Staged*CustodyReceipt` families are produced there: allocation
-    legality, liveness, live ranges, register homes, post-copy,
-    post-literal-fold and post-selected-lowering homes, fixed view copy, fixed
-    precolored segment homes, active-resident rematerialization and its
-    pressure receipt, selection, selected reanalysis, literal fold,
-    selected-lowering optimization, and the post-allocation machine. Today
-    they reach replay only through the joined receipt that
+  - `omega-rust/omega/pipeline/` still has one-field substitution coverage for
+    only the post-allocation machine, while 15 other `Staged*CustodyReceipt`
+    families are produced there: allocation legality, liveness, live ranges,
+    register homes, post-copy, post-literal-fold and post-selected-lowering
+    homes, fixed view copy, fixed precolored segment homes, active-resident
+    rematerialization and its pressure receipt, selection, selected
+    reanalysis, literal fold, and selected-lowering optimization. Today they
+    reach replay only through the joined receipt that
     `compiler/tests/realization_custody.rs` mutates.
-  - `ProductionCompilationManifest`
-    (`compilation-report/src/production_manifest.rs`) has no custody test. That
-    crate's `compile_report/custody_tests.rs` covers only the executable and
-    native-package publication receipts.
   - `OfflinePolicyRegressionManifest`
     (`tooling/optimization-policy-offline/src/cost_threshold_policy/regression_manifest/`)
-    has a codec, an identity and a validator, but only the whole-record
-    `corpus_model_and_report_substitution_fail_closed` refusal.
+    mutates each custody axis on the wire in
+    `codec_rejects_every_manifest_custody_axis_and_envelope_corruption`, but no
+    leg substitutes a field and honestly recomputes the stored identity.
   - Name the independent checker for a family that never encodes. A staged
     receipt consumed in memory has a validator, not a decoder; say which one
     rejects the substitution, and record the fields that are unrepresentable
