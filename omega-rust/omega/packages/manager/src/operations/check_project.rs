@@ -1,4 +1,4 @@
-//! Checked reporting for one prepared package or application project.
+//! Checked inspection and reporting for one prepared package or application project.
 
 use super::PreparedLocalProject;
 use crate::review::{
@@ -7,7 +7,7 @@ use crate::review::{
 use compiler::{CompileOptions, CompileOutputKind, CompileReport, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
 #[cfg(test)]
@@ -74,6 +74,24 @@ impl fmt::Display for CheckPreparedLocalProjectError {
 }
 
 impl std::error::Error for CheckPreparedLocalProjectError {}
+
+/// Check the exact requested entry after its dependency builds, retaining
+/// generated source and checked semantics for an inspecting consumer. This is
+/// the same candidate pipeline used by check reporting, but stops before trust
+/// admission or product publication. Inspection may describe unresolved trust;
+/// it cannot use the returned program as evidence of accepted native authority.
+pub fn check_prepared_local_project_for_inspection(
+    prepared: PreparedLocalProject,
+    build_dir: &Path,
+    target_profile: TargetProfile,
+) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
+    let (entry_path, source_closure, _) = prepared.into_review_parts();
+    compile_resolved_package_candidate_for_check(
+        &source_closure.for_exact_target(target_profile),
+        build_dir,
+        &entry_path,
+    )
+}
 
 /// Run scoped candidate checking and report its final checked root. Generated
 /// source and semantic bindings enter through the candidate pipeline; reporting

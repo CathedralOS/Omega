@@ -140,9 +140,8 @@ fn standalone_root_keeps_resolving_sibling_path_imports() {
 }
 
 /// A packaged build that reaches its Source facet: reads a template through
-/// the captured snapshot. Output obligations deliberately stay out of this
-/// route — sealing staged-output custody is a sponsored-session capability
-/// inspection does not hold.
+/// the captured snapshot. Package inspection uses the manager's sponsored
+/// candidate session, whose staged outputs and captured inputs remain private.
 const SNAPSHOT_BUILD: &str = r#"machine build(builder: &mut Build) {
     builder.package("inspect-snapshot-root");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
