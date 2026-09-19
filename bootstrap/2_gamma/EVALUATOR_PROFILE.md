@@ -10,8 +10,8 @@ The evaluator consumes one exact byte stream:
 ...    all remaining bytes as sealed input
 ```
 
-The complete request is capped at 16 MiB. Source accepts HT, LF, CR, and
-printable ASCII only.
+The complete request is capped at 137,363,456 bytes (the selected 131 MiB
+evaluator frame). Source accepts HT, LF, CR, and printable ASCII only.
 
 ## Observation
 
@@ -57,25 +57,28 @@ status 1 before application execution.
 The current evaluator uses these Alpha memory regions:
 
 ```text
-0x00100000..0x01100000   request bytes
 0x01100000..0x01500000   lexical environment rows
 0x01500000..0x01d00000   temporary value stack
 0x01e00000..0x01f00000   function activation rows
 0x01f00000..0x02000000   nested-call context rows
 0x04000000..0x0a000000   function rows and lookup index
-0x0e000000..0x0efffffc   buffered output bytes
-0x10000000..0x70000000   immutable pair nodes
+0x10000000..0x18300000   request bytes
+0x18300000..0x20400000   buffered output bytes
+0x20400000..0x2000000000 immutable pair nodes
 ```
 
-The selected AlphaBootstrapV4 realization provides 1.75 GiB of memory. The Alpha
+The retired `0x00100000..0x01100000` request and `0x0e000000..0x0efffffc`
+output regions are unused. The selected AlphaBootstrapV5 realization provides
+128 GiB of memory. The Alpha
 tape occupies low memory and the hidden Alpha call stack still grows down
-from `0x10000000`. Pairs grow upward from that boundary, without overlapping
-the stack or moving the output buffer. The function partition occupies part of
-the former pair region. The environment uses the space between the exclusive
-request end and the value stack, including the former function partition at
-`0x01200000..0x01300000`. Every evaluator-owned extent is preflighted
-before use; the hidden Alpha stack is discharged by the containment argument
-below.
+from `0x10000000` — the same address the request region starts at; the stack
+uses only the bytes strictly below its origin, so request writes can never
+meet it. Pairs grow upward from `0x20400000`, above the output buffer. The
+function partition occupies part of the former pair region. The environment
+uses the space between the former request end and the value stack, including
+the former function partition at `0x01200000..0x01300000`. Every evaluator-owned
+extent is preflighted before use; the hidden Alpha stack is discharged by the
+containment argument below.
 
 ## Exact capacities
 
@@ -86,18 +89,18 @@ only an extent beyond the end is refused.
 
 | Resource | Retained representation | Maximum |
 | --- | --- | ---: |
-| complete request | bytes at `0x00100000` | 16,777,216 bytes |
-| function census | five-word rows; request extent dominates physical capacity | 2,097,152 rows |
+| complete request | bytes at `0x10000000` | 137,363,456 bytes |
+| function census | five-word rows; physical capacity is now reachable within a framed request | 2,097,152 rows |
 | active lexical environment | four-word `(name span, value, kind)` rows | 131,072 bindings |
 | temporary values and arguments | two-word `(value, kind)` entries | 524,288 values |
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
 | nested call contexts | three-word rows, slot zero reserved | 256 contexts |
 | active function frames | six-word rows | 257 reachable frames |
-| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 40,265,318 pairs |
-| buffered output | bytes published after result validation | 16,777,212 bytes |
+| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 3,422,453,760 pairs |
+| buffered output | bytes published after result validation | 135,266,304 bytes |
 
 The request maximum includes its four-byte length. Consequently a source with
-no sealed input is at most 16,777,212 bytes. An exact-size request receives one
+no sealed input is at most 137,363,452 bytes. An exact-size request receives one
 EOF probe and proceeds; one additional byte selects status 3 before framing.
 A declared source extent outside the retained request is malformed framing and
 selects status 1 instead.
@@ -106,8 +109,8 @@ Function and environment insertion preflight the next count before deriving a
 row address. The value stack preflights the complete 16-byte next entry. Pair
 allocation preflights the complete 40-byte node; its arena has 16 unusable tail
 bytes after the maximum whole-node count. Output preflights each buffered byte.
-A scalar transformer may emit at most 16,777,211 bytes with `write` before its
-final byte. An application result may publish all 16,777,212 buffered bytes.
+A scalar transformer may emit at most 135,266,303 bytes with `write` before its
+final byte. An application result may publish all 135,266,304 buffered bytes.
 
 The 2,097,152 five-word function rows occupy `0x04000000..0x09000000` in
 authored declaration order. A separate sorted index of 2,097,152 eight-byte row
@@ -120,19 +123,21 @@ shifts only initialized index entries and stores its pointer at an index no
 greater than 2,097,151. Lookup reads only the initialized prefix. The last
 physical row's last word starts at `0x08fffff8`; the last index slot starts at
 `0x09fffff8`. Both writes end exactly at their respective region boundaries.
-The region uses previously unused Alpha memory and remains below buffered output;
-Alpha RAM, pair storage, and hidden-stack containment do not change.
+The region uses previously unused Alpha memory and remains below the hidden
+stack's exclusive upper bound; pair storage, buffered output, and request
+bytes sit entirely above the stack origin and do not change containment.
 
-The request bound makes exhaustion of this table unreachable. Before advancing
-the completed-row count, census consumes at least eight distinct source bytes:
-the declaration's opening parenthesis, `def`, result annotation `Int`, and
-closing parenthesis. Names, parameters, the body, and separators require more;
-eight is a deliberately loose lower bound, including declarations that later
-fail static validation. The cursor never rewinds during census. Thus completed
-rows are at most `floor(16,777,212 / 8) = 2,097,151`. A partially admitted next
-row also fits, and only completed rows enter the index. The defensive count
-preflight remains, but an exact/adjacent physical-table refusal cannot be
-constructed from a framed source. Request extent is the controlling boundary.
+Under the V4 request bound, exhaustion of this table was unreachable. At the
+V5 frame a source can hold more than 2,097,152 declarations: census still
+consumes at least eight distinct bytes per completed row (the declaration's
+parenthesis, `def`, `Int`, and close), so a request larger than
+`8 * 2,097,152 = 16,777,216` source bytes could exceed the physical table.
+The count preflight is now the live controlling boundary and refuses the
+next row before its store, selecting status 3. Exercising it requires a
+request of more than 16 MiB of declarations; sorted-index insertion's
+quadratic pointer movement then dominates the run, so this boundary is
+discharged by the preflight argument rather than an executable adjacent
+case.
 This admits generated helpers beyond the former 65,536-function ceiling without
 an AST, another compiler pass, or a separate generated-function refusal.
 Sorted-index insertion still has quadratic worst-case pointer movement for
@@ -140,7 +145,8 @@ reverse-ordered names; the enlarged capacity does not remove that cost.
 
 Environment row 131,071 starts at `0x014fffe0`; its final word starts at
 `0x014ffff8` and ends exactly at the value-stack boundary. Request insertion
-stops before `0x01100000`, including its non-storing EOF probe. The additional
+occupies `0x10000000..0x18300000` — above the hidden stack's exclusive bound —
+including its non-storing EOF probe, and cannot reach this region. The additional
 rows use previously unused memory without increasing Alpha RAM or moving any
 other live region. Static validation resets this environment for every function
 and visits unreachable bodies; runtime non-tail calls retain caller rows,
@@ -181,12 +187,13 @@ recursive calls. The evaluator's Alpha call graph has no other recursive cycle.
 A conservative bound of 18 live Alpha return addresses per expression level
 per active Gamma frame, plus 512 fixed helper slots, is
 `18 * 256 * 257 + 512 = 1,184,768` return addresses, or 9,478,144 bytes. The
-output buffer stops at `0x0efffffc`, leaving 16,777,220 bytes below Alpha's
-initial `0x10000000` stack pointer. The hidden stack therefore remains more than
-6 MiB above every lower-memory allocation even at the conservative bound.
-The pair arena starts at the initial stack pointer and grows upward, while
+highest lower-memory allocation ends at the context rows' `0x02000000`,
+leaving 96 MiB between the deepest live return address and the stack origin —
+the stack's first store lands at `0x0ffffff8`, strictly below the request base
+`0x10000000`, so upper regions cannot alias the hidden stack either.
+The pair arena starts at `0x20400000` and grows upward, while
 every live return address is strictly below it. Its complete-node preflight
-keeps all pair stores below Alpha's `0x70000000` memory end. Pair projection
+keeps all pair stores below Alpha's `0x2000000000` memory end. Pair projection
 requires the retained pair kind, an allocated aligned node in this same upper
 arena, and its marker; integer values do not acquire pointer provenance by
 matching a relocated address.
@@ -201,12 +208,12 @@ bound; a nonterminating program diverges.
 
 The selected implementation is
 [`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,666-line,
-47,748-byte addressed Beta program assembling to an 8,575-byte Alpha tape. Its
+47,756-byte addressed Beta program assembling to an 8,575-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  8b4d2b8d27fb6ab23bd732abf6615012b92c739fb6d7cdb220dbd557c1d8925f
-Alpha tape   ad55c3f18d3c7bd3e1189635bf34ff6595ca97c34afe85412a6127ed2d29e015
+Beta source  253b42b447fbe1bae28058691d23f794573759fcd3b1ba000d250ef58ac97613
+Alpha tape   00c05bedbe0eed665bc165a9165ecf09cd40627bc636034ccb8dbfb24df3919d
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
@@ -220,8 +227,9 @@ arithmetic extent arguments above reviewable against one immutable subject
 rather than a host model.
 
 The separate [heap-boundary gate](../../tests/gamma/heap-boundary/README.md)
-executes ordinary Gamma allocation loops at the exact whole-node maximum and
-one beyond it, under scalar and application publication. It also crosses the
+executes ordinary Gamma allocation loops past the entire retired V4 arena
+under scalar and application publication; the 3.4-billion-node exact boundary
+is no longer executable in gate time. It also crosses the
 previous 20,132,659-pair ceiling. This profile increase is driven by the actual
 complete-D parser customer: the prior evaluator exhausted its immutable heap
 with raw application status 252 before publishing the twelve-invocation result.
@@ -239,11 +247,14 @@ control completes 4,096 levels in constant space. Solving the containment
 inequality above for a raised cap gives `18 * 256 * (N+1) + 512 <=
 2,097,152`, so at most 454 contexts fit the hidden-stack margin — below the
 Delta customer's admitted expression depth of 1,024. No context-cap
-increase under this memory map serves the customer.
+increase under this memory map serves the customer. (Under AlphaBootstrapV5
+the same inequality over the new 96 MiB stack margin admits about 2,728
+contexts — the arithmetic changed, the priced decision below stands.)
 
 The two enabling routes were priced without restructuring the customer.
-Region rebalance (moving buffered output out of the stack margin) admits
-about 2,274 contexts, but requires a rebuilt evaluator tape, re-pinned
+Under the former map, region rebalance (moving buffered output out of the
+stack margin) would have admitted about 2,274 contexts, but required a
+rebuilt evaluator tape, re-pinned
 identity records in this profile, `tools/bootstrap/gamma/evaluator_env.sh`,
 `tests/gamma/heap-boundary/evaluator.tsv`, and
 `bootstrap/3_delta/delta_compiler.composed`, re-derived exact/adjacent
