@@ -121,8 +121,16 @@ fn family_and_operand_count(
         SelectedInstructionKind::ByteViewAddress => (MachineAlternativeFamily::ByteViewAddress, 3),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
         SelectedInstructionKind::WrappingAddI64 => (MachineAlternativeFamily::WrappingAddI64, 3),
+        SelectedInstructionKind::WrappingSubtractI64 => {
+            (MachineAlternativeFamily::WrappingSubtractI64, 3)
+        }
+        SelectedInstructionKind::WrappingMultiplyI64 => {
+            (MachineAlternativeFamily::WrappingMultiplyI64, 3)
+        }
         SelectedInstructionKind::BitwiseAndI64 => (MachineAlternativeFamily::BitwiseAndI64, 3),
+        SelectedInstructionKind::BitwiseOrI64 => (MachineAlternativeFamily::BitwiseOrI64, 3),
         SelectedInstructionKind::BitwiseXorI64 => (MachineAlternativeFamily::BitwiseXorI64, 3),
+        SelectedInstructionKind::BitwiseNotI64 => (MachineAlternativeFamily::BitwiseNotI64, 2),
         SelectedInstructionKind::SaturatingAdd { carrier } => (
             MachineAlternativeFamily::SaturatingAdd(carrier),
             SaturatingRealization::of_kind(kind)
@@ -141,11 +149,23 @@ fn family_and_operand_count(
                 .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
                 .operand_count(),
         ),
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => (
+            MachineAlternativeFamily::SaturatingRemainder(carrier),
+            SaturatingRealization::of_kind(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+                .operand_count(),
+        ),
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 3)
         }
+        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+            (MachineAlternativeFamily::ExactRemainderU64, 3)
+        }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (MachineAlternativeFamily::WrappingRemainderI64, 3)
+        }
+        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+            (MachineAlternativeFamily::WrappingDivideI64, 3)
         }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
@@ -366,14 +386,38 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        SelectedInstructionKind::BitwiseOrI64 => {
+            words.push(
+                0xaa00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
+        SelectedInstructionKind::BitwiseNotI64 => {
+            // `MVN Xd, Xm` is `ORN Xd, XZR, Xm`: the 0xaa20 base with the
+            // first source field fixed to 31.
+            words.push(0xaa20_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
+        }
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
-        | SelectedInstructionKind::SaturatingDivide { .. } => {
+        | SelectedInstructionKind::SaturatingDivide { .. }
+        | SelectedInstructionKind::SaturatingRemainder { .. } => {
             append_saturating(&mut words, kind, registers)?;
         }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             words.push(
                 0x9ac0_0800
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
+        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+            // `SDIV Xd, Xn, Xm` already wraps the one overflowing quotient:
+            // i64::MIN / -1 yields i64::MIN, matching the wrapping semantics.
+            words.push(
+                0x9ac0_0c00
                     | (u32::from(registers[1]) << 16)
                     | (u32::from(registers[0]) << 5)
                     | u32::from(registers[2]),
@@ -398,6 +442,26 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+            if registers[2] == registers[0] || registers[2] == registers[1] {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            words.push(
+                0x9ac0_0800
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+            // MSUB recovers `dividend - quotient * divisor` from the original
+            // operands while the early-clobber result held the UDIV quotient.
+            words.push(
+                0x9b00_8000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 10)
+                    | (u32::from(registers[2]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             words.push(
                 0xca00_0000
@@ -414,7 +478,8 @@ fn encode_unchecked(
                     | u32::from(registers[1]),
             );
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => {
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::WrappingSubtractI64 => {
             words.push(
                 0xcb00_0000
                     | (u32::from(registers[1]) << 16)
@@ -422,7 +487,8 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
-        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+        SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::WrappingMultiplyI64 => {
             // `MUL Xd, Xn, Xm` is `MADD Xd, Xn, Xm, XZR`: the 0x9b00 base with
             // the addend field fixed to 31.
             words.push(
@@ -551,6 +617,26 @@ fn append_saturating(
         SaturatingRealization::DivideUnsigned => {
             words.push(three_address(0x9ac0_0800, left, right, value));
         }
+        SaturatingRealization::Remainder { signed } => {
+            // The result doubles as the quotient scratch, so it must be
+            // distinct from both inputs while `msub` still reads them.
+            if value == left || value == right {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            words.push(three_address(
+                if signed { 0x9ac0_0c00 } else { 0x9ac0_0800 },
+                left,
+                right,
+                value,
+            ));
+            words.push(
+                0x9b00_8000
+                    | (u32::from(right) << 16)
+                    | (u32::from(left) << 10)
+                    | (u32::from(value) << 5)
+                    | u32::from(value),
+            );
+        }
         SaturatingRealization::ClampNarrow { operation, .. } => {
             let scratch = registers[3];
             words.push(three_address(
@@ -558,6 +644,9 @@ fn append_saturating(
                     selected_instructions::SaturatingOperation::Add => 0x8b00_0000,
                     selected_instructions::SaturatingOperation::Subtract => 0xcb00_0000,
                     selected_instructions::SaturatingOperation::Divide => 0x9ac0_0c00,
+                    selected_instructions::SaturatingOperation::Remainder => {
+                        unreachable!("remainder is realized through the divide/MSUB pair")
+                    }
                 },
                 left,
                 right,

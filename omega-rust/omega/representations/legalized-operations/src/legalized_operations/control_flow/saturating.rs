@@ -22,12 +22,17 @@ pub enum SaturatingCarrier {
     U64,
 }
 
-/// The three saturating operations the carriers are realized for.
+/// The saturating operations the carriers are realized for. Remainder is a
+/// member even though the mathematical remainder never exceeds its carrier:
+/// the operation still carries the nonzero-divisor obligation, and on signed
+/// carriers the one wrapped quotient case (MIN % -1 = 0) is exactly the
+/// remainder the signed form produces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SaturatingOperation {
     Add,
     Subtract,
     Divide,
+    Remainder,
 }
 
 impl SaturatingCarrier {

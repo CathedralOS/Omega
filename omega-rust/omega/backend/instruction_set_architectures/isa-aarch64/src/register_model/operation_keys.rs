@@ -167,6 +167,21 @@ pub const AARCH64_MULTIPLY_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 61,
 };
 
+/// Flag-transparent three-address i64 wrapping division, matching the
+/// ordinary AArch64 `SDIV` register form whose i64::MIN / -1 quotient
+/// already wraps to i64::MIN.
+pub const AARCH64_DIVIDE_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 62,
+};
+
+/// Three-address u64 remainder: `UDIV` into an early-clobber result scratch,
+/// then `MSUB` recovers the remainder in place.
+pub const AARCH64_REMAINDER_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 63,
+};
+
 /// Flag-transparent three-address exact i64 subtraction, matching the
 /// ordinary AArch64 `SUB` register form.
 pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -266,7 +281,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 86] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 88] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -443,6 +458,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 86] = [
     AARCH64_SATURATING_SUBTRACT_CLAMPED,
     AARCH64_SATURATING_DIVIDE_SIGNED,
     AARCH64_MULTIPLY_I64,
+    AARCH64_DIVIDE_I64,
+    AARCH64_REMAINDER_U64,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,

@@ -404,6 +404,7 @@ pub(in crate::selection) fn validate_with_environment(
                         register
                     }
                     LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                    | LegalizedScalarInstructionKind::BitwiseOr { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right } => {
                         let (_, left_register, _, left_type) =
                             replay.resolve(*left).ok_or_else(invalid)?;
@@ -423,13 +424,14 @@ pub(in crate::selection) fn validate_with_environment(
                             scalar_type,
                         )?;
                         replay.check_instruction(
-                            if matches!(
-                                operation.kind,
-                                LegalizedScalarInstructionKind::BitwiseXor { .. }
-                            ) {
-                                SelectedInstructionKind::BitwiseXorI64
-                            } else {
-                                SelectedInstructionKind::BitwiseAndI64
+                            match operation.kind {
+                                LegalizedScalarInstructionKind::BitwiseOr { .. } => {
+                                    SelectedInstructionKind::BitwiseOrI64
+                                }
+                                LegalizedScalarInstructionKind::BitwiseXor { .. } => {
+                                    SelectedInstructionKind::BitwiseXorI64
+                                }
+                                _ => SelectedInstructionKind::BitwiseAndI64,
                             },
                             constraints.keys.subtract_i64,
                             &[left_register, right_register, output],
@@ -441,6 +443,64 @@ pub(in crate::selection) fn validate_with_environment(
                             },
                         )?;
                         output
+                    }
+                    LegalizedScalarInstructionKind::BitwiseNot { operand } => {
+                        let (_, input, _, operand_type) =
+                            replay.resolve(*operand).ok_or_else(invalid)?;
+                        if operand_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        let raw = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::BitwiseNotI64,
+                            constraints.keys.copy_i64,
+                            &[input, raw],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*operand, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        // Complementing a normalized signed carrier stays
+                        // sign-extended, but a narrow unsigned result exposes
+                        // set high bits; replay must see it re-normalized.
+                        let normalization = if matches!(scalar_type, ScalarType::Integer(integer)
+                            if integer.sign() == IntegerSign::Unsigned)
+                        {
+                            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                scalar_type,
+                            )
+                        } else {
+                            SelectedInstructionKind::CopyI64
+                        };
+                        if normalization == SelectedInstructionKind::CopyI64 {
+                            raw
+                        } else {
+                            let output = replay.result_register(
+                                result.value,
+                                result.definition_site,
+                                scalar_type,
+                            )?;
+                            replay.check_instruction(
+                                normalization,
+                                constraints.keys.copy_i64,
+                                &[raw, output],
+                                &SelectedInstructionProvenance {
+                                    values: vec![result.value],
+                                    ..Default::default()
+                                },
+                            )?;
+                            output
+                        }
                     }
                     LegalizedScalarInstructionKind::SaturatingAdd {
                         carrier,
@@ -551,6 +611,71 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingRemainder {
+                        carrier,
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !carries(scalar_type, *carrier)
+                        {
+                            return Err(invalid());
+                        }
+                        // Reconstruct operand snapshots and proof custody from the
+                        // legalized operation, not the proposed instruction's claims.
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        let constraint = if carrier.is_signed() {
+                            constraints.keys.remainder_i64
+                        } else {
+                            constraints.keys.remainder_u64
+                        };
+                        let mut operands = vec![left_register, right_register, output];
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            // The realized form pins the divisor to RCX so its
+                            // RDX zeroing cannot read a live divisor. A shared
+                            // dividend/divisor register cannot carry RAX and
+                            // RCX fixed views at once, so the divisor arrives
+                            // through its own copy first.
+                            if right_register == left_register {
+                                right_register = replay.check_copy(
+                                    right_register,
+                                    *right,
+                                    right_site,
+                                    scalar_type,
+                                )?;
+                                operands[1] = right_register;
+                            }
+                            operands.push(remainder_scratch(&mut replay)?);
+                        }
+                        replay.check_instruction(
+                            SelectedInstructionKind::SaturatingRemainder {
+                                carrier: *carrier,
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraint,
+                            &operands,
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::WrappingRemainder {
                         left,
                         right,
@@ -612,7 +737,71 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
+                    LegalizedScalarInstructionKind::WrappingDivide {
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        // Only the signed i64 carrier is admitted: its MIN / -1
+                        // quotient wraps back to MIN, while a narrower signed
+                        // carrier's widened quotient is out of range.
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && integer.sign() == IntegerSign::Signed
+                                    && integer.bits() == 64)
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        let mut operands = vec![left_register, right_register, output];
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            // The realized form pins the divisor to RCX so the
+                            // CQO sign extension cannot read a live divisor. A
+                            // shared dividend/divisor register cannot carry RAX
+                            // and RCX fixed views at once, so the divisor
+                            // arrives through its own copy first.
+                            if right_register == left_register {
+                                right_register = replay.check_copy(
+                                    right_register,
+                                    *right,
+                                    right_site,
+                                    scalar_type,
+                                )?;
+                                operands[1] = right_register;
+                            }
+                            operands.push(remainder_scratch(&mut replay)?);
+                        }
+                        replay.check_instruction(
+                            SelectedInstructionKind::WrappingDivideI64 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.divide_i64,
+                            &operands,
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::WrappingAdd { left, right }
+                    | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
+                    | LegalizedScalarInstructionKind::WrappingMultiply { left, right } => {
                         let (_, left_register, _, left_type) =
                             replay.resolve(*left).ok_or_else(invalid)?;
                         let (_, right_register, _, right_type) =
@@ -625,14 +814,28 @@ pub(in crate::selection) fn validate_with_environment(
                         {
                             return Err(invalid());
                         }
+                        let (kind, key) = match operation.kind {
+                            LegalizedScalarInstructionKind::WrappingSubtract { .. } => (
+                                SelectedInstructionKind::WrappingSubtractI64,
+                                constraints.keys.subtract_i64,
+                            ),
+                            LegalizedScalarInstructionKind::WrappingMultiply { .. } => (
+                                SelectedInstructionKind::WrappingMultiplyI64,
+                                constraints.keys.multiply_i64,
+                            ),
+                            _ => (
+                                SelectedInstructionKind::WrappingAddI64,
+                                constraints.keys.add_i64,
+                            ),
+                        };
                         let raw = replay.result_register(
                             result.value,
                             result.definition_site,
                             scalar_type,
                         )?;
                         replay.check_instruction(
-                            SelectedInstructionKind::WrappingAddI64,
-                            constraints.keys.add_i64,
+                            kind,
+                            key,
                             &[left_register, right_register, raw],
                             &SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
@@ -676,20 +879,20 @@ pub(in crate::selection) fn validate_with_environment(
                     } => {
                         let (_, left_register, _, left_type) =
                             replay.resolve(*left).ok_or_else(invalid)?;
-                        let (_, right_register, _, right_type) =
+                        let (_, mut right_register, right_site, right_type) =
                             replay.resolve(*right).ok_or_else(invalid)?;
                         if left_type != scalar_type || right_type != scalar_type {
                             return Err(invalid());
                         }
-                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
-                            && scalar_type
-                                != ScalarType::Integer(
-                                    semantic_vocabulary::IntegerType::new(
-                                        IntegerSign::Unsigned,
-                                        64,
-                                    )
+                        if matches!(
+                            *operator,
+                            legalized_operations::LegalizedExactIntegerOperator::Divide
+                                | legalized_operations::LegalizedExactIntegerOperator::Remainder
+                        ) && scalar_type
+                            != ScalarType::Integer(
+                                semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
                                     .map_err(|_| invalid())?,
-                                )
+                            )
                         {
                             return Err(invalid());
                         }
@@ -700,6 +903,13 @@ pub(in crate::selection) fn validate_with_environment(
                                     accepted_fact: *accepted_fact,
                                 },
                                 constraints.keys.divide_u64,
+                            ),
+                            legalized_operations::LegalizedExactIntegerOperator::Remainder => (
+                                SelectedInstructionKind::ExactRemainderU64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.remainder_u64,
                             ),
                             legalized_operations::LegalizedExactIntegerOperator::Add => (
                                 SelectedInstructionKind::ExactAddI64 {
@@ -729,10 +939,30 @@ pub(in crate::selection) fn validate_with_environment(
                             scalar_type,
                         )?;
                         let mut operands = vec![left_register, right_register, output];
-                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
-                            && environment.target().architecture == target::Architecture::X86_64
-                        {
-                            operands.push(division_scratch(&mut replay)?);
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            if *operator
+                                == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            {
+                                operands.push(division_scratch(&mut replay)?);
+                            } else if *operator
+                                == legalized_operations::LegalizedExactIntegerOperator::Remainder
+                            {
+                                // The realized form pins the divisor to RCX so
+                                // its RDX zeroing cannot read a live divisor. A
+                                // shared dividend/divisor register cannot carry
+                                // RAX and RCX fixed views at once, so the
+                                // divisor arrives through its own copy first.
+                                if right_register == left_register {
+                                    right_register = replay.check_copy(
+                                        right_register,
+                                        *right,
+                                        right_site,
+                                        scalar_type,
+                                    )?;
+                                    operands[1] = right_register;
+                                }
+                                operands.push(remainder_scratch(&mut replay)?);
+                            }
                         }
                         replay.check_instruction(
                             kind,

@@ -116,8 +116,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::BitwiseAndI64 => 48,
         SelectedInstructionKind::BitwiseXorI64 => 49,
+        SelectedInstructionKind::BitwiseOrI64 => 93,
+        SelectedInstructionKind::BitwiseNotI64 => 94,
         SelectedInstructionKind::ExactDivideU64 { .. } => 54,
+        SelectedInstructionKind::ExactRemainderU64 { .. } => 89,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 55,
+        SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
+        SelectedInstructionKind::WrappingSubtractI64 => 90,
+        SelectedInstructionKind::WrappingMultiplyI64 => 91,
         SelectedInstructionKind::WrappingAddI64 => 56,
         SelectedInstructionKind::SaturatingAdd { carrier } => {
             saturating_tag(SaturatingOperation::Add, carrier)
@@ -127,6 +133,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         }
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             saturating_tag(SaturatingOperation::Divide, carrier)
+        }
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            saturating_tag(SaturatingOperation::Remainder, carrier)
         }
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
@@ -234,11 +243,24 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::ExactRemainderU64 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::WrappingRemainderI64 {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::WrappingDivideI64 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::SaturatingDivide {
+            obligation,
+            accepted_fact,
+            ..
+        }
+        | SelectedInstructionKind::SaturatingRemainder {
             obligation,
             accepted_fact,
             ..
@@ -296,8 +318,12 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         },
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
         | SelectedInstructionKind::BitwiseXorI64
+        | SelectedInstructionKind::BitwiseNotI64
         | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::WrappingSubtractI64
+        | SelectedInstructionKind::WrappingMultiplyI64
         | SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::CompareI64
@@ -576,6 +602,7 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
         (SaturatingOperation::Add, carrier) => 63 + carrier.ordinal(),
         (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
         (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
+        (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
     }
 }
 

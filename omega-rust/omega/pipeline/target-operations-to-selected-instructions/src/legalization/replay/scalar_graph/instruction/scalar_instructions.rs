@@ -103,6 +103,60 @@ pub(super) fn validate_wrapping_remainder(
     Ok(())
 }
 
+/// Signed i64 is the only admitted wrapping-division carrier: its MIN / -1
+/// quotient wraps back to MIN, while a narrower signed carrier's widened
+/// quotient is the true out-of-range value.
+pub(super) fn validate_wrapping_divide(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::WrappingDivide {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            obligation: source_obligation,
+            scalar_type,
+            left: source_left,
+            right: source_right,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_wrapping_divide")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == *psi_operation
+            && fact.obligation == *source_obligation
+    });
+    let fact = facts.next().ok_or(invalid.clone())?;
+    if facts.next().is_some()
+        || !scalar_graph_input::supports_wrapping_divide_i64(*scalar_type)
+        || [source_left, source_right].iter().any(|value| {
+            scalar_graph_input::value_type(optimized, **value)
+                != Some(ScalarType::Integer(*scalar_type))
+        })
+        || left != source_left
+        || right != source_right
+        || obligation != source_obligation
+        || *accepted_fact != fact.identity
+        || !optimized.facts.iter().any(|fact| matches!(fact,
+            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+            if referenced == source_obligation && support == psi_operation))
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_exact_binary(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
@@ -138,6 +192,13 @@ pub(super) fn validate_exact_binary(
             right: source_right,
             ..
         }
+        | AbstractOperation::ExactIntegerRemainder {
+            psi_operation,
+            obligation: source_obligation,
+            left: source_left,
+            right: source_right,
+            ..
+        }
         | AbstractOperation::ExactIntegerMultiply {
             psi_operation,
             obligation: source_obligation,
@@ -154,6 +215,7 @@ pub(super) fn validate_exact_binary(
         AbstractOperation::ExactIntegerAdd { .. } => LegalizedExactIntegerOperator::Add,
         AbstractOperation::ExactIntegerSubtract { .. } => LegalizedExactIntegerOperator::Subtract,
         AbstractOperation::ExactIntegerDivide { .. } => LegalizedExactIntegerOperator::Divide,
+        AbstractOperation::ExactIntegerRemainder { .. } => LegalizedExactIntegerOperator::Remainder,
         AbstractOperation::ExactIntegerMultiply { .. } => LegalizedExactIntegerOperator::Multiply,
         _ => return Err(invalid),
     };

@@ -20,6 +20,14 @@ pub(crate) enum DecodedInstruction {
     JumpEqualShort {
         displacement: i8,
     },
+    JumpNotEqualShort {
+        displacement: i8,
+    },
+    /// `jmp rel8`: the skip over the divide block in the guarded wrapping
+    /// division sequence.
+    JumpShort {
+        displacement: i8,
+    },
     CompareSignedImmediate8 {
         register: u8,
         immediate: i8,
@@ -169,6 +177,22 @@ pub(crate) fn decode_one(
     if let [0x74, displacement, ..] = bytes {
         return Ok((
             DecodedInstruction::JumpEqualShort {
+                displacement: *displacement as i8,
+            },
+            2,
+        ));
+    }
+    if let [0x75, displacement, ..] = bytes {
+        return Ok((
+            DecodedInstruction::JumpNotEqualShort {
+                displacement: *displacement as i8,
+            },
+            2,
+        ));
+    }
+    if let [0xeb, displacement, ..] = bytes {
+        return Ok((
+            DecodedInstruction::JumpShort {
                 displacement: *displacement as i8,
             },
             2,
@@ -624,6 +648,46 @@ pub(crate) fn validate_decoded(
                         divisor: registers[1],
                     }]
         }
+        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+            registers[0] == 0
+                && registers[2] == 0
+                && registers[3] == 2
+                && registers[1] != 2
+                && decoded
+                    == [
+                        DecodedInstruction::Xor {
+                            source: 2,
+                            destination: 2,
+                        },
+                        DecodedInstruction::UnsignedDivide {
+                            divisor: registers[1],
+                        },
+                        DecodedInstruction::Move {
+                            source: 2,
+                            destination: 0,
+                        },
+                    ]
+        }
+        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+            registers[0] == 0
+                && registers[2] == 0
+                && registers[3] == 2
+                && registers[1] != 2
+                && decoded
+                    == [
+                        DecodedInstruction::CompareSignedImmediate8 {
+                            register: registers[1],
+                            immediate: -1,
+                        },
+                        DecodedInstruction::JumpNotEqualShort { displacement: 5 },
+                        DecodedInstruction::Negate { destination: 0 },
+                        DecodedInstruction::JumpShort { displacement: 5 },
+                        DecodedInstruction::SignExtendDividend,
+                        DecodedInstruction::SignedDivide {
+                            divisor: registers[1],
+                        },
+                    ]
+        }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             registers[0] == 0
                 && registers[2] == 0
@@ -659,19 +723,25 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             saturating_matches(SaturatingOperation::Divide, carrier, registers, decoded)
         }
-        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
-            let operation = |source, destination| {
-                if kind == SelectedInstructionKind::BitwiseXorI64 {
-                    DecodedInstruction::Xor {
-                        source,
-                        destination,
-                    }
-                } else {
-                    DecodedInstruction::BitwiseAnd {
-                        source,
-                        destination,
-                    }
-                }
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            saturating_matches(SaturatingOperation::Remainder, carrier, registers, decoded)
+        }
+        SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
+        | SelectedInstructionKind::BitwiseXorI64 => {
+            let operation = |source, destination| match kind {
+                SelectedInstructionKind::BitwiseXorI64 => DecodedInstruction::Xor {
+                    source,
+                    destination,
+                },
+                SelectedInstructionKind::BitwiseOrI64 => DecodedInstruction::Or {
+                    source,
+                    destination,
+                },
+                _ => DecodedInstruction::BitwiseAnd {
+                    source,
+                    destination,
+                },
             };
             if registers[2] == registers[0] {
                 decoded == [operation(registers[1], registers[2])]
@@ -706,7 +776,27 @@ pub(crate) fn validate_decoded(
                     displacement: -i32::try_from(u12(immediate)?).expect("u12 fits i32"),
                 }]
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => match alternative.variant {
+        SelectedInstructionKind::BitwiseNotI64 => {
+            if registers[1] == registers[0] {
+                decoded
+                    == [DecodedInstruction::Complement {
+                        destination: registers[1],
+                    }]
+            } else {
+                decoded
+                    == [
+                        DecodedInstruction::Move {
+                            source: registers[0],
+                            destination: registers[1],
+                        },
+                        DecodedInstruction::Complement {
+                            destination: registers[1],
+                        },
+                    ]
+            }
+        }
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::WrappingSubtractI64 => match alternative.variant {
             0 => {
                 decoded
                     == [DecodedInstruction::Xor {
@@ -748,7 +838,8 @@ pub(crate) fn validate_decoded(
             }
             _ => false,
         },
-        SelectedInstructionKind::ExactMultiplyI64 { .. } => match alternative.variant {
+        SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::WrappingMultiplyI64 => match alternative.variant {
             0 => {
                 decoded
                     == [DecodedInstruction::Multiply {
@@ -1001,6 +1092,34 @@ fn expected_saturating(
             DecodedInstruction::SignExtendDividend,
             DecodedInstruction::SignedDivide { divisor: right },
         ],
+        SaturatingForm::RemainderUnsigned => vec![
+            DecodedInstruction::Xor {
+                source: 2,
+                destination: 2,
+            },
+            DecodedInstruction::UnsignedDivide { divisor: right },
+            DecodedInstruction::Move {
+                source: 2,
+                destination: result,
+            },
+        ],
+        SaturatingForm::RemainderSigned => vec![
+            DecodedInstruction::Xor {
+                source: 2,
+                destination: 2,
+            },
+            DecodedInstruction::CompareSignedImmediate8 {
+                register: right,
+                immediate: -1,
+            },
+            DecodedInstruction::JumpEqualShort { displacement: 5 },
+            DecodedInstruction::SignExtendDividend,
+            DecodedInstruction::SignedDivide { divisor: right },
+            DecodedInstruction::Move {
+                source: 2,
+                destination: result,
+            },
+        ],
     }
 }
 
@@ -1025,9 +1144,17 @@ fn saturating_footprint(
     let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
     encoded.implicit_unit_clobbers = units("rflags");
     if form.is_division() {
-        encoded.implicit_unit_clobbers.extend(units("rdx"));
-        encoded.implicit_unit_clobbers.sort_unstable();
-        encoded.implicit_unit_clobbers.dedup();
+        // The quotient forms read an explicit RDX input the divider still
+        // writes through, so RDX is an implicit clobber there; the remainder
+        // forms declare RDX as an output operand instead.
+        if !matches!(
+            form,
+            SaturatingForm::RemainderUnsigned | SaturatingForm::RemainderSigned
+        ) {
+            encoded.implicit_unit_clobbers.extend(units("rdx"));
+            encoded.implicit_unit_clobbers.sort_unstable();
+            encoded.implicit_unit_clobbers.dedup();
+        }
         encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
     }
     X86_64SelectedFormFootprint {
@@ -1069,7 +1196,9 @@ pub(crate) fn footprint(
             vec![operands[2]],
             true,
         ),
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => (
+        SelectedInstructionKind::WrappingRemainderI64 { .. }
+        | SelectedInstructionKind::ExactRemainderU64 { .. }
+        | SelectedInstructionKind::WrappingDivideI64 { .. } => (
             vec![operands[0], operands[1]],
             vec![operands[2], operands[3]],
             true,
@@ -1080,22 +1209,31 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::ExactAddI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
+        // `not` never defines flags; only the guarding copy may precede it.
+        SelectedInstructionKind::BitwiseNotI64 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::ExactAddI64Immediate { .. }
         | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::WrappingSubtractI64
+            if alternative.variant == 0 =>
+        {
             (vec![], vec![operands[2]], true)
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => {
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::WrappingSubtractI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
         // `imul` reads its destination operand even when every operand shares
         // one view, so no variant collapses the reads the way `xor` does.
-        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+        SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::WrappingMultiplyI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
-        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+        SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
+        | SelectedInstructionKind::BitwiseXorI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
         SelectedInstructionKind::ReturnScalar
@@ -1130,7 +1268,8 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::CallScalar { .. } => (vec![], vec![], false),
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
-        | SelectedInstructionKind::SaturatingDivide { .. } => {
+        | SelectedInstructionKind::SaturatingDivide { .. }
+        | SelectedInstructionKind::SaturatingRemainder { .. } => {
             unreachable!("saturating forms handled above")
         }
     };
@@ -1204,19 +1343,28 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::CompareI64Immediate { .. }
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
-                | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
+                | SelectedInstructionKind::ExactSubtractI64Immediate { .. }
+                | SelectedInstructionKind::BitwiseNotI64 => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
-                SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![0, 1],
+                SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::ExactRemainderU64 { .. }
+                | SelectedInstructionKind::WrappingDivideI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
-                SelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
+                SelectedInstructionKind::ExactSubtractI64 { .. }
+                | SelectedInstructionKind::WrappingSubtractI64
+                    if alternative.variant == 0 =>
+                {
                     vec![]
                 }
                 SelectedInstructionKind::ExactSubtractI64 { .. }
+                | SelectedInstructionKind::WrappingSubtractI64
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
+                | SelectedInstructionKind::WrappingMultiplyI64
                 | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseOrI64
                 | SelectedInstructionKind::BitwiseXorI64 => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
             },
@@ -1235,18 +1383,23 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
-                | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
+                | SelectedInstructionKind::ExactSubtractI64Immediate { .. }
+                | SelectedInstructionKind::BitwiseNotI64 => vec![1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
-                | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
-                SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
-                    vec![2]
-                }
+                | SelectedInstructionKind::WrappingMultiplyI64
+                | SelectedInstructionKind::ExactSubtractI64 { .. }
+                | SelectedInstructionKind::WrappingSubtractI64 => vec![2],
+                SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseOrI64
+                | SelectedInstructionKind::BitwiseXorI64 => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
-                SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2, 3],
+                SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::ExactRemainderU64 { .. }
+                | SelectedInstructionKind::WrappingDivideI64 { .. } => vec![2, 3],
                 SelectedInstructionKind::CompareI64 => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 _ => unreachable!("control forms handled separately"),
@@ -1263,8 +1416,11 @@ pub(crate) fn footprint(
         if matches!(
             kind,
             SelectedInstructionKind::ExactSubtractI64 { .. }
+                | SelectedInstructionKind::WrappingSubtractI64
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
+                | SelectedInstructionKind::WrappingMultiplyI64
                 | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseOrI64
                 | SelectedInstructionKind::BitwiseXorI64
         ) {
             effects.implicit_unit_clobbers = units("rflags");
@@ -1286,7 +1442,12 @@ pub(crate) fn footprint(
             effects.implicit_unit_clobbers.dedup();
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
-        if matches!(kind, SelectedInstructionKind::WrappingRemainderI64 { .. }) {
+        if matches!(
+            kind,
+            SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::ExactRemainderU64 { .. }
+                | SelectedInstructionKind::WrappingDivideI64 { .. }
+        ) {
             effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }

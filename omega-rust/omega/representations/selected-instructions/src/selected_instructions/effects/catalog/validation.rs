@@ -331,7 +331,7 @@ fn validate_encoded_effects(
         // An all-aliased subtract realizes x - x as a form whose result
         // depends on neither input home; only that alternative may drop the
         // aliased operands from its read surface.
-        MachineSemanticKind::ExactSubtractI64 => {
+        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => {
             if let MachineAlternativeApplicability::ResultAliasesOperands { left, right, .. } =
                 applicability
             {

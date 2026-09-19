@@ -398,6 +398,9 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::SaturatingDivide(carrier) => {
             saturating_family_tag(SaturatingOperation::Divide, carrier)
         }
+        MachineSemanticKind::SaturatingRemainder(carrier) => {
+            saturating_family_tag(SaturatingOperation::Remainder, carrier)
+        }
         MachineSemanticKind::ExactAddI64Immediate => 4,
         MachineSemanticKind::ExactSubtractI64 => 5,
         MachineSemanticKind::ConditionalBranchNonZero => 6,
@@ -412,6 +415,12 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::Jump => 14,
         MachineSemanticKind::NormalizedForeignCall => 87,
         MachineSemanticKind::ExactMultiplyI64 => 88,
+        MachineSemanticKind::ExactRemainderU64 => 89,
+        MachineSemanticKind::WrappingSubtractI64 => 90,
+        MachineSemanticKind::WrappingMultiplyI64 => 91,
+        MachineSemanticKind::WrappingDivideI64 => 92,
+        MachineSemanticKind::BitwiseOrI64 => 93,
+        MachineSemanticKind::BitwiseNotI64 => 94,
     }
 }
 
@@ -472,6 +481,9 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::SaturatingDivide(carrier) => {
             saturating_family_tag(SaturatingOperation::Divide, carrier)
         }
+        MachineAlternativeFamily::SaturatingRemainder(carrier) => {
+            saturating_family_tag(SaturatingOperation::Remainder, carrier)
+        }
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,
         MachineAlternativeFamily::ConditionalBranchNonZero => 6,
@@ -486,6 +498,12 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::NormalizedForeignCall => 87,
         MachineAlternativeFamily::ExactMultiplyI64 => 88,
+        MachineAlternativeFamily::ExactRemainderU64 => 89,
+        MachineAlternativeFamily::WrappingSubtractI64 => 90,
+        MachineAlternativeFamily::WrappingMultiplyI64 => 91,
+        MachineAlternativeFamily::WrappingDivideI64 => 92,
+        MachineAlternativeFamily::BitwiseOrI64 => 93,
+        MachineAlternativeFamily::BitwiseNotI64 => 94,
     }
 }
 
@@ -519,5 +537,6 @@ pub const fn saturating_family_tag(
         (SaturatingOperation::Add, carrier) => 63 + carrier.ordinal(),
         (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
         (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
+        (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
     }
 }

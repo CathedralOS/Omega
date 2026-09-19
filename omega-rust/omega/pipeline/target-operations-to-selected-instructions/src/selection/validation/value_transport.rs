@@ -112,7 +112,8 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         Instruction::ByteSequenceRead { index, length, .. } => [*index, *length].contains(&value),
         Instruction::BooleanNot { operand }
         | Instruction::IntegerWiden { operand, .. }
-        | Instruction::IntegerExactCast { operand, .. } => *operand == value,
+        | Instruction::IntegerExactCast { operand, .. }
+        | Instruction::BitwiseNot { operand } => *operand == value,
         Instruction::Call(call) => call
             .arguments
             .iter()
@@ -124,11 +125,15 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         Instruction::SaturatingAdd { left, right, .. }
         | Instruction::SaturatingSubtract { left, right, .. }
         | Instruction::SaturatingDivide { left, right, .. }
-
-                        | Instruction::ExactBinary { left, right, .. }
-                | Instruction::WrappingRemainder { left, right, .. }
-                | Instruction::WrappingAdd { left, right }
+        | Instruction::SaturatingRemainder { left, right, .. }
+        | Instruction::ExactBinary { left, right, .. }
+        | Instruction::WrappingRemainder { left, right, .. }
+        | Instruction::WrappingDivide { left, right, .. }
+        | Instruction::WrappingAdd { left, right }
+        | Instruction::WrappingSubtract { left, right }
+        | Instruction::WrappingMultiply { left, right }
         | Instruction::BitwiseAnd { left, right }
+        | Instruction::BitwiseOr { left, right }
         | Instruction::BitwiseXor { left, right }
         | Instruction::IeeeFloatCompare { left, right, .. }
         | Instruction::Compare { left, right, .. } => [*left, *right].contains(&value),

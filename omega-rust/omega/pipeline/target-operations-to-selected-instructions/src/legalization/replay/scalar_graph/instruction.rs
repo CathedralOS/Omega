@@ -80,6 +80,24 @@ pub(super) fn validate(
                 scalar_type,
                 ..
             },
+        )
+        | (
+            LegalizedScalarInstructionKind::WrappingSubtract { left, right },
+            AbstractOperation::WrappingIntegerSubtract {
+                left: source_left,
+                right: source_right,
+                scalar_type,
+                ..
+            },
+        )
+        | (
+            LegalizedScalarInstructionKind::WrappingMultiply { left, right },
+            AbstractOperation::WrappingIntegerMultiply {
+                left: source_left,
+                right: source_right,
+                scalar_type,
+                ..
+            },
         ) if left == source_left
             && right == source_right
             && scalar_graph_input::scalar_shape(ScalarType::Integer(*scalar_type)).is_some()
@@ -163,6 +181,46 @@ pub(super) fn validate(
             }
         }
         (
+            LegalizedScalarInstructionKind::SaturatingRemainder {
+                carrier,
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::SaturatingIntegerRemainder {
+                psi_operation,
+                obligation: source_obligation,
+                scalar_type,
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        ) => {
+            let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *source_obligation
+            });
+            let fact = facts.next().ok_or(invalid.clone())?;
+            if facts.next().is_some()
+                || scalar_graph_input::saturating_carrier(*scalar_type) != Some(*carrier)
+                || [source_left, source_right].iter().any(|value| {
+                    scalar_graph_input::value_type(optimized, **value)
+                        != Some(ScalarType::Integer(*scalar_type))
+                })
+                || left != source_left
+                || right != source_right
+                || obligation != source_obligation
+                || *accepted_fact != fact.identity
+                || !optimized.facts.iter().any(|fact| matches!(fact,
+                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    if referenced == source_obligation && support == psi_operation))
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. },
             AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanStructuralField { .. },
@@ -182,6 +240,14 @@ pub(super) fn validate(
             },
         )
         | (
+            LegalizedScalarInstructionKind::BitwiseOr { left, right },
+            AbstractOperation::IntegerBitwiseOr {
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        )
+        | (
             LegalizedScalarInstructionKind::BitwiseXor { left, right },
             AbstractOperation::IntegerBitwiseXor {
                 left: source_left,
@@ -189,6 +255,12 @@ pub(super) fn validate(
                 ..
             },
         ) if left == source_left && right == source_right => {}
+        (
+            LegalizedScalarInstructionKind::BitwiseNot { operand },
+            AbstractOperation::IntegerBitwiseNot {
+                operand: source, ..
+            },
+        ) if operand == source => {}
         (
             LegalizedScalarInstructionKind::IeeeFloatCompare {
                 comparison,
@@ -440,11 +512,16 @@ pub(super) fn validate(
             AbstractOperation::WrappingIntegerRemainder { .. },
         ) => scalar_instructions::validate_wrapping_remainder(actual, node, optimized, unit)?,
         (
+            LegalizedScalarInstructionKind::WrappingDivide { .. },
+            AbstractOperation::WrappingIntegerDivide { .. },
+        ) => scalar_instructions::validate_wrapping_divide(actual, node, optimized, unit)?,
+        (
             LegalizedScalarInstructionKind::ExactBinary { .. },
             AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerSubtract { .. }
             | AbstractOperation::ExactIntegerMultiply { .. }
-            | AbstractOperation::ExactIntegerDivide { .. },
+            | AbstractOperation::ExactIntegerDivide { .. }
+            | AbstractOperation::ExactIntegerRemainder { .. },
         ) => scalar_instructions::validate_exact_binary(actual, node, optimized, unit)?,
         (
             LegalizedScalarInstructionKind::Compare { .. },

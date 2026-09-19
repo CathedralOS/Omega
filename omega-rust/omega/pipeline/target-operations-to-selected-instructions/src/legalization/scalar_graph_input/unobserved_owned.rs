@@ -80,8 +80,14 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 | AbstractOperation::SaturatingIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerDivide { .. }
+                | AbstractOperation::ExactIntegerRemainder { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. }
                 | AbstractOperation::ExactIntegerMultiply { .. }
+                | AbstractOperation::WrappingIntegerSubtract { .. }
+                | AbstractOperation::WrappingIntegerMultiply { .. }
+                | AbstractOperation::WrappingIntegerDivide { .. }
+                | AbstractOperation::IntegerBitwiseOr { .. }
+                | AbstractOperation::IntegerBitwiseNot { .. }
                 | AbstractOperation::Call { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. } => true,
                 AbstractOperation::PrimitiveLocalStore { destination, .. }

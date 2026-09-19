@@ -159,6 +159,23 @@ fn append_saturating(
             append_move_on_overflow(bytes, 2, 0);
             append_signed_divide(bytes, right);
         }
+        SaturatingForm::RemainderUnsigned => {
+            // DIV needs a zeroed RDX high half; defining the scratch first is
+            // also what makes a live divisor in RDX impossible to lose. The
+            // remainder then moves from RDX into the RAX result home.
+            append_register_binary(bytes, 0x31, registers[3], registers[3]);
+            bytes.extend([rex(0, 0, right), 0xf7, modrm(3, 6, right)]);
+            append_register_binary(bytes, 0x89, registers[3], result);
+        }
+        SaturatingForm::RemainderSigned => {
+            // Initialize the exceptional result before testing -1: IDIV would
+            // otherwise fault for MIN / -1 even though its remainder is zero.
+            append_register_binary(bytes, 0x31, registers[3], registers[3]);
+            bytes.extend([rex(0, 0, right), 0x83, modrm(3, 7, right), 0xff]);
+            bytes.extend([0x74, 5, 0x48, 0x99]);
+            bytes.extend([rex(0, 0, right), 0xf7, modrm(3, 7, right)]);
+            append_register_binary(bytes, 0x89, registers[3], result);
+        }
     }
     Ok(())
 }
@@ -311,6 +328,35 @@ pub(crate) fn encode_unchecked(
             }
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 6, registers[1])]);
         }
+        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            // DIV needs a zeroed RDX high half; defining the scratch first is
+            // also what makes a live divisor in RDX impossible to lose.
+            append_register_binary(&mut bytes, 0x31, registers[3], registers[3]);
+            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 6, registers[1])]);
+            append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
+        }
+        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            // x / -1 is -x for every dividend, including MIN / -1 whose
+            // negation wraps back to MIN — the exact wrapping quotient. When
+            // the divisor is not -1 the guarded CQO/IDIV path cannot see the
+            // overflow pair, while a zero divisor still faults.
+            bytes.extend([
+                rex(0, 0, registers[1]),
+                0x83,
+                modrm(3, 7, registers[1]),
+                0xff,
+            ]);
+            bytes.extend([0x75, 5]);
+            bytes.extend([rex(0, 0, registers[2]), 0xf7, modrm(3, 3, registers[2])]);
+            bytes.extend([0xeb, 5]);
+            append_signed_divide(&mut bytes, registers[1]);
+        }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -342,13 +388,23 @@ pub(crate) fn encode_unchecked(
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             append_saturating(&mut bytes, SaturatingOperation::Divide, carrier, registers)?;
         }
-        SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            append_saturating(
+                &mut bytes,
+                SaturatingOperation::Remainder,
+                carrier,
+                registers,
+            )?;
+        }
+        SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
+        | SelectedInstructionKind::BitwiseXorI64 => {
             // Both operations commute, so either input may already own the
             // output register. A distinct output needs one non-destructive copy.
-            let opcode = if kind == SelectedInstructionKind::BitwiseXorI64 {
-                0x31
-            } else {
-                0x21
+            let opcode = match kind {
+                SelectedInstructionKind::BitwiseXorI64 => 0x31,
+                SelectedInstructionKind::BitwiseOrI64 => 0x09,
+                _ => 0x21,
             };
             if registers[2] == registers[0] {
                 append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
@@ -358,6 +414,14 @@ pub(crate) fn encode_unchecked(
                 append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
                 append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
             }
+        }
+        SelectedInstructionKind::BitwiseNotI64 => {
+            // NOT is a one-operand in-place form; a distinct result first
+            // takes a non-destructive copy of the input.
+            if registers[1] != registers[0] {
+                append_register_binary(&mut bytes, 0x89, registers[0], registers[1]);
+            }
+            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 2, registers[1])]);
         }
         SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
             append_lea_immediate(
@@ -375,7 +439,8 @@ pub(crate) fn encode_unchecked(
                 -i32::try_from(u12(immediate)?).expect("u12 fits i32"),
             );
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => match alternative.variant {
+        SelectedInstructionKind::ExactSubtractI64 { .. }
+        | SelectedInstructionKind::WrappingSubtractI64 => match alternative.variant {
             0 => append_register_binary(&mut bytes, 0x31, registers[2], registers[2]),
             1 => append_register_binary(&mut bytes, 0x29, registers[1], registers[2]),
             2 => {
@@ -388,7 +453,8 @@ pub(crate) fn encode_unchecked(
             }
             _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
         },
-        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
+        SelectedInstructionKind::ExactMultiplyI64 { .. }
+        | SelectedInstructionKind::WrappingMultiplyI64 => {
             // `imul destination, source` multiplies the destination by the
             // source in place; multiplication commutes, so the aliased input
             // may hold either factor.

@@ -351,6 +351,7 @@ pub(super) fn build_with_environment(
                         output
                     }
                     LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                    | LegalizedScalarInstructionKind::BitwiseOr { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right } => {
                         let (_, left_register, _, left_type) =
                             builder.resolve(*left).ok_or_else(invalid)?;
@@ -369,13 +370,14 @@ pub(super) fn build_with_environment(
                         // Subtraction shares operand constraints and conservatively models
                         // x64 flag clobbers; the distinct bitwise form carries the semantics.
                         builder.emit(
-                            if matches!(
-                                operation.kind,
-                                LegalizedScalarInstructionKind::BitwiseXor { .. }
-                            ) {
-                                SelectedInstructionKind::BitwiseXorI64
-                            } else {
-                                SelectedInstructionKind::BitwiseAndI64
+                            match operation.kind {
+                                LegalizedScalarInstructionKind::BitwiseOr { .. } => {
+                                    SelectedInstructionKind::BitwiseOrI64
+                                }
+                                LegalizedScalarInstructionKind::BitwiseXor { .. } => {
+                                    SelectedInstructionKind::BitwiseXorI64
+                                }
+                                _ => SelectedInstructionKind::BitwiseAndI64,
                             },
                             constraints.keys.subtract_i64,
                             &[left_register, right_register, output],
@@ -387,6 +389,61 @@ pub(super) fn build_with_environment(
                             },
                         )?;
                         output
+                    }
+                    LegalizedScalarInstructionKind::BitwiseNot { operand } => {
+                        let (_, input, _, operand_type) =
+                            builder.resolve(*operand).ok_or_else(invalid)?;
+                        if operand_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        let raw =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        builder.emit(
+                            SelectedInstructionKind::BitwiseNotI64,
+                            constraints.keys.copy_i64,
+                            &[input, raw],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*operand, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        // Complementing a normalized signed carrier stays
+                        // sign-extended, but a narrow unsigned result exposes
+                        // set high bits; re-normalize it for later source uses.
+                        let normalization = if matches!(scalar_type, ScalarType::Integer(integer)
+                            if integer.sign() == IntegerSign::Unsigned)
+                        {
+                            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                scalar_type,
+                            )
+                        } else {
+                            SelectedInstructionKind::CopyI64
+                        };
+                        if normalization == SelectedInstructionKind::CopyI64 {
+                            raw
+                        } else {
+                            let output = builder.register(
+                                result.value,
+                                result.definition_site,
+                                scalar_type,
+                            )?;
+                            builder.emit(
+                                normalization,
+                                constraints.keys.copy_i64,
+                                &[raw, output],
+                                SelectedInstructionProvenance {
+                                    values: vec![result.value],
+                                    ..Default::default()
+                                },
+                            )?;
+                            output
+                        }
                     }
                     LegalizedScalarInstructionKind::SaturatingAdd {
                         carrier,
@@ -491,6 +548,70 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingRemainder {
+                        carrier,
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !carries(scalar_type, *carrier)
+                        {
+                            return Err(invalid());
+                        }
+                        // The mathematical remainder already lies inside the
+                        // carrier, so the realization is the ordinary signed
+                        // or unsigned remainder row; the zero divisor stays a
+                        // proof obligation carried by the instruction.
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let constraint = if carrier.is_signed() {
+                            constraints.keys.remainder_i64
+                        } else {
+                            constraints.keys.remainder_u64
+                        };
+                        let mut operands = vec![left_register, right_register, output];
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            // The realized form pins the divisor to RCX so its
+                            // RDX zeroing cannot read a live divisor. A shared
+                            // dividend/divisor register cannot carry RAX and
+                            // RCX fixed views at once, so give the divisor its
+                            // own copy first.
+                            if right_register == left_register {
+                                right_register = builder.copy(
+                                    right_register,
+                                    *right,
+                                    right_site,
+                                    scalar_type,
+                                )?;
+                                operands[1] = right_register;
+                            }
+                            operands.push(remainder_scratch(&mut builder)?);
+                        }
+                        builder.emit(
+                            SelectedInstructionKind::SaturatingRemainder {
+                                carrier: *carrier,
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraint,
+                            &operands,
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::WrappingRemainder {
                         left,
                         right,
@@ -550,7 +671,68 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
+                    LegalizedScalarInstructionKind::WrappingDivide {
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        // Only the signed i64 carrier is admitted: its MIN / -1
+                        // quotient wraps back to MIN, while a narrower signed
+                        // carrier's widened quotient is out of range.
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && integer.sign() == IntegerSign::Signed
+                                    && integer.bits() == 64)
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let mut operands = vec![left_register, right_register, output];
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            // The realized form pins the divisor to RCX so the
+                            // CQO sign extension cannot read a live divisor. A
+                            // shared dividend/divisor register cannot carry RAX
+                            // and RCX fixed views at once, so give the divisor
+                            // its own copy first.
+                            if right_register == left_register {
+                                right_register = builder.copy(
+                                    right_register,
+                                    *right,
+                                    right_site,
+                                    scalar_type,
+                                )?;
+                                operands[1] = right_register;
+                            }
+                            operands.push(remainder_scratch(&mut builder)?);
+                        }
+                        builder.emit(
+                            SelectedInstructionKind::WrappingDivideI64 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.divide_i64,
+                            &operands,
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::WrappingAdd { left, right }
+                    | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
+                    | LegalizedScalarInstructionKind::WrappingMultiply { left, right } => {
                         let (_, left_register, _, left_type) =
                             builder.resolve(*left).ok_or_else(invalid)?;
                         let (_, right_register, _, right_type) =
@@ -563,11 +745,25 @@ pub(super) fn build_with_environment(
                         {
                             return Err(invalid());
                         }
+                        let (kind, key) = match operation.kind {
+                            LegalizedScalarInstructionKind::WrappingSubtract { .. } => (
+                                SelectedInstructionKind::WrappingSubtractI64,
+                                constraints.keys.subtract_i64,
+                            ),
+                            LegalizedScalarInstructionKind::WrappingMultiply { .. } => (
+                                SelectedInstructionKind::WrappingMultiplyI64,
+                                constraints.keys.multiply_i64,
+                            ),
+                            _ => (
+                                SelectedInstructionKind::WrappingAddI64,
+                                constraints.keys.add_i64,
+                            ),
+                        };
                         let raw =
                             builder.register(result.value, result.definition_site, scalar_type)?;
                         builder.emit(
-                            SelectedInstructionKind::WrappingAddI64,
-                            constraints.keys.add_i64,
+                            kind,
+                            key,
                             &[left_register, right_register, raw],
                             SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
@@ -612,20 +808,20 @@ pub(super) fn build_with_environment(
                     } => {
                         let (_, left_register, _, left_type) =
                             builder.resolve(*left).ok_or_else(invalid)?;
-                        let (_, right_register, _, right_type) =
+                        let (_, mut right_register, right_site, right_type) =
                             builder.resolve(*right).ok_or_else(invalid)?;
                         if left_type != scalar_type || right_type != scalar_type {
                             return Err(invalid());
                         }
-                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
-                            && scalar_type
-                                != ScalarType::Integer(
-                                    semantic_vocabulary::IntegerType::new(
-                                        IntegerSign::Unsigned,
-                                        64,
-                                    )
+                        if matches!(
+                            *operator,
+                            legalized_operations::LegalizedExactIntegerOperator::Divide
+                                | legalized_operations::LegalizedExactIntegerOperator::Remainder
+                        ) && scalar_type
+                            != ScalarType::Integer(
+                                semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
                                     .map_err(|_| invalid())?,
-                                )
+                            )
                         {
                             return Err(invalid());
                         }
@@ -636,6 +832,13 @@ pub(super) fn build_with_environment(
                                     accepted_fact: *accepted_fact,
                                 },
                                 constraints.keys.divide_u64,
+                            ),
+                            legalized_operations::LegalizedExactIntegerOperator::Remainder => (
+                                SelectedInstructionKind::ExactRemainderU64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.remainder_u64,
                             ),
                             legalized_operations::LegalizedExactIntegerOperator::Add => (
                                 SelectedInstructionKind::ExactAddI64 {
@@ -662,10 +865,30 @@ pub(super) fn build_with_environment(
                         let output =
                             builder.register(result.value, result.definition_site, scalar_type)?;
                         let mut operands = vec![left_register, right_register, output];
-                        if *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
-                            && environment.target().architecture == target::Architecture::X86_64
-                        {
-                            operands.push(division_scratch(&mut builder)?);
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            if *operator
+                                == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            {
+                                operands.push(division_scratch(&mut builder)?);
+                            } else if *operator
+                                == legalized_operations::LegalizedExactIntegerOperator::Remainder
+                            {
+                                // The realized form pins the divisor to RCX so
+                                // its RDX zeroing cannot read a live divisor. A
+                                // shared dividend/divisor register cannot carry
+                                // RAX and RCX fixed views at once, so give the
+                                // divisor its own copy first.
+                                if right_register == left_register {
+                                    right_register = builder.copy(
+                                        right_register,
+                                        *right,
+                                        right_site,
+                                        scalar_type,
+                                    )?;
+                                    operands[1] = right_register;
+                                }
+                                operands.push(remainder_scratch(&mut builder)?);
+                            }
                         }
                         builder.emit(
                             kind,

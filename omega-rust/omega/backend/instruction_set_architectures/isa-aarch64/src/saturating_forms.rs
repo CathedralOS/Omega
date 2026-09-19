@@ -43,6 +43,11 @@ pub(crate) enum SaturatingRealization {
     /// `ccmn divisor, #1, #0, eq` leaves Z set exactly when the result is MIN
     /// and the divisor is -1, and `csel eq` substitutes MAX.
     DivideI64,
+    /// `sdiv`/`udiv` into the result followed by `msub` recovering
+    /// `dividend - quotient * divisor`. A mathematical remainder already lies
+    /// inside every carrier, so no clamp applies; the wrapped MIN / -1
+    /// quotient still leaves the correct zero remainder through `msub`.
+    Remainder { signed: bool },
 }
 
 impl SaturatingRealization {
@@ -60,6 +65,9 @@ impl SaturatingRealization {
                 Self::OverflowI64 { subtract: true }
             }
             (SaturatingOperation::Divide, SaturatingCarrier::I64) => Self::DivideI64,
+            (SaturatingOperation::Remainder, carrier) => Self::Remainder {
+                signed: carrier.is_signed(),
+            },
             (operation, carrier) => Self::ClampNarrow { operation, carrier },
         }
     }
@@ -74,6 +82,9 @@ impl SaturatingRealization {
             }
             SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
                 Self::of(SaturatingOperation::Divide, carrier)
+            }
+            SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+                Self::of(SaturatingOperation::Remainder, carrier)
             }
             _ => return None,
         })
@@ -90,22 +101,30 @@ impl SaturatingRealization {
             MachineSemanticKind::SaturatingDivide(carrier) => {
                 Self::of(SaturatingOperation::Divide, carrier)
             }
+            MachineSemanticKind::SaturatingRemainder(carrier) => {
+                Self::of(SaturatingOperation::Remainder, carrier)
+            }
             _ => return None,
         })
     }
 
-    /// Three operands (left, right, result) for the flag-select and plain
-    /// divide forms; four when a bound scratch is clamped through.
+    /// Three operands (left, right, result) for the flag-select, plain
+    /// divide, and remainder forms; four when a bound scratch is clamped
+    /// through.
     pub(crate) const fn operand_count(self) -> usize {
         match self {
-            Self::AddU64 | Self::SubtractUnsigned | Self::DivideUnsigned => 3,
+            Self::AddU64
+            | Self::SubtractUnsigned
+            | Self::DivideUnsigned
+            | Self::Remainder { .. } => 3,
             Self::ClampNarrow { .. } | Self::OverflowI64 { .. } | Self::DivideI64 => 4,
         }
     }
 
-    /// Only the plain `udiv` leaves NZCV alone.
+    /// Only the plain `udiv` and the divide/`msub` remainder pair leave NZCV
+    /// alone.
     pub(crate) const fn defines_nzcv(self) -> bool {
-        !matches!(self, Self::DivideUnsigned)
+        !matches!(self, Self::DivideUnsigned | Self::Remainder { .. })
     }
 
     /// The carrier bounds the narrow clamp materializes, in the order they
@@ -125,7 +144,7 @@ impl SaturatingRealization {
 
     pub(crate) fn byte_size(self) -> u16 {
         match self {
-            Self::AddU64 | Self::SubtractUnsigned => 8,
+            Self::AddU64 | Self::SubtractUnsigned | Self::Remainder { .. } => 8,
             Self::DivideUnsigned => 4,
             // The arithmetic word plus three words per clamped bound.
             Self::ClampNarrow { .. } => 4 + 12 * self.clamp_bounds().len() as u16,

@@ -72,7 +72,9 @@ fn keys() -> SelectedConstraintKeys {
         saturating_subtract_unsigned: instruction(4),
         saturating_add_u64: instruction(4),
         divide_u64: instruction(4),
+        remainder_u64: instruction(45),
         remainder_i64: instruction(38),
+        divide_i64: instruction(46),
         saturating_add_clamped: instruction(40),
         saturating_subtract_clamped: instruction(41),
         saturating_divide_signed: instruction(42),
@@ -311,6 +313,80 @@ fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
 }
 
 #[test]
+fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
+    for (semantic, tag) in [
+        (MachineSemanticKind::ExactRemainderU64, 89),
+        (MachineSemanticKind::WrappingSubtractI64, 90),
+        (MachineSemanticKind::WrappingMultiplyI64, 91),
+        (MachineSemanticKind::WrappingDivideI64, 92),
+        (MachineSemanticKind::BitwiseOrI64, 93),
+        (MachineSemanticKind::BitwiseNotI64, 94),
+    ] {
+        assert_eq!(semantic_kind_tag(semantic), tag);
+        assert_eq!(
+            alternative_family_tag(MachineAlternativeFamily::from(semantic)),
+            tag
+        );
+        assert!(MachineSemanticKind::ALL.contains(&semantic));
+    }
+    let keys = keys();
+    assert_eq!(
+        keys.for_semantic(MachineSemanticKind::ExactRemainderU64),
+        Some(keys.remainder_u64)
+    );
+    assert_eq!(
+        keys.for_semantic(MachineSemanticKind::WrappingDivideI64),
+        Some(keys.divide_i64)
+    );
+    assert_eq!(
+        keys.for_semantic(MachineSemanticKind::WrappingSubtractI64),
+        Some(keys.subtract_i64)
+    );
+    assert_eq!(
+        keys.for_semantic(MachineSemanticKind::WrappingMultiplyI64),
+        Some(keys.multiply_i64)
+    );
+    assert_eq!(
+        keys.for_semantic(MachineSemanticKind::BitwiseOrI64),
+        Some(keys.subtract_i64)
+    );
+    assert_eq!(
+        keys.for_semantic(MachineSemanticKind::BitwiseNotI64),
+        Some(keys.copy_i64)
+    );
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    for mutation in 0..4 {
+        let mut changed = source.clone();
+        match mutation {
+            0 => changed.selected_keys.remainder_u64 = instruction(47),
+            1 => changed.selected_keys.divide_i64 = instruction(47),
+            2 => {
+                changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == MachineSemanticKind::ExactRemainderU64)
+                    .unwrap()
+                    .semantic = MachineSemanticKind::ExactDivideU64
+            }
+            _ => {
+                changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == MachineSemanticKind::WrappingDivideI64)
+                    .unwrap()
+                    .semantic = MachineSemanticKind::WrappingRemainderI64
+            }
+        }
+        assert_ne!(
+            baseline,
+            machine_effect_catalog_identity(&changed),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_family() {
     use crate::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
     // The forms that existed before the family was widened keep their tags;
@@ -353,6 +429,11 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
                 MachineAlternativeFamily::SaturatingDivide(carrier),
                 SaturatingOperation::Divide,
             ),
+            (
+                MachineSemanticKind::SaturatingRemainder(carrier),
+                MachineAlternativeFamily::SaturatingRemainder(carrier),
+                SaturatingOperation::Remainder,
+            ),
         ] {
             let tag = saturating_family_tag(operation, carrier);
             assert_eq!(semantic_kind_tag(semantic), tag);
@@ -369,7 +450,7 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
     assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
     tags.sort_unstable();
     tags.dedup();
-    assert_eq!(tags.len(), 24);
+    assert_eq!(tags.len(), 32);
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
     for mutation in 0..7 {

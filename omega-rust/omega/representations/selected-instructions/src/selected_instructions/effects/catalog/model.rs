@@ -84,12 +84,19 @@ pub enum MachineSemanticKind {
     SaturatingAdd(SaturatingCarrier),
     SaturatingSubtract(SaturatingCarrier),
     SaturatingDivide(SaturatingCarrier),
+    SaturatingRemainder(SaturatingCarrier),
     NormalizedForeignCall,
     ExactMultiplyI64,
+    ExactRemainderU64,
+    WrappingSubtractI64,
+    WrappingMultiplyI64,
+    WrappingDivideI64,
+    BitwiseOrI64,
+    BitwiseNotI64,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 84] = [
+    pub const ALL: [Self; 98] = [
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -172,8 +179,22 @@ impl MachineSemanticKind {
         Self::SaturatingDivide(SaturatingCarrier::U16),
         Self::SaturatingDivide(SaturatingCarrier::U32),
         Self::SaturatingDivide(SaturatingCarrier::U64),
+        Self::SaturatingRemainder(SaturatingCarrier::I8),
+        Self::SaturatingRemainder(SaturatingCarrier::I16),
+        Self::SaturatingRemainder(SaturatingCarrier::I32),
+        Self::SaturatingRemainder(SaturatingCarrier::I64),
+        Self::SaturatingRemainder(SaturatingCarrier::U8),
+        Self::SaturatingRemainder(SaturatingCarrier::U16),
+        Self::SaturatingRemainder(SaturatingCarrier::U32),
+        Self::SaturatingRemainder(SaturatingCarrier::U64),
         Self::NormalizedForeignCall,
         Self::ExactMultiplyI64,
+        Self::ExactRemainderU64,
+        Self::WrappingSubtractI64,
+        Self::WrappingMultiplyI64,
+        Self::WrappingDivideI64,
+        Self::BitwiseOrI64,
+        Self::BitwiseNotI64,
     ];
 }
 
@@ -240,8 +261,15 @@ pub enum MachineAlternativeFamily {
     SaturatingAdd(SaturatingCarrier),
     SaturatingSubtract(SaturatingCarrier),
     SaturatingDivide(SaturatingCarrier),
+    SaturatingRemainder(SaturatingCarrier),
     NormalizedForeignCall,
     ExactMultiplyI64,
+    ExactRemainderU64,
+    WrappingSubtractI64,
+    WrappingMultiplyI64,
+    WrappingDivideI64,
+    BitwiseOrI64,
+    BitwiseNotI64,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -283,6 +311,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::SaturatingAdd(carrier) => Self::SaturatingAdd(carrier),
             MachineSemanticKind::SaturatingSubtract(carrier) => Self::SaturatingSubtract(carrier),
             MachineSemanticKind::SaturatingDivide(carrier) => Self::SaturatingDivide(carrier),
+            MachineSemanticKind::SaturatingRemainder(carrier) => Self::SaturatingRemainder(carrier),
             MachineSemanticKind::ExactSubtractI64Immediate => Self::ExactSubtractI64Immediate,
             MachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             MachineSemanticKind::ReturnScalar => Self::ReturnScalar,
@@ -319,6 +348,12 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::CallUnit => Self::CallUnit,
             MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
             MachineSemanticKind::ExactMultiplyI64 => Self::ExactMultiplyI64,
+            MachineSemanticKind::ExactRemainderU64 => Self::ExactRemainderU64,
+            MachineSemanticKind::WrappingSubtractI64 => Self::WrappingSubtractI64,
+            MachineSemanticKind::WrappingMultiplyI64 => Self::WrappingMultiplyI64,
+            MachineSemanticKind::WrappingDivideI64 => Self::WrappingDivideI64,
+            MachineSemanticKind::BitwiseOrI64 => Self::BitwiseOrI64,
+            MachineSemanticKind::BitwiseNotI64 => Self::BitwiseNotI64,
         }
     }
 }

@@ -103,6 +103,7 @@ impl LegalizedScalarInstruction {
                         .any(|argument| argument.source.source_value() == value),
                     LegalizedScalarInstructionKind::BooleanNot { operand }
                     | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
+                        | LegalizedScalarInstructionKind::BitwiseNot { operand }
                         | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
                         *operand == value
                     }
@@ -113,10 +114,15 @@ impl LegalizedScalarInstruction {
                     LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
                     | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
                     | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
+                    | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
                     | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
+                    | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingAdd { left, right }
+                    | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
+                    | LegalizedScalarInstructionKind::WrappingMultiply { left, right }
                     | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+                    | LegalizedScalarInstructionKind::BitwiseOr { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. }
                     | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
@@ -336,9 +342,43 @@ pub enum LegalizedScalarInstructionKind {
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// Remainder under the named carrier with a proven nonzero divisor. The
+    /// mathematical remainder always lies inside the carrier, so saturation
+    /// adds no clamp beyond the one wrapped signed case (MIN % -1 = 0), which
+    /// the signed realization already produces; the carrier still names the
+    /// declared width for replay and bound checks.
+    SaturatingRemainder {
+        carrier: SaturatingCarrier,
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// Signed i64 division modulo the wrapping quotient: i64::MIN / -1 yields
+    /// i64::MIN. Narrow signed carriers stay unadmitted because the widened
+    /// i64 quotient of their MIN / -1 case is the true out-of-range value
+    /// rather than the wrapped one. The accepted nonzero-divisor obligation
+    /// remains required.
+    WrappingDivide {
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     /// Addition modulo the result's fixed integer width. Unlike Exact addition,
     /// overflow is defined behavior and carries no no-overflow obligation.
     WrappingAdd {
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Subtraction modulo the result's fixed integer width; the normalized
+    /// i64 subtraction stays exact for narrow carriers after normalization.
+    WrappingSubtract {
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Multiplication modulo the result's fixed integer width.
+    WrappingMultiply {
         left: ValueId,
         right: ValueId,
     },
@@ -353,9 +393,17 @@ pub enum LegalizedScalarInstructionKind {
         left: ValueId,
         right: ValueId,
     },
+    BitwiseOr {
+        left: ValueId,
+        right: ValueId,
+    },
     BitwiseXor {
         left: ValueId,
         right: ValueId,
+    },
+    /// Bitwise complement of one normalized integer carrier.
+    BitwiseNot {
+        operand: ValueId,
     },
     Compare {
         predicate: LegalizedScalarComparison,

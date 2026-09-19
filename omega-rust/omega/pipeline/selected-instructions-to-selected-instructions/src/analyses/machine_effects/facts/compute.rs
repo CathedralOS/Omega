@@ -149,7 +149,9 @@ fn terminal_selected_keys(
         saturating_subtract_unsigned: keys.saturating_subtract_unsigned,
         saturating_add_u64: keys.saturating_add_u64,
         divide_u64: keys.divide_u64,
+        remainder_u64: keys.remainder_u64,
         remainder_i64: keys.remainder_i64,
+        divide_i64: keys.divide_i64,
         saturating_add_clamped: keys.saturating_add_clamped,
         saturating_subtract_clamped: keys.saturating_subtract_clamped,
         saturating_divide_signed: keys.saturating_divide_signed,
@@ -330,6 +332,9 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
             MachineSemanticKind::SaturatingDivide(carrier)
         }
+        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+            MachineSemanticKind::SaturatingRemainder(carrier)
+        }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate
         }
@@ -338,6 +343,12 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
             MachineSemanticKind::ExactSubtractI64Immediate
         }
         SelectedInstructionKind::ExactMultiplyI64 { .. } => MachineSemanticKind::ExactMultiplyI64,
+        SelectedInstructionKind::ExactRemainderU64 { .. } => MachineSemanticKind::ExactRemainderU64,
+        SelectedInstructionKind::WrappingSubtractI64 => MachineSemanticKind::WrappingSubtractI64,
+        SelectedInstructionKind::WrappingMultiplyI64 => MachineSemanticKind::WrappingMultiplyI64,
+        SelectedInstructionKind::WrappingDivideI64 { .. } => MachineSemanticKind::WrappingDivideI64,
+        SelectedInstructionKind::BitwiseOrI64 => MachineSemanticKind::BitwiseOrI64,
+        SelectedInstructionKind::BitwiseNotI64 => MachineSemanticKind::BitwiseNotI64,
         SelectedInstructionKind::ConditionalBranchNonZero => {
             MachineSemanticKind::ConditionalBranchNonZero
         }

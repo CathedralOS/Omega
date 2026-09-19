@@ -207,6 +207,26 @@ pub const X86_64_MULTIPLY_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 61,
 };
 
+/// Signed i64 wrapping division. `IDIV` faults on MIN / -1 while the wrapping
+/// semantics require i64::MIN, so the realization guards that divisor: it
+/// initializes the result to the wrapping quotient, compares the divisor
+/// against -1, branches over the divide on equality, otherwise sign-extends
+/// the dividend with CQO and executes IDIV. The dividend and quotient live in
+/// RAX, RDX is the sign-extension clobber, and the compare defines RFLAGS.
+pub const X86_64_DIVIDE_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 62,
+};
+
+/// Unsigned u64 remainder on the fixed RAX:RDX pair: the dividend occupies
+/// RAX, RDX is zeroed as the high input, DIV leaves the remainder in RDX, and
+/// a move returns it to the result view. Both fixed registers are clobbered
+/// and RFLAGS is undefined across the divide.
+pub const X86_64_REMAINDER_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 63,
+};
+
 /// Exact `result = left - right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `XOR result, result` when both inputs
 /// share a view, `SUB` when the result is only the left input, `NEG; ADD` when
@@ -249,7 +269,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 69] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 71] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -367,6 +387,8 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 69] = [
     X86_64_SATURATING_SUBTRACT_CLAMPED,
     X86_64_SATURATING_DIVIDE_SIGNED,
     X86_64_MULTIPLY_I64,
+    X86_64_DIVIDE_I64,
+    X86_64_REMAINDER_U64,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,

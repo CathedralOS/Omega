@@ -105,9 +105,24 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Unsigned remainder admitted by this operation's definedness proof.
+    /// The realization shares the unsigned divide hardware and selects the
+    /// high-half remainder register instead of the quotient.
+    ExactRemainderU64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     /// Signed remainder of normalized i64 operands with a proven nonzero divisor.
     /// The wrapping overflow case i64::MIN % -1 produces zero, not a trap.
     WrappingRemainderI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Signed i64 division with a proven nonzero divisor. The wrapping
+    /// overflow case i64::MIN / -1 produces i64::MIN, not a trap; narrow
+    /// signed carriers stay unadmitted because the widened quotient of their
+    /// overflow case is out of range rather than wrapped.
+    WrappingDivideI64 {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
@@ -136,13 +151,32 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Remainder with a proven nonzero divisor under the named carrier. The
+    /// mathematical remainder always lies inside the carrier, so no clamp is
+    /// needed: signed carriers share the signed remainder form (whose one
+    /// wrapped case MIN % -1 already yields the mathematical zero) and
+    /// unsigned carriers share the exact unsigned remainder form.
+    SaturatingRemainder {
+        carrier: SaturatingCarrier,
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     /// Add register payloads modulo 2^64 without an Exact overflow obligation.
     /// Narrow semantic results require a subsequent signed/unsigned normalization.
     WrappingAddI64,
+    /// Subtract register payloads modulo 2^64; narrow results normalize after.
+    WrappingSubtractI64,
+    /// Multiply register payloads modulo 2^64; narrow results normalize after.
+    WrappingMultiplyI64,
     CopyI64,
     /// Bitwise intersection of normalized integer carriers; no arithmetic overflow.
     BitwiseAndI64,
+    /// Bitwise union of normalized integer carriers; no arithmetic overflow.
+    BitwiseOrI64,
     BitwiseXorI64,
+    /// Bitwise complement of one normalized integer carrier. Narrow unsigned
+    /// results require a subsequent normalization.
+    BitwiseNotI64,
     /// Preserve the IEEE binary32 payload while moving from an FP ABI home to GPR storage.
     Float32ToBits,
     /// Preserve the IEEE binary64 payload while moving from an FP ABI home to GPR storage.

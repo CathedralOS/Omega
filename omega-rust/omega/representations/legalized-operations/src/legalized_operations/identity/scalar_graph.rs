@@ -442,6 +442,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::SaturatingRemainder {
+                    carrier,
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(saturating_tag(SaturatingOperation::Remainder, *carrier));
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::WrappingRemainder {
                     left,
                     right,
@@ -454,8 +467,30 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::WrappingDivide {
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(70);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
                     bytes.push(38);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::WrappingSubtract { left, right } => {
+                    bytes.push(68);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::WrappingMultiply { left, right } => {
+                    bytes.push(69);
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
@@ -472,6 +507,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         LegalizedExactIntegerOperator::Subtract => 1,
                         LegalizedExactIntegerOperator::Divide => 2,
                         LegalizedExactIntegerOperator::Multiply => 3,
+                        LegalizedExactIntegerOperator::Remainder => 4,
                     });
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
@@ -483,10 +519,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::BitwiseOr { left, right } => {
+                    bytes.push(71);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::BitwiseXor { left, right } => {
                     bytes.push(26);
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::BitwiseNot { operand } => {
+                    bytes.push(72);
+                    bytes.extend_from_slice(&operand.get().to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
@@ -639,5 +684,6 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
         (SaturatingOperation::Add, carrier) => 43 + carrier.ordinal(),
         (SaturatingOperation::Subtract, carrier) => 51 + carrier.ordinal(),
         (SaturatingOperation::Divide, carrier) => 59 + carrier.ordinal(),
+        (SaturatingOperation::Remainder, carrier) => 73 + carrier.ordinal(),
     }
 }

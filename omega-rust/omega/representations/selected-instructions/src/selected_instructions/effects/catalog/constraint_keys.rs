@@ -52,7 +52,9 @@ impl SelectedConstraintKeys {
             self.saturating_subtract_unsigned,
             self.saturating_add_u64,
             self.divide_u64,
+            self.remainder_u64,
             self.remainder_i64,
+            self.divide_i64,
             self.saturating_add_clamped,
             self.saturating_subtract_clamped,
             self.saturating_divide_signed,
@@ -107,14 +109,21 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ByteViewAddress
             | MachineSemanticKind::ExactAddI64
             | MachineSemanticKind::WrappingAddI64 => self.add_i64,
-            // x64 AND clobbers flags, unlike the flag-preserving LEA addition.
+            // x64 AND/OR/XOR clobber flags, unlike the flag-preserving LEA
+            // addition; NOT and its guarding copy do not.
             MachineSemanticKind::BitwiseAndI64 => self.subtract_i64,
+            MachineSemanticKind::BitwiseOrI64 => self.subtract_i64,
             MachineSemanticKind::BitwiseXorI64 => self.subtract_i64,
+            MachineSemanticKind::BitwiseNotI64 => self.copy_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
+            MachineSemanticKind::WrappingSubtractI64 => self.subtract_i64,
             MachineSemanticKind::ExactMultiplyI64 => self.multiply_i64,
+            MachineSemanticKind::WrappingMultiplyI64 => self.multiply_i64,
             MachineSemanticKind::ExactDivideU64 => self.divide_u64,
+            MachineSemanticKind::ExactRemainderU64 => self.remainder_u64,
             MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
+            MachineSemanticKind::WrappingDivideI64 => self.divide_i64,
             // Operand shape, not carrier, selects the constraint row: the u64
             // add and every unsigned subtract are three-operand forms, unsigned
             // division shares the exact unsigned divide row, and everything
@@ -129,6 +138,13 @@ impl SelectedConstraintKeys {
                 self.divide_u64
             }
             MachineSemanticKind::SaturatingDivide(_) => self.saturating_divide_signed,
+            // The mathematical remainder always lies inside its carrier, so
+            // saturating remainder shares the ordinary signed and unsigned
+            // remainder rows rather than owning a clamped form.
+            MachineSemanticKind::SaturatingRemainder(carrier) if !carrier.is_signed() => {
+                self.remainder_u64
+            }
+            MachineSemanticKind::SaturatingRemainder(_) => self.remainder_i64,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             MachineSemanticKind::ReturnScalar => self.return_i64,

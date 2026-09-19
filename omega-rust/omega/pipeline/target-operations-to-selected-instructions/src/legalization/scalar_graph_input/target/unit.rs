@@ -394,13 +394,19 @@ pub(super) fn validate_operation(
             | AbstractOperation::SaturatingIntegerSubtract { .. }
             | AbstractOperation::SaturatingIntegerAdd { .. }
             | AbstractOperation::WrappingIntegerAdd { .. }
+            | AbstractOperation::WrappingIntegerSubtract { .. }
+            | AbstractOperation::WrappingIntegerMultiply { .. }
+            | AbstractOperation::WrappingIntegerDivide { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerDivide { .. }
             | AbstractOperation::ExactIntegerMultiply { .. }
+            | AbstractOperation::ExactIntegerRemainder { .. }
             | AbstractOperation::WrappingIntegerRemainder { .. }
             | AbstractOperation::SaturatingIntegerDivide { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
+            | AbstractOperation::IntegerBitwiseOr { .. }
             | AbstractOperation::IntegerBitwiseXor { .. }
+            | AbstractOperation::IntegerBitwiseNot { .. }
             | AbstractOperation::IntegerExactCast { .. }
             | AbstractOperation::ExactIntegerSubtract { .. },
         ) => {
