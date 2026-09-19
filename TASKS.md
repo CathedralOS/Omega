@@ -2085,22 +2085,31 @@ Owners include
   `unresolved_normalized_foreign_calls` rows replay each placed resolution
   verbatim against its symbol, `relocation_record_count` counts them, and
   `UnresolvedNormalizedForeignImportFieldsV1` flows through manifest
-  publication, custody, and statistics. The emitted image still carries no
-  foreign-call custody record, so independent replay rejects the artifact's
-  admitted provider execution (`native artifact provider execution reports
-  disagree with its image`, pinned by
-  `efb3_flat_record_probe.rs::flat_record_via_call_native_realization_probe`).
+  publication, custody, and statistics. Image custody has landed: the
+  fragment-publication scope rederives each placed normalized foreign call
+  from the staged source (`derive_normalized_foreign_call_custody`) and
+  `NativeArtifact::from_emitted_parts` binds those rows onto the emitted
+  image, so independent replay rejoins the artifact's admitted provider
+  execution to the exact call site.
+  `efb3_flat_record_probe.rs::flat_record_via_call_native_realization_probe`
+  now pins the custody fields and reports physical derivation's remaining
+  frontier (`UnrealizedBoundaryOccurrence`: the fragment route seals the
+  object's effect roster empty, so the derivation cannot yet claim the image
+  custody row for its boundary occurrence).
 
   Remaining work:
 
   - Emit normalized foreign calls: selection, register homes, machine
-    emission, and object import plans landed at `d5e8ceef51` and
-    `96516e2fff`; the remaining stages are image custody and physical
-    derivation, in that order. `image-emission/src` stays fenced to the
+    emission, object import plans, and image custody landed at `d5e8ceef51`,
+    `96516e2fff`, and this wave; the remaining stage is physical derivation
+    of the normalized-foreign child (the fragment route seals the object's
+    effect roster empty, so `derive_physical_evidence` must rejoin the image
+    custody instead). `image-emission/src` stays fenced to the
     wave claiming it.
-    `compiler/tests/efb3_flat_record_probe.rs` pins the Terminal precondition
-    and the image-custody rejection; **EVALUATED-FOREIGN-BINDINGS** owns
-    locators and import evidence.
+    `compiler/tests/efb3_flat_record_probe.rs` pins the Terminal
+    precondition, the completed image-custody rejoin, and the
+    `UnrealizedBoundaryOccurrence` frontier;
+    **EVALUATED-FOREIGN-BINDINGS** owns locators and import evidence.
   - Widen foreign arguments and results. The scalar lane admits fixed-width
     integers only; add floating-point and other admitted scalar shapes. Borrowed
     flat-record projections compose with scalars in retained formal order

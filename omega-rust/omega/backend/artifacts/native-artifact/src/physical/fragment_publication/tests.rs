@@ -37,6 +37,7 @@ fn admitted_object_binding_rejects_a_different_valid_object() {
     let different = image_emission::build_object_artifact(&plan(2)).unwrap();
     let binding = FragmentPublicationBinding {
         object: Arc::new(original.clone()),
+        foreign_call_custody: Vec::new(),
         identity: [7; 32],
     };
     assert!(binding.validate_object(&original).is_ok());
