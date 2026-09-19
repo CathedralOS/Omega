@@ -257,6 +257,7 @@ fn dependency_generated_inputs(
     let bundle = PackageGeneratedSourceBundle::from_checked(
         dependency,
         target::TargetProfile::WindowsX64,
+        target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(dependency),
         PackageSourceConsumptionCommitment::for_test([3; 32]),
         generated,

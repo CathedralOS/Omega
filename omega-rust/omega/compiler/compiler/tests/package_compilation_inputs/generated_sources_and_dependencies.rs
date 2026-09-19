@@ -10,6 +10,130 @@ use package_compilation::{
 };
 
 #[test]
+fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
+    let tree = TempTree::new();
+    let producer = tree.package("profile-producer");
+    let consumer = tree.package("profile-consumer");
+    TempTree::write(producer.join("main.omg"), "// Generated API only.\n");
+    TempTree::write(
+        producer.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.package("profile-producer");
+    let generated: BuildPath = builder.output.resolve("generated_api.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> u64 { 17 }\n");
+    let closed: i32 = builder.output.close(descriptor);
+    builder.output.include_source(generated);
+}
+"#,
+    );
+    TempTree::write(
+        consumer.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.package(\"profile-consumer\");\n    builder.depend_as(\"dependency\", Source::Path { location: \"../profile-producer\" });\n}\n",
+    );
+    TempTree::write(
+        consumer.join("main.omg"),
+        "use dependency::generated_api;\npub machine consume() -> u64 { generated_value() }\n",
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for file in ["build.omg", "main.omg"] {
+            std::fs::set_permissions(producer.join(file), std::fs::Permissions::from_mode(0o444))
+                .unwrap();
+        }
+        std::fs::set_permissions(&producer, std::fs::Permissions::from_mode(0o555)).unwrap();
+    }
+    let producer_inputs = PackageCompilationInputs::new_package(
+        identity(92),
+        vec![
+            PackageSourceBinding::new(identity(92), "profile-producer", producer.clone())
+                .with_canonical_source_metadata()
+                .unwrap(),
+        ],
+        Vec::new(),
+    )
+    .unwrap();
+    let session_root = tree.0.join("profile-build");
+    std::fs::create_dir(&session_root).unwrap();
+    let session_root = std::fs::canonicalize(session_root).unwrap();
+    let sponsor = checked_interpreter::FilesystemSponsor::new(&session_root).unwrap();
+    let checked_producer = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(producer_inputs),
+        build_execution_profile: Some(target::TargetProfile::LinuxX64),
+        build_dir: Some(session_root.join("producer")),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&producer.join("main.omg"), Some("linux_x86_64"))
+    })
+    .expect("producer checks and retains its generated API");
+    let bundle = checked_producer.package_generated_source_bundle().unwrap();
+    assert_eq!(bundle.sources().len(), 1);
+    assert_eq!(
+        bundle.build_execution_profile(),
+        Some(target::TargetProfile::LinuxX64)
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(91),
+        vec![
+            PackageSourceBinding::new(identity(91), "profile-consumer", consumer.clone()),
+            PackageSourceBinding::new(identity(92), "profile-producer", producer.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(91),
+            "dependency",
+            identity(92),
+        )],
+    )
+    .unwrap()
+    .with_complete_dependency_generated_sources(vec![bundle])
+    .unwrap();
+    let mut prepared: Option<compiler::PreparedCheckedSource> = None;
+    for execution_profile in [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::WindowsX64,
+    ] {
+        let retained = prepared.take();
+        let request = CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            build_execution_profile: Some(execution_profile),
+            prepared_source_output: Some(&mut prepared),
+            ..CheckedCompileRequest::new(&consumer.join("main.omg"), Some("linux_x86_64"))
+        };
+        let result = match retained {
+            Some(source) => source.compile_to_checked(request),
+            None => compile_to_checked(request),
+        };
+        if execution_profile == target::TargetProfile::LinuxX64 {
+            result.expect("matching build execution profile consumes retained generated source");
+            assert!(
+                prepared.is_some(),
+                "retain the source frontier for the changed-profile child"
+            );
+        } else {
+            let diagnostics = match result {
+                Err(diagnostics) => diagnostics,
+                Ok(_) => panic!(
+                    "same-target generated source cannot substitute another build execution profile"
+                ),
+            };
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("generated-source")
+                        && diagnostic.message.contains("execution profile")),
+                "{diagnostics:#?}"
+            );
+        }
+    }
+    assert!(!producer.join("generated_api.omg").exists());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&producer, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+#[test]
 fn package_aware_import_cannot_mount_bundled_standard_library() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -107,6 +231,7 @@ pub machine consume_generated_value() -> u64 {
     let bundle = PackageGeneratedSourceBundle::from_checked(
         identity(2),
         target::TargetProfile::WindowsX64,
+        target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(identity(2)),
         PackageSourceConsumptionCommitment::for_test([12; 32]),
         vec![generated_source(
@@ -243,6 +368,7 @@ fn multi_target_generated_source_failure_is_child_local() {
         let bundle = PackageGeneratedSourceBundle::from_checked(
             identity(72),
             profile,
+            target::TargetProfile::host_if_supported(),
             base_inputs.dependency_closure_for(identity(72)),
             PackageSourceConsumptionCommitment::for_test([73; 32]),
             vec![generated_source(b"generated_api.omg", source)],

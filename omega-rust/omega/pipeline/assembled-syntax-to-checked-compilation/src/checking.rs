@@ -267,6 +267,21 @@ impl PreparedCheckedSource {
         self,
         child: CheckedChildExecution<'_>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        // Validate on every child, including prepared-source reuse: parsing is
+        // shared, but generated build results belong to their execution profile.
+        // This must precede assembly of the dependency's generated declarations.
+        if let Some(inputs) = child.package_inputs {
+            inputs
+                .validate_dependency_generated_source_execution_profile(
+                    child.build_execution_profile,
+                )
+                .map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .map(|error| Diagnostic::error(error.to_string()))
+                        .collect::<Vec<_>>()
+                })?;
+        }
         let target_name = child
             .selected_target_profile
             .map(target::TargetProfile::target_name);

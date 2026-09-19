@@ -32,6 +32,7 @@ pub(super) struct BuiltCheckedProgram {
 /// Source custody spanning the pre-build admission and generated extension.
 pub(super) struct BuildSourceCustody {
     pub(super) source_file_count: usize,
+    pub(super) build_execution_profile: Option<target::TargetProfile>,
     pub(super) generated_source_custody:
         Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub(super) own_generated_sources: Vec<build_output::PackageGeneratedSource>,
@@ -212,6 +213,7 @@ pub(super) fn evaluate_build_and_continue(
         },
         BuildSourceCustody {
             source_file_count,
+            build_execution_profile,
             generated_source_custody,
             own_generated_sources,
             base_source_consumption_commitment: package_authority_verdict

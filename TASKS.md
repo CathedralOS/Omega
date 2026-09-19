@@ -495,6 +495,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     implementation fences in `review/candidate/compilation/package_pass.rs`.
     Replace the one-review/one-generated-bundle-per-package addressing with
     exact activation purpose/profile/target occurrences before lifting them.
+    Generated bundles retain their producer's effective build execution profile;
+    checked children reject a different profile before loading generated source,
+    including reuse of a prepared source frontier. The regression is
+    `package_compilation_inputs::generated_sources_and_dependencies::generated_dependency_handoff_rejects_a_different_build_execution_profile`.
+    Remaining identity work spans `review/candidate`, `review/compare/policy`,
+    `review/reconstruction`, and `lock`: derive the complete occurrence roster
+    from the source graph, join each review and acceptance to it, and version
+    the affected encodings. Keep acquisition package-keyed; do not union policy
+    or copy legacy package-only consent into both roles. The same limitation
+    also affects currently admitted non-nested dual-purpose packages.
     These are implementation gaps, not unresolved language decisions. Windows
     runtime validation remains.
   - Retain exact purpose/profile/target and accepted authority through
