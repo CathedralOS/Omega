@@ -507,7 +507,6 @@ dependencies = [
  "assembled-syntax-to-checked-compilation",
  "backend-plan",
  "boundary-applications",
- "bounded-process",
  "build-declarations",
  "build-evaluation",
  "build-output",
