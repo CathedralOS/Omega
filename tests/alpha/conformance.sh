@@ -91,19 +91,20 @@ tc unknown_trap   132  "" "" ff
 # words, initial zero values, preserved sentinels, repeated I/O, and EOF.
 tc io_registers 0 "ABCDEF" "AB" "$(sed 's/;.*//' "$TEST_DIR/io-registers.hex")"
 
-# AlphaBootstrapV4 extends the V3 memory end without moving the stack origin.
-# All accesses below are in [0, 0x70000000); bounds.py also exercises traps.
+# AlphaBootstrapV5 extends the V4 memory end again without moving the stack
+# origin.  All accesses below are in [0, 0x2000000000); the middle case sits
+# past the entire V4 extent, and bounds.py also exercises traps.
 tc upper_origin_zero 0 "" "" 01 00 0000004000000000 08 01 00 00 01
-tc upper_middle_zero 0 "" "" 01 00 0000005000000000 08 01 00 00 01
-tc upper_final_zero  0 "" "" 01 00 ffffff6f00000000 08 01 00 00 01
+tc upper_middle_zero 0 "" "" 01 00 0000000010000000 08 01 00 00 01
+tc upper_final_zero  0 "" "" 01 00 ffffffff01000000 08 01 00 00 01
 tc upper_origin_byte 165 "" "" 01 00 0000004000000000 01 01 a500000000000000 09 00 01 08 02 00 00 02
-tc upper_final_byte 231 "" "" 01 00 ffffff6f00000000 01 01 e700000000000000 09 00 01 08 02 00 00 02
+tc upper_final_byte 231 "" "" 01 00 ffffffff01000000 01 01 e700000000000000 09 00 01 08 02 00 00 02
 # Full-word comparison checks all eight bytes ending at the selected extent.
-tc upper_final_word 42 "" "" 01 00 f8ffff6f00000000 01 01 8877665544332211 0b 00 01 0a 02 00 01 03 0100000000000000 10 01 02 3100000000000000 00 03 01 03 2a00000000000000 00 03
+tc upper_final_word 42 "" "" 01 00 f8ffffff01000000 01 01 8877665544332211 0b 00 01 0a 02 00 01 03 0100000000000000 10 01 02 3100000000000000 00 03 01 03 2a00000000000000 00 03
 # The first call still stores return offset 9 at 0x0ffffff8, then returns.
 tc unchanged_stack_origin 9 "" "" 13 0b00000000000000 00 00 01 01 f8ffff0f00000000 0a 00 01 14
 
-# AlphaBootstrapV4 realization profile: the exact maximum raw tape must fit the
+# AlphaBootstrapV5 realization profile: the exact maximum raw tape must fit the
 # physical hole, round-trip unchanged, and execute. The adjacent raw byte must
 # be rejected before the caller's destination is touched.
 dd if=/dev/zero of="$TMP/exact-capacity.tape" bs="$ALPHA_MAX_RAW_TAPE_SIZE" count=1 2>/dev/null
@@ -155,7 +156,7 @@ fi
 if [ "$capacity_ok" = 1 ]; then
   PASS=$((PASS+1))
 else
-  FAIL=$((FAIL+1)); echo "  FAIL AlphaBootstrapV4 exact/adjacent capacity"
+  FAIL=$((FAIL+1)); echo "  FAIL AlphaBootstrapV5 exact/adjacent capacity"
 fi
 
 echo ""

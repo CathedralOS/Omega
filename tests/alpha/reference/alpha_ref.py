@@ -14,7 +14,7 @@
 # offset). Loader: M[0..L-1] = tape, pc = 0, R[i] = 0, sp = 0x10000000 (grows down).
 import sys
 
-MEMSIZE = 0x70000000              # AlphaBootstrapV4; sp still starts at 0x10000000
+MEMSIZE = 0x2000000000            # AlphaBootstrapV5; sp still starts at 0x10000000
 TAPE_MAX = 0x00FFFFFC             # 16 MiB stamped hole minus its four-byte length
 WIDTHS = (2, 10, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 9, 10, 10, 11, 11, 2, 2, 9, 1)
 MASK = (1 << 64) - 1
@@ -41,7 +41,37 @@ def run(tape, stdin_bytes):
 
     if len(tape) > TAPE_MAX or len(tape) > MEMSIZE:
         trap()                    # loader failure precedes allocation and copying
-    M = bytearray(MEMSIZE)
+    # M is the flat zeroed MEMSIZE array, kept sparse so the reference runs on
+    # hosts far smaller than the extent: untouched 64 KiB pages read back 0.
+    PAGE = 0x10000
+    pages = {}
+
+    class SparseMemory:
+        def __getitem__(self, key):
+            if isinstance(key, slice):
+                start, stop = key.start, key.stop
+                out = bytearray()
+                while start < stop:
+                    pi, off = divmod(start, PAGE)
+                    n = min(stop - start, PAGE - off)
+                    page = pages.get(pi)
+                    out += page[off:off + n] if page is not None else bytes(n)
+                    start += n
+                return bytes(out)
+            page = pages.get(key // PAGE)
+            return 0 if page is None else page[key % PAGE]
+
+        def __setitem__(self, key, value):
+            if isinstance(key, slice):
+                for i, b in zip(range(key.start, key.stop), value):
+                    self[i] = b
+                return
+            page = pages.get(key // PAGE)
+            if page is None:
+                page = pages[key // PAGE] = bytearray(PAGE)
+            page[key % PAGE] = value
+
+    M = SparseMemory()
     M[0:len(tape)] = tape
     R = [0] * 256
     sp = 0x10000000

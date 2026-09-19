@@ -7,7 +7,7 @@
 # macOS arm64 differs in three ways, all OS-imposed: a Mach-O seed
 # (alpha_arm64_macos), the hole at a different file offset, and a mandatory
 # re-sign after stamping (dd invalidates the code signature; Apple Silicon
-# refuses to exec an invalid one). AlphaBootstrapV4 gives both containers one
+# refuses to exec an invalid one). AlphaBootstrapV5 gives both containers one
 # exact 16 MiB hole including the four-byte length.
 ALPHA_SEED_HOLE_SIZE=16777216
 ALPHA_MAX_RAW_TAPE_SIZE=16777212
@@ -18,10 +18,10 @@ ALPHA_MAX_RAW_TAPE_SIZE=16777212
 # stamped is the audited one; it is not a correctness proof of the VM. A
 # rebuilt or re-signed container that differs by one byte is not the audited
 # seed, and stamping refuses below rather than carrying it.
-ALPHA_SEED_ARM64_MACOS_SIZE=16942384
-ALPHA_SEED_ARM64_MACOS_SHA256=348bc9601a9f44d4afa98febd7292f77d016b3c1060e20b15768dc23e4061082
+ALPHA_SEED_ARM64_MACOS_SIZE=16942368
+ALPHA_SEED_ARM64_MACOS_SHA256=3a9cc3112f9f7645fca00716c347865d1b160f56d458fb6340c66f237d1ae616
 ALPHA_SEED_X64_WINDOWS_SIZE=16782336
-ALPHA_SEED_X64_WINDOWS_SHA256=bc71f8bee48cbd4c70c533e57b5dfcd04e04199ac3cf055cbed8e76ad6fb1c40
+ALPHA_SEED_X64_WINDOWS_SHA256=4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)
@@ -103,7 +103,7 @@ stamp_seed() {
   require_alpha_seed_identity "$seed" || return $?
   L=$(wc -c < "$tape" | tr -d ' ')
   if [ "$L" -gt "$ALPHA_MAX_RAW_TAPE_SIZE" ]; then
-    printf 'stamp_seed: tape (%s bytes) exceeds %s-byte AlphaBootstrapV4 raw maximum\n' \
+    printf 'stamp_seed: tape (%s bytes) exceeds %s-byte AlphaBootstrapV5 raw maximum\n' \
       "$L" "$ALPHA_MAX_RAW_TAPE_SIZE" >&2
     return 1
   fi
