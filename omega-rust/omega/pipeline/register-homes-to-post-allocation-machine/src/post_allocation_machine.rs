@@ -6,9 +6,13 @@
 //! the custody join against the same allocation evidence.
 
 mod model;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validation;
 
 pub use model::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::*;
 pub use validation::*;
 
 use crate::{ValidatedPostAllocationMachinePlan, analyze_post_allocation_machine_plan};

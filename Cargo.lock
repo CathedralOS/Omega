@@ -550,6 +550,7 @@ dependencies = [
  "provider-planning",
  "register-environment",
  "register-homes",
+ "register-homes-to-post-allocation-machine",
  "register-model",
  "representation-planning",
  "selected-dispatch",

@@ -103,6 +103,7 @@ layout = { path = "../../backend/layout" }
 object-file = { path = "../../backend/object/object-file" }
 native-artifact = { path = "../../backend/artifacts/native-artifact", features = ["test-support"] }
 register-homes = { path = "../../representations/register-homes" }
+register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine", features = ["test-support"] }
 register-model = { path = "../../representations/register-model" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }
