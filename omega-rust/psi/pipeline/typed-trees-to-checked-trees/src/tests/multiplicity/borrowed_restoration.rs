@@ -632,6 +632,197 @@ fn shared_route_local_cannot_extract() {
 }
 
 #[test]
+fn matching_arms_extract_and_repair_after_the_join() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> self.inventory
+                _ -> self.inventory
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    )
+    .expect("arms agreeing on the extraction open one repairable hole at the join");
+}
+
+#[test]
+fn each_arm_may_consume_through_its_own_call() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        machine bump(inventory: Inventory) -> Inventory { inventory }
+        machine renew(inventory: Inventory) -> Inventory { inventory }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> bump(self.inventory)
+                _ -> renew(self.inventory)
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    )
+    .expect("call-flow argument moves attribute to the arm that evaluates them");
+}
+
+#[test]
+fn nested_match_agreement_lifts_into_the_enclosing_arm() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; other_flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> match self.other_flag {
+                    true -> self.inventory
+                    _ -> self.inventory
+                }
+                _ -> self.inventory
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    )
+    .expect("an inner match that agrees carries its debt into the outer arm");
+}
+
+#[test]
+fn unreachable_arm_moves_do_not_block_agreement() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; other: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> self.inventory
+                false -> self.inventory
+                _ -> self.other
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    )
+    .expect("the post-covered arm can never run, so its move owes nothing");
+}
+
+#[test]
+fn arms_disagreeing_on_the_extraction_reject() {
+    // Only the `true` arm takes `self.inventory`; the `_` arm's edge would
+    // join with the field still present, so the window cannot open.
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        machine bump(inventory: Inventory) -> Inventory { inventory }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> bump(self.inventory)
+                _ -> Inventory { slots: 0 }
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("an arm that leaves the place present cannot share the debt"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn nested_disagreement_rejects_through_the_outer_join() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; other_flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> match self.other_flag {
+                    true -> self.inventory
+                    _ -> Inventory { slots: 0 }
+                }
+                _ -> self.inventory
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a nested disagreement cannot ride an agreeing outer arm"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn repeated_extraction_inside_one_arm_rejects() {
+    // Two arguments move `self.inventory` inside one arm — the second meets
+    // the hole the first opened, so the join never gets a consistent debt.
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        machine deliver(inventory: Inventory, other: Inventory) -> Inventory { inventory }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> deliver(self.inventory, self.inventory)
+                _ -> self.inventory
+            };
+            self.inventory = move taken;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a second move inside the arm must meet an absent place"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn joined_window_still_demands_repair() {
+    // Agreement at the join opens the hole; it does not discharge it.
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let taken: Inventory = match self.flag {
+                true -> self.inventory
+                _ -> self.inventory
+            };
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("the merged window still owes the owner before an exit"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("without replacing its owner")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn crash_exit_abandons_the_window() {
     check_source(
         r#"
