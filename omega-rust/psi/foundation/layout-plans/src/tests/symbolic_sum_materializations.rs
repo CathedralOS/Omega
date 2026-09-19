@@ -696,8 +696,11 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
         error.0
     );
 
-    // A repeated-sum carrier cannot join a field retaining per-element `At`
-    // placements: two placement vocabularies for one field is drift.
+    // A repeated-sum carrier also admits the field's per-element `At`
+    // placements — the other repeated vocabulary a validated plan produces.
+    // Sorted by offset they replay the carrier's exact count and constant
+    // stride, so `sums[1]` composes the same element base the whole-extent
+    // placement spells.
     let mut per_element = layout.clone();
     per_element.entries = (0..2)
         .map(|index| LayoutFieldEntryReport {
@@ -714,17 +717,81 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
             SymbolicFieldPathSegment::new("Run")
                 .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
         &per_element,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&indexed),
         post_handoff_context(),
         |_| None,
     )
-    .expect_err("a repeated-sum carrier requires the whole-extent placement");
+    .expect("per-element `At` placements carry the same repeated boundary");
+    let offsets = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("an unresolved symbolic derives a runtime writer, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(offsets, [("sums[1].Run.callback", 40)]);
+
+    // An extra placement entry is not extra coverage: three `At` entries for
+    // a two-element carrier is drift, so the boundary rejects before any
+    // element offset composes.
+    let mut surplus = layout.clone();
+    surplus.entries = (0..3)
+        .map(|index| LayoutFieldEntryReport {
+            field: "sums".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::At {
+                offset: 8 + index * 16,
+            },
+        })
+        .collect();
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &surplus,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&indexed),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("more element placements than the carrier's count is drift");
     assert!(
         error.0.contains(
-            "requires the repeated sum field `sums[1]` to retain exactly one whole-extent `At` placement, found 2"
+            "repeated sum field `sums[1]` retains 3 element placements, but its carrier claims 2 elements"
+        ),
+        "{}",
+        error.0
+    );
+
+    // Two placements at a stride the carrier does not claim is the same
+    // drift: one of the two pieces of evidence is stale.
+    let mut drifted = layout.clone();
+    drifted.entries = vec![
+        LayoutFieldEntryReport {
+            field: "sums".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::At { offset: 8 },
+        },
+        LayoutFieldEntryReport {
+            field: "sums".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::At { offset: 30 },
+        },
+    ];
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &drifted,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&indexed),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("element placements drifting from the carrier's stride must reject");
+    assert!(
+        error.0.contains(
+            "repeated sum field `sums[1]` element placements drift from the carrier's 24-byte stride"
         ),
         "{}",
         error.0
@@ -1510,6 +1577,106 @@ fn symbolic_recursive_record_array_paths_stay_symbolic_until_assignment() {
         error.0.contains(
             "no symbolic field path traverses the supplied inner layout for `middle.neighbors`"
         ),
+        "{}",
+        error.0
+    );
+}
+
+#[test]
+fn symbolic_record_array_materialization_crosses_per_element_placements() {
+    // The second repeated vocabulary at a record-array boundary: one `At`
+    // entry per element rather than one whole-extent `At`. `members` repeats
+    // the shared record interior twice at a 24-byte stride from offset 8, so
+    // `members[1].entry` composes the same destination the whole-extent
+    // spelling would.
+    let (_, interior_carrier) = nested_layout();
+    let element = record_interior(&interior_carrier);
+    let outer = LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries: vec![
+            LayoutFieldEntryReport {
+                field: "header".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 0 },
+            },
+            LayoutFieldEntryReport {
+                field: "members".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 8 },
+            },
+            LayoutFieldEntryReport {
+                field: "members".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 32 },
+            },
+        ],
+        offsets: None,
+        size: Some(56),
+        align: 8,
+    };
+    let carrier = SymbolicFieldInnerLayout::new_record_array("members", element, 2, 24);
+    let indexed = SymbolicFieldValue::new_indexed("members", 1, 64, entry())
+        .expect("repeated record field")
+        .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        &outer,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&indexed),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("per-element `At` placements carry the repeated record boundary");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("an unresolved symbolic derives a runtime writer, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    // Element 1 begins at 8 + 24 = 32 and its `entry` member sits at the
+    // element's offset 0.
+    assert_eq!(writes, [("members[1].entry", 32)]);
+
+    // Unindexed hops still cannot name one element, and per-element entries
+    // keep the exact index bound from the carrier's count.
+    let unindexed = SymbolicFieldValue::new("members", 64, entry())
+        .expect("repeated record field")
+        .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &outer,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&unindexed),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a repeated record path requires an element index");
+    assert!(
+        error
+            .0
+            .contains("requires an element index into the repeated record field `members`"),
+        "{}",
+        error.0
+    );
+
+    let out_of_range = SymbolicFieldValue::new_indexed("members", 2, 64, entry())
+        .expect("repeated record field")
+        .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &outer,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&out_of_range),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("an element index beyond the repeated extent must reject");
+    assert!(
+        error
+            .0
+            .contains("element index 2 is outside its 2 element placements"),
         "{}",
         error.0
     );
