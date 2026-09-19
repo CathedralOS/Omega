@@ -500,16 +500,19 @@ fn write_only_record_field_assignment(
 
 /// Mutable-authority bindings that may source a `&write` formation alongside
 /// the state's declared write-only roots: `&mut` state parameters, `mut`
-/// value parameters, and the eligible locals declared before
-/// `stop_before_local` (or every such local when `None`) — immutable `&mut`
-/// carriers plus `let mut` value bindings. A `&mut` parameter may attenuate
-/// at formation, an earlier immutable `&mut` carrier preserves mutable
-/// authority until attenuation, and a `mut` value binding owns writable
-/// storage outright — but none is a write-only root: ordinary reads through
-/// them stay legal, so they join the walk only where a `&write` borrow is
-/// being formed. A mutable binding of reference type is never a source: the
-/// binding could be reseated beneath the loan. An erased binding owns no
-/// runtime storage at all.
+/// value parameters, a consuming `self`, and the eligible locals declared
+/// before `stop_before_local` (or every such local when `None`) — immutable
+/// `&mut` carriers plus `let mut` value bindings. A `&mut` parameter may
+/// attenuate at formation, an earlier immutable `&mut` carrier preserves
+/// mutable authority until attenuation, and a `mut` value binding owns
+/// writable storage outright — but none is a write-only root: ordinary reads
+/// through them stay legal, so they join the walk only where a `&write`
+/// borrow is being formed. A consuming `self` owns its attached storage
+/// without a `mut` marker — `receiver_allows_mutation` already treats that
+/// storage as mutable — so it lends write authority on the same exact-atom
+/// terms. A mutable binding of reference type is never a source: the binding
+/// could be reseated beneath the loan. An erased binding owns no runtime
+/// storage at all.
 fn mutable_formation_sources(
     program: &TypedTrees,
     machine: &Machine,
@@ -554,6 +557,27 @@ fn mutable_formation_sources(
                                 SymbolHandle::invalid()
                             },
                         )
+                    }
+                    // A consuming `self` owns its attached storage outright:
+                    // the receiver contract already treats that storage as
+                    // mutable without a `mut` marker, so the owned binding
+                    // lends write authority on the same exact-atom terms.
+                    // Its `Self`-named referee still equates to the attached
+                    // data declaration at the subloan gate. Reference-typed
+                    // receivers stay out: `&self` lends no mutable authority
+                    // and a declared `&write self` is already a write-only
+                    // root rather than a formation source.
+                    _ if parameter.is_self
+                        && !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && !matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            TypeReferenceNode::Reference { .. }
+                        ) =>
+                    {
+                        (parameter.type_reference, machine.symbol)
                     }
                     _ => return None,
                 };
@@ -981,6 +1005,15 @@ fn validate_statement(
                 local,
                 roots,
             ) => {}
+        StatementNode::LocalData(local)
+            if local_formation::reject_mismatched_capture(
+                program,
+                machine_definition,
+                state_definition,
+                local,
+                roots,
+                diagnostics,
+            ) => {}
         StatementNode::LocalData(local) => validate_expression(
             program,
             machine_definition,
@@ -1399,7 +1432,7 @@ fn validate_expression(
                     binding_without_write_authority(program, state, borrow.target)
                 {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine_name}` state `{state_name}` forms `&write` on `{binding}`, a binding without mutable authority; `&write` formation requires a declared `&write` root, a `&mut` place, or a `mut` value binding — a plain `let` or immutable parameter cannot lend write access"
+                        "machine `{machine_name}` state `{state_name}` forms `&write` on `{binding}`, a binding without mutable authority; `&write` formation requires a declared `&write` root, a `&mut` place, a `mut` value binding, or a consuming `self` receiver — a plain `let` or immutable parameter cannot lend write access"
                     )));
                 } else if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
@@ -1559,6 +1592,14 @@ fn is_direct_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
 /// reference is a reborrow of the referent, and the borrow lattice owns its
 /// authority question — and receivers stay outside as well: `self` answers
 /// to the owned-place rules, not to this binding check.
+///
+/// Known gap, documented but deliberately not fixed in this leg: the lattice
+/// only sees reference-typed *parameters* as unwritable roots, so `&write r`
+/// on a `let r: &u8` local passed directly as a call argument slips past it —
+/// the local's own name is a writable root and the reborrow never surfaces
+/// the referent's shared access. A `&write` subloan there can lend write
+/// access into a shared referent; closing it belongs to the reborrow
+/// lattice's local handling, not this binding gate.
 fn binding_without_write_authority(
     program: &TypedTrees,
     state: &State,

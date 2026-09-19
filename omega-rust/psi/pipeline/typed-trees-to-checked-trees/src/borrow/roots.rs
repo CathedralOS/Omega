@@ -56,6 +56,44 @@ pub(super) fn append_state_writable_roots(
             },
         );
     }
+
+    // A consuming `self` owns its attached storage outright — the receiver
+    // contract treats that storage as mutable without a `mut` marker — so
+    // the whole-receiver place is writable exactly as a `mut` parameter is.
+    // `&mut`, `mut`, and `&write` receivers are already counted above.
+    for parameter in program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| is_consuming_self_parameter(program, parameter))
+    {
+        writable_roots.append_to_span(
+            writable_roots_span,
+            BorrowWritableRootFact {
+                symbol: parameter.symbol,
+                kind: BorrowRootKind::OwnedData,
+            },
+        );
+    }
+}
+
+/// A `self` parameter that carries the machine's storage by value: owned,
+/// mutation-capable (`receiver_allows_mutation`), and not already reported
+/// as a `mut`/reference parameter.
+fn is_consuming_self_parameter(
+    program: &typed_trees::TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    parameter.is_self
+        && !parameter.is_mutable
+        && !parameter.is_const
+        && !parameter.relevance.is_erased()
+        && parameter.type_reference.is_valid()
+        && !matches!(
+            program
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        )
 }
 
 pub(super) fn attached_data_fields<'program>(
@@ -90,6 +128,19 @@ pub(super) fn mutable_parameter_count(
         .count()
 }
 
+/// Consuming `self` parameters join the writable roots beside the `mut`
+/// parameters, so the estimate counts them too.
+fn consuming_self_parameter_count(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+) -> usize {
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| is_consuming_self_parameter(program, parameter))
+        .count()
+}
+
 pub(super) fn estimated_borrow_root_capacity(program: &typed_trees::TypedTrees) -> usize {
     program
         .machines()
@@ -110,6 +161,7 @@ pub(super) fn estimated_borrow_root_capacity(program: &typed_trees::TypedTrees) 
                         + attached_data_fields(program, machine).count()
                         + local_data_count
                         + mutable_parameter_count(program, state)
+                        + consuming_self_parameter_count(program, state)
                 })
                 .sum::<usize>()
         })
