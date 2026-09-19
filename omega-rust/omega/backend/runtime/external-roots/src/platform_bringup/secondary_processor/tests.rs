@@ -6,7 +6,8 @@ use super::{
     SecondaryProcessorStartupInvocationId, SecondaryProcessorStartupLedger,
     SecondaryProcessorStartupOutcome, SecondaryProcessorStartupProfile,
     SecondaryProcessorStartupProfileId, SecondaryProcessorStartupReceipt,
-    SecondaryProcessorStartupReceiptId, bind_secondary_processor_trampoline,
+    SecondaryProcessorStartupReceiptId, SecondaryProcessorStartupVerdict,
+    bind_secondary_processor_trampoline,
 };
 use calling_conventions::CallingPolicy;
 use layout_plans::{
@@ -617,8 +618,11 @@ fn refused_startup_returns_the_account_to_pending_custody_for_retry() {
     let carrier = ledger
         .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x20))
         .expect("startup invocation issues");
-    let refusal_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x30), &carrier, false);
+    let refusal_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x30),
+        &carrier,
+        SecondaryProcessorStartupVerdict::DefiniteNondispatch,
+    );
     let outcome = ledger
         .complete_secondary_processor_startup(carrier, refusal_receipt)
         .expect("refused startup completes");
@@ -639,8 +643,11 @@ fn refused_startup_returns_the_account_to_pending_custody_for_retry() {
     let retry = ledger
         .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x21))
         .expect("retried startup invocation issues");
-    let retry_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x31), &retry, true);
+    let retry_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &retry,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let outcome = ledger
         .complete_secondary_processor_startup(retry, retry_receipt)
         .expect("retried startup completes");
@@ -648,6 +655,110 @@ fn refused_startup_returns_the_account_to_pending_custody_for_retry() {
         outcome,
         SecondaryProcessorStartupOutcome::Started(_)
     ));
+}
+
+#[test]
+fn unconfirmed_dispatch_holds_the_account_invoked_until_a_definitive_receipt() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+
+    let carrier = ledger
+        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x20))
+        .expect("startup invocation issues");
+    let unconfirmed = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x30),
+        &carrier,
+        SecondaryProcessorStartupVerdict::DispatchUnconfirmed,
+    );
+    let outcome = ledger
+        .complete_secondary_processor_startup(carrier, unconfirmed)
+        .expect("unconfirmed startup completes");
+    let SecondaryProcessorStartupOutcome::Unconfirmed(unresolved) = outcome else {
+        panic!("an unconfirmed dispatch must not resolve the account");
+    };
+    assert_eq!(unresolved.processor(), processor_id(0x10));
+    assert_eq!(unresolved.invocation(), invocation_id(0x20));
+    assert_eq!(unresolved.receipt(), receipt_id(0x30));
+
+    // An outstanding carrier may still be dispatching: the account is
+    // neither withdrawable nor open to a fresh invocation.
+    let withdrawal = ledger
+        .withdraw_secondary_processor(processor_id(0x10))
+        .expect_err("an unconfirmed dispatch must not release the account");
+    assert!(withdrawal.diagnostic().0.contains("pending"));
+    let reissue = ledger
+        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x21))
+        .expect_err("an unconfirmed dispatch must not open a fresh invocation");
+    assert!(reissue.diagnostic().0.contains("pending"));
+
+    // The returned carrier still answers: a confirmed arrival on the same
+    // outstanding invocation marks the processor started.
+    let carrier = unresolved.into_carrier();
+    let definitive = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
+    let outcome = ledger
+        .complete_secondary_processor_startup(carrier, definitive)
+        .expect("definitive receipt completes the outstanding attempt");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorStartupOutcome::Started(_)
+    ));
+    assert!(
+        ledger
+            .record(processor_id(0x10))
+            .expect("record")
+            .is_started()
+    );
+}
+
+#[test]
+fn unconfirmed_dispatch_resolved_to_nondispatch_returns_pending_custody() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+
+    let carrier = ledger
+        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x20))
+        .expect("startup invocation issues");
+    let unconfirmed = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x30),
+        &carrier,
+        SecondaryProcessorStartupVerdict::DispatchUnconfirmed,
+    );
+    let SecondaryProcessorStartupOutcome::Unconfirmed(unresolved) = ledger
+        .complete_secondary_processor_startup(carrier, unconfirmed)
+        .expect("unconfirmed startup completes")
+    else {
+        panic!("an unconfirmed dispatch must not resolve the account");
+    };
+
+    // A later definite nondispatch answers the outstanding carrier: only
+    // then does the account return to pending, withdrawable custody.
+    let carrier = unresolved.into_carrier();
+    let definitive = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &carrier,
+        SecondaryProcessorStartupVerdict::DefiniteNondispatch,
+    );
+    let outcome = ledger
+        .complete_secondary_processor_startup(carrier, definitive)
+        .expect("definitive nondispatch completes the outstanding attempt");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorStartupOutcome::Refused(_)
+    ));
+    let withdrawal = ledger
+        .withdraw_secondary_processor(processor_id(0x10))
+        .expect("a confirmed nondispatch permits withdrawal");
+    assert_eq!(withdrawal.processor(), processor_id(0x10));
 }
 
 #[test]
@@ -661,8 +772,11 @@ fn started_processor_holds_its_account_until_a_quiescence_edge() {
     let carrier = ledger
         .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x20))
         .expect("startup invocation issues");
-    let started_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x30), &carrier, true);
+    let started_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x30),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let outcome = ledger
         .complete_secondary_processor_startup(carrier, started_receipt)
         .expect("started startup completes");
@@ -717,8 +831,11 @@ fn completion_rejects_drifted_foreign_or_replayed_receipts() {
         installed_code_context: carrier.installed_code_context.clone(),
         artifact: carrier.artifact,
     };
-    let drifted_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x30), &drifted, true);
+    let drifted_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x30),
+        &drifted,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let error = ledger
         .complete_secondary_processor_startup(drifted, drifted_receipt)
         .expect_err("a drifted carrier must not complete");
@@ -749,16 +866,22 @@ fn completion_rejects_drifted_foreign_or_replayed_receipts() {
         installed_code_context: foreign_code.receipt_context(),
         artifact: foreign_code.artifact(),
     };
-    let foreign_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x31), &foreign, true);
+    let foreign_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &foreign,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let error = ledger
         .complete_secondary_processor_startup(foreign, foreign_receipt)
         .expect_err("a foreign carrier must not complete");
     assert!(error.diagnostic().0.contains("foreign, stale, or drifted"));
 
     // A receipt answering a different invocation does not bind the carrier.
-    let mut mismatched =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x32), &carrier, true);
+    let mut mismatched = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x32),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     mismatched.invocation = invocation_id(0x99);
     let error = ledger
         .complete_secondary_processor_startup(carrier, mismatched)
@@ -771,8 +894,11 @@ fn completion_rejects_drifted_foreign_or_replayed_receipts() {
         .record(processor_id(0x10))
         .expect("record")
         .transition();
-    let exact_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x33), &carrier, true);
+    let exact_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x33),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let outcome = ledger
         .complete_secondary_processor_startup(carrier, exact_receipt)
         .expect("exact startup completion");
@@ -790,8 +916,11 @@ fn completion_rejects_drifted_foreign_or_replayed_receipts() {
         installed_code_context: code.receipt_context(),
         artifact: code.artifact(),
     };
-    let replayed_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x34), &replayed_carrier, true);
+    let replayed_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x34),
+        &replayed_carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let replayed = ledger
         .complete_secondary_processor_startup(replayed_carrier, replayed_receipt)
         .expect_err("a replayed completion must not land");
@@ -842,8 +971,11 @@ fn withdrawal_returns_the_complete_never_invoked_account() {
 
     // The withdrawn carrier on the first processor can still complete: its
     // invocation stays outstanding until a receipt answers it.
-    let landed_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x30), &carrier, true);
+    let landed_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x30),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let outcome = ledger
         .complete_secondary_processor_startup(carrier, landed_receipt)
         .expect("the outstanding invocation still completes");
@@ -864,16 +996,17 @@ fn start_processor(
     let carrier = ledger
         .begin_secondary_processor_startup(processor_id(processor), invocation_id(invocation))
         .expect("startup invocation issues");
-    let started_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(receipt), &carrier, true);
+    let started_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(receipt),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     match ledger
         .complete_secondary_processor_startup(carrier, started_receipt)
         .expect("started startup completes")
     {
         SecondaryProcessorStartupOutcome::Started(started) => started,
-        SecondaryProcessorStartupOutcome::Refused(_) => {
-            panic!("a started receipt must mint started evidence")
-        }
+        _ => panic!("a started receipt must mint started evidence"),
     }
 }
 
@@ -1074,8 +1207,11 @@ fn retirement_rejects_never_started_accounts() {
     // Nothing moved: both accounts remain, and the outstanding invocation
     // still lands on its own receipt.
     assert_eq!(ledger.records().count(), 2);
-    let landed_receipt =
-        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x31), &carrier, true);
+    let landed_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
     let outcome = ledger
         .complete_secondary_processor_startup(carrier, landed_receipt)
         .expect("the outstanding invocation still completes");

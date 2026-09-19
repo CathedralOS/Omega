@@ -98,6 +98,7 @@ pub use platform_bringup::secondary_processor::{
     SecondaryProcessorStartupInvocation, SecondaryProcessorStartupLedger,
     SecondaryProcessorStartupOutcome, SecondaryProcessorStartupProfile,
     SecondaryProcessorStartupReceipt, SecondaryProcessorStartupRefusal,
+    SecondaryProcessorStartupUnconfirmed, SecondaryProcessorStartupVerdict,
     SecondaryProcessorWithdrawError, SecondaryProcessorWithdrawal,
     bind_secondary_processor_trampoline,
 };

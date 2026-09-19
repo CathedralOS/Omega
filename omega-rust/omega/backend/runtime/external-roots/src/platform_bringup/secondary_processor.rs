@@ -19,9 +19,12 @@
 //! match the profile. `begin_secondary_processor_startup` issues the exact
 //! vector carrier the target protocol consumes, and
 //! `complete_secondary_processor_startup` accepts only a receipt naming that
-//! exact carrier: a refusal returns the account to pending custody so a fresh
-//! invocation can retry, while a started processor keeps its stack and state
-//! account held. `retire_secondary_processor` is the quiescence edge that
+//! exact carrier, judged on a three-way verdict: definite nondispatch
+//! returns the account to pending custody so a fresh invocation can retry,
+//! a confirmed arrival keeps the started processor's stack and state account
+//! held, and an unconfirmed dispatch leaves the account invoked — neither
+//! withdrawable nor reissuable — until a later definitive receipt answers
+//! the outstanding carrier. `retire_secondary_processor` is the quiescence edge that
 //! releases that hold: it consumes the started evidence together with a
 //! provider quiescence receipt naming it exactly, and returns the complete
 //! account only when the provider attests the processor no longer executes
@@ -488,6 +491,23 @@ impl SecondaryProcessorStartupInvocation {
     }
 }
 
+/// The provider's verdict on one issued startup carrier. The vector may
+/// still be executing below the provider's visibility, so an ambiguous
+/// `did it start` answer is not a refusal: only a definite nondispatch
+/// returns the account to pending custody. An unconfirmed dispatch keeps
+/// the account invoked and held — the carrier remains outstanding and only
+/// a later definitive receipt against it resolves the attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecondaryProcessorStartupVerdict {
+    /// The processor definitely did not dispatch on the carrier's vector.
+    DefiniteNondispatch,
+    /// The provider cannot tell whether the vector dispatched; the
+    /// outstanding carrier may still arrive.
+    DispatchUnconfirmed,
+    /// The processor is confirmed executing on the carrier's vector.
+    ConfirmedArrival,
+}
+
 /// Provider result for one issued startup invocation. Only the ledger can
 /// consume it: the receipt must name the exact carrier it answers.
 #[derive(Debug, PartialEq, Eq)]
@@ -496,21 +516,21 @@ pub struct SecondaryProcessorStartupReceipt {
     invocation: SecondaryProcessorStartupInvocationId,
     processor: SecondaryProcessorOccurrenceId,
     startup_vector: u64,
-    started: bool,
+    verdict: SecondaryProcessorStartupVerdict,
 }
 
 impl SecondaryProcessorStartupReceipt {
     pub fn from_provider(
         identity: SecondaryProcessorStartupReceiptId,
         carrier: &SecondaryProcessorStartupInvocation,
-        started: bool,
+        verdict: SecondaryProcessorStartupVerdict,
     ) -> Self {
         Self {
             identity,
             invocation: carrier.invocation,
             processor: carrier.processor,
             startup_vector: carrier.startup_vector,
-            started,
+            verdict,
         }
     }
 
@@ -518,8 +538,8 @@ impl SecondaryProcessorStartupReceipt {
         self.identity
     }
 
-    pub const fn started(&self) -> bool {
-        self.started
+    pub const fn verdict(&self) -> SecondaryProcessorStartupVerdict {
+        self.verdict
     }
 }
 
@@ -567,9 +587,11 @@ impl SecondaryProcessorStarted {
     }
 }
 
-/// A refused startup attempt. The processor account remains admitted: the
-/// retained stack class and state extent were never consumed, so a fresh
-/// invocation may retry without re-binding the trampoline.
+/// A definitely-undispatched startup attempt. The processor account
+/// remains admitted: the retained stack class and state extent were never
+/// consumed, so a fresh invocation may retry without re-binding the
+/// trampoline. Only `DefiniteNondispatch` mints this; an unconfirmed
+/// dispatch keeps the account invoked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecondaryProcessorStartupRefusal {
     processor: SecondaryProcessorOccurrenceId,
@@ -587,10 +609,40 @@ impl SecondaryProcessorStartupRefusal {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// An unresolved startup attempt. The provider could not confirm whether
+/// the vector dispatched, so the account stays invoked and held — it cannot
+/// withdraw or accept a fresh invocation — and the carrier returns so a
+/// later definitive receipt can still resolve it.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SecondaryProcessorStartupUnconfirmed {
+    carrier: SecondaryProcessorStartupInvocation,
+    receipt: SecondaryProcessorStartupReceiptId,
+}
+
+impl SecondaryProcessorStartupUnconfirmed {
+    pub const fn processor(&self) -> SecondaryProcessorOccurrenceId {
+        self.carrier.processor
+    }
+
+    pub const fn invocation(&self) -> SecondaryProcessorStartupInvocationId {
+        self.carrier.invocation
+    }
+
+    pub const fn receipt(&self) -> SecondaryProcessorStartupReceiptId {
+        self.receipt
+    }
+
+    /// The outstanding carrier, for a later definitive receipt to answer.
+    pub fn into_carrier(self) -> SecondaryProcessorStartupInvocation {
+        self.carrier
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum SecondaryProcessorStartupOutcome {
     Started(SecondaryProcessorStarted),
     Refused(SecondaryProcessorStartupRefusal),
+    Unconfirmed(SecondaryProcessorStartupUnconfirmed),
 }
 
 /// Provider attestation answering one started processor's retirement. The
@@ -923,8 +975,10 @@ impl<'code> SecondaryProcessorStartupLedger<'code> {
     }
 
     /// Accept the provider receipt answering one exact issued carrier. A
-    /// refusal returns the account to pending custody; a start marks the
-    /// processor running and keeps its account held.
+    /// definite nondispatch returns the account to pending custody; a
+    /// confirmed arrival marks the processor running and keeps its account
+    /// held; an unconfirmed dispatch leaves the account invoked and returns
+    /// the carrier for a later definitive answer.
     pub fn complete_secondary_processor_startup(
         &mut self,
         carrier: SecondaryProcessorStartupInvocation,
@@ -982,33 +1036,48 @@ impl<'code> SecondaryProcessorStartupLedger<'code> {
             .records
             .get_mut(&carrier.processor)
             .expect("validated secondary-processor record remains retained");
-        if receipt.started {
-            record.phase = SecondaryProcessorPhase::Started {
-                invocation: carrier.invocation,
-                receipt: receipt.identity,
-            };
-            Ok(SecondaryProcessorStartupOutcome::Started(
-                SecondaryProcessorStarted {
-                    processor: record.processor,
+        match receipt.verdict {
+            SecondaryProcessorStartupVerdict::ConfirmedArrival => {
+                record.phase = SecondaryProcessorPhase::Started {
                     invocation: carrier.invocation,
                     receipt: receipt.identity,
-                    startup_vector: carrier.startup_vector,
-                    startup_entry: carrier.startup_entry,
-                    transition: record.transition,
-                    installed_code: carrier.installed_code,
-                    installed_code_context: carrier.installed_code_context,
-                    artifact: carrier.artifact,
-                },
-            ))
-        } else {
-            record.phase = SecondaryProcessorPhase::Pending;
-            Ok(SecondaryProcessorStartupOutcome::Refused(
-                SecondaryProcessorStartupRefusal {
-                    processor: record.processor,
-                    invocation: carrier.invocation,
-                    receipt: receipt.identity,
-                },
-            ))
+                };
+                Ok(SecondaryProcessorStartupOutcome::Started(
+                    SecondaryProcessorStarted {
+                        processor: record.processor,
+                        invocation: carrier.invocation,
+                        receipt: receipt.identity,
+                        startup_vector: carrier.startup_vector,
+                        startup_entry: carrier.startup_entry,
+                        transition: record.transition,
+                        installed_code: carrier.installed_code,
+                        installed_code_context: carrier.installed_code_context,
+                        artifact: carrier.artifact,
+                    },
+                ))
+            }
+            SecondaryProcessorStartupVerdict::DispatchUnconfirmed => {
+                // The dispatch may still be in flight: the account stays
+                // invoked, so it is neither withdrawable nor reissuable, and
+                // the carrier returns so a later definitive receipt against
+                // it resolves the same outstanding attempt.
+                Ok(SecondaryProcessorStartupOutcome::Unconfirmed(
+                    SecondaryProcessorStartupUnconfirmed {
+                        carrier,
+                        receipt: receipt.identity,
+                    },
+                ))
+            }
+            SecondaryProcessorStartupVerdict::DefiniteNondispatch => {
+                record.phase = SecondaryProcessorPhase::Pending;
+                Ok(SecondaryProcessorStartupOutcome::Refused(
+                    SecondaryProcessorStartupRefusal {
+                        processor: record.processor,
+                        invocation: carrier.invocation,
+                        receipt: receipt.identity,
+                    },
+                ))
+            }
         }
     }
 
