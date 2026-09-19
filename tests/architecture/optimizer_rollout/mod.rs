@@ -1,8 +1,10 @@
-//! Exact-rule inventory and owner-reviewed promotion custody.
+//! Exact-rule inventory, per-rule coverage custody, and owner-reviewed
+//! promotion custody.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+mod coverage;
 mod inventory;
 mod promotion;
 
@@ -34,7 +36,8 @@ fn workspace_root() -> PathBuf {
 #[test]
 fn exact_rule_rollout_is_complete_and_promotion_gated() {
     let mut audit = Audit::new();
-    let published = inventory::check(&mut audit);
+    let (published, canonical) = inventory::check(&mut audit);
+    coverage::check(&mut audit, &canonical);
     promotion::check(&mut audit, &published);
 
     assert!(
