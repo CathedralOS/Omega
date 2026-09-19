@@ -7,6 +7,7 @@ use crate::native_realization::providers::AdmittedTerminalMechanism;
 use crate::native_realization::realization_request::{
     NativeRealizationInput, NativeRealizationRequest,
 };
+use crate::native_realization::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
@@ -32,10 +33,11 @@ pub(crate) fn settle_provider_executions<'request>(
         Vec<AdmittedBoundarySettlement<'request>>,
         Vec<NativeProviderExecution>,
         Vec<AdmittedTerminalMechanism>,
+        Vec<TerminalAuthorityPolicyRow>,
     ),
     Vec<Diagnostic>,
 > {
-    let mechanisms = validate_source_evaluated_import_coverage(
+    let (mechanisms, cohort_rows) = validate_source_evaluated_import_coverage(
         input.plan(),
         request.selected_provider_plans,
         &request.terminal_authority_policy,
@@ -74,5 +76,5 @@ pub(crate) fn settle_provider_executions<'request>(
                 right.provider_execution_report_identity(),
             ))
     });
-    Ok((admitted, provider_executions, mechanisms))
+    Ok((admitted, provider_executions, mechanisms, cohort_rows))
 }

@@ -623,3 +623,193 @@ fn assert_root_console_permissions(
             .all(|conflict| conflict.is_blocking())
     );
 }
+
+/// An ordinary package whose boundary trait spells one toolchain-settled
+/// filesystem cohort leaf: `set_len` classifies as content write.
+const SET_LEN_FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
+    machine set_len(descriptor: i32, length: i32) -> i32
+    reaches FilesystemHost;
+}
+"#;
+
+/// An application root over the filesystem package; the root consumer's
+/// callable reaches the boundary, which is what discovery proposes the
+/// `FilesystemHostService` binding and its cohort permission rows for.
+struct FilesystemApplicationFixture(PathBuf);
+
+impl FilesystemApplicationFixture {
+    fn new() -> Self {
+        let root = std::env::temp_dir().join(format!(
+            "omega-candidate-filesystem-permission-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+        ));
+        fs::create_dir_all(root.join("filesystem")).unwrap();
+        fs::create_dir_all(root.join("application")).unwrap();
+        fs::write(
+            root.join("filesystem/build.omg"),
+            "machine build(builder: &mut Build) { builder.package(\"ordinary-filesystem\"); }\n",
+        )
+        .unwrap();
+        fs::write(root.join("filesystem/main.omg"), SET_LEN_FILESYSTEM).unwrap();
+        fs::write(
+            root.join("application/build.omg"),
+            r#"machine build(builder: &mut Build) {
+    builder.application("filesystem-consumer");
+    builder.depend_as("ordinary_filesystem", Source::Path { location: "../filesystem" });
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("application/main.omg"),
+            r#"use ordinary_filesystem::main;
+
+pub data Main { files: FilesystemHost; rc: i32; }
+pub machine Main::main(&mut self)
+reaches FilesystemHost
+invokes FilesystemHost;
+{
+    let n: i32 = self.files.set_len(3, 0);
+    self.rc = n;
+}
+"#,
+        )
+        .unwrap();
+        Self(root)
+    }
+
+    fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
+        let storage = SourceResolverStorage::for_hardened_base(
+            self.0.join("resolved"),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap();
+        resolve_external_local_project_closure(
+            self.0.join("application"),
+            ExternalSourceContext::derive(b"candidate-filesystem-permission"),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
+        )
+        .unwrap()
+    }
+}
+
+impl Drop for FilesystemApplicationFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Discovery proposes the settled filesystem cohort permission table only for
+/// the closure root: each declared boundary method resolves to exactly its own
+/// requirement row, and the final pass retains it as a blocking review
+/// obligation rather than a silently granted permission.
+#[test]
+fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf() {
+    use effects::TerminalAuthorityClass;
+    use package_compilation::AcceptedSemanticBindingRole;
+    use package_evidence::record::PackageReviewCanonicalRowKind;
+
+    let fixture = FilesystemApplicationFixture::new();
+    let closure = fixture.closure();
+    let root = closure.graph().root().clone();
+    let exact = closure.for_exact_target(target::TargetProfile::LinuxX64);
+    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
+    let discovery = compile_pass(
+        &exact,
+        &fixture.0.join("discovery"),
+        &[],
+        None,
+        TargetEntryDiscovery::Dependencies,
+        &mut preparation,
+    )
+    .map(|compiled| compiled.reviews)
+    .expect("preliminary pass");
+    let proposals = candidate_semantic_binding_inputs(&discovery, &root).unwrap();
+    let filesystem_proposals = proposals
+        .iter()
+        .filter(|input| {
+            input.binding().role() == AcceptedSemanticBindingRole::FilesystemHostService
+        })
+        .collect::<Vec<_>>();
+    let [input] = filesystem_proposals.as_slice() else {
+        panic!("one root FilesystemHostService proposal: {proposals:#?}");
+    };
+    assert_eq!(input.consumer(), &root);
+    let schema = discovery
+        .review(&root)
+        .unwrap()
+        .semantic_binding_candidates()
+        .iter()
+        .find(|candidate| {
+            candidate.binding().role() == AcceptedSemanticBindingRole::FilesystemHostService
+        })
+        .expect("the discovery review carries the filesystem candidate")
+        .service_schema()
+        .clone();
+    let set_len = schema
+        .methods
+        .iter()
+        .find(|method| method.name == "set_len")
+        .expect("the fixture boundary declares set_len");
+    let permissions = input.binding().terminal_authority_permissions();
+    let [permission] = permissions else {
+        panic!("one settled cohort permission per declared leaf: {permissions:?}");
+    };
+    assert_eq!(
+        permission.requirement_identity(),
+        set_len.requirement_identity
+    );
+    assert_eq!(
+        permission.service_schema(),
+        input.binding().normalized_schema_digest()
+    );
+    assert_eq!(
+        permission.permitted().classes(),
+        &[TerminalAuthorityClass::FilesystemContentWrite]
+    );
+
+    let reviews = compile_resolved_package_reviews_reusing(
+        &exact,
+        &fixture.0.join("final"),
+        SemanticBindingReview::Discover,
+        &mut preparation,
+    )
+    .expect("final pass consumes the proposed permissions");
+    let root_review = reviews.review(&root).unwrap();
+    let [service] = root_review.policy().terminal_permissions().services() else {
+        panic!("root policy retains one permitted service");
+    };
+    assert_eq!(service.service().path(), "FilesystemHost");
+    assert_eq!(service.permissions().len(), 1);
+    for review in reviews.reviews() {
+        if review.key() != &root {
+            assert!(
+                review.policy().terminal_permissions().services().is_empty(),
+                "dependency reviews propose no permission"
+            );
+        }
+    }
+    let conflicts = crate::review::compare_review_only_initial_capabilities(
+        &reviews,
+        &exact,
+        crate::review::ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("fresh conflicts");
+    let permission_conflicts = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .filter(|conflict| {
+            conflict.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission
+        })
+        .collect::<Vec<_>>();
+    let [conflict] = permission_conflicts.as_slice() else {
+        panic!("one blocking permission obligation per leaf: {permission_conflicts:?}");
+    };
+    assert!(conflict.is_blocking());
+}

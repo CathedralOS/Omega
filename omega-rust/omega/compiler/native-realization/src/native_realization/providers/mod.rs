@@ -43,7 +43,7 @@ pub(crate) fn admit_native_providers<'request>(
     request: &NativeRealizationRequest<'request>,
     filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
-    let (settlements, executions, mut mechanisms) =
+    let (settlements, executions, mut mechanisms, cohort_rows) =
         settlements::settle_provider_executions(input, request, filesystem_release_contracts)?;
     let mut settlements = settlements;
     let (builtin_settlements, builtin_mechanisms) =
@@ -56,13 +56,41 @@ pub(crate) fn admit_native_providers<'request>(
         proof_bytes,
         request,
     )?;
+    // The toolchain-settled `FilesystemHost` cohort rows emitted for demanded
+    // leaves join the supplied receiving rows into the effective policy the
+    // closure review and the artifact identity bind. A byte-identical supplied
+    // row dedups; a supplied row for the same mechanism with a different
+    // disposition is a forged classification and rejects as a duplicate key.
+    let effective_policy = if cohort_rows.is_empty() {
+        None
+    } else {
+        let mut rows = request.terminal_authority_policy.explicit_rows().to_vec();
+        for row in cohort_rows {
+            if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
+        Some(
+            crate::native_realization::terminal_authority_policy::terminal_authority_policy_with_rows(
+                rows,
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "settled filesystem cohort mechanism rows do not merge into the receiving terminal-authority policy without substitution: {error:?}"
+                ))]
+            })?,
+        )
+    };
+    let effective_policy = effective_policy
+        .as_ref()
+        .unwrap_or(&request.terminal_authority_policy);
     let terminal_authority_closure_review =
         crate::native_realization::terminal_authority_review::review_terminal_authority_closure(
             terminal_artifact_identity,
             request.program_entry.source().target_slot().owner,
             input.plan(),
             request.selected_provider_plans,
-            &request.terminal_authority_policy,
+            effective_policy,
             request.terminal_authority_permission_policy.as_ref(),
             &mechanisms,
             installation
@@ -79,7 +107,7 @@ pub(crate) fn admit_native_providers<'request>(
     Ok(AdmittedNativeProviders {
         settlements,
         executions,
-        terminal_authority_policy_identity: request.terminal_authority_policy.identity(),
+        terminal_authority_policy_identity: effective_policy.identity(),
         terminal_authority_permission_policy_identity: request
             .terminal_authority_permission_policy
             .as_ref()

@@ -332,7 +332,8 @@ fn uncalled_selected_import_needs_no_settlement_but_cannot_hide_an_orphan_callba
         &[],
         &[],
     )
-    .expect("unreachable selection retains identity without execution inputs");
+    .expect("unreachable selection retains identity without execution inputs")
+    .0;
     assert!(admitted.is_empty());
     let callback = callback_occurrence_row(semantic_vocabulary::OperationId::new(850).unwrap());
     let error = validate_source_evaluated_import_coverage(
@@ -489,7 +490,8 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &[],
         &[],
     )
-    .expect("provider settlement derives the checked syscall identity");
+    .expect("provider settlement derives the checked syscall identity")
+    .0;
     assert_eq!(
         admitted,
         vec![
@@ -657,7 +659,8 @@ fn settlement_admits_the_occurrence_bound_release_key() {
         &[],
         &contracts,
     )
-    .expect("a demanded release-cohort mechanism admits under its bound key");
+    .expect("a demanded release-cohort mechanism admits under its bound key")
+    .0;
     assert_eq!(
         admitted,
         vec![
@@ -753,9 +756,163 @@ fn settlement_never_binds_release_contracts_into_non_release_cohorts() {
         &[],
         &contracts,
     )
-    .expect("the conservative key still admits a non-release cohort");
+    .expect("the conservative key still admits a non-release cohort")
+    .0;
     assert_eq!(
         admitted[0].mechanism, conservative,
         "a non-release cohort never carries a release-contract coordinate"
+    );
+}
+
+/// A selected `set_len` syscall plan served by a canonical `FilesystemHost`
+/// facet-cohort method: the toolchain-settled cohort emits the exact
+/// classification row for its mechanism, so the receiving policy need not
+/// spell it.
+fn filesystem_cohort_syscall_plan(
+    profile: target::TargetProfile,
+    number: i64,
+) -> effects::SelectedProviderPlanFacts {
+    let mut plan = import_plan(b"unused", profile);
+    plan.schema.trait_name = "omega::test::FilesystemHost".into();
+    plan.schema.methods[0].name = "set_len".into();
+    plan.rows[0].method = "set_len".into();
+    plan.rows[0].binding = ProviderBinding::Syscall { number };
+    effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+        .expect("one exact filesystem cohort syscall plan")
+}
+
+fn merge_cohort_rows(
+    supplied: &crate::native_realization::TerminalAuthorityPolicy,
+    cohort_rows: Vec<crate::native_realization::TerminalAuthorityPolicyRow>,
+) -> Result<
+    crate::native_realization::TerminalAuthorityPolicy,
+    crate::native_realization::TerminalAuthorityPolicyBuildError,
+> {
+    let mut rows = supplied.explicit_rows().to_vec();
+    for row in cohort_rows {
+        if !rows.contains(&row) {
+            rows.push(row);
+        }
+    }
+    crate::native_realization::terminal_authority_policy_with_rows(rows)
+}
+
+#[test]
+fn settled_filesystem_cohort_emits_and_forged_substitutions_reject() {
+    let profile = target::TargetProfile::LinuxX64;
+    let target = profile.native_target();
+    let plan = abstract_plan();
+    let boundary = plan.boundary_machines[0].id;
+    let selected = filesystem_cohort_syscall_plan(profile, 1);
+    let mechanism =
+        crate::native_realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            profile, 1, &plan, boundary,
+        )
+        .expect("verified boundary supplies the conservative checked contract");
+    let external_row = external(profile, 1);
+    let minted = crate::native_realization::terminal_authority_policy::filesystem_mechanism_row(
+        mechanism,
+        &selected.plans()[0].schema.methods[0],
+    )
+    .expect("`set_len` is a settled facet cohort member");
+
+    // With no receiving-policy input the cohort row classifies the leaf.
+    let (admitted, cohort_rows) = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &crate::native_realization::current_terminal_authority_policy(),
+        target,
+        std::slice::from_ref(&external_row),
+        &[],
+        &[],
+        &[],
+    )
+    .expect("the toolchain-settled cohort classifies the demanded leaf");
+    assert_eq!(
+        admitted,
+        vec![
+            crate::native_realization::providers::AdmittedTerminalMechanism {
+                boundary,
+                mechanism,
+            }
+        ]
+    );
+    assert_eq!(cohort_rows, vec![minted.clone()]);
+
+    // A supplied row identical to the minted row confirms rather than
+    // duplicates: the merged effective policy holds exactly one row.
+    let confirming =
+        crate::native_realization::terminal_authority_policy_with_rows(vec![minted.clone()])
+            .expect("an identical supplied row still builds a policy");
+    let (_, cohort_rows) = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &confirming,
+        target,
+        std::slice::from_ref(&external_row),
+        &[],
+        &[],
+        &[],
+    )
+    .expect("a confirming supplied row admits the cohort leaf");
+    let effective = merge_cohort_rows(&confirming, cohort_rows)
+        .expect("identical supplied and minted rows merge without duplication");
+    assert_eq!(effective.explicit_rows().len(), 1);
+
+    // A supplied row classifying the same mechanism under a different
+    // disposition is a forged classification: coverage admits the leaf under
+    // the caller's row, but the merge into the minted set rejects the
+    // substitution as a duplicate mechanism key.
+    let forged = crate::native_realization::terminal_authority_policy_with_rows(vec![
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            mechanism,
+            effects::TerminalAuthorityDisposition::from_classes([]),
+        ),
+    ])
+    .expect("a forged row builds an exact supplied policy");
+    let (_, cohort_rows) = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &forged,
+        target,
+        std::slice::from_ref(&external_row),
+        &[],
+        &[],
+        &[],
+    )
+    .expect("the supplied row classifies the leaf before the merge");
+    let error = merge_cohort_rows(&forged, cohort_rows)
+        .expect_err("a substituted cohort classification is a forged receiver row");
+    assert!(matches!(
+        error,
+        crate::native_realization::TerminalAuthorityPolicyBuildError::DuplicateMechanism(
+            duplicate
+        ) if duplicate == mechanism
+    ));
+
+    // A method outside every settled cohort mints nothing and still demands a
+    // receiving row.
+    let mut unknown_plan = import_plan(b"unused", profile);
+    unknown_plan.schema.methods[0].name = "unbound_host_leaf".into();
+    unknown_plan.rows[0].method = "unbound_host_leaf".into();
+    unknown_plan.rows[0].binding = ProviderBinding::Syscall { number: 1 };
+    let unknown_selected =
+        effects::SelectedProviderPlanFacts::from_selected_plans(vec![unknown_plan])
+            .expect("one exact unknown-method syscall plan");
+    let error = validate_source_evaluated_import_coverage(
+        &plan,
+        &unknown_selected,
+        &crate::native_realization::current_terminal_authority_policy(),
+        target,
+        &[external(profile, 1)],
+        &[],
+        &[],
+        &[],
+    )
+    .expect_err("unknown methods keep the fail-closed classification");
+    assert!(
+        error[0]
+            .message
+            .contains("does not classify syscall mechanism")
     );
 }

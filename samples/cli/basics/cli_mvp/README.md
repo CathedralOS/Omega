@@ -80,12 +80,14 @@ means an unchanged accepted policy needs no second native approval file.
 The macOS release outer command reaches missing package acceptance on a fresh
 checkout. With a completed local review (`omega update`, accept the three
 audit-recommended rows, `omega update --resume`), the same command passes
-acceptance and stops inside native production at `receiving terminal-authority
-permission policy has no exact row for Console::exit_process`: the CLI supplies
-the empty deny-by-absence receiving policy. This is a misplaced production gate,
-not a missing CLI policy option: ordinary compilation needs no ecosystem policy.
-TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns moving that check to explicit admission
-while preserving project acceptance and compiler checks. Remaining
+acceptance. The former misplaced production gate is removed: the receiving
+permission policy is optional at every join from `compile_project` through
+native realization, so ordinary compilation needs no ecosystem policy, and an
+artifact emitted without one carries no receiver-admission claim. Explicit
+admission replay is a separate check that compares bound policy identities and
+still rejects an artifact emitted under absent or insufficient receiving
+policy. The next outer-command observation on a hosted target must name the
+first post-acceptance blocker rather than describe the removed gate. Remaining
 package latency, current measurements, and the next performance investigation
 belong to the owning task; Windows release timing has not been measured.
 

@@ -125,18 +125,49 @@ pub(super) fn semantic_bindings_by_consumer(
 /// the consuming project's decision and every package's open permissions
 /// propagate into one root policy, where an identical row accepted twice
 /// would be a duplicate rather than a grant.
+///
+/// A discovered `FilesystemHost` service binding at the root likewise carries
+/// the toolchain-settled cohort permission table for its exact checked schema:
+/// every method row the canonical boundary declares resolves its own settled
+/// disposition, so the proposal remains exact per requirement and the accepted
+/// policy projected for realization covers the demanded leaves. The table
+/// refuses to fabricate rows for requirements outside the settled cohorts, and
+/// the accepted binding still rejoins each row to its exact schema digest.
 pub(super) fn candidate_semantic_binding_inputs(
     preliminary: &CompilerIssuedPackageReviewSet,
     root: &PackageKey,
 ) -> Result<Vec<ConsumerScopedSemanticBindingReviewInput>, CompileResolvedPackageReviewsError> {
     let mut inputs = Vec::new();
     for review in preliminary.reviews() {
-        inputs.extend(review.semantic_binding_candidates.iter().map(|candidate| {
-            ConsumerScopedSemanticBindingReviewInput::new(
+        for candidate in &review.semantic_binding_candidates {
+            let mut binding = candidate.binding().clone();
+            if review.key() == root
+                && binding.role() == AcceptedSemanticBindingRole::FilesystemHostService
+            {
+                binding = binding
+                    .with_terminal_authority_permissions(
+                        native_realization::filesystem_host_permission_rows(
+                            candidate.service_schema(),
+                        )
+                        .map_err(|_| {
+                            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                                consumer: review.key().clone(),
+                                role: AcceptedSemanticBindingRole::FilesystemHostService,
+                            }
+                        })?,
+                    )
+                    .map_err(|_| {
+                        CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                            consumer: review.key().clone(),
+                            role: AcceptedSemanticBindingRole::FilesystemHostService,
+                        }
+                    })?;
+            }
+            inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
                 review.key().clone(),
-                candidate.binding().clone(),
-            )
-        }));
+                binding,
+            ));
+        }
         let candidates = review
             .projection()
             .selected_providers()
