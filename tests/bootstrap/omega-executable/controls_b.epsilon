@@ -11,36 +11,32 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.compiler.compile("machine zero() -> u8 { 0 }", "zero");
+    self.compiler.compile("machine answer() -> u8 { 17 % 5 }", "answer");
     self.complete(22);
-    assert self.compiler.tape.bytes[13] == 0;
+    assert self.compiler.tape.bytes[13] == 2;
 
-    self.compiler.compile("// ordered declarations\nmachine spare() -> u8 { 7 }\npub machine maximum() -> u8 { 255 }", "maximum");
-    self.complete(33);
-    assert self.compiler.selected_machine == 1;
-    assert self.compiler.tape.decode_address(1) == 22;
-    assert self.compiler.tape.bytes[13] == 7;
-    assert self.compiler.tape.bytes[24] == 255;
-
-    self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
+    self.compiler.compile("machine answer() -> u8 { 1 << 7 }", "answer");
     self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    assert self.compiler.tape.bytes[13] == 128;
 
-    self.compiler.compile("machine answer() -> u8 { 2 * 21 }", "answer");
+    self.compiler.compile("machine answer() -> u8 { 255 >> 4 }", "answer");
     self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    assert self.compiler.tape.bytes[13] == 15;
 
-    self.compiler.compile("machine answer() -> u8 { 1 + 2 * 3 }", "answer");
+    self.compiler.compile("machine answer() -> u8 { 60 & 14 }", "answer");
     self.complete(22);
-    assert self.compiler.tape.bytes[13] == 7;
+    assert self.compiler.tape.bytes[13] == 12;
 
-    self.compiler.compile("machine answer() -> u8 { (40 + 2) }", "answer");
+    self.compiler.compile("machine answer() -> u8 { 4 | 1 }", "answer");
     self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    assert self.compiler.tape.bytes[13] == 5;
 
-    self.compiler.compile("machine answer() -> u8 { 84 / 2 }", "answer");
+    self.compiler.compile("machine answer() -> u8 { 2 ^ 3 }", "answer");
     self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    assert self.compiler.tape.bytes[13] == 1;
+
+    self.compiler.compile("machine answer() -> u8 { 256 }", "answer");
+    self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
     self.complete(22);

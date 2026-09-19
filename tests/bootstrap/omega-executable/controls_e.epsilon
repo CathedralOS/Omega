@@ -11,36 +11,23 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.compiler.compile("machine zero() -> u8 { 0 }", "zero");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 0;
+    self.compiler.compile("machine answer() -> u8 { 1 == 1 }", "answer");
+    self.incomplete();
 
-    self.compiler.compile("// ordered declarations\nmachine spare() -> u8 { 7 }\npub machine maximum() -> u8 { 255 }", "maximum");
-    self.complete(33);
-    assert self.compiler.selected_machine == 1;
-    assert self.compiler.tape.decode_address(1) == 22;
-    assert self.compiler.tape.bytes[13] == 7;
-    assert self.compiler.tape.bytes[24] == 255;
+    self.compiler.compile("machine answer() -> u8 { -1 }", "answer");
+    self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    self.compiler.compile("machine answer() -> u32 { 42 }", "answer");
+    self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { 2 * 21 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    self.compiler.compile("machine answer() { state other() -> u8 { 42 } }", "answer");
+    self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { 1 + 2 * 3 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 7;
+    self.compiler.compile("machine answer() -> u8 { 1_2 }", "answer");
+    self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { (40 + 2) }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
-
-    self.compiler.compile("machine answer() -> u8 { 84 / 2 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    self.compiler.compile("machine answer() -> u8 {", "answer");
+    self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
     self.complete(22);
