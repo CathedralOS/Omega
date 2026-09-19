@@ -1,10 +1,17 @@
 //! Exact UEFI x64 replay owned beside the physical entry-plan carrier.
+//!
+//! The bundled closed target package's authored `UefiX86_64::plan` machine is
+//! the single source definition of this calling policy; admission evaluation
+//! mints the contract's retained boundary plan. Custody checks here replay
+//! that retained evidence against the source-minted calling-plan commitment
+//! instead of consulting a second Rust copy of the policy. The only Rust
+//! constants below are the fixed package identity and the recorded commitment
+//! — evidence of the evaluation's output, never the policy itself.
 
 use calling_conventions::{
-    BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
-    MachineRegime, MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet,
-    StatePlan, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
-    validate_boundary_entry_plan,
+    BoundaryEntryPlan, CallSignature, CallingPolicy, MachineRegister, MachineState,
+    MachineStateSet, RegisterSet, ValidatedBoundaryEntryPlan, ValueShape,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
 };
 
 use super::ProgramEntryPhysicalContractPlan;
@@ -40,63 +47,78 @@ pub fn exact_uefi_x64_physical_contract_package_source_digest()
     )
 }
 
-/// Independently reconstruct and validate the exact plan authored by the
-/// closed UEFI target package. This deliberately does not substitute the
-/// generic Microsoft-x64 ordinary-call plan: the target contract admits only
-/// the seven integer volatile registers and excludes the XMM volatile bank.
+/// Domain-separated commitment to the canonical boundary-entry plan the
+/// bundled closed package's authored `UefiX86_64::plan` machine produces for
+/// `UefiPhysicalEntry::enter`'s exact signature. This is the
+/// `contract_commitment_digest` of the plan the source evaluation mints; the
+/// compiler replay
+/// (`entry_and_abi::program_entries_and_image_validation`) keeps it honest
+/// against live evaluation, so it changes only when that authored policy
+/// changes.
+pub const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
+    10, 172, 212, 105, 61, 70, 186, 33, 243, 129, 223, 176, 113, 147, 97, 164, 49, 60, 230, 159,
+    253, 121, 213, 251, 126, 106, 127, 144, 31, 84, 13, 130,
+];
+
+/// Replay independent validation of `plan` under the signature its own
+/// placements imply, then bind the result to the source-minted calling-plan
+/// commitment. Returns the canonical validated plan only when `plan` is
+/// exactly what the authored policy produced: a substituted, drifted, or
+/// foreign plan fails closed here even when every other pinned identity
+/// matches. A source digest alone never establishes plan correctness — the
+/// retained plan itself must reproduce the recorded commitment.
+pub fn replayed_uefi_x64_physical_calling_plan(
+    plan: &BoundaryEntryPlan,
+) -> Option<ValidatedBoundaryEntryPlan> {
+    let signature = CallSignature {
+        parameters: plan
+            .call
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .collect(),
+        result: plan.call.result.as_ref().map(|placement| placement.shape),
+    };
+    let validated = validate_boundary_entry_plan(plan.clone(), &signature).ok()?;
+    (validated.plan() == plan
+        && validated.contract_commitment_digest() == UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT)
+        .then_some(validated)
+}
+
+/// Materialize the canonical plan the authored `UefiX86_64::plan` machine
+/// produces for the exact physical signature. The authored machine narrows
+/// the ordinary Microsoft-x64 boundary plan to the seven integer volatile
+/// registers and the machine-state classes they cover; everything else is the
+/// generic policy evaluation, and the result is admitted only because the
+/// replay above binds it to the source-minted commitment.
+///
+/// Production verdicts never consult this materialization. It exists to
+/// construct contract fixtures below the build layer, where source
+/// evaluation is unavailable.
 pub fn exact_uefi_x64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPlan {
     let word = ValueShape::integer(8, 8);
-    let register_word = |register| ValuePlacement {
-        shape: word,
-        locations: vec![ValueLocation::Register {
-            register,
-            value_byte_offset: 0,
-            byte_size: 8,
-        }],
-    };
     let signature = CallSignature {
         parameters: vec![word, word],
         result: Some(word),
     };
-    validate_boundary_entry_plan(
-        BoundaryEntryPlan {
-            call: CallPlan {
-                policy: CallingPolicy::MicrosoftX64,
-                parameters: vec![
-                    register_word(MachineRegister::X86Rcx),
-                    register_word(MachineRegister::X86Rdx),
-                ],
-                result: Some(register_word(MachineRegister::X86Rax)),
-                callback_materializations: Vec::new(),
-                ordinary_clobbers: RegisterSet::new([
-                    MachineRegister::X86Rax,
-                    MachineRegister::X86Rcx,
-                    MachineRegister::X86Rdx,
-                    MachineRegister::X86R8,
-                    MachineRegister::X86R9,
-                    MachineRegister::X86R10,
-                    MachineRegister::X86R11,
-                ]),
-                stack_alignment: 16,
-                shadow_bytes: 32,
-                entry_control: EntryControl::CallReturn,
-            },
-            state: StatePlan {
-                initial_regime: MachineRegime::X86Long64,
-                interrupted_state: MachineStateSet::empty(),
-                saved_state: MachineStateSet::empty(),
-                restored_state: MachineStateSet::empty(),
-                permitted_transitive_use: MachineStateSet::new([
-                    MachineState::GeneralRegisters,
-                    MachineState::Flags,
-                ]),
-                stack: EntryStack::ProviderSelected,
-                preemption: Preemption::NotApplicable,
-            },
-        },
-        &signature,
+    let mut plan = evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
+        .expect("the ordinary Microsoft-x64 boundary plan remains the authored policy's base")
+        .plan()
+        .clone();
+    plan.call.ordinary_clobbers = RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+    ]);
+    plan.state.permitted_transitive_use =
+        MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags]);
+    replayed_uefi_x64_physical_calling_plan(&plan).expect(
+        "the authored UEFI x64 narrowing must replay the source-minted calling-plan commitment",
     )
-    .expect("the closed target-authored UEFI x64 physical entry plan must remain valid")
 }
 
 impl ProgramEntryPhysicalContractPlan {
@@ -104,8 +126,11 @@ impl ProgramEntryPhysicalContractPlan {
     /// Constructor compatibility remains deliberately broader for synthetic
     /// compiler fixtures; runtime custody must use this exact verdict.
     pub fn matches_exact_uefi_x64_physical_contract(&self) -> bool {
-        let expected = exact_uefi_x64_physical_boundary_entry_plan();
         let Some(guarantee) = &self.guaranteed_entry_stack else {
+            return false;
+        };
+        let Some(replayed) = replayed_uefi_x64_physical_calling_plan(&self.boundary_entry_plan)
+        else {
             return false;
         };
         self.target_slot == target::TargetProfile::UefiX64.program_entry_slot()
@@ -117,8 +142,7 @@ impl ProgramEntryPhysicalContractPlan {
             && self.parameter_type_identities[0] == UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY
             && self.parameter_type_identities[1] == UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY
             && self.result_type_identity == UEFI_X64_STATUS_TYPE_IDENTITY
-            && self.calling_plan_report_fingerprint == expected.contract_report_fingerprint()
-            && &self.boundary_entry_plan == expected.plan()
+            && self.calling_plan_report_fingerprint == replayed.contract_report_fingerprint()
             && guarantee
                 .application()
                 .matches_exact_uefi_x64_entry_stack_application()
@@ -133,8 +157,10 @@ mod tests {
         UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
         UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_uefi_x64_physical_boundary_entry_plan,
         exact_uefi_x64_physical_contract_package_source_digest,
+        replayed_uefi_x64_physical_calling_plan,
     };
     use crate::ProgramEntryPhysicalContractPackageSourceDigest;
+    use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 
     fn exact_contract() -> ProgramEntryPhysicalContractPlan {
         let package = target::ProgramEntryPhysicalContractPackage::UefiX64;
@@ -205,5 +231,24 @@ mod tests {
             .parameters
             .swap(0, 1);
         assert!(!placement_drift.matches_exact_uefi_x64_physical_contract());
+    }
+
+    #[test]
+    fn replay_rejects_foreign_and_unvalidated_plans() {
+        let word = calling_conventions::ValueShape::integer(8, 8);
+        let signature = calling_conventions::CallSignature {
+            parameters: vec![word, word],
+            result: Some(word),
+        };
+        // The ordinary Microsoft-x64 plan is structurally valid but admits the
+        // XMM volatile bank the authored UEFI policy deliberately excludes.
+        let ordinary =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
+                .expect("ordinary boundary plan");
+        assert!(replayed_uefi_x64_physical_calling_plan(ordinary.plan()).is_none());
+
+        let mut noncanonical = exact_uefi_x64_physical_boundary_entry_plan().plan().clone();
+        noncanonical.call.parameters.swap(0, 1);
+        assert!(replayed_uefi_x64_physical_calling_plan(&noncanonical).is_none());
     }
 }

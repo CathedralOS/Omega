@@ -6,7 +6,7 @@ use crate::{
     UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
     UefiImageHandleOccurrenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
 };
-use program_entry_plan::exact_uefi_x64_physical_boundary_entry_plan;
+use program_entry_plan::UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT;
 
 /// Exact numeric inputs to same-stack UEFI bootstrap planning.
 ///
@@ -230,8 +230,7 @@ fn plan_uefi_application_bootstrap_same_stack_budget_inner(
             "UEFI same-stack planning requires the exact target-owned physical contract".into(),
         ));
     }
-    let expected = exact_uefi_x64_physical_boundary_entry_plan();
-    if readiness.physical_calling_plan_commitment != expected.contract_commitment_digest() {
+    if readiness.physical_calling_plan_commitment != UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT {
         return Err(ExternalRootDiagnostic(
             "UEFI same-stack planning physical calling-plan commitment drifted".into(),
         ));
@@ -247,7 +246,15 @@ fn plan_uefi_application_bootstrap_same_stack_budget_inner(
                 .arrival
                 .physical_contract
                 .guaranteed_entry_stack_application()
-        || guarantee.required_alignment() != u64::from(expected.plan().call.stack_alignment)
+        || guarantee.required_alignment()
+            != u64::from(
+                readiness
+                    .arrival
+                    .physical_contract
+                    .boundary_entry_plan()
+                    .call
+                    .stack_alignment,
+            )
     {
         return Err(ExternalRootDiagnostic(
             "UEFI same-stack planning target guarantee did not replay the exact physical contract"

@@ -11,7 +11,7 @@ use program_entry_plan::{
     OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
     ProgramEntrySourceReceiverSignature, ProgramEntrySourceResultSignature,
     ProgramEntrySourceSignatureIdentity, ProgramStorageEntryRootRole,
-    exact_uefi_x64_physical_boundary_entry_plan,
+    replayed_uefi_x64_physical_calling_plan,
 };
 
 /// Exact address-free composition of the target-fixed UEFI physical arrival
@@ -330,12 +330,18 @@ pub fn prepare_uefi_application_bootstrap_adapter_invocation<'occurrence>(
             },
         ));
     }
-    let expected = exact_uefi_x64_physical_boundary_entry_plan();
-    let commitment = expected.contract_commitment_digest();
-    if commitment == [0; 32]
-        || expected.contract_report_fingerprint()
-            != arrival.physical_contract.calling_plan_report_fingerprint()
-        || expected.plan() != arrival.physical_contract.boundary_entry_plan()
+    let Some(replayed) =
+        replayed_uefi_x64_physical_calling_plan(arrival.physical_contract.boundary_entry_plan())
+    else {
+        return Err(Box::new(UefiApplicationBootstrapAdapterReadinessError {
+            arrival,
+            diagnostic: ExternalRootDiagnostic(
+                "UEFI adapter readiness physical calling-plan replay drifted".into(),
+            ),
+        }));
+    };
+    if replayed.contract_report_fingerprint()
+        != arrival.physical_contract.calling_plan_report_fingerprint()
     {
         return Err(Box::new(UefiApplicationBootstrapAdapterReadinessError {
             arrival,
@@ -346,6 +352,6 @@ pub fn prepare_uefi_application_bootstrap_adapter_invocation<'occurrence>(
     }
     Ok(UefiApplicationBootstrapAdapterInvocationReadiness {
         arrival,
-        physical_calling_plan_commitment: commitment,
+        physical_calling_plan_commitment: replayed.contract_commitment_digest(),
     })
 }

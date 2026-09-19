@@ -6,7 +6,7 @@
 
 use std::num::NonZeroU64;
 
-use program_entry_plan::exact_uefi_x64_physical_boundary_entry_plan;
+use program_entry_plan::UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT;
 use target::{
     TargetProfile, UefiSystemTableNativeField, UefiSystemTableNativeFieldKind,
     UefiSystemTableNativeFieldLayout, plan_uefi_system_table_native_layout,
@@ -206,10 +206,7 @@ pub fn project_uefi_application_boot_services<'occurrence>(
             "UEFI Boot Services projection does not retain the exact physical entry contract",
         );
     }
-    let expected_physical_plan = exact_uefi_x64_physical_boundary_entry_plan();
-    if readiness.physical_calling_plan_commitment()
-        != &expected_physical_plan.contract_commitment_digest()
-    {
+    if readiness.physical_calling_plan_commitment() != &UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT {
         return reject(
             readiness,
             "UEFI Boot Services projection adapter-readiness commitment drifted",
