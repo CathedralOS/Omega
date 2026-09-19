@@ -3950,7 +3950,14 @@ Owners include
   Retain exact result owners for shared/mutable/write-only temporary borrows,
   multiple argument producers, self consumers and projected claims; **CML4**
   owns residual cleanup. Replace remaining flat guarded-call hoisting with the
-  same evaluation graph, not another source-order family.
+  same evaluation graph, not another source-order family. Before removing
+  `rewrite_guarded_transition_argument_calls`, preserve call-result facts at
+  successor entry and invalidate guard facts after earlier operand mutations.
+  The existing `transition_argument_call_result_derives_the_exact_entry_subject`
+  and `jump_operand_mutation_cannot_replay_the_taken_guard` regressions must
+  pass without synthesized source states. A case-edge helper call must also
+  preserve its invocation receiver and local ownership until evaluation ends;
+  capture-by-referenced-name alone loses implicit receiver forwarding.
 
   Remaining work:
 
@@ -4011,11 +4018,6 @@ Owners include
   and claim transport when consolidating those routes. `composed_unit_claims.rs`
   pins shared linear custody across exclusive arms, sequential settlements,
   and corrupted receipt/fact rejection.
-  Ordinary case dispatch still restricts affine cleanup to its subject:
-  `state_graph/closed_sum.rs` and lowerer `state_graph/cases.rs` reject a
-  preceding unrelated owned local, and case-edge emission skips its disposal.
-  Apply the existing per-edge remainder accounting; an unused record before
-  a boundary-returned sum match must compile, and omitted cleanup must reject.
   A failed source/custody rejoin must never fall back to a weaker recognizer.
   Acceptance: one caller combines those ordinary operations, with reordered
   state declarations and inserted computations, while forged edge bindings,

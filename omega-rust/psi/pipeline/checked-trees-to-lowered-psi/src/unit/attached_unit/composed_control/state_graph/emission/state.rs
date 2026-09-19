@@ -216,11 +216,9 @@ impl StateGraphEmission<'_, '_> {
                              payload_values: &[(u32, ValueDeclaration)],
                              case_edge: bool|
          -> Result<SuccessorEdge, LoweringError> {
-            // Case dispatch consumes its subject separately. Ordinary edges
-            // retain their exact local remainder until selected operands finish.
-            let trivial_affine_discards = if case_edge {
-                Vec::new()
-            } else if evaluation.selection_cleanups.is_empty() {
+            // Every edge retains its local remainder until selected operands
+            // finish. A case edge has already consumed only its subject.
+            let mut trivial_affine_discards = if evaluation.selection_cleanups.is_empty() {
                 result_custody::local_discards(
                     checked,
                     plan.machine,
@@ -248,6 +246,15 @@ impl StateGraphEmission<'_, '_> {
                     &evaluation,
                 )?
             };
+            if case_edge {
+                let consumed = prepared_cases
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph case edge lost its consumed subject",
+                    ))?
+                    .source;
+                trivial_affine_discards.retain(|place| *place != consumed);
+            }
             operations.byte_lengths = inherited_lengths.clone();
             let target = plan
                 .states
@@ -256,16 +263,21 @@ impl StateGraphEmission<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph target disappeared during emission",
                 ))?;
-            let stage = case_edge || (condition.is_some() || branch_guard.is_some())
+            let stage = case_edge || edge.scalar_arguments.iter().any(|argument| matches!(
+                argument.source, checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+            )) || (condition.is_some() || branch_guard.is_some())
                     && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
-                    )) || edge.scalar_arguments.iter().any(|argument| {
-                        matches!(
-                            argument.source,
-                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
-                        )
-                    }));
+                    )));
             let operation_start = operations.len();
+            let staged = if stage {
+                block_id(allocate_dense(&mut next_block)?)
+            } else {
+                evaluation.current
+            };
+            let mut edge_evaluation = evaluation.branch(staged, operation_start);
+            edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
+            let mut edge_values = values.clone();
             let mut arguments = Vec::new();
             let mut structural_arguments = Vec::new();
             let target_state = &plan.states[target];
@@ -334,9 +346,9 @@ impl StateGraphEmission<'_, '_> {
                         continue;
                     }
                     let place = match transfer.source {
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => evaluation.current_structural_place(case_emission::result(state, binding_ordinal, &operations)?.place),
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, &operations)?.place),
                             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
+                                edge_evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
                                     LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
                                 )?.place)
                             }
@@ -347,7 +359,7 @@ impl StateGraphEmission<'_, '_> {
                                 )?;
                                 self.structural_places.push(subslices::emit(
                                     checked, state, edge.statement_ordinal, target_parameter.position, expression,
-                                    source, destination, &bindings, &values, &mut next_value, &mut operations,
+                                    source, destination, &bindings, &edge_values, &mut next_value, &mut operations,
                                 )?);
                                 destination
                             }
@@ -394,14 +406,32 @@ impl StateGraphEmission<'_, '_> {
                         primitive_type: transfer.primitive_type,
                     })?,
                     checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
-                        bindings.expression_at(
+                        let value = scalars::successor_value(checked, state, edge, transfer)?;
+                        let mut calls = self.catalogs.scalar_calls.emission_context();
+                        let value = edge_evaluation.source_value(
                             checked,
+                            plan.machine,
                             state.state,
                             edge.statement_ordinal,
                             CheckedScalarExpressionRole::TransitionArgument {
                                 argument_ordinal: transfer.argument_ordinal,
                             },
-                        )?
+                            &value,
+                            edge_values.len(),
+                            &mut edge_values,
+                            &mut next_value,
+                            &mut next_block,
+                            &mut next_edge,
+                            &mut operations,
+                            &mut calls,
+                        )?;
+                        self.catalogs.scalar_calls.next_call_obligation =
+                            calls.next_obligation_identity;
+                        if value.scalar_type != terminal_scalar_type(transfer.primitive_type)? {
+                            return unsupported("Unit graph successor value has the wrong carrier");
+                        }
+                        arguments.push(value.id);
+                        continue;
                     }
                 };
                 if expression.scalar_type() != terminal_scalar_type(transfer.primitive_type)?
@@ -411,14 +441,14 @@ impl StateGraphEmission<'_, '_> {
                 }
                 validate_direct_parameter_types(
                     &expression,
-                    &values
+                    &edge_values
                         .iter()
                         .map(|value| value.scalar_type)
                         .collect::<Vec<_>>(),
                 )?;
                 arguments.push(emit_direct_expression(
                     &expression,
-                    &values,
+                    &edge_values,
                     &mut next_value,
                     &mut operations,
                 ));
@@ -447,7 +477,7 @@ impl StateGraphEmission<'_, '_> {
                     )?;
                     crate::proofs::crash_routes::lowered_direct_scalar_term(
                         &expression,
-                        &values,
+                        &edge_values,
                         &self.state_erased[position],
                     )
                 })
@@ -497,7 +527,6 @@ impl StateGraphEmission<'_, '_> {
             };
             let target = self.state_ids[target];
             if stage {
-                let staged = block_id(allocate_dense(&mut next_block)?);
                 let backedge = edge_id(allocate_dense(&mut next_edge)?);
                 let selection_edge = edge_id(allocate_dense(&mut next_edge)?);
                 self.arrival_edges
@@ -506,6 +535,21 @@ impl StateGraphEmission<'_, '_> {
                     .push(backedge);
                 if let Some(rank) = current_rank {
                     self.block_ranks.insert(staged, rank);
+                    self.block_ranks.insert(edge_evaluation.current, rank);
+                    self.block_ranks
+                        .extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
+                    self.rank_edges
+                        .extend(edge_evaluation.blocks.iter().flat_map(|block| {
+                            block.terminator.edges().map(|edge| {
+                                (
+                                    edge,
+                                    (
+                                        rank,
+                                        terminal_psi::TerminalNaturalRankComparison::Preserving,
+                                    ),
+                                )
+                            })
+                        }));
                     self.rank_edges.insert(
                         selection_edge,
                         (
@@ -520,14 +564,15 @@ impl StateGraphEmission<'_, '_> {
                         );
                     }
                 }
+                edge_blocks.extend(edge_evaluation.blocks);
                 edge_blocks.push(Block {
-                    id: staged,
-                    parameters: payload_values.iter().map(|(_, value)| *value).collect(),
+                    id: edge_evaluation.current,
+                    parameters: edge_evaluation.parameters,
                     // The forwarding block redeclares the emitting state's
                     // erased roster so forwarded proof terms stay in scope.
                     erased_scalar_formals: self.state_erased[position].clone(),
-                    structural_parameters: Vec::new(),
-                    operations: operations[operation_start..].to_vec(),
+                    structural_parameters: edge_evaluation.block_structural_parameters,
+                    operations: operations[edge_evaluation.operation_start..].to_vec(),
                     terminator: Terminator::Jump {
                         edge: backedge,
                         target,
@@ -974,7 +1019,11 @@ impl StateGraphEmission<'_, '_> {
             erased_scalar_formals: Vec::new(),
             structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start
-                ..if condition.is_some() || branch_guard.is_some() || prepared_cases.is_some() {
+                ..if condition.is_some()
+                    || branch_guard.is_some()
+                    || prepared_cases.is_some()
+                    || !edge_blocks.is_empty()
+                {
                     body_end
                 } else {
                     operations.len()

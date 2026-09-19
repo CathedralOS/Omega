@@ -723,6 +723,7 @@ pub(super) fn build_traced(
             terminator,
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                 | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         ) {
             crate::execution::terminal_cleanup::state_exit_result_locals(
@@ -732,6 +733,12 @@ pub(super) fn build_traced(
             Vec::new()
         };
         trace.phase("state graph: result custody accounting");
+        let case_successors = match &terminator {
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+                cases.iter().map(|case| &case.successor).collect::<Vec<_>>()
+            }
+            _ => Vec::new(),
+        };
         for (producer_index, operation) in operations.iter().enumerate() {
             let result = match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -777,16 +784,54 @@ pub(super) fn build_traced(
                                 })
                     });
             let consumed = match &terminator {
-                CheckedComposedUnitControlTerminatorPlan::Guarded { .. } =>
-                    result.multiplicity == Multiplicity::Unrestricted,
-                CheckedComposedUnitControlTerminatorPlan::ReturnUnit =>
-                    local_results::permits_disposal(program, state, result, &[], &disposable_locals),
-                CheckedComposedUnitControlTerminatorPlan::Jump { successor } => transferred(successor)
-                    || local_results::permits_disposal(program, state, result, &[successor], &disposable_locals),
-                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. } => (transferred(when_true) && transferred(when_false))
-                    || local_results::permits_disposal(program, state, result, &[when_true, when_false], &disposable_locals),
-                CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } => matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal) && cases.iter().all(|case| !case.successor.transfers.iter().any(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal))),
-                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal),
+                CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => {
+                    result.multiplicity == Multiplicity::Unrestricted
+                }
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit => {
+                    local_results::permits_disposal(program, state, result, &[], &disposable_locals)
+                }
+                CheckedComposedUnitControlTerminatorPlan::Jump { successor } => {
+                    transferred(successor)
+                        || local_results::permits_disposal(
+                            program,
+                            state,
+                            result,
+                            &[successor],
+                            &disposable_locals,
+                        )
+                }
+                CheckedComposedUnitControlTerminatorPlan::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    (transferred(when_true) && transferred(when_false))
+                        || local_results::permits_disposal(
+                            program,
+                            state,
+                            result,
+                            &[when_true, when_false],
+                            &disposable_locals,
+                        )
+                }
+                CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } => {
+                    if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
+                    {
+                        case_successors.iter().all(|edge| !transferred(edge))
+                    } else {
+                        case_successors.iter().all(|edge| transferred(edge))
+                            || local_results::permits_disposal(
+                                program,
+                                state,
+                                result,
+                                &case_successors,
+                                &disposable_locals,
+                            )
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
+                    matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
+                }
                 _ => false,
             } || selection_residual_source;
             // A linear result moved into an ordinary call is no longer owed by the
@@ -1377,21 +1422,55 @@ fn successor_bindings(
         .filter(|(index, _)| !payload_parameters.contains(&(*index as u32)))
         .map(|(target_index, target)| {
             let argument = argument_at(target.source_position)?;
-            let (custody, expression) = facts.values.scalar_expressions.bound_expression_at(
-                source.symbol,
-                ordinal,
-                CheckedScalarExpressionRole::TransitionArgument {
-                    argument_ordinal: target.source_position,
-                },
-            )?;
-            if custody.expression != argument
-                || custody.destination
-                    != target_parameters
-                        .get(target.source_position as usize)?
-                        .symbol
-                || crate::values::scalar_expression_type(expression) != Some(target.primitive_type)
-            {
+            let role = CheckedScalarExpressionRole::TransitionArgument {
+                argument_ordinal: target.source_position,
+            };
+            let pure = &facts.values.scalar_expressions;
+            let computations = &facts.values.scalar_computations;
+            let mut roots = computations
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| {
+                    root.state == source.symbol
+                        && root.statement_ordinal == ordinal
+                        && root.role == role
+                });
+            let root = roots.next();
+            if roots.next().is_some() {
                 return None;
+            }
+            if let Some(root) = root {
+                let has_pure = pure.source_bindings.iter().any(|(_, binding)| {
+                    binding.state == source.symbol
+                        && binding.statement_ordinal == ordinal
+                        && binding.role == role
+                }) || pure.expressions.iter().any(|expression| {
+                    expression.state == source.symbol
+                        && expression.statement_ordinal == ordinal
+                        && expression.role == role
+                });
+                if has_pure
+                    || root.machine != machine.symbol
+                    || !computations.nodes.is_valid(root.root)
+                    || computations.nodes.get(root.root).authored_root != argument
+                    || computations.nodes.get(root.root).primitive_type != target.primitive_type
+                {
+                    return None;
+                }
+            } else {
+                let (custody, expression) =
+                    pure.bound_expression_at(source.symbol, ordinal, role)?;
+                if custody.expression != argument
+                    || custody.destination
+                        != target_parameters
+                            .get(target.source_position as usize)?
+                            .symbol
+                    || crate::values::scalar_expression_type(expression)
+                        != Some(target.primitive_type)
+                {
+                    return None;
+                }
             }
             let immutable_source_position = source_position(target.source_position)
                 .filter(|position| !program.state_parameters(source)[*position].is_mutable);

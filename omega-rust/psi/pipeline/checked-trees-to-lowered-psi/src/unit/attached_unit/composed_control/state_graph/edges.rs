@@ -14,7 +14,7 @@ use checked_trees::statement::{
     StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
-pub(super) fn successors(
+pub(in crate::unit::attached_unit::composed_control) fn successors(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Vec<&CheckedStructuralControlSuccessorPlan> {
     match &state.terminator {
@@ -292,25 +292,7 @@ pub(super) fn validate_bindings(
                 validate_argument(target.source_position, source.source_position)?;
             }
             checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
-                let (binding, _) = checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .bound_expression_at(
-                        state.state,
-                        edge.statement_ordinal,
-                        CheckedScalarExpressionRole::TransitionArgument {
-                            argument_ordinal: transfer.argument_ordinal,
-                        },
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph scalar successor has no checked source expression",
-                    ))?;
-                crate::expression_preparation::source_custody::validate_pure(
-                    checked,
-                    binding,
-                    terminal_scalar_type(target.primitive_type)?,
-                )?;
+                super::scalars::successor_value(checked, state, edge, transfer)?;
             }
         }
     }
@@ -362,33 +344,7 @@ fn validate_cleanup(
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
-    for (_, event) in checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == plan.machine
-                && event.state_symbol == state.state
-                && event.source == language_semantics::PermissionEventSource::StateExit
-                && event.kind == language_semantics::PermissionEventKind::AffineDrop
-        })
-    {
-        if checked
-            .state_parameters(source)
-            .iter()
-            .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
-        {
-            continue;
-        }
-        let matching = state.operations.iter().filter_map(result_custody::result).filter(|result| {
-            matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
-        }).count();
-        if matching != 1 {
-            return unsupported("Unit graph edge leaves an unaccounted local disposition");
-        }
-    }
+    result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
     result_custody::local_discards(checked, plan.machine, source, state, Some(edge))?;
     let cleanup = checked
         .facts

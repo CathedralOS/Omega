@@ -58,7 +58,7 @@ mod parameters;
 mod ranking;
 mod result_custody;
 mod returns;
-mod scalars;
+pub(super) mod scalars;
 mod subslices;
 #[cfg(test)]
 mod tests;
@@ -67,5 +67,5 @@ mod topology;
 pub(in crate::unit::attached_unit) use admission::AdmittedGraph;
 pub(super) use admission::admit;
 pub(super) use admission::has_shared_graph_custody;
-use edges::successors;
+pub(super) use edges::successors;
 pub(super) use emission::emit;

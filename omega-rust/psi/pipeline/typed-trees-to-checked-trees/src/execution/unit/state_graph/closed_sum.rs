@@ -341,6 +341,19 @@ pub(super) fn build(
                 SuccessorEdge::ClosedCase,
                 trace,
             )?;
+            if successor.transfers.iter().any(|transfer| match (&subject.source, &transfer.source) {
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
+                ) => parameter_index == index,
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: subject },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal },
+                ) => subject == binding_ordinal,
+                _ => false,
+            }) {
+                return None;
+            }
             cases.push(CheckedClosedSumCaseSuccessorPlan {
                 case_identity: identity,
                 successor,
@@ -370,18 +383,23 @@ pub(super) fn build(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
-        if event.root != facts::PlaceRoot::Symbol(result_symbol)
-            || event.access != PermissionAccess::Owned
+        if event.root != facts::PlaceRoot::Symbol(result_symbol) {
+            if program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            {
+                return None;
+            }
+            continue;
+        }
+        // Other locals use the ordinary graph's result-custody accounting.
+        if event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != PermissionClaimIdentity::Unknown
             || event.provenance != expected_provenance
             || event.obligation_live
-            || !facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .is_empty()
+            || !event.segments.is_empty()
             || found
         {
             return None;
