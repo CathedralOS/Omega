@@ -1,308 +1,80 @@
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
 use super::calls::collect_state_argument_facts_for_call;
 use super::expressions::collect_state_argument_facts_from_expression;
 use super::{StateArgumentContext, StateArgumentFacts};
-use crate::checks::ranges::arrays::fixed_array_type_length;
-use crate::checks::ranges::expressions::{
-    expression_indexable_length, expression_integer_value, expression_name,
-};
 use crate::checks::ranges::facts::RangeFacts;
-use crate::checks::ranges::guards;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checks::ranges::statement_transfer::{StatementTransferSink, transfer_statement_facts};
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::statement::TableCall;
 
-pub(super) fn collect_state_argument_facts_from_statement(
-    context: &StateArgumentContext<'_, '_>,
+/// Replay one statement's fact transfer through the SHARED statement
+/// transfer, collecting the argument facts each outgoing call/transition
+/// edge carries. The collection pass deliberately runs the same transfer
+/// the checking pass runs — a seed missing here (an ensured call result,
+/// a name alias, a member store, a subslice window, a guard's declared
+/// endpoint) silently weakens the merged parameter facts.
+pub(super) fn collect_state_argument_facts_from_statement<'program>(
+    context: &StateArgumentContext<'program, '_>,
     facts: &mut RangeFacts<'_>,
-    statement: &StatementNode,
+    statement: &'program StatementNode,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
-    let program = context.program;
-    let machine = context.machine;
-    match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
-        StatementNode::Assignment(assignment) => {
+    struct CollectSink<'a, 'program, 'frames> {
+        context: &'a StateArgumentContext<'program, 'frames>,
+        collected: &'a mut Vec<StateArgumentFacts>,
+    }
+    impl<'program> StatementTransferSink<'program> for CollectSink<'_, 'program, '_> {
+        fn visit_expression(&mut self, facts: &mut RangeFacts<'_>, expression: ExpressionHandle) {
             collect_state_argument_facts_from_expression(
-                context,
+                self.context,
                 facts,
-                assignment.target,
-                collected,
-            );
-            collect_state_argument_facts_from_expression(
-                context,
-                facts,
-                assignment.value,
-                collected,
-            );
-            // RHS effects and values are evaluated before replacing the target.
-            let mut next_length = crate::checks::ranges::assignment_lengths::replacement_length(
-                program,
-                machine,
-                context.state,
-                facts,
-                assignment.target,
-                assignment.value,
-            );
-            // Keep the checking pass's rebound-reference extent lane in this
-            // collection replay: `view = borrow_rows(other)` re-lends
-            // `other.rooms`, so the same referent supplies the slice's length.
-            let mut referent_floor = None;
-            if next_length.is_none()
-                && let Some((symbol, _)) = expression_name(program, assignment.target)
-                && let Some(declared) =
-                    crate::checks::ranges::statements::assigned_local_declared_type(
-                        program,
-                        context.state,
-                        facts.statement_index,
-                        symbol,
-                    )
-                && let Some(referent) =
-                    crate::checks::ranges::statements::bound_reference_referent_extent(
-                        program,
-                        machine,
-                        context.state,
-                        context.call_frames,
-                        facts,
-                        symbol,
-                        declared,
-                    )
-            {
-                next_length = referent.exact;
-                referent_floor = referent.minimum;
-            }
-            let next_integer = expression_integer_value(program, facts, assignment.value);
-            let extent = crate::checks::ranges::assignment_lengths::assigned_extent(
-                program,
-                machine,
-                context.state,
-                facts,
-                assignment.target,
-                assignment.value,
-            );
-            facts.invalidate_assignment_bounds(program, machine, context.state, statement);
-            if let Some((symbol, name)) = expression_name(program, assignment.target) {
-                facts.assign_local(symbol, name, next_length, next_integer);
-                if let Some(floor) = referent_floor {
-                    facts.prove_minimum_length(
-                        program.expression_table.display_name(assignment.target),
-                        floor,
-                    );
-                }
-                seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
-                // The checking pass seeds a bound name's alias facts on its
-                // label — ensured call result bounds AND the source place's
-                // proven index bounds via alias_index. Mirror the whole
-                // seeding or `j = i` cannot transport `i`'s bound into a
-                // later transition's argument facts.
-                crate::checks::ranges::statements::aliases::seed_local_alias_facts(
-                    program,
-                    machine,
-                    context.state,
-                    facts,
-                    assignment.value,
-                    symbol,
-                    name,
-                );
-                // A rebound name to a subslice (`w = base[a..b]`) shrinks
-                // the same window the checking pass records; without the
-                // mirrored window parent and shrunk floor a later
-                // `-> load(w)` loses the base's extent.
-                crate::checks::ranges::statements::aliases::seed_subslice_window_facts(
-                    program,
-                    facts,
-                    assignment.value,
-                    name,
-                );
-            } else if let Some((symbol, name)) =
-                crate::checks::ranges::statements::expression_member_name(
-                    program,
-                    assignment.target,
-                )
-            {
-                // A member store carries the same seeds the checking pass
-                // records: the folded field integer (`self.slot = 2`), the
-                // offset index bound (`self.jp = self.i + 1`), and the
-                // ensured call result bound on its display label — so
-                // `-> load(self.slot)` transports all three into the
-                // destination parameter's merged facts.
-                facts.assign_field_integer(symbol, name, next_integer);
-                crate::checks::ranges::statements::seed_offset_index_bound(
-                    program,
-                    facts,
-                    assignment.target,
-                    assignment.value,
-                );
-                crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
-                    program,
-                    facts,
-                    &program.expression_table.display_name(assignment.target),
-                    assignment.value,
-                );
-            }
-            crate::checks::ranges::assignment_lengths::seed_assigned_extent(
-                program,
-                machine,
-                context.state,
-                facts,
-                extent,
+                expression,
+                self.collected,
             );
         }
-        StatementNode::Call(call) => {
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                collect_state_argument_facts_from_expression(context, facts, *argument, collected);
-            }
+        fn visit_call(&mut self, facts: &mut RangeFacts<'_>, call: &'program TableCall) {
+            // The callee's argument facts see the caller's seeded facts but
+            // not the call's own write retirement — the transfer orders this
+            // hook between the argument visits and `invalidate_call_writes`.
             collect_state_argument_facts_for_call(
-                program,
-                machine,
-                context.state,
+                self.context.program,
+                self.context.machine,
+                self.context.state,
                 facts,
                 call.target_symbol,
-                program.statement_table.expression_handles(call.arguments),
+                self.context
+                    .program
+                    .statement_table
+                    .expression_handles(call.arguments),
                 false,
-                collected,
-            );
-            let paths = context
-                .call_frames
-                .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
-            facts.invalidate_call_writes(
-                program,
-                machine,
-                context.state,
-                paths.as_deref(),
-                Some(&crate::semantic_calls::CallSite::Statement(call)),
-            );
-            // R4 witness mint in the COLLECTION pass too: boundary ensures
-            // bound the &mut argument places, so a later transition can
-            // transport the fact into its target's params.
-            crate::checks::ranges::statements::seed_boundary_call_ensures_facts(
-                program, machine, call, facts,
+                self.collected,
             );
         }
-        StatementNode::Expression(expression) => {
-            collect_state_argument_facts_from_expression(context, facts, *expression, collected);
-        }
-        StatementNode::LocalData(local) => {
-            collect_state_argument_facts_from_expression(
-                context,
-                facts,
-                local.initial_value,
-                collected,
-            );
-            let mut length = fixed_array_type_length(program, local.type_reference).or_else(|| {
-                expression_indexable_length(
-                    program,
-                    machine,
-                    context.state,
-                    facts,
-                    local.initial_value,
-                )
-            });
-            // Mirror the checking pass's returned-reference extent lane so the
-            // argument facts a transition carries see the same slice lengths.
-            if length.is_none()
-                && let Some(referent) =
-                    crate::checks::ranges::statements::bound_reference_referent_extent(
-                        program,
-                        machine,
-                        context.state,
-                        context.call_frames,
-                        facts,
-                        local.symbol,
-                        local.type_reference,
-                    )
-            {
-                length = referent.exact;
-                if let Some(minimum) = referent.minimum {
-                    facts.prove_minimum_length(local.name.to_string(), minimum);
-                }
-            }
-            let integer = expression_integer_value(program, facts, local.initial_value);
-            facts.define_local(local.symbol, local.name.to_string(), length, integer);
-            seed_boolean_guard_local(
-                context,
-                facts,
-                local.symbol,
-                Some(local.name.as_str()),
-                local.initial_value,
-            );
-            // Mirror the checking pass's bound-name seeding so a later
-            // transition transports `let i = pick()`'s exit proof (`i < K`,
-            // `i >= 0`) and `let j = i`'s aliased index bound through the
-            // local's label — seed_local_alias_facts runs both the ensured
-            // contract seeding and the source place's alias_index transport.
-            crate::checks::ranges::statements::aliases::seed_local_alias_facts(
-                program,
-                machine,
-                context.state,
-                facts,
-                local.initial_value,
-                local.symbol,
-                Some(local.name.as_str()),
-            );
-            // A subslice initializer (`let w = base[a..b]`) records the same
-            // window parent and shrunk floor the checking pass keeps; a
-            // later `-> load(w)` merges the base's extent minus the offset
-            // into the destination slice's minimum length.
-            crate::checks::ranges::statements::aliases::seed_subslice_window_facts(
-                program,
-                facts,
-                local.initial_value,
-                Some(local.name.as_str()),
-            );
-        }
-        StatementNode::Transition(transition) => {
-            // A guard established before a recursive / cyclic transition refines
-            // the facts that flow into the callee's arguments. The guard's
-            // positive form constrains the branch that is actually taken
-            // (`transition.target`), so narrow a working copy of the facts with
-            // it before deriving the target's argument facts.
-            let guarded_facts = match transition.guard {
-                typed_trees::statement::TransitionGuardNode::When(guard) if guard.is_valid() => {
-                    collect_state_argument_facts_from_expression(context, facts, guard, collected);
-                    let mut narrowed = facts.clone();
-                    if context.call_frames.is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(machine, guard)
-                            .into_complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
-                    }) {
-                        guards::seed_guard_facts(
-                            program,
-                            machine,
-                            context.state,
-                            &mut narrowed,
-                            guard,
-                        );
-                    }
-                    Some(narrowed)
-                }
-                _ => None,
-            };
-            let mut target_facts = guarded_facts.unwrap_or_else(|| facts.clone());
-
-            collect_state_argument_facts_from_target(
-                context,
-                &mut target_facts,
-                transition.target,
-                collected,
-            );
-            // The continuation branch is taken when the guard does not hold, so
-            // it is analysed with the unrefined facts.
-            let mut continuation_facts = facts.clone();
-            collect_state_argument_facts_from_target(
-                context,
-                &mut continuation_facts,
-                transition.continuation,
-                collected,
-            );
+        fn visit_transition_target(
+            &mut self,
+            facts: &mut RangeFacts<'_>,
+            target: TransitionTargetHandle,
+        ) {
+            collect_state_argument_facts_from_target(self.context, facts, target, self.collected);
         }
     }
+    let mut sink = CollectSink { context, collected };
+    transfer_statement_facts(
+        context.program,
+        context.machine,
+        context.state,
+        context.call_frames,
+        facts,
+        statement,
+        &mut sink,
+    );
 }
 
 fn collect_state_argument_facts_from_target(
     context: &StateArgumentContext<'_, '_>,
     facts: &mut RangeFacts<'_>,
-    target: typed_trees::statement::TransitionTargetHandle,
+    target: TransitionTargetHandle,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
     let program = context.program;
@@ -353,26 +125,5 @@ fn collect_state_argument_facts_from_target(
             );
         }
         TransitionTargetNode::Terminal => {}
-    }
-}
-
-fn seed_boolean_guard_local(
-    context: &StateArgumentContext<'_, '_>,
-    facts: &mut RangeFacts<'_>,
-    symbol: symbols::SymbolHandle,
-    name: Option<&str>,
-    expression: ExpressionHandle,
-) {
-    let program = context.program;
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Binary(_)
-    ) && context.call_frames.is_some_and(|frames| {
-        frames
-            .expression_write_frame(context.machine, expression)
-            .into_complete_paths()
-            .is_some_and(|paths| paths.is_empty())
-    }) {
-        facts.define_boolean_guard_local(symbol, name.unwrap_or_default().to_owned(), expression);
     }
 }

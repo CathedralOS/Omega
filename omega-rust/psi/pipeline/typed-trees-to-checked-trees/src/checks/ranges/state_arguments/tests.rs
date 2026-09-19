@@ -618,6 +618,140 @@ fn member_store_and_window_facts_transport_through_transition_arguments() {
     assert_eq!(items.minimum_length.get(), Some(3));
 }
 
+/// A recursive state indexes a fixed-extent slice BEFORE its `has_next`
+/// arm guard runs: `let found = items[index] == 0` must already know
+/// `index` is in range when the state is entered. The
+/// `has_next -> find_at(items, count, next_index)` edge evaluates its
+/// arguments under the arm guard `next_index < count`, and `count`'s
+/// enforced declared range turns that strict comparison into the
+/// argument's exclusive bound `next_index < 16` — the endpoint mint sees
+/// through the boolean local's name to the aliased comparison. That bound
+/// meets the literal entry edge's `0` as the destination parameter's
+/// merged `index < 16`, so `items[index]` proves before the guard is
+/// evaluated.
+///
+/// The count must carry an ENFORCED declared range: an unrelated `u64`
+/// scalar mints no bound, a `[0..=17]` ceiling mints one element past the
+/// extent, `<=` permits `next_index == count == 16` (genuinely out of
+/// range, since the strict form's `-1` is what stays inside), a second
+/// incoming edge with an unbounded argument poisons the merge, and an
+/// argument the guard never mentions carries no bound either.
+#[test]
+fn declared_count_guard_transports_through_transition_arguments() {
+    let find_at = |count_type: &str, entry_index: &str, recurse_argument: &str, guard: &str| {
+        format!(
+                "data Main {{ cells: [u8; 16]; count: {count_type}; }}
+                machine Main::raw(&self) -> u64 {{ 7 }}
+                machine Main::run(&mut self) -> u8 {{
+                    let items: &[u8] = self.cells.as_slice();
+                    transition self.count > 0 {{
+                        true -> find_at(items, self.count, {entry_index})
+                        false -> 0
+                    }}
+                    state find_at(&mut self, items: &[u8], count: {count_type}, index: u64 in Wrapping) -> u8 {{
+                        let found: bool = items[index] == 0;
+                        let next_index: u64 in Wrapping = index + 1;
+                        let has_next: bool = {guard};
+                        transition {{
+                            found -> (items[index])
+                            has_next -> find_at(items, count, {recurse_argument})
+                            _ -> 0
+                        }}
+                    }}
+                }}"
+            )
+    };
+    for (count_type, entry_index, recurse_argument, guard, accepted) in [
+        // `next_index < count` with `count: u64 [0..=16]` mints
+        // `next_index < 16` — the recursive edge's `index` bound.
+        (
+            "u64 [0..=16]",
+            "0",
+            "next_index",
+            "next_index < count",
+            true,
+        ),
+        // An unrelated unbounded scalar count proves nothing about the
+        // extent: the edge argument stays unbounded.
+        ("u64", "0", "next_index", "next_index < count", false),
+        // A ceiling wider than the extent mints `next_index < 17`, one
+        // element past the collection.
+        (
+            "u64 [0..=17]",
+            "0",
+            "next_index",
+            "next_index < count",
+            false,
+        ),
+        // `next_index <= count` permits `next_index == count == 16` —
+        // genuinely out of range, so the rejection is the sound answer.
+        (
+            "u64 [0..=16]",
+            "0",
+            "next_index",
+            "next_index <= count",
+            false,
+        ),
+        // `index` stays provable through the `next_index = index + 1`
+        // offset (`index < 15` follows), but `index + 2` pushes the
+        // merged argument bound one element past the extent.
+        (
+            "u64 [0..=16]",
+            "0",
+            "index + 2",
+            "next_index < count",
+            false,
+        ),
+        // A second incoming edge whose argument carries no bound poisons
+        // the merged parameter facts.
+        (
+            "u64 [0..=16]",
+            "self.raw()",
+            "next_index",
+            "next_index < count",
+            false,
+        ),
+    ] {
+        let result = check_source(&find_at(count_type, entry_index, recurse_argument, guard));
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{count_type} | {entry_index} | {recurse_argument} | {guard}: {result:?}"
+        );
+    }
+
+    // The collected facts carry the transported exclusive bound:
+    // `next_index < 16` under `has_next` enters `find_at`'s `index`
+    // parameter as `index < 16`.
+    let (facts, _, _) = compare_machine(
+        "data Main { cells: [u8; 16]; count: u64 [0..=16]; }
+        machine Main::run(&mut self) -> u8 {
+            let items: &[u8] = self.cells.as_slice();
+            transition self.count > 0 {
+                true -> find_at(items, self.count, 0)
+                false -> 0
+            }
+            state find_at(&mut self, items: &[u8], count: u64 [0..=16], index: u64 in Wrapping) -> u8 {
+                let found: bool = items[index] == 0;
+                let next_index: u64 in Wrapping = index + 1;
+                let has_next: bool = next_index < count;
+                transition {
+                    found -> (items[index])
+                    has_next -> find_at(items, count, next_index)
+                    _ -> 0
+                }
+            }
+        }",
+        Some("Main::run"),
+    );
+    let index = facts
+        .iter()
+        .flat_map(|facts| &facts.parameters)
+        .find(|parameter| parameter.name == "index")
+        .expect("find_at index parameter facts");
+    assert_eq!(index.upper_bound.get(), Some(16));
+}
+
 #[test]
 fn grouped_scalar_meets_preserve_unseen_unknown_and_conflicting_inputs() {
     let values = [None, Some(3), Some(9)];
