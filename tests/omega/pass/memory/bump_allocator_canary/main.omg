@@ -29,11 +29,11 @@
 //   content and never `result.taken.length`, so the residual left after an
 //   allocation is not derivable through `separate` and cannot be discharged
 //   against `tail.length`.
-// - Publishing the decrement as `result.strategy.remaining ==
-//   strategy.remaining - length` currently fails exit-contract proving.
-//   Scalar guarantees are allowed alongside content guarantees: only facts
-//   containing content operations use the closed conservation grammar. The
-//   missing step here is proving the nested result field's scalar relation.
+// - `allocate` publishes the decrement as `result.strategy.remaining ==
+//   strategy.remaining - length`. Exit checking proves that nested field's
+//   exact computation; caller import of the relation still needs work before
+//   it can establish the next request's capacity. Scalar and content facts
+//   remain separate proof obligations.
 // - And the next residual cannot be computed at the call site: the requires
 //   check does not propagate a subtraction's lower bound (`capacity - 16`
 //   cannot prove `>= 32`), and a param's `requires` bounds do not survive
@@ -225,6 +225,8 @@ data Issued {
 machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
 requires
     length <= strategy.remaining
+ensures
+    result.strategy.remaining == strategy.remaining - length
 reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
