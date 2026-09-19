@@ -2197,39 +2197,37 @@ Owners include
   standalone receiving entrances against signatures derived from the
   declarations. Every borrowed access keeps `BorrowedReference`, an inline byte
   field cannot satisfy a parameter by shape equality, an exclusive view
-  reaches an ordinary call from a non-entry block parameter, and an owned root
-  lends a mutable or write-only projected subloan through
-  `structural_arguments_match`. The Terminal verifier still requires a
-  borrowed caller parameter as the exclusive subloan's parent, so nothing
-  produces the owned-parent form for real artifacts yet.
+  reaches an ordinary call from a non-entry block parameter. Owned parameter
+  fields now lend exact mutable/write-only subloans through receiver
+  reconciliation, Terminal verification and `structural_arguments_match`.
+  This does not establish installation-record publication or every projected
+  source form.
 
   Remaining work:
 
-  - Admit `Owned` storage as the parent of a mutable or write-only projected
-    loan in the Terminal verifier.
-    `is_unrestricted_mutable_subloan` and
-    `is_unrestricted_write_only_subloan`
-    (`terminal-verifier/src/validation/structural_operations/structural_arguments.rs`)
-    still require a borrowed caller parameter as parent. The unit-semantics
-    side landed: `static_borrowed_path`'s access matrix now pairs `Owned`
-    parents with mutable and write-only children, a new
-    `unrestricted_owned_mutable_subloan` binds `actual_type ==
-    parameter.structural_type` so inline byte-field presentations stay
-    borrowed-parent forms, and `unrestricted_write_only_subloan` accepts an
-    `Owned` source. Pinned by
-    `owned_root_lends_exclusive_projected_subloan` and
-    `owned_root_subloan_keeps_exclusive_and_presentation_limits`.
-  - The [reborrow table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access)
-    now carries the `Owned` parent row: a shared child freezes the loaned
-    subtree until the complete shared cohort ends; mutable and write-only
-    children suspend it and restore owned access.
-  - Do not retry by relaxing `aggregate_borrows::argument` or the legalization
-    aggregate route. Lowering and legalization already admit the form, so that
-    edit lowers the program and then fails at the same unit-semantics rule.
-  - Record runtime results for both Linux targets. The target-lowering
-    substitution matrices cover linux_x64 and linux_arm64, but the board has
-    recorded native `terminal_psi_indexed_receivers` runs on macOS arm64 and
-    Linux x86-64 only. `primitive_store_return` is the second native leg.
+  - Finish native publication of the owned-field customer in
+    `tests/native-differential/tests/terminal_psi_indexed_receivers/owned_subloans.rs`.
+    Its source-produced Terminal and physical text retain caller-observed writes
+    and an unchanged sibling; the text executes on macOS ARM64 and cross-lowers
+    for all four hosted targets. Routing the same source through the suite's
+    `primitive_stores::published_text` reaches `build_installation_record`, then
+    rejects `InvalidInternalUnitCall(MachineId(2))`. Inspect
+    `image-emission/src/installation_record/record_shape/internal_unit_calls/`
+    and `object_artifact/replay/unit/call_custody.rs`'s
+    `exact_borrowed_projection`; its parent-access gate excludes `Owned`.
+    Preserve exact root/leaf, offset, placement and emitted-byte reconstruction;
+    do not replace the failing publication check with physical-text validation.
+  - Complete mixed field/index paths and other admitted source owners through
+    receiver preparation, native lowering and replay. `receiver_calls/mod.rs`
+    still limits mutable receiver projections to fields, and native
+    `structural_call.rs`/`exact_borrowed_projection` retain borrowed-parent
+    restrictions for indexed projections. Terminal's owned-root array and
+    construction-local restrictions remain separate; do not infer their
+    availability merely from a parameter declaration.
+  - Record matching-host runtime and publication results for both Linux targets
+    and Windows. This owned-field checkpoint ran only on macOS ARM64;
+    cross-emission is not runtime coverage. Preserve the broader
+    `terminal_psi_indexed_receivers` and `primitive_store_return` controls.
 
   Acceptance: caller-visible writes, forwarded references, legal synchronized
   shared observations, write-only non-reading, and register/stack pointer
@@ -2240,30 +2238,14 @@ Owners include
   borrowed copies. A following callee seeing the staged write is not
   caller-visible writeback.
 
-  Flag: projected-argument admission is a roster of access pairs and path
-  shapes, kept in two places with different path grammars. For an owned source
-  `structural_arguments_match` admits an empty path, a field-only path,
-  `[FixedIndex]`, `[FixedIndex, FixedIndex]` or a partial affine path under
-  the `Unit` policy and any path under `Projected`, and the policy is chosen by
-  call kind (`CallUnit` against `CallStructuralScalar`), so the admitted paths
-  depend on the callee's result. The verifier's
-  `is_bounded_structural_scalar_store_path` admits fields followed by at most
-  one index: `[Field, FixedIndex]` fits that grammar and not the `Unit`
-  roster, `[FixedIndex, FixedIndex]` the reverse. The general rule is parent
-  custody from the loan table, requested access, and any type-resolved static
-  `Field`/`FixedIndex` path, stated once in `terminal-semantics` and used by
-  both validators.
-
-  RESOLVED-BLOCKER (2026-09-19, w9): the owned-parent projected subloan was
-  DESIGN-BLOCKED pending an owner decision; the swarm prompt for the owned-row
-  slice supplied it. The unit-semantics admission and the `loans.md` `Owned`
-  row landed under that direction; `mixed [Field, FixedIndex]` paths from
-  owned parameter roots are contract-admitted but remain unlowerable through
-  `exact_borrowed_projection` (a producer-reach gap mirroring the existing
-  operation-result divergence, not a contract rejection). Still open: the
-  verifier half above, upstream production of the form (WRITE-ONLY-BORROW's
-  territory), and the two native runtime legs, which this Linux host cannot
-  run and which were never claimed as passing here.
+  Consolidate duplicated static-path/access rules in `terminal-semantics`,
+  following the settled [loan table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access).
+  The rule is parent custody, requested access and an exact type-resolved
+  `Field`/`FixedIndex` path, not a roster selected by the callee's result kind.
+  Preserve material write-only path restrictions, separate byte-view
+  presentation authority, qualification/claim obligations and overlapping-loan
+  rejection. An owned inline byte field must not acquire a standalone type
+  identity or inherit the borrowed-parent view adapter.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md): relational

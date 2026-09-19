@@ -619,12 +619,15 @@ fn receiver_argument(
         // Reuse the ordinary exact-place resolver and the existing Terminal
         // structural-path exclusive subloan contract. The root keeps its container
         // type; the operand names the leaf, without transferring ownership.
+        // An owned parameter can lend that subtree just as a mutable parent
+        // can; source checking has already established writable receiver use.
         if !matches!(
             (parameter.access, target.access),
             (
                 MutableBorrow,
                 SharedBorrow | MutableBorrow | WriteOnlyBorrow
-            ) | (SharedBorrow, SharedBorrow)
+            ) | (Owned, MutableBorrow | WriteOnlyBorrow)
+                | (SharedBorrow, SharedBorrow)
                 | (WriteOnlyBorrow, WriteOnlyBorrow)
         ) || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()

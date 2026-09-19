@@ -60,7 +60,7 @@ pub(super) fn validate_argument_claims(
                     .iter()
                     .all(|claim| claim.input != argument.place);
         let claim_free_unrestricted_mutable_field =
-            is_unrestricted_mutable_subloan(caller, parameter, argument)
+            is_unrestricted_mutable_subloan(module, caller, parameter, argument)
                 && callee_claims.is_empty()
                 && caller
                     .entry_claims

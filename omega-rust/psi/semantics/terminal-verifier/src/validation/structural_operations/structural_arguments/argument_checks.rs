@@ -313,7 +313,7 @@ pub(super) fn validate_structural_argument(
     // an exact mutable field subloan; this grants no extent replacement.
     let buffer_presentation = (source_policy
         == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-        || (borrowed_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
+        || (borrowed_call && is_unrestricted_mutable_subloan(module, caller, expected, argument)))
         && terminal_semantics::boundary_buffer_capacity(
             module.structural_types.iter(),
             root_type,
@@ -393,7 +393,7 @@ pub(super) fn validate_structural_argument(
     let unrestricted_shared_field_subloan =
         is_unrestricted_shared_subloan(caller, expected, argument);
     let unrestricted_mutable_field_subloan =
-        is_unrestricted_mutable_subloan(caller, expected, argument);
+        is_unrestricted_mutable_subloan(module, caller, expected, argument);
     // A shared view is unrestricted without changing the owning root's
     // affine multiplicity. Construction-local loans remain separate.
     let shared_affine_loan = argument.path.is_empty()

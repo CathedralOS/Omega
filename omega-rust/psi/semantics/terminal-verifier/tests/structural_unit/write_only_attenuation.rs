@@ -61,7 +61,7 @@ fn indexed_write_only_attenuation_does_not_admit_whole_array_leaves() {
     ));
 }
 
-fn record_receiver_module(path: &[StructuralPathSegment]) -> TerminalModule {
+pub(super) fn record_receiver_module(path: &[StructuralPathSegment]) -> TerminalModule {
     let mut module = indexed_attenuation_module();
     module.structural_types.truncate(2);
     module.structural_types[0].shape = StructuralTypeShape::Record {
@@ -111,7 +111,7 @@ fn record_receiver_module(path: &[StructuralPathSegment]) -> TerminalModule {
     module
 }
 
-fn call_arguments(module: &mut TerminalModule) -> &mut Vec<StructuralArgument> {
+pub(super) fn call_arguments(module: &mut TerminalModule) -> &mut Vec<StructuralArgument> {
     match &mut module.machines[0].blocks[0].operations[0].kind {
         OperationKind::CallUnit {
             structural_arguments,
@@ -125,7 +125,7 @@ fn call_arguments(module: &mut TerminalModule) -> &mut Vec<StructuralArgument> {
     }
 }
 
-fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
+pub(super) fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
     let structural_arguments = call_arguments(module).clone();
     let operation = &mut module.machines[0].blocks[0].operations[0];
     operation.result = OperationResult::Scalar(ValueDeclaration {

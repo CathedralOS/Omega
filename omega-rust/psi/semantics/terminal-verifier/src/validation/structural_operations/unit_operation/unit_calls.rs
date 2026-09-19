@@ -84,7 +84,7 @@ pub(super) fn validate_call_unit(
                     )
                     || is_unrestricted_write_only_subloan(module, machine, parameter, argument)
                     || is_unrestricted_shared_subloan(machine, parameter, argument)
-                    || is_unrestricted_mutable_subloan(machine, parameter, argument)
+                    || is_unrestricted_mutable_subloan(module, machine, parameter, argument)
             });
     let result_projection = structural_arguments.iter().any(|argument| {
         argument.access == StructuralAccess::Owned
@@ -152,7 +152,7 @@ pub(super) fn validate_call_unit(
                     && argument.access == StructuralAccess::WriteOnlyBorrow))
                 && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                 && !is_unrestricted_shared_subloan(machine, expected, argument)
-                && !is_unrestricted_mutable_subloan(machine, expected, argument)
+                && !is_unrestricted_mutable_subloan(module, machine, expected, argument)
                 && !(argument.access == StructuralAccess::Owned
                     && expected.multiplicity == StructuralMultiplicity::Affine
                     && partial_affine_root_type(machine, argument.place).is_some_and(|root_type| {

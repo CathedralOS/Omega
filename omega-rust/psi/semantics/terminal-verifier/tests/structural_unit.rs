@@ -12,6 +12,8 @@ mod disjoint_borrowed_projections;
 mod jumps_and_crash_routes;
 #[path = "structural_unit/nominal_affine_cleanup.rs"]
 mod nominal_affine_cleanup;
+#[path = "structural_unit/owned_subloans.rs"]
+mod owned_subloans;
 #[path = "structural_unit/parameter_returns.rs"]
 mod parameter_returns;
 #[path = "structural_unit/partial_affine_moves.rs"]
