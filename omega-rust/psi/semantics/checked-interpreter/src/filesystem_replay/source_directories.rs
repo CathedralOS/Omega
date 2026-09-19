@@ -191,11 +191,15 @@ pub(crate) fn source_directory_chain_attempts(
     attempts
 }
 
-pub(crate) fn source_directory_chain_is_exact(attempts: &[FilesystemOperationAttempt]) -> bool {
+pub(crate) fn source_directory_chain_is_exact<
+    T: std::borrow::Borrow<FilesystemOperationAttempt>,
+>(
+    attempts: &[T],
+) -> bool {
     if attempts.len() < 3 {
         return false;
     }
-    let open = &attempts[0];
+    let open = attempts[0].borrow();
     let Some(FilesystemOperationAttemptOutcome::Returned {
         result: FilesystemOperationResult::LogicalHandle(identity),
         ..
@@ -207,12 +211,12 @@ pub(crate) fn source_directory_chain_is_exact(attempts: &[FilesystemOperationAtt
         return false;
     }
     for read in &attempts[1..attempts.len() - 1] {
-        if !source_directory_read_is_exact(read, identity) {
+        if !source_directory_read_is_exact(read.borrow(), identity) {
             return false;
         }
     }
     source_directory_open_identity(open) == Some(identity)
-        && source_directory_close_is_exact(&attempts[attempts.len() - 1], identity)
+        && source_directory_close_is_exact(attempts[attempts.len() - 1].borrow(), identity)
 }
 
 fn source_directory_open_identity(

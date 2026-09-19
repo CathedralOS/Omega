@@ -20,7 +20,7 @@ use crate::{
 
 pub(crate) struct ObservedOutputTree {
     pub entries: Vec<FilesystemOutputTreeEntryReplayRecord>,
-    /// Completed attempt counts relative to the start of the Output stream.
+    /// Completed attempt counts in the original full chronological stream.
     pub completion_ordinals: Vec<usize>,
 }
 
@@ -36,7 +36,7 @@ struct DescriptorLifetime {
 }
 
 pub(crate) fn output_tree_from_attempts(
-    attempts: &[FilesystemOperationAttempt],
+    attempts: &[(usize, &FilesystemOperationAttempt)],
 ) -> Result<ObservedOutputTree, String> {
     if attempts.is_empty() {
         return Err("bounded filesystem replay requires Output entries".to_owned());
@@ -47,7 +47,7 @@ pub(crate) fn output_tree_from_attempts(
     // Serialized identities are sparse u64 values, not trusted dense slots.
     // Retired entries remain present so a later create cannot revive an identity.
     let mut descriptors = BTreeMap::<FilesystemLogicalHandleIdentity, DescriptorLifetime>::new();
-    for (attempt_index, attempt) in attempts.iter().enumerate() {
+    for &(attempt_index, attempt) in attempts {
         if matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27) {
             if entries.len() == MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
                 return Err("filesystem replay Output tree exceeds its entry ceiling".to_owned());

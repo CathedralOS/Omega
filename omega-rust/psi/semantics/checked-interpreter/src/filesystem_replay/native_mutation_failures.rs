@@ -90,10 +90,7 @@ impl FilesystemReplay {
         attempts.push(unknown_native_handle_mutation_attempt(kind));
         validate_filesystem_replay_size(&attempts)?;
         validate_native_mutation_attempts(&attempts, &[])?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Validate observations containing optional exact Source input followed
@@ -109,10 +106,7 @@ impl FilesystemReplay {
         let attempts = observations.filesystem_operation_attempts();
         validate_filesystem_replay_size(attempts)?;
         validate_native_mutation_attempts(attempts, observations.build_included_sources())?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
     }
 }
 

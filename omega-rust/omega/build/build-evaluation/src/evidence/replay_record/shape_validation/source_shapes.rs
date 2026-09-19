@@ -8,6 +8,7 @@ use crate::evidence::replay_record::rehydration::ShapeIncludedSource;
 use crate::evidence::replay_record::shape_validation::output_stream::{
     OutputEntryAttempts, output_tree_membership,
 };
+use crate::evidence::replay_record::shape_validation::source_output_membership;
 
 pub(crate) fn validate_source_write_refusal_shape(
     attempt: &AttemptShape<'_>,
@@ -69,25 +70,14 @@ pub(crate) fn validate_included_source_shapes(
     if included_sources.is_empty() {
         return Ok(());
     }
-    let output_start = shapes
-        .iter()
-        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 12 | 19 | 20 | 27))
-        .ok_or_else(|| {
-            BuildFilesystemReplayRecordError::new(
-                "source-only filesystem replay cannot retain included-source handoffs",
-            )
-        })?;
-    let output_stream = output_tree_membership(shapes, output_start)?;
+    let membership = source_output_membership(shapes)?;
+    let output_stream = output_tree_membership(shapes, &membership.output_attempts)?;
     let total_attempt_count = u64::try_from(shapes.len()).map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay attempt count exceeds canonical u64",
         )
     })?;
-    let mut previous_ordinal = u64::try_from(output_start).map_err(|_| {
-        BuildFilesystemReplayRecordError::new(
-            "filesystem replay Source-prefix count exceeds canonical u64",
-        )
-    })?;
+    let mut previous_ordinal = 0;
     for (handoff_index, included) in included_sources.iter().enumerate() {
         if included.filesystem_attempt_ordinal < previous_ordinal {
             return Err(BuildFilesystemReplayRecordError::new(

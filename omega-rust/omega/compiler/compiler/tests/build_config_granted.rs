@@ -172,6 +172,43 @@ fn write_interleaved_serialized_replay_project(project: &Project) {
     );
 }
 
+fn write_mixed_interleaved_serialized_replay_project(project: &Project) {
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write("prefix.txt", "data ReplayGenerated {");
+    project.write("suffix.txt", " base: Main; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("build-facet-mixed-interleaved-replay");
+    let prefix: BuildPath = builder.source.resolve("prefix.txt");
+    let suffix: BuildPath = builder.source.resolve("suffix.txt");
+    let generated: BuildPath = builder.output.resolve("generated.omg");
+    let artifact: BuildPath = builder.output.resolve("artifact.txt");
+    let prefix_descriptor: i32 = builder.source.open(prefix, 0);
+    let generated_descriptor: i32 = builder.output.create(generated, 438);
+    let suffix_descriptor: i32 = builder.source.open(suffix, 0);
+    let artifact_descriptor: i32 = builder.output.create(artifact, 438);
+    let mut prefix_bytes: [u8; 22];
+    let prefix_count: i64 = builder.source.read(prefix_descriptor, &mut prefix_bytes, 22);
+    let generated_prefix: i64 = builder.output.write(generated_descriptor, &prefix_bytes);
+    let artifact_prefix: i64 = builder.output.write(artifact_descriptor, "ab");
+    let mut suffix_bytes: [u8; 15];
+    let suffix_count: i64 = builder.source.read(suffix_descriptor, &mut suffix_bytes, 15);
+    let generated_suffix: i64 = builder.output.write(generated_descriptor, &suffix_bytes);
+    let artifact_middle: i64 = builder.output.write(artifact_descriptor, "Z");
+    let generated_newline: i64 = builder.output.write(generated_descriptor, "\n");
+    let artifact_suffix: i64 = builder.output.write(artifact_descriptor, "cd");
+    let artifact_close: i32 = builder.output.close(artifact_descriptor);
+    let generated_close: i32 = builder.output.close(generated_descriptor);
+    builder.output.include_source(generated);
+    let prefix_end: i64 = builder.source.read(prefix_descriptor, &mut prefix_bytes, 22);
+    let suffix_close: i32 = builder.source.close(suffix_descriptor);
+    let prefix_close: i32 = builder.source.close(prefix_descriptor);
+}
+"#,
+    );
+}
+
 fn sponsored_build_session(label: &str) -> (PathBuf, FilesystemSponsor, PathBuf) {
     let session = std::env::temp_dir().join(format!(
         "omega-build-facet-{label}-session-{}",

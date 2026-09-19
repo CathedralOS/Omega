@@ -160,6 +160,73 @@ fn exact_descriptor_metadata_shapes() -> Vec<AttemptShape<'static>> {
 }
 
 #[test]
+fn source_output_lifetime_projections_preserve_interleaved_membership() {
+    use crate::evidence::replay_record::shape_validation::source_output_membership;
+    let original = exact_input_output_shapes();
+    let mut second = original[..3].to_vec();
+    second[0].result = ShapeResult::Handle(3);
+    second[0].output.as_mut().unwrap().identity = 3;
+    second[1].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(3);
+    second[2].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(3);
+    second[2].retired = vec![3];
+    let shapes = vec![
+        original[0].clone(),
+        original[1].clone(),
+        original[3].clone(),
+        original[4].clone(),
+        second[0].clone(),
+        second[1].clone(),
+        original[2].clone(),
+        original[5].clone(),
+        second[2].clone(),
+    ];
+    validate_first_rung(&shapes).expect("Source and Output lifetimes compose");
+    let membership = source_output_membership(&shapes).unwrap();
+    assert_eq!(membership.source_events, vec![vec![0, 1, 6], vec![4, 5, 8]]);
+    assert_eq!(membership.output_attempts, vec![2, 3, 7]);
+
+    let mut reused = shapes.clone();
+    reused[4].output.as_mut().unwrap().identity = 2;
+    reused[4].result = ShapeResult::Handle(2);
+    assert!(validate_first_rung(&reused).is_err());
+    let mut retired = shapes.clone();
+    retired.swap(1, 6);
+    assert!(validate_first_rung(&retired).is_err());
+    let mut wrong_kind = shapes.clone();
+    wrong_kind[5].inputs[0].kind = 1;
+    assert!(validate_first_rung(&wrong_kind).is_err());
+    let mut missing_close = shapes.clone();
+    missing_close.pop();
+    assert!(validate_first_rung(&missing_close).is_err());
+    let mut wrong_root = shapes;
+    wrong_root[4].rooted_paths[0].root = 1;
+    assert!(validate_first_rung(&wrong_root).is_err());
+}
+
+#[test]
+fn native_last_error_membership_requires_original_stream_adjacency() {
+    let native = native_query_chain_shapes();
+    let output = exact_input_output_shapes();
+    let error = empty_shape(35, ShapeResult::Scalar(0));
+    let mut shapes = vec![
+        native[0].clone(),
+        error.clone(),
+        output[3].clone(),
+        native[1].clone(),
+        error.clone(),
+        output[4].clone(),
+        native[2].clone(),
+        output[5].clone(),
+    ];
+    validate_first_rung(&shapes).expect("native errors follow their exact preceding native event");
+    shapes.swap(4, 5);
+    assert!(
+        validate_first_rung(&shapes).is_err(),
+        "Output interrupts native error association"
+    );
+}
+
+#[test]
 fn output_write_authorization_lane_rejects_during_recovery_validation() {
     let mut shapes = exact_input_output_shapes();
     assert!(validate_first_rung(&shapes).is_ok());

@@ -83,6 +83,47 @@ fn hard_link(
 }
 
 #[test]
+fn mixed_source_output_lifetimes_preserve_dispatch_and_reject_invalid_custody() {
+    let source = source_input().into_attempts();
+    let output = file(b"generated.omg", 2, b"generated").into_attempts();
+    let attempts = vec![
+        source[0].clone(),
+        output[0].clone(),
+        source[1].clone(),
+        output[1].clone(),
+        output[2].clone(),
+        source[2].clone(),
+    ];
+    let handoff =
+        BuildIncludedSource::from_coordinate(root(2), b"generated.omg".to_vec(), 5).unwrap();
+    let replay = FilesystemReplay::from_input_output_attempts(attempts.clone(), vec![handoff])
+        .expect("Source may close after the generated Output is handed off");
+    assert_eq!(replay.attempts(), attempts);
+    assert_eq!(
+        (0..6)
+            .map(|ordinal| replay.executes_replay_attempt(ordinal))
+            .collect::<Vec<_>>(),
+        [false, true, false, true, true, false]
+    );
+
+    let mut retired_read = attempts.clone();
+    retired_read.swap(2, 5);
+    assert!(FilesystemReplay::from_input_output_attempts(retired_read, Vec::new()).is_err());
+    let mut missing_close = attempts.clone();
+    missing_close.pop();
+    assert!(FilesystemReplay::from_input_output_attempts(missing_close, Vec::new()).is_err());
+    let mut reused_source = attempts.clone();
+    reused_source.extend(source);
+    assert!(FilesystemReplay::from_input_output_attempts(reused_source, Vec::new()).is_err());
+    let mut wrong_kind = attempts.clone();
+    wrong_kind[2].logical_handle_inputs[0].kind = crate::FilesystemLogicalHandleKind::Native;
+    assert!(FilesystemReplay::from_input_output_attempts(wrong_kind, Vec::new()).is_err());
+    let early =
+        BuildIncludedSource::from_coordinate(root(2), b"generated.omg".to_vec(), 4).unwrap();
+    assert!(FilesystemReplay::from_input_output_attempts(attempts, vec![early]).is_err());
+}
+
+#[test]
 fn interleaved_output_lifetimes_preserve_order_and_actual_handoff_ordinals() {
     let first = file(b"first.omg", 2, b"first").into_attempts();
     let second = file(b"nested/second.omg", 3, b"second").into_attempts();

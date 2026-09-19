@@ -14,10 +14,12 @@ The [checked interpreter](../../../psi/semantics/checked-interpreter/src/interpr
 executes provider-free replay; its
 [filesystem replay modules](../../../psi/semantics/checked-interpreter/src/filesystem_replay)
 validate directories, links, duplicates, locks, ownership, and exact failures.
-Output replay follows the chronological event stream. Descriptor lifetimes
-associate operations with files; per-file projections validate content without
-reordering execution. The Source prefix and failure-only routes retain their
-bounded sequence restrictions below.
+Source and Output replay follow one chronological event stream. Descriptor
+lifetimes associate operations with files; per-lifetime projections validate
+content without reordering execution. Source receipts inject retained inputs;
+Output operations execute against the virtual tree. Both use one descriptor-token
+allocator so their live handles cannot collide. Only the failure-only routes
+retain the bounded prefix/suffix restrictions below.
 
 Replay starts with a fresh virtual Output tree, never a live filesystem provider.
 It compares exact ordered attempts, operands, authorization/refusal records,
@@ -36,14 +38,24 @@ Unsupported shapes remain volatile; they do not become receipts by dropping an
 operand, result, failure, or output entry. No table here promises exhaustive
 filesystem support.
 
-## Source prefix
+## Source events and descriptor lifetimes
+
+Independent Source lifetimes may overlap each other and Output lifetimes. Every
+operation retains its original ordinal, including Source reads and closes after
+an Output handoff. Projection for validation does not move those events or make
+a generated file available before its actual close.
 
 | Sequence | Required observations |
 | --- | --- |
-| `open(flags = 0); (read | read_at)*; close` | Closed, noninterleaved, distinct descriptor lifetimes. All reads succeed. Sequential position starts at zero and advances only for sequential reads; nonnegative positioned offsets leave it unchanged. No failed reads or lifetime reuse. |
+| `open(flags = 0); (read | read_at)*; close` | Closed, distinct descriptor lifetimes. All reads succeed. Sequential position starts at zero and advances only for sequential reads; nonnegative positioned offsets leave it unchanged. No failed reads or lifetime reuse. |
 | Follow/no-follow path metadata | May intersperse with Source operations. Exact 14 fields, checked layout, full padding/tails, and result. Successful descriptor metadata is not covered. |
 | `read_link` | Exact Source root and no-follow grant, count, full carrier, meaningful target bytes, and complete/limited disposition. No authority to follow the returned spelling. |
 | `open(flags = 0); read_dir+; close` | Closed directory sequence, exact count, byte carrier and `i64` cursor at resolution/pre/post phases, and packed regions. Records are inert bytes, not an exhaustive namespace or new path grants. Failed enumeration is not covered. |
+
+Source native final-path query lifetimes retain their exact open/query/close
+contracts. A handle-free `get_last_error` belongs only to the immediately
+preceding native open/query/error in the original stream. An intervening event
+cannot disappear merely because a per-handle projection omits it.
 
 ## Output tree and descriptor lifetimes
 
@@ -77,8 +89,8 @@ inputs; replay cannot expand them.
 
 ## Exact failure sequences
 
-Unless stated otherwise, a failure sequence may follow the supported Source
-prefix. It has no generated-source handoff and ends with empty Output and clean
+Unless stated otherwise, a failure sequence may follow a prefix of closed,
+noninterleaved Source events. It has no generated-source handoff and ends with empty Output and clean
 teardown. Records retain the exact scoped-provider model and all authored
 operands, even where the failure is independent of an operand's value.
 

@@ -280,15 +280,26 @@ fn borrowed_native_view_uses_its_descriptor_lease() {
 #[test]
 fn replay_cursor_rejects_reordered_extra_and_missing_events() {
     let program = TypedTrees::default();
-    let expected = returned_attempt(FilesystemHostOperation::Open);
+    let directory = crate::FilesystemOutputDirectoryReplayRecord::new(
+        FilesystemGrantRootIdentity::new(1).expect("nonzero Output root"),
+        b"generated".to_vec(),
+    )
+    .expect("canonical directory");
+    let record = crate::FilesystemInputOutputTreeReplayRecord::output_only(
+        vec![crate::FilesystemOutputTreeEntryReplayRecord::Directory(
+            directory,
+        )],
+        Vec::new(),
+    )
+    .expect("one complete Output event");
+    let replay =
+        crate::FilesystemReplay::from_input_output_tree_record(record).expect("validated replay");
+    let expected = replay.attempts()[0].clone();
     let mut evaluator = Evaluator::new(&program, &[]);
-    evaluator.filesystem_replay = Some(crate::FilesystemReplay {
-        attempts: vec![expected.clone()].into(),
-        expected_included_sources: std::sync::Arc::from([]),
-    });
+    evaluator.filesystem_replay = Some(replay);
 
     assert!(matches!(
-        evaluator.expected_filesystem_replay_attempt(0, FilesystemHostOperation::Open),
+        evaluator.expected_filesystem_replay_attempt(0, FilesystemHostOperation::CreateDir),
         Ok(Some(actual)) if actual == expected
     ));
     assert!(matches!(
@@ -296,7 +307,7 @@ fn replay_cursor_rejects_reordered_extra_and_missing_events() {
         Err(Halt::Trap(message)) if message.contains("changed order")
     ));
     assert!(matches!(
-        evaluator.expected_filesystem_replay_attempt(1, FilesystemHostOperation::Open),
+        evaluator.expected_filesystem_replay_attempt(1, FilesystemHostOperation::CreateDir),
         Err(Halt::Trap(message)) if message.contains("extra event")
     ));
     assert!(matches!(
@@ -304,6 +315,15 @@ fn replay_cursor_rejects_reordered_extra_and_missing_events() {
         Err(Halt::Trap(message)) if message.contains("record contains 1")
     ));
     evaluator.filesystem_operation_attempts.push(expected);
+    assert!(
+        evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::CreateDir {
+                path: b"/root/1/generated".to_vec(),
+                mode: crate::FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE,
+            })
+            .is_ok(),
+        "the completed event also establishes its Output namespace"
+    );
     assert!(evaluator.finish_filesystem_replay().is_ok());
 }
 

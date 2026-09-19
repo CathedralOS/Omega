@@ -53,10 +53,7 @@ impl FilesystemReplay {
         attempts.push(get_last_error_after_invalid_handle_attempt());
         validate_filesystem_replay_size(&attempts)?;
         validate_native_mutation_with_last_error_attempts(&attempts, &[])?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Validate observations containing exactly the ordered invalid-handle
@@ -75,10 +72,7 @@ impl FilesystemReplay {
             attempts,
             observations.build_included_sources(),
         )?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
     }
 
     /// Append immediate `get_last_error` to any already exact unknown-native-
@@ -112,10 +106,7 @@ impl FilesystemReplay {
             &[],
             unknown_native_handle_invalid_handle_failure_attempt_is_exact,
         )?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.into(), std::sync::Arc::from([]))
     }
 
     /// Validate any exact unknown-native-handle failure followed immediately
@@ -135,10 +126,7 @@ impl FilesystemReplay {
             observations.build_included_sources(),
             unknown_native_handle_invalid_handle_failure_attempt_is_exact,
         )?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: std::sync::Arc::from([]),
-        })
+        Self::from_validated(attempts.to_vec().into(), std::sync::Arc::from([]))
     }
 }
 

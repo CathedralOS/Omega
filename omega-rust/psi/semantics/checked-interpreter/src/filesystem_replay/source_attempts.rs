@@ -66,12 +66,13 @@ pub(crate) fn source_input_record_attempts(
     attempts
 }
 
-pub(crate) fn source_attempts_overlap_output(
-    attempts: &[FilesystemOperationAttempt],
+pub(crate) fn source_attempts_overlap_output<T: std::borrow::Borrow<FilesystemOperationAttempt>>(
+    attempts: &[T],
     output_root: FilesystemGrantRootIdentity,
     output_identity: FilesystemLogicalHandleIdentity,
 ) -> bool {
     attempts.iter().any(|attempt| {
+        let attempt = attempt.borrow();
         attempt
             .rooted_path_operand_resolutions
             .iter()

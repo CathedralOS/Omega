@@ -1,7 +1,7 @@
 use super::{
     Project, bound_build_output_session, package_inputs, set_canonical_source_tree_permissions,
     sponsored_build_session, write_interleaved_serialized_replay_project,
-    write_serialized_replay_project,
+    write_mixed_interleaved_serialized_replay_project, write_serialized_replay_project,
 };
 use checked_interpreter::FilesystemSponsor;
 use compiler::{CheckedCompileRequest, compile_to_checked};
@@ -573,12 +573,30 @@ fn serialized_replay_record_reproduces_the_full_admitted_activation() {
 
 #[test]
 fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
+    assert_interleaved_serialized_replay(false);
+}
+
+#[test]
+fn serialized_replay_preserves_interleaved_source_and_output_descriptor_lifetimes() {
+    assert_interleaved_serialized_replay(true);
+}
+
+fn assert_interleaved_serialized_replay(mixed_source: bool) {
     use build_evaluation::BuildFilesystemLogicalHandleInputResolution::Resolved;
 
     let profile = target::TargetProfile::WindowsX64;
-    let project = Project::new("interleaved-serialized-replay");
-    write_interleaved_serialized_replay_project(&project);
-    let (session, sponsor, build_dir) = sponsored_build_session("interleaved-serialized-replay");
+    let label = if mixed_source {
+        "mixed-interleaved-serialized-replay"
+    } else {
+        "interleaved-serialized-replay"
+    };
+    let project = Project::new(label);
+    if mixed_source {
+        write_mixed_interleaved_serialized_replay_project(&project);
+    } else {
+        write_interleaved_serialized_replay_project(&project);
+    }
+    let (session, sponsor, build_dir) = sponsored_build_session(label);
     set_canonical_source_tree_permissions(&project.root, true);
     let inputs = package_inputs(&project.root);
     let checked = compile_to_checked(CheckedCompileRequest {
@@ -589,6 +607,11 @@ fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
     })
     .expect("interleaved admitted Output files execute and append generated source");
     let expected_generated = b"data ReplayGenerated { base: Main; }\n\n";
+    let expected_operations: &[u16] = if mixed_source {
+        &[2, 1, 2, 1, 4, 5, 5, 4, 5, 5, 5, 5, 8, 8, 4, 8, 8]
+    } else {
+        &[1, 1, 5, 5, 5, 5, 5, 5, 8, 8]
+    };
     assert_eq!(
         std::fs::read(build_dir.join("generated.omg")).unwrap(),
         expected_generated
@@ -606,40 +629,39 @@ fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        [1, 1, 5, 5, 5, 5, 5, 5, 8, 8],
+        expected_operations,
         "retain authored operation order rather than grouping by descriptor"
     );
-    let generated_descriptor = attempts[0].logical_handle_output().unwrap().identity();
-    let artifact_descriptor = attempts[1].logical_handle_output().unwrap().identity();
-    assert_ne!(generated_descriptor, artifact_descriptor);
-    for (attempt, descriptor) in attempts[2..].iter().zip([
-        generated_descriptor,
-        artifact_descriptor,
-        generated_descriptor,
-        artifact_descriptor,
-        generated_descriptor,
-        artifact_descriptor,
-        artifact_descriptor,
-        generated_descriptor,
-    ]) {
+    let (creation_count, descriptor_origins, handoff_ordinal): (usize, &[usize], u64) =
+        if mixed_source {
+            (4, &[0, 1, 3, 2, 1, 3, 1, 3, 3, 1, 0, 2, 0], 14)
+        } else {
+            (2, &[0, 1, 0, 1, 0, 1, 1, 0], 10)
+        };
+    let descriptors: Vec<_> = attempts[..creation_count]
+        .iter()
+        .map(|attempt| attempt.logical_handle_output().unwrap().identity())
+        .collect();
+    for (position, descriptor) in descriptors.iter().enumerate() {
+        assert!(!descriptors[..position].contains(descriptor));
+    }
+    for (attempt, &origin) in attempts[creation_count..].iter().zip(descriptor_origins) {
+        let descriptor = descriptors[origin];
         let [input] = attempt.logical_handle_inputs() else {
-            panic!("one descriptor operand per write or close")
+            panic!("one descriptor operand per read, write, or close")
         };
         assert_eq!(input.resolution(), Resolved(descriptor));
+        if attempt.operation_tag() == 8 {
+            assert_eq!(attempt.retired_logical_handles(), &[descriptor]);
+        } else {
+            assert!(attempt.retired_logical_handles().is_empty());
+        }
     }
-    assert_eq!(
-        attempts[8].retired_logical_handles(),
-        &[artifact_descriptor]
-    );
-    assert_eq!(
-        attempts[9].retired_logical_handles(),
-        &[generated_descriptor]
-    );
     let [handoff] = summary.included_source_handoffs() else {
         panic!("only the explicitly included generated file is source")
     };
     assert_eq!(handoff.relative_path(), b"generated.omg");
-    assert_eq!(handoff.filesystem_attempt_ordinal(), 10);
+    assert_eq!(handoff.filesystem_attempt_ordinal(), handoff_ordinal);
     assert!(
         summary.filesystem_replay_verdict().is_complete(),
         "interleaved descriptor lifetimes must establish Complete replay"
@@ -664,7 +686,7 @@ fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
     std::fs::remove_dir_all(&session).expect("remove primary activation's host output");
     let replayed = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs),
-        replay_record: Some(recovered),
+        replay_record: Some(recovered.clone()),
         ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
     })
     .expect("serialized replay reconstructs interleaved outputs without a provider");
@@ -696,6 +718,23 @@ fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
         replayed.source_consumption_commitment(),
         checked.source_consumption_commitment()
     );
+    if mixed_source {
+        set_canonical_source_tree_permissions(&project.root, false);
+        project.write("suffix.txt", " base: Main; } ");
+        set_canonical_source_tree_permissions(&project.root, true);
+        let drifted = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&project.root)),
+            replay_record: Some(recovered),
+            ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+        })
+        .expect_err("mixed replay must reject stale Source bytes even with no live Output");
+        assert!(
+            drifted.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("does not match the current canonical Source metadata identity")),
+            "unexpected mixed Source drift diagnostics: {drifted:#?}"
+        );
+    }
 }
 
 #[test]
