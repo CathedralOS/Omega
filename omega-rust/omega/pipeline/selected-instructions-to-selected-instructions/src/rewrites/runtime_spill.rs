@@ -59,6 +59,18 @@
 //! address operand verbatim, and the coordinate stays rejected where a
 //! transport names a different place or field offset.
 //!
+//! A victim whose class cannot sit in the slot's access rows — an
+//! ABI-resident IEEE-float register on a target whose frame transport is
+//! GPR — still spills: its stored bytes are raw payload, so each store is
+//! the target's own `Float*ToBits` conversion into the rows' shared carrier
+//! class followed by the `Store64`, and each reload appends the matching
+//! `BitsToFloat*` behind its `Load64`. The eight-byte private slot, the
+//! slot-sharing analysis, and the boundary/redefinition ordering are
+//! unchanged; the conversions are inert two-operand bridges — a row with an
+//! implicit definition or clobber could destroy the still-open reload it
+//! sits inside, so an impure or missing pair leaves the victim a
+//! candidate-local rejection rather than a constraint fault.
+//!
 //! Terminator instruction operands are ordinary uses at one more position:
 //! each reloads at the end of its block, after the last body instruction and
 //! any definition store. A fixed view on such an operand (an ABI return or

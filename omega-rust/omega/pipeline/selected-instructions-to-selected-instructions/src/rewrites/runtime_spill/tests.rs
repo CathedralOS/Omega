@@ -309,7 +309,7 @@ fn every_future_flexible_use_names_the_block_shared_reload() {
 }
 
 #[test]
-fn ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence() {
+fn ieee_raw_bit_spills_retain_type_and_transport_fp_register_residence() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -381,12 +381,27 @@ fn ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence() {
                 .is_err()
             );
 
-            let mut floating_home = source.clone();
             let float_class = environment
-                .constraint(environment.selected_keys().bits_to_float64.unwrap())
+                .constraint(match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        environment.selected_keys().bits_to_float32.unwrap()
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        environment.selected_keys().bits_to_float64.unwrap()
+                    }
+                })
                 .unwrap()
                 .operands[1]
                 .class;
+            let carrier_class = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap()
+                .operands[0]
+                .class;
+            // Only the victim's own class moved: its consumers still read the
+            // carrier class, so the uses themselves stay rejected before the
+            // transport question is ever reached.
+            let mut floating_home = source.clone();
             Arc::make_mut(&mut floating_home.transformed).functions[0].virtual_registers[1].class =
                 float_class;
             assert!(
@@ -400,10 +415,11 @@ fn ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence() {
                 .is_err()
             );
             // With the consumers' use operands in the same foreign class the
-            // victim reaches the target-row check: the frame/load/store rows
-            // cannot carry its class, which is a candidate-local limit
-            // (`UnsupportedValue`), so recovery skips it and tries the next
-            // candidate instead of aborting on a constraint mismatch.
+            // victim rides the target's declared bit-preserving pair: each
+            // definition store is `Float*ToBits` into the carrier class then
+            // `Store64`, and each reload is `FrameAddress` + `Load64` with a
+            // `BitsToFloat*` restoring the victim's own class — the same
+            // eight-byte private slot a direct spill uses.
             let mut foreign_class = source.clone();
             {
                 let function = &mut Arc::make_mut(&mut foreign_class.transformed).functions[0];
@@ -412,9 +428,161 @@ fn ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence() {
                     instruction.operands[0].class = float_class;
                 }
             }
+            let result = spill_selected_runtime_value(
+                &foreign_class,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+            )
+            .unwrap();
+            let function = &result.transformed().functions[0];
+            let (to_kind, from_kind) = match format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => (
+                    SelectedInstructionKind::Float32ToBits,
+                    SelectedInstructionKind::BitsToFloat32,
+                ),
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => (
+                    SelectedInstructionKind::Float64ToBits,
+                    SelectedInstructionKind::BitsToFloat64,
+                ),
+            };
+            let instructions = &function.blocks[0].instructions;
+            assert_eq!(function.local_storage_slots.len(), 1);
+            assert_eq!(function.local_storage_slots[0].byte_size, 8);
+            assert_eq!(
+                instructions
+                    .iter()
+                    .filter(|instruction| instruction.kind == to_kind)
+                    .count(),
+                1
+            );
+            let stores = instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::Store64 { .. })
+                })
+                .count();
+            assert_eq!(stores, 1);
+            let loads = instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                })
+                .count();
+            let restores = instructions
+                .iter()
+                .filter(|instruction| instruction.kind == from_kind)
+                .count();
+            // One store sequence for the origin definition; every reload is
+            // address, load, restore in that order.
+            assert!(loads >= 1 && loads == restores);
+            // The `Store64` reads the conversion's carrier result, not the
+            // victim register, and every produced carrier register holds the
+            // raw bits in the rows' shared class.
+            let store = instructions
+                .iter()
+                .find(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::Store64 { .. })
+                })
+                .unwrap();
+            let stored = store.operands[0].virtual_register;
+            assert_ne!(stored, VirtualRegisterId(1));
+            let carrier = function
+                .virtual_registers
+                .iter()
+                .find(|register| register.id == stored)
+                .unwrap();
+            assert_eq!(carrier.class, carrier_class);
+            assert_eq!(carrier.scalar_type, address_type);
+            // Every rewritten consumer names a reload register in the
+            // victim's own class and exact scalar type.
+            for original_id in [2u32, 3, 4] {
+                let rewritten = instructions
+                    .iter()
+                    .find(|instruction| instruction.id == SelectedInstructionId(original_id))
+                    .unwrap();
+                let reload = rewritten.operands[0].virtual_register;
+                let produced = function
+                    .virtual_registers
+                    .iter()
+                    .find(|register| register.id == reload)
+                    .unwrap();
+                assert_eq!(produced.class, float_class);
+                assert_eq!(produced.scalar_type, scalar_type);
+            }
+            assert!(
+                validate_runtime_spill(
+                    &foreign_class,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    result.transformed().clone()
+                )
+                .is_ok()
+            );
+            // Replay demands the conversion stream verbatim: dropping the
+            // restore, rebinding its input, or storing the victim directly
+            // each fails independently.
+            let mut dropped = result.transformed().clone();
+            let position = dropped.functions[0].blocks[0]
+                .instructions
+                .iter()
+                .position(|instruction| instruction.kind == from_kind)
+                .unwrap();
+            dropped.functions[0].blocks[0].instructions.remove(position);
+            assert_eq!(
+                validate_runtime_spill(
+                    &foreign_class,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    dropped
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch
+            );
+            let mut direct_store = result.transformed().clone();
+            let position = direct_store.functions[0].blocks[0]
+                .instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::Store64 { .. })
+                })
+                .unwrap();
+            direct_store.functions[0].blocks[0].instructions[position].operands[0]
+                .virtual_register = VirtualRegisterId(1);
+            assert_eq!(
+                validate_runtime_spill(
+                    &foreign_class,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    direct_store
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch
+            );
+            // A foreign-class victim without the float payload has no
+            // declared pair to ride — still the candidate-local rejection
+            // recovery expects, so it tries the next candidate instead of
+            // aborting on a constraint mismatch.
+            let mut foreign_nonfloat = source.clone();
+            {
+                let function = &mut Arc::make_mut(&mut foreign_nonfloat.transformed).functions[0];
+                function.virtual_registers[1].class = float_class;
+                function.virtual_registers[1].scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+                for instruction in &mut function.blocks[0].instructions[1..] {
+                    instruction.operands[0].class = float_class;
+                }
+            }
             assert_eq!(
                 spill_selected_runtime_value(
-                    &foreign_class,
+                    &foreign_nonfloat,
                     0,
                     VirtualRegisterId(1),
                     &environment,

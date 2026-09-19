@@ -362,21 +362,26 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
   `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
   inserts and independently replays the private stores and reload pairs. That
-  route already spills general-purpose-class instruction results, block
-  parameters and entry-bound registers in acyclic and cyclic functions; serves
-  body, terminator, edge-transport and stored-snapshot uses; keeps an ABI pin
-  on its own reload pair; carries a reload across a call onto a surviving
-  view; and composes after fixed-view copies and active-resident
+  route already spills instruction results, block parameters and entry-bound
+  registers in acyclic and cyclic functions — including IEEE-scalar victims
+  whose class the frame rows cannot carry, by wrapping every store and
+  reload in the target's inert `Float*ToBits`/`BitsToFloat*` pair — serves
+  body, terminator, edge-transport and stored-snapshot uses; keeps an ABI
+  pin on its own reload pair; carries a reload across a call onto a
+  surviving view; and composes after fixed-view copies and active-resident
   rematerialization. It does not establish the cases below.
 
   Remaining work:
 
-  - Victim and use admission (`rewrites/runtime_spill/admission.rs`). Still
-    rejected: a victim whose register class differs from the `FrameAddress`,
-    `Load64` and `Store64` rows (vector-class values); a definition by
-    `FrameAddress`, `AddressOffset` or `ByteViewAddress`; tied, early-clobber
-    and redefining references; an entry-bound victim when an edge targets the
-    entry block; and a multi-chunk stored snapshot whose chunk loads are
+  - Victim and use admission (`rewrites/runtime_spill/admission.rs`). A
+    foreign-class IEEE scalar reaches its slot through the frame rows'
+    shared carrier class: stores prepend `Float*ToBits`, reloads append
+    `BitsToFloat*`, and a missing or impure conversion row keeps the victim
+    a candidate-local rejection. Still rejected: a foreign-class victim
+    without that transport pair (vector-class values, non-IEEE scalars); a
+    definition by `FrameAddress`, `AddressOffset` or `ByteViewAddress`; tied
+    and early-clobber references; an entry-bound victim when an edge targets
+    the entry block; and a multi-chunk stored snapshot whose chunk loads are
     pinned or separated by a unit-writing instruction. Recovery then tries
     the next roster candidate and fails when the roster is exhausted.
   - Slot assignment. Every victim declares a private eight-byte
