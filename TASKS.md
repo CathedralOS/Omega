@@ -1159,15 +1159,26 @@ Owners include
   the merged common + case payload spelling per element, and
   `mixed_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
   lowers the mixed-element writer on both Linux ISAs (native execution on
-  x86-64).
+  x86-64). Fully-applied const-generic instances now materialize through
+  the same recursion — checking substitutes `Neighbor<const M: u64>` into
+  closed `[copy]` records whose `cells: [Choice; M]` lengths arrive
+  literal, so `validate_closed_copy_record` admits them beside authored
+  records and `generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
+  writes `grid.cells[i]` and `grids[i].cells[j]` on both Linux ISAs
+  (native execution on x86-64).
 
   Remaining work:
 
-  - Shapes the recursion still fences: any non-literal array length.
-    Consecutive literal element hops now flatten into one packed row under
-    the recursive owner; the standalone rungs keep their single-hop fence
-    verbatim, so an array-of-arrays reaching sums still rejects outside the
-    recursive owner.
+  - Shapes the recursion still fences: an array length still symbolic at
+    layout time — the unapplied template (`type_parameters` rejects it),
+    or a `ConstCall`/`ConstParameter` surviving outside the connected
+    pipeline — plus zero-count instantiations like `Neighbor<0>`, which
+    keep the nonzero literal-length row fence. ConstMaterializable value
+    materialization keeps its own uniform `generic_instance` fence;
+    lifting it is a separate custody surface, not this chain. The
+    standalone rungs keep their single-hop fence verbatim, so an
+    array-of-arrays reaching sums still rejects outside the recursive
+    owner.
   - The Linux aarch64 native leg has never executed. That harness selects its
     guarded C driver by `cfg(target_arch)`, so only the x86-64 arm has run;
     every other host takes the emission-only path.
