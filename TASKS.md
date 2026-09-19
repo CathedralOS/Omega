@@ -4108,8 +4108,12 @@ Owners include
   - The uninstall and replacement joins over that custody, per
     [visibility and retirement](wiki/spec/build/executable_installation.md#visibility-and-retirement):
     visibility before entry, quiescence before retirement, and live-site
-    patching through admitted fragments. `replacement_quarantine.rs` models the
-    fail-closed outcome but no route reaches it.
+    patching through admitted fragments. `uninstall.rs` now owns the
+    drain-or-quarantine join — `uninstall_installed` retires a complete drain
+    and routes any incomplete drain to `replacement_quarantine.rs` when the
+    provider supplies trapping evidence, returning every input when neither
+    ending establishes. Still open: the replacement join (live-site patching
+    through admitted fragments) has no route.
   - A route from Omega source: no `.omg` file names an admitted artifact, a
     placement or installed code, so no canary reaches any of this.
 
