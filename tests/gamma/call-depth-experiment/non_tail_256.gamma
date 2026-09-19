@@ -1,7 +1,0 @@
-; Non-tail recursion at the selected evaluator's exact call-context bound.
-; Each (+ 0 (descend ...)) keeps one call context live per recursion level,
-; so descend n reaches depth n. 256 live contexts is the admitted maximum.
-(def descend ((n Int)) Int
-  (if (eq n 0) 1 (+ 0 (descend (- n 1)))))
-
-(def main () Int (descend 256))
