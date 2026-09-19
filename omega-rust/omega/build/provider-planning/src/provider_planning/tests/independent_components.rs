@@ -24,11 +24,13 @@ use component_description::{
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, StructuralTypeId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
+    StructuralTypeId,
 };
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract,
-    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, StructuralTypeDeclaration,
+    Block, BoundaryMachineDeclaration, BoundaryMachineResult, InstallationReachDependency,
+    MachineContract, Operation, OperationKind, OperationResult, ProviderCandidateConformance,
+    ProviderRefinement, ProviderSignature, ServiceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
@@ -306,6 +308,61 @@ fn provider_module(
     module
 }
 
+/// A provider component whose root entry calls an installation-bound
+/// boundary (`reaches <= Bound`). The verified module retains the declared
+/// dependency row instead of a resolved service row, so the description
+/// exports the dependency's conservative bound inside its service ceiling.
+fn bounded_provider_module(
+    requirement_identity: &str,
+    provider_identity: &str,
+    candidate_identity: &str,
+) -> TerminalModule {
+    let mut module = provider_module(requirement_identity, provider_identity, candidate_identity);
+    let bound_service = ServiceId::new(1).expect("service identity");
+    module.services.push(ServiceDeclaration {
+        id: bound_service,
+        identity: "PortIo".to_owned(),
+        parents: Vec::new(),
+    });
+    let bounded_boundary = BoundaryMachineId::new(2).expect("boundary identity");
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: bounded_boundary,
+        identity: "MachineControl::mask".to_owned(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: vec![bound_service],
+    });
+    module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(1).expect("operation identity"),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: bounded_boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    // A caller's published ceiling conservatively covers the dependency's
+    // bound; `installation_dependencies` keeps the unresolved row distinct.
+    module.machines[0].published_service_ceiling = vec![bound_service];
+    module
+        .root_service_reach
+        .installation_dependencies
+        .push(InstallationReachDependency {
+            requirement_identity: "MachineControl::mask".to_owned(),
+            upper_bound: vec![bound_service],
+        });
+    module
+}
+
 /// Describe and independently verify one component module: the same
 /// producer/consumer pair a build route would run, so the fence only ever
 /// sees replayed evidence.
@@ -353,6 +410,33 @@ fn independent_selection_closes_against_exactly_one_verified_component() {
         .close(std::slice::from_ref(&component))
         .expect("one verified component realizing the plan closes the independent edge");
     assert_eq!(facts.plans(), std::slice::from_ref(selection.plan()));
+}
+
+#[test]
+fn independent_selection_rejects_a_component_exporting_an_unresolved_row() {
+    let selection = independent_selection(CompositionMode::Independent);
+    let (requirement, provider, machine) = selection.realization();
+    let component = verified_component(&bounded_provider_module(&requirement, &provider, &machine));
+
+    let rejected = selection
+        .close(std::slice::from_ref(&component))
+        .expect_err("a component exporting an unresolved installation-bound row is a conservative bound, not a resolved realization");
+    let messages = message_texts(&rejected);
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("unresolved installation-bound requirement row")
+                && message.contains("MachineControl::mask")
+                && message.contains("refusing to treat the edge as fused")
+        }),
+        "unexpected diagnostics: {messages:#?}"
+    );
+
+    // The same module without the retained dependency still closes: the
+    // rejection reads the verified module's rows, not row equality.
+    let component = verified_component(&provider_module(&requirement, &provider, &machine));
+    selection
+        .close(std::slice::from_ref(&component))
+        .expect("an independent edge whose component retains no unresolved row still closes");
 }
 
 #[test]
