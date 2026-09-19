@@ -91,7 +91,15 @@ fn prove(
     meanings::builtin(program, callee, target, goal, 0)?;
     for argument in arguments {
         // No call, borrow, or unknown operand can change an earlier snapshot.
-        meanings::builtin(program, caller, caller_state, *argument, 0)?;
+        // An actual whose produced length is exact metadata -- a state-local
+        // slice binding, a declared-extent slice view -- is stable the same
+        // way: evaluating it at the boundary cannot rewrite an installed
+        // caller fact.
+        if meanings::builtin(program, caller, caller_state, *argument, 0).is_none()
+            && lengths::produced_length(program, caller, caller_state, *argument, 0).is_none()
+        {
+            return None;
+        }
     }
     let hypotheses = hypotheses
         .iter()

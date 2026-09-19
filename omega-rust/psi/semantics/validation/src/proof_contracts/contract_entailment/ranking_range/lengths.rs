@@ -10,8 +10,10 @@ use super::{
 };
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
+use typed_trees::expression::TableCallExpression;
 use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 
 pub(super) fn is_slice(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
     let mut visited = Vec::new();
@@ -267,37 +269,260 @@ pub(super) fn actual(
     if let Some(length) = coordinate(expression) {
         return Some(length);
     }
-    if !crate::value_custody::places::has_builtin_subslice_meaning(
+    if crate::value_custody::places::has_builtin_subslice_meaning(
         program,
         machine,
         Some(state),
         expression,
     ) {
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+        else {
+            return None;
+        };
+        let source = coordinate(indexed.collection)?;
+        let start = if range.start.is_valid() {
+            engine.normalize(range.start)?
+        } else {
+            Polynomial::default()
+        };
+        let end = if range.end.is_valid() {
+            engine.normalize(range.end)?
+        } else {
+            source.clone()
+        };
+        let prove = |difference: Polynomial| {
+            engine.requires_unsatisfiable
+                || engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
+        };
+        return (prove(start.clone()) && prove(end.sub(&start)) && prove(source.sub(&end)))
+            .then(|| end.sub(&start));
+    }
+    // The actual names no formal coordinate, but its produced length can still
+    // be exact caller evidence: a state-local slice binding's own extent, or a
+    // declared fixed array's `.as_slice()` view.
+    produced_length(program, machine, state, expression, 0)
+        .map(|length| Polynomial::constant(BigInt::from_u64(length)))
+}
+
+/// The produced length a non-formal actual still carries into the call
+/// boundary. A slice formal's `.len` binds a symbolic coordinate the caller
+/// fills from `bindings`; a state-local `let` binding or a declared fixed
+/// array's slice view instead carries a constant the callee's requires row
+/// substitutes exactly -- the saved caller observation the boundary keeps.
+/// Only shapes whose extent is fixed by declaration qualify: a `let mut`
+/// local's initializer is its incoming value, not the value later writes may
+/// leave, so mutable locals produce nothing here; an arbitrary call or borrow
+/// produces nothing either.
+pub(super) fn produced_length(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<u64> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            if !path.symbol.is_valid()
+                || path.head_symbol != path.symbol
+                || program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    != 1
+            {
+                return None;
+            }
+            // The name must resolve to exactly one immutable local declaration
+            // of this state: zero means the name is a formal or unknown, two
+            // means the statement list is ambiguous, and a mutable local's
+            // incoming extent is not the value the call site observes.
+            let locals = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .filter_map(|statement| match statement {
+                    StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [local] = locals.as_slice() else {
+                return None;
+            };
+            if local.is_mutable
+                || !local.initial_value.is_valid()
+                || binding_is_exclusively_exposed(program, state, path.symbol)
+            {
+                return None;
+            }
+            produced_length(program, machine, state, local.initial_value, depth + 1)
+        }
+        ExpressionNode::Borrow(borrow) => {
+            produced_length(program, machine, state, borrow.target, depth + 1)
+        }
+        ExpressionNode::ArrayLiteral(values) => Some(values.len() as u64),
+        ExpressionNode::Member(_) => declared_fixed_array_extent(
+            program,
+            crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )?,
+        ),
+        ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call),
+        _ => None,
+    }
+}
+
+/// An immutable local's initializer describes this occurrence only while no
+/// exclusive borrow roots at its binding: `expose(&mut view)` hands the
+/// descriptor to a callee that can install a different slice, so the saved
+/// initializer no longer names the referent the call sees. The scan is
+/// deliberately state-wide -- the caller's obligation order is not the
+/// statement order -- and covers every carrier that can hold an expression.
+fn binding_is_exclusively_exposed(
+    program: &TypedTrees,
+    state: &State,
+    symbol: SymbolHandle,
+) -> bool {
+    let mut roots = Vec::new();
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+    {
+        match statement {
+            StatementNode::RootBinding(binding) => {
+                roots.extend([binding.receiver, binding.implementation_operand]);
+            }
+            StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
+            StatementNode::Assignment(assignment) => {
+                roots.extend([assignment.target, assignment.value]);
+            }
+            StatementNode::Call(call) => roots.extend(
+                program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            ),
+            StatementNode::Expression(expression) => roots.push(*expression),
+            StatementNode::LocalData(local) => roots.push(local.initial_value),
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(guard) = transition.guard {
+                    roots.push(guard);
+                }
+                for target in [transition.target, transition.continuation] {
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Named { arguments, .. } => roots.extend(
+                            program
+                                .statement_table
+                                .expression_handles(*arguments)
+                                .iter()
+                                .copied(),
+                        ),
+                        TransitionTargetNode::Value(expression) => roots.push(*expression),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    let mut nodes = Vec::new();
+    for root in roots {
+        crate::value_custody::expression_types::collect_expression_nodes(program, root, &mut nodes);
+    }
+    nodes
+        .iter()
+        .any(|node| match program.expression_table.expression(*node) {
+            ExpressionNode::Borrow(borrow) => {
+                borrow.access.is_exclusive()
+                    && borrow_root_symbol(program, borrow.target) == Some(symbol)
+            }
+            _ => false,
+        })
+}
+
+/// The root symbol a borrowable place path descends from: `view`, `view.field`,
+/// or `view[i]` all root at `view`'s local symbol.
+fn borrow_root_symbol(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let mut visited = 0;
+    while program.expression_table.expression_is_valid(expression) && visited < 128 {
+        visited += 1;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+            ExpressionNode::Name(path) => return Some(path.head_symbol),
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// `x.as_slice()` / `x.as_mut_slice()` over a declared fixed array is a pure
+/// view of the receiver's declared extent. A resolved machine target, any
+/// authored arguments or evidence, or a dispatch/layout request names a
+/// different operation that keeps no produced length here.
+fn slice_view_call_length(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+) -> Option<u64> {
+    if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+        || call.target_symbol.is_valid()
+        || !call.arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || !call.machine_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
         return None;
-    };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
-    let source = coordinate(indexed.collection)?;
-    let start = if range.start.is_valid() {
-        engine.normalize(range.start)?
-    } else {
-        Polynomial::default()
-    };
-    let end = if range.end.is_valid() {
-        engine.normalize(range.end)?
-    } else {
-        source.clone()
-    };
-    let prove = |difference: Polynomial| {
-        engine.requires_unsatisfiable
-            || engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
-    };
-    (prove(start.clone()) && prove(end.sub(&start)) && prove(source.sub(&end)))
-        .then(|| end.sub(&start))
+    }
+    declared_fixed_array_extent(
+        program,
+        crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            call.receiver,
+        )?,
+    )
+}
+
+/// The literal extent a declared type spells, unwrapping reference and
+/// domain-constraint shells. Any other extent form -- a const binder, an
+/// unevaluated const call, a slice -- keeps the length unknown.
+fn declared_fixed_array_extent(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<u64> {
+    let mut visited = Vec::new();
+    while reference.is_valid() && !visited.contains(&reference) {
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Literal(length),
+                ..
+            } => return Some(*length as u64),
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// A produced length coordinate over projected storage: the slice leaf of an

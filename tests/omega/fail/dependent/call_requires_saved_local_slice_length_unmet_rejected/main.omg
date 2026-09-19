@@ -1,0 +1,26 @@
+// FAIL CANARY. The saved local slice observation is exact, not permissive: a
+// produced length of 3 cannot satisfy `items.len <= k` when the bound
+// argument is 0, so the boundary still rejects rather than discharging a
+// false obligation.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.outer(items, 0) }
+}
+
+machine Main::outer(&mut self, items: &[i32], k: u64) -> u64
+requires items.len <= k
+{
+    transition { _ -> self.inner(items, k) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len <= capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

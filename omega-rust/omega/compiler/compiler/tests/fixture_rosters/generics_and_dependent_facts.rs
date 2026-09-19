@@ -201,6 +201,10 @@ pub(crate) const RUNTIME_BOUNDED_PRODUCT_INDEX_EXIT: &str =
     "dependent/runtime_bounded_product_index_exit";
 pub(crate) const RUNTIME_DEPEND_MAPPING_EXIT: &str = "build/runtime_depend_mapping_exit";
 pub(crate) const RUNTIME_CORE_ROSTER_OPS_EXIT: &str = "proofs/runtime_core_roster_ops_exit";
+pub(crate) const SAVED_LOCAL_SLICE_LENGTH_COMPILE: &str =
+    "dependent/call_requires_saved_local_slice_length_compile";
+pub(crate) const SAVED_LOCAL_SLICE_LENGTH_UNMET_REJECTED: &str =
+    "dependent/call_requires_saved_local_slice_length_unmet_rejected";
 
 pub(crate) const STRUCTURED_CONST_PASS_CANARIES: &[&str] = &[
     STRUCTURED_CONST_CANONICAL_IDENTITY,
@@ -331,6 +335,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_BOUNDED_PRODUCT_INDEX_EXIT,
     RUNTIME_DEPEND_MAPPING_EXIT,
     RUNTIME_CORE_ROSTER_OPS_EXIT,
+    SAVED_LOCAL_SLICE_LENGTH_COMPILE,
 ];
 
 pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
@@ -346,4 +351,5 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     VALUE_GENERIC_LINEAR_SUBJECT_DROPPED,
     VALUE_GENERIC_RUNTIME_STATIC_LENGTH,
     VALUE_GENERIC_STATIC_NESTED_ARGUMENT,
+    SAVED_LOCAL_SLICE_LENGTH_UNMET_REJECTED,
 ];
