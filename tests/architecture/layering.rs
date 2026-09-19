@@ -1960,7 +1960,6 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
                 "admission",
                 "catalogs",
                 "closed_sum",
-                "custody",
                 "dynamic_result",
                 "emission",
                 "internal_calls",
@@ -2026,6 +2025,15 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
     assert!(
         !routing.contains("states.len()"),
         "state count is not a lowering strategy"
+    );
+    assert!(!routing.contains("admit_composed_unit_control"));
+    assert!(!terminal.join("composed_control/custody.rs").exists());
+    let graph_admission =
+        std::fs::read_to_string(terminal.join("composed_control/state_graph/admission.rs"))
+            .expect("read graph custody admission");
+    assert!(
+        !graph_admission.contains("plan.states.len() == 3"),
+        "claim transport must not route by state count"
     );
     assert!(typed.join("providers.rs").is_file());
     assert!(terminal.join("claims.rs").is_file());

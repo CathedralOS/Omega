@@ -336,20 +336,29 @@ pub(super) fn validate(
             (
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     coordinate,
+                    target_state,
+                    structural_arguments,
                     completion_receipts,
                     ..
                 },
                 StatementNode::Call(_) | StatementNode::Expression(_),
-            ) if completion_receipts.is_empty()
-                && coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0 =>
-            {
+            ) if coordinate.statement_index as usize == ordinal && coordinate.call_ordinal == 0 => {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
                     machine,
                     state.state,
                     operation,
                     &state.structural_parameters,
+                )?;
+                super::claims::validate_boundary_consumption(
+                    checked,
+                    machine,
+                    source,
+                    state,
+                    *coordinate,
+                    *target_state,
+                    structural_arguments,
+                    completion_receipts,
                 )?;
             }
             (

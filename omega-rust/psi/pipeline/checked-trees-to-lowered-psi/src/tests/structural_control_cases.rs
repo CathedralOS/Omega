@@ -98,13 +98,22 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
         panic!("composed provider route emits one machine")
     };
     assert!(machine.parameters.is_empty());
-    assert!(machine.structural_parameters.is_empty());
+    assert!(
+        matches!(machine.structural_parameters.as_slice(), [parameter]
+        if parameter.is_self && parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
+    );
     assert!(matches!(
         machine.structural_places.as_slice(),
-        [terminal_psi::StructuralPlaceDeclaration {
-            kind: StructuralPlaceKind::ProviderAttachment { .. },
-            ..
-        }]
+        [
+            terminal_psi::StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::Parameter { is_self: true, .. },
+                ..
+            },
+            terminal_psi::StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::ProviderAttachment { .. },
+                ..
+            }
+        ]
     ));
     assert!(
         machine.blocks[0]

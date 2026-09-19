@@ -26,6 +26,47 @@ fn checked_composed_claim() -> checked_trees::CheckedTrees {
 }
 
 #[test]
+fn linear_settlement_composes_after_a_state_handoff() {
+    let checked = checked_source(
+        r#"
+            pub data Receipt [linear] { value: u64; }
+            boundary machine Receipt::settle(self) ensures true;
+
+            machine enter(flag: bool, first: Receipt, second: Receipt) {
+                transition { _ -> choose(flag, first, second) }
+                state choose(flag: bool, first: Receipt, second: Receipt) {
+                    transition flag {
+                        true -> yes(first, second)
+                        _ -> no(first, second)
+                    }
+                }
+                state yes(first: Receipt, second: Receipt) {
+                    first.settle();
+                    second.settle();
+                }
+                state no(first: Receipt, second: Receipt) {
+                    second.settle();
+                    first.settle();
+                }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "enter")
+        .expect("linear settlement must not depend on the number of preceding states");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("shared graph preserves linear settlement");
+    let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
 fn lowers_one_whole_root_linear_claim_through_both_boundary_leaves() {
     let checked = checked_composed_claim();
     let lowered = lower_machine(&checked, "Root::enter")
@@ -115,11 +156,14 @@ fn lowers_one_whole_root_linear_claim_through_both_boundary_leaves() {
 #[test]
 fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
     let baseline = checked_composed_claim();
-    let rejects = |checked: &CheckedTrees| {
-        assert!(matches!(
-            lower_machine(checked, "Root::enter"),
-            Err(LoweringError::Unsupported(_))
-        ));
+    let rejects = |checked: &CheckedTrees, corruption: &str| {
+        assert!(
+            matches!(
+                lower_machine(checked, "Root::enter"),
+                Err(LoweringError::Unsupported(_))
+            ),
+            "{corruption}"
+        );
     };
 
     let mut edge = baseline.clone();
@@ -131,12 +175,12 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
     };
     when_true.transfers[0].source =
         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
-    rejects(&edge);
+    rejects(&edge, "edge parameter");
 
     let mut claim = baseline.clone();
     claim.facts.flow.terminal_unit_effects.composed_machines[0].states[1].entry_claims[0]
         .claim_identity = language_semantics::PermissionClaimIdentity::Unknown;
-    rejects(&claim);
+    rejects(&claim, "entry claim");
 
     let mut receipt = baseline.clone();
     let plan = &mut receipt.facts.flow.terminal_unit_effects.composed_machines[0];
@@ -149,7 +193,30 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
         unreachable!()
     };
     completion_receipts[0].claim_identity = entry_claim;
-    rejects(&receipt);
+    rejects(&receipt, "receipt identity");
+
+    let mut duplicate = baseline.clone();
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &mut duplicate.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations
+        [0]
+    else {
+        unreachable!()
+    };
+    completion_receipts.push(completion_receipts[0].clone());
+    rejects(&duplicate, "duplicate receipt");
+
+    let mut omitted = baseline.clone();
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &mut omitted.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations[0]
+    else {
+        unreachable!()
+    };
+    completion_receipts.clear();
+    rejects(&omitted, "missing receipt");
 
     let mut facts = baseline.clone();
     let leaf = facts.facts.flow.terminal_unit_effects.composed_machines[0].states[1].state;
@@ -172,9 +239,9 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
         .permissions
         .get_mut(consumption)
         .kind = language_semantics::PermissionEventKind::Transfer;
-    rejects(&facts);
+    rejects(&facts, "consumption fact");
 
     let mut boundary = baseline;
     boundary.facts.flow.terminal_unit_effects.boundary_machines[0].attachment_type_identity = None;
-    rejects(&boundary);
+    rejects(&boundary, "boundary attachment");
 }

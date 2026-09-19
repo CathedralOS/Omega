@@ -1,63 +1,8 @@
 //! Whole-root linear claims and edge-alias replay for composed Unit control.
 use super::super::{
-    CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, SymbolHandle, TypedTrees,
+    CheckFacts, CheckedUnitEntryClaimPlan, Multiplicity, PermissionAccess, PermissionEventKind,
+    PermissionEventSource, SymbolHandle,
 };
-
-use crate::execution::terminal_unit::entry_claims;
-
-pub(super) fn exact_claims(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-) -> Option<Vec<CheckedUnitEntryClaimPlan>> {
-    entry_claims(
-        program,
-        facts,
-        machine.symbol,
-        state.symbol,
-        structural_parameters,
-        program.state_parameters(state),
-    )
-}
-
-pub(super) fn exact_structural_custody(
-    entry_parameters: &[CheckedUnitStructuralParameterPlan],
-    true_parameters: &[CheckedUnitStructuralParameterPlan],
-    false_parameters: &[CheckedUnitStructuralParameterPlan],
-    entry_claims: &[CheckedUnitEntryClaimPlan],
-    true_claims: &[CheckedUnitEntryClaimPlan],
-    false_claims: &[CheckedUnitEntryClaimPlan],
-) -> bool {
-    if entry_parameters.is_empty() && true_parameters.is_empty() && false_parameters.is_empty() {
-        return entry_claims.is_empty() && true_claims.is_empty() && false_claims.is_empty();
-    }
-    let ([entry], [when_true], [when_false], [entry_claim], [true_claim], [false_claim]) = (
-        entry_parameters,
-        true_parameters,
-        false_parameters,
-        entry_claims,
-        true_claims,
-        false_claims,
-    ) else {
-        return false;
-    };
-    [entry, when_true, when_false].iter().all(|parameter| {
-        !parameter.is_self
-            && parameter.multiplicity == Multiplicity::Linear
-            && parameter.access == CheckedStructuralAccess::Owned
-            && parameter.qualifications.is_empty()
-            && parameter.type_identity == entry.type_identity
-    }) && [entry_claim, true_claim, false_claim].iter().all(|claim| {
-        claim.parameter_index == 0
-            && claim.path.is_empty()
-            && claim.carry == CarryPolicy::STRICT
-            && claim.claim_identity != PermissionClaimIdentity::Unknown
-    })
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn exact_claim_alias_events(

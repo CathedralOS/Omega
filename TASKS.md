@@ -3792,14 +3792,11 @@ Owners include
   cover their semantics. `checked_trees/flow/terminal/*_plans.rs` still has
   whole-machine shapes such as `CheckedPayloadlessGuardedCallReturnMachinePlan`.
   `machine_lowering/machine_dispatch.rs` rejects simultaneous scalar and Unit
-  dynamic joins; `composed_control/routing.rs` still has closed-sum and basic
-  conditional routes beside the shared graph. Preserve compile-known receiver
-  attachment authority and claim transport when consolidating those routes;
-  the general graph currently rejects boundary completion receipts in both
-  `execution/unit/state_graph/mod.rs` and lowering's `state_graph/body.rs`.
-  Move exact receipt-to-argument and source-consumption checks out of the
-  three-state custody path before deleting it; `composed_unit_claims.rs` pins
-  shared linear custody across exclusive arms and corrupted receipt/fact rejection.
+  dynamic joins; `composed_control/routing.rs` still has a closed-sum route
+  beside the shared graph. Preserve compile-known receiver attachment authority
+  and claim transport when consolidating that route. `composed_unit_claims.rs`
+  pins shared linear custody across exclusive arms, sequential settlements,
+  and corrupted receipt/fact rejection.
   A failed source/custody rejoin must never fall back to a weaker recognizer.
   Acceptance: one caller combines those ordinary operations, with reordered
   state declarations and inserted computations, while forged edge bindings,

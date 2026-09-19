@@ -8,25 +8,17 @@ use super::super::{
     StructuralDomainId, StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
     unique_unit_boundary,
 };
-use super::{
-    CheckedTrees, LoweringError, admission, catalogs, emission, scalar_calls, state_graph,
-};
+use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
 
-pub(in crate::unit::attached_unit) enum CallableBody<'a> {
-    Composed(admission::AdmittedComposedUnit<'a>),
-    Graph(state_graph::AdmittedGraph<'a>),
-}
+pub(in crate::unit::attached_unit) type CallableBody<'a> = state_graph::AdmittedGraph<'a>;
 
 impl<'a> CallableBody<'a> {
     pub(in crate::unit::attached_unit) fn boundaries(
         &self,
     ) -> &[(&'a CheckedBoundaryMachinePlan, String)] {
-        match self {
-            Self::Composed(body) => &body.boundaries,
-            Self::Graph(body) => &body.boundaries,
-        }
+        &self.boundaries
     }
 }
 
@@ -34,11 +26,10 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     checked: &'a CheckedTrees,
     plan: &'a checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<CallableBody<'a>, LoweringError> {
-    if state_graph::has_shared_graph_custody(checked, plan) {
-        state_graph::admit(checked, plan).map(CallableBody::Graph)
-    } else {
-        admission::admit_composed_unit_control(checked, plan).map(CallableBody::Composed)
+    if !state_graph::has_shared_graph_custody(checked, plan) {
+        return super::super::unsupported("composed callee has unsupported graph custody");
     }
+    state_graph::admit(checked, plan)
 }
 
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
@@ -107,10 +98,7 @@ pub(in crate::unit::attached_unit) fn emit(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let source_targets = match &admitted {
-        CallableBody::Composed(body) => &body.internal_targets,
-        CallableBody::Graph(body) => &body.internal_targets,
-    };
+    let source_targets = &admitted.internal_targets;
     let internal_targets = source_targets
         .iter()
         .map(|(body, _)| {
@@ -167,31 +155,16 @@ pub(in crate::unit::attached_unit) fn emit(
     let entry_erased_formals = signatures::find(shared.signatures, plan.machine)?
         .erased_scalar_parameters
         .clone();
-    let (mut machine, occurrences, scalar_block_invariants) = match admitted {
-        CallableBody::Composed(body) => {
-            let (machine, occurrences) = emission::emit_callable_body(
-                checked,
-                plan,
-                body,
-                identity,
-                scalar_parameters,
-                entry_erased_formals,
-                parameters,
-                &mut catalogs,
-            )?;
-            (machine, occurrences, Vec::new())
-        }
-        CallableBody::Graph(body) => state_graph::emit(
-            checked,
-            plan,
-            body,
-            identity,
-            parameters,
-            scalar_parameters,
-            entry_erased_formals,
-            &mut catalogs,
-        )?,
-    };
+    let (mut machine, occurrences, scalar_block_invariants) = state_graph::emit(
+        checked,
+        plan,
+        admitted,
+        identity,
+        parameters,
+        scalar_parameters,
+        entry_erased_formals,
+        &mut catalogs,
+    )?;
     // `requires` already carries the merged closed clause proposition ahead
     // of the runtime requirements in published contract order.
     machine.contract.requires = signatures::find(shared.signatures, plan.machine)?

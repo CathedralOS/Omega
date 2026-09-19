@@ -1,16 +1,14 @@
 //! Atomic assembly after topology, guard, leaf, and provider admission.
 use super::super::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan,
-    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,
+    CheckedComposedUnitControlStatePlan, CheckedProviderAttachmentRequirementPlan,
+    MachineSupplyMode, TypedTrees,
 };
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
-use crate::execution::terminal_unit::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::composed_control::closed_sum;
 use crate::execution::terminal_unit::control;
-use crate::execution::terminal_unit::state_flow;
 use checked_trees::CheckedUnitPlanOmissionStage;
 use std::collections::BTreeMap;
 
@@ -64,7 +62,6 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
             machine,
             call_frames,
         )
-        .or_else(|| build(program, facts, shapes, boundaries, machine))
         .or_else(|| {
             super::super::state_graph::build_traced(
                 program,
@@ -87,87 +84,6 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
         }
     }
     plans
-}
-
-pub(super) fn build(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    boundaries: &[CheckedBoundaryMachinePlan],
-    machine: &typed_trees::machine::Machine,
-) -> Option<CheckedComposedUnitControlMachinePlan> {
-    let graph = super::topology::admit(program, facts, shapes, machine)?;
-    let leaves = [
-        super::leaves::build(
-            program,
-            facts,
-            machine,
-            graph.leaves[0],
-            boundaries,
-            &graph.leaf_structural_parameters[0],
-            &graph.leaf_entry_claims[0],
-        )?,
-        super::leaves::build(
-            program,
-            facts,
-            machine,
-            graph.leaves[1],
-            boundaries,
-            &graph.leaf_structural_parameters[1],
-            &graph.leaf_entry_claims[1],
-        )?,
-    ];
-    let true_flow = state_flow(facts, machine.symbol, graph.leaves[0].symbol)?;
-    let false_flow = state_flow(facts, machine.symbol, graph.leaves[1].symbol)?;
-    let provider_attachment_requirements =
-        if let Some(attachment) = graph.attachment_type_identity.as_deref() {
-            checked_composed_provider_attachment_requirements(
-                program,
-                shapes,
-                machine,
-                attachment,
-                &[
-                    (
-                        graph.leaves[0],
-                        facts.flow.control.calls.span_or_empty(true_flow.calls),
-                        &leaves[0].operations,
-                    ),
-                    (
-                        graph.leaves[1],
-                        facts.flow.control.calls.span_or_empty(false_flow.calls),
-                        &leaves[1].operations,
-                    ),
-                ],
-            )?
-        } else {
-            Vec::new()
-        };
-    finish(
-        facts,
-        machine,
-        graph.attachment_type_identity,
-        provider_attachment_requirements,
-        vec![
-            CheckedComposedUnitControlStatePlan {
-                state: graph.entry.symbol,
-                structural_parameters: graph.entry_structural_parameters,
-                scalar_parameters: graph.entry_scalar_parameters,
-                erased_scalar_parameters: graph.entry_erased_scalar_parameters,
-                requires: Vec::new(),
-                entry_claims: graph.entry_claims,
-                bindings: graph.entry_bindings,
-                binding_initializers: graph.entry_binding_initializers,
-                operations: Vec::new(),
-                terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
-                    guard: graph.guard,
-                    when_true: graph.successors[0].clone(),
-                    when_false: graph.successors[1].clone(),
-                },
-            },
-            leaves[0].clone(),
-            leaves[1].clone(),
-        ],
-    )
 }
 
 pub(in crate::execution::terminal_unit) fn finish(
