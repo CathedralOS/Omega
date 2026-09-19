@@ -374,7 +374,7 @@ rows! {
     FORM_MACHINE => (
         "formation:machine-validation",
         SharedFormation,
-        "one machine's signature, blocks, parameters (including shared-borrow record views joined at block parameters), contract, and declared invariants",
+        "one machine's signature, blocks, parameters (including shared-borrow record and primitive-scalar views joined at block parameters), contract, and declared invariants",
         "the machine validates as a whole before its obligations are reconstructed",
         &["formation:module-structure"],
         &[tv!( "validation/machine.rs"), tv!( "validation/machine/blocks.rs"), tv!( "validation/machine/contract_clauses.rs"), tv!( "validation/machine/custody_operations.rs"), tv!( "validation/machine/scalar_result_operations.rs"), tv!( "validation/machine/structural_places.rs"), tv!( "validation/block_views.rs")]
