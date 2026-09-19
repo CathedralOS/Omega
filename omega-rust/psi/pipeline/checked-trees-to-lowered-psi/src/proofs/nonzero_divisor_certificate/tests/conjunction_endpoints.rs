@@ -1,8 +1,12 @@
 //! Direct arithmetic endpoints retain their original conjunction citations.
+use std::collections::BTreeSet;
+
 use super::{
     IntegerType, IntegerValue, PropositionContext, ScalarTerm, ScalarType, ValueId, value,
 };
-use crate::proofs::nonzero_divisor_certificate::prove_canonical_integer_proposition;
+use crate::proofs::nonzero_divisor_certificate::{
+    produce_relaxed_integer_proof, prove_canonical_integer_proposition,
+};
 use proof_admission::check_certificate;
 use semantic_vocabulary::{IntegerMathTerm, IntegerSign, Proposition};
 
@@ -101,5 +105,33 @@ fn exact_add_does_not_import_an_undischarged_implication_endpoint() {
     assert!(
         prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms).is_none(),
         "an unknown Boolean premise cannot supply the array parameter bound"
+    );
+}
+
+/// The relaxed derived closure is a last-resort leaf producer, not a custody
+/// escape: an `Implication` conclusion still discharges only inside its own
+/// premise's scope.
+#[test]
+fn relaxed_selection_does_not_import_an_undischarged_implication_endpoint() {
+    let (context, goal, bound, axioms) = fixture();
+    let guarded = [Proposition::Implication {
+        premise: Box::new(Proposition::Equal(
+            ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+            ScalarTerm::boolean(true),
+        )),
+        conclusion: Box::new(bound.clone()),
+    }];
+    // Control: the same goal closes under the relaxed search when the bound
+    // is ambient, so the rejection below is the implication's scope and not a
+    // gap in the derived closure.
+    assert!(
+        produce_relaxed_integer_proof(&context, &goal, &[bound], &axioms, &BTreeSet::new())
+            .is_some(),
+        "the relaxed closure reaches the ambient bound"
+    );
+    assert!(
+        produce_relaxed_integer_proof(&context, &goal, &guarded, &axioms, &BTreeSet::new())
+            .is_none(),
+        "the derived closure cannot hoist the guarded bound out of its premise"
     );
 }
