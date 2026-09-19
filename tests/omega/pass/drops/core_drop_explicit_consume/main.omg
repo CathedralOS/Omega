@@ -1,0 +1,39 @@
+// Chapter 17 explicit early disposal: `omega::language::core::drop` is the
+// ordinary generic consuming machine. `drop(g)` moves the whole value into
+// the callee, so the caller's path is proved by transfer; inside the machine
+// `value` reaches its checked cleanup edge, which selects the exact
+// owner-attached `Guard::drop` hook for the instantiated type. Erased fields
+// remain semantically present but carry no runtime representation, so
+// `Carrier`'s erased `Evidence` member never produces runtime cleanup and
+// `drop(c)` consumes the record without requiring `Carrier::drop`.
+
+use omega::language::core::drop;
+
+data Evidence {
+    tag: i32;
+}
+
+machine Evidence::drop(&mut self) {
+}
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Carrier {
+    payload: i32;
+    proof [erased]: Evidence;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+    let c: Carrier = Carrier { payload: 1, proof: Evidence { tag: 0 } };
+    drop(g);
+    drop(c);
+}
