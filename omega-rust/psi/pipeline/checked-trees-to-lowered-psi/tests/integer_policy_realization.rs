@@ -2,19 +2,22 @@
 //!
 //! `source/library/core/numeric_conversion.omg` publishes one named machine per
 //! conversion policy, and the `tests/omega/pass/core/numeric_*` canaries call
-//! them. Four of those shapes stop before native execution, and the stop is not
-//! a Unit control-builder restriction: two are rejected by this crate's own
-//! explicit policy-realization limits, and two have no checked scalar
-//! expression at all, so the ordinary statement sequence finds nothing to plan.
+//! them. Four of those shapes still stop before native execution, and the stop
+//! is not a Unit control-builder restriction: two are rejected by this crate's
+//! own explicit policy-realization limits, and two have no checked scalar
+//! expression at all, so the ordinary statement sequence finds nothing to
+//! plan.
 //!
 //! Each rejection is paired with the admitted neighbour that differs in one
 //! coordinate, so a repair has to move the actual boundary rather than widen a
-//! recognizer. The four controls stay until Terminal Psi carries executable
-//! Trapping operations — [structural
+//! recognizer. The Trapping controls stay until Terminal Psi carries
+//! executable Trapping operations — [structural
 //! predicates](../../../../../wiki/spec/terminal-psi/structural_predicates.md)
 //! requires them to carry "their primitive denotation and path-conditioned
 //! crash site", so a producer may not expand one into a guard and a `Crash`
-//! terminator — and until signed modular conversion has a runtime realization.
+//! terminator — and the signed-modular control stays until signed narrowing
+//! or same-width sign reinterpretation has a runtime realization; widening
+//! conversions are already value-preserving and need no such operator.
 
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -94,9 +97,9 @@ fn an_unsigned_wrapping_conversion_composes_from_exact_operations() {
 }
 
 /// `narrow_u8_to_i8_wrapping`, `narrow_i16_to_u8_wrapping` and their siblings
-/// change sign. Unsigned remainder has the destination's modular image; a
-/// signed carrier on either side does not, so this crate rejects it rather
-/// than substituting a different value.
+/// change sign at or below the source width. Unsigned remainder has the
+/// destination's modular image; a signed carrier on either side does not, so
+/// this crate rejects it rather than substituting a different value.
 #[test]
 fn a_signed_wrapping_conversion_has_no_runtime_policy_realization() {
     let error = lowering_error(
@@ -111,6 +114,28 @@ fn a_signed_wrapping_conversion_has_no_runtime_policy_realization() {
         checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "signed wrapping conversion requires runtime policy realization"
         )
+    );
+}
+
+/// A Wrapping conversion whose target already contains every source value is
+/// value-preserving, so the modular image is the widened operand itself.
+/// Signed sources and signed targets therefore need no signed modular
+/// operator: `i8 -> i16` and `u8 -> i16` compose as `IntegerWiden`.
+#[test]
+fn a_signed_widening_wrapping_conversion_composes_as_widening() {
+    lowers(
+        r#"
+        data Main {}
+        machine widen(value: i8) -> i16 { (value as i16 in Wrapping) as i16 }
+        machine Main::main(value: i8) { let widened: i16 = widen(value); }
+    "#,
+    );
+    lowers(
+        r#"
+        data Main {}
+        machine widen(value: u8) -> i16 { (value as i16 in Wrapping) as i16 }
+        machine Main::main(value: u8) { let widened: i16 = widen(value); }
+    "#,
     );
 }
 
@@ -139,8 +164,15 @@ fn an_exact_conversion_crosses_the_sign_boundary_with_a_declared_range() {
 
 /// `numeric_conversion_trap_if` opens with `invalid as u32 in Wrapping`.
 /// Checking admits a Boolean source for a numeric target and confines it to
-/// zero or one, but no `CheckedScalarExpression` carries the conversion, so
-/// the initializer has no value fact and the Unit body has no plan.
+/// `0..=1`, but no `CheckedScalarExpression` carries the conversion, so the
+/// initializer has no value fact and the Unit body has no plan. Realizing it
+/// is not a local lowering trick: `LoweredDirectExpression` and Terminal Psi
+/// carry no operation consuming a Boolean into an integer, and the branch
+/// joins that could select between the two admitted constants (`Select`,
+/// `Dispatch`) are pinned by source custody to authored `&&`/`||` and `match`
+/// occurrences — a cast-derived selection has no admitted provenance. The
+/// honest spelling is a dedicated checked computation or Terminal operation;
+/// both cross the current ownership lines.
 #[test]
 fn a_boolean_integer_conversion_leaves_its_initializer_without_a_value_fact() {
     let (machine, omission) = unit_plan_omission(
