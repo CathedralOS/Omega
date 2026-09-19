@@ -99,6 +99,12 @@ impl IntegerFormat {
             )
         }
     }
+
+    /// Whether `value` lies inside this carrier's declared bounds.
+    pub(crate) fn contains(self, value: &BigInt) -> bool {
+        let (minimum, maximum) = self.bounds();
+        *value >= minimum && *value <= maximum
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
