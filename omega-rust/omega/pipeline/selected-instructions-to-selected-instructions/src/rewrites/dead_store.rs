@@ -23,7 +23,10 @@
 //! copy's operand row take the packed store's custody check, and the count
 //! operand's register must carry the span row's `length` value.
 //! A `Structural` slot the place's declaration does not charge to that
-//! operation only stages bytes that name the place and stays inadmissible.
+//! operation only stages bytes that name the place — its writes are dead
+//! stores of the slot's own bytes instead: no place-named roster row reaches
+//! them, so a `Store`, `StorePacked`, or `Store64` into such a slot dies
+//! under a later write covering the same slot range.
 //! A later write of the place's storage whose byte range
 //! covers the first store's range entirely replaces those bytes. When no
 //! intervening instruction can observe or partially overwrite the first

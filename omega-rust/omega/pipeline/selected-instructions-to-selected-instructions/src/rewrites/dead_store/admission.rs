@@ -37,6 +37,13 @@
 //! bytes that name the place (a call's staged view descriptor) under its own
 //! slot coordinates, so its writes and materialized address never touch the
 //! dead bytes at all.
+//! The staging slot is itself a dead-store subject: a `WriteLocal` on it
+//! writes bytes that live under the slot's own coordinates, which no
+//! place-named row reaches — reads of the staged bytes would have no honest
+//! roster role, and the consuming operation sits behind the call barrier —
+//! so only a row naming that very slot can observe or rewrite them. The dead
+//! store carrying that row dies under a later write of the same slot's
+//! covering range exactly like a place-storage write does.
 //! Instructions without a row are admitted only when their kind cannot reach
 //! semantic storage: private-slot frame accesses and pure register work.
 //! Calls, hosted effects, and unaccounted writers reject.
@@ -107,12 +114,28 @@ pub(super) struct Admission<'source> {
 /// itself resolves to a clean materialized constant, `admit` collapses the
 /// extent to the exact bytes the constant names before the walk: the dead
 /// extent's position is then fixed, and every interference and coverage
-/// check below decides on it.
+/// check below decides on it. `place` is the place the dead row names —
+/// the place the staged bytes name when the subject is a staging slot —
+/// while `storage` settles which bytes the walk actually tracks.
 struct Dead {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
     extent: DeadExtent,
+    storage: DeadStorage,
+}
+
+/// Which storage holds the dead bytes. `Place` is the place's own storage —
+/// the referent bytes every place-named roster route decides. `Staging` is
+/// one staging slot's own bytes: a `Structural` slot the place's declaration
+/// does not charge to the slot's operation stages bytes that name the place
+/// under slot coordinates no place-named row can reach, so only the rows
+/// naming that very slot — a `WriteLocal` rewriting them or an
+/// `AddressLocal` exposing them — decide the walk.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeadStorage {
+    Place,
+    Staging(LocalStorageSlotId),
 }
 
 /// How a dynamic dead extent's reach is decided at runtime: the
@@ -250,13 +273,13 @@ pub(super) fn admit<'source>(
     // instruction encodes. Every route but the `CopyBytes` carries exactly
     // one roster row, whose role must match the route the instruction takes
     // to the place's storage: `WritePlace`
-    // for the referent-pointer place stores, or `WriteLocal` on the place's
-    // own storage slot for the local-storage routes — the direct `Store64`'s
-    // row naming the same slot the instruction encodes. An operation-owned
-    // `Structural` slot is that storage only when the place's declaration
-    // names the operation as its producer; a slot that merely stages bytes
-    // naming the place never moves the place's bytes and cannot be the dead
-    // store of them. The byte-sequence route takes the dynamic extent: a
+    // for the referent-pointer place stores, or `WriteLocal` on a local
+    // slot for the local-storage routes — the direct `Store64`'s
+    // row naming the same slot the instruction encodes. The slot decides
+    // which storage the row moves: the place's own storage when the
+    // place's declaration charges the slot to the place — a parameter
+    // home or the producing operation's `Structural` home — or the
+    // staging slot's own bytes when it does not. The byte-sequence route takes the dynamic extent: a
     // `Store { 0, 1 }` writes one byte through a fully computed view
     // address, and its `WriteByteSequence` row carries the payload base as
     // `byte_offset` plus the runtime `index` — so the row's offset is a
@@ -308,13 +331,27 @@ pub(super) fn admit<'source>(
         SelectedMemoryAccessRole::WriteByteSpan { length, .. } => DeadExtent::ByteSpan(length),
         _ => DeadExtent::Exact,
     };
+    // The `WriteLocal` routes can also name a staging slot: when the slot is
+    // not the row place's own storage it stages bytes that merely name the
+    // place, and the write is the dead store of the slot's own bytes — the
+    // staging subject `Dead::storage` records below. `staging_slot` still
+    // requires the row's place to be the slot's staged place: a `WriteLocal`
+    // naming a different place than the slot stages is no coherent row.
+    let mut staging = None;
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
         (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
-            local_slot_is_place_storage(slot, write.place, structural_places)
+            local_slot_is_place_storage(slot, write.place, structural_places) || {
+                staging = staging_slot(slot, write.place);
+                staging.is_some()
+            }
         }
         (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
-            slot == encoded && local_slot_is_place_storage(slot, write.place, structural_places)
+            slot == encoded
+                && (local_slot_is_place_storage(slot, write.place, structural_places) || {
+                    staging = staging_slot(slot, write.place);
+                    staging.is_some()
+                })
         }
         (SelectedMemoryAccessRole::WriteByteSequence { .. }, None) => {
             encoded_offset == 0 && encoded_size == 1 && write.byte_count == 1
@@ -338,6 +375,7 @@ pub(super) fn admit<'source>(
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
         extent,
+        storage: staging.map_or(DeadStorage::Place, DeadStorage::Staging),
     };
     // A dynamic dead extent whose own decider resolves through the
     // same carrier audit the covering routes run — sole `InstructionResult`
@@ -720,6 +758,38 @@ fn origin_carries(origin: VirtualRegisterOrigin, value: semantic_vocabulary::Val
     }
 }
 
+/// The staging slot a `WriteLocal` row names when the slot is not the row
+/// place's own storage: a `Structural` slot staging bytes that name `place`.
+/// The row's place must be the place the slot stages — a `WriteLocal`
+/// claiming a different place than the slot's staged name is no coherent
+/// staging row — and the caller's `local_slot_is_place_storage` check has
+/// already ruled out the producer-home reading, so the slot's bytes are
+/// staging coordinates only.
+fn staging_slot(slot: LocalStorageSlotId, place: PlaceId) -> Option<LocalStorageSlotId> {
+    if matches!(slot, LocalStorageSlotId::Structural { .. })
+        && slot.structural_place() == Some(place)
+    {
+        Some(slot)
+    } else {
+        None
+    }
+}
+
+/// Whether a roster row's `WriteLocal` slot is the dead bytes' storage: the
+/// dead place's own storage for a place subject, or the staging slot itself
+/// for a staging subject — a write into any other slot moves bytes the dead
+/// store never wrote.
+fn slot_is_dead_storage(
+    slot: LocalStorageSlotId,
+    dead: &Dead,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
+    match dead.storage {
+        DeadStorage::Place => local_slot_is_place_storage(slot, dead.place, structural_places),
+        DeadStorage::Staging(dead_slot) => slot == dead_slot,
+    }
+}
+
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
 /// the custody the packed store's dropped scratch requires. The operand
 /// itself is that one occurrence: any other operand position, terminator
@@ -797,14 +867,18 @@ fn scratch_definition_is_dead(
 /// range entirely, wherever its payload base sits.
 /// Writes must target the same place root to overlap; the covering
 /// write is checked by the caller after this returns true. A `WriteLocal`
-/// row names an exact range on a slot: when the slot is the dead place's
-/// own storage, range intersection decides and an intersecting row still has
-/// to cover; when the slot only stages bytes naming the place, its bytes
-/// are not the place's at any offset, so the row never interferes. A
-/// materialized local address could reach the same storage by a route the
-/// roster does not bound, so it interferes when its slot is the dead
-/// place's storage; a staged slot's address reaches only the staged bytes.
-/// Outgoing-area storage never aliases a referent place.
+/// row names an exact range on a slot: when the slot is the dead bytes'
+/// storage, range intersection decides and an intersecting row still has
+/// to cover; when the slot is any other — a staging slot beside a place
+/// subject, or a different slot beside a staging subject — its bytes are
+/// disjoint, so the row never interferes. A materialized local address
+/// could reach the same storage by a route the roster does not bound, so
+/// it interferes when its slot is the dead bytes' storage; any other
+/// slot's address reaches only that slot's bytes. For a staging subject
+/// the place-named rows never interfere either: they describe the place's
+/// own extents — the staged bytes are not the place's at any offset — and
+/// no place route carries a slot's bytes. Outgoing-area storage never
+/// aliases a referent place.
 fn interferes(
     dead: &Dead,
     access: &SelectedMemoryAccess,
@@ -813,34 +887,38 @@ fn interferes(
 ) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
-            access.place == dead.place && dead.intersects(access)
+            matches!(dead.storage, DeadStorage::Place)
+                && access.place == dead.place
+                && dead.intersects(access)
         }
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
-            access.place == dead.place && dead.reached_by(access, function)
+            matches!(dead.storage, DeadStorage::Place)
+                && access.place == dead.place
+                && dead.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
-            local_slot_is_place_storage(slot, dead.place, structural_places)
-                && dead.intersects(access)
+            slot_is_dead_storage(slot, dead, structural_places) && dead.intersects(access)
         }
         SelectedMemoryAccessRole::AddressLocal { slot } => {
-            local_slot_is_place_storage(slot, dead.place, structural_places)
+            slot_is_dead_storage(slot, dead, structural_places)
         }
         SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
     }
 }
 
-/// The found access must be a write of the dead place's storage whose single
+/// The found access must be a write of the dead bytes' storage whose single
 /// roster row covers the dead range entirely and names the same bytes the
 /// instruction encodes:
 /// - `Store` of any exact width or packed `StorePacked` carrying `WritePlace`
-///   — through a place pointer — or `WriteLocal` on the place's own
-///   storage slot, through that slot's materialized address;
+///   — through a place pointer — or `WriteLocal` on the dead bytes' own
+///   slot, through that slot's materialized address: the place's storage
+///   slot for a place subject, the staging slot itself for a staging one;
 /// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
-///   directly into the place's own storage;
+///   directly into the dead bytes' storage;
 /// - `CopyBytes` carrying the destination `WriteByteSpan` — a dynamic-extent
 ///   row that can cover an exact dead range, and only when the span's reach
 ///   is itself exact: the count register's sole definition must be a clean
@@ -876,12 +954,14 @@ fn interferes(
 ///   write containing it covers too.
 ///
 /// A write that only partially overlaps the dead range leaves the remaining
-/// bytes observable. A `WriteLocal` on an operation-owned `Structural` slot
-/// covers only when the place's declaration names that operation as the
-/// slot's producer — otherwise the slot stages bytes that merely name the
-/// place, and a staging row never reaches this check because it does not
-/// interfere. A materialized local address exposes storage rather than
-/// writing it.
+/// bytes observable. For a place subject a `WriteLocal` on an
+/// operation-owned `Structural` slot covers only when the place's
+/// declaration names that operation as the slot's producer; for a staging
+/// subject the covering slot is the staging slot itself. A `WritePlace`
+/// never reaches a staging slot's bytes — it writes through the place's
+/// referent pointer — so the staging subject's only covering route is a
+/// `WriteLocal` naming that slot. A materialized local address exposes
+/// storage rather than writing it.
 fn covering_source(
     instruction: &SelectedInstruction,
     dead: &Dead,
@@ -984,9 +1064,10 @@ fn covering_source(
             }
             place_store_shape(instruction, environment)?;
             match row.role {
-                SelectedMemoryAccessRole::WritePlace => {}
+                SelectedMemoryAccessRole::WritePlace
+                    if matches!(dead.storage, DeadStorage::Place) => {}
                 SelectedMemoryAccessRole::WriteLocal { slot }
-                    if local_slot_is_place_storage(slot, dead.place, structural_places) => {}
+                    if slot_is_dead_storage(slot, dead, structural_places) => {}
                 _ => return Err(reject()),
             }
             (byte_offset, u32::from(byte_size))
@@ -996,9 +1077,10 @@ fn covering_source(
                 return Err(DeadStoreEliminationError::ConstraintMismatch);
             }
             match row.role {
-                SelectedMemoryAccessRole::WritePlace => {}
+                SelectedMemoryAccessRole::WritePlace
+                    if matches!(dead.storage, DeadStorage::Place) => {}
                 SelectedMemoryAccessRole::WriteLocal { slot }
-                    if local_slot_is_place_storage(slot, dead.place, structural_places) => {}
+                    if slot_is_dead_storage(slot, dead, structural_places) => {}
                 _ => return Err(reject()),
             }
             (byte_offset, u32::from(width.byte_size()))
@@ -1011,9 +1093,9 @@ fn covering_source(
                 return Err(DeadStoreEliminationError::ConstraintMismatch);
             }
             // The direct slot store covers only when the roster names the
-            // same slot and that slot is the dead place's own storage.
+            // same slot and that slot is the dead bytes' own storage.
             if row.role != (SelectedMemoryAccessRole::WriteLocal { slot })
-                || !local_slot_is_place_storage(slot, dead.place, structural_places)
+                || !slot_is_dead_storage(slot, dead, structural_places)
             {
                 return Err(reject());
             }
@@ -1345,10 +1427,13 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
     }
 }
 
-/// A crossed edge must not touch the dead place's storage. Register
+/// A crossed edge must not touch the dead bytes' storage. Register
 /// transports cannot reach memory, but a structural destination, the case
 /// custody slot, or a custody discard naming the dead place writes or retires
-/// its bytes inside the dead interval.
+/// its bytes inside the dead interval. For a staging subject the transport
+/// destination and custody slot decide on the slot itself — staging bytes
+/// sit under their own slot's coordinates — while a place custody discard
+/// retires the place's storage, never the operation-owned slot.
 fn edge_unobserved(
     successor: &SelectedSuccessor,
     dead: &Dead,
@@ -1359,15 +1444,24 @@ fn edge_unobserved(
             SelectedStructuralTransport::WholeValue { destination, .. }
             | SelectedStructuralTransport::Descriptor { destination, .. } => destination,
         };
-        if destination.structural_place() == Some(dead.place) {
+        let touches = match dead.storage {
+            DeadStorage::Place => destination.structural_place() == Some(dead.place),
+            DeadStorage::Staging(slot) => destination == slot,
+        };
+        if touches {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }
     }
-    if let Some(case) = &successor.structural_case
-        && (case.slot.structural_place() == Some(dead.place)
-            || case.trivial_affine_discards.contains(&dead.place))
-    {
-        return Err(DeadStoreEliminationError::InterveningAccess);
+    if let Some(case) = &successor.structural_case {
+        let slot_touches = match dead.storage {
+            DeadStorage::Place => case.slot.structural_place() == Some(dead.place),
+            DeadStorage::Staging(slot) => case.slot == slot,
+        };
+        let discard_touches = matches!(dead.storage, DeadStorage::Place)
+            && case.trivial_affine_discards.contains(&dead.place);
+        if slot_touches || discard_touches {
+            return Err(DeadStoreEliminationError::InterveningAccess);
+        }
     }
     Ok(())
 }
