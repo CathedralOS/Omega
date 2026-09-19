@@ -1,7 +1,9 @@
 //! Complete a finished module's operation evidence in reconstructed obligation order.
 
 use super::LoweringError;
-use super::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
+use super::nonzero_divisor_certificate::{
+    produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
+};
 #[cfg(test)]
 use crate::machine_lowering::lower_machine;
 #[cfg(test)]
@@ -96,6 +98,19 @@ fn finalize_operation_proofs_inner(
                 &site.semantic_axioms,
                 machine_parameter_values,
             )
+            // Obligations whose operands meet cited facts only through
+            // equality/definition chains outgrow the canonical custody
+            // envelope; the relaxed search keeps the kernel as final
+            // authority without loosening canonical producer contracts.
+            .or_else(|| {
+                produce_relaxed_integer_proof(
+                    context,
+                    &site.obligation.proposition,
+                    assumptions,
+                    &site.semantic_axioms,
+                    machine_parameter_values,
+                )
+            })
         } else {
             proof_from_available_facts(
                 &site.obligation.proposition,
