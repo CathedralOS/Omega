@@ -1118,10 +1118,141 @@ fn projected_reference_result_rejects_sibling_leaf_rosters() {
 }
 
 #[test]
-fn projected_reference_result_rejects_nested_call_operands() {
-    // Nested projected call operands are not yet materialized as real
-    // producers; the bound value-call fence still rejects them.
-    let source = "data View { body: &mut i32; }
+fn nested_call_record_argument_rejects_changed_leaf_custody() {
+    use checked_trees::{
+        CheckedUnitEffectOperationPlan as Operation,
+        CheckedUnitStructuralArgumentSourcePlan as Source,
+    };
+    let original =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(NESTED_CALL_RECORD_ARGUMENT_SOURCE))
+            .unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
+        .produce_artifact()
+        .expect("untampered nested call-operand custody");
+    for mutation in 0..6 {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        match mutation {
+            // The projected operand must keep its exact field edge.
+            0 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
+                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path.clear();
+            }
+            // The projected operand must stay rooted at the nested result
+            // binding, not a fabricated parameter.
+            1 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
+                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].source = Source::Parameter { parameter_index: 0 };
+            }
+            // The owned subtree moves whole; a borrowed projection cannot.
+            2 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
+                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].access =
+                    checked_trees::CheckedStructuralAccess::SharedBorrow;
+            }
+            // The consumer's returned leaf must keep its exact loan.
+            3 => {
+                let Operation::StructuralCall { custody, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { custody, .. }
+                            if custody.reference_loan.is_valid())
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                custody.reference_loan = arena::Handle::invalid();
+            }
+            // The nested producer is the non-zero-ordinal call; its result
+            // binding must keep the exact returned carrier identity.
+            4 => {
+                let Operation::StructuralCall { result, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { coordinate, .. }
+                            if coordinate.call_ordinal != 0)
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                result.type_identity = "named(forward_outer::bogus)".to_owned();
+            }
+            // The nested producer's whole actual must stay whole; projecting
+            // it would strand sibling leaf custody.
+            5 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { coordinate, .. }
+                            if coordinate.call_ordinal != 0)
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path.push(
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                );
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
+                .produce_artifact()
+                .is_err(),
+            "nested call-operand custody mutation {mutation} must reject"
+        );
+    }
+}
+
+const NESTED_CALL_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
         data Outer { inner: View; }
         machine select(value: View) -> &mut i32 { value.body }
         machine forward_outer(outer: Outer) -> Outer { outer }
@@ -1132,10 +1263,19 @@ fn projected_reference_result_rejects_nested_call_operands() {
             replace(held);
             value
         }";
-    assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err(),
-        "a nested call operand of a bound value call stays rejected"
-    );
+
+#[test]
+fn nested_call_record_argument_preserves_original_storage() {
+    // The projected operand roots at `forward_outer`'s anonymous owned result;
+    // `select`'s returned leaf still replays the exact loan `outer` captured.
+    let checked =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(NESTED_CALL_RECORD_ARGUMENT_SOURCE))
+            .unwrap_or_else(|diagnostics| panic!("nested operand checking: {diagnostics:#?}"));
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("nested operand terminal production");
+    // `forward_outer` returns `Outer` and `select` returns `&mut i32`.
+    execute(&artifact, 1, 2);
 }
 
 const PROJECTED_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
