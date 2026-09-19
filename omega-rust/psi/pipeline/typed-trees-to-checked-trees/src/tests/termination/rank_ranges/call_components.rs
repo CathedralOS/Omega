@@ -171,6 +171,45 @@ terminates by pending in lower..=upper;
 }
 "#;
 
+#[test]
+fn symbolic_quotient_endpoints_cross_recursive_components() {
+    let source = QUOTIENT_PAIR
+        .replace(
+            "cap: u64 [0..=20])",
+            "cap: u64 [0..=20], divisor: u64 [1..=5])",
+        )
+        .replace(
+            "pending: u64 [0..=5])",
+            "pending: u64 [0..=5], width: u64 [1..=5])",
+        )
+        .replace("cap / 5", "cap / divisor")
+        .replace("limit / 5", "limit / width")
+        .replace(
+            "self.second(cap, remaining)",
+            "self.second(cap, remaining, divisor)",
+        )
+        .replace(
+            "self.first(pending - 1, limit)",
+            "self.first(pending - 1, limit, width)",
+        );
+    for omitted in [
+        "",
+        " in 0..(cap / divisor + 6)",
+        " in 0..(limit / width + 6)",
+    ] {
+        let source = if omitted.is_empty() {
+            source.clone()
+        } else {
+            source.replace(omitted, "")
+        };
+        prove(&source);
+        reject(&source.replace("remaining, divisor)", "remaining, 1)"));
+        reject(&source.replace("limit, width)", "limit, 1)"));
+        reject(&source.replace("pending - 1", "pending"));
+    }
+    reject(&source.replace("[1..=5]", "[0..=5]"));
+}
+
 fn prove(source: &str) {
     lower_typed_trees(typed(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));

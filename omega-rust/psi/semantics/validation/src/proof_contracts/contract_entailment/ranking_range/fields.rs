@@ -6,8 +6,8 @@
 //! of its reference bindings and referent contents before consuming its bounds.
 use super::identity_views::{MeasureBodyShape, measure_body_shape, unwrap_constraint_shells};
 use super::{
-    BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
-    Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, TypedTrees,
+    BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
+    Machine, Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, TypedTrees,
     exact_integer_parameter,
 };
 use symbols::{SymbolHandle, SymbolKind};
@@ -66,7 +66,7 @@ pub(super) fn endpoint_lands_under(
     endpoint: ExpressionHandle,
     polynomial: &Polynomial,
 ) -> bool {
-    if !operations_land_under(engine, program, machine, state, endpoint) {
+    if !operations_land_under(engine, program, machine, state, endpoint, None) {
         return false;
     }
     let carrier = match super::meanings::builtin(program, machine, state, endpoint, 0) {
@@ -92,6 +92,35 @@ pub(super) fn endpoint_lands_under(
         && prove(&Polynomial::constant(maximum).sub(polynomial))
 }
 
+/// Arrival equality of a normalized endpoint does not preserve formation:
+/// `cap / divisor - cap / divisor` loses both divisions. Replay their
+/// independent obligations under the exact simultaneous argument map before
+/// accepting a new state, without importing destination requirements.
+pub(super) fn endpoint_operations_land_after_arrival(
+    engine: &mut Engine<'_>,
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    endpoint: ExpressionHandle,
+    arrival: &BTreeMap<String, Polynomial>,
+) -> bool {
+    operations_land_under(engine, program, machine, state, endpoint, Some(arrival))
+}
+
+fn operation_value(
+    engine: &mut Engine<'_>,
+    expression: ExpressionHandle,
+    arrival: Option<&BTreeMap<String, Polynomial>>,
+) -> Option<Polynomial> {
+    let value = engine.normalize(expression)?;
+    match arrival {
+        // Transport before consuming source equalities; otherwise a current
+        // `divisor == 1` could hide the destination's different divisor.
+        Some(arrival) => super::inductive_judgment::apply_argument_map(&value, arrival),
+        None => Some(value),
+    }
+}
+
 /// Every runtime arithmetic node inside `node` lands in the carrier its
 /// operands select, under the engine's installed hypotheses. A closed subtree
 /// is a folded constant whose landing the enclosing operation judges; a leaf
@@ -110,6 +139,7 @@ fn operations_land_under(
     machine: &Machine,
     state: &State,
     node: ExpressionHandle,
+    arrival: Option<&BTreeMap<String, Polynomial>>,
 ) -> bool {
     if program
         .closed_integer_value_in(node, machine.symbol)
@@ -119,7 +149,7 @@ fn operations_land_under(
     }
     let binary = match program.expression_table.expression(node) {
         ExpressionNode::Atomic(atomic) => {
-            return operations_land_under(engine, program, machine, state, atomic.value);
+            return operations_land_under(engine, program, machine, state, atomic.value, arrival);
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -135,6 +165,22 @@ fn operations_land_under(
         }
         _ => return true,
     };
+    // Denotation and result representability alone cannot form division:
+    // cancellation can erase its result, but cannot erase a zero divisor.
+    if matches!(
+        binary.operator,
+        BinaryOperator::Divide | BinaryOperator::Modulo
+    ) {
+        let Some(divisor) = operation_value(engine, binary.right, arrival) else {
+            return false;
+        };
+        let divisor = engine.substituted(&divisor);
+        if !engine.prove_at_least(&divisor, &BigInt::from_i64(1))
+            && !engine.prove_at_least(&Polynomial::default().sub(&divisor), &BigInt::from_i64(1))
+        {
+            return false;
+        }
+    }
     let left = operand_primitive(program, machine, state, binary.left);
     let right = operand_primitive(program, machine, state, binary.right);
     if let (Some(left), Some(right)) = (left, right)
@@ -162,14 +208,14 @@ fn operations_land_under(
         // The arithmetic engine admits only constant moduli here; every other
         // nonzero divisor has a representable quotient for a landed dividend.
         if binary.operator == BinaryOperator::Modulo && minimum.is_negative() {
-            let Some(divisor) = engine.normalize(binary.right) else {
+            let Some(divisor) = operation_value(engine, binary.right, arrival) else {
                 return false;
             };
             let Some(divisor) = engine.substituted(&divisor).constant_value() else {
                 return false;
             };
             if divisor == BigInt::from_i64(-1) {
-                let Some(dividend) = engine.normalize(binary.left) else {
+                let Some(dividend) = operation_value(engine, binary.left, arrival) else {
                     return false;
                 };
                 let above_minimum =
@@ -179,7 +225,7 @@ fn operations_land_under(
                 }
             }
         }
-        let Some(result) = engine.normalize(node) else {
+        let Some(result) = operation_value(engine, node, arrival) else {
             return false;
         };
         let lower = engine.substituted(&result.sub(&Polynomial::constant(minimum)));
@@ -190,8 +236,8 @@ fn operations_land_under(
             return false;
         }
     }
-    operations_land_under(engine, program, machine, state, binary.left)
-        && operations_land_under(engine, program, machine, state, binary.right)
+    operations_land_under(engine, program, machine, state, binary.left, arrival)
+        && operations_land_under(engine, program, machine, state, binary.right, arrival)
 }
 
 /// The exact primitive `node`'s own value or selected operation carries. A

@@ -1,0 +1,14 @@
+machine walk(remaining: u64 [0..=5], cap: u64 [0..=20], divisor: u64 [1..=5])
+terminates by remaining in 0..(cap / divisor + 6);
+-> u64 {
+    transition { _ -> iterate(divisor, cap, remaining) }
+    state iterate(width: u64 [1..=5], limit: u64 [0..=20], pending: u64 [0..=5]) {
+        transition pending > 0 {
+            true -> iterate(1, limit - 0, pending - 1)
+            false -> pending
+        }
+    }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

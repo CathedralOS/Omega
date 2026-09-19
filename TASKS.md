@@ -357,14 +357,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Remaining work:
 
-  - Extend non-polynomial endpoint formation and conservation to symbolic
-    divisors and non-polynomial actual-argument substitutions. Named-state and
-    recursive-call relational routes handle constant-divisor quotients,
-    including nested terms and exact record fields. Mixed ranged/unranged
-    participants conserve the endpoint's exact operand inputs;
+  - Extend non-polynomial endpoint formation and conservation to
+    variable-divisor remainders and non-polynomial actual-argument
+    substitutions. Named-state and recursive-call relational routes handle
+    Exact integer quotients with constant or sign-proven runtime divisors,
+    including nested terms and exact record fields. Both operands retain their
+    identities; each arrival independently rechecks constituent operations so
+    cancellation cannot hide a zero divisor or intermediate overflow.
+    Mixed ranged/unranged participants conserve the endpoint's exact inputs;
     `termination/named_computed_rank_endpoints` and
-    `termination/quotient_endpoint_call_component`, with their changed-endpoint
-    false twins, exercise those boundaries. The independent
+    `termination/quotient_endpoint_call_component`, together with
+    `termination/symbolic_quotient_endpoints` and their changed-endpoint false
+    twins, exercise those boundaries. Divisor bounds spanning both signs still
+    require stronger evidence than an unoriented disequality. The independent
     interval-only fallback still requires one state; do not remove its guard
     without proving every exact arrival. Reuse the relational field-coordinate
     route for readable stored references, covered by

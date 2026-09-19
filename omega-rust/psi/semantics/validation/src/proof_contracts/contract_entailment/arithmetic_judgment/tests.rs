@@ -2,6 +2,88 @@ use super::{
     BigInt, BinaryOperator, Engine, ExpressionNode, Interval, Polynomial, TypedTrees,
     proof_integer_expression,
 };
+
+#[test]
+fn symbolic_quotient_intervals_cover_every_small_signed_rectangle() {
+    for dividend_low in -4..=4 {
+        for dividend_high in dividend_low..=4 {
+            for divisor_low in -4..=4 {
+                for divisor_high in divisor_low..=4 {
+                    let interval = |low, high| Interval {
+                        low: Some(BigInt::from_i64(low)),
+                        high: Some(BigInt::from_i64(high)),
+                    };
+                    let computed = Engine::bounded_quotient_interval(
+                        &interval(dividend_low, dividend_high),
+                        &interval(divisor_low, divisor_high),
+                    );
+                    if divisor_low <= 0 && divisor_high >= 0 {
+                        assert_eq!(computed, Interval::unbounded());
+                        continue;
+                    }
+                    let actual = (dividend_low..=dividend_high).flat_map(|dividend| {
+                        (divisor_low..=divisor_high).map(move |divisor| dividend / divisor)
+                    });
+                    assert_eq!(
+                        computed,
+                        interval(actual.clone().min().unwrap(), actual.max().unwrap()),
+                        "{dividend_low}..={dividend_high} divided by {divisor_low}..={divisor_high}"
+                    );
+                }
+            }
+        }
+    }
+    assert_eq!(
+        Engine::bounded_quotient_interval(
+            &Interval::unbounded(),
+            &Interval::constant(BigInt::from_i64(2))
+        ),
+        Interval::unbounded(),
+    );
+    let dividend = Interval {
+        low: Some(BigInt::from_i64(-7)),
+        high: Some(BigInt::from_i64(5)),
+    };
+    for (divisor, low, high) in [
+        (
+            Interval {
+                low: Some(BigInt::from_i64(2)),
+                high: None,
+            },
+            -3,
+            2,
+        ),
+        (
+            Interval {
+                low: None,
+                high: Some(BigInt::from_i64(-2)),
+            },
+            -2,
+            3,
+        ),
+    ] {
+        assert_eq!(
+            Engine::bounded_quotient_interval(&dividend, &divisor),
+            Interval {
+                low: Some(BigInt::from_i64(low)),
+                high: Some(BigInt::from_i64(high))
+            },
+        );
+    }
+    assert_eq!(
+        Engine::bounded_quotient_interval(
+            &Interval::constant(BigInt::from_i64(7)),
+            &Interval {
+                low: Some(BigInt::from_i64(2)),
+                high: None
+            }
+        ),
+        Interval {
+            low: Some(BigInt::zero()),
+            high: Some(BigInt::from_i64(3))
+        },
+    );
+}
 #[test]
 fn strict_arithmetic_retains_complete_anonymous_rational_values() {
     for (expression, expected) in [
