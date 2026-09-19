@@ -7,7 +7,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 mod local_formation;
 mod receiver;
@@ -120,6 +122,65 @@ fn is_unrestricted_scalar(program: &TypedTrees, type_reference: TypeReferenceHan
     };
     !name.as_str().starts_with("Atomic")
         && program.primitive_type_reference(type_reference).is_some()
+}
+
+/// The one qualified leaf a common-field store may displace: an exact integer
+/// primitive whose only constraints are closed literal `[lo..=hi]` ranges.
+/// The bounded-assignment obligation downstream re-derives the same integer
+/// interval from the declaration and enforces every store into the place, so
+/// admission adds no new proof burden — this gate still owns only the
+/// content-independent place, never the value's containment proof. Every
+/// other constraint kind (named, domain, arithmetic policy), symbolic or
+/// unclosed endpoints, and non-integer carriers stay unsupported leaves: the
+/// proof layer cannot turn them into an enforced integer range.
+fn is_closed_ranged_integer_scalar(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let mut current = type_reference;
+    let mut saw_range = false;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(current)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                return false;
+            };
+            if crate::closed_integer_range_bound(program, *minimum).is_none()
+                || crate::closed_integer_range_maximum(program, *maximum, *end_inclusive).is_none()
+            {
+                return false;
+            }
+            saw_range = true;
+        }
+        current = *base_type;
+    }
+    saw_range
+        && matches!(
+            program.type_reference_table.type_reference(current),
+            TypeReferenceNode::Named { symbol, .. }
+                if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| {
+                    use symbols::BuiltinTypeAtom;
+                    matches!(
+                        atom,
+                        BuiltinTypeAtom::U8
+                            | BuiltinTypeAtom::U16
+                            | BuiltinTypeAtom::U32
+                            | BuiltinTypeAtom::U64
+                            | BuiltinTypeAtom::I8
+                            | BuiltinTypeAtom::I16
+                            | BuiltinTypeAtom::I32
+                            | BuiltinTypeAtom::I64
+                    )
+                })
+        )
 }
 
 fn fixed_unrestricted_write_only_array_shape(
@@ -335,17 +396,46 @@ fn write_only_record_field_type(
 /// unrestricted record, or a closed material `[copy]` sum treated atomically.
 /// Indexed element stores reuse the same exact path resolver below and apply
 /// their own narrower leaf/index gate.
+fn is_unrestricted_write_only_field_leaf(
+    program: &TypedTrees,
+    field_type: TypeReferenceHandle,
+) -> bool {
+    is_unrestricted_scalar(program, field_type)
+        || fixed_unrestricted_write_only_array_length(program, field_type).is_some()
+        || is_unrestricted_write_only_record(program, field_type)
+        || is_unrestricted_write_only_sum(program, field_type)
+}
+
+/// A stored leaf additionally admits one closed literal-ranged integer
+/// primitive: the field's declared range re-enters the assignment as the
+/// ordinary bounded-value obligation, so the store is proven against the same
+/// evidence a `&mut` store already supplies. Nothing else about the path or
+/// the value relaxes.
+fn write_only_assignment_leaf(program: &TypedTrees, field_type: TypeReferenceHandle) -> bool {
+    is_unrestricted_write_only_field_leaf(program, field_type)
+        || is_closed_ranged_integer_scalar(program, field_type)
+}
+
 fn write_only_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    write_only_record_field_type(program, expression, roots).is_some_and(|field_type| {
-        is_unrestricted_scalar(program, field_type)
-            || fixed_unrestricted_write_only_array_length(program, field_type).is_some()
-            || is_unrestricted_write_only_record(program, field_type)
-            || is_unrestricted_write_only_sum(program, field_type)
-    })
+    write_only_record_field_type(program, expression, roots)
+        .is_some_and(|field_type| write_only_assignment_leaf(program, field_type))
+}
+
+/// An `&write` field subloan attenuates to the callee's declared parameter
+/// referee, so a ranged leaf would shed its bound at the borrow boundary.
+/// Keep the lent leaf to the unrestricted kinds until ranged write-only
+/// parameter referees exist.
+fn write_only_record_field_subloan(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+) -> bool {
+    write_only_record_field_type(program, expression, roots)
+        .is_some_and(|field_type| is_unrestricted_write_only_field_leaf(program, field_type))
 }
 
 /// Admit one relevant primitive field beneath one literal fixed-array element
@@ -404,7 +494,7 @@ fn write_only_literal_indexed_record_field_assignment(
             || (!final_member.member_symbol.is_valid()
                 && field.name.as_str() == final_member.member.as_str()))
             && !field.relevance.is_erased()
-            && is_unrestricted_scalar(program, field.type_reference)
+            && write_only_assignment_leaf(program, field.type_reference)
     })
 }
 
@@ -760,7 +850,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or a closed literal-ranged integer primitive proven in range at the store, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
@@ -805,7 +895,7 @@ fn validate_call_argument(
 ) {
     if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
-        && (write_only_record_field_assignment(program, borrow.target, roots)
+        && (write_only_record_field_subloan(program, borrow.target, roots)
             || write_only_literal_indexed_direct_call_subloan(program, borrow.target, roots))
     {
         // This milestone admits the exact projected subloan only at a direct

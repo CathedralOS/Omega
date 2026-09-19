@@ -1,0 +1,32 @@
+// PASS canary: a closed literal-ranged integer field of a plain record is a
+// content-independent write-only place. The store still proves the declared
+// range through the ordinary bounded-assignment obligation — the same
+// evidence a `&mut` store already supplies.
+
+data Limited {
+    value: u8 [0..=10];
+    next: u8 [0..=10];
+}
+
+data Outer {
+    inner: Limited;
+}
+
+machine replace(limited: &write Limited, depth: u8 [0..=10]) {
+    limited.value = depth;
+    limited.next = 4;
+}
+
+machine fill(outer: &write Outer, depth: u8 [0..=10]) {
+    outer.inner.value = depth;
+}
+
+machine forward(limited: &write Limited, depth: u8 [0..=10]) {
+    replace(&write limited, depth);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

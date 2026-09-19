@@ -1,0 +1,18 @@
+// FAIL canary: admitting a closed literal-ranged record field as a write-only
+// place does not relax the store's bounded-assignment obligation. A source
+// whose own upper bound exceeds the field's declared range cannot prove
+// containment, so the store is rejected like any other unproven store.
+
+data Limited {
+    value: u8 [0..=10];
+}
+
+machine replace(limited: &write Limited, next: u8) {
+    limited.value = next;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

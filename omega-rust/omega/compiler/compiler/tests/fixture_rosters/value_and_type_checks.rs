@@ -12,6 +12,10 @@ pub(crate) const WRITE_ONLY_RECORD_FIELD_OBSERVATION: &str =
     "borrow/write_only_record_field_observation";
 pub(crate) const WRITE_ONLY_CONSTRAINED_RECORD_FIELD: &str =
     "borrow/write_only_constrained_record_field";
+pub(crate) const WRITE_ONLY_CONSTRAINED_RECORD_FIELD_OUT_OF_RANGE: &str =
+    "borrow/write_only_constrained_record_field_out_of_range";
+pub(crate) const WRITE_ONLY_CONSTRAINED_RECORD_FIELD_UNBOUNDED: &str =
+    "borrow/write_only_constrained_record_field_unbounded";
 pub(crate) const WRITE_ONLY_DYNAMIC_BYTE_INDEX: &str = "borrow/write_only_dynamic_byte_index";
 pub(crate) const WRITE_ONLY_UNBOUNDED_DYNAMIC_BYTE_INDEX: &str =
     "borrow/write_only_unbounded_dynamic_byte_index";
@@ -71,6 +75,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     WRITE_ONLY_FIXED_BYTE_ELEMENT,
     WRITE_ONLY_RECORD_FIELD_REPLACE,
     WRITE_ONLY_NESTED_RECORD_FIELD_REPLACE,
+    WRITE_ONLY_CONSTRAINED_RECORD_FIELD,
     WRITE_ONLY_DYNAMIC_BYTE_INDEX,
     WRITE_ONLY_BYTE_RANGE,
     VALUE_CALL_AS_HOST_ARG_EXIT,
@@ -85,6 +90,8 @@ pub(crate) const FAIL_CANARIES: &[&str] = &[
     WRITE_ONLY_RECORD_WHOLE_ROOT_REPLACEMENT,
     WRITE_ONLY_RECORD_FIELD_OBSERVATION,
     WRITE_ONLY_CONSTRAINED_RECORD_FIELD,
+    WRITE_ONLY_CONSTRAINED_RECORD_FIELD_OUT_OF_RANGE,
+    WRITE_ONLY_CONSTRAINED_RECORD_FIELD_UNBOUNDED,
     WRITE_ONLY_UNBOUNDED_DYNAMIC_BYTE_INDEX,
     WRITE_ONLY_BYTE_INDEX_OUT_OF_BOUNDS,
     WRITE_ONLY_BYTE_RANGE_WIDTH,
