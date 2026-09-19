@@ -1593,13 +1593,14 @@ fn is_direct_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
 /// authority question — and receivers stay outside as well: `self` answers
 /// to the owned-place rules, not to this binding check.
 ///
-/// Known gap, documented but deliberately not fixed in this leg: the lattice
-/// only sees reference-typed *parameters* as unwritable roots, so `&write r`
-/// on a `let r: &u8` local passed directly as a call argument slips past it —
-/// the local's own name is a writable root and the reborrow never surfaces
-/// the referent's shared access. A `&write` subloan there can lend write
-/// access into a shared referent; closing it belongs to the reborrow
-/// lattice's local handling, not this binding gate.
+/// The checked-borrow side closes the reference-binding edge in both
+/// positions: `checks::borrows::calls::writability` applies the reborrow
+/// access-pair rule to a transient `&mut`/`&write` call argument formed on a
+/// reference-typed binding (a direct `&write r` on `let r: &u8` builds no
+/// local loan, so the binding's declared access is the parent authority), and
+/// `checks::borrows::resources` applies the same rule to `DirectRoot` loans
+/// whose root binding is reference-typed (`let w: &write u8 = &write source`
+/// on `source: &u8`).
 fn binding_without_write_authority(
     program: &TypedTrees,
     state: &State,

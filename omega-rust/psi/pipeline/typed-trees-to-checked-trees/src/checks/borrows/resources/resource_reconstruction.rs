@@ -85,6 +85,7 @@ pub(crate) fn install_borrow_resources(
 }
 
 pub(crate) fn reconstruct_direct_borrow_resources(
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
 ) -> Result<Vec<CheckedDirectBorrowLoanResource>, Vec<Diagnostic>> {
@@ -111,6 +112,29 @@ pub(crate) fn reconstruct_direct_borrow_resources(
             // Direct reborrows close in their own typed parent-resource arena;
             // every derived occurrence remains outside this root-only arena.
             if loan.lineage != BorrowLoanLineage::DirectRoot {
+                continue;
+            }
+
+            // A direct-root loan formed on a reference-typed binding is still
+            // a referent reborrow: the binding carries no parent loan to
+            // rebase through (parameters and loan-less locals are the common
+            // cases), so its declared access is the parent authority and the
+            // access-pair rule decides the formation — `&write`/`&mut` on a
+            // `&u8` binding can never derive write authority from a shared
+            // referent. This is the same edge `Reborrow` loans face above the
+            // resource arenas, applied at the declared-access boundary.
+            if let Some(parent_access) = crate::checks::borrows::details::binding_reference_access(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                loan.statement_index,
+                loan.root_symbol,
+            ) && parent_access.direct_reborrow_effect(&loan.kind).is_none()
+            {
+                diagnostics.push(invalid_reborrow_attenuation_diagnostic(
+                    &parent_access,
+                    &loan.kind,
+                ));
                 continue;
             }
 

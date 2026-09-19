@@ -1,7 +1,9 @@
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
+use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
+use crate::checks::borrows::details::binding_reference_access;
+use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 
 pub(super) fn check_mutable_argument_writability(
@@ -51,8 +53,63 @@ pub(super) fn check_mutable_argument_writability(
             diagnostics.push(Diagnostic::error(format!(
                 "mutable argument `{root_name}` for state `{target_name}` is not writable in this state"
             )));
+            continue;
+        }
+
+        // A direct `&mut`/`&write` argument formed on a reference-typed
+        // binding is a transient referent reborrow: the binding's own storage
+        // is a writable local root, so the writable-root test above cannot
+        // see the referent's authority. The binding's declared access is the
+        // parent authority and the lattice's access-pair rule decides the
+        // formation — the same edge a `let`-bound reborrow of this binding
+        // faces. `&write r` on `r: &u8` can never derive write authority from
+        // a shared referent, no matter how briefly the borrow lives.
+        let child_access = match inner_expression.access {
+            language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
+            language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+            language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+        };
+        if let Some(parent_access) = borrow_target_reference_access(
+            program,
+            state_flow,
+            borrow_call.statement_index,
+            inner_expression.target,
+        ) && parent_access
+            .direct_reborrow_effect(&child_access)
+            .is_none()
+        {
+            diagnostics.push(invalid_reborrow_attenuation_diagnostic(
+                &parent_access,
+                &child_access,
+            ));
         }
     }
+}
+
+/// The declared reference access of the parameter or local that an exclusive
+/// argument borrow's target place resolves to, when it does. The place's root
+/// is what `&mut`/`&write` actually reborrows through, so this answers the
+/// parent side of the reborrow access-pair rule for transient arguments.
+fn borrow_target_reference_access(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    statement_index: usize,
+    target: ExpressionHandle,
+) -> Option<BorrowAccessKind> {
+    let place = crate::borrow::accesses::borrow_access_place(
+        program,
+        state_flow.state_symbol,
+        statement_index,
+        target,
+        state_flow.machine_symbol,
+    )?;
+    binding_reference_access(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        statement_index,
+        place.root_symbol,
+    )
 }
 
 fn mutable_argument_root_name(

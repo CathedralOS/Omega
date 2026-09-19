@@ -286,6 +286,30 @@ fn probe_candidate_shapes() {
                 held.replace(value);
             }",
         ),
+        (
+            "transient_write_reborrow_of_shared_local",
+            "forward",
+            "machine stamp(slot: &write u64) { slot = 7; }
+            machine forward(source: &u64) {
+                let r: &u64 = source;
+                stamp(&write r);
+            }",
+        ),
+        (
+            "let_bound_write_reborrow_of_shared_local",
+            "forward",
+            "machine forward(source: &u64) {
+                let r: &u64 = source;
+                let w: &write u64 = &write r;
+            }",
+        ),
+        (
+            "let_bound_write_reborrow_of_shared_parameter",
+            "forward",
+            "machine forward(source: &u64) {
+                let w: &write u64 = &write source;
+            }",
+        ),
     ];
     let mut report = Vec::new();
     for (name, entry, source) in candidates {
@@ -318,6 +342,31 @@ fn probe_candidate_shapes() {
             outcome_of(required),
             "publish OK",
             "{required} regressed; full sweep:\n{}",
+            report
+                .iter()
+                .map(|(name, outcome)| format!("{name}: {outcome}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+    // `&write` on a shared-reference binding is a referent reborrow and must
+    // face the lattice's access-pair rule in every formation position —
+    // transient call argument or `let`-bound alike. Each of these compiled
+    // before the transient-reborrow rung: the direct argument skipped the
+    // lattice entirely and the `let`-bound parameter root carried no parent
+    // loan to rebase through.
+    for rejected in [
+        "transient_write_reborrow_of_shared_local",
+        "let_bound_write_reborrow_of_shared_local",
+        "let_bound_write_reborrow_of_shared_parameter",
+    ] {
+        let outcome = outcome_of(rejected);
+        assert!(
+            outcome.starts_with("NO ARTIFACT:")
+                && outcome.contains(
+                    "cannot derive WriteOnly reborrow authority from an exact Read parent loan"
+                ),
+            "{rejected} must stay rejected by the reborrow access-pair rule; full sweep:\n{}",
             report
                 .iter()
                 .map(|(name, outcome)| format!("{name}: {outcome}"))
