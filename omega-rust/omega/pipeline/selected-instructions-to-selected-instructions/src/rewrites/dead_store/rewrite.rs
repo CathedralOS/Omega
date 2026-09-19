@@ -5,9 +5,9 @@ use selected_instructions::SelectedInstructionId;
 use super::{DeadStoreEliminationError, ValidatedDeadStoreElimination, admission};
 use crate::ValidatedSelectedAnalysis;
 
-/// Remove one admitted `Store`, `StorePacked`, own-storage `Store64`,
-/// byte-sequence `Store { 0, 1 }`, or `CopyBytes` destination span whose
-/// bytes a later covering store replaces unobserved. The roster drops
+/// Remove one admitted `Store`, `StorePacked`, own-storage or staging-slot
+/// `Store64`, byte-sequence `Store { 0, 1 }`, or `CopyBytes` destination span
+/// whose bytes a later covering store replaces unobserved. The roster drops
 /// exactly the dead store's rows — the copy's source read beside its
 /// destination span — and the block's boundary settlements shift over the
 /// removed ordinal; every other function, block, instruction, register,

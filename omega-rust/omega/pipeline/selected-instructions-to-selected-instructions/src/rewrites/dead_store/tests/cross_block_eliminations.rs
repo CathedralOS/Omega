@@ -141,6 +141,169 @@ fn cross_block_local_slot_write_covers() {
     }
 }
 
+/// A staging-slot dead store crosses edges like a place dead store: the
+/// covering `Store64` on the same slot in the successor block rewrites the
+/// staged bytes unobserved. On the crossed edge a structural transport or
+/// case custody naming that very slot interferes, while a transport into a
+/// different slot — or a custody discard of the staged place, which retires
+/// the place's storage and never the operation-owned slot — walks past.
+#[test]
+fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // No structural contract declares the operation the place's producer:
+    // the slot only stages bytes naming it.
+    let slot = LocalStorageSlotId::Structural {
+        operation: OperationId::new(9).unwrap(),
+        place: place(),
+    };
+    let staged_pair = |edit: Option<&dyn Fn(&mut selected_instructions::SelectedFunction)>| {
+        mutated_chained(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[1] = instruction(
+                STORE,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[VALUE],
+            );
+            function.blocks[1].instructions[0] = instruction(
+                KILLER,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[SCRATCH],
+            );
+            function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+            function.memory_accesses[1].role = SelectedMemoryAccessRole::WriteLocal { slot };
+            if let Some(edit) = edit {
+                edit(function);
+            }
+        })
+    };
+    let result = eliminate(&staged_pair(None), &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert_eq!(
+        function
+            .memory_accesses
+            .iter()
+            .map(|access| (access.instruction, access.role))
+            .collect::<Vec<_>>(),
+        vec![(KILLER, SelectedMemoryAccessRole::WriteLocal { slot })]
+    );
+    validate_dead_store_elimination(
+        &staged_pair(None),
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A structural transport writing that very slot on the crossed edge
+    // touches the staged bytes inside the dead interval.
+    let transported = staged_pair(Some(&|function| {
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: slot,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    }));
+    assert_eq!(
+        eliminate(&transported, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // The same transport into another staging slot of the same place moves
+    // other bytes and walks past.
+    let disjoint_transport = staged_pair(Some(&|function| {
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: LocalStorageSlotId::Structural {
+                        operation: OperationId::new(10).unwrap(),
+                        place: place(),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    }));
+    eliminate(&disjoint_transport, &environment).unwrap();
+    // Case custody staged through the dead slot writes it inside the
+    // interval.
+    let custody = staged_pair(Some(&|function| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot,
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        });
+    }));
+    assert_eq!(
+        eliminate(&custody, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A custody discard of the staged place retires the place's storage,
+    // never the operation-owned staging slot — the bytes the slot holds are
+    // untouched, so the dead store still dies under its cover.
+    let discarded = staged_pair(Some(&|function| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: PlaceId::new(2).unwrap(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: Vec::new(),
+            trivial_affine_discards: vec![place()],
+        });
+    }));
+    eliminate(&discarded, &environment).unwrap();
+}
+
 #[test]
 fn cross_block_walk_crosses_intermediate_blocks_and_converging_legs() {
     let target = NativeTarget::linux_x64();
