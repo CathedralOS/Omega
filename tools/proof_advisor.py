@@ -252,7 +252,7 @@ def main():
     arguments = parser.parse_args()
     if arguments.self_test:
         self_test()
-        return
+        return 0
     omega = arguments.omega or Path(os.environ.get("OMEGA", "omega"))
     completed = subprocess.run(
         [str(omega), "--check", str(arguments.root)],
@@ -262,12 +262,13 @@ def main():
     diagnostics = [line for line in stderr_lines if REJECTION.search(line)]
     if completed.returncode == 0 or not diagnostics:
         sys.stderr.write(completed.stderr)
-        return  # clean compile or no in-scope rejection: nothing to advise
+        # clean compile or no in-scope rejection: nothing to advise
+        return completed.returncode
     key = find_key(arguments.key_file)
     if not key:
         sys.stderr.write(completed.stderr)
         print("  = advisory unavailable: no TYPESAFE_API_KEY", file=sys.stderr)
-        return
+        return completed.returncode
     # Scope: the entrypoint file. Multi-file projects need import walking;
     # corpus and sample programs are single-file.
     source = arguments.root.read_text(encoding="utf-8")
@@ -285,7 +286,7 @@ def main():
         sys.stderr.write(completed.stderr)
         print("  = advisory unavailable: TypeSafe request failed",
               file=sys.stderr)
-        return
+        return completed.returncode
     if key in json.dumps(response):
         raise RuntimeError("Response contains the credential; refusing output")
     rendered = render(evaluate(request, response), diagnostics)
@@ -296,10 +297,11 @@ def main():
             print(next(advisory), file=sys.stderr)
         else:
             print(line, file=sys.stderr)
+    return completed.returncode
 
 
 if __name__ == "__main__":
     try:
-        main()
+        raise SystemExit(main())
     except (OSError, ValueError, RuntimeError) as error:
         raise SystemExit(f"proof_advisor failed: {type(error).__name__}: {error}")
