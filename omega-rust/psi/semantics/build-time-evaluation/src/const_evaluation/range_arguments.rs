@@ -27,6 +27,27 @@ pub(crate) fn evaluate(
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = syntax.type_references.generic_nodes();
+    for (_, expression) in syntax.expressions.iter_expressions() {
+        if let ExpressionNode::Call(call) = expression {
+            collect_static_argument_types(&call.machine_arguments, &mut pending);
+        }
+    }
+    for item in syntax.root_items() {
+        if let syntax_trees::item::Item::Machine(machine) = item {
+            for state in syntax.items.state_handles(machine.states) {
+                for statement in syntax
+                    .items
+                    .statements(syntax.items.state(*state).statements)
+                {
+                    if let syntax_trees::statement::StatementNode::Call(call) =
+                        syntax.statements.statement(*statement)
+                    {
+                        collect_static_argument_types(&call.machine_arguments, &mut pending);
+                    }
+                }
+            }
+        }
+    }
     let mut visited = Vec::new();
     let mut ranges = Vec::new();
     while let Some(reference) = pending.pop() {
@@ -182,7 +203,16 @@ pub(crate) fn evaluate(
     if probes.is_empty() {
         return Ok(syntax);
     }
-    let resolved = crate::machine_execution::syntax_probes::resolve(&probe, sources, bindings)?;
+    // Constants retain ordinary value normalization here. Machine equations
+    // remain pending because this probe produces their canonical range inputs;
+    // the invocation guard prevents executing them, including through wrappers.
+    let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_numeric_probe(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &probe,
+            sources,
+            top_level_bindings: bindings.to_vec(),
+        },
+    )?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     // A call endpoint is a constant position exactly as a fixed-array length
@@ -382,4 +412,20 @@ pub(crate) fn evaluate(
             .replace_expression(authored, ExpressionNode::Integer(literal));
     }
     Ok(syntax)
+}
+
+/// Structural static arguments enter the existing canonical range normalizer
+/// as actual type-reference roots, including nested selected applications.
+fn collect_static_argument_types(
+    arguments: &[syntax_trees::expression::StaticMachineArgument],
+    pending: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
+) {
+    for argument in arguments {
+        if argument.type_reference.is_valid() {
+            pending.push(argument.type_reference);
+        }
+        if let Some(application) = &argument.application {
+            collect_static_argument_types(&application.arguments, pending);
+        }
+    }
 }

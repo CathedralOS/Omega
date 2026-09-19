@@ -11,7 +11,7 @@ use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{Item, TypeParameterKind};
+use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -90,12 +90,9 @@ pub(super) fn collect_binder_mentions(
 
 impl Solver<'_, '_> {
     fn parameter_position(&self, name: &str) -> Option<(usize, bool)> {
-        let Item::Data(declaration) = self.syntax.root_item(self.base_info.declaration) else {
-            return None;
-        };
         self.syntax
             .items
-            .type_parameters(declaration.type_parameters)
+            .type_parameters(self.base_info.parameters)
             .iter()
             .enumerate()
             .find(|(_, parameter)| parameter.name.as_str() == name)
@@ -211,7 +208,7 @@ impl Solver<'_, '_> {
         collect_binder_mentions(
             self.syntax,
             pattern,
-            &self.base_info.parameter_names,
+            self.base_info.parameter_names,
             &mut mentions,
         );
         if !mentions.is_empty() {

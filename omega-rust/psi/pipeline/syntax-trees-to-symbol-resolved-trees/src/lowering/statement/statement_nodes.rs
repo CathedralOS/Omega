@@ -186,8 +186,14 @@ pub(crate) fn lower_statement_node(
                     machine_arguments: call
                         .machine_arguments
                         .iter()
-                        .map(crate::lowering::expression::lower_static_machine_argument)
-                        .collect::<Vec<_>>()
+                        .map(|argument| {
+                            crate::lowering::expression::lower_static_machine_argument(
+                                lowerer,
+                                syntax_trees,
+                                argument,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
                         .into_boxed_slice(),
                     arguments,
                     evidence_arguments: call

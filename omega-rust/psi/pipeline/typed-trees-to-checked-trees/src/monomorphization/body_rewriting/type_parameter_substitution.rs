@@ -129,6 +129,9 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
             if let StatementNode::LocalData(local) = statement {
                 roots.push(local.type_reference);
             }
+            if let StatementNode::Call(call) = &statement {
+                collect_static_argument_type_roots(&call.machine_arguments, &mut roots);
+            }
             let mut expressions = Vec::new();
             collect_statement_expression_trees(program, statement, &mut expressions);
             for expression in expressions {
@@ -196,6 +199,9 @@ pub(crate) fn rebind_state_scoped_range_endpoints(
         {
             if let StatementNode::LocalData(local) = &statement {
                 roots.push(local.type_reference);
+            }
+            if let StatementNode::Call(call) = &statement {
+                collect_static_argument_type_roots(&call.machine_arguments, &mut roots);
             }
             let mut expressions = Vec::new();
             collect_statement_expression_trees(program, &statement, &mut expressions);
@@ -348,6 +354,9 @@ pub(crate) fn collect_expression_type_roots(
                         .type_reference_handles(cast.semantic_domain_arguments),
                 );
             }
+            ExpressionNode::Call(call) => {
+                collect_static_argument_type_roots(&call.machine_arguments, roots)
+            }
             ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
             _ => {}
         }
@@ -439,4 +448,18 @@ pub(crate) fn runtime_bound_occurrence_in(
         }
     }
     false
+}
+
+fn collect_static_argument_type_roots(
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+    roots: &mut Vec<TypeReferenceHandle>,
+) {
+    for argument in arguments {
+        if argument.type_reference.is_valid() {
+            roots.push(argument.type_reference);
+        }
+        if let Some(application) = &argument.application {
+            collect_static_argument_type_roots(&application.arguments, roots);
+        }
+    }
 }

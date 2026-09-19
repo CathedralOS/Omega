@@ -643,6 +643,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "generics/declared_range_endpoint_static_applications",
     "generics/declared_range_endpoint_template_bound_calls",
     "generics/omitted_data_binder_range_equation",
+    "generics/machine_type_equations",
     "generics/generic_data_instantiation",
     "generics/generic_data_type_param",
     "generics/generic_machine_call_monomorphization",

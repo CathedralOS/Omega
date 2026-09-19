@@ -220,6 +220,7 @@ fn collects_bounded_type_sites() {
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,
@@ -286,6 +287,7 @@ fn collects_machine_contract_surface() {
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("distinct_indices"),
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,

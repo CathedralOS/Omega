@@ -217,3 +217,30 @@ fn range_argument_probe_cannot_capture_a_shadowed_builtin_carrier() {
         }
     }
 }
+
+#[test]
+fn named_const_range_normalization_is_independent_of_unrelated_machine_equations() {
+    for declaration in ["", "machine unused<Type>() -> u64 where Type == u64 { 0 }"] {
+        let source = format!(
+            "data RangeValue<T> [copy] {{ value: T; }}
+             const RANGE_CAPACITY: u64 = 256;
+             machine read(value: RangeValue<u64[0..=RANGE_CAPACITY]>) -> u64 {{ 0 }}
+             {declaration}"
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let syntax = super::evaluate(syntax, None, &[], None).expect("closed named range probe");
+        let ranges = range_arguments(&syntax);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(
+            syntax
+                .type_references
+                .integer_range_normalization(ranges[0], 0),
+            Some(&IntegerRangeNormalization {
+                minimum: BigInt::from_u64(0),
+                maximum: BigInt::from_u64(256),
+            }),
+            "a named constant remains a value while unrelated equations stay pending"
+        );
+    }
+}

@@ -4,7 +4,10 @@ use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::constant_selection;
 use crate::preparation::generic_data::selected_data_item;
+use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
 use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Item;
@@ -14,12 +17,49 @@ use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
+/// Recover every omitted trailing binder of `base_info` from its type
+/// equations and verify the equations against the supplied prefix. The
+/// returned tuple is complete; recovered const binders are the canonical
+/// decimal `Named` leaves literal const arguments already use.
+pub(super) fn complete_argument_tuple(
+    syntax: &mut SyntaxTrees,
+    base_info: &GenericData,
+    base_name: &Identifier,
+    supplied: &[TypeReferenceHandle],
+    const_values: &HashMap<String, i128>,
+    selection: Option<&constant_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
+    let syntax_trees::item::Item::Data(definition) = syntax.root_item(base_info.declaration) else {
+        return Err(Diagnostic::error(
+            "structural data equation lost its declaration",
+        ));
+    };
+    let template = EquationTemplate {
+        kind: "data",
+        name: &base_info.name,
+        parameters: definition.type_parameters,
+        parameter_names: &base_info.parameter_names,
+        const_parameter_types: &base_info.const_parameter_types,
+        type_equations: &base_info.type_equations,
+    };
+    complete_equation_arguments(
+        syntax,
+        template,
+        base_name,
+        supplied,
+        const_values,
+        selection,
+        warnings,
+    )
+}
+
 /// Diagnostic names for admitted closed arguments, not application identity.
 /// Range shells require structured observations from typed numeric evaluation;
 /// this syntax owner never evaluates their bounds. Substitution retains the
 /// original argument type and its constraints. Instance sharing uses the exact
 /// declaration/argument identities below, not matching rendered names.
-pub(in crate::preparation::generic_data) fn monomorphizable_argument_slugs(
+pub(crate) fn monomorphizable_argument_slugs(
     syntax: &SyntaxTrees,
     argument_handles: &[TypeReferenceHandle],
 ) -> Option<Vec<String>> {
@@ -37,7 +77,7 @@ pub(in crate::preparation::generic_data) fn monomorphizable_argument_slugs(
 /// That preserves one stable synthesized definition across differently named
 /// use-site lifetimes without inventing binders or choosing an alias/routing
 /// policy. Broader permutations remain on the unnormalized path.
-pub(in crate::preparation::generic_data) fn canonicalize_monomorphizable_argument_handles(
+pub(super) fn canonicalize_monomorphizable_argument_handles(
     syntax: &mut SyntaxTrees,
     base_info: &GenericData,
     outer_lifetime_arguments: &[Identifier],
@@ -62,7 +102,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_monomorphizable_argumen
         .collect()
 }
 
-pub(in crate::preparation::generic_data) fn canonicalize_lifetime_bearing_type_argument(
+pub(crate) fn canonicalize_lifetime_bearing_type_argument(
     syntax: &mut SyntaxTrees,
     type_reference: TypeReferenceHandle,
     outer_lifetime_parameters: &[Identifier],
@@ -134,7 +174,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_lifetime_bearing_type_a
     }
 }
 
-pub(in crate::preparation::generic_data) fn exact_synthesized_lifetime_instance(
+pub(crate) fn exact_synthesized_lifetime_instance(
     syntax: &SyntaxTrees,
     name: &str,
     lifetime_arity: usize,
@@ -154,7 +194,7 @@ pub(in crate::preparation::generic_data) fn exact_synthesized_lifetime_instance(
 
 /// Naming metadata for closed types, arrays, qualifications and observed ranges.
 /// Unsupported or open shapes remain on the ordinary generic path.
-pub(in crate::preparation::generic_data) fn type_reference_slug(
+pub(crate) fn type_reference_slug(
     syntax: &SyntaxTrees,
     handle: TypeReferenceHandle,
 ) -> Option<String> {
@@ -217,9 +257,7 @@ pub(in crate::preparation::generic_data) fn type_reference_slug(
 
 /// Nameable behavior/domain tags. Ranges need their exact owner observation,
 /// handled by the caller, rather than rendering an arbitrary expression here.
-pub(in crate::preparation::generic_data) fn constraint_slug(
-    constraint: &TypeConstraintNode,
-) -> Option<String> {
+pub(crate) fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
         TypeConstraintNode::Domain(domain) if domain.arguments.is_empty() => {
@@ -233,7 +271,7 @@ pub(in crate::preparation::generic_data) fn constraint_slug(
 
 /// Classify only arguments the existing closed-shape gate has admitted. Open
 /// binders remain on the ordinary generic path; no unresolved name is an atom.
-pub(super) fn closed_argument_identity(
+pub(crate) fn closed_argument_identity(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     handle: TypeReferenceHandle,

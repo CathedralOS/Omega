@@ -54,7 +54,7 @@ pub(super) enum GenericDataShape {
 /// Rejoin the selected declaration to this syntax owner. Header symbols never
 /// escape, and generated declarations retain distinct arena identities even if
 /// they share an absent or authored derivation span.
-pub(super) fn selected_data_item(
+pub(crate) fn selected_data_item(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
@@ -84,7 +84,7 @@ pub(super) fn selected_generic_data<'a>(
 /// Equality for the already admitted closed argument shapes. Rendered names are
 /// only lookup/diagnostic metadata; nominal equality names a live declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ClosedArgumentIdentity {
+pub(crate) enum ClosedArgumentIdentity {
     Builtin(symbols::BuiltinTypeAtom),
     Nominal(syntax_trees::item::ItemHandle),
     RetainedNominal(symbols::SymbolHandle),
@@ -95,7 +95,7 @@ pub(super) enum ClosedArgumentIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ClosedConstraintIdentity {
+pub(crate) enum ClosedConstraintIdentity {
     Range(syntax_trees::types::IntegerRangeNormalization),
     Arithmetic(numerics::arithmetic::ArithmeticDomain),
     Declaration(syntax_trees::item::ItemHandle),

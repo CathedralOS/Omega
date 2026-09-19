@@ -60,6 +60,9 @@ pub(crate) fn lower_expression_into_table(
     if let Some(partition) = lowerer.current_compiler_selection_partition {
         expression_table(lowerer).set_compiler_selection_partition(lowered, partition);
     }
+    if let Some(sources) = &mut lowerer.equation_sources {
+        sources.expressions.push((expression, lowered));
+    }
     Ok(lowered)
 }
 
@@ -395,17 +398,18 @@ fn lower_nonbinary_expression_node_into_table(
                     argument,
                 );
             }
+            let machine_arguments = call
+                .machine_arguments
+                .iter()
+                .map(|argument| lower_static_machine_argument(lowerer, syntax_trees, argument))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_boxed_slice();
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(&call.target),
-                    machine_arguments: call
-                        .machine_arguments
-                        .iter()
-                        .map(lower_static_machine_argument)
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice(),
+                    machine_arguments,
                     arguments,
                     evidence_arguments: call
                         .evidence_arguments
@@ -603,31 +607,57 @@ fn lower_nonbinary_expression_node_into_table(
 }
 
 pub(crate) fn lower_static_machine_argument(
+    lowerer: &mut Lowerer,
+    syntax_trees: &syntax::SyntaxTrees,
     argument: &syntax::expression::StaticMachineArgument,
-) -> symbol_resolved_trees::expression::StaticMachineArgument {
-    symbol_resolved_trees::expression::StaticMachineArgument {
+) -> Result<symbol_resolved_trees::expression::StaticMachineArgument, Diagnostic> {
+    let type_reference = if argument.type_reference.is_valid() {
+        let reference = crate::lowering::type_reference::lower_type_reference_handle(
+            lowerer,
+            syntax_trees,
+            argument.type_reference,
+        )?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .append(reference)
+    } else {
+        arena::Handle::invalid()
+    };
+    Ok(symbol_resolved_trees::expression::StaticMachineArgument {
+        type_reference,
         path: argument
             .path
             .iter()
             .map(lower_name)
             .collect::<Vec<_>>()
             .into_boxed_slice(),
-        application: argument.application.as_ref().map(|application| {
-            Box::new(symbol_resolved_trees::expression::StaticSymbolApplication {
-                lifetime_arguments: application
-                    .lifetime_arguments
-                    .iter()
-                    .map(lower_name)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-                arguments: application
-                    .arguments
-                    .iter()
-                    .map(lower_static_machine_argument)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
+        application: argument
+            .application
+            .as_ref()
+            .map(|application| {
+                Ok::<_, Diagnostic>(Box::new(
+                    symbol_resolved_trees::expression::StaticSymbolApplication {
+                        lifetime_arguments: application
+                            .lifetime_arguments
+                            .iter()
+                            .map(lower_name)
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
+                        arguments: application
+                            .arguments
+                            .iter()
+                            .map(|argument| {
+                                lower_static_machine_argument(lowerer, syntax_trees, argument)
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                            .into_boxed_slice(),
+                    },
+                ))
             })
-        }),
+            .transpose()?,
         const_literal: argument.const_literal.clone(),
         evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
             symbol_resolved_trees::expression::EvidenceProjection {
@@ -636,7 +666,7 @@ pub(crate) fn lower_static_machine_argument(
             }
         }),
         symbol: SymbolHandle::invalid(),
-    }
+    })
 }
 
 fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {

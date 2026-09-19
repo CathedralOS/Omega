@@ -33,6 +33,8 @@ pub struct Machine {
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
     /// supply can be either bodyless or a checked adapter.
     pub body_is_present: bool,
+    /// Source structural equations are not yet discharged; execution must reject this machine.
+    pub structural_type_equations_pending: bool,
     /// TPR2 (decision 23): the normalized termination plan (published
     /// guarantee vs private ranking witness), populated ONCE at the
     /// syntax->resolved lowering and COPIED here -- never re-derived.
@@ -71,6 +73,7 @@ impl Default for Machine {
             is_public: false,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             body_is_present: true,
+            structural_type_equations_pending: false,
             termination_plan: language_semantics::MachineTerminationPlan::default(),
             service_reach_row: language_semantics::ServiceReachRowId::NULL,
             service_reach_is_installation_bound: false,

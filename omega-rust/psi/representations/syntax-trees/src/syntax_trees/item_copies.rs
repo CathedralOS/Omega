@@ -436,6 +436,7 @@ impl SyntaxTrees {
         Machine {
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
+            where_facts: self.copy_domain_fact_span(other, machine.where_facts),
             attached_data: machine.attached_data.clone(),
             spelling: machine.spelling,
             is_public: machine.is_public,
@@ -471,7 +472,10 @@ impl SyntaxTrees {
                     subject: bound.subject.clone(),
                     carrier: bound.carrier.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                    selected_conformance: bound.selected_conformance.clone(),
+                    selected_conformance: bound
+                        .selected_conformance
+                        .as_ref()
+                        .map(|argument| self.copy_static_machine_argument(other, argument)),
                 })
                 .collect(),
             terminates_guarantee: machine.terminates_guarantee,
@@ -516,7 +520,10 @@ impl SyntaxTrees {
                     subject: bound.subject.clone(),
                     carrier: bound.carrier.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                    selected_conformance: bound.selected_conformance.clone(),
+                    selected_conformance: bound
+                        .selected_conformance
+                        .as_ref()
+                        .map(|argument| self.copy_static_machine_argument(other, argument)),
                 })
                 .collect(),
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),

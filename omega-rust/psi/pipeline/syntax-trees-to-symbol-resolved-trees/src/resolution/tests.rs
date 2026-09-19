@@ -11,6 +11,7 @@ mod extension_selections;
 mod field_type_values;
 mod initializer_selection;
 mod machine_header_extension;
+mod machine_type_equations;
 mod mathematical_declarations;
 mod measure_resolution;
 mod module_constants;

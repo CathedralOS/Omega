@@ -20,7 +20,7 @@ use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_
 /// scalar a selected domain binds to `self` while its facts replay.
 /// Integer synthesis callers and mixed domain binders share the same fact
 /// operations without copying their environments or encoding Booleans as 0/1.
-pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
+pub(crate) fn evaluate_const_fact_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
@@ -120,7 +120,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
 /// Discharge `N in Domain` when `N` is a concrete const parameter and the
 /// domain is defined by evaluable boolean facts over `self`. Machine-call facts
 /// stay on the concrete record for typed build-time evaluation.
-pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
+pub(crate) fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
     membership: &syntax_trees::item::ProofMembershipFact,
     const_values: &HashMap<String, i128>,
@@ -176,7 +176,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
 /// or unauthorized occurrence declines instead of guessing. Without a
 /// selection (header-free probes) a leaf expands against the value carrier
 /// exactly as the original name-only lookup did.
-pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
+pub(crate) fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     authored: &str,
     carrier: &str,
@@ -740,7 +740,7 @@ const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require de
 /// ownership. That fallback may only select an unmoduled domain declared
 /// exactly once — a module-owned or duplicated leaf match stays fenced rather
 /// than borrowing an owner the name alone cannot establish.
-pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constraints(
+pub(crate) fn prove_declared_const_domain_constraints(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     constraints: &[TypeConstraintNode],
@@ -836,7 +836,7 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
 /// `self` bound to the checked value. `parameter_values` carries the
 /// application's closed index bindings so a family fact like `self < N`
 /// resolves its binder exactly; a monomorphic domain passes an empty map.
-pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
+pub(crate) fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,

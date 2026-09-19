@@ -240,6 +240,7 @@ fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers(
             let selected = typed_trees::expression::StaticMachineArgument {
                 path: Box::new([]),
                 application: None,
+                type_reference: Default::default(),
                 const_literal: None,
                 evidence_projection: None,
                 symbol: call.target_symbol,

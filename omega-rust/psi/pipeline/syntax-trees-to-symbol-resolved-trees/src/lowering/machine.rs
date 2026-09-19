@@ -171,6 +171,14 @@ pub(crate) fn lower_machine_into(
             authored: service_reaches,
         },
     );
+    if let Some(sources) = &mut lowerer.equation_sources
+        && !machine.where_facts.is_empty()
+    {
+        sources.declarations.push((
+            lowerer.symbol_resolved_trees.machines.len(),
+            machine.clone(),
+        ));
+    }
     lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
@@ -185,6 +193,9 @@ pub(crate) fn lower_machine_into(
         is_public: machine.is_public,
         supply_mode,
         body_is_present: !machine.bodyless,
+        has_structural_type_equations: !machine.where_facts.is_empty(),
+        structural_type_equations_pending: !machine.where_facts.is_empty()
+            && lowerer.structural_type_equations_pending,
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
         termination_plan,
@@ -279,7 +290,14 @@ pub(crate) fn lower_generic_conformance_bounds(
                 selected_conformance: bound
                     .selected_conformance
                     .as_ref()
-                    .map(crate::lowering::expression::lower_static_machine_argument),
+                    .map(|argument| {
+                        crate::lowering::expression::lower_static_machine_argument(
+                            lowerer,
+                            syntax_trees,
+                            argument,
+                        )
+                    })
+                    .transpose()?,
             })
         })
         .collect()

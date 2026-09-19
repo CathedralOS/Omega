@@ -798,6 +798,8 @@ pub struct Machine {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
+    /// Structural static equations retained until every application is discharged.
+    pub where_facts: HandleSpan<ProofFact>,
     /// TPR2 (decision 23): the machine authored BARE `terminates;` — the
     /// public eventual-terminal guarantee. `terminates by ...` supplies only
     /// the private ranking witness and does not set this.

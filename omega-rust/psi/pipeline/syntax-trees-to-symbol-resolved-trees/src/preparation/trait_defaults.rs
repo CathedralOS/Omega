@@ -955,6 +955,7 @@ fn machine_from_signature(
         boundary: false,
         is_top_level_boundary_requirement: false,
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters: HandleSpan::empty(),
         satisfies,

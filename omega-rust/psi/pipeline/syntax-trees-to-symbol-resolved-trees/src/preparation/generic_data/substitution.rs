@@ -30,7 +30,7 @@ use syntax_trees::types::TypeReferenceNode;
 /// at the argument; a NESTED generic (`a: Box<T>`) becomes a fresh concrete
 /// spelling (`Box<i32>`) the fixpoint monomorphizes; a parameter-free field is
 /// shared unchanged.
-pub(in crate::preparation::generic_data) fn substitute_member(
+pub(crate) fn substitute_member(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
     member: DataMember,
@@ -329,7 +329,7 @@ fn decide_type_equality_conjunct(
 /// declared data by item, and module-retained declarations by symbol. Mirrors
 /// the `TypeReferenceNode::Named` arm of `closed_argument_identity` without
 /// materializing a reference node.
-pub(in crate::preparation::generic_data) fn closed_name_identity(
+pub(crate) fn closed_name_identity(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
@@ -349,7 +349,7 @@ pub(in crate::preparation::generic_data) fn closed_name_identity(
     }
 }
 
-pub(in crate::preparation::generic_data) fn substitute_data_field(
+pub(crate) fn substitute_data_field(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
     mut field: syntax_trees::item::DataField,
@@ -368,7 +368,7 @@ pub(in crate::preparation::generic_data) fn substitute_data_field(
     field
 }
 
-pub(in crate::preparation::generic_data) fn substitute_type_reference(
+pub(crate) fn substitute_type_reference(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
@@ -754,7 +754,7 @@ fn expression_mentions_parameter(
 /// (recursively through composite nodes). Conservative: on an unhandled node
 /// shape it returns `true` so the caller rejects rather than silently sharing a
 /// parameter-bearing type.
-pub(in crate::preparation::generic_data) fn type_reference_mentions_parameter(
+pub(crate) fn type_reference_mentions_parameter(
     syntax: &SyntaxTrees,
     handle: TypeReferenceHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,

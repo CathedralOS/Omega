@@ -87,6 +87,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             contracts,
             clauses_return_type,
             mut conformance_bounds,
+            where_facts,
         ),
         next,
     ) = parse_machine_clauses(syntax_trees, next)?;
@@ -146,6 +147,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             type_parameters,
             satisfies,
             conformance_bounds,
+            where_facts,
             terminates_guarantee,
             ranking_subjects,
             ranking_view,

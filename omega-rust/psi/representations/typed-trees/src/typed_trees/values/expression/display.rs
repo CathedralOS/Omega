@@ -289,6 +289,9 @@ impl TableCallExpression {
 
 impl StaticMachineArgument {
     pub fn display_name(&self) -> String {
+        if self.type_reference.is_valid() {
+            return "<structural type>".to_owned();
+        }
         if let Some(literal) = &self.const_literal {
             return literal.text().to_owned();
         }

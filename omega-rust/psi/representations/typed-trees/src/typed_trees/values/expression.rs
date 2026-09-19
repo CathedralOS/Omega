@@ -2421,6 +2421,8 @@ pub struct QuotientOperationRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// An explicit structural type argument; zero denotes another static argument kind.
+    pub type_reference: crate::types::TypeReferenceHandle,
     /// Historical storage name shared by type/const/machine proposition
     /// arguments; proposition proof facts retain their final category.
     pub path: Box<[Identifier]>,

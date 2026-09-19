@@ -530,6 +530,7 @@ fn trailing_unit_call_semantic_modifiers_cannot_be_erased_into_an_ordinary_call(
             let selected = typed_trees::expression::StaticMachineArgument {
                 path: Box::new([]),
                 application: None,
+                type_reference: Default::default(),
                 const_literal: None,
                 evidence_projection: None,
                 symbol: call.target_symbol,

@@ -32,8 +32,15 @@ pub(super) fn lower_call_statement(
         machine_arguments: call
             .machine_arguments
             .iter()
-            .map(crate::expressions::expression::lower_static_machine_argument)
-            .collect::<Vec<_>>()
+            .map(|argument| {
+                crate::expressions::expression::lower_static_machine_argument(
+                    Some(lowerer.source_trees),
+                    &mut lowerer.typed_trees,
+                    lowerer.type_reference_exposure,
+                    argument,
+                )
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?
             .into_boxed_slice(),
         arguments,
         evidence_arguments: call

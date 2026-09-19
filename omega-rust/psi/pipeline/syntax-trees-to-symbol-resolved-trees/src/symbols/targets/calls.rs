@@ -390,7 +390,10 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
     proof_static: bool,
 ) {
-    if argument.evidence_projection.is_some() || argument.const_literal.is_some() {
+    if argument.type_reference.is_valid()
+        || argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+    {
         argument.symbol = SymbolHandle::invalid();
     } else {
         argument.symbol = if proof_static {
@@ -417,7 +420,8 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
     state_symbol: SymbolHandle,
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
 ) {
-    if argument.symbol.is_valid()
+    if argument.type_reference.is_valid()
+        || argument.symbol.is_valid()
         || argument.application.is_some()
         || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
@@ -447,7 +451,8 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
     allow_operator_family: bool,
 ) {
-    if argument.evidence_projection.is_some()
+    if argument.type_reference.is_valid()
+        || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
         || argument.application.is_some()
     {
@@ -526,7 +531,8 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
     opaque_argument: bool,
 ) {
-    if argument.evidence_projection.is_some()
+    if argument.type_reference.is_valid()
+        || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
         || argument.application.is_some()
     {

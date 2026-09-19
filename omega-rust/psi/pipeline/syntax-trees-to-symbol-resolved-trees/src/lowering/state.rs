@@ -512,6 +512,7 @@ fn lower_state_statements(
 ) -> Result<HandleSpan<Statement>, Diagnostic> {
     let mut pending: Vec<Statement> = Vec::new();
     let mut run_start: Option<usize> = None;
+    let mut call_origins = Vec::new();
 
     for statement in syntax_trees.items.statements(statements) {
         lower_statement_into_pending(
@@ -520,17 +521,23 @@ fn lower_state_statements(
             *statement,
             &mut pending,
             &mut run_start,
+            &mut call_origins,
         )?;
     }
 
     let mut span = HandleSpan::empty();
-    for lowered in pending {
-        lowerer
+    for (index, lowered) in pending.into_iter().enumerate() {
+        let handle = lowerer
             .symbol_resolved_trees
             .tables
             .declarations
             .state_statements
             .append_to_span(&mut span, lowered);
+        if let Some(sources) = &mut lowerer.equation_sources
+            && let Some((_, original)) = call_origins.iter().find(|(offset, _)| *offset == index)
+        {
+            sources.statements.push((*original, handle));
+        }
     }
     Ok(span)
 }
@@ -541,6 +548,7 @@ fn lower_statement_into_pending(
     statement: syntax::statement::StatementHandle,
     pending: &mut Vec<Statement>,
     run_start: &mut Option<usize>,
+    call_origins: &mut Vec<(usize, syntax::statement::StatementHandle)>,
 ) -> Result<(), Diagnostic> {
     // A single syntax statement can lower to MULTIPLE resolved statements: an
     // assignment or local whose value reads a runtime-indexed element in
@@ -572,6 +580,11 @@ fn lower_statement_into_pending(
         let lets_count = lowered.len() - 1;
         match *run_start {
             Some(start) if lets_count > 0 => {
+                for (offset, _) in call_origins.iter_mut() {
+                    if *offset >= start {
+                        *offset += lets_count;
+                    }
+                }
                 let transition = lowered.pop().expect("transition chunk is non-empty");
                 for (offset, hoisted) in lowered.into_iter().enumerate() {
                     pending.insert(start + offset, hoisted);
@@ -590,6 +603,12 @@ fn lower_statement_into_pending(
         *run_start = None;
     }
 
+    if matches!(
+        syntax_trees.statements.statement(statement),
+        syntax::statement::StatementNode::Call(_)
+    ) {
+        call_origins.push((pending.len() - 1, statement));
+    }
     Ok(())
 }
 

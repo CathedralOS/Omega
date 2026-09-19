@@ -273,7 +273,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
         // canonical ranges, explicit arguments are verified, and the
         // authored spelling grows to the complete application so the
         // retained origin and closed identity see every binder.
-        let completed = super::super::equations::complete_argument_tuple(
+        let completed = super::super::complete_argument_tuple(
             syntax,
             base_info,
             &base_name,

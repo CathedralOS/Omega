@@ -458,6 +458,8 @@ mod tests {
             is_public: false,
             supply_mode: Default::default(),
             body_is_present: true,
+            has_structural_type_equations: false,
+            structural_type_equations_pending: false,
             termination_plan: Default::default(),
             service_reach_row: Default::default(),
             service_reach_is_installation_bound: false,

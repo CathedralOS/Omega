@@ -311,6 +311,8 @@ pub struct TableCallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// An explicit structural type argument; zero denotes another static argument kind.
+    pub type_reference: crate::types::TypeReferenceHandle,
     /// Historical storage name: proposition calls also use this record for
     /// type and const arguments, classified by the target's static telescope.
     pub path: Box<[Identifier]>,

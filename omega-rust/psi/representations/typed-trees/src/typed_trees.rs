@@ -399,7 +399,10 @@ fn static_const_argument_spelling(
 ) -> Option<String> {
     use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 
-    if argument.application.is_some() || argument.evidence_projection.is_some() {
+    if argument.type_reference.is_valid()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+    {
         return None;
     }
     if let Some(literal) = &argument.const_literal {

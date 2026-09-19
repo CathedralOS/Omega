@@ -73,7 +73,11 @@ pub(crate) enum ConstResolutionMode {
     InitializerSelection,
 }
 pub(crate) struct Lowerer {
+    pub(crate) equation_sources: Option<crate::preparation::machine_equations::SourceLinks>,
     pub(crate) const_resolution_mode: ConstResolutionMode,
+    /// Constant values may be normalized before structural equations have
+    /// their canonical range inputs. Only the complete route clears this.
+    pub(crate) structural_type_equations_pending: bool,
     pub(crate) constant_selection:
         Option<crate::preparation::generic_data::constant_selection::ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
@@ -259,7 +263,9 @@ impl Lowerer {
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
         Self {
+            equation_sources: None,
             const_resolution_mode: ConstResolutionMode::Complete,
+            structural_type_equations_pending: true,
             constant_selection: None,
             namespace_declarations: crate::symbols::NamespaceDeclarations::default(),
             pending_static_module_calls: Vec::new(),

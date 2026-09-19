@@ -85,3 +85,40 @@ fn static_and_value_call_targets_remain_distinct_after_syntax_copy() {
         assert_eq!(expressions, [true, false]);
     }
 }
+
+#[test]
+fn structural_static_argument_probe_preserves_indexed_comparisons() {
+    for comparison in ["left < values[0]", "left < values[0] > (right)"] {
+        let source = format!(
+            "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool {{ {comparison} }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokens");
+        let syntax = crate::parse_syntax_trees(&tokens).expect("ordinary comparison syntax");
+        assert!(
+            syntax.type_references.generic_nodes().is_empty(),
+            "abandoned static argument probes publish no generic types"
+        );
+        assert!(!syntax.expressions.iter_expressions().any(|(_, expression)| matches!(expression, ExpressionNode::Call(call) if !call.machine_arguments.is_empty())));
+    }
+}
+
+#[test]
+fn structural_static_arguments_publish_only_confirmed_call_types() {
+    let source = "machine read() -> u64 { capacity<u64[0..257]>() }";
+    let tokens = Lexer::new(source).tokenize().expect("tokens");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("structural call syntax");
+    let call = syntax
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "capacity" => Some(call),
+            _ => None,
+        })
+        .expect("capacity call");
+    assert!(matches!(
+        syntax
+            .type_references
+            .type_reference(call.machine_arguments[0].type_reference),
+        syntax_trees::types::TypeReferenceNode::Constrained { .. }
+    ));
+}

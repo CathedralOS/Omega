@@ -232,6 +232,7 @@ fn validate_retained_application(
                 .collect(),
             arguments: application.arguments.clone(),
         })),
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol: application.declaration,

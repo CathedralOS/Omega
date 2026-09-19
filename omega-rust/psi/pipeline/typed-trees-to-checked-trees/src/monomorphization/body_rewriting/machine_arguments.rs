@@ -119,6 +119,7 @@ pub(crate) fn forwarded_static_argument_rewrites(
                         static_const_literal_from_type_reference(program, binding)
                     {
                         StaticMachineArgument {
+                            type_reference: TypeReferenceHandle::invalid(),
                             path: Box::default(),
                             application: None,
                             const_literal: Some(literal),
@@ -151,8 +152,12 @@ pub(crate) fn static_argument_from_type_reference(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<StaticMachineArgument> {
+    if !program.type_reference_table.contains_type_reference(handle) || !handle.is_valid() {
+        return None;
+    }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Named { symbol, name } => Some(StaticMachineArgument {
+            type_reference: TypeReferenceHandle::invalid(),
             path: vec![name.clone()].into_boxed_slice(),
             application: None,
             const_literal: None,
@@ -165,6 +170,7 @@ pub(crate) fn static_argument_from_type_reference(
             lifetime_arguments,
             arguments,
         } => Some(StaticMachineArgument {
+            type_reference: TypeReferenceHandle::invalid(),
             path: vec![base_name.clone()].into_boxed_slice(),
             application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
                 lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
@@ -172,15 +178,22 @@ pub(crate) fn static_argument_from_type_reference(
                     .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
-                    .filter_map(|argument| static_argument_from_type_reference(program, *argument))
-                    .collect::<Vec<_>>()
+                    .map(|argument| static_argument_from_type_reference(program, *argument))
+                    .collect::<Option<Vec<_>>>()?
                     .into_boxed_slice(),
             })),
             const_literal: None,
             evidence_projection: None,
             symbol: *base_symbol,
         }),
-        _ => None,
+        _ => Some(StaticMachineArgument {
+            type_reference: handle,
+            path: Box::default(),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+            symbol: SymbolHandle::invalid(),
+        }),
     }
 }
 

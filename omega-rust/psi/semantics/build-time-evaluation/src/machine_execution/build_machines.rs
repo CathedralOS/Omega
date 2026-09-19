@@ -184,6 +184,33 @@ pub fn evaluate_build_machine_measured(
             checked_interpreter::BuildMachineEntry::Name(machine_name)
         }
     };
+    // The public prepared execution service also accepts calls whose caller
+    // supplied its own effect grant. Equation discharge is independent of that
+    // grant and must precede either interpreter mode.
+    if program
+        .typed()
+        .machines()
+        .iter()
+        .any(|machine| machine.structural_type_equations_pending)
+    {
+        let symbol = match invocation.machine {
+            PreparedBuildMachine::Entry(entry) => entry.symbol(),
+            PreparedBuildMachine::Name(name) => program
+                .typed()
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .map(|machine| machine.symbol)
+                .ok_or_else(|| {
+                    BuildMachineEvaluationError::Entry(format!(
+                        "prepared build program contains no machine `{name}`"
+                    ))
+                })?,
+        };
+        super::admission::BuildTimeAdmissionPlan::infer(program.typed(), None)
+            .require_discharged_structural_equations(program.typed(), symbol)
+            .map_err(BuildMachineEvaluationError::Entry)?;
+    }
     let request = checked_interpreter::BuildMachineEvaluationRequest {
         entry,
         arguments: invocation.arguments,

@@ -927,6 +927,7 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                     let selected = typed_trees::expression::StaticMachineArgument {
                         path: Box::new([]),
                         application: None,
+                        type_reference: Default::default(),
                         const_literal: None,
                         evidence_projection: None,
                         symbol: call.target_symbol,

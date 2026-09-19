@@ -506,6 +506,19 @@ pub(super) fn clone_specialized_machine(
         call.call = copy_expression(source, program, call.call, &symbol_map);
         program.proof_output_calls.push(call);
     }
+    for state in program.machine_states(&cloned).to_vec() {
+        for handle in statement_span_handles(state.statement_nodes) {
+            let StatementNode::Call(call) = program.statement_table.statement(handle) else {
+                continue;
+            };
+            let mut arguments = call.machine_arguments.clone();
+            copy_static_argument_type_payloads(source, program, &mut arguments, &symbol_map);
+            let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+                unreachable!();
+            };
+            call.machine_arguments = arguments;
+        }
+    }
     copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map);
     let cloned_expression_roots = cloned_expression_roots(program, &cloned);
     const_values::substitute(
@@ -708,6 +721,22 @@ pub(super) fn copy_cloned_expression_type_payloads(
     expression_start: usize,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) {
+    let calls = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .filter_map(|(handle, expression)| match expression {
+            ExpressionNode::Call(call) => Some((handle, call.machine_arguments.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (handle, mut arguments) in calls {
+        copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            unreachable!();
+        };
+        call.machine_arguments = arguments;
+    }
     let cast_payloads = program
         .expression_table
         .iter_expressions()
@@ -764,6 +793,28 @@ pub(super) fn copy_cloned_expression_type_payloads(
             unreachable!("collected zero-value expression changed kind")
         };
         *current = type_reference;
+    }
+}
+
+fn copy_static_argument_type_payloads(
+    source: Option<&TypedTrees>,
+    program: &mut TypedTrees,
+    arguments: &mut [typed_trees::expression::StaticMachineArgument],
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) {
+    for argument in arguments {
+        if argument.type_reference.is_valid() {
+            argument.type_reference =
+                copy_type_reference(source, program, argument.type_reference, symbols);
+        }
+        if let Some(application) = &mut argument.application {
+            copy_static_argument_type_payloads(
+                source,
+                program,
+                &mut application.arguments,
+                symbols,
+            );
+        }
     }
 }
 

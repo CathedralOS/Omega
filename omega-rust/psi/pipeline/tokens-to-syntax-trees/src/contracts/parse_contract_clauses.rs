@@ -1,4 +1,4 @@
-use super::conformance::parse_conformance::parse_generic_conformance_bounds;
+use super::conformance::parse_conformance::parse_generic_conformance_bound;
 
 use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals,
@@ -33,6 +33,7 @@ type MachineClauses = (
     HandleSpan<CapabilityContract>,
     syntax_trees::types::TypeReferenceHandle,
     Vec<GenericConformanceBound>,
+    HandleSpan<syntax_trees::item::ProofFact>,
 );
 
 type RankedSubjects = (
@@ -68,6 +69,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
     let mut conformance_bounds = Vec::new();
+    let mut where_facts = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace)
         // CH10 bodyless machines end at `;` in body position -- the clause
@@ -438,9 +440,29 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     "one-off `where machine T::member(...)` requirements are unsupported; declare a trait and bind an explicit conformance",
                 ));
             }
-            let (bounds, rest) = parse_generic_conformance_bounds(syntax_trees, input)?;
-            conformance_bounds = bounds;
-            input = rest;
+            input = after_where;
+            loop {
+                let conformance = input
+                    .take_identifier()
+                    .is_ok_and(|(_, rest)| rest.at_contextual("satisfies"));
+                if conformance {
+                    let (bound, rest) = parse_generic_conformance_bound(syntax_trees, input)?;
+                    conformance_bounds.push(bound);
+                    input = rest;
+                } else {
+                    let (expression, rest) =
+                        crate::expressions::parse_expression::parse_proof_fact_expression_handle(
+                            syntax_trees,
+                            input,
+                        )?;
+                    where_facts.push(syntax_trees::item::ProofFact::Expression(expression));
+                    input = rest;
+                }
+                if !input.at_punctuation(PunctuationKind::Comma) {
+                    break;
+                }
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            }
             continue;
         }
 
@@ -477,6 +499,15 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
+    let mut where_start = Handle::invalid();
+    let where_count = where_facts.len() as u32;
+    for fact in where_facts {
+        let handle = syntax_trees.items.append_proof_fact(fact);
+        if !where_start.is_valid() {
+            where_start = handle;
+        }
+    }
+    let where_facts = HandleSpan::from_parts(where_start, where_count);
     Ok((
         (
             terminates_guarantee,
@@ -495,6 +526,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             contracts,
             return_type,
             conformance_bounds,
+            where_facts,
         ),
         input,
     ))

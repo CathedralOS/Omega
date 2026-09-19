@@ -3363,10 +3363,11 @@ Owners include
   (`typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`),
   build-time folding of closed endpoint calls
   (`build-time-evaluation/src/const_evaluation/range_endpoints.rs`), and
-  data-level `where Binder == <range shell>` equations that recover an omitted
-  const or type binder in either direction
-  (`syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/equations.rs`).
-  The three pieces now share one canonical-range admission: declared-range
+  structural `where Binder == <type>` equations that recover omitted const or
+  type binders in either direction. Data and closed explicit machine applications
+  use the same matcher
+  (`syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations.rs`).
+  These consumers share one canonical-range admission: declared-range
   call inference runs before the const-call probe, evaluates each retained
   call endpoint through the shared endpoint evaluator, and writes the folded
   decimal literal back into canonical syntax, so `u64[0..=limit()]` and
@@ -3375,14 +3376,21 @@ Owners include
   conflicting explicit binders and calls that keep no canonical range still
   reject. Data equations also decompose nested fixed arrays and construct an
   omitted backing type from bound element/extent arguments
-  (`equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`;
+  (`type_equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`;
   open generic elements and unresolved module lengths still reject. The
   `compiler --test array_type_equations` integration target exercises inferred
   and explicit identity through checking and recovered counts through source-free
   Terminal execution, including reverse construction (macOS ARM64). Templates
   retain array equations in syntax; unspecialized applications cannot discard
-  those obligations. Equations still exist on data templates only, and `T == i32`
-  is decided only as a case `where` fact on a closed data instance.
+  those obligations. Closed explicit calls to free machines also recover trailing
+  type/const arguments from ranges and fixed arrays, construct omitted types,
+  and discharge complete supplied tuples. Actual static type arguments survive
+  resolution, caller-scope validation, specialization and normalized identity.
+  `compiler --test machine_type_equations` exercises source-free Terminal
+  execution and conflicting tuples, kind mixtures, forwarding, lifetime scope,
+  and named conformance obligations. Open or retained applications lacking
+  their equation syntax reject explicitly. Provisional normalization retains
+  pending equations; transitive build-time invocation cannot execute them.
 
   Remaining work:
 
@@ -3392,8 +3400,12 @@ Owners include
     every admitted alternative, and a static branch's equality fact dropped
     at its join. No machine-level customer or control exists.
   - Structural matching by exact constructor and parameter position for open
-    declared generic applications (including array elements), and the same
-    equations on machine applications combined with existing argument/result inference.
+    declared generic applications (including array elements). Combine machine
+    equations with existing argument/result inference rather than requiring a
+    closed explicit prefix; retain obligations through generic forwarding and
+    retained compilation extensions. Attached machines, operator supplies,
+    conformance realizations, machine/evidence/value binders, and staged
+    equation-bearing endpoint calls need their complete admission contexts.
     An open endpoint binds as one whole expression (`0..=N` may bind
     `Limit + 1`); solving `N * 2 == 256` stays outside.
   - Endpoint invocation admission for nominal parameters, already-landed policy

@@ -76,6 +76,7 @@ fn named_argument(path: &'static str, symbol: SymbolHandle) -> StaticMachineArgu
     StaticMachineArgument {
         path: vec![Identifier::generated_static(path)].into_boxed_slice(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol,

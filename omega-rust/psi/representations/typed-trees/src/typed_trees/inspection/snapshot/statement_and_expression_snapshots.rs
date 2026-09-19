@@ -13,6 +13,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum StaticArgumentSnapshot {
+    Type {
+        type_reference: Box<TypeReferenceSnapshot>,
+    },
     Path(Vec<String>),
     Application {
         path: Vec<String>,
@@ -256,7 +259,7 @@ pub(crate) fn statement_snapshot(
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
             evidence_arguments: call
@@ -432,12 +435,12 @@ pub(crate) fn expression_snapshot(
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
             private_layout_slot: call
                 .private_layout_operation
                 .as_ref()
-                .map(|operation| snapshot_static_argument(&operation.selected_slot)),
+                .map(|operation| snapshot_static_argument(program, &operation.selected_slot)),
             arguments: expression_span_snapshot(program, call.arguments),
             evidence_arguments: call
                 .evidence_arguments
@@ -515,9 +518,14 @@ pub(crate) fn expression_snapshot(
 }
 
 pub(crate) fn snapshot_static_argument(
+    program: &TypedTrees,
     argument: &crate::expression::StaticMachineArgument,
 ) -> StaticArgumentSnapshot {
-    if let Some(literal) = &argument.const_literal {
+    if argument.type_reference.is_valid() {
+        StaticArgumentSnapshot::Type {
+            type_reference: Box::new(type_reference_snapshot(program, argument.type_reference)),
+        }
+    } else if let Some(literal) = &argument.const_literal {
         StaticArgumentSnapshot::Const(literal.text().to_owned())
     } else if let Some(projection) = &argument.evidence_projection {
         StaticArgumentSnapshot::EvidenceProjection {
@@ -531,7 +539,7 @@ pub(crate) fn snapshot_static_argument(
             arguments: application
                 .arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
         }
     } else {

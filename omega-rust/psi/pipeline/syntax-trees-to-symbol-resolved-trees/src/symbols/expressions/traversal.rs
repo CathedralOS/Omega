@@ -7,6 +7,50 @@ use super::references::{
 };
 use crate::symbols::scope::MachineScope;
 
+pub(in crate::symbols) fn assign_static_argument_type_symbols(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+) {
+    if argument.type_reference.is_valid() {
+        let mut reference = child_type_references.get(argument.type_reference).clone();
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+            symbols,
+            child_type_references,
+            machine.type_parameters,
+            machine.symbol,
+            &mut reference,
+        );
+        *child_type_references.get_mut(argument.type_reference) = reference.clone();
+        crate::symbols::type_references::assign_type_value_expression_symbols(
+            symbols,
+            machine,
+            parameters,
+            state_symbol,
+            expression_table,
+            child_type_references,
+            &reference,
+        );
+    }
+    if let Some(application) = &argument.application {
+        for nested in &application.arguments {
+            assign_static_argument_type_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                nested,
+            );
+        }
+    }
+}
+
 pub(in crate::symbols) fn assign_statement_expression_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
@@ -205,6 +249,17 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             }
         }
         symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            for argument in &call.machine_arguments {
+                assign_static_argument_type_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    argument,
+                );
+            }
             if call.receiver.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
