@@ -101,69 +101,31 @@ pub(crate) fn resolve_signature_free_machine<'program>(
     Ok(ExactSignatureFreeMachine { machine })
 }
 
-/// Pool the machine candidates an occurrence may name under the same
-/// module/dependency scope law as signature-free trait candidates: the
-/// occurrence's own module (or unmoduled package frontier) wins, authored
-/// imports outrank unrelated unmoduled declarations, and a genuinely
-/// contested spelling stays `NotUnique` instead of silently selecting.
+/// Resolve machine paths through ordinary namespace selection while retaining
+/// signature-free ambiguity. Operator declarations are not exact-machine routes.
 pub(crate) fn signature_free_machine_candidates<'program>(
     program: &'program SymbolResolvedTrees,
     machine_name: &str,
     use_span: source::SourceSpan,
 ) -> Vec<&'program symbol_resolved_trees::machine::Machine> {
-    let candidates = program
+    let selected = program
+        .symbols
+        .lookup_signature_free_top_level_from_source_matching(
+            machine_name,
+            &[symbols::SymbolKind::Machine],
+            use_span,
+            |symbol| {
+                program
+                    .machines
+                    .iter()
+                    .any(|machine| machine.symbol == symbol && machine.spelling.is_none())
+            },
+        );
+    program
         .machines
         .iter()
-        .filter(|machine| {
-            machine.spelling.is_none()
-                && same_semantic_name(machine.name.as_str(), machine_name)
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(use_span, machine.symbol)
-        })
-        .collect::<Vec<_>>();
-    if use_span.span.start == use_span.span.end {
-        return candidates;
-    }
-    let symbols = &program.symbols;
-    let occurrence_module = symbols.source_module(use_span.source_id);
-    let local = candidates
-        .iter()
-        .copied()
-        .filter(|machine| {
-            symbols.symbol_module(machine.symbol) == occurrence_module
-                && symbols
-                    .symbol_provenance_source_span(machine.symbol)
-                    .is_some_and(|declaration| symbols.same_source_package(use_span, declaration))
-        })
-        .collect::<Vec<_>>();
-    if !local.is_empty() {
-        return local;
-    }
-    let imported = candidates
-        .iter()
-        .copied()
-        .filter(|machine| {
-            symbols
-                .source_module_import_paths(use_span.source_id)
-                .any(|path| {
-                    symbols.source_module_import_target(use_span.source_id, path)
-                        == Some(machine.symbol)
-                })
-        })
-        .collect::<Vec<_>>();
-    if !imported.is_empty() {
-        return imported;
-    }
-    let unmoduled = candidates
-        .iter()
-        .copied()
-        .filter(|machine| !symbols.symbol_module(machine.symbol).is_valid())
-        .collect::<Vec<_>>();
-    if !unmoduled.is_empty() {
-        return unmoduled;
-    }
-    candidates
+        .filter(|machine| lookup_contains(selected, machine.symbol))
+        .collect()
 }
 
 pub(crate) fn same_semantic_name(left: &str, right: &str) -> bool {
@@ -172,77 +134,37 @@ pub(crate) fn same_semantic_name(left: &str, right: &str) -> bool {
         || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
 }
 
-/// Pool the trait candidates an occurrence may name under the
-/// module/dependency scope law, retaining ambiguity inside the winning scope
-/// instead of silently selecting.
-///
-/// A bare leaf spelling matches same-named traits program-wide, but only the
-/// occurrence's own scope may claim it: declarations in the occurrence's
-/// module (or its unmoduled package frontier, the flat-namespace fallback)
-/// precede imported and unrelated foreign declarations. When no local
-/// candidate exists, declarations selected by the occurrence's authored
-/// imports outrank the remaining unmoduled pool. This mirrors the
-/// precedence `SymbolTable::select_namespace_candidate` applies to ordinary
-/// top-level references — including the package boundary that separates a
-/// dependency's same-leaf trait from the importing package's own — while
-/// this path keeps `TraitNotUnique` for genuinely contested spellings.
+/// Share ordinary namespace selection with type and call references. Scanning
+/// same-leaf traits is insufficient: a loaded module grants no import exposure,
+/// and a package-qualified path need not equal a declaration's display spelling.
+/// The lookup retains two witnesses for ambiguity; callers need exactly one
+/// owner before checking its requirement signatures.
 pub(crate) fn signature_free_trait_candidates<'program>(
     program: &'program SymbolResolvedTrees,
     trait_name: &str,
     use_span: source::SourceSpan,
 ) -> Vec<&'program TraitDefinition> {
-    let candidates = program
+    let selected = program
+        .symbols
+        .lookup_signature_free_top_level_from_source_matching(
+            trait_name,
+            &[symbols::SymbolKind::Trait],
+            use_span,
+            |_| true,
+        );
+    program
         .traits
         .iter()
-        .filter(|definition| {
-            same_semantic_name(definition.name.as_str(), trait_name)
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(use_span, definition.symbol)
-        })
-        .collect::<Vec<_>>();
-    if use_span.span.start == use_span.span.end {
-        return candidates;
+        .filter(|definition| lookup_contains(selected, definition.symbol))
+        .collect()
+}
+
+fn lookup_contains(lookup: symbols::SymbolLookup, symbol: symbols::SymbolHandle) -> bool {
+    match lookup {
+        symbols::SymbolLookup::NotFound => false,
+        symbols::SymbolLookup::Unique(selected) => selected == symbol,
+        symbols::SymbolLookup::Ambiguous { first, second } => first == symbol || second == symbol,
     }
-    let symbols = &program.symbols;
-    let occurrence_module = symbols.source_module(use_span.source_id);
-    let local = candidates
-        .iter()
-        .copied()
-        .filter(|definition| {
-            symbols.symbol_module(definition.symbol) == occurrence_module
-                && symbols
-                    .symbol_provenance_source_span(definition.symbol)
-                    .is_some_and(|declaration| symbols.same_source_package(use_span, declaration))
-        })
-        .collect::<Vec<_>>();
-    if !local.is_empty() {
-        return local;
-    }
-    let imported = candidates
-        .iter()
-        .copied()
-        .filter(|definition| {
-            symbols
-                .source_module_import_paths(use_span.source_id)
-                .any(|path| {
-                    symbols.source_module_import_target(use_span.source_id, path)
-                        == Some(definition.symbol)
-                })
-        })
-        .collect::<Vec<_>>();
-    if !imported.is_empty() {
-        return imported;
-    }
-    let unmoduled = candidates
-        .iter()
-        .copied()
-        .filter(|definition| !symbols.symbol_module(definition.symbol).is_valid())
-        .collect::<Vec<_>>();
-    if !unmoduled.is_empty() {
-        return unmoduled;
-    }
-    candidates
 }
 
 struct AmbiguousUse {

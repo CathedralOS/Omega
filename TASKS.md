@@ -3004,14 +3004,6 @@ Owners include
   `fail/modules/{runtime_aggregate_index,runtime_fixed_array_index}` until
   their materialization obligations are met.
 
-  Flag: `signature_free_trait_candidates`
-  (`selection/signature_free_requirements.rs`) claims to mirror
-  `SymbolTable::select_namespace_candidate`, which ends at the unmoduled pool,
-  but adds a last tier returning every same-leaf trait that passes only the
-  resolution-stratum check. A bare `Trait::requirement` can pool a trait its
-  file never imported, and an unrelated package's same-leaf trait turns the
-  use into `TraitNotUnique`. Use the ordinary namespace selection.
-
 - **RUNTIME-VALUE-GENERICS.** Implement the settled
   [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
   for APIs whose result or stored qualification depends on an input value.

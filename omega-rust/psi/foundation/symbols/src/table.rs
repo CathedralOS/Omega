@@ -84,6 +84,12 @@ pub enum SymbolLookup {
     },
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TopLevelSelection {
+    Ordinary,
+    SignatureFree,
+}
+
 impl SymbolLookup {
     pub fn unique(self) -> Option<SymbolHandle> {
         match self {
@@ -538,17 +544,57 @@ impl SymbolTable {
         name: &str,
         kinds: &[SymbolKind],
         reference: SourceSpan,
-        mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
+        matches_candidate: impl FnMut(SymbolHandle) -> bool,
     ) -> SymbolLookup {
-        if let Some(result) =
-            self.find_module_qualified_reference(name, kinds, reference, &mut matches_candidate)
+        self.lookup_top_level(
+            name,
+            kinds,
+            reference,
+            matches_candidate,
+            TopLevelSelection::Ordinary,
+        )
+    }
+
+    /// Apply ordinary namespace selection without choosing among declarations
+    /// that require a call signature to distinguish. Flat source forests retain
+    /// the occurrence's package scope, and synthetic references retain the whole
+    /// eligible pool; neither may silently select its first declaration.
+    pub fn lookup_signature_free_top_level_from_source_matching(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+        matches_candidate: impl FnMut(SymbolHandle) -> bool,
+    ) -> SymbolLookup {
+        self.lookup_top_level(
+            name,
+            kinds,
+            reference,
+            matches_candidate,
+            TopLevelSelection::SignatureFree,
+        )
+    }
+
+    fn lookup_top_level(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+        mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
+        selection: TopLevelSelection,
+    ) -> SymbolLookup {
+        let reference_is_source_backed = reference.span.start != reference.span.end;
+        // A dummy span may retain a real SourceId, but it has no lexical
+        // occurrence. Do not let that id authorize a relative module path.
+        if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
+            && let Some(result) =
+                self.find_module_qualified_reference(name, kinds, reference, &mut matches_candidate)
         {
             return result;
         }
         let Some(children) = self.child_handles(self.root) else {
             return SymbolLookup::NotFound;
         };
-        let reference_is_source_backed = reference.span.start != reference.span.end;
         let candidates = children
             .filter(|symbol| {
                 kinds.contains(&self.get(*symbol).kind)
@@ -566,6 +612,9 @@ impl SymbolTable {
             .collect::<Vec<_>>();
 
         if !reference_is_source_backed {
+            if selection == TopLevelSelection::SignatureFree {
+                return SymbolLookup::from_candidates(candidates.into_iter());
+            }
             return candidates
                 .first()
                 .copied()
@@ -592,6 +641,17 @@ impl SymbolTable {
 
         if self.has_namespace_context(reference) {
             return self.select_namespace_candidate(&candidates, name, reference);
+        }
+        if selection == TopLevelSelection::SignatureFree {
+            let local =
+                SymbolLookup::from_candidates(candidates.iter().copied().filter(|symbol| {
+                    self.symbol_provenance_source_span(*symbol)
+                        .is_some_and(|declaration| self.same_source_package(reference, declaration))
+                }));
+            return match local {
+                SymbolLookup::NotFound => SymbolLookup::from_candidates(candidates.into_iter()),
+                _ => local,
+            };
         }
         candidates
             .iter()
