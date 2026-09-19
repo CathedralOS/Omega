@@ -440,7 +440,7 @@ fn nine_definition_affine_divisor_crosses_source_codec_and_independent_verificat
 }
 
 #[test]
-fn ten_definition_affine_divisor_remains_outside_the_source_frontier() {
+fn ten_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
     let tokens = Lexer::new(TEN_DEFINITION_SOURCE)
         .tokenize()
         .expect("tokenize ten-definition source");
@@ -448,11 +448,104 @@ fn ten_definition_affine_divisor_remains_outside_the_source_frontier() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve ten-definition source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type ten-definition affine divisor");
     let checked = lower_typed_trees(typed).expect("check ten-definition affine divisor");
-    checked_trees_to_lowered_psi::lower_machine(
+    // The single-witness affine frontier stops at nine definition steps, but
+    // the derived-equality closure reaches the tenth hop through chained
+    // one-step proofs. Every hop is independently kernel-checked, so the
+    // certificate still crosses the codec and independent verification.
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         "Root::divide_and_remainder_after_ten_definitions",
     )
-    .expect_err("a ten-definition source word must remain on trusted reduction");
+    .expect("a ten-definition source word crosses the derived-chain closure");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let exact_operations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide { obligation, .. }
+            | OperationKind::ExactIntegerRemainder { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(exact_operations.len(), 2);
+    for obligation in &exact_operations {
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("ten-definition exact operation has evidence");
+        assert!(matches!(
+            evidence.route,
+            EvidenceRoute::CertificateDerived(_)
+        ));
+    }
+
+    let verified = terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("independent verification replays every chained definition step");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("the ten-definition entry has fixed fuel");
+    validate_fixed_entry_fuel(&verified, &fixed)
+        .expect("the ten-definition fixed-fuel ceiling independently recomputes");
+    drop(verified);
+
+    let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
+    let decoded_module = decode_module(&module_bytes).expect("decode module");
+    let decoded_proof = decode_proof_bundle(&proof_bytes).expect("decode proof bundle");
+    assert_eq!(decoded_module, lowered.semantic_module);
+    assert_eq!(decoded_proof, lowered.proof_bundle);
+    terminal_verifier::verify_module(
+        &decoded_module,
+        &decoded_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("independent verification replays the decoded certificate");
+
+    let [token] = entry.structural_parameters.as_slice() else {
+        panic!("entry retains the Token cleanup root")
+    };
+    let structural_arguments = [TerminalStructuralValue {
+        opaque_identity: token.place.get(),
+        structural_type: token.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    }];
+    let scalar_arguments = [TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
+        value: IntegerValue::Signed(0),
+    }];
+    let mut handler = AcceptTerminalEffects;
+    let measured = interpret_terminal_artifact_measured(
+        &module_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &scalar_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
+        &mut handler,
+    )
+    .expect("verified ten-definition artifact interprets");
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
+    );
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+    assert!(measured.effects().is_empty());
 }
 
 #[test]
