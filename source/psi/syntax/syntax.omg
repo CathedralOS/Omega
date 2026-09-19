@@ -16,11 +16,16 @@ pub data UseItem [copy] {
 
 pub data TypeReferenceKind [copy] {
     case Named;
+    case Qualified;
 }
 
+// A qualified reference (`T in Domain`) records the domain span; a bare named
+// reference carries an empty domain span and leaves `name` covering the whole
+// source range.
 pub data TypeReference [copy] {
     kind: TypeReferenceKind;
     name: IdentifierSpan;
+    domain: IdentifierSpan;
     source_span: SourceSpan;
 }
 
@@ -110,6 +115,7 @@ pub data ParseDiagnosticCode [copy] {
     case DataCasePayloadFieldCapacityExceeded;
     case DuplicateDataMultiplicity;
     case ConflictingDataMultiplicity;
+    case ExpectedTypeQualifierDomain;
 }
 
 pub data ParseDiagnostic [copy] {
