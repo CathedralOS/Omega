@@ -7,7 +7,13 @@
 //! at least one such plan. It reads only `VerifiedComponent`, the
 //! evidence-only carrier `component-description` verifies from the canonical
 //! Terminal artifact, and joins through `realizes_selected_plan`, so no plan
-//! row is ever compared against a hand-authored inventory. A successful join
+//! row is ever compared against a hand-authored inventory.
+//!
+//! A realizing component whose module still exports unresolved
+//! installation-bound requirement rows also rejects: the description folds
+//! each declared dependency's conservative upper bound into one service
+//! ceiling, so a retained row means the exported reach is a bound, not the
+//! resolved service reach the selected row names. A successful join
 //! establishes that the realization exists inside the verified subject; it
 //! grants no callable authority and discharges no installation obligation.
 
@@ -31,8 +37,9 @@ impl<'a> IndependentComponentJoin<'a> {
 
     /// Join one independently selected plan to exactly one verified
     /// component. A missing component, an absent realization (with every
-    /// component's distinct mismatch), and more than one realizing component
-    /// reject separately; none of them falls back to a fused edge.
+    /// component's distinct mismatch), more than one realizing component,
+    /// and a realizing component still exporting unresolved installation-bound
+    /// rows reject separately; none of them falls back to a fused edge.
     pub(crate) fn realize(&mut self, plan: &ProviderPlan) -> Result<(), diagnostics::Diagnostic> {
         if self.components.is_empty() {
             return Err(diagnostics::Diagnostic::error(format!(
@@ -54,7 +61,26 @@ impl<'a> IndependentComponentJoin<'a> {
         match realizing.as_slice() {
             [index] => {
                 self.realized[*index] = true;
-                Ok(())
+                let component = &self.components[*index];
+                let unresolved = &component
+                    .module()
+                    .root_service_reach
+                    .installation_dependencies;
+                if unresolved.is_empty() {
+                    return Ok(());
+                }
+                let identities = unresolved
+                    .iter()
+                    .map(|dependency| dependency.requirement_identity.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Err(diagnostics::Diagnostic::error(format!(
+                    "selected provider plan `{}` retains independent composition, but verified component {} realizing it exports {} unresolved installation-bound requirement row(s) ({}); the component's published service ceiling is a conservative bound, not resolved reach, refusing to treat the edge as fused",
+                    plan.name,
+                    description_identity(component),
+                    unresolved.len(),
+                    identities,
+                )))
             }
             [] => Err(diagnostics::Diagnostic::error(format!(
                 "selected provider plan `{}` retains independent composition, but no verified component realizes it ({}); refusing to treat the edge as fused",
