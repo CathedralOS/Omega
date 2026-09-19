@@ -323,6 +323,9 @@ fn admission_binding_covers_an_unresolved_target_with_the_bound_subtree() {
             call_ordinal: site.call_ordinal,
             callee: bound.root,
             subtree: bound.frames,
+            // Beta's subtree suspends nowhere, so its binding carries no
+            // canonical crossing rows.
+            crossings: Vec::new(),
         }],
     )
     .expect("the admission binding covers the sealed site");
@@ -343,6 +346,258 @@ fn admission_binding_covers_an_unresolved_target_with_the_bound_subtree() {
     assert_eq!(
         unbound.unresolved_calls(),
         &std::collections::BTreeSet::from([site])
+    );
+}
+
+/// `Alpha::run` suspends at a call into a boundary-supplied machine state —
+/// the unresolved site provider admission later binds — while `Beta::run`
+/// makes a may-suspend checked call to `Gamma::run`. Both suspending calls
+/// retain their canonical crossing facts.
+fn suspending_subtree_fixture() -> (CheckedTrees, symbols::SymbolHandle, symbols::SymbolHandle) {
+    let alpha_machine = symbols::SymbolHandle::from_arena_index(1);
+    let alpha_state = symbols::SymbolHandle::from_arena_index(2);
+    let beta_machine = symbols::SymbolHandle::from_arena_index(3);
+    let beta_state = symbols::SymbolHandle::from_arena_index(4);
+    let gamma_machine = symbols::SymbolHandle::from_arena_index(5);
+    let gamma_state = symbols::SymbolHandle::from_arena_index(6);
+    let slot_machine = symbols::SymbolHandle::from_arena_index(7);
+    let slot_state = symbols::SymbolHandle::from_arena_index(8);
+    let mut program = CheckedTrees::default();
+
+    for (machine_symbol, machine_name, state_symbol, supply_mode) in [
+        (
+            alpha_machine,
+            "Alpha::run",
+            alpha_state,
+            language_semantics::MachineSupplyMode::CheckedBody,
+        ),
+        (
+            beta_machine,
+            "Beta::run",
+            beta_state,
+            language_semantics::MachineSupplyMode::CheckedBody,
+        ),
+        (
+            gamma_machine,
+            "Gamma::run",
+            gamma_state,
+            language_semantics::MachineSupplyMode::CheckedBody,
+        ),
+        (
+            slot_machine,
+            "Slot::park",
+            slot_state,
+            language_semantics::MachineSupplyMode::Boundary,
+        ),
+    ] {
+        let mut machine = checked_trees::machine::Machine {
+            symbol: machine_symbol,
+            name: checked_trees::name::Identifier::generated(machine_name),
+            supply_mode,
+            ..Default::default()
+        };
+        let mut state = checked_trees::state::State {
+            symbol: state_symbol,
+            name: checked_trees::name::Identifier::generated("run"),
+            ..Default::default()
+        };
+        program
+            .typed
+            .statement_table
+            .push_statement(&mut state.statement_nodes, Default::default());
+        program.typed.push_machine_state(&mut machine, state);
+        program.typed.push_machine(machine);
+    }
+
+    for (machine_symbol, state_symbol, target) in [
+        (alpha_machine, alpha_state, slot_state),
+        (beta_machine, beta_state, gamma_state),
+    ] {
+        let mut calls = arena::HandleSpan::empty();
+        program.facts.flow.control.calls.append_to_span(
+            &mut calls,
+            checked_trees::FlowCallFact {
+                statement_index: 0,
+                call_ordinal: 0,
+                target_symbol: target,
+                suspension: language_semantics::SuspensionSummary {
+                    direct_may_suspend: true,
+                    transitive_may_suspend: false,
+                },
+                ..Default::default()
+            },
+        );
+        program
+            .facts
+            .flow
+            .control
+            .states
+            .append(checked_trees::FlowStateFact {
+                machine_symbol,
+                state_symbol,
+                calls,
+                ..Default::default()
+            });
+        program
+            .facts
+            .carry
+            .suspension_crossings
+            .push(checked_trees::SuspensionCrossingCarryFact {
+                machine: machine_symbol,
+                state: state_symbol,
+                statement_index: 0,
+                call_ordinal: 0,
+                target,
+                receiver: None,
+                effective: language_semantics::CarryPolicy::PERMISSIVE,
+                live_values: Vec::new(),
+            });
+    }
+    (program, alpha_machine, beta_machine)
+}
+
+#[test]
+fn admission_binding_joins_the_bound_subtrees_canonical_crossings() {
+    let (program, alpha_machine, beta_machine) = suspending_subtree_fixture();
+    let layouts = layout::build_layout_plan(&program, NativeTarget::macos_arm64(), &[])
+        .expect("synthetic machines lay out");
+    let (machine, entry) = frame_entry(&program, alpha_machine);
+    let graph = task_call_graph(
+        &program,
+        NativeTarget::macos_arm64(),
+        &[],
+        &layouts,
+        machine,
+        entry,
+    )
+    .expect("the unresolved boundary site still elaborates");
+    assert_eq!(graph.frames.len(), 1);
+    // Alpha's own suspending call already owns one canonical crossing row.
+    assert_eq!(graph.crossings.len(), 1);
+    let alpha_crossing = crate::task_plans::carry_crossings::canonical_suspension_crossing(
+        &program,
+        graph.crossings[0],
+    )
+    .expect("alpha's crossing canonicalizes");
+    let demand =
+        compose_task_stack_demand(graph.root, graph.frames).expect("the covered subgraph composes");
+    assert!(!demand.is_exact(), "the graph-time bound is partial");
+    let projection = project_wcsu_stack_plan(
+        &demand,
+        task_plans::StackRepresentationId::from_normalized_identity(9).expect("representation"),
+    );
+    let site = projection
+        .unresolved_calls()
+        .iter()
+        .next()
+        .expect("one sealed unresolved site")
+        .clone();
+    assert_eq!(site.kind, UnresolvedCallKind::NonCheckedSupply);
+
+    // The plan validates over the graph-time roster — alpha's own crossing.
+    let plan = task_plans::validate_wcsu_activation_plan(
+        task_plans::ActivationPlanCandidate {
+            machine_contract: task_plans::MachineContractId::from_normalized_identity(1)
+                .expect("contract"),
+            entry: task_plans::MachineEntryId::from_normalized_identity(2).expect("entry"),
+            argument_layout: task_plans::TaskArgumentLayout::new(
+                task_plans::ValueLayoutId::from_normalized_identity(3).expect("layout"),
+                &[(8, 8), (4, 4)],
+            )
+            .expect("canonical argument layout"),
+            terminal_outcome_layout: task_plans::ValueLayoutId::from_normalized_identity(4)
+                .expect("outcome layout"),
+            calling_plan: task_plans::CallingPlanId::from_normalized_identity(5).expect("calling"),
+            stack_plan: projection.stack_plan(),
+            may_suspend: true,
+            may_block: false,
+            canonical_suspension_crossings: vec![alpha_crossing.clone()],
+            carry_obligations: task_plans::ActivationCarryObligations::none(),
+            cancellation_required: true,
+        },
+        projection,
+    )
+    .expect("the graph-time roster validates over the partial projection");
+
+    // Derive the bound subtree — `Beta::run` plus its checked `Gamma::run`
+    // callee — and the canonical crossings its own may-suspend call owns.
+    let (beta, beta_entry) = frame_entry(&program, beta_machine);
+    let bound = task_call_graph(
+        &program,
+        NativeTarget::macos_arm64(),
+        &[],
+        &layouts,
+        beta,
+        beta_entry,
+    )
+    .expect("the bound callee subtree derives");
+    assert_eq!(bound.frames.len(), 2);
+    assert_eq!(bound.crossings.len(), 1);
+    let bound_crossing = crate::task_plans::carry_crossings::canonical_suspension_crossing(
+        &program,
+        bound.crossings[0],
+    )
+    .expect("beta's crossing canonicalizes");
+
+    // A binding presenting a retained crossing identity with different
+    // content is a coordinate conflict and fails closed.
+    let mut conflicting = alpha_crossing.clone();
+    conflicting.preserve_host_thread = true;
+    let diagnostic = task_plans::TaskRuntimeAdmission::bind_call_targets(
+        &plan,
+        &[CallTargetBinding {
+            frame: site.frame,
+            state: site.state.clone(),
+            statement_index: site.statement_index,
+            call_ordinal: site.call_ordinal,
+            callee: bound.root,
+            subtree: bound.frames.clone(),
+            crossings: vec![conflicting],
+        }],
+    )
+    .expect_err("a conflicting crossing coordinate fails closed");
+    assert!(
+        diagnostic.0.contains("conflicts"),
+        "unexpected diagnostic: {}",
+        diagnostic.0
+    );
+
+    let covered = task_plans::TaskRuntimeAdmission::bind_call_targets(
+        &plan,
+        &[CallTargetBinding {
+            frame: site.frame,
+            state: site.state.clone(),
+            statement_index: site.statement_index,
+            call_ordinal: site.call_ordinal,
+            callee: bound.root,
+            subtree: bound.frames,
+            crossings: vec![bound_crossing.clone()],
+        }],
+    )
+    .expect("the admission binding covers the site and joins its crossing");
+
+    assert!(
+        covered
+            .wcsu_stack_projection()
+            .expect("covered projection")
+            .is_exact()
+    );
+    let mut expected = vec![alpha_crossing.identity, bound_crossing.identity];
+    expected.sort();
+    assert_eq!(
+        covered
+            .candidate()
+            .canonical_suspension_crossings
+            .iter()
+            .map(|crossing| crossing.identity)
+            .collect::<Vec<_>>(),
+        expected,
+        "the bound subtree's canonical crossing joins the plan's roster in canonical order"
+    );
+    assert_ne!(
+        covered.normalized_identity(),
+        plan.normalized_identity(),
+        "joining the bound subtree's crossing re-seals the activation plan"
     );
 }
 

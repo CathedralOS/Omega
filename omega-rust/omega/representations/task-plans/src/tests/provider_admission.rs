@@ -7,15 +7,18 @@ use super::{
     moved_arguments, partial_wcsu_plan, receipt_candidate, runtime, stack_lease, wcsu_plan,
 };
 use crate::{
-    ActivationInstanceId, ActivationPlanId, CallTargetBinding, StackPlan, StackRepresentationId,
-    TaskActivationPlanSet, TaskArgumentCustodyId, TaskRuntimeAdmission, TaskRuntimeId,
-    TaskRuntimeInstanceId, TaskSettlementOutcome, TaskStackFrameId, TaskStackFrameSummary,
-    TaskStartOperation, TaskStartStorage, TaskStorageBinding, TaskStorageOwnerId,
-    TaskStorageProvenance, UnresolvedCallKind, UnresolvedCallSite, ValidatedActivationPlan,
-    compose_task_stack_demand, establish_stack_lease, project_wcsu_stack_plan,
-    task_stack_frame_validation_identity, validate_task_stack_frame_summary,
-    validate_wcsu_activation_plan,
+    ActivationCarryObligations, ActivationInstanceId, ActivationPlanCandidate, ActivationPlanId,
+    CallTargetBinding, CanonicalSuspensionCrossing, ClaimId, LiveCarryDemand, LiveCarryPlaceId,
+    LiveCarryStorage, LiveCarryTypeId, StackCallContribution, StackPlan, StackRepresentationId,
+    SuspensionCrossingId, TaskActivationPlanSet, TaskArgumentCustodyId, TaskRuntimeAdmission,
+    TaskRuntimeId, TaskRuntimeInstanceId, TaskSettlementOutcome, TaskStackFrameId,
+    TaskStackFrameSummary, TaskStartOperation, TaskStartStorage, TaskStorageBinding,
+    TaskStorageOwnerId, TaskStorageProvenance, UnresolvedCallKind, UnresolvedCallSite,
+    ValidatedActivationPlan, ValidatedTaskStackFrameSummary, compose_task_stack_demand,
+    establish_stack_lease, project_wcsu_stack_plan, task_stack_frame_validation_identity,
+    validate_task_stack_frame_summary, validate_wcsu_activation_plan,
 };
+use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 
 fn instance(identity: u64) -> TaskRuntimeInstanceId {
     id(identity, TaskRuntimeInstanceId::from_normalized_identity)
@@ -450,9 +453,13 @@ fn malformed_provisioning_rejects_at_construction() {
     assert!(diagnostic.0.contains("power of two"));
 }
 
-/// A partial WCSU plan whose root frame seals `sites` — like
-/// `partial_wcsu_plan` but with a caller-chosen unresolved roster.
-fn multi_site_partial_plan(sites: Vec<UnresolvedCallSite>) -> ValidatedActivationPlan {
+/// A partial WCSU plan whose root frame seals `sites` under a caller-chosen
+/// candidate — like `partial_wcsu_plan` but with a caller-chosen unresolved
+/// roster and operational shape.
+fn partial_plan_with_candidate(
+    mut candidate: ActivationPlanCandidate,
+    sites: Vec<UnresolvedCallSite>,
+) -> ValidatedActivationPlan {
     let root = id(30, TaskStackFrameId::from_normalized_identity);
     let frame = validate_task_stack_frame_summary(TaskStackFrameSummary {
         frame: root,
@@ -469,10 +476,64 @@ fn multi_site_partial_plan(sites: Vec<UnresolvedCallSite>) -> ValidatedActivatio
         id(6, StackRepresentationId::from_normalized_identity),
     );
     assert!(!projection.is_exact());
-    let mut candidate = candidate();
     candidate.stack_plan = projection.stack_plan();
     validate_wcsu_activation_plan(candidate, projection)
         .expect("partial-WCSU-backed activation plan")
+}
+
+/// A partial WCSU plan whose root frame seals `sites` — like
+/// `partial_wcsu_plan` but with a caller-chosen unresolved roster.
+fn multi_site_partial_plan(sites: Vec<UnresolvedCallSite>) -> ValidatedActivationPlan {
+    partial_plan_with_candidate(candidate(), sites)
+}
+
+fn crossing(identity: u64) -> SuspensionCrossingId {
+    SuspensionCrossingId::new(identity).expect("nonzero crossing identity")
+}
+
+/// The canonical suspension crossing a suspending bound subtree carries:
+/// one live local retaining a CPU-pinned loan, so the crossing's own
+/// preservation bits and the plan's checked CPU-preservation obligation are
+/// both honestly exercised.
+fn bound_subtree_crossing(identity: u64) -> CanonicalSuspensionCrossing {
+    CanonicalSuspensionCrossing {
+        identity: crossing(identity),
+        suspension_allowed: true,
+        preserve_cpu: true,
+        preserve_host_thread: false,
+        live_carry: vec![LiveCarryDemand {
+            place: id(43, LiveCarryPlaceId::from_normalized_identity),
+            ty: id(44, LiveCarryTypeId::from_normalized_identity),
+            storage: LiveCarryStorage::Local,
+            claims: vec![ClaimId::new(45).expect("nonzero claim identity")],
+            effective: CarryPolicy {
+                suspension: CarrySuspension::Allowed,
+                cpu: CarryCpu::Origin,
+                host_thread: CarryHostThread::Any,
+                address: CarryAddress::Stable,
+            },
+        }],
+    }
+}
+
+/// A validated subtree frame carrying its canonical validation identity —
+/// the shape `task_call_graph` produces for one checked callee.
+fn subtree_frame(
+    frame: u64,
+    bytes: u64,
+    alignment: u64,
+    calls: Vec<StackCallContribution>,
+) -> ValidatedTaskStackFrameSummary {
+    let frame = id(frame, TaskStackFrameId::from_normalized_identity);
+    validate_task_stack_frame_summary(TaskStackFrameSummary {
+        frame,
+        local_bytes: bytes,
+        alignment,
+        validation: task_stack_frame_validation_identity(frame, bytes, alignment, &calls, &[]),
+        calls,
+        unresolved_calls: Vec::new(),
+    })
+    .expect("validated subtree frame")
 }
 
 /// The provider's binding of a sealed site to a checked-body machine whose
@@ -508,6 +569,39 @@ fn leaf_binding(
             })
             .expect("bound callee frame"),
         ],
+        crossings: Vec::new(),
+    }
+}
+
+/// A binding whose bound callee subtree suspends internally: `callee` calls
+/// the checked `child` frame and `crossings` carries the canonical
+/// suspension crossing that internal call parks at — the subtree rows
+/// `task_call_graph` collects for a suspending checked-body callee.
+fn suspending_binding(
+    site: &UnresolvedCallSite,
+    callee: u64,
+    child: u64,
+    crossings: Vec<CanonicalSuspensionCrossing>,
+) -> CallTargetBinding {
+    let callee_id = id(callee, TaskStackFrameId::from_normalized_identity);
+    CallTargetBinding {
+        frame: site.frame,
+        state: site.state.clone(),
+        statement_index: site.statement_index,
+        call_ordinal: site.call_ordinal,
+        callee: callee_id,
+        subtree: vec![
+            subtree_frame(
+                callee,
+                128,
+                16,
+                vec![StackCallContribution::Checked {
+                    callee: id(child, TaskStackFrameId::from_normalized_identity),
+                }],
+            ),
+            subtree_frame(child, 64, 8, Vec::new()),
+        ],
+        crossings,
     }
 }
 
@@ -626,4 +720,188 @@ fn an_unbound_unresolved_site_keeps_the_plan_rejecting() {
     };
     TaskRuntimeAdmission::bind_call_targets(&plan, &[leaf_binding(&foreign_site, 40, 128, 16)])
         .expect_err("a binding must name a sealed unresolved site");
+}
+
+#[test]
+fn bound_suspending_subtree_joins_its_crossing_and_parks_on_it() {
+    let plan = partial_wcsu_plan(63);
+    let projection = plan
+        .wcsu_stack_projection()
+        .expect("sealed WCSU projection");
+    let site = projection
+        .unresolved_calls()
+        .iter()
+        .next()
+        .expect("one sealed site")
+        .clone();
+
+    // The bound callee's subtree suspends internally: its canonical
+    // crossing must join the plan's roster for the activation to park
+    // there.
+    let bound_crossing = bound_subtree_crossing(42);
+    let covered = TaskRuntimeAdmission::bind_call_targets(
+        &plan,
+        &[suspending_binding(
+            &site,
+            40,
+            41,
+            vec![bound_crossing.clone()],
+        )],
+    )
+    .expect("the suspending bound subtree covers the sealed site");
+
+    // The joined roster publishes in canonical identity order alongside the
+    // graph-time row, and the re-sealed plan identity binds it.
+    assert_eq!(
+        covered
+            .candidate()
+            .canonical_suspension_crossings
+            .iter()
+            .map(|crossing| crossing.identity)
+            .collect::<Vec<_>>(),
+        vec![canonical_crossing(), bound_crossing.identity],
+    );
+    let covered_projection = covered.wcsu_stack_projection().expect("covered projection");
+    assert!(covered_projection.is_exact());
+    assert_ne!(
+        covered.normalized_identity(),
+        plan.normalized_identity(),
+        "joining the bound subtree's crossing re-seals the activation plan"
+    );
+
+    // The covered plan admits, and the bound callee can park at a crossing
+    // of its own subtree.
+    let activations = activation_set(&covered);
+    let mut gate = gate(&[covered.candidate().stack_plan], 460);
+    let claim = gate
+        .admit_pending(
+            &activations,
+            receipt_candidate(&covered, instance(460), 461, 462, TaskStartOperation::Start),
+            activation(463),
+            moved_arguments(&covered, 464),
+        )
+        .expect("the covered plan admits and leases");
+
+    // A crossing the joined roster does not name — an unbound or foreign
+    // subtree's coordinate — still rejects.
+    let foreign = gate
+        .park(&claim, crossing(999))
+        .expect_err("a crossing outside the joined roster cannot park");
+    assert!(
+        foreign
+            .0
+            .contains("outside the activation plan's canonical roster"),
+        "unexpected diagnostic: {}",
+        foreign.0
+    );
+    assert!(gate.parked_crossing(claim.identity()).is_none());
+
+    gate.park(&claim, bound_crossing.identity)
+        .expect("the bound callee parks at its own canonical crossing");
+    assert_eq!(
+        gate.parked_crossing(claim.identity()),
+        Some(bound_crossing.identity),
+    );
+    // The retained frontier is exactly the bound crossing's live carry:
+    // the exact-live-frontier park semantics stay intact on a joined row.
+    assert_eq!(
+        gate.parked_frontier(claim.identity()),
+        Some(bound_crossing.live_carry.as_slice()),
+    );
+
+    assert_eq!(
+        gate.resume(&claim)
+            .expect("resume continues the same invocation"),
+        bound_crossing.identity,
+    );
+    assert!(gate.parked_frontier(claim.identity()).is_none());
+    gate.settle(claim, TaskSettlementOutcome::Completed)
+        .expect("settle after resume");
+}
+
+#[test]
+fn bound_subtree_crossings_dedupe_and_conflicts_fail_closed() {
+    let plan = partial_wcsu_plan(64);
+    let projection = plan
+        .wcsu_stack_projection()
+        .expect("sealed WCSU projection");
+    let site = projection
+        .unresolved_calls()
+        .iter()
+        .next()
+        .expect("one sealed site")
+        .clone();
+    let retained = plan.candidate().canonical_suspension_crossings.clone();
+
+    // A bound subtree sharing a crossing the graph's own roster already
+    // holds dedupes: the identical row joins nothing.
+    let covered = TaskRuntimeAdmission::bind_call_targets(
+        &plan,
+        &[suspending_binding(&site, 40, 41, retained.clone())],
+    )
+    .expect("an identical crossing row dedupes");
+    assert_eq!(
+        covered.candidate().canonical_suspension_crossings,
+        retained,
+        "the deduplicated roster is unchanged"
+    );
+
+    // The same canonical identity carrying a different row is a coordinate
+    // conflict and fails closed — the covered plan is never minted.
+    let conflicting = bound_subtree_crossing(7);
+    let diagnostic = TaskRuntimeAdmission::bind_call_targets(
+        &plan,
+        &[suspending_binding(&site, 40, 41, vec![conflicting])],
+    )
+    .expect_err("a conflicting crossing coordinate fails closed");
+    assert!(
+        diagnostic.0.contains("conflicts"),
+        "unexpected diagnostic: {}",
+        diagnostic.0
+    );
+}
+
+#[test]
+fn a_non_suspending_plan_cannot_gain_crossings_from_a_binding() {
+    let mut quiet = candidate();
+    quiet.may_suspend = false;
+    quiet.canonical_suspension_crossings = Vec::new();
+    quiet.carry_obligations = ActivationCarryObligations::none();
+    let plan = partial_plan_with_candidate(
+        quiet,
+        vec![UnresolvedCallSite {
+            frame: id(30, TaskStackFrameId::from_normalized_identity),
+            state: "run".into(),
+            statement_index: 2,
+            call_ordinal: 0,
+            kind: UnresolvedCallKind::UnresolvedTarget,
+        }],
+    );
+    let site = plan
+        .wcsu_stack_projection()
+        .expect("sealed WCSU projection")
+        .unresolved_calls()
+        .iter()
+        .next()
+        .expect("one sealed site")
+        .clone();
+
+    // The joined crossing revalidates under the plan's own rules: a
+    // non-suspending plan cannot publish crossings, so the binding's
+    // suspending subtree cannot launder suspension into it.
+    let diagnostic = TaskRuntimeAdmission::bind_call_targets(
+        &plan,
+        &[suspending_binding(
+            &site,
+            40,
+            41,
+            vec![bound_subtree_crossing(42)],
+        )],
+    )
+    .expect_err("a non-suspending plan cannot gain a suspension crossing");
+    assert!(
+        diagnostic.0.contains("non-suspending"),
+        "unexpected diagnostic: {}",
+        diagnostic.0
+    );
 }

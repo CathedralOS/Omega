@@ -78,7 +78,14 @@ real authority rather than an `available >= 1` observation. Provider-
 provisioned rejections conserve the moved arguments (the minted lease was
 never caller custody); caller-supplied storage rejections return it whole
 through `TaskStartRejection`. Settlement returns provisioned backing to
-the free set while the spent era stays burned.
+the free set while the spent era stays burned. It is also where a sealed
+unresolved call site finally names its concrete checked-body callee:
+`bind_call_targets` charges the bound subtree into the recomposed WCSU
+demand and joins the subtree's canonical suspension crossings into the
+plan's roster — deduplicated by crossing identity, failing closed on a
+conflicting row — then re-seals and revalidates the plan, so a bound
+callee that suspends parks at a crossing of its own subtree while a
+crossing no roster names still rejects.
 
 These carriers still do not establish a source `Task<T>`, and no selected
 runtime executes the transitions the ledger models: the marshalled argument
