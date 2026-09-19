@@ -556,12 +556,17 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
     eventual acceptance is successful compilation with the boundary trait,
     not weakening duplicate-schema rejection.
-  - Admit computed description operands and Build receivers through ordinary
-    checked call-result authority, effect traversal, and loan accounting.
+  - Admit inline computed description operands and Build receivers through
+    ordinary checked call-result authority, effect traversal, and loan accounting.
     `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
-    currently requires retained symbol-rooted places. Do not bypass those
-    checks with a Build-specific call-result recognizer or grant authority
-    from the declared result type alone.
+    currently requires retained symbol-rooted places. The validation owners
+    `machine_calls/calls/expression_scanning/traversal.rs` and
+    `machine_calls/effect_inference/invocations.rs` skip `RootBinding` operands;
+    removing the place fence alone would omit ordinary call/effect checking.
+    Do not bypass those checks with a Build-specific call-result recognizer
+    or grant authority from the declared result type alone. Preserve the
+    ordinary-return-to-local positive and returned-forgery negative in
+    `foreign_helper_product_queries.rs` while admitting inline operands.
   - Extend the existing provider/description owners, with
     BUILD-DEPENDENCY-PURPOSES for separate contexts and
     BUILD-ADMISSION-CHECKPOINT for source custody.
@@ -576,8 +581,9 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   forged descriptions, description-to-callable
   conversion, and same-build generated/layout cycles reject. Preserve
   `compiler/tests/build_target_activation/{foreign_helper_product_queries,qualified_root_bindings}.rs`.
-  The former's computed-result negative returns a forged `ProductEntryRef {}`: it must
-  still reject after an independently compiler-issued result becomes supported.
+  The former's inline computed-result negative returns a forged
+  `ProductEntryRef {}`: it must still reject after an independently
+  compiler-issued inline result becomes supported.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
