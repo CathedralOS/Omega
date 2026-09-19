@@ -1081,6 +1081,10 @@ fn write_only_common_field_subloans_retain_independent_roots() {
 
 #[test]
 fn write_only_common_field_subloan_does_not_authorize_an_unretained_local() {
+    // The `&write local` formation is admitted on exact atoms because `local`
+    // is a `mut` binding — but retained-custody authorization still covers
+    // declared write-only roots only, so an unretained local records no
+    // terminal-unit effect.
     let checked = checked(
         r#"
         data Leaf [copy] { value: u16; }
@@ -1089,7 +1093,7 @@ fn write_only_common_field_subloan_does_not_authorize_an_unretained_local() {
         machine Sink::fill(destination: &write Leaf) {}
         data Root {}
         machine Root::forward(outer: &write Outer) {
-            let local: Leaf = Leaf { value: 1 };
+            let mut local: Leaf = Leaf { value: 1 };
             Sink::fill(&write local);
         }
     "#,
