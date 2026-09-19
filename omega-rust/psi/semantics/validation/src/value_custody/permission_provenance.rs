@@ -126,8 +126,11 @@ fn static_namespace_receiver(
         return Ok(false);
     }
     // A static attachment such as Region::new is a namespace, not a live
-    // operand. Omit it only for its exact selected nonself state; arbitrary
-    // unresolved names and value receivers still belong to the place resolver.
+    // operand. Omit it for its exact selected state; arbitrary unresolved
+    // names and value receivers still belong to the place resolver. A
+    // self-taking state spelled through its data namespace, such as
+    // Receipt::forward(issued), keeps the namespace a non-operand while the
+    // explicit self argument supplies the common origin.
     if program
         .data_definitions()
         .iter()
@@ -144,17 +147,11 @@ fn static_namespace_receiver(
             .filter(move |state| state.symbol == call.target_symbol)
             .map(move |state| (machine, state))
     });
-    let Some((machine, state)) = targets.next() else {
+    let Some((machine, _state)) = targets.next() else {
         return Err("permission provenance namespace has no selected state");
     };
-    if targets.next().is_some()
-        || machine.attached_data_symbol != receiver.symbol
-        || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self)
-    {
-        return Err("permission provenance namespace differs from its selected nonself state");
+    if targets.next().is_some() || machine.attached_data_symbol != receiver.symbol {
+        return Err("permission provenance namespace differs from its selected state");
     }
     Ok(true)
 }
