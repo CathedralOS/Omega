@@ -325,3 +325,238 @@ fn forward_declaration_reference_refuses() {
         "unexpected diagnostics: {diagnostics:?}"
     );
 }
+
+const EXPLICIT_LEVEL_IDENTITY: &str =
+    "let identity<u: core::Level, A: core::Type<u>>(x: A): A = x;";
+
+#[test]
+fn explicit_levels_and_generic_types_reach_checked_admission() {
+    let source = format!(
+        "{EXPLICIT_LEVEL_IDENTITY}
+         let relay<v: core::Level, B: core::Type<v>>(x: B): B = identity<v,B>(x);
+         let closed(B: core::Type<0>, x: B): B = identity<0,B>(x);"
+    );
+    crate::lower_typed_trees(typed_program(&source)).expect("checked polymorphic applications");
+    let checked = signature(&source);
+    for (index, level) in [(1, Level::Parameter(0)), (2, Level::Constant(0))] {
+        let declaration = &checked.signature().declarations()[checked.authored()[index] as usize];
+        let mut body = declaration.body.expect("transparent body");
+        while let Term::Lambda { body: inner, .. } = checked.term(body) {
+            body = inner;
+        }
+        let Term::Apply { function, .. } = checked.term(body) else {
+            panic!("ordinary argument")
+        };
+        let Term::Apply { function, .. } = checked.term(function) else {
+            panic!("generic type argument")
+        };
+        assert_eq!(
+            checked.term(function),
+            Term::Constant {
+                declaration: checked.authored()[0],
+                levels: vec![level]
+            }
+        );
+    }
+}
+
+#[test]
+fn explicit_levels_follow_the_ordered_mixed_generic_telescope() {
+    let source = "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
+        let relay<v: core::Level, u: core::Level, A: core::Type<u>, B: core::Type<v>>(x: A, y: B): B = pick<u,A,v,B>(x,y);";
+    crate::lower_typed_trees(typed_program(source)).expect("interleaved level and type arguments");
+    let checked = signature(source);
+    let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
+        .body
+        .unwrap();
+    loop {
+        match checked.term(body) {
+            Term::Lambda { body: inner, .. } => body = inner,
+            Term::Apply { function, .. } => body = function,
+            term => {
+                assert_eq!(
+                    term,
+                    Term::Constant {
+                        declaration: checked.authored()[0],
+                        levels: vec![Level::Parameter(1), Level::Parameter(0)]
+                    }
+                );
+                break;
+            }
+        }
+    }
+}
+
+#[test]
+fn explicit_wrong_level_is_rejected_by_kernel_application_checking() {
+    let source = format!(
+        "{EXPLICIT_LEVEL_IDENTITY}
+        let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<0,A>(x);"
+    );
+    let diagnostics = crate::lower_typed_trees(typed_program(&source)).expect_err("wrong level");
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("fails kernel checking")
+                && diagnostic.message.contains("wrong")
+        ),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn explicit_type_cannot_supply_a_level_argument() {
+    let source = format!(
+        "{EXPLICIT_LEVEL_IDENTITY}
+        let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<A,v>(x);"
+    );
+    let diagnostics =
+        crate::lower_typed_trees(typed_program(&source)).expect_err("wrong argument kinds");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("core::Level")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn explicit_mathematical_arguments_do_not_bypass_executable_call_admission() {
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::mathematical::MathematicalBody;
+    use typed_trees::statement::StatementNode;
+
+    let source = format!(
+        "{EXPLICIT_LEVEL_IDENTITY}
+        let relay<v: core::Level, A: core::Type<v>>(x: A): A = identity<v,A>(x);
+        machine ordinary(x: u64) -> u64 {{ x }}
+        machine executable(x: u64) -> u64 {{ ordinary(x) }}"
+    );
+    let original = typed_program(&source);
+    let MathematicalBody::Definition(mathematical) = original.mathematical_definitions()[1].body
+    else {
+        panic!("mathematical body");
+    };
+    let ExpressionNode::Call(mathematical_call) =
+        original.expression_table.expression(mathematical)
+    else {
+        panic!("mathematical application");
+    };
+    let runtime = original
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            matches!(node, ExpressionNode::Call(call) if call.target.as_str() == "ordinary")
+                .then_some(handle)
+        })
+        .expect("runtime call");
+    for shared in [false, true] {
+        let mut program = original.clone();
+        if shared {
+            let statements = program.machines().iter().flat_map(|machine| program.machine_states(machine))
+                .flat_map(|state| program.statement_table.iter_statements(state.statement_nodes))
+                .filter_map(|(handle, node)| matches!(node, StatementNode::LocalData(local) if local.initial_value == runtime).then_some(handle))
+                .collect::<Vec<_>>();
+            assert!(!statements.is_empty(), "hoisted runtime call initializer");
+            for statement in statements {
+                if let StatementNode::LocalData(local) =
+                    program.statement_table.statement_mut(statement)
+                {
+                    local.initial_value = mathematical;
+                }
+            }
+        } else {
+            // Same target and arguments, distinct executable occurrence.
+            *program.expression_table.expression_mut(runtime) =
+                ExpressionNode::Call(mathematical_call.clone());
+        }
+        let diagnostics = validation::validate_static_machine_selections(&program)
+            .expect_err("runtime application has no executable selection");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("generic callee did not resolve")),
+            "shared={shared}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn explicit_generic_argument_arity_and_scope_are_checked() {
+    for arguments in ["v", "v,A,A", "missing,A", "4294967296,A"] {
+        let source = format!(
+            "{EXPLICIT_LEVEL_IDENTITY}
+            let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<{arguments}>(x);"
+        );
+        let diagnostics = crate::lower_typed_trees(typed_program(&source)).expect_err(arguments);
+        assert!(
+            diagnostics.iter().any(
+                |diagnostic| diagnostic.message.contains("generic arguments")
+                    || diagnostic.message.contains("core::Level")
+                    || diagnostic.message.contains("level range")
+            ),
+            "{arguments}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn explicit_generic_application_preserves_partial_ordinary_application() {
+    let source = format!(
+        "{EXPLICIT_LEVEL_IDENTITY}
+        let partial<v: core::Level, A: core::Type<v>>(): A -> A = identity<v,A>();"
+    );
+    crate::lower_typed_trees(typed_program(&source)).expect("remaining ordinary Pi argument");
+}
+
+#[test]
+fn implicit_static_arguments_preserve_existing_ordinary_prefix_application() {
+    let source = "let generic<T: u64>(x: u64): u64 = x;
+        let partial(x: u64): u64 -> u64 = generic(x);
+        let empty(): u64 -> u64 -> u64 = generic();";
+    crate::lower_typed_trees(typed_program(source)).expect("ordinary prefix remains a Pi term");
+}
+
+#[test]
+fn explicit_application_keeps_declaration_order_and_generalized_level_fences() {
+    for source in [
+        "let recursive<u: core::Level, A: core::Type<u>>(x: A): A = recursive<u,A>(x);",
+        "let first<u: core::Level, A: core::Type<u>>(x: A): A = second<u,A>(x);
+         let second<u: core::Level, A: core::Type<u>>(x: A): A = x;",
+    ] {
+        let diagnostics =
+            crate::lower_typed_trees(typed_program(source)).expect_err("ordered signature");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("references itself or a later declaration")),
+            "{diagnostics:?}"
+        );
+    }
+    let diagnostics = crate::lower_typed_trees(typed_program(
+        "let inferred<A>(x: A): A = x;
+         let use<u: core::Level, A: core::Type<u>>(x: A): A = inferred<A>(x);",
+    ))
+    .expect_err("no new universe inference");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("implicit generalized level instantiation")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn explicit_application_keeps_term_type_checking() {
+    let source = format!(
+        "{EXPLICIT_LEVEL_IDENTITY}
+        let wrong<v: core::Level, A: core::Type<v>, B: core::Type<v>>(x: B): A = identity<v,A>(x);"
+    );
+    let diagnostics =
+        crate::lower_typed_trees(typed_program(&source)).expect_err("distinct type arguments");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("fails kernel checking")),
+        "{diagnostics:?}"
+    );
+}

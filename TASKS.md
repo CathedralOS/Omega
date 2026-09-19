@@ -1764,7 +1764,7 @@ Owners include
   `checked-trees-to-lowered-psi` entrance refuses them with a named
   `PROOF-CONTRACT-MIGRATION` diagnostic (fail canary
   `proofs/mathematical_declaration_lowering_rejected`) until a Terminal
-  evidence encoding exists — `Constant` level instantiation, machine-valued
+  evidence encoding exists — inferred universe arguments, machine-valued
   body denotation, applied carriers, and that encoding are pending legs. No
   `core::Level`, `Type`, `Strict` or `Squash` declaration exists, and the
   dedicated `proposition` declaration with its named-witness call lanes
@@ -1779,8 +1779,8 @@ Owners include
     structurally; checked elaboration into `CheckedMathematicalDeclaration`
     has landed (binder classification, nested-Pi and application identities,
     named assumptions). Kernel-term elaboration has landed for the admitted
-    grammar. Remaining here: instantiate level arguments on `Constant`
-    references to polymorphic declarations, denote machine-valued body
+    grammar. Remaining here: infer omitted universe arguments for generalized
+    declarations, denote machine-valued body
     expressions (the bounded-denotation leg), replace authored-name carrier
     classification with symbol identity once the fixed `core::*`
     declarations exist, and encode the checked signature into Terminal
