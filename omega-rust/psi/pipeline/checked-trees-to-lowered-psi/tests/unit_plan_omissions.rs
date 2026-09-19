@@ -131,12 +131,17 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // `settle` edge at a receiver-specialized `Task::settle$specialized` clone
 // whose retained owner application is the concrete `Task<Token>`: the
 // specialized machine's signature, self argument, and claim path all replay
-// that application instead of the open `Task<T>`. Both calls now produce
-// checked operations. The remaining omission frontier is independent of the
-// receiver specialization: a provider-backed receiver carrying a second
-// structural parameter (`token`) stops at provider attachment requirements,
-// and the owned-`self` `settle` bodies stop at entry claims because a linear
-// owned receiver establishes no `StateEntry` claim event.
+// that application instead of the open `Task<T>`. Both calls produce checked
+// operations, and the routed receiver now clears provider attachment
+// requirements: the `token` parameter stays an ordinary argument while the
+// `self.runtime` receiver supplies the `start` requirement row. The
+// remaining omission frontier is independent of the receiver specialization:
+// the `TaskRuntime::start` requirement signature itself has no static
+// boundary plan — `build_static_boundary_requirements` cannot telescope a
+// `machine Target` binder that is neither a native callback entry nor a
+// nominal use — so candidate closure drops `Main::probe` on its missing
+// boundary target, and the owned-`self` `settle` bodies stop at entry claims
+// because a linear owned receiver establishes no `StateEntry` claim event.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -176,7 +181,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 "#;
 
 #[test]
-fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
+fn a_routed_task_start_call_plans_and_the_missing_boundary_plan_stops_probe() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
@@ -246,28 +251,26 @@ fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
             .any(|call| call.target_symbol == start_requirement),
         "the start call is retained as a checked flow call fact"
     );
-    // Both calls in `Main::probe` now plan: the routed `start` call produces
-    // its checked boundary structural call, and `Task::settle(task)` produces
-    // an ordinary `CallUnit` whose owned `self` argument replays the boundary
-    // result's `Task<Token>` custody through the specialized callee's retained
-    // owner application. Statement 1 no longer stops call operations; the
-    // remaining frontier is the provider roster: `Main` backs `runtime` with
-    // the `TaskRuntime` boundary, and a receiver carrying a provider field
-    // alongside a second structural parameter (`token`) is outside the
-    // checked provider requirement surface.
+    // Both calls in `Main::probe` plan, and the provider roster now admits
+    // the routed receiver: `token` is an ordinary structural argument beside
+    // the `self.runtime` provider field, so the checked requirement row names
+    // `TaskRuntime::start` on `runtime`. `probe` therefore leaves local
+    // construction and is pruned by candidate closure instead: the `start`
+    // requirement signature is generic over a `machine Target` binder, which
+    // `build_static_boundary_requirements` cannot telescope into a static
+    // boundary plan, so the boundary call's target has no plan to call into.
     let omission = checked
         .facts
         .flow
         .terminal_unit_effects
         .omission_for_machine(probe)
         .expect("Main::probe has an omission row");
-    assert!(matches!(
+    assert_eq!(
         omission.stage,
-        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "provider attachment requirements",
-            ..
+        checked_trees::CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
+            target: start_requirement,
         }
-    ));
+    );
     // The specialized `settle` edge is real — checking emitted
     // `Task::settle$specialized` for the `Task<Token>` receiver — but an owned
     // `self` on `[linear]` data establishes no `StateEntry` claim event, so
@@ -338,11 +341,49 @@ fn a_routed_task_start_call_plans_and_the_generic_consumer_stops() {
     );
     assert_eq!(
         omission.as_deref(),
-        Some(
-            "`Main::probe` has no admitted body \
-             (local construction stopped at provider attachment requirements)"
-        )
+        Some("`Main::probe` calls boundary `TaskRuntime::start`, which has no boundary plan")
     );
+}
+
+#[test]
+fn a_provider_carrying_argument_still_stops_at_provider_attachment_requirements() {
+    // `token: Token` is an ordinary routed argument, but a structural
+    // parameter whose own carrier holds a provider-backed field is a second
+    // provider surface: the requirement roster names `self.<field>`
+    // receivers only, so `carrier` cannot cross as an unspecialized
+    // argument and the receiver still stops at provider attachment
+    // requirements.
+    let checked = checked(&format!(
+        "{ROUTED_TASK_START_DECLS}
+         data Carrier {{
+             runtime: TaskRuntime;
+         }}
+         data Main {{
+             runtime: TaskRuntime;
+         }}
+         machine Main::probe(&mut self, carrier: Carrier) {{ }}
+         machine Main::main(&mut self) {{ }}"
+    ));
+    let probe = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::probe")
+        .expect("Main::probe is declared")
+        .symbol;
+    let omission = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .omission_for_machine(probe)
+        .expect("Main::probe has an omission row");
+    assert!(matches!(
+        omission.stage,
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+            phase: "provider attachment requirements",
+            ..
+        }
+    ));
 }
 
 #[test]

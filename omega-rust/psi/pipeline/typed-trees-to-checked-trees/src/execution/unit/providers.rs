@@ -1,8 +1,11 @@
 //! Exact provider-attachment requirements shared by Unit plan families.
+use std::collections::BTreeSet;
+
 use super::{
     CheckedProviderAttachmentRequirementPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralTypeShape, DataMember, TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, DataMember,
+    TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::provider_attachment_receiver_matches;
@@ -54,10 +57,16 @@ pub(super) fn checked_provider_attachment_requirements(
             )
         })
         .collect::<Vec<_>>();
+    // A routed receiver carries ordinary structural arguments beside the
+    // attached provider field, so non-self parameters are no longer blanket
+    // rejections. The roster below still names `self.<field>` receivers only,
+    // so a parameter must not be a second provider surface: neither a fused
+    // `Service` receipt nor a carrier whose own shape holds a provider-backed
+    // field can cross here as an unspecialized argument.
     if field.identity.starts_with('#')
         || structural_parameters
             .iter()
-            .any(|parameter| !parameter.is_self)
+            .any(|parameter| !parameter.is_self && parameter_is_provider_carrier(shapes, parameter))
     {
         return None;
     }
@@ -170,6 +179,76 @@ pub(super) fn checked_provider_attachment_requirements(
     });
     requirements.dedup_by_key(|requirement| requirement.boundary);
     Some(requirements)
+}
+
+/// Whether one ordinary argument is itself a provider surface. A fused
+/// `Service` receipt parameter is a provider carrier outright, and a carrier
+/// whose own shape holds a provider-backed field smuggles an unspecialized
+/// provider through the argument lane: the requirement roster names the
+/// attached `self.<field>` receiver only.
+fn parameter_is_provider_carrier(
+    shapes: &ShapeCollector<'_>,
+    parameter: &CheckedUnitStructuralParameterPlan,
+) -> bool {
+    parameter.fused_service_erasure.is_some()
+        || type_carries_provider(
+            shapes,
+            parameter.type_identity.as_str(),
+            &mut BTreeSet::new(),
+        )
+}
+
+/// Whether the shape named by `type_identity` holds a provider-backed field,
+/// following structural field and element references so a provider buried
+/// inside a nested carrier still counts. Erased fields own no runtime carrier,
+/// so their types are not followed.
+fn type_carries_provider<'a>(
+    shapes: &'a ShapeCollector<'_>,
+    type_identity: &'a str,
+    visited: &mut BTreeSet<&'a str>,
+) -> bool {
+    if !visited.insert(type_identity) {
+        return false;
+    }
+    let Some(plan) = shapes.types.get(type_identity) else {
+        return false;
+    };
+    if let CheckedUnitStructuralTypeShape::FixedArray {
+        element_type_identity,
+        ..
+    } = &plan.shape
+    {
+        return type_carries_provider(shapes, element_type_identity, visited);
+    }
+    shape_fields(&plan.shape).any(|field| match &field.field_type {
+        CheckedUnitStructuralFieldType::ProviderBacked { .. }
+        | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => true,
+        CheckedUnitStructuralFieldType::Structural { type_identity } => {
+            type_carries_provider(shapes, type_identity, visited)
+        }
+        _ => false,
+    })
+}
+
+/// Every field position of a record, sum, or mixed shape in one flat view, so
+/// the provider-carrier walk does not repeat the case fan-out at each level.
+fn shape_fields(
+    shape: &CheckedUnitStructuralTypeShape,
+) -> impl Iterator<Item = &CheckedUnitStructuralFieldPlan> + '_ {
+    let (fields, cases): (
+        &[CheckedUnitStructuralFieldPlan],
+        &[checked_trees::CheckedUnitStructuralCasePlan],
+    ) = match shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => (fields.as_slice(), &[]),
+        CheckedUnitStructuralTypeShape::Sum { cases } => (&[], cases.as_slice()),
+        CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+            (fields.as_slice(), cases.as_slice())
+        }
+        _ => (&[], &[]),
+    };
+    fields
+        .iter()
+        .chain(cases.iter().flat_map(|case| case.fields.iter()))
 }
 
 pub(super) fn checked_composed_provider_attachment_requirements(
