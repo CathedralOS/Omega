@@ -28,17 +28,19 @@ fn check_program(
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     // Mathematical `let`/`boundary let` declarations elaborate into
-    // `CheckedMathematicalDeclaration` records; run that elaboration so a
-    // declaration the checked surface cannot record fails with its own
-    // diagnostic. Kernel-term elaboration and downstream consumption remain
-    // separate PROOF-CONTRACT-MIGRATION legs, so an elaborated declaration
-    // still refuses here rather than silently dropping from checked trees.
+    // `CheckedMathematicalDeclaration` records and then into a kernel
+    // signature the kernel itself re-decides; run both elaborations so a
+    // declaration that fails either fails with its own diagnostic.
+    // Downstream consumption of the checked signature remains a separate
+    // PROOF-CONTRACT-MIGRATION leg, so an elaborated declaration still
+    // refuses here rather than silently dropping from checked trees.
     if let Some(definition) = program.mathematical_definitions().first() {
         crate::proof::build_checked_mathematical_declarations(&program)?;
+        crate::proof::check_mathematical_signature(&program)?;
         let mut diagnostic = diagnostics::Diagnostic::error(
             "mathematical `let`/`boundary let` declarations elaborate to the checked \
-                 surface, but kernel-term elaboration and downstream consumption are \
-                 not implemented yet (PROOF-CONTRACT-MIGRATION)",
+                 surface and check as kernel signature declarations, but downstream \
+                 consumption is not implemented yet (PROOF-CONTRACT-MIGRATION)",
         );
         if let Some(span) = program.symbols.symbol_source_span(definition.symbol) {
             diagnostic = diagnostic.with_source_span(span);
