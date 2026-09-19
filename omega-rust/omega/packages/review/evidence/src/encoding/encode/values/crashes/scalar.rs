@@ -170,5 +170,7 @@ const fn integer_binary_name(kind: PackageReviewIntegerBinaryKind) -> &'static s
         PackageReviewIntegerBinaryKind::WrappingShiftRight => "wrapping_shift_right",
         PackageReviewIntegerBinaryKind::ExactShiftLeft => "exact_shift_left",
         PackageReviewIntegerBinaryKind::ExactShiftRight => "exact_shift_right",
+        PackageReviewIntegerBinaryKind::TrappingShiftLeft => "trapping_shift_left",
+        PackageReviewIntegerBinaryKind::TrappingShiftRight => "trapping_shift_right",
     }
 }

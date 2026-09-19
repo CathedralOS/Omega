@@ -244,6 +244,14 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 CheckedIntegerBinaryKind::ExactShiftRight => {
                     LoweredIntegerBinaryKind::ExactShiftRight
                 }
+                // No Terminal Trapping operation family exists yet; refuse
+                // rather than silently weaken the policy into Exact.
+                CheckedIntegerBinaryKind::TrappingShiftLeft
+                | CheckedIntegerBinaryKind::TrappingShiftRight => {
+                    return unsupported(
+                        "checked trapping operation requires runtime policy realization",
+                    );
+                }
             },
             scalar_type: terminal_scalar_type(*primitive_type)?,
             left: Box::new(lower_checked_scalar_expression_with_parameters(

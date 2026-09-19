@@ -332,5 +332,11 @@ const fn project_integer_binary_kind(
         CheckedIntegerBinaryKind::ExactShiftRight => {
             PackageReviewIntegerBinaryKind::ExactShiftRight
         }
+        CheckedIntegerBinaryKind::TrappingShiftLeft => {
+            PackageReviewIntegerBinaryKind::TrappingShiftLeft
+        }
+        CheckedIntegerBinaryKind::TrappingShiftRight => {
+            PackageReviewIntegerBinaryKind::TrappingShiftRight
+        }
     }
 }

@@ -3,12 +3,13 @@
 //! `source/library/core/numeric_conversion.omg` publishes one named machine per
 //! conversion policy, and the `tests/omega/pass/core/numeric_*` canaries call
 //! them. Three of those shapes still stop before native execution, and the stop
-//! is not a Unit control-builder restriction: two are rejected by this crate's
-//! own explicit policy-realization limits, and the Trapping shift has no
-//! checked scalar expression at all, so the ordinary statement sequence finds
-//! nothing to plan. Boolean-to-integer conversion now composes: a dedicated
-//! `BooleanToInteger` checked computation owns the authored cast occurrence
-//! and lands through the ordinary conditional selection of 0 and 1.
+//! is not a Unit control-builder restriction: each is rejected by this crate's
+//! own explicit policy-realization limits. Trapping shifts carry checked value
+//! facts, so the Trapping shift refuses at expression preparation rather than
+//! vanishing from the computation plan. Boolean-to-integer conversion now
+//! composes: a dedicated `BooleanToInteger` checked computation owns the
+//! authored cast occurrence and lands through the ordinary conditional
+//! selection of 0 and 1.
 //!
 //! Each rejection is paired with the admitted neighbour that differs in one
 //! coordinate, so a repair has to move the actual boundary rather than widen a
@@ -45,23 +46,6 @@ fn lowers(source: &str) {
     let checked = checked(source);
     checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
         .expect("this conversion composes from admitted operations");
-}
-
-/// The omission chain naming the machine whose own body stopped, with the
-/// ordinary builder's last phase and the statement it was planning.
-fn unit_plan_omission(source: &str) -> (String, String) {
-    let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-        machine,
-        omission,
-        ..
-    } = lowering_error(source)
-    else {
-        panic!("a missing checked value fact leaves the Unit closure without a plan");
-    };
-    (
-        machine,
-        omission.expect("the omission roster names the machine"),
-    )
 }
 
 /// `narrow_u16_to_u8_trapping` and every other `*_trapping` conversion end in
@@ -260,12 +244,13 @@ fn an_integer_wrapping_conversion_initializer_reaches_a_plan() {
 }
 
 /// `numeric_conversion_trap_if` ends with `(1 as u8 in Trapping) << (count as
-/// u32 in Trapping)`, whose out-of-range count is the library's trap. No
-/// checked integer binary kind pairs a shift with Trapping, so that
-/// initializer has no value fact either.
+/// u32 in Trapping)`, whose out-of-range count is the library's trap. The
+/// initializer now carries a checked `TrappingShiftLeft` computation, so the
+/// computation plan exists; this crate refuses it because no Terminal
+/// operation can carry the crash site.
 #[test]
-fn a_trapping_shift_leaves_its_initializer_without_a_value_fact() {
-    let (machine, omission) = unit_plan_omission(
+fn a_trapping_shift_has_no_runtime_policy_realization() {
+    let error = lowering_error(
         r#"
         data Main {}
         machine trap_if(count: u32) {
@@ -274,12 +259,11 @@ fn a_trapping_shift_leaves_its_initializer_without_a_value_fact() {
         machine Main::main(count: u32) { trap_if(count); }
     "#,
     );
-    assert_eq!(machine, "Main::main");
     assert_eq!(
-        omission,
-        "`Main::main` calls `trap_if`, which has no plan; `trap_if` has no admitted body \
-         (local construction stopped at statement sequence: local data: scalar local: \
-         pure initializer, statement 0)"
+        error,
+        checked_trees_to_lowered_psi::LoweringError::Unsupported(
+            "checked trapping operation requires runtime policy realization"
+        )
     );
 }
 

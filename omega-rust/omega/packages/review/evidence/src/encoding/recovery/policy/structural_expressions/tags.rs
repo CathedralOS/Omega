@@ -71,6 +71,8 @@ pub(super) fn integer_binary(
         19 => Kind::WrappingShiftRight,
         20 => Kind::ExactShiftLeft,
         21 => Kind::ExactShiftRight,
+        22 => Kind::TrappingShiftLeft,
+        23 => Kind::TrappingShiftRight,
         _ => return Err(Error::InvalidTag),
     })
 }
