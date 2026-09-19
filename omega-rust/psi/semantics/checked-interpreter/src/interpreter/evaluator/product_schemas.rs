@@ -275,13 +275,9 @@ impl<'program> Evaluator<'program> {
                 .iter()
                 .filter(|definition| {
                     definition.is_public
-                        && (definition.name.as_str() == rest
-                            || self
-                                .program
-                                .symbols
-                                .display_path(definition.symbol, "::")
-                                .as_str()
-                                == rest)
+                        // The dependency alias qualifies a complete path;
+                        // a different module's relative name is not a match.
+                        && self.program.symbols.display_path(definition.symbol, "::") == rest
                         && self
                             .program
                             .symbols
