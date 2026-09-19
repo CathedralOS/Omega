@@ -103,15 +103,16 @@ fn nested_static_constructor_namespace_is_not_a_live_operand() {
         }),
         Ok(Some(expected))
     );
+    // A self-taking state spelled through its data namespace keeps the
+    // namespace a non-operand; the explicit self argument supplies the origin.
     let mut changed = program.clone();
     let ExpressionNode::Call(call) = changed.expression_table.expression_mut(nested) else {
         panic!("static call");
     };
     call.target_symbol = value_call.target_symbol;
-    assert!(
-        expression_permission_provenance(&changed, root, &mut |expression| resolve(expression))
-            .is_err(),
-        "a self formal cannot be replaced with a namespace"
+    assert_eq!(
+        expression_permission_provenance(&changed, root, &mut |expression| resolve(expression)),
+        Ok(None)
     );
 }
 
