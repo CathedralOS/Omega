@@ -6,23 +6,26 @@ use super::super::{
     OutcomeSpecificCallEvidence, encode_ids, encode_optional,
 };
 
-use crate::identity::proposition_encoding::encode_proposition;
+use crate::optimization_unit::identity::proposition_encoding::encode_proposition;
 
-pub(in crate::identity) fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {
+pub(in crate::optimization_unit::identity) fn encode_crash_cause(
+    bytes: &mut CanonicalBytes,
+    cause: CrashCause,
+) {
     bytes.u8(match cause {
         CrashCause::Trap => 1,
         CrashCause::Abort => 2,
     });
 }
 
-pub(in crate::identity) fn encode_crash_predicate(
+pub(in crate::optimization_unit::identity) fn encode_crash_predicate(
     bytes: &mut CanonicalBytes,
     predicate: &CrashPredicateTerm,
 ) {
     encode_proposition(bytes, predicate.proposition());
 }
 
-pub(in crate::identity) fn encode_crash_route_bucket(
+pub(in crate::optimization_unit::identity) fn encode_crash_route_bucket(
     bytes: &mut CanonicalBytes,
     bucket: &CrashRouteBucket,
 ) {
@@ -53,7 +56,7 @@ fn encode_evidence_interface(bytes: &mut CanonicalBytes, interface: &EvidenceInt
     });
 }
 
-pub(in crate::identity) fn encode_outcome_specific_call_evidence(
+pub(in crate::optimization_unit::identity) fn encode_outcome_specific_call_evidence(
     bytes: &mut CanonicalBytes,
     evidence: &OutcomeSpecificCallEvidence,
 ) {
@@ -81,7 +84,7 @@ pub(in crate::identity) fn encode_outcome_specific_call_evidence(
     encode_ids(bytes, &evidence.validity.interface_dependencies);
 }
 
-pub(in crate::identity) fn encode_machine_contract(
+pub(in crate::optimization_unit::identity) fn encode_machine_contract(
     bytes: &mut CanonicalBytes,
     contract: &MachineContract,
 ) {
@@ -105,7 +108,7 @@ pub(in crate::identity) fn encode_machine_contract(
     });
 }
 
-pub(in crate::identity) fn encode_evidence_contract_lane(
+pub(in crate::optimization_unit::identity) fn encode_evidence_contract_lane(
     bytes: &mut CanonicalBytes,
     lane: &EvidenceContractLane,
 ) {
