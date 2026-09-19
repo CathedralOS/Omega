@@ -17,7 +17,10 @@ impl Default for SearchBudget {
         Self {
             definition_visits: 128,
             depth: 32,
-            computed_joins: 1,
+            // Bounded compositions of computed sums: each join nests one
+            // `IntegerExactAddDefinitionBound` certificate, so the count tracks
+            // how deep add-of-adds chains may stack inside one obligation.
+            computed_joins: 8,
         }
     }
 }

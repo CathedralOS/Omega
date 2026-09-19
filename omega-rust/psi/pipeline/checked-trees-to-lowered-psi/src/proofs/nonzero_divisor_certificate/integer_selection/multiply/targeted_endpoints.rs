@@ -12,6 +12,7 @@ use crate::proofs::nonzero_divisor_certificate::integer_selection::multiply::tar
     prove_targeted_remainder_prefix_endpoint, targeted_multiply_operand_prefix_witnesses,
     targeted_multiply_operand_witness, targeted_prefix_boundary,
 };
+use crate::proofs::nonzero_divisor_certificate::integer_selection::range;
 use crate::proofs::nonzero_divisor_certificate::{cast_custody, cast_selection};
 use proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_integer_affine_witness,
@@ -43,6 +44,40 @@ pub(crate) fn targeted_operand_endpoints(
     for proof in direct_cast_operand_endpoints(
         context,
         integer_type,
+        operand,
+        lower,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    ) {
+        if !proofs
+            .iter()
+            .any(|existing| existing.conclusion == proof.conclusion)
+        {
+            proofs.push(proof);
+        }
+    }
+    // A total-image definition (exact remainder or nonzero exact divide)
+    // already bounds its own image, so such an operand carries oriented
+    // endpoints without any external contract.
+    for proof in range::target_bounds(context, operand, semantic_axioms) {
+        let same_oriented_operand = match &proof.conclusion {
+            Proposition::LessOrEqual(_, actual_operand) if lower => actual_operand == operand,
+            Proposition::LessOrEqual(actual_operand, _) if !lower => actual_operand == operand,
+            _ => false,
+        };
+        if same_oriented_operand
+            && !proofs
+                .iter()
+                .any(|existing| existing.conclusion == proof.conclusion)
+        {
+            proofs.push(proof);
+        }
+    }
+    // A multiply-defined operand keeps its own definition witness; its landed
+    // literal predecessors map through it into oriented operand endpoints.
+    for proof in prove_direct_computed_multiply_endpoints(
+        context,
         operand,
         lower,
         assumptions,

@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 use proof_admission::{ProofRule, check_certificate};
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, ValueId,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, ValueId,
 };
 
 fn value(identity: u64, integer_type: IntegerType) -> ScalarTerm {
@@ -30,6 +30,23 @@ fn context(integer_type: IntegerType) -> PropositionContext {
         )
     }))
     .expect("typed value context")
+}
+
+fn wide_context(integer_type: IntegerType, identities: u64) -> PropositionContext {
+    PropositionContext::from_value_types((1..=identities).map(|identity| {
+        (
+            ValueId::new(identity).expect("value identity"),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .expect("typed value context")
+}
+
+fn math_value(identity: u64, integer_type: IntegerType) -> IntegerMathTerm {
+    IntegerMathTerm::MathValue {
+        source_type: integer_type,
+        value: ValueId::new(identity).expect("value identity"),
+    }
 }
 
 #[test]
@@ -172,4 +189,152 @@ fn non_strict_endpoint_certificates_cannot_change_the_value_carrier() {
         )
         .is_none()
     );
+}
+
+/// dice_roller shape: `state * 1103` over literal-defined i32 operands. The
+/// landed equalities orient into both endpoints, so the multiply carrier
+/// bounds produce without a cited range contract.
+#[test]
+fn multiply_carrier_bounds_land_on_literal_defined_operands() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        for (width, left_lit, right_lit) in [(8, 7_u64, 11_u64), (32, 42, 1103), (64, 42, 1103)] {
+            let integer_type = IntegerType::new(sign, width).expect("fixed integer type");
+            let context = context(integer_type);
+            let axioms = [
+                Proposition::Equal(value(1, integer_type), literal(left_lit, integer_type)),
+                Proposition::Equal(value(2, integer_type), literal(right_lit, integer_type)),
+            ];
+            let product = IntegerMathTerm::Multiply(
+                Box::new(math_value(1, integer_type)),
+                Box::new(math_value(2, integer_type)),
+            );
+            for goal in [
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(integer_type.minimum_value()),
+                    product.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    product.clone(),
+                    IntegerMathTerm::literal(integer_type.maximum_value()),
+                ),
+            ] {
+                let proof = produce_checked_canonical_integer_proof(
+                    &context,
+                    &goal,
+                    &[],
+                    &axioms,
+                    &BTreeSet::new(),
+                )
+                .unwrap_or_else(|| panic!("{sign:?}{width}: literal multiply bound {goal:?}"));
+                assert_eq!(proof.conclusion, goal);
+                check_certificate(&context, &goal, &[], &axioms, &proof)
+                    .expect("independent kernel checks literal multiply bound");
+            }
+        }
+    }
+}
+
+/// dice_roller shape: `d6 * m` where `d6` is a remainder-defined operand. The
+/// remainder's total image bounds the operand without an external contract.
+#[test]
+fn multiply_carrier_bounds_land_on_remainder_defined_operands() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        for width in [8, 32, 64] {
+            let integer_type = IntegerType::new(sign, width).expect("fixed integer type");
+            let context = wide_context(integer_type, 4);
+            let axioms = [
+                Proposition::Equal(value(1, integer_type), literal(90, integer_type)),
+                Proposition::Equal(value(2, integer_type), literal(6, integer_type)),
+                Proposition::Equal(
+                    value(3, integer_type),
+                    ScalarTerm::exact_integer_remainder(
+                        integer_type,
+                        value(1, integer_type),
+                        value(2, integer_type),
+                    )
+                    .expect("exact remainder"),
+                ),
+                Proposition::Equal(value(4, integer_type), literal(10, integer_type)),
+            ];
+            let product = IntegerMathTerm::Multiply(
+                Box::new(math_value(3, integer_type)),
+                Box::new(math_value(4, integer_type)),
+            );
+            for goal in [
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(integer_type.minimum_value()),
+                    product.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    product.clone(),
+                    IntegerMathTerm::literal(integer_type.maximum_value()),
+                ),
+            ] {
+                let proof = produce_checked_canonical_integer_proof(
+                    &context,
+                    &goal,
+                    &[],
+                    &axioms,
+                    &BTreeSet::new(),
+                )
+                .unwrap_or_else(|| panic!("{sign:?}{width}: remainder multiply bound {goal:?}"));
+                assert_eq!(proof.conclusion, goal);
+                check_certificate(&context, &goal, &[], &axioms, &proof)
+                    .expect("independent kernel checks remainder multiply bound");
+            }
+        }
+    }
+}
+
+/// dice_roller shape: `v4 + 12345` where `v4 = v2 * v3` is a multiply-defined
+/// operand. The multiply definition witness maps its landed literal
+/// predecessors into oriented operand endpoints for the add bound.
+#[test]
+fn add_carrier_bounds_land_on_computed_multiply_operands() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        for (width, left_lit, right_lit) in [(8, 3_u64, 11_u64), (32, 42, 1103), (64, 42, 1103)] {
+            let integer_type = IntegerType::new(sign, width).expect("fixed integer type");
+            let context = wide_context(integer_type, 5);
+            let axioms = [
+                Proposition::Equal(value(2, integer_type), literal(left_lit, integer_type)),
+                Proposition::Equal(value(3, integer_type), literal(right_lit, integer_type)),
+                Proposition::Equal(
+                    value(4, integer_type),
+                    ScalarTerm::exact_integer_multiply(
+                        integer_type,
+                        value(2, integer_type),
+                        value(3, integer_type),
+                    )
+                    .expect("exact multiply"),
+                ),
+                Proposition::Equal(value(5, integer_type), literal(90, integer_type)),
+            ];
+            let sum = IntegerMathTerm::Add(
+                Box::new(math_value(4, integer_type)),
+                Box::new(math_value(5, integer_type)),
+            );
+            for goal in [
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(integer_type.minimum_value()),
+                    sum.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    sum.clone(),
+                    IntegerMathTerm::literal(integer_type.maximum_value()),
+                ),
+            ] {
+                let proof = produce_checked_canonical_integer_proof(
+                    &context,
+                    &goal,
+                    &[],
+                    &axioms,
+                    &BTreeSet::new(),
+                )
+                .unwrap_or_else(|| panic!("{sign:?}{width}: computed multiply addend {goal:?}"));
+                assert_eq!(proof.conclusion, goal);
+                check_certificate(&context, &goal, &[], &axioms, &proof)
+                    .expect("independent kernel checks computed multiply addend");
+            }
+        }
+    }
 }

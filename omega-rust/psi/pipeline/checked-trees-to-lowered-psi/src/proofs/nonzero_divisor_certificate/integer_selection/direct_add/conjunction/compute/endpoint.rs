@@ -7,6 +7,7 @@ use super::super::definitions;
 use super::super::model::{EndpointProof, Query, SearchState};
 use super::combine;
 use crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex;
+use crate::proofs::nonzero_divisor_certificate::integer_selection::range;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn derive(
@@ -80,13 +81,25 @@ fn derive_uncached(
             proof: orient_exact(operand, literal, lower, proof),
         });
     }
-    let definition = definitions::exact_add(
+    let Some(definition) = definitions::exact_add(
         operand,
         integer_type,
         semantic_axioms,
         definition_index,
         cutoff,
-    )?;
+    ) else {
+        // An operand that is not itself an exact add may still carry a bounded
+        // image: an exact remainder or nonzero exact divide keeps oriented
+        // carrier bounds, so chain endpoints can land on it.
+        return image_bound_endpoint(
+            context,
+            integer_type,
+            operand,
+            lower,
+            semantic_axioms,
+            cutoff,
+        );
+    };
     if !state.visit_definition() {
         return None;
     }
@@ -190,6 +203,27 @@ fn derive_uncached(
         lower,
         semantic_axioms,
     )
+}
+
+fn image_bound_endpoint(
+    context: &PropositionContext,
+    integer_type: IntegerType,
+    operand: &ScalarTerm,
+    lower: bool,
+    semantic_axioms: &[Proposition],
+    cutoff: usize,
+) -> Option<EndpointProof> {
+    range::target_bounds(context, operand, &semantic_axioms[..cutoff])
+        .into_iter()
+        .find_map(|proof| {
+            let bound = match &proof.conclusion {
+                Proposition::LessOrEqual(bound, actual) if lower && actual == operand => bound,
+                Proposition::LessOrEqual(actual, bound) if !lower && actual == operand => bound,
+                _ => return None,
+            };
+            let (actual, value) = bound.integer_value()?;
+            (actual == integer_type).then_some(EndpointProof { value, proof })
+        })
 }
 
 fn orient_exact(

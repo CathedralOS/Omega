@@ -98,8 +98,17 @@ fn cycles_type_drift_address_carriers_and_overflow_are_refused() {
 #[test]
 fn a_second_internal_computed_join_remains_outside_the_bounded_rule() {
     let fixture = two_computed_joins(IntegerSign::Unsigned, 8, false);
-    let outcome = fixture.prove(SearchBudget::default());
+    let outcome = fixture.prove(SearchBudget {
+        computed_joins: 1,
+        ..SearchBudget::default()
+    });
     assert!(outcome.proof.is_none());
     assert!(outcome.exhausted);
     assert_eq!(outcome.usage.computed_joins, 1);
+
+    // The default envelope admits the same shape, and the kernel replays the
+    // nested exact-add definition certificates it produces.
+    let admitted = fixture.prove(SearchBudget::default());
+    assert_eq!(admitted.usage.computed_joins, 2);
+    fixture.admit(&admitted);
 }
