@@ -3,9 +3,10 @@
 //! This root collects every proposition, domain, and capability-contract surface
 //! a program declares; `obligations` turns them into the obligations checking
 //! must discharge, `lemmas` holds the reusable lemma library, `checker` decides
-//! obligations, `derivation_store` retains decided derivations under semantic
-//! obligation identity for independent re-decision, and `boundary` owns the
-//! boundary-facing proof contract.
+//! obligations and consults `derivation_store` retentions through its
+//! `derivation_cache` so an unchanged obligation re-decides kept evidence
+//! instead of repeating search, and `boundary` owns the boundary-facing proof
+//! contract.
 //!
 //! `proof_surface.rs` is the root: the report and its collection from syntax
 //! trees. `obligations` turns the surface into obligations, `checker` checks
