@@ -79,10 +79,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -91,7 +90,11 @@ use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::condition_state::materialized_bits;
-use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
+use crate::rewrites::place_storage::{
+    SubjectExtent, SubjectStorage, constant_index, extent_interferes, local_slot_is_place_storage,
+    local_store_shape, packed_store_row_shape, place_store_row_shape, slot_is_subject_storage,
+    structural_place_declarations, transport_defines,
+};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -160,51 +163,22 @@ impl DeadExtent {
 }
 
 impl Dead {
-    /// Exact rows intersect when their half-open byte intervals share a byte;
-    /// widened to u64 so edge offsets cannot wrap. A dynamic dead extent is
-    /// unbounded upward from `byte_offset`, so the exact row still reaches
-    /// the written bytes once its own extent ends past that offset — ending
-    /// at or below it is the only provable disjointness.
-    fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        if self.extent.dynamic() {
-            return u64::from(self.byte_offset)
-                < u64::from(access.byte_offset) + u64::from(access.byte_count);
+    /// The dead bytes as the shared subject extent — `dynamic` when the
+    /// extent's runtime decider is unresolved.
+    fn subject_extent(&self) -> SubjectExtent {
+        SubjectExtent {
+            byte_offset: self.byte_offset,
+            byte_count: self.byte_count,
+            dynamic: self.extent.dynamic(),
         }
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
-            && u64::from(self.byte_offset)
-                < u64::from(access.byte_offset) + u64::from(access.byte_count)
     }
 
-    /// A dynamic-extent row's reach is unbounded only upward: a span row
-    /// covers `length` bytes starting at `byte_offset` and a sequence row
-    /// touches the single byte `byte_offset + index`, so every byte the row
-    /// can touch lies at or after `byte_offset`. It still reaches this range
-    /// exactly while its fixed offset starts below the range's end; an
-    /// offset at or past the end is provably disjoint however far the reach
-    /// extends. A sequence row whose `index` resolves to a clean
-    /// `MaterializeI64` — the same carrier audit the covering routes run —
-    /// touches exactly that one byte wherever its payload base sits, so it
-    /// reaches this range only by landing inside it. When the dead extent
-    /// is itself dynamic — its own extent decider unresolved — an
-    /// unresolved row always meets it, and a resolved landing byte meets it
-    /// only at or past the fixed offset the dead extent starts at.
-    fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
-        if let SelectedMemoryAccessRole::ReadByteSequence { index, .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { index, .. } = access.role
-            && let Ok(landed) = constant_index(function, index)
-            && let Some(position) = u64::from(access.byte_offset).checked_add(landed)
-        {
-            let start = u64::from(self.byte_offset);
-            return if self.extent.dynamic() {
-                position >= start
-            } else {
-                position >= start && position < start + u64::from(self.byte_count)
-            };
+    /// The storage the dead bytes occupy as the shared subject storage.
+    fn subject_storage(&self) -> SubjectStorage {
+        match self.storage {
+            DeadStorage::Place => SubjectStorage::Place(self.place),
+            DeadStorage::Staging(slot) => SubjectStorage::Staging(slot),
         }
-        if self.extent.dynamic() {
-            return true;
-        }
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
     }
 }
 
@@ -389,7 +363,7 @@ pub(super) fn admit<'source>(
     // leaves the reach unbounded upward from `byte_offset`.
     match dead.extent {
         DeadExtent::SequenceByte(index) => {
-            if let Ok(landed) = constant_index(function, index)
+            if let Some(landed) = constant_index(function, index)
                 && let Some(position) = u64::from(dead.byte_offset).checked_add(landed)
                 && let Ok(position) = u32::try_from(position)
             {
@@ -399,7 +373,7 @@ pub(super) fn admit<'source>(
             }
         }
         DeadExtent::ByteSpan(length) => {
-            if let Ok(written) = constant_index(function, length)
+            if let Some(written) = constant_index(function, length)
                 && let Ok(count) = u32::try_from(written)
             {
                 dead.byte_count = count;
@@ -416,7 +390,9 @@ pub(super) fn admit<'source>(
     if packed {
         packed_store_shape(dead_store, function, environment)?;
     } else if direct_slot.is_some() {
-        local_store_shape(dead_store, environment)?;
+        local_store_shape(dead_store, environment, || {
+            DeadStoreEliminationError::ConstraintMismatch
+        })?;
     } else if byte_span {
         byte_span_store_shape(dead_store, write, function, environment)?;
     } else {
@@ -598,15 +574,7 @@ fn place_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    Ok(())
+    place_store_row_shape(row, || DeadStoreEliminationError::ConstraintMismatch)
 }
 
 /// The removed packed store carries the target's declared `store_packed`
@@ -627,17 +595,7 @@ fn packed_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 3
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || row.operands[2].operand != 2
-        || row.operands[2].access != RegisterOperandAccess::Def
-        || !row.operands[2].early_clobber
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
+    packed_store_row_shape(row, || DeadStoreEliminationError::ConstraintMismatch)?;
     if instruction.operands.len() != 3
         || instruction.operands[2].operand != 2
         || instruction.operands[2].access != RegisterOperandAccess::Def
@@ -645,32 +603,6 @@ fn packed_store_shape(
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     if !scratch_definition_is_dead(function, instruction.operands[2].virtual_register) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    Ok(())
-}
-
-/// The direct slot store's operand surface: the target's declared `store64`
-/// row — exactly `[use value]` — and the instruction carrying just that one
-/// use. Removing it removes no register definition, so no custody check like
-/// the packed scratch's is needed.
-fn local_store_shape(
-    instruction: &SelectedInstruction,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<(), DeadStoreEliminationError> {
-    if environment.selected_keys().store64 != Some(instruction.constraint) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let row = environment
-        .constraint(instruction.constraint)
-        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 1
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands.len() != 1
-        || instruction.operands[0].operand != 0
-        || instruction.operands[0].access != RegisterOperandAccess::Use
-    {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())
@@ -784,10 +716,7 @@ fn slot_is_dead_storage(
     dead: &Dead,
     structural_places: &[StructuralPlaceDeclaration],
 ) -> bool {
-    match dead.storage {
-        DeadStorage::Place => local_slot_is_place_storage(slot, dead.place, structural_places),
-        DeadStorage::Staging(dead_slot) => slot == dead_slot,
-    }
+    slot_is_subject_storage(slot, dead.subject_storage(), structural_places)
 }
 
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
@@ -885,29 +814,13 @@ fn interferes(
     structural_places: &[StructuralPlaceDeclaration],
     function: &SelectedFunction,
 ) -> bool {
-    match access.role {
-        SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
-            matches!(dead.storage, DeadStorage::Place)
-                && access.place == dead.place
-                && dead.intersects(access)
-        }
-        SelectedMemoryAccessRole::ReadByteSpan { .. }
-        | SelectedMemoryAccessRole::ReadByteSequence { .. }
-        | SelectedMemoryAccessRole::WriteByteSpan { .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
-            matches!(dead.storage, DeadStorage::Place)
-                && access.place == dead.place
-                && dead.reached_by(access, function)
-        }
-        SelectedMemoryAccessRole::WriteLocal { slot } => {
-            slot_is_dead_storage(slot, dead, structural_places) && dead.intersects(access)
-        }
-        SelectedMemoryAccessRole::AddressLocal { slot } => {
-            slot_is_dead_storage(slot, dead, structural_places)
-        }
-        SelectedMemoryAccessRole::WriteOutgoing { .. }
-        | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
-    }
+    extent_interferes(
+        dead.subject_extent(),
+        dead.subject_storage(),
+        access,
+        structural_places,
+        function,
+    )
 }
 
 /// The found access must be a write of the dead bytes' storage whose single
@@ -1032,10 +945,10 @@ fn covering_source(
             };
         }
         let dead_byte = u64::from(dead.byte_offset)
-            .checked_add(constant_index(function, index)?)
+            .checked_add(constant_index(function, index).ok_or_else(reject)?)
             .ok_or_else(reject)?;
         let written = u64::from(row.byte_offset)
-            .checked_add(constant_index(function, covering)?)
+            .checked_add(constant_index(function, covering).ok_or_else(reject)?)
             .ok_or_else(reject)?;
         return if written == dead_byte {
             Ok(())
@@ -1264,7 +1177,7 @@ fn byte_sequence_covering(
         return Err(reject());
     }
     place_store_shape(instruction, environment)?;
-    let landed = constant_index(function, index)?;
+    let landed = constant_index(function, index).ok_or_else(reject)?;
     // The write lands on one byte; the dead range is covered exactly when
     // it is that byte.
     if dead.byte_count != 1
@@ -1276,69 +1189,6 @@ fn byte_sequence_covering(
         return Err(reject());
     }
     Ok(())
-}
-
-/// The compile-time constant a byte-sequence row's `index` resolves to, when
-/// it does. The register carrying the `index` value is its sole
-/// `InstructionResult` carrier — the way the copy's count operand names the
-/// span's extent — so an `index` no instruction result carries (an entry or
-/// block parameter) has no producer to resolve, and two instruction results
-/// claiming one value make the constant ambiguous; both stay unproven. The
-/// carrier must then hold the function's one clean `MaterializeI64`
-/// definition and never be redefined by an edge transport or case payload
-/// the instruction audit cannot see — only then does `byte_offset + index`
-/// name a fixed position rather than a runtime-placed byte.
-fn constant_index(
-    function: &SelectedFunction,
-    index: semantic_vocabulary::ValueId,
-) -> Result<u64, DeadStoreEliminationError> {
-    let reject = || DeadStoreEliminationError::InterveningAccess;
-    let mut carriers = function.virtual_registers.iter().filter(|register| {
-        matches!(
-            register.origin,
-            VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == index
-        )
-    });
-    let carrier = carriers.next().ok_or_else(reject)?;
-    if carriers.next().is_some() {
-        return Err(reject());
-    }
-    let landed = materialized_bits(function, carrier.id).map_err(|_| reject())?;
-    if transport_defines(function, carrier.id) {
-        return Err(reject());
-    }
-    Ok(landed)
-}
-
-/// Whether an edge transport or case payload defines `register` — a
-/// definition the instruction-operand audit in `materialized_bits` cannot
-/// see, which would falsify the constant it reports for the count.
-fn transport_defines(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
-    for block in &function.blocks {
-        for successor in terminator_successors(&block.terminator) {
-            if successor.bindings.iter().any(|binding| {
-                matches!(
-                    binding.transport,
-                    SelectedValueTransport::Registers { parameter, .. } if parameter == register
-                )
-            }) {
-                return true;
-            }
-            if let Some(case) = &successor.structural_case
-                && case.payloads.iter().any(|payload| {
-                    matches!(
-                        payload.transport,
-                        SelectedCasePayloadTransport::Unmaterialized { parameter }
-                            | SelectedCasePayloadTransport::Registers { parameter, .. }
-                            if parameter == register
-                    )
-                })
-            {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// Calls, hosted effects, and terminator kinds are always barriers: they can
