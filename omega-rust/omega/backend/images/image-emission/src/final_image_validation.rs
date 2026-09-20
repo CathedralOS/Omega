@@ -264,6 +264,16 @@ fn validate_terminal_image_with_import_count(
                     artifact, object, text_bytes, symbol, offset, output,
                 )?
             }
+            super::hosted_unit_entry::EntryShim::LinuxUnit { symbol, offset } => {
+                super::hosted_unit_entry::validate_linux_x86_64(
+                    artifact, object, text_bytes, symbol, offset, output,
+                )?
+            }
+            super::hosted_unit_entry::EntryShim::LinuxArm64Unit { symbol, offset } => {
+                super::hosted_unit_entry::validate_linux_arm64(
+                    artifact, object, text_bytes, symbol, offset, output,
+                )?
+            }
         }
     }
     let evidence =

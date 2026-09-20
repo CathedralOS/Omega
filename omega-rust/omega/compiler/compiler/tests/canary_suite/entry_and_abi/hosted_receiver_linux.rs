@@ -358,6 +358,90 @@ machine Main::main(&mut self) reaches Console {
     eprintln!("SKIP: hosted receiver runtime requires Linux x86-64; source cross-emission checked");
 }
 
+/// A free Unit entry binds no service receiver, but the kernel still supplies
+/// no return continuation: the product-owned process adapter calls the semantic
+/// entry and completes through `exit_group` with status zero.
+#[test]
+fn linux_free_unit_entry_runs_and_completes_with_status_zero() {
+    let directory = unique_no_output_build_dir();
+    fs::create_dir(&directory).expect("create exclusively owned free-entry project");
+    let project = HostedProject(directory);
+    fs::write(
+        project.0.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.application(\"linux-free-unit-entry\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n}\n",
+    )
+    .expect("write free-entry binding");
+    fs::write(
+        project.0.join("main.omg"),
+        "data Main {\n    value: i32;\n}\n\nmachine Main::main(&mut self) {\n    self.value = 41;\n}\n",
+    )
+    .expect("write free Unit entry source");
+    let arm64_report = compile(CanaryCompileSpec {
+        root_path: project.0.join("main.omg"),
+        build_dir: Some(project.0.join("build-arm64")),
+        target_name: Some("linux_arm64".into()),
+        product: CanaryCompileProduct::NativeArtifact,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("free Unit entry must cross-produce its Linux ARM64 executable: {diagnostics:#?}")
+    });
+    let arm64_report = arm64_report
+        .publish_retained_native_artifact(&project.0.join("build-arm64"))
+        .expect("publish exact admitted ARM64 native artifact");
+    let arm64_executable = arm64_report
+        .checked_native_executable_path()
+        .expect("exact ARM64 executable publication receipt");
+    let arm64_bytes = fs::read(arm64_executable).expect("read published ARM64 ELF");
+    assert_eq!(
+        arm64_bytes.get(..4),
+        Some([0x7f, 0x45, 0x4c, 0x46].as_slice()),
+        "the published free-entry ARM64 artifact must be an ELF image"
+    );
+    assert_eq!(
+        u16::from_le_bytes([arm64_bytes[18], arm64_bytes[19]]),
+        183,
+        "the published free-entry ARM64 artifact must declare the AArch64 machine"
+    );
+    let report = compile(CanaryCompileSpec {
+        root_path: project.0.join("main.omg"),
+        build_dir: Some(project.0.join("build")),
+        target_name: Some("linux_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifact,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("free Unit entry must produce its executable: {diagnostics:#?}")
+    });
+    let report = report
+        .publish_retained_native_artifact(&project.0.join("build"))
+        .expect("publish exact admitted native artifact");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("exact executable publication receipt");
+    let bytes = fs::read(executable).expect("read published ELF");
+    assert_eq!(
+        bytes.get(..4),
+        Some([0x7f, 0x45, 0x4c, 0x46].as_slice()),
+        "the published free-entry artifact must be an ELF image"
+    );
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        // Execute the published bytes: without the adapter the ELF entry would
+        // return into no continuation and fault.
+        let output = Command::new(executable)
+            .output()
+            .expect("execute free Unit entry process");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "unexpected process completion: {output:?}"
+        );
+        assert!(output.stderr.is_empty(), "unexpected stderr: {output:?}");
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    eprintln!("SKIP: free Unit entry runtime requires Linux x86-64; source cross-emission checked");
+}
+
 #[test]
 fn linux_hosted_receiver_normal_return_provisions_zii_storage_and_fused_console() {
     compile_and_run_linux_hosted_receiver(false, true);
