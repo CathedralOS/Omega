@@ -754,16 +754,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization. One bounded family exists in
   `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`:
-  a `StructuralCaseMembership` reading a place established in the same
-  machine by `EstablishScalarCase` folds to a `BooleanConstant` carrying
-  the establishment's proven verdict, with separate proposal, validation
-  and application. `lib.rs` exports it, but it has no `PSI_PASS_CATALOG`
-  entry, selection name, or caller outside its tests. It declines
-  memberships on non-`OperationResult` places, non-empty source paths,
-  producers other than `EstablishScalarCase`, and machines holding cyclic
-  components. Field relevance on `EstablishRecord` results still lacks
-  operand-substitution machinery, and no invariant-window operation
-  reaches this stage yet.
+  a `StructuralCaseMembership` reading a place whose case the unit itself
+  proves — established in the same machine by `EstablishScalarCase`, or
+  declared under a closed `Sum`/`Mixed` roster of exactly one case — folds
+  to a `BooleanConstant` carrying the proven verdict, with separate
+  proposal, validation and application. The roster basis covers places no
+  producer can fix (parameters, block parameters, results, and
+  non-`EstablishScalarCase` operation results). `lib.rs` exports it, but it
+  has no `PSI_PASS_CATALOG` entry, selection name, or caller outside its
+  tests. It declines memberships on places carrying neither proof —
+  multi-case rosters without an establishment — non-empty source paths, and
+  machines holding cyclic components. Field relevance on `EstablishRecord`
+  results still lacks operand-substitution machinery, and no
+  invariant-window operation reaches this stage yet.
   Acceptance: a source-produced machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently, with forged or stale membership provenance behaving as

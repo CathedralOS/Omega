@@ -9,8 +9,8 @@
 //! its recomputed unit identity differ.
 
 use super::super::{
-    CaseMembershipSpecializationError, EstablishedCasePlan, O, PsiOptimizationFunction,
-    PsiOptimizationUnit, ResolvedCaseMembership, ScalarType,
+    CaseMembershipPlan, CaseMembershipSpecializationError, O, PsiOptimizationFunction,
+    PsiOptimizationUnit, ResolvedCaseMembership, ScalarType, propose,
     recompute_psi_optimization_unit_identity,
 };
 use optimization_unit::{OptimizationFact, OptimizationNode, PsiProvenance};
@@ -24,6 +24,7 @@ use std::collections::BTreeMap;
 pub(crate) fn folded_node(
     row: &ResolvedCaseMembership,
     function: &PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
 ) -> Result<OptimizationNode, CaseMembershipSpecializationError> {
     let node = node_at(function, row)?;
     let O::StructuralCaseMembership {
@@ -43,40 +44,57 @@ pub(crate) fn folded_node(
         || *source != row.source
         || !path.is_empty()
         || *case != row.observed_case
-        || row.outcome != (row.established_case == row.observed_case)
+        || row.outcome != (row.proven_case == row.observed_case)
     {
         return Err(CaseMembershipSpecializationError::CandidateMismatch);
     }
-    // The claimed producer must be the place's declared operation-result
-    // producer and an `EstablishScalarCase` fixing the claimed case.
-    let declared_producer = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == row.source)
-        .and_then(|declaration| match declaration.kind {
-            StructuralPlaceKind::OperationResult { producer, .. } => Some(producer),
-            _ => None,
-        });
-    if declared_producer != Some(row.producer)
-        || !function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|candidate| {
-                matches!(
-                    &candidate.operation,
-                    O::EstablishScalarCase {
-                        psi_operation,
-                        result,
-                        result_case,
-                        ..
-                    } if *psi_operation == row.producer
-                        && result.place == row.source
-                        && *result_case == row.established_case
-                )
-            })
-    {
-        return Err(CaseMembershipSpecializationError::CandidateMismatch);
+    match row.producer {
+        // The claimed producer must be the place's declared operation-result
+        // producer and an `EstablishScalarCase` fixing the claimed case.
+        Some(producer) => {
+            let declared_producer = function
+                .structural_places
+                .iter()
+                .find(|declaration| declaration.id == row.source)
+                .and_then(|declaration| match declaration.kind {
+                    StructuralPlaceKind::OperationResult { producer, .. } => Some(producer),
+                    _ => None,
+                });
+            if declared_producer != Some(producer)
+                || !function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|candidate| {
+                        matches!(
+                            &candidate.operation,
+                            O::EstablishScalarCase {
+                                psi_operation,
+                                result,
+                                result_case,
+                                ..
+                            } if *psi_operation == producer
+                                && result.place == row.source
+                                && *result_case == row.proven_case
+                        )
+                    })
+            {
+                return Err(CaseMembershipSpecializationError::CandidateMismatch);
+            }
+        }
+        // With no producer claim, the place's declared type must itself be a
+        // closed roster of exactly the claimed case.
+        None => {
+            let declaration = function
+                .structural_places
+                .iter()
+                .find(|declaration| declaration.id == row.source);
+            if declaration.and_then(|declaration| propose::sole_case(unit, function, declaration))
+                != Some(row.proven_case)
+            {
+                return Err(CaseMembershipSpecializationError::CandidateMismatch);
+            }
+        }
     }
     let operation = O::BooleanConstant {
         psi_operation: *psi_operation,
@@ -123,7 +141,7 @@ fn node_at<'a>(
 
 pub(crate) fn realize(
     unit: &PsiOptimizationUnit,
-    plan: &EstablishedCasePlan,
+    plan: &CaseMembershipPlan,
 ) -> Result<PsiOptimizationUnit, CaseMembershipSpecializationError> {
     let input_function = unit
         .functions
@@ -135,7 +153,7 @@ pub(crate) fn realize(
     let folded = plan
         .memberships
         .iter()
-        .map(|row| folded_node(row, input_function).map(|node| (row.site, node)))
+        .map(|row| folded_node(row, input_function, unit).map(|node| (row.site, node)))
         .collect::<Result<Vec<_>, CaseMembershipSpecializationError>>()?;
     let mut output = unit.clone();
     let function = output
@@ -172,7 +190,7 @@ pub(crate) fn realize(
 /// independent custody walk share this reconstruction.
 pub(crate) fn refresh_facts(
     function: &mut PsiOptimizationFunction,
-    plan: &EstablishedCasePlan,
+    plan: &CaseMembershipPlan,
 ) -> Result<(), CaseMembershipSpecializationError> {
     let folded = plan
         .memberships

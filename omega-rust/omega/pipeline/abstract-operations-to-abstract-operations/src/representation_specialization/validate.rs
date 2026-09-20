@@ -10,12 +10,11 @@
 //! unit is re-validated.
 
 use super::{
-    CaseMembershipSpecializationCandidate, CaseMembershipSpecializationError, EstablishedCasePlan,
+    CaseMembershipPlan, CaseMembershipSpecializationCandidate, CaseMembershipSpecializationError,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite,
     ValidatedCaseMembershipSpecialization, VerifiedPsiOptimizationSession, apply,
     candidate_identity, propose,
 };
-use semantic_vocabulary::StructuralPlaceKind;
 
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
@@ -41,16 +40,7 @@ pub(super) fn candidate(
         .iter()
         .find(|function| function.machine == candidate.machine)
         .ok_or(CaseMembershipSpecializationError::UnknownPlace)?;
-    let producer = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == candidate.place)
-        .and_then(|declaration| match declaration.kind {
-            StructuralPlaceKind::OperationResult { producer, .. } => Some(producer),
-            _ => None,
-        })
-        .ok_or(CaseMembershipSpecializationError::UnknownPlace)?;
-    let Some(plan) = propose::plan(function, candidate.place, producer) else {
+    let Some(plan) = propose::plan(unit, function, candidate.place) else {
         return Err(CaseMembershipSpecializationError::UnknownPlace);
     };
     if plan.memberships.is_empty() {
@@ -95,7 +85,7 @@ pub(super) fn candidate(
 fn reconstruct_provenance(
     input: &PsiOptimizationUnit,
     output: &PsiOptimizationUnit,
-    plan: &EstablishedCasePlan,
+    plan: &CaseMembershipPlan,
 ) -> Result<Vec<ProvenanceRewrite>, CaseMembershipSpecializationError> {
     let machine = plan.machine;
     let input_function = input
@@ -124,7 +114,7 @@ fn reconstruct_provenance(
                 node: row.site.node,
             });
         };
-        *slot = apply::folded_node(row, input_function)?;
+        *slot = apply::folded_node(row, input_function, input)?;
     }
     apply::refresh_facts(&mut expected_function, plan)?;
     if *output_function != expected_function {
