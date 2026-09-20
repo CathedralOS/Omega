@@ -97,10 +97,15 @@
 //! checked empty elimination. The checked correlated unsigned subtraction bound
 //! applies fixed self-subtraction and nonstrict right-antitonicity laws to
 //! derive nonnegativity; closed instances use binary order or contradictory
-//! premise elimination. Correlated addition bounds with an open right addend
-//! apply fixed addition monotonicity and subtraction cancellation; exact SSA
-//! root and carrier-endpoint equalities use endpoint transport. Closed right addends retain
-//! the instance fallback rather than assuming numeral-operation conversion.
+//! premise elimination. Correlated addition bounds apply fixed addition
+//! monotonicity and subtraction cancellation while the sum and difference
+//! stay unreduced; exact SSA root and carrier-endpoint equalities use
+//! endpoint transport. A conclusion whose endpoints both evaluate denotes
+//! `IntLe` between canonical constants: the binary numeral laws decide a
+//! strict relation, `refl` an equal one, and empty elimination discharges a
+//! false relation under a checked false premise. Open sums over a closed
+//! difference still retain the instance fallback rather than assuming
+//! numeral-operation conversion.
 //! Other witness-bearing bound rules, multiple-equation
 //! or nested transports and denotation-conversion instances outside the
 //! supported `Int` vocabulary denote a *rule-instance decision*: an assumption constant whose type

@@ -165,7 +165,7 @@ impl Denotation {
 
     /// `forall x : Int, IntLt x x -> Empty`. This is an explicit fixed
     /// order assumption, not a new trusted inference or a numeral decision.
-    fn irreflexive(
+    pub(super) fn irreflexive(
         &mut self,
         value: TermHandle,
         evidence: TermHandle,
