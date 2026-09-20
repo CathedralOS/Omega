@@ -6146,7 +6146,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
-- **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; verify scope then implement.
+- **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
+  `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
+  (TASKS.md:1071 — "first refusing emission stage remains attached-Unit
+  closure"). Two concrete gaps: (a) a bodied `boundary machine` carries no
+  boundary plan when called by a unit caller, and (b) scalar-returning
+  `BoundaryScalarCall` has no state-graph custody admission, so the handoff
+  legs each own one firmware call and land the status on the legs record
+  instead of expressing it in the unit state graph. Witness:
+  `native_uefi_os_handoff_invocation_reports_missing_boundary_plan` still
+  passes (the refusal is pinned, not fixed) — it becomes the PE32+ emission
+  assertion once bodied boundary machines lower as callees, per its
+  comment. Next acceptance lives inside UEFI-OS-HANDOFF's lane ("lower
+  bodied boundary machines as callees, or admit boundary scalar results to
+  unit edges, then emit the cycle"); that item plus the adjacent boundary
+  surfaces are under live claims (UEFI-OS-HANDOFF until 20:00Z,
+  UEFI-PHYSICAL-SEMANTIC-ENTRY 22:59Z, OPAQUE-BY-VALUE-BOUNDARY-ABI and
+  TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
+  landable from this row.
 - **BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS.** Done: free Unit entries now emit process adapters on linux_x86_64 (`call` + exit_group(231)) and linux_arm64 (`bl` + exit_group(94)) — previously `hosted_unit_entry::prepare` returned `Ok(None)`, leaving ELF `e_entry` pointing at a semantic function that `ret`s into no kernel continuation (process faults). Final-image validation decodes the adapter and checks e_entry→file-bytes round-trip for both targets. Witness: `linux_free_unit_entry_runs_and_completes_with_status_zero` compiles, publishes, and executes the emitted ELF to exit 0 on linux/x86-64; linux_arm64 cross-emission validated on-host (no QEMU harness). Host acceptance on macOS/Windows/QEMU remains a host leg.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
