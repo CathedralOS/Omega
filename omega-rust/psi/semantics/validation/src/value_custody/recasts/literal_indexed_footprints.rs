@@ -80,6 +80,7 @@ pub fn validate_literal_indexed_recast_footprint(
         machine,
         state,
         cast,
+        initializer,
         *referee,
         access.is_exclusive(),
         &mut diagnostics,
