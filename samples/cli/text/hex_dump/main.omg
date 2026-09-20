@@ -1,0 +1,167 @@
+// Hex dump -- renders a fixed 16-byte record as one canonical dump line:
+// offset, sixteen lowercase hex pairs, then an ASCII gutter that maps every
+// byte outside 32..126 to '.'. Bytes are streamed through Console::write_byte
+// (a raw byte write into a Utf8 carrier cannot be proven valid UTF-8, so the
+// sample assembles no text carrier). Exercises nibble extraction, a computed
+// byte writer, and a printable-classification branch -- a text-shaping
+// workload the corpus did not hold.
+// Expected exit: 0.
+// Expected output contains: 4f 6d 65 00
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 16]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console>;
+    data: [u8; 16] in Utf8;
+    // Counters are `in Wrapping`: increments are defined arithmetic; the index
+    // uses stay bounded by the `i < 16` loop guards.
+    i: i32 in Wrapping;
+    b: u8;
+    bw: u32 in Wrapping;
+    hi: u32 in Wrapping;
+    lo: u32 in Wrapping;
+    chi: i32;
+    pause: [u8; 256];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
+    self.console.write("0000: ");
+    self.data = "Omega PCC tape!!";
+    self.data[3] = 0;
+    self.data[9] = 127;
+    self.i = 0;
+    transition {
+        _ -> hex_loop()
+    }
+
+    state hex_loop(&mut self) {
+        transition self.i < 16 {
+            true -> read_byte()
+            _ -> gutter_start()
+        }
+    }
+
+    state read_byte(&mut self) {
+        self.b = self.data[self.i];
+        self.bw = widen_u8_to_u32(self.b) as u32 in Wrapping;
+        self.hi = self.bw / 16;
+        self.lo = self.bw - (self.hi * 16);
+        transition {
+            _ -> hi_digit()
+        }
+    }
+
+    state hi_digit(&mut self) {
+        transition self.hi < 10 {
+            true -> hi_num()
+            _ -> hi_alpha()
+        }
+    }
+
+    state hi_num(&mut self) {
+        self.chi = narrow_u32_to_i32_trapping((self.hi + 48) as u32);
+        transition {
+            _ -> write_hi()
+        }
+    }
+
+    state hi_alpha(&mut self) {
+        self.chi = narrow_u32_to_i32_trapping((self.hi + 87) as u32);
+        transition {
+            _ -> write_hi()
+        }
+    }
+
+    state write_hi(&mut self) {
+        self.console.write_byte(self.chi);
+        transition {
+            _ -> lo_digit()
+        }
+    }
+
+    state lo_digit(&mut self) {
+        transition self.lo < 10 {
+            true -> lo_num()
+            _ -> lo_alpha()
+        }
+    }
+
+    state lo_num(&mut self) {
+        self.chi = narrow_u32_to_i32_trapping((self.lo + 48) as u32);
+        transition {
+            _ -> write_lo()
+        }
+    }
+
+    state lo_alpha(&mut self) {
+        self.chi = narrow_u32_to_i32_trapping((self.lo + 87) as u32);
+        transition {
+            _ -> write_lo()
+        }
+    }
+
+    state write_lo(&mut self) {
+        self.console.write_byte(self.chi);
+        self.console.write_byte(32);
+        self.i = self.i + 1;
+        transition {
+            _ -> hex_loop()
+        }
+    }
+
+    state gutter_start(&mut self) {
+        self.console.write(" ");
+        self.i = 0;
+        transition {
+            _ -> gutter_loop()
+        }
+    }
+
+    state gutter_loop(&mut self) {
+        transition self.i < 16 {
+            true -> read_glyph()
+            _ -> finish()
+        }
+    }
+
+    state read_glyph(&mut self) {
+        self.b = self.data[self.i];
+        self.bw = widen_u8_to_u32(self.b) as u32 in Wrapping;
+        transition self.bw >= 32 && self.bw < 127 {
+            true -> keep_glyph()
+            _ -> dot_glyph()
+        }
+    }
+
+    state keep_glyph(&mut self) {
+        self.console.write_byte(self.b as i32);
+        self.i = self.i + 1;
+        transition {
+            _ -> gutter_loop()
+        }
+    }
+
+    state dot_glyph(&mut self) {
+        self.console.write_byte(46);
+        self.i = self.i + 1;
+        transition {
+            _ -> gutter_loop()
+        }
+    }
+
+    state finish(&mut self) {
+        self.console.write_line("");
+        self.console.write_line("[press Enter to close]");
+        _ = block self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
+}
