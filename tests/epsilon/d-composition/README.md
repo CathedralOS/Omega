@@ -61,7 +61,7 @@ host running concurrent bootstrap work; these are host measurements, not
 bounds.
 
 The seventh customer is the complete-D composition: the whole bound
-559,153-byte packed D closure (`5278fc30…`) plus this gate's own
+567,279-byte packed D closure (`6930d7c3…`) plus this gate's own
 [`main.epsilon`](main.epsilon), which reads the sealed stdin section through
 `Console.read_byte`, calls D's actual `OmegaScalarCompiler::compile` on the
 [`program.omg`](program.omg) source (`machine answer() -> u8 { 42 }`,

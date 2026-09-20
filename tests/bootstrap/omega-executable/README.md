@@ -59,7 +59,11 @@ accepts ordinary nullary free machines returning a `u8` terminal expression:
 unsuffixed nonnegative decimal literals without digit separators joined by the
 `+ - * / % << >> & | ^` binary operators and the `~` bitwise-complement
 prefix, folded under the default Exact policy so every intermediate node
-must stay representable in `u8`. It checks every
+must stay representable in `u8`; plus `true`/`false` literals and the
+`==`/`!=`/`<`/`<=`/`>`/`>=`/`&&`/`||`/`!` operators folding to a Boolean
+carrier class that transition subjects consume — a class-mismatched operand
+is a carrier-class rejection and a Boolean at the `u8` terminal stays a
+coverage refusal. It checks every
 admitted declaration, detects duplicate names,
 resolves an explicitly supplied entry name, checks the result range before
 emission, and uses the shared encoder's labels, call/return and finalization.
@@ -111,28 +115,34 @@ sh tests/bootstrap/omega-executable/run.sh --controls-e
 sh tests/bootstrap/omega-executable/run.sh --controls-f
 sh tests/bootstrap/omega-executable/run.sh --controls-g
 sh tests/bootstrap/omega-executable/run.sh --controls-h
+sh tests/bootstrap/omega-executable/run.sh --controls-i
 ```
 
-The ordinary Epsilon controls reuse one compiler across sixty-six
+The ordinary Epsilon controls reuse one compiler across seventy-five
 invocations split among [controls.epsilon](controls.epsilon),
 [controls_b.epsilon](controls_b.epsilon),
 [controls_c.epsilon](controls_c.epsilon),
 [controls_d.epsilon](controls_d.epsilon),
 [controls_e.epsilon](controls_e.epsilon),
 [controls_f.epsilon](controls_f.epsilon),
-[controls_g.epsilon](controls_g.epsilon), and
-[controls_h.epsilon](controls_h.epsilon): zero and maximum byte results,
+[controls_g.epsilon](controls_g.epsilon),
+[controls_h.epsilon](controls_h.epsilon), and
+[controls_i.epsilon](controls_i.epsilon): zero and maximum byte results,
 folded arithmetic, bitwise and shift operations with precedence and grouping,
 multiple declarations and selection of a non-first entry, duplicate names,
 missing entry, out-of-range and oversized decimal values, an out-of-range
 expression operand, overflow, underflow, division and modulo by zero,
 out-of-width and overflowing shifts, an invalid unselected body, unsupported
-comparison, path, `!`/`-` unary, and other expressions and return types, a
+path, `-` unary, and other expressions and return types, a
 named-state-only machine, digit separators, malformed syntax, and successful
 reuse after failures; then checked control flow: call statements and grouped
 terminal calls between machines with exact emitted-tape assertions,
-subjectless and literal-subject transitions into authored states, a
-forward-declared callee, machine-scoped state resolution, unresolved call
+subjectless and literal-subject transitions into authored states, folded
+Boolean subjects through the comparison, logical, and `!` operators, a
+folded Boolean refused at the `u8` terminal, carrier-class rejections at
+operators (`&&` on u8 operands, `<` against a Boolean, `!` on a u8, `==`
+across classes), a forward-declared callee, machine-scoped state
+resolution, unresolved call
 and state targets, call and transition arity mismatches, an empty authored
 state, an unmatched subject, duplicate authored state names, an unreachable
 statement after a transition block, receiver and `self` call paths, a
@@ -146,28 +156,29 @@ The split is an evaluator-run boundary, not a compiler one: each invocation
 is a fresh evaluation. It predates the V5 pair-arena growth — the retired
 40,265,318-node arena, refused with status 252, could not retain even an
 eighteen-invocation half of the matrix — and remains the bounded evaluated
-form. Each part carries seven or fewer controls and ends with the same
+form. Each part carries a bounded run of controls and ends with the same
 `20 + 22` success compile, byte `67`, and tape publication, so every run
 checks the same observation and executes the same emitted program.
 
 ## Bound customer entries
 
 Every entry the harness may select is bound: `main_ocreq.epsilon`,
-`main.epsilon`, and the eight controls files are gate-local inputs packed on
+`main.epsilon`, and the nine controls files are gate-local inputs packed on
 top of the bound member closure, never part of the manifested members.
 
 | Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
 | --- | ---: | --- | ---: | --- |
-| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 560,910 | `bc7b11ffb321aaab3a2a81b19c89288c0c6b30a3e5432e19efc44caa75927992` |
-| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 578,406 | `f1ba2ea384e4f6f264d4cfe15052fc3d8412a981f9eee1542b46596714a6dae7` |
-| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 562,784 | `f7598fc60621df7d115d61d7fadb23cdbbafa5e41a176b15fc1ffeff3c5f1914` |
-| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 562,237 | `20ab420819bda1cc2b3bee2feb95b44a057274f8b724723a25eac7318e2ef4f1` |
-| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 561,977 | `7b97fad5b22f1b6ac38673946c63892315ef46e101867e5f8e19f885399e67ed` |
-| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 562,003 | `c8d2cdbe21d472b81327d383b6850738d6cd920f605ca3fdebe8b2b1a18fa488` |
-| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 561,950 | `16b20dbbb30647f41f749d341a5d0875ce0048d7c6d270ff1862747b0aab77d9` |
-| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 563,578 | `e3b53686807708356950b719205994348be223110563c40508db7087c3eaec3a` |
-| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 562,280 | `199ceaae8285898d7cbd38deff6ec0e761e0d2b8a0d7329e7ffdeb32c9c29dea` |
-| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 562,346 | `05d9b92950c61a67104b75851838b7fe37dd3f9d841fc894c20d52b7b83d0d5e` |
+| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 569,036 | `a35ab2ddddca0f5692f303a069c5400f08b86148be8b797c952e8742a693fffc` |
+| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 586,532 | `6bc40bdf882e3a3c6242028f81f4fcd29ddfda3207886f993c5d1367b0a19e5f` |
+| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 570,910 | `813a649ed9c64921b404690444b7fcae82aa764242d6a6636453f53304d72c33` |
+| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 570,363 | `9839a4556b90f82ac4ff7dd969b42b910dccf72b5afb0453aafb070dc5488bf6` |
+| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 570,103 | `8ebb23ec5ab1f4dbe2180ef70251d967b1e47e51768e3aab3f1b3f2aff7cb7a7` |
+| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 570,129 | `b0558766da24c13106a7084df7b092a950e7f16034cc4a41fa9922416b1c804c` |
+| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 570,076 | `cfb3c47f576c2936cdbe7f3fbf11c6077239b6d7ae4039f577d834b84d44a9bf` |
+| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 571,704 | `a58347d569295cff0f1c0dad0e01d5390792e030e940837ff0395116a5ea70a2` |
+| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 570,406 | `9ba61363a847c1a7ffb717f87cff26b09759bce99a37419f09e38a4e7b9dc2b2` |
+| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 570,472 | `19034eb61e2660152ba7836c5882e77110794187a1a5df6f056522b9673d7cad` |
+| `controls_i.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` | 571,740 | `f59c7735f23bd7bd8bb8fee4c9adfc83a2e2e925f4ae65ad0f2ace3e43ecbdc9` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and
