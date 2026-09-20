@@ -234,6 +234,9 @@ pub(crate) fn derive_root_service_reach(
                 | O::CallDynamicUnit {
                     dynamic_dispatch, ..
                 } => pending.push(dynamic_dispatch.dispatch.realization),
+                O::CallStoredDynamicScalar {
+                    dynamic_dispatch, ..
+                } => pending.push(dynamic_dispatch.dispatch.realization),
                 O::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         OptimizationUnitValidationError::OperationServiceContractMismatch {
