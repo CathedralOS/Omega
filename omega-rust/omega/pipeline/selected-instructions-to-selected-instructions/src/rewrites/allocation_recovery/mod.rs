@@ -13,6 +13,8 @@ mod tests;
 
 use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationPhaseSelections};
 
+use super::catalog::selected_stage_catalog_contains;
+
 pub use catalog::*;
 pub use fixed_view_copy::*;
 pub use pressure_rematerialization::*;
@@ -28,9 +30,10 @@ pub fn selected_allocation_recovery_rule(
     match phase.as_slice() {
         [] => Ok(None),
         [selected]
-            if ALLOCATION_RECOVERY_RULE_CATALOG
-                .iter()
-                .any(|entry| entry.optimization() == *selected) =>
+            if selected_stage_catalog_contains(
+                OptimizationExecutionPhase::AllocationRecovery,
+                *selected,
+            ) =>
         {
             Ok(Some(*selected))
         }

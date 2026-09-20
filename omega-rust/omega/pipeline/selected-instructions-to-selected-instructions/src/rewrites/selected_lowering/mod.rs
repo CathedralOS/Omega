@@ -14,6 +14,8 @@ use optimization_core::{
     OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
 };
 
+use super::catalog::selected_stage_catalog_contains;
+
 pub use catalog::*;
 pub use literal_fold::*;
 
@@ -32,9 +34,7 @@ pub fn resolve_selected_lowering_rules(
         return Err(SelectedLoweringRuleCatalogError::MissingSelection);
     }
     if let Some(unsupported) = phase.as_slice().iter().find(|selected| {
-        !SELECTED_LOWERING_RULE_CATALOG
-            .iter()
-            .any(|entry| entry.optimization() == **selected)
+        !selected_stage_catalog_contains(OptimizationExecutionPhase::SelectedLowering, **selected)
     }) {
         return Err(SelectedLoweringRuleCatalogError::UnsupportedSelection(
             *unsupported,
