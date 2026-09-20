@@ -7053,7 +7053,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TEST-CYCLE-SELECTION-REMEASUREMENT** — mined candidate; verify scope then implement.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — mined candidate; verify scope then implement.
 - **TRANSFORM-CODEC-RELOCATION** — mined candidate; verify scope then implement.
-- **TRANSLATION-VALIDATION** — mined candidate; verify scope then implement.
+- **TRANSLATION-VALIDATION** — verified `fcef01c59a`: duplicate pointer to the
+  live `**TRANSLATION-VALIDATION.**` item in TASKS_OPTIMIZER.md, which now
+  carries the verified frontier. Scope findings: `CallDynamic*` and the
+  non-FMA/non-integer-compare intrinsics produce no coverage occurrences yet
+  (a new occurrence replay family must precede span arms; `physical/` is
+  fenced by DYNAMIC-CALL-OCCURRENCE-SPANS this wave), the hosted-builtin
+  settlement catalog is complete against the closed three-variant
+  `CompilerBuiltinExecution`, privileged port effects are implemented, and
+  general calls remain blocked on FRAME-LAYOUT. Row consumed — the item stays
+  on the optimizer board.
 - **TRANSPARENT-TRAIT-REFINEMENTS** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.

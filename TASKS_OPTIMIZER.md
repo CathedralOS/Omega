@@ -189,8 +189,21 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     provenance-attributed byte interval when the realization carries a
     `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
     descriptor or parameter ordinals rather than a static callee, and
-    the remaining intrinsic kinds have no span arm, so those occurrences
-    remain named gap subjects. Regressions:
+    the remaining intrinsic kinds have no span arm. Verified
+    (w9, `fcef01c59a`): those operations do not produce coverage
+    occurrences at all yet — the checked boundary-operator replay
+    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
+    admits only IEEE FMA, structural returns, and float/integer
+    comparisons — so the first work is a new occurrence replay family
+    with demand/realization companions; only then do span arms join the
+    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
+    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
+    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
+    Descriptor-materializing records additionally need relocation custody
+    beyond the single window `derive_span` models (AArch64 table
+    addressing emits two windows) plus a conformance-table symbol join;
+    parameter-routed calls are register-indirect. `physical/` is fenced
+    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Regressions:
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection;
@@ -203,15 +216,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     one row declares the builtin's supported targets, admitted
     scalar-argument forms, and result custody for the shared
     `derive_hosted_builtin_child` span join — then the admitted-provider
-    settlement, then the normalized foreign call. A fourth hosted builtin
-    is one catalog row, not a new derivation. Any other builtin, and any
-    occurrence carrying neither an installed settlement nor a foreign call,
-    yields no evidence.
-  - Privileged port effects. Every retained effect must be consumed by an
-    exact `MetadataOnlyPort` settlement join; one unowned effect drops the
-    artifact's evidence.
+    settlement, then the normalized foreign call. The catalog is complete
+    against the closed three-variant `CompilerBuiltinExecution`; a fourth
+    hosted builtin is one enum variant plus one catalog row, not standing
+    work. Any other builtin, and any occurrence carrying neither an
+    installed settlement nor a foreign call, yields no evidence.
+  - Privileged port effects. Implemented: every retained effect must be
+    consumed by an exact `MetadataOnlyPort` settlement join; one unowned
+    effect drops the artifact's evidence as an `UnownedPortEffect` gap.
   - General calls wait on `FRAME-LAYOUT`, itself blocked on a contract for
-    runtime-sized activation storage.
+    runtime-sized activation storage. That contract now verifies as
+    held-by-construction (RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT
+    resolution), so FRAME-LAYOUT's remaining blocker is its own scope.
 
   Acceptance: a program whose occurrences include a realization outside those
   arms publishes complete physical evidence binding each surviving occurrence
