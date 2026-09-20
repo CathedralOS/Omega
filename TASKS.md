@@ -10783,6 +10783,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   time. No independent slice exists here. Sibling re-mines of the same
   surface: MATHEMATICAL-PREDICATE-PARAMETERS, MATHEMATICAL-FOUNDATIONS-REAL,
   MATH-PROOFS-CALL-SELECTION-OCCURRENCE, MATH-PROOFS-DECLARATION-SELECTION.
+- **MATHEMATICAL-FOUNDATIONS-REAL.** Mined candidate — resolved as a
+  sibling re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's recorded
+  surface (chapter 14's mathematical-predicate gap): the "general route"
+  is PROOF-CONTRACT-MIGRATION's connected implementation, with the kernel
+  substrate under a live PROOF-KERNEL-CORE claim and the bindings leg
+  under MATH-FOUNDATION-BINDINGS (both live at verification time,
+  `7176821bc6`). No independent slice exists here; `wiki/spec/proofs/
+  mathematical_bindings.md` claimed cleanly (unused, released).
 - **TRANSFORM-CODEC-RELOCATION** — verified 54984323b2: duplicate of the
   live **DURABLE-CODEC-RELOCATION.** item (TASKS.md:6530), which already
   carries the verified three-site scope (`post_allocation_manifest/codec`,
