@@ -7005,7 +7005,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOST-EXECUTION** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-EXECUTION** — recorded at
+  `wiki/drafts/rc_native_matrix_host_execution.md` (revision 4dbdaa9bc3,
+  linux-x86_64): 558 pass / 112 fail / 1 expected skip across 670 legs of
+  omega-native-differential-test in ~1695 s; two binaries (pipeline_ownership,
+  abstract_publication) do not compile at this revision and are excluded
+  under sibling fences. Failures reduce to the Service<R>-carrier spelling,
+  checked-body exact-arithmetic/service-reach obligations, the
+  omega_language_std → platform shim rename, proof-decode fingerprint drift,
+  natural-writer fuel expectations, ProgramEntry receiver provisioning, and
+  one pinned terminal-bytes drift. Re-run when those families close.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
