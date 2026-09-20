@@ -40,11 +40,14 @@
 //! guarantee must hold wherever the extension reads the register, not only
 //! at one definition site.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the copy constructor. Validation re-derives the pair from the source,
-//! requires the proposed instruction to equal the reconstructed copy, and
-//! restores the complete source by content: every other instruction, register,
-//! roster row, call, and settlement is retained bit-identical.
+//! Validation shares nothing with the producer's `admission` routine. It
+//! re-derives the pair's legality from the source records — the extension
+//! form, the operand and constraint shapes, the result register's origin, the
+//! input's unique producer and its promised normalization, the identity table,
+//! and the target's copy row — requires the proposed function to equal the one
+//! the contract demands, and restores the complete source by content: every
+//! other instruction, register, roster row, call, and settlement is retained
+//! bit-identical.
 
 mod admission;
 mod rewrite;
