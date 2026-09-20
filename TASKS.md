@@ -523,6 +523,19 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     product checked instance, never its build copy; bare queries retain the
     same-package product frontier. Source names and evaluator table indices
     are not durable selection authority.
+  - Execute static `select_provider` under exact original-Build authority,
+    including ordinary helpers and expression calls; root-syntax harvesting
+    must not apply unexecuted or lookalike selections. Reuse the interpreter's
+    root-binding/behavior-exclusion receipt route and the existing declaration
+    converter; preserve separate target-default admission. Resolve operands in
+    the authorized product occurrence, not the host build namespace.
+  - Migrate nominal provider-path projection atomically across
+    `provider-planning/.../plan_derivation.rs`, selection/replay readers, and
+    `checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs`.
+    Explicit selection uses canonical provider paths, while the retained plan
+    and Terminal candidate still share their older provider spelling. Keep
+    exact provider-symbol grouping, package custody and callable identities;
+    changing only one projection breaks native installation.
   - Extend the existing provider/description owners, retaining the
     [separate checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts) and using
     BUILD-ADMISSION-CHECKPOINT for source custody.
@@ -541,6 +554,15 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   native tests alongside returned-forgery and expression-checking negatives in
   the foreign-helper module, including computed receivers, named lifetimes,
   retained parent loans, and conflicting later-operand accesses.
+  Preserve `qualified_provider_selection.rs` as the module-identity regression:
+  its native Console-forwarding case must exit 11/37 for the selected module,
+  and swapped declarations, same-slot ambiguity and synchronous cycles reject.
+  Its scalar/multi-state `Runner` fixture is checked-only. Native follow-through
+  still needs the scalar provider and state-call closure owned by
+  **TR3-TR8** / **STATE-LOCAL-VALUE-FRONTIER**, plus exact receiver attachment
+  under **ENTRY-CONTENT-ROOTS**. Bind each module's `Runner::run` as ProgramEntry
+  and require its computed-result branch to execute; a passing Unit-forwarding
+  case does not close that acceptance.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
