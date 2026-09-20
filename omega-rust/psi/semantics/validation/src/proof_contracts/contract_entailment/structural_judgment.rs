@@ -1647,6 +1647,11 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                if let Some(holds) = crate::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
+                    program, self.machine_symbol, fact,
+                ) {
+                    return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
+                }
                 let (Some(left), Some(right)) = (
                     structural_term(program, binary.left),
                     structural_term(program, binary.right),

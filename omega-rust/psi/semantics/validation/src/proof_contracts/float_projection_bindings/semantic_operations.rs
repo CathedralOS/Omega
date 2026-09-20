@@ -19,7 +19,7 @@ use typed_trees::TypedTrees;
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
 
-fn symbol_is_declared_in_sealed_source(
+pub(super) fn symbol_is_declared_in_sealed_source(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,
     relative_source: &str,

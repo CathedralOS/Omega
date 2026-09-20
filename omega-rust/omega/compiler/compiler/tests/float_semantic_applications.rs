@@ -65,7 +65,9 @@ fn minimum(left: u32, right: u32) -> FloatMeaningSource {
     })
 }
 
-fn source_free_module() -> TerminalModule {
+fn compile_source(
+    source: &str,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let directory = std::env::temp_dir().join(format!(
         "omega-float-operands-{}-{}",
         std::process::id(),
@@ -76,16 +78,21 @@ fn source_free_module() -> TerminalModule {
     ));
     std::fs::create_dir(&directory).unwrap();
     let main = directory.join("main.omg");
-    std::fs::write(&main, "machine read(value: f32) -> f32 { value }").unwrap();
-    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap();
+    std::fs::write(&main, source).unwrap();
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main, None));
+    std::fs::remove_dir_all(&directory).unwrap();
+    assert!(!directory.exists());
+    checked
+}
+
+fn source_free_module() -> TerminalModule {
+    let checked = compile_source("machine read(value: f32) -> f32 { value }").unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
         .produce_artifact()
         .unwrap();
     let bytes = artifact.to_bytes();
     drop(artifact);
     drop(checked);
-    std::fs::remove_dir_all(&directory).unwrap();
-    assert!(!directory.exists());
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let machine = &module.machines[0];
@@ -109,6 +116,133 @@ fn source_free_module() -> TerminalModule {
         projection(3, minimum(2, 1)),
     ];
     terminal_codec::decode_module(&terminal_codec::encode_module(&module).unwrap()).unwrap()
+}
+
+#[test]
+fn closed_semantic_application_proves_real_core_source_contract() {
+    let checked = compile_source(
+        "use omega::language::core::float_operations;
+         machine read() -> u64
+         ensures FloatSemantics::add(FloatFormat::BINARY32,
+             Float::meaning32(1.0f32), Float::meaning32(2.0f32))
+             == Float::meaning32(3.0f32);
+         { 7 }
+         machine nested() -> u64
+         ensures FloatSemantics::divide(FloatFormat::BINARY64,
+             FloatSemantics::add(FloatFormat::BINARY64,
+                 Float::meaning64(1.0f64), Float::meaning64(2.0f64)),
+             Float::meaning64(2.0f64)) == Float::meaning64(1.5f64);
+         { 9 }
+         machine special_values() -> u64
+         ensures (FloatSemantics::divide(FloatFormat::BINARY32,
+             Float::meaning32(0.0f32), Float::meaning32(0.0f32))
+             == FloatSemantics::divide(FloatFormat::BINARY32,
+                 Float::meaning32(0.0f32), Float::meaning32(0.0f32)))
+             && (FloatSemantics::negate(FloatFormat::BINARY32,
+                 Float::meaning32(0.0f32)) != Float::meaning32(0.0f32));
+         { 11 }",
+    )
+    .unwrap();
+    let read = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "read")
+        .unwrap();
+    let contract = &checked.machine_contracts(read)[0];
+    let checked_trees::domain::ProofFact::Expression(expression) =
+        checked.proof_facts.get(contract.facts.start())
+    else {
+        panic!("expression")
+    };
+    let equality = checked
+        .facts
+        .proof
+        .float_meaning_equalities
+        .iter()
+        .find(|equality| equality.source_expression == *expression && equality.use_site.is_none())
+        .unwrap();
+    assert!(
+        checked
+            .facts
+            .proof
+            .float_semantic_applications
+            .iter()
+            .any(|application| application.result == equality.left
+                || application.result == equality.right)
+    );
+}
+
+#[test]
+fn closed_semantic_application_refutes_false_real_core_source_contract() {
+    let diagnostics = compile_source(
+        "use omega::language::core::float_operations;
+         machine read() -> u64
+         ensures FloatSemantics::add(FloatFormat::BINARY32,
+             Float::meaning32(1.0f32), Float::meaning32(2.0f32))
+             == Float::meaning32(4.0f32);
+         { 7 }",
+    )
+    .unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disproved")),
+        "{diagnostics:?}"
+    );
+    let diagnostics = compile_source(
+        "use omega::language::core::float_operations;
+         machine signed_zero() -> u64
+         ensures FloatSemantics::negate(FloatFormat::BINARY32,
+             Float::meaning32(0.0f32)) == Float::meaning32(0.0f32);
+         { 9 }",
+    )
+    .unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disproved")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn closed_float_evaluation_does_not_override_authored_equality() {
+    let diagnostics = compile_source(
+        "use omega::language::core::float_operations;
+         machine == FloatMeaning::custom_equal(left: FloatMeaning, right: FloatMeaning) -> bool { false }
+         machine read() -> u64
+         ensures FloatSemantics::add(FloatFormat::BINARY32,
+             Float::meaning32(1.0f32), Float::meaning32(2.0f32))
+             == Float::meaning32(3.0f32);
+         { 7 }",
+    ).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("read")
+                && (diagnostic.message.contains("cannot prove")
+                    || diagnostic.message.contains("no entailment tier"))),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn open_semantic_application_remains_unproved() {
+    let diagnostics = compile_source(
+        "use omega::language::core::float_operations;
+         machine read(value: f32) -> u64
+         ensures FloatSemantics::minimum(Float::meaning32(value),
+             Float::meaning32(0.0f32)) == Float::meaning32(value);
+         { 7 }",
+    )
+    .unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("machine `read`")
+                && diagnostic.message.contains("no entailment tier")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
