@@ -7139,6 +7139,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SELECTED-REWRITE-ANCESTRY-REMOVAL** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-CATALOG-DISPOSITION** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-CATALOG-EXECUTION** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
+  (TASKS_OPTIMIZER.md:641) — "give the stage an execution route under
+  catalogs and independent replay": each of the 35 `Orphaned` rewrite
+  modules in `rewrites/module_catalog.rs` needs a catalog entry executed by
+  the stage entrance (`optimize_selected_instructions` /
+  `run_selected_lowering_optimizations` currently run only the identity
+  route and the selected-lowering pair folds), with destination-point
+  derivation plus the hazard/dead-path/commutation audits applied once.
+  Ownership is partitioned on the optimizer board: EXACT-MACHINE-SIMPLIFICATIONS
+  (35 orphaned rows), ALIAS-AWARE-MEMORY (3), DECLARATIVE-PEEPHOLES (2, and
+  the pair-rule widening leg). Implementing surfaces under live claims:
+  `rewrites/{mod.rs,module_catalog.rs}` under ORPHAN-REWRITE-MODULES-CATALOG
+  (22:38Z), pair-rule/composable descriptors under COMPOSABLE-PAIR-DESCRIPTORS
+  (23:57Z), `address_fold` under REWRITE-VALIDATOR-INDEPENDENCE (00:19Z+1d).
+  Sibling re-mine names on this cluster: SELECTED-REWRITE-CATALOG-DISPOSITION,
+  -OR-DELETE, -ROUTE, -WIRING, SELECTED-REWRITES-CATALOG-OR-DELETE (delete
+  leg landed: literal_compare/literal_arithmetic removed), POC-SELECTED-REWRITE-CATALOG.
 - **SELECTED-REWRITE-CATALOG-OR-DELETE** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-CATALOG-ROUTE** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-CATALOG-WIRING** — mined candidate; verify scope then implement.
