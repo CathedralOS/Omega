@@ -6,7 +6,10 @@
 //! then append their own regions — today only Mach-O's eager-binding pointer
 //! slots and the alignment padding before them. Every byte of final
 //! initialized data must be classified by one of these origins, or emission
-//! and installation must refuse the image.
+//! and installation must refuse the image. Writer-owned extents outside
+//! `.data` — PE's `.rdata` import table is the instance — place custody
+//! identically through `place_data_extent`, which is what puts the IAT's
+//! slots into a data inventory at all.
 
 use crate::{FinalImage, FinalImageLayout};
 use diagnostics::Diagnostic;
@@ -489,8 +492,8 @@ mod tests {
         FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout,
         FinalInitializedDataDigest, PlacedDataGap, PlacedDataGapBytesDigest, PlacedDataRegion,
         PlacedDataRegionBytesDigest, PlacedDataRegionInventory, PlacedDataRegionInventoryDigest,
-        data_inventory_digest, data_inventory_report_fingerprint, place_data_regions,
-        validate_placed_data_region_inventory,
+        data_inventory_digest, data_inventory_report_fingerprint, place_data_extent,
+        place_data_regions, validate_placed_data_region_inventory,
     };
     use target::NativeTarget;
 
@@ -1053,5 +1056,88 @@ mod tests {
         mutated.regions[2].symbol = "pad".into();
         reidentify(&mut mutated);
         stays_identity_bound("a named anonymous-padding row", &mutated);
+    }
+
+    /// `place_data_extent` runs the same custody placement over a writer-owned
+    /// extent outside `image.memory.data` — PE's `.rdata` import table is the
+    /// instance: IAT pointer slots classified `ImportBindingSlot` amid
+    /// descriptor, lookup-table and name bytes that stay explicit
+    /// unclassified gaps. The inventory's base is the extent's image address,
+    /// replay binds the exact extent bytes, and the canonical empty inventory
+    /// replays only over an empty extent.
+    #[test]
+    fn place_data_extent_binds_writer_owned_import_slots_to_their_extent() {
+        // A 20-byte descriptor/lookup-table head, two 8-byte IAT slots, then a
+        // 4-byte name tail — the shape `image-pe` emits for its import table.
+        let rdata: Vec<u8> = (0usize..40).map(|index| (index * 11 + 5) as u8).collect();
+        const RDATA_ADDRESS: u64 = 0x1400_0300;
+        let slots = vec![
+            FinalDataRegion {
+                origin: FinalDataRegionOrigin::ImportBindingSlot,
+                section_offset: 20,
+                byte_count: 8,
+                symbol: "KERNEL32.dll!ExitProcess".into(),
+            },
+            FinalDataRegion {
+                origin: FinalDataRegionOrigin::ImportBindingSlot,
+                section_offset: 28,
+                byte_count: 8,
+                symbol: "KERNEL32.dll!CreateFileW".into(),
+            },
+        ];
+
+        let inventory = place_data_extent(&rdata, slots, RDATA_ADDRESS, "import-data")
+            .expect("the import extent places");
+
+        assert_eq!(inventory.data_address, RDATA_ADDRESS);
+        assert_eq!(inventory.data_byte_count, rdata.len());
+        assert_eq!(inventory.regions.len(), 2);
+        assert_eq!(inventory.regions[0].address, RDATA_ADDRESS + 20);
+        assert_eq!(inventory.regions[1].address, RDATA_ADDRESS + 28);
+        // Custody is honest about what it does not classify: the head and
+        // tail bytes around the slots remain gaps, not fabricated rows.
+        assert_eq!(
+            inventory
+                .unclassified_gaps
+                .iter()
+                .map(|gap| (gap.section_offset, gap.byte_count))
+                .collect::<Vec<_>>(),
+            vec![(0, 20), (36, 4)],
+        );
+        validate_placed_data_region_inventory(&inventory, &rdata)
+            .expect("the inventory replays over the exact extent bytes");
+
+        // The byte join is what the thunk-slot pairing stands on: a shifted
+        // slot row or a mutated extent byte must not replay.
+        let mut moved = inventory.clone();
+        moved.regions[0].address = RDATA_ADDRESS + 24;
+        assert!(validate_placed_data_region_inventory(&moved, &rdata).is_err());
+        let mut drifted = rdata.clone();
+        drifted[21] ^= 0xff;
+        assert!(validate_placed_data_region_inventory(&inventory, &drifted).is_err());
+
+        // A slot that would overrun the extent rejects against the extent
+        // itself — there is no `.data` to fall back to — and names the
+        // extent in its diagnostic.
+        let overrun = vec![FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset: 36,
+            byte_count: 8,
+            symbol: "KERNEL32.dll!ReadFile".into(),
+        }];
+        let diagnostic = place_data_extent(&rdata, overrun, RDATA_ADDRESS, "import-data")
+            .expect_err("a slot beyond the extent must reject");
+        assert!(
+            diagnostic.message.contains("import-data"),
+            "unexpected diagnostic: {}",
+            diagnostic.message,
+        );
+
+        // The canonical empty inventory is custody over nothing: it replays
+        // exactly over empty bytes and refuses any populated extent.
+        let empty = PlacedDataRegionInventory::empty();
+        validate_placed_data_region_inventory(&empty, &[])
+            .expect("the empty inventory replays over an empty extent");
+        assert!(validate_placed_data_region_inventory(&empty, &rdata).is_err());
     }
 }

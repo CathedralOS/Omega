@@ -13,12 +13,15 @@
 //! changed outside a declared slot fails closed, malformed or overlapping
 //! data-slot declarations fail closed, text records stay out of data custody,
 //! and a substituted strong digest cannot hide behind an identical compact
-//! report fingerprint.
+//! report fingerprint. The writer-owned import-data extent — PE's `.rdata`
+//! IAT slots outside `.data` — replays through the same byte join on the
+//! `final_import_data_bytes`/`import_data_regions` pair.
 
 use image::{
-    EmittedImageOutput, EncodedCompilerTextDigest, ExecutableImageOutput, FinalImageInput,
-    FinalImageLayout, ImageOutputKind, apply_x86_64_relocations, build_final_image,
-    emitted_direct_executable_output, place_data_regions, place_executable_regions,
+    EmittedImageOutput, EncodedCompilerTextDigest, ExecutableImageOutput, FinalDataRegion,
+    FinalDataRegionOrigin, FinalImageInput, FinalImageLayout, ImageOutputKind,
+    apply_x86_64_relocations, build_final_image, emitted_direct_executable_output,
+    place_data_extent, place_data_regions, place_executable_regions,
     validate_final_text_relocation_envelope, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
@@ -445,4 +448,89 @@ fn compact_fingerprint_cannot_substitute_strong_text_evidence_at_the_output() {
     forged.derivation_digest = forged.recomputed_derivation_digest();
     assert!(forged.has_valid_derivation_digest());
     assert_ne!(forged, evidence);
+}
+
+#[test]
+fn emitted_output_replays_import_slot_custody_over_the_import_data_extent() {
+    const RDATA_ADDRESS: u64 = 0x1400_0300;
+    let (mut output, _encoded, _relocations, _entry) = emitted_output(NativeTarget::linux_x64());
+
+    // [.rdata]: a 20-byte descriptor/lookup-table head, two 8-byte IAT slots,
+    // then a 4-byte name tail — the custody shape `image-pe` places.
+    let rdata: Vec<u8> = (0usize..40).map(|index| (index * 11 + 5) as u8).collect();
+    let slots = vec![
+        FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset: 20,
+            byte_count: 8,
+            symbol: "KERNEL32.dll!ExitProcess".into(),
+        },
+        FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset: 28,
+            byte_count: 8,
+            symbol: "KERNEL32.dll!CreateFileW".into(),
+        },
+    ];
+    let import_inventory = place_data_extent(&rdata, slots, RDATA_ADDRESS, "import-data")
+        .expect("the import extent places");
+    // The bytes custody does not classify stay gaps; only the slots are rows.
+    assert_eq!(import_inventory.unclassified_gaps.len(), 2);
+    output.final_import_data_bytes = rdata.clone();
+    output.import_data_regions = import_inventory;
+
+    // The IAT's custody is in the data inventory: the carried inventory
+    // replays over the emitted extent bytes.
+    validate_placed_data_region_inventory(
+        &output.import_data_regions,
+        &output.final_import_data_bytes,
+    )
+    .expect("the import-slot inventory replays over the emitted extent");
+
+    // Every one-sided join fails closed: a populated inventory claiming an
+    // absent extent, and emitted extent bytes under the canonical empty
+    // inventory, both reject.
+    let mut without_extent = output.clone();
+    without_extent.final_import_data_bytes = Vec::new();
+    assert!(
+        validate_placed_data_region_inventory(
+            &without_extent.import_data_regions,
+            &without_extent.final_import_data_bytes,
+        )
+        .is_err(),
+        "a populated inventory over an absent extent must reject",
+    );
+    let mut without_inventory = output.clone();
+    without_inventory.import_data_regions = image::PlacedDataRegionInventory::empty();
+    assert!(
+        validate_placed_data_region_inventory(
+            &without_inventory.import_data_regions,
+            &without_inventory.final_import_data_bytes,
+        )
+        .is_err(),
+        "emitted extent bytes under the empty inventory must reject",
+    );
+
+    // A mutated slot byte or a shifted slot row breaks the byte join the
+    // thunk-slot pairing verifier stands on.
+    let mut drifted = output.clone();
+    drifted.final_import_data_bytes[20] ^= 0xff;
+    assert!(
+        validate_placed_data_region_inventory(
+            &drifted.import_data_regions,
+            &drifted.final_import_data_bytes,
+        )
+        .is_err(),
+        "a mutated IAT byte must not replay against the stored inventory",
+    );
+    let mut moved = output.clone();
+    moved.import_data_regions.regions[0].address += 8;
+    assert!(
+        validate_placed_data_region_inventory(
+            &moved.import_data_regions,
+            &moved.final_import_data_bytes,
+        )
+        .is_err(),
+        "a moved binding-slot row must not replay",
+    );
 }
