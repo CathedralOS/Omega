@@ -190,6 +190,11 @@ pub(crate) fn validator_machine_references(
             } => {
                 references.insert(dynamic_dispatch.dispatch.realization);
             }
+            O::CallStoredDynamicScalar {
+                dynamic_dispatch, ..
+            } => {
+                references.insert(dynamic_dispatch.dispatch.realization);
+            }
             O::Return {
                 cleanup_actions, ..
             }
@@ -261,4 +266,89 @@ pub(crate) fn pruned_machine_provenance(
         )
     });
     Some(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use abstract_operations::AbstractResult;
+
+    use super::*;
+
+    fn stored_dynamic_dispatch(
+        owner: MachineId,
+        operation: crate::OperationId,
+        realization: MachineId,
+    ) -> abstract_operations::AbstractStoredDynamicDispatch {
+        let application = terminal_psi::ClosedConformanceApplication {
+            owner,
+            declaration_identity: "test::CarrierImplementsScanner".into(),
+            telescope: Vec::new(),
+            subject_identity: Some("test::Carrier".into()),
+            trait_identity: "test::Scanner".into(),
+            trait_lifetime_arguments: Vec::new(),
+            trait_arguments: Vec::new(),
+            realization_callables: Vec::new(),
+            rows: Vec::new(),
+            report_fingerprint: 0,
+            commitment: Default::default(),
+        };
+        abstract_operations::AbstractStoredDynamicDispatch {
+            stored: abstract_operations::AbstractStoredDynamicDescriptor {
+                selection: terminal_psi::TerminalDynamicConformanceSelection {
+                    owner,
+                    ordinal: 0,
+                    source: terminal_psi::StructuralArgument {
+                        place: crate::PlaceId::new(9_100).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                    conformance_application_report_fingerprint: application.report_fingerprint,
+                    conformance_application_commitment: application.commitment,
+                },
+                descriptor: terminal_psi::TerminalStoredDynamicDescriptor {
+                    owner,
+                    ordinal: 5,
+                    establishment_operation: operation,
+                    selection_ordinal: 0,
+                    aggregate_type_identity: "test::Holder".into(),
+                    field_identity: "handler".into(),
+                },
+                application,
+            },
+            dispatch: terminal_psi::TerminalStoredDynamicDispatch {
+                owner,
+                operation,
+                descriptor_ordinal: 5,
+                declaring_trait_identity: "test::Scanner".into(),
+                public_requirement_identity: "test::Scanner::scan()".into(),
+                family_tuple: Vec::new(),
+                requirement_identity: "test::Scanner::scan".into(),
+                realization_identity: "test::Carrier::scan".into(),
+                realization_callable_identity: "test::Carrier::scan::callable".into(),
+                realization,
+            },
+        }
+    }
+
+    #[test]
+    fn machine_references_include_stored_dynamic_dispatch_targets() {
+        let mut unit = crate::tests::unit();
+        let caller = unit.functions[0].machine;
+        let target = MachineId::new(99).unwrap();
+        let operation = crate::OperationId::new(9_101).unwrap();
+        let mut call = unit.functions[0].blocks[0].nodes[0].clone();
+        call.operation = O::CallStoredDynamicScalar {
+            psi_operation: operation,
+            result: AbstractResult {
+                value: crate::ValueId::new(9_102).unwrap(),
+                scalar_type: crate::ScalarType::Boolean,
+            },
+            dynamic_dispatch: stored_dynamic_dispatch(caller, operation, target),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        unit.functions[0].blocks[0].nodes.insert(0, call);
+
+        assert!(validator_machine_references(&unit.functions[0]).contains(&target));
+    }
 }

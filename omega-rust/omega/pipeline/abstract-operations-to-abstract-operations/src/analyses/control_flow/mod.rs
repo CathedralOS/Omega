@@ -93,6 +93,8 @@ pub struct LoopAnalysis {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallGraphAnalysis {
+    /// Static calls and semantic machine transitions that must keep a target
+    /// reachable, including nominal cleanup invoked on return.
     pub callees: Vec<(MachineId, Vec<MachineId>)>,
     pub components: Vec<Vec<MachineId>>,
     pub recursive_components: Vec<Vec<MachineId>>,
