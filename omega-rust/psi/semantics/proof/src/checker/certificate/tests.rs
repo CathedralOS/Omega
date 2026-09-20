@@ -509,7 +509,7 @@ fn plan_measurement_records_the_kernel_receipt() {
 
 use crate::checker::derivation_cache::{DerivationConsultation, ProofDerivationCache};
 use crate::obligations::{
-    BoundedValueObligation, ProofObligation, ProofObligationOwner, ProofPlan,
+    BoundedValueObligation, ProofObligation, ProofObligationOwner, ProofPlan, proof_obligation_key,
 };
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
 use typed_trees::TypedTrees;
@@ -685,4 +685,64 @@ fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
     // produced the certificate was already discharged by the kernel.
     assert!(cache.is_empty());
     assert_eq!(cache.report().capacity_refusals, 1);
+}
+
+#[test]
+fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
+    let mut program = consultation_program();
+    let base = program.int_reference();
+    let plan = ProofPlan::new(&program.typed_trees);
+    let mut cache = ProofDerivationCache::new();
+
+    let certificate =
+        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
+            .expect("certificate");
+    let count = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    DerivationConsultation::new(&plan, &count, &mut cache).retain(certificate);
+
+    // A dependency change — here a different resolved owner — produces a
+    // different key: the stale row is never consulted, not even to reject.
+    let moved = key_obligation(program.machine, "Main", program.data[1], "count", base);
+    assert!(
+        DerivationConsultation::new(&plan, &moved, &mut cache)
+            .recheck()
+            .is_none()
+    );
+
+    // Unreachable evidence still occupies arena storage until the cache's
+    // key-granularity invalidate reclaims it; neighbors survive untouched.
+    // `total` on `data[1]` is a distinct row — `moved` consulted earlier
+    // before anything was retained under its key, so it stayed a miss.
+    let total = key_obligation(program.machine, "Main", program.data[1], "total", base);
+    let neighbor =
+        closed_bounds_certificate(literal_term(3), math_literal(0), math_literal(10), 67)
+            .expect("certificate");
+    DerivationConsultation::new(&plan, &total, &mut cache).retain(neighbor);
+
+    let stale_key = proof_obligation_key(&plan, &count);
+    assert_eq!(cache.invalidate(&stale_key), 1);
+    assert_eq!(cache.len(), 1);
+    assert_eq!(cache.key_count(), 1);
+
+    // What was unreachable is now absent: re-consulting misses, the neighbor
+    // still discharges its leg, and dropping a never-stored key is an
+    // explicit no-op.
+    assert!(
+        DerivationConsultation::new(&plan, &count, &mut cache)
+            .recheck()
+            .is_none()
+    );
+    assert!(
+        DerivationConsultation::new(&plan, &total, &mut cache)
+            .recheck()
+            .is_some(),
+        "the surviving row still discharges its leg"
+    );
+    let ghost = key_obligation(program.machine, "Main", program.int_type, "ghost", base);
+    assert_eq!(cache.invalidate(&proof_obligation_key(&plan, &ghost)), 0);
+
+    let report = cache.report();
+    assert_eq!(report.consultations, 3);
+    assert_eq!(report.reused, 1);
+    assert_eq!(report.retained, 2);
 }
