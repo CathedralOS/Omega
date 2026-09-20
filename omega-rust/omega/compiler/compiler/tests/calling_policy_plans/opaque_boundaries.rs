@@ -1169,3 +1169,71 @@ machine Main::main(&mut self) { }
         "unexpected diagnostics:\n{rendered}"
     );
 }
+
+/// The same shape with a selected satisfier for the nested row: the
+/// installation closure substitutes the nested requirement's exact resolved
+/// row through the complete root closure rather than rejecting the parent.
+/// `Pic::complete` retains `Endpoint::step` as an installation-bound nested
+/// row; `EndpointProvider::step` is its selected realization, so `complete`'s
+/// resolved row is its concrete reach plus the nested row's resolved reach.
+#[test]
+fn selected_realization_substitutes_a_selected_installation_bound_row() {
+    let source = r#"
+boundary trait MachineControl { }
+boundary trait PortIo { }
+boundary trait Storage { }
+
+pub data Endpoint { }
+pub boundary requirement Endpoint::step() reaches <= Storage;
+
+data EndpointProvider { }
+machine EndpointProvider::step()
+    satisfies Endpoint::step
+    reaches Storage
+{
+}
+
+boundary trait InterruptCompletion {
+    machine complete() -> u64
+    reaches <= MachineControl + PortIo + Storage;
+}
+
+data Pic { }
+PicInterruptCompletion: Pic satisfies InterruptCompletion;
+
+machine Pic::complete() -> u64
+    satisfies InterruptCompletion::complete
+    reaches PortIo + Storage
+{
+    Endpoint::step();
+    0
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let main_path = write_project(
+        "resolved-installation-reach",
+        source,
+        "machine build(builder: &mut Build) { builder.application(\"resolved-reach\"); }",
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a nested row selected inside the closure substitutes rather than rejects");
+    let facts = checked.selected_provider_plans();
+    let step = facts
+        .installation_reach_resolutions()
+        .iter()
+        .find(|resolution| resolution.upper_bound == ["Storage"])
+        .expect("nested requirement `Endpoint::step` resolves to its own selected row");
+    assert_eq!(step.resolved_row, ["Storage"]);
+    let complete = facts
+        .installation_reach_resolutions()
+        .iter()
+        .find(|resolution| resolution.upper_bound == ["MachineControl", "PortIo", "Storage"])
+        .expect("completion requirement resolution");
+    assert_eq!(
+        complete.resolved_row,
+        ["PortIo", "Storage"],
+        "the parent's resolved row is its concrete reach plus the substituted nested row",
+    );
+}

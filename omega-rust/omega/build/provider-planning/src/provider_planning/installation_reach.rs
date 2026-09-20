@@ -3,11 +3,25 @@
 use super::satisfied_requirement_identity;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 
+/// A selected row whose realization still reaches through unresolved
+/// installation-bound requirements. Its nested rows substitute against the
+/// resolutions derived for the same closure before it can publish one.
+struct PendingInstallationReachRow<'a> {
+    requirement_identity: String,
+    provider_plan_report_identity: u64,
+    upper_bound: Vec<String>,
+    concrete_service_reach: Vec<String>,
+    unresolved: Vec<flow_effects::InstallationReachRequirement>,
+    plan: &'a ProviderPlan,
+    realization: &'a typed_trees::machine::Machine,
+}
+
 pub(super) fn derive_selected_installation_reach_resolutions(
     checked: &checked_trees::CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<effects::InstallationReachResolution>, Vec<diagnostics::Diagnostic>> {
     let mut resolutions = Vec::new();
+    let mut pending = Vec::new();
     let mut diagnostics = Vec::new();
     for plan in selected.plans() {
         let top_level_requirements = checked
@@ -34,6 +48,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                         row,
                         requirement,
                         &mut resolutions,
+                        &mut pending,
                         &mut diagnostics,
                     );
                 }
@@ -142,15 +157,6 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 )));
                 continue;
             };
-            if let Some(diagnostic) = unresolved_realization_reach_diagnostic(
-                plan,
-                &row.requirement_identity,
-                realization,
-                envelope,
-            ) {
-                diagnostics.push(diagnostic);
-                continue;
-            }
             let upper_bound = checked
                 .facts
                 .service_reaches
@@ -160,14 +166,23 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
                 .map(|definition| definition.name.clone())
                 .collect();
-            resolutions.push(effects::InstallationReachResolution {
-                requirement_identity: row.requirement_identity.clone(),
-                provider_plan_report_identity: plan.report_fingerprint(),
+            record_installation_reach_row(
+                plan,
+                realization,
+                envelope,
+                row.requirement_identity.clone(),
                 upper_bound,
-                resolved_row: envelope.effective_service_reach.clone(),
-            });
+                &mut resolutions,
+                &mut pending,
+            );
         }
     }
+    substitute_nested_installation_reaches(
+        &checked.typed,
+        &mut resolutions,
+        pending,
+        &mut diagnostics,
+    );
     if diagnostics.is_empty() {
         Ok(resolutions)
     } else {
@@ -175,12 +190,13 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     }
 }
 
-fn append_top_level_installation_reach_resolution(
-    checked: &checked_trees::CheckedTrees,
-    plan: &ProviderPlan,
+fn append_top_level_installation_reach_resolution<'a>(
+    checked: &'a checked_trees::CheckedTrees,
+    plan: &'a ProviderPlan,
     row: &ProviderPlanRow,
-    requirement: &typed_trees::machine::Machine,
+    requirement: &'a typed_trees::machine::Machine,
     resolutions: &mut Vec<effects::InstallationReachResolution>,
+    pending: &mut Vec<PendingInstallationReachRow<'a>>,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
     let requirement_identity = checked
@@ -250,12 +266,6 @@ fn append_top_level_installation_reach_resolution(
         )));
         return;
     };
-    if let Some(diagnostic) =
-        unresolved_realization_reach_diagnostic(plan, &requirement_identity, realization, envelope)
-    {
-        diagnostics.push(diagnostic);
-        return;
-    }
     let upper_bound = checked
         .facts
         .service_reaches
@@ -265,31 +275,152 @@ fn append_top_level_installation_reach_resolution(
         .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
         .map(|definition| definition.name.clone())
         .collect();
-    resolutions.push(effects::InstallationReachResolution {
+    record_installation_reach_row(
+        plan,
+        realization,
+        envelope,
         requirement_identity,
-        provider_plan_report_identity: plan.report_fingerprint(),
         upper_bound,
-        resolved_row: envelope.effective_service_reach.clone(),
-    });
+        resolutions,
+        pending,
+    );
+}
+
+fn record_installation_reach_row<'a>(
+    plan: &'a ProviderPlan,
+    realization: &'a typed_trees::machine::Machine,
+    envelope: &'a checked_trees::RealizedMachineContractEnvelope,
+    requirement_identity: String,
+    upper_bound: Vec<String>,
+    resolutions: &mut Vec<effects::InstallationReachResolution>,
+    pending: &mut Vec<PendingInstallationReachRow<'a>>,
+) {
+    if envelope.unresolved_installation_reaches.is_empty() {
+        resolutions.push(effects::InstallationReachResolution {
+            requirement_identity,
+            provider_plan_report_identity: plan.report_fingerprint(),
+            upper_bound,
+            resolved_row: envelope.effective_service_reach.clone(),
+        });
+    } else {
+        pending.push(PendingInstallationReachRow {
+            requirement_identity,
+            provider_plan_report_identity: plan.report_fingerprint(),
+            upper_bound,
+            concrete_service_reach: envelope.concrete_service_reach.clone(),
+            unresolved: envelope.unresolved_installation_reaches.clone(),
+            plan,
+            realization,
+        });
+    }
+}
+
+/// The installation closure substitutes every bounded row through the
+/// complete root closure: a nested requirement selected inside the same
+/// closure is in scope rather than excluded, and the realization's resolved
+/// row is its concrete reach extended by each nested requirement's resolved
+/// row. Substituted rows can themselves satisfy rows still pending, so the
+/// pass iterates to a fixpoint. A row whose nested requirements have no
+/// selected resolution in the closure remains unresolved and rejects.
+fn substitute_nested_installation_reaches(
+    typed: &typed_trees::TypedTrees,
+    resolutions: &mut Vec<effects::InstallationReachResolution>,
+    mut pending: Vec<PendingInstallationReachRow<'_>>,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) {
+    loop {
+        let mut next = Vec::new();
+        let mut progressed = false;
+        for mut row in pending.drain(..) {
+            let mut resolved_row = row.concrete_service_reach.clone();
+            row.unresolved.retain(|reach| {
+                let resolved =
+                    nested_requirement_identity(typed, reach.requirement).and_then(|identity| {
+                        resolutions
+                            .iter()
+                            .find(|resolution| resolution.requirement_identity == identity)
+                    });
+                match resolved {
+                    Some(child) => {
+                        resolved_row.extend(child.resolved_row.iter().cloned());
+                        false
+                    }
+                    None => true,
+                }
+            });
+            if row.unresolved.is_empty() {
+                resolved_row.sort();
+                resolved_row.dedup();
+                resolutions.push(effects::InstallationReachResolution {
+                    requirement_identity: row.requirement_identity,
+                    provider_plan_report_identity: row.provider_plan_report_identity,
+                    upper_bound: row.upper_bound,
+                    resolved_row,
+                });
+                progressed = true;
+            } else {
+                next.push(row);
+            }
+        }
+        pending = next;
+        if !progressed {
+            break;
+        }
+    }
+    for row in pending {
+        diagnostics.push(unresolved_realization_reach_diagnostic(
+            row.plan,
+            &row.requirement_identity,
+            row.realization,
+            row.unresolved.len(),
+        ));
+    }
+}
+
+/// The requirement identity a nested installation-bound row refers to: a
+/// top-level requirement machine resolves to its own overload identity and a
+/// trait requirement resolves to its exact overload identity under the trait
+/// definition that declares it.
+fn nested_requirement_identity(
+    typed: &typed_trees::TypedTrees,
+    requirement: symbols::SymbolHandle,
+) -> Option<String> {
+    if let Some(machine) = typed.machines().iter().find(|machine| {
+        machine.symbol == requirement
+            && machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+    }) {
+        return typed
+            .normalized_machine_overload_identity(machine)
+            .map(|identity| identity.identity())
+            .filter(|identity| !identity.is_empty());
+    }
+    typed.traits().iter().find_map(|definition| {
+        typed
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| signature.symbol == requirement)
+            .and_then(|signature| {
+                let identity = typed
+                    .normalized_trait_requirement_overload_identity(definition, signature)
+                    .identity();
+                (!identity.is_empty()).then_some(identity)
+            })
+    })
 }
 
 /// A selected row is the exact reach of the installed realization. When the
-/// realization itself still reaches through an unresolved installation-bound
-/// requirement, its checked effective reach carries that requirement's
-/// conservative upper bound, so publishing it as the resolved row would let a
-/// bound stand in for concrete reach. Provider selection has no substitution
-/// step for nested requirements; reject instead of degrading to the bound.
+/// realization still reaches through an installation-bound requirement that
+/// the closure did not select, publishing the checked effective reach would
+/// let that requirement's conservative upper bound stand in for concrete
+/// reach; reject instead of degrading to the bound.
 fn unresolved_realization_reach_diagnostic(
     plan: &ProviderPlan,
     requirement_identity: &str,
     realization: &typed_trees::machine::Machine,
-    envelope: &checked_trees::RealizedMachineContractEnvelope,
-) -> Option<diagnostics::Diagnostic> {
-    let unresolved = envelope.unresolved_installation_reaches.len();
-    (unresolved != 0).then(|| {
-        diagnostics::Diagnostic::error(format!(
-            "selected provider row `{requirement_identity}` realization `{}` of provider `{}` retains {unresolved} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
-            realization.name, plan.provider_type,
-        ))
-    })
+    unresolved: usize,
+) -> diagnostics::Diagnostic {
+    diagnostics::Diagnostic::error(format!(
+        "selected provider row `{requirement_identity}` realization `{}` of provider `{}` retains {unresolved} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
+        realization.name, plan.provider_type,
+    ))
 }
