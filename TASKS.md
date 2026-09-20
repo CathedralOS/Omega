@@ -6052,7 +6052,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-NATIVE-SELF-RECONSTRUCTION** — mined candidate; verify scope then implement.
 - **BETA-PE-SEED-REFUSAL** — mined candidate; verify scope then implement.
-- **BETA-RECONSTRUCTION-SEED-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-EXEC-HOST-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-CHAIN-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
