@@ -4,6 +4,17 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+#[path = "../../../../../../tests/native-differential/tests/common/native_function.rs"]
+#[allow(dead_code)]
+mod native_function;
+
 fn assert_source_free_result(checked: compiler::CheckedCompilation, machine: &str, expected: u64) {
     assert_source_free_scalar_result(
         checked,
@@ -302,6 +313,192 @@ fn concrete_machine_initializers_discharge_failure_routes_before_execution() {
         super::assert_same_machine_types(&checked, "keep", "oracle");
         assert_source_free_result(checked, "read", 5);
     }
+}
+
+#[test]
+fn constant_helper_failure_discharge_preserves_widened_arguments() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for argument in ["value as u64", "(value as u16) as u64"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+                 crashes Trap value == 0
+                 {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+                 machine forward(value: u8) -> u64 {{ divide({argument}) }}
+                 const SIZE: u64 = forward(2u8);
+                 machine read() -> u64 {{ SIZE }}"
+            ),
+        );
+        assert_source_free_result(compile(&root, root_inputs(&root)), "read", 5);
+    }
+}
+
+#[test]
+fn constant_helper_conversion_does_not_hide_a_reachable_trap() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, body, actual) in [
+        ("u8", "divide(value as u64)", "0u8"),
+        ("u64", "divide((value as u8 in Wrapping) as u64)", "256u64"),
+        (
+            "u8",
+            "divide(((value as u16 in Wrapping) + 65535) as u64)",
+            "1u8",
+        ),
+        (
+            "u8",
+            "_ = divide((value as u64 in Wrapping) + 65535);
+             divide(((value as u16 in Wrapping) + 65535) as u64)",
+            "1u8",
+        ),
+        (
+            "u8",
+            "_ = divide(((value as u16 in Wrapping) + 65535) as u64);
+             divide((value as u64 in Wrapping) + 65535)",
+            "1u8",
+        ),
+        (
+            "u8",
+            "_ = divide(((value as u16 in Saturating) + 65535) as u64);
+             divide(((value as u16 in Wrapping) + 65535) as u64)",
+            "1u8",
+        ),
+        (
+            "u8",
+            "_ = divide(((value as u16 in Wrapping) + 65535) as u64);
+             divide(((value as u16 in Saturating) + 65535) as u64)",
+            "1u8",
+        ),
+        (
+            "u8",
+            "let mut divisor: u8 = value; divisor = 0; divide(divisor as u64)",
+            "2u8",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+                 crashes Trap value == 0
+                 {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+                 machine forward(value: {carrier}) -> u64 {{ {body} }}
+                 const UNUSED: u64 = forward({actual});
+                 machine read() -> u64 {{ 7 }}"
+            ),
+        );
+        let diagnostics = compiler::compile_to_checked(compiler::CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("even an unused initializer must discharge the actual conversion's trap");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("constant invocation")
+                    && diagnostic.message.contains("unhandled [Trap]")
+            }),
+            "{body} at {actual}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn widened_constant_helper_keeps_the_operands_arithmetic_width() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "machine divide(value: u64) -> u64
+         crashes Trap value == 0
+         { transition { value != 0 -> 10 / value } crash Trap; }
+         machine forward(value: u8) -> u64 {
+             divide(((value as u16 in Wrapping) + 65535) as u64)
+         }
+         const SIZE: u64 = forward(2u8);
+         machine read() -> u64 { SIZE }",
+    );
+    assert_source_free_result(compile(&root, root_inputs(&root)), "read", 10);
+}
+
+#[test]
+fn widened_constant_helper_executes_natively_after_source_removal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         machine divide(value: u64) -> u64
+         crashes Trap value == 0
+         { transition { value != 0 -> 10 / value } crash Trap; }
+         machine forward(value: u8) -> u64 {
+             let divisor: u16 = value as u16;
+             divide(divisor as u64)
+         }
+         pub const VALUE: u64 = forward(2u8);",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use settings; machine read() -> u64 { settings::VALUE }",
+    );
+    let checked = compile(&root, root_inputs(&root));
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
+        .produce_artifact()
+        .expect("checked constant reaches Terminal");
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .expect("reload independent Terminal artifact");
+    drop(checked);
+    drop(tree);
+    assert!(!root.exists(), "native publication cannot reread source");
+
+    let selections = optimization_core::OptimizationSelections::new([]).unwrap();
+    let optimized = native_realization::optimize_artifact_sections(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        native_realization::compiler_baseline_request_v1(&selections),
+    )
+    .unwrap();
+    let physical =
+        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target::NativeTarget::host(),
+            &[],
+        )
+        .unwrap();
+    let fragments = machine_emission::stage_optimized_function_fragment_emission(
+        physical.into_function_fragment_emission_source(),
+    )
+    .unwrap();
+    let framed = machine_emission::stage_function_fragment_frame_application(fragments).unwrap();
+    let text = machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
+    let source = std::sync::Arc::new(
+        object_file::stage_optimized_relocation_free_object_container(text).unwrap(),
+    );
+    let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
+    image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
+    let image = image_emission::emit_executable_image(&object, 0).unwrap();
+    image_emission::validate_executable_image(&object, &image).unwrap();
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    ))]
+    native_function::assert_c_text(
+        &image.output().final_text_bytes,
+        object.entry_function().text_offset,
+        "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == 5 ? 0 : 1; }",
+    );
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    )))]
+    eprintln!("SKIP: native constant execution requires Linux x64/ARM64 or macOS ARM64");
 }
 
 #[test]

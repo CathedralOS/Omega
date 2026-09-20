@@ -34,6 +34,17 @@ pub enum CrashPredicateExpression {
         operator: u8,
         operand: Box<Self>,
     },
+    /// A checked full-carrier integer widening. These are the source/target
+    /// `PrimitiveType` and `ArithmeticDomain` tags, like the operator tags
+    /// above: identity data, not permission to evaluate a general cast.
+    /// Keep placement and policy even though widening preserves the value:
+    /// `(x + 1) as u64` and `(x as u64) + 1` need not do the same arithmetic.
+    IntegerWiden {
+        source_type: u8,
+        target_type: u8,
+        domain: u8,
+        operand: Box<Self>,
+    },
     Integer(String),
     /// A float literal's exact source spelling (the `FloatLiteral` text:
     /// suffix-free, text-only identity like the integer carrier). The literal
@@ -91,6 +102,17 @@ impl CrashPredicateExpression {
             },
             Self::Unary { operator, operand } => Self::Unary {
                 operator: *operator,
+                operand: Box::new(operand.substitute(arguments)),
+            },
+            Self::IntegerWiden {
+                source_type,
+                target_type,
+                domain,
+                operand,
+            } => Self::IntegerWiden {
+                source_type: *source_type,
+                target_type: *target_type,
+                domain: *domain,
                 operand: Box::new(operand.substitute(arguments)),
             },
             Self::Member { receiver, member } => Self::Member {
@@ -168,6 +190,15 @@ impl CrashPredicateExpression {
             Self::Unary { operator, operand } => {
                 out.push(2);
                 out.push(*operator);
+                operand.write_canonical(out);
+            }
+            Self::IntegerWiden {
+                source_type,
+                target_type,
+                domain,
+                operand,
+            } => {
+                out.extend([0x0e, *source_type, *target_type, *domain]);
                 operand.write_canonical(out);
             }
             Self::Integer(value) => {

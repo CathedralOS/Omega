@@ -3260,14 +3260,17 @@ Owners include
     Reuse typed expression evaluation, not untyped fact folding that erases
     operand widths and selected-operation custody.
   - Extend concrete failure discharge in `const_initializers/invocations.rs`
-    beyond ordinary scalar invocations. Casts, indexed reads, call-produced
-    values and other origins the concrete probe cannot decide still widen
-    conservatively; they need checked evidence
+    beyond ordinary scalar invocations and lossless fixed-integer widening.
+    Partial/value-changing casts, indexed reads, call-produced values and other
+    origins the concrete probe cannot decide still widen conservatively; they
+    need checked evidence
     (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
     with **CRASH-CONTRACT**), not successful interpretation or provider-body
     inspection. `machine_execution/admission/closure_validation.rs` fences
     authored `requires` without discharged concrete-invocation evidence;
     successful interpretation alone cannot discharge them.
+    Preserve `module_machine_indices::machine_initializers::widened_constant_helper_executes_natively_after_source_removal`
+    and its zero, wrapping-to-zero and mutated-operand rejection controls.
   - `const_generic_expressions/value/match_dispatch.rs` needs nonconstant
     divisor integrality beyond singleton sign intervals, nonzero proofs beyond
     retained lattice gaps, and exact fractional-warning evidence for

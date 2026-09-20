@@ -389,6 +389,43 @@ fn entry_operand_at(
         ExpressionNode::Float(value) => {
             Some(CrashPredicateExpression::Float(value.text().to_owned()))
         }
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)?;
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)?;
+            let source = program.primitive_type_reference(
+                validation::expression_result_type_reference(program, machine, state, cast.value)?,
+            )?;
+            let target = program.primitive_type_reference(cast.target_type)?;
+            if !validation::integer_widen_is_total(source, target) {
+                return None;
+            }
+            // Keep conversion placement, carriers and result policy in the
+            // summary identity. Erasing a value-preserving cast can merge
+            // `widen(x + 1)` with `widen(x) + 1`, discarding one guard's
+            // different overflow behavior during summary deduplication.
+            // Beyond closed literals, evaluation still needs the checked
+            // scalar annotation. Recursive provenance refuses a lost entry
+            // snapshot even when the conversion itself preserves values.
+            Some(CrashPredicateExpression::IntegerWiden {
+                source_type: source as u8,
+                target_type: target as u8,
+                domain: cast.domain as u8,
+                operand: Box::new(entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    cast.value,
+                    depth + 1,
+                )?),
+            })
+        }
         ExpressionNode::Unary(unary)
             if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
         {
@@ -1044,6 +1081,17 @@ pub(super) fn substitute_entry(
             operator: *operator,
             operand: Box::new(substitute_entry(operand, operands)?),
         },
+        CrashPredicateExpression::IntegerWiden {
+            source_type,
+            target_type,
+            domain,
+            operand,
+        } => CrashPredicateExpression::IntegerWiden {
+            source_type: *source_type,
+            target_type: *target_type,
+            domain: *domain,
+            operand: Box::new(substitute_entry(operand, operands)?),
+        },
         CrashPredicateExpression::Member { receiver, member } => CrashPredicateExpression::Member {
             receiver: Box::new(substitute_entry(receiver, operands)?),
             member: member.clone(),
@@ -1148,6 +1196,17 @@ pub(super) fn substitute_entry_projected(
         },
         CrashPredicateExpression::Unary { operator, operand } => CrashPredicateExpression::Unary {
             operator: *operator,
+            operand: Box::new(substitute_entry_projected(operand, resolve)?),
+        },
+        CrashPredicateExpression::IntegerWiden {
+            source_type,
+            target_type,
+            domain,
+            operand,
+        } => CrashPredicateExpression::IntegerWiden {
+            source_type: *source_type,
+            target_type: *target_type,
+            domain: *domain,
             operand: Box::new(substitute_entry_projected(operand, resolve)?),
         },
         // An indexed read's `Parameter` collection resolves at the whole
