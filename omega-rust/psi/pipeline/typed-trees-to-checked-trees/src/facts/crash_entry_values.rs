@@ -37,7 +37,9 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
 use validation::has_stable_observable_contents;
 
+mod checked_projection;
 mod literal_projection;
+pub(super) use checked_projection::entry_value as checked_projected_entry_value;
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, storage_holds_bound_value};

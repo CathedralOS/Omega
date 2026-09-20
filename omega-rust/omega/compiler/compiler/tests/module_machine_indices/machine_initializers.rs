@@ -430,6 +430,99 @@ fn indexed_constant_helper_discharge_reaches_source_free_execution() {
 }
 
 #[test]
+fn computed_table_selector_discharge_reaches_source_free_native_execution() {
+    // The full u8 coordinate range fits this table, keeping index-bounds
+    // admission independent of whether the evaluator preserves wrapping.
+    let table_elements = (0..256)
+        .map(|element_index| if element_index == 1 { "value" } else { "0" })
+        .collect::<Vec<_>>()
+        .join(", ");
+    for body in [
+        "let values: [u64; 2] = [0, value]; divide(values[1u64 + 0u64])",
+        "let values: [u64; 2] = [0, value]; let selector: u64 = 1; divide(values[selector])",
+        "let values: [u64; 256] = [TABLE];
+         let selector: u8 in Wrapping = (255 as u8 in Wrapping) + 2u8;
+         divide(values[selector])",
+        "let values: [[u64; 2]; 1] = [[0, value]];
+         let selector: u64 = 0;
+         let row: [u64; 2] = values[selector];
+         divide(row[1u64 + 0u64])",
+        "let values: [[u64; 2]; 2] = [[0, value], [value, 0]];
+         let mut selector: u64 = 0;
+         let row: [u64; 2] = values[selector];
+         selector = 1;
+         divide(row[1u64 + 0u64])",
+    ] {
+        let body = body.replace("TABLE", &table_elements);
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+                 crashes Trap value == 0
+                 {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+                 machine forward(value: u64) -> u64 {{ {body} }}
+                 const SIZE: u64 = forward(2);
+                 machine read() -> u64 {{ SIZE }}"
+            ),
+        );
+        assert_native_constant_after_source_removal(tree, root);
+    }
+}
+
+#[test]
+fn computed_table_selectors_preserve_failures_and_saved_index_values() {
+    let table_elements = (0..256)
+        .map(|element_index| if element_index == 1 { "value" } else { "0" })
+        .collect::<Vec<_>>()
+        .join(", ");
+    for body in [
+        "let values: [u64; 2] = [0, value]; divide(values[0u64 + 0u64])",
+        "let values: [u64; 2] = [0, value]; let mut selector: u64 = 1;
+         selector = 0; divide(values[selector])",
+        "let mut values: [u64; 2] = [0, value]; values[1] = 0;
+         divide(values[1u64 + 0u64])",
+        "let values: [u64; 256] = [TABLE];
+         let selector: u8 in Wrapping = (255 as u8 in Wrapping) + 1u8;
+         divide(values[selector])",
+        "let values: [[u64; 2]; 2] = [[0, 0], [0, value]];
+         let mut selector: u64 = 0;
+         let row: [u64; 2] = values[selector];
+         selector = 1;
+         divide(row[1u64 + 0u64])",
+        "let values: [u64; 2] = [divide(0), value]; divide(values[1u64 + 0u64])",
+    ] {
+        let body = body.replace("TABLE", &table_elements);
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+                 crashes Trap value == 0
+                 {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+                 machine forward(value: u64) -> u64 {{ {body} }}
+                 const UNUSED: u64 = forward(2);
+                 machine read() -> u64 {{ 7 }}"
+            ),
+        );
+        let diagnostics = compiler::compile_to_checked(compiler::CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("a selected zero or failed sibling still prevents constant evaluation");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("constant invocation")
+                    && diagnostic.message.contains("unhandled [Trap]")
+            }),
+            "{body}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn indexed_constant_helper_keeps_zero_and_mutated_values_rejected() {
     for (body, actual) in [
         ("let values: [u64; 2] = [0, value]; divide(values[1])", "0"),
