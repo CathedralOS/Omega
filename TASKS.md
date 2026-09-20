@@ -562,17 +562,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     targets without changing lock acceptance or publishing outputs. Install/update
     retain that inventory through pending review and fresh resume checking;
     changed inputs require a new proposal and risk-bearing policy still requires
-    exact acceptance. Named dependency-input delivery remains;
-    do not capture the whole working directory, widen another occurrence's
-    inputs, or substitute the live-host filesystem.
-  - Exercise acquired generators and cross-occurrence/per-target isolation
-    through final completed-file publication. Preserve the ordinary artifact-only
-    and native-companion routes in `omega/tests/completed_build_outputs.rs`,
-    including check-only nonpublication, unchanged lock acceptance, and later
-    build failure. Preserve the Terminal companion and post-build product-check
-    failure controls in `compiler/tests/build_snapshot_outputs.rs`. Exercise two
-    occurrences using identical logical output names; neither may publish
-    another occurrence's bytes or a partially successful set.
+    exact acceptance. The occurrence map is validated and retained but has no
+    consumer delivering its slots to dependency activations or authored input
+    capabilities. Finish that route and exercise two dependency occurrences
+    in one prerequisite graph with identical slot/output names and distinct
+    bytes. Preserve root/target publication isolation and acquired-helper
+    acceptance in `omega/tests/completed_build_outputs.rs`, and Terminal
+    companion/final-check controls in `compiler/tests/build_snapshot_outputs.rs`.
+    Do not capture the whole working directory, merge slots into the package's
+    source inventory, widen another occurrence's inputs, or substitute the
+    live-host filesystem.
   - Complete host-backed capture/staging assurance and Windows execution
     coverage. Mutable-root copies in
     `packages/sources/acquisition/src/tree/filesystem.rs` now check the retained

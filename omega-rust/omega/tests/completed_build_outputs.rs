@@ -56,7 +56,13 @@ impl Project {
     }
 
     fn accept_build(&self, target: &str) {
-        let output = self.omega(&["update", "--offline", "--target", target]);
+        self.accept_build_with_inputs(target, &[]);
+    }
+
+    fn accept_build_with_inputs(&self, target: &str, inputs: &[&str]) {
+        let mut arguments = vec!["update", "--offline", "--target", target];
+        arguments.extend_from_slice(inputs);
+        let output = self.omega(&arguments);
         if output.status.success() {
             return;
         }
@@ -186,4 +192,230 @@ fn failure_after_completing_a_file_publishes_no_output_set() {
         "{output:?}"
     );
     assert!(!project.0.join("build/completed").exists());
+}
+
+/// The helper is acquired as a build-purpose package. It receives only the
+/// consumer's snapshot and output facets; neither a host path nor the whole
+/// builder is passed to the downloaded generator.
+const ACQUIRED_GENERATOR: &str = r#"pub machine generate(source: &BuildSource, output: &mut BuildOutput) {
+    let template: BuildPath = source.resolve("templates/banner.txt");
+    let descriptor: i32 = source.open(template, 0);
+    let mut bytes: [u8; 7];
+    let count: i64 = source.read(descriptor, &mut bytes, 7);
+    let closed: i32 = source.close(descriptor);
+    transition count == 7 {
+        true -> probe(source, output, bytes)
+        _ -> failed(output)
+    }
+    state probe(source: &BuildSource, output: &mut BuildOutput, bytes: [u8; 7]) {
+        let outside: BuildPath = source.resolve("undeclared.txt");
+        let descriptor: i32 = source.open(outside, 0);
+        transition descriptor < 0 {
+            true -> publish(output, bytes)
+            _ -> failed(output)
+        }
+    }
+    state publish(output: &mut BuildOutput, bytes: [u8; 7]) {
+        let required: RequiredOutput = output.require("report.txt");
+        let artifact: BuildPath = output.resolve("report.txt");
+        let descriptor: i32 = output.create(artifact, 438);
+        let written: i64 = output.write(descriptor, &bytes);
+        let closed: i32 = output.close(descriptor);
+        let completion: OutputCompletion = output.complete(required, artifact);
+    }
+    state failed(output: &mut BuildOutput) {
+        let required: RequiredOutput = output.require("report.txt");
+        output.fail(required, "generator snapshot invalid");
+    }
+}
+"#;
+
+const GENERATOR_INPUTS: &[&str] = &[
+    "--build-input",
+    "main.omg",
+    "--build-input",
+    "build.omg",
+    "--build-input",
+    "templates/banner.txt",
+];
+
+fn completed_directories(directory: &std::path::Path) -> Vec<PathBuf> {
+    let mut paths = if directory.join("completed").exists() {
+        fs::read_dir(directory.join("completed"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    paths.sort();
+    paths
+}
+
+fn completed_contents(directory: &std::path::Path) -> Vec<(PathBuf, Vec<u8>, Vec<u8>)> {
+    completed_directories(directory)
+        .into_iter()
+        .map(|path| {
+            let report = fs::read(path.join("files/report.txt")).unwrap();
+            let manifest = fs::read(path.join("manifest.bin")).unwrap();
+            (path, report, manifest)
+        })
+        .collect()
+}
+
+#[test]
+fn acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_products() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping acquired generator native execution: unsupported host");
+        return;
+    };
+    let workspace = Project::new(true);
+    let generator = workspace.0.join("generator");
+    fs::create_dir(&generator).unwrap();
+    fs::write(generator.join("main.omg"), ACQUIRED_GENERATOR).unwrap();
+    fs::write(
+        generator.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"banner-generator\"); }\n",
+    )
+    .unwrap();
+    let publication = workspace.0.join("published");
+    let publication_argument = publication.to_str().unwrap();
+    let mut previous: Vec<PathBuf> = Vec::new();
+    for (name, content, artifact_only) in
+        [("first", "FIRST!\n", true), ("second", "SECOND\n", false)]
+    {
+        let project = Project(workspace.0.join(name));
+        fs::create_dir(&project.0).unwrap();
+        fs::create_dir(project.0.join("templates")).unwrap();
+        fs::write(
+            project.0.join("main.omg"),
+            "data Main {}\nmachine Main::main(&mut self) {}\n",
+        )
+        .unwrap();
+        fs::write(project.0.join("templates/banner.txt"), content).unwrap();
+        fs::write(project.0.join("undeclared.txt"), "private sibling").unwrap();
+        let selection = if artifact_only {
+            "builder.artifact_only();"
+        } else {
+            "builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n\
+             builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n\
+             builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n\
+             builder.roots.bind(linux_arm64::ProgramEntry, Main::main);"
+        };
+        let build = format!(
+            r#"use generator::main;
+machine build(builder: &mut Build) {{
+    builder.application("{name}");
+    builder.build_depend_as("generator", Source::Path {{ location: "../generator" }});
+    {selection}
+    generate(&builder.source, &mut builder.output);
+}}
+"#
+        );
+        fs::write(project.0.join("build.omg"), &build).unwrap();
+        project.accept_build_with_inputs(host.target_name(), GENERATOR_INPUTS);
+        let lock = fs::read(project.0.join("omega.lock")).unwrap();
+        let mut arguments = vec![
+            "--offline",
+            "--target",
+            host.target_name(),
+            "--build-dir",
+            publication_argument,
+            "main.omg",
+        ];
+        arguments.extend_from_slice(GENERATOR_INPUTS);
+        let mut checking = arguments.clone();
+        checking.push("--check");
+        success(project.omega(&checking));
+        assert_eq!(completed_directories(&publication), previous);
+        success(project.omega(&arguments));
+        let current = completed_directories(&publication);
+        let added = current
+            .iter()
+            .filter(|path| !previous.contains(*path))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            added.len(),
+            1,
+            "each occurrence publishes its own complete set"
+        );
+        assert_eq!(
+            fs::read(added[0].join("files/report.txt")).unwrap(),
+            content.as_bytes()
+        );
+        assert!(added[0].join("manifest.bin").is_file());
+        assert_eq!(fs::read_dir(added[0].join("files")).unwrap().count(), 1);
+        if !artifact_only {
+            let executable = publication.join(if cfg!(windows) {
+                "omega-program.exe"
+            } else {
+                "omega-program"
+            });
+            success(Command::new(executable).output().unwrap());
+        }
+        let committed = completed_contents(&publication);
+        // Repeating the same request verifies the existing set, never borrows
+        // another occurrence's report.txt or creates another successful set.
+        success(project.omega(&arguments));
+        assert_eq!(completed_contents(&publication), committed);
+        assert_eq!(fs::read(project.0.join("omega.lock")).unwrap(), lock);
+        for earlier in &previous {
+            assert_eq!(
+                fs::read(earlier.join("files/report.txt")).unwrap(),
+                b"FIRST!\n"
+            );
+        }
+        // The helper completes its file before the caller fails. Neither that
+        // partial attempt nor its retry may alter a previously committed set.
+        let failing = build.replace("generate(&builder.source, &mut builder.output);",
+            "generate(&builder.source, &mut builder.output);\n    let pending: RequiredOutput = builder.output.require(\"later.txt\");\n    builder.output.fail(pending, \"after generator\");");
+        fs::write(project.0.join("build.omg"), failing).unwrap();
+        let failed = project.omega(&arguments);
+        assert!(!failed.status.success());
+        assert!(
+            String::from_utf8_lossy(&failed.stderr).contains("after generator"),
+            "{failed:?}"
+        );
+        assert_eq!(completed_contents(&publication), committed);
+        fs::write(project.0.join("build.omg"), &build).unwrap();
+        success(project.omega(&arguments));
+        assert_eq!(completed_contents(&publication), committed);
+        assert_eq!(fs::read(project.0.join("omega.lock")).unwrap(), lock);
+        previous = current;
+        if artifact_only {
+            // The same package and logical output name under another product
+            // target must retain its own activation identity even when its
+            // generated bytes happen to match.
+            let other = if host == target::TargetProfile::WindowsX64 {
+                target::TargetProfile::LinuxX64
+            } else {
+                target::TargetProfile::WindowsX64
+            };
+            project.accept_build_with_inputs(other.target_name(), GENERATOR_INPUTS);
+            let accepted = fs::read(project.0.join("omega.lock")).unwrap();
+            let before = completed_contents(&publication);
+            arguments[2] = other.target_name();
+            success(project.omega(&arguments));
+            let current = completed_directories(&publication);
+            let added = current
+                .iter()
+                .filter(|path| !previous.contains(*path))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                added.len(),
+                1,
+                "another target owns a distinct completed set"
+            );
+            assert_eq!(
+                fs::read(added[0].join("files/report.txt")).unwrap(),
+                content.as_bytes()
+            );
+            for retained in before {
+                assert!(completed_contents(&publication).contains(&retained));
+            }
+            assert_eq!(fs::read(project.0.join("omega.lock")).unwrap(), accepted);
+            previous = current;
+        }
+    }
+    assert_eq!(previous.len(), 3);
 }
