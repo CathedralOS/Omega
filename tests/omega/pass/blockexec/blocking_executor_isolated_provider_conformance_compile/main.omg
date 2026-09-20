@@ -1,0 +1,46 @@
+// BLOCKEXEC — isolated-provider composition pin: the package's contract
+// declares `IsolatedWorkerProvider: WorkerProvider` as the composition a
+// worker-isolating provider must satisfy. An application-side provider
+// reaches that marker trait today through a named conformance block whose
+// inherited `WorkerProvider::execute` row is bound by reference to the
+// satisfies-clause machine — this is the authored route to the declared
+// isolation contract while real requirement admission rides the TR3-TR8
+// provider leg.
+
+use blocking_executor::executor;
+use omega::language::core::service;
+
+// A small payload moved through the package's submission contract.
+data Token {
+    id: u64;
+}
+
+// The canary isolated worker provider: its `execute` realization satisfies
+// the package's `WorkerProvider` requirement through a compiler-intrinsic
+// binding, and the named conformance below lifts it onto the package's
+// `IsolatedWorkerProvider` marker composition.
+data CanaryIsolatedWorkerProvider { }
+
+machine CanaryIsolatedWorkerProvider::execute<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> T
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies WorkerProvider::execute
+via Binding::CompilerIntrinsic;
+
+// Marker-trait conformance: `IsolatedWorkerProvider` declares no own
+// requirements, so its complete surface is the inherited
+// `WorkerProvider::execute` row, bound here by reference to the existing
+// realization.
+CanaryIsolation:
+    CanaryIsolatedWorkerProvider satisfies IsolatedWorkerProvider
+{
+    WorkerProvider::execute = CanaryIsolatedWorkerProvider::execute;
+}
+
+data Main {
+    executor: Executor<Token, Token, 4>;
+}
+
+machine Main::main(&mut self) { }

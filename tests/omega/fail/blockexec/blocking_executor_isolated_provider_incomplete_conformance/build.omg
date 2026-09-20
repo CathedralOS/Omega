@@ -1,0 +1,12 @@
+// Twin of the isolated-provider pass canary: the same build root, so the
+// rejection is the checker's and not a missing dependency or entry.
+
+machine build(builder: &mut Build) {
+    builder.application("blocking-executor-isolated-provider-incomplete-conformance");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/blocking-executor"
+    });
+    builder.select_provider<blocking_executor::WorkerProvider, CanaryIsolatedWorkerProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
