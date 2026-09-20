@@ -51,8 +51,8 @@ pub(crate) fn validate_values_and_bindings(
 ) -> Result<(), OptimizationUnitValidationError> {
     let definitions = values::collect_value_definitions(function)?;
     let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
+    atomic_coherence::validate_function_atomic_coherence(function, predecessors, &dominators)?;
     for block in &function.blocks {
-        atomic_coherence::validate_block_atomic_coherence(function, block)?;
         for (node_index, node) in block.nodes.iter().enumerate() {
             values::validate_node_uses(
                 function,
