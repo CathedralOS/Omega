@@ -9552,6 +9552,35 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   both propagated routes (`Backup::stage acquires via Vault::pick`,
   `Main::main acquires via Backup::stage`) pinned by the roster.
   Record: `wiki/drafts/canary_acquires_through_helper_return.md`.
+||||||| parent of 0608e99641c3 (board: CANARY-DUPLICATE-OVERLOAD-DECLARATIONS resolved — coverage landed)
+- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
+- **C2L-UNATTRIBUTED-FAILURE-TAIL** — mined candidate; verify scope then implement.
+- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
+- **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
+- **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
+- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
+- **C2L-UNATTRIBUTED-FAILURE-TAIL** — mined candidate; verify scope then implement.
+- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
+- **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
+- **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS.** Resolved — the
+  duplicate-overload canary corpus exists and is driven. Re-verified green
+  on linux x86-64 at `00e1da7ae2a`:
+  `cargo nextest run -p compiler --test canary_suite -E
+  'test(=surface_and_targets::duplicate_overload_and_visibility_
+  admissions_reject) or test(=surface_and_targets::repeated_exact_
+  declaration_selection_compiles)'` → 2/2 PASS.
+  `surface_and_targets.rs:1016` pins five duplicate-admission fixtures
+  with `expected.txt` fragments through checked semantics
+  (`duplicate_named_machine_overload_rejected`,
+  `duplicate_imported_machine_overload_rejected`,
+  `duplicate_trait_requirement_overload_rejected`,
+  `imported_name_collides_with_local_data_rejected`,
+  `recursive_argument_imported_name_collision_rejected`), and the legal
+  half is pinned by `repeated_exact_declaration_selection_compiles`;
+  remaining fail-corpus overload rejections (operators/domains) are
+  covered by `fail_canaries_reject_with_expected_diagnostic_fragment`.
+  Adjacent surface: DUPLICATE-OVERLOAD-RESOLUTION mines the resolution
+  rule itself, not this canary-coverage row. No independent slice exists.
 - **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
   verified at 1edade1a48 — names the canary
   `tests/omega/pass/filesystem/native_wrapper_write_all_result` (the
