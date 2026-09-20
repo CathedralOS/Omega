@@ -100,8 +100,10 @@ use terminal_psi::StructuralPlaceDeclaration;
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
-use crate::rewrites::condition_state::materialized_bits;
-use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
+use crate::rewrites::place_storage::{
+    constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
+    structural_place_declarations,
+};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -144,50 +146,29 @@ struct Forwarded {
 }
 
 impl Forwarded {
-    /// Exact rows intersect when their half-open byte intervals share a byte;
-    /// widened to u64 so edge offsets cannot wrap. A dynamic read extent is
-    /// unbounded upward from `byte_offset`, so the exact row still reaches
-    /// the read byte once its own extent ends past that offset — ending at
-    /// or below it is the only provable disjointness.
+    /// Exact rows intersect when their half-open byte intervals share a byte.
+    /// A dynamic read extent is unbounded upward from `byte_offset`, so the
+    /// exact row still reaches the read byte once its own extent ends past
+    /// that offset — ending at or below it is the only provable disjointness.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        if self.sequence_index.is_some() {
-            return u64::from(self.byte_offset)
-                < u64::from(access.byte_offset) + u64::from(access.byte_count);
-        }
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
-            && u64::from(self.byte_offset)
-                < u64::from(access.byte_offset) + u64::from(access.byte_count)
+        extent_intersects(
+            self.byte_offset,
+            self.byte_count,
+            self.sequence_index.is_some(),
+            access,
+        )
     }
 
-    /// A dynamic-extent row's reach is unbounded only upward: a span row
-    /// covers `length` bytes starting at `byte_offset` and a sequence row
-    /// touches the single byte `byte_offset + index`, so every byte the row
-    /// can touch lies at or after `byte_offset`. It still reaches an exact
-    /// range exactly while its fixed offset starts below the range's end; an
-    /// offset at or past the end is provably disjoint however far the reach
-    /// extends. A sequence row whose `index` resolves to a clean
-    /// `MaterializeI64` — the same carrier audit the dead-store covering
-    /// routes run — touches exactly that one byte wherever its payload base
-    /// sits, so it reaches this range only by landing inside it. When the
-    /// read extent is itself dynamic — its own index unresolved — an
-    /// unresolved row always meets it, and a resolved landing byte meets it
-    /// only at or past the payload base the read starts at.
+    /// Whether `access` can reach the read extent — the shared dynamic-reach
+    /// and resolved-landing decision in `place_storage`.
     fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
-        if let SelectedMemoryAccessRole::WriteByteSequence { index, .. } = access.role
-            && let Ok(landed) = constant_index(function, index)
-            && let Some(position) = u64::from(access.byte_offset).checked_add(landed)
-        {
-            let start = u64::from(self.byte_offset);
-            return if self.sequence_index.is_some() {
-                position >= start
-            } else {
-                position >= start && position < start + u64::from(self.byte_count)
-            };
-        }
-        if self.sequence_index.is_some() {
-            return true;
-        }
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
+        extent_reached_by(
+            self.byte_offset,
+            self.byte_count,
+            self.sequence_index.is_some(),
+            access,
+            function,
+        )
     }
 }
 
@@ -445,7 +426,7 @@ pub(super) fn admit<'source>(
     // does is a candidate source — while an unresolved index, or a position
     // no u32 names, leaves the extent unbounded upward from `byte_offset`.
     if let Some(index) = forwarded.sequence_index
-        && let Ok(landed) = constant_index(function, index)
+        && let Some(landed) = constant_index(function, index)
         && let Some(position) = u64::from(forwarded.byte_offset).checked_add(landed)
         && let Ok(position) = u32::try_from(position)
     {
@@ -1106,7 +1087,6 @@ fn sequence_source(
         None => {
             forwarded.byte_count == 1
                 && constant_index(function, written)
-                    .ok()
                     .and_then(|landed| u64::from(row.byte_offset).checked_add(landed))
                     == Some(u64::from(forwarded.byte_offset))
         }
@@ -1115,7 +1095,7 @@ fn sequence_source(
             constant_index(function, written),
             constant_index(function, index),
         ) {
-            (Ok(written), Ok(read)) => {
+            (Some(written), Some(read)) => {
                 u64::from(row.byte_offset).checked_add(written)
                     == u64::from(forwarded.byte_offset).checked_add(read)
             }
@@ -1146,69 +1126,6 @@ fn sequence_source(
         return Err(reject());
     }
     Ok(value.virtual_register)
-}
-
-/// The compile-time constant a byte-sequence row's `index` resolves to, when
-/// it does — the same carrier audit the dead-store covering routes run. The
-/// register carrying the `index` value is its sole `InstructionResult`
-/// carrier, so an `index` no instruction result carries (an entry or block
-/// parameter) has no producer to resolve, and two instruction results
-/// claiming one value make the constant ambiguous; both stay unproven. The
-/// carrier must then hold the function's one clean `MaterializeI64`
-/// definition and never be redefined by an edge transport or case payload
-/// the instruction audit cannot see — only then does `byte_offset + index`
-/// name a fixed position rather than a runtime-placed byte.
-fn constant_index(
-    function: &SelectedFunction,
-    index: semantic_vocabulary::ValueId,
-) -> Result<u64, StoredLoadForwardingError> {
-    let reject = || StoredLoadForwardingError::AliasingWrite;
-    let mut carriers = function.virtual_registers.iter().filter(|register| {
-        matches!(
-            register.origin,
-            VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == index
-        )
-    });
-    let carrier = carriers.next().ok_or_else(reject)?;
-    if carriers.next().is_some() {
-        return Err(reject());
-    }
-    let landed = materialized_bits(function, carrier.id).map_err(|_| reject())?;
-    if transport_defines(function, carrier.id) {
-        return Err(reject());
-    }
-    Ok(landed)
-}
-
-/// Whether an edge transport or case payload defines `register` — a
-/// definition the instruction-operand audit in `materialized_bits` cannot
-/// see, which would falsify the constant it reports for the index.
-fn transport_defines(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
-    for block in &function.blocks {
-        for successor in terminator_successors(&block.terminator) {
-            if successor.bindings.iter().any(|binding| {
-                matches!(
-                    binding.transport,
-                    SelectedValueTransport::Registers { parameter, .. } if parameter == register
-                )
-            }) {
-                return true;
-            }
-            if let Some(case) = &successor.structural_case
-                && case.payloads.iter().any(|payload| {
-                    matches!(
-                        payload.transport,
-                        SelectedCasePayloadTransport::Unmaterialized { parameter }
-                            | SelectedCasePayloadTransport::Registers { parameter, .. }
-                            if parameter == register
-                    )
-                })
-            {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// A crossed edge must perform no work the roster cannot see. `Unused`
