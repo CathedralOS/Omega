@@ -124,6 +124,32 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(expression, "all()")
         self.assertTrue(reasons)
 
+    def test_plan_reports_measured_slow_tail_for_selected_owner(self):
+        self.metadata["packages"].append({
+            "id": "native-realization", "name": "native-realization",
+            "manifest_path": str(self.root / "crates/native/Cargo.toml"),
+            "dependencies": []})
+        self.metadata["workspace_members"].append("native-realization")
+        with patch.object(affected, "changed_paths",
+                          return_value=["crates/native/src/lib.rs"]), \
+                patch.object(affected, "output", return_value=json.dumps(
+                    dict(self.metadata, workspace_root=str(self.root)))):
+            plan = affected.make_plan(self.root, "mbx", "verified-base")
+        self.assertEqual(plan["slow_tail"], [
+            {"package": "native-realization", "test": "stack_probe_commit",
+             "measured_seconds": 324},
+            {"package": "native-realization", "test": "runtime_spill_pressure",
+             "measured_seconds": 356},
+        ])
+
+    def test_plan_without_a_slow_owner_reports_no_tail(self):
+        with patch.object(affected, "changed_paths",
+                          return_value=["crates/app/core/src/lib.rs"]), \
+                patch.object(affected, "output", return_value=json.dumps(
+                    dict(self.metadata, workspace_root=str(self.root)))):
+            plan = affected.make_plan(self.root, "mbx", "verified-base")
+        self.assertNotIn("slow_tail", plan)
+
 
 class GitChangesTests(unittest.TestCase):
     def test_staged_unstaged_deleted_untracked_and_both_rename_sides(self):

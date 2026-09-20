@@ -68,6 +68,7 @@ once the slow tail lands in the selection.
   win is intact on Linux.
 - For single-crate diffs the win is diluted by the slow-tail concentration:
   `native-realization`'s multi-minute runtime tests gate any selection that
-  includes it. A bounded follow-up would be per-test slowness data in
-  selection decisions (nextest slow-test thresholds or an explicit exclusion
-  list for routine diffs), not a selector rewrite.
+  includes it. The bounded follow-up landed as `slow_tail` in the
+  `test_affected.py --plan` output: a selection naming a measured-slow owner
+  reports the test names and seconds before paying them. An exclusion list
+  for routine diffs remains a separate coverage-policy decision.

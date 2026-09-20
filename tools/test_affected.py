@@ -42,6 +42,17 @@ DOCUMENTATION_TEST = (
     "surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus"
 )
 
+# Measured multi-minute library tests by owning package
+# (wiki/drafts/test_cycle_selection_remeasurement.md). Selection keeps running
+# them; the plan reports the measured cost so a narrow run can see the slow
+# tail it is about to pay.
+SLOW_TEST_OWNERS = {
+    "native-realization": [
+        ("stack_probe_commit", 324),
+        ("runtime_spill_pressure", 356),
+    ],
+}
+
 
 def is_documentation(filename):
     path = PurePosixPath(filename)
@@ -154,10 +165,19 @@ def make_plan(root, runner, base, full=False):
             # A valid selection can contain only bin crates (e.g. omega).
             # The separate integration gate covers those; this phase is --lib.
             commands[-1].extend(["--no-tests", "pass"])
-    return {"base": base, "changed_paths": paths, "affected_packages": packages,
+    plan = {"base": base, "changed_paths": paths, "affected_packages": packages,
             "documentation_paths": documentation_paths,
             "filter": expression, "full_suite_reasons": reasons,
             "commands": commands}
+    slow_tail = [
+        {"package": owner, "test": name, "measured_seconds": seconds}
+        for owner, tests in SLOW_TEST_OWNERS.items()
+        if owner in packages
+        for name, seconds in tests
+    ]
+    if slow_tail:
+        plan["slow_tail"] = slow_tail
+    return plan
 
 
 def run_commands(root, commands):
