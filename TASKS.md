@@ -7723,7 +7723,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   entry-selection correctness is CANARY-EXACT-ENTRY-SELECTION's live
   claim (owner 'Devin / canary-exact-entry-selection', expires
   2026-09-20T21:52Z).
-- **DIVISION-VALUE-ENTRY-SELECTION** — resolved; the mined row names the
+- **DIVISION-VALUE-ENTRY-SELECTION.** Resolved — the mined row names the
   `operators/runtime_integer_division_value` "native-artifact production
   requires one exact selected program entry" failure, already repaired on
   `origin/main` at `e5912f303a` (authored `build.omg` binds
