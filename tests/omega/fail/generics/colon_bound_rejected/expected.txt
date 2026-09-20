@@ -1,1 +1,1 @@
-write `T [copy]`, not `T: copy`
+a value parameter (`T`) is not supported on a data template yet
