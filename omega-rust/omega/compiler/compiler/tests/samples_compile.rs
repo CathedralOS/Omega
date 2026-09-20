@@ -52,9 +52,9 @@
 //!    slice-value folds with cast terminals.
 //!  * `simulation_samples_compile_from_authored_program_entry_bindings` — the
 //!    deployable simulation cohort has the same exact hosted-root guarantees.
-//!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
-//!    deployable proof samples do the same, while the two proof-only sources
-//!    remain targetless checked fixtures.
+//!  * `proof_samples_compile_from_authored_program_entry_bindings` — the six
+//!    deployable proof samples do the same, while the remaining proof-only
+//!    source remains a targetless checked fixture.
 //!  * `sample_entry_exceptions_are_explicit_and_non_runnable` — the complete
 //!    rootless corpus is the intentional proof/trap/firmware set, and any
 //!    host-unavailable runtime sample is an explicit target-shaped exception.
@@ -456,11 +456,7 @@ const EXPLICIT_ENTRY_SIMULATION_SAMPLES: &[&str] = &[
     "traffic_light",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
-    "bounded_counter",
-    "clamp_sum",
-    "leap_year",
-    "shape_area",
-    "shapes_area",
+    "structural_proofs",
 ];
 
 /// Parse a `// Expected exit: N` annotation (any casing) from a sample's source.
@@ -1111,7 +1107,6 @@ fn sample_entry_exceptions_are_explicit_and_non_runnable() {
         [
             "cli__probes__trapping_probe",
             "cli__proofs__math_proofs",
-            "cli__proofs__structural_proofs",
             "uefi__uefi_hello",
         ],
         "only the deliberate trap, proof-only fixtures, and firmware pending its bootstrap adapter may lack an authored root"
