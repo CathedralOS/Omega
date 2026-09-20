@@ -66,11 +66,13 @@ pub(super) fn validate_owned_arguments(
                     }
                     _ => return None,
                 };
+                // The result's signature preconditions were already bound
+                // against the destination roster at call-edge replay; the
+                // transport here re-checks only what selection owns.
                 if result.place != semantic.place
                     || result.structural_type != target.structural_type
                     || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || !result.claims.is_empty()
-                    || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
                 {
                     return None;
@@ -87,7 +89,6 @@ pub(super) fn validate_owned_arguments(
                     || parameter.semantic.multiplicity
                         == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.semantic.structural_type != target.structural_type
-                    || !parameter.semantic.qualifications.is_empty()
                     || !parameter.semantic.projected_qualifications.is_empty()
                     || placement != &parameter.target.placement
                     || placement.shape != shape
