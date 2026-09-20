@@ -579,28 +579,19 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
     eventual acceptance is successful compilation with the boundary trait,
     not weakening duplicate-schema rejection.
-  - Admit inline computed description operands and Build receivers through
+  - Admit computed Build receivers through
     ordinary checked call-result authority, effect traversal, and loan accounting.
-    The first operand barrier is `tokens-to-syntax-trees/src/bodies/statements/statement_tables.rs`:
-    `root_binding_declaration` requires a name path even for an issued description
-    returned by `setup::retain(entry)` (`74085250b1`, macOS ARM64). Retain the
-    existing expression operand, without a dummy implementation path. Resolution's
-    `symbols/statements/routing.rs` must not clear non-name expressions, and
-    `lowering/statement/statement_nodes.rs` must retain their ordinary authored
-    call selections. Preserve static declaration paths and bare-name disambiguation.
     `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
-    currently requires retained symbol-rooted places. The validation owners
-    `machine_calls/calls/expression_scanning/traversal.rs` and
-    `machine_calls/effect_inference/invocations.rs` skip `RootBinding` operands;
-    its shared `calls/write_frames/demand.rs::statement_value_expression_roots`,
-    checked `borrow/calls.rs`, and `semantic_calls/traversal/statement.rs` also
-    omit them. Call ordinals, mutation/range facts, and ownership checks must
-    agree with expression evaluation; visiting the operand in one walker or
-    removing the place fence alone is insufficient.
-    Do not bypass those checks with a Build-specific call-result recognizer
-    or grant authority from the declared result type alone. Preserve the
-    ordinary-return-to-local positive and returned-forgery negative in
-    `foreign_helper_product_queries.rs` while admitting inline operands.
+    still requires a compiler-issued symbol-rooted `&mut Build` place. Establish
+    returned receiver custody through the ordinary checked loan/result path;
+    removing that fence or recognizing a particular helper spelling is not
+    acceptance. Retain receiver-before-description evaluation order and exact
+    call ordinals across effect, mutation/range, and ownership checks.
+    Preserve static declaration paths, bare-name disambiguation, inline
+    description expression checking, and activation-specific issuance checks.
+    Acceptance is a computed receiver binding a restricted issued description
+    through native publication/execution while forged and expired authority
+    still reject.
   - Extend the existing provider/description owners, with
     BUILD-DEPENDENCY-PURPOSES for separate contexts and
     BUILD-ADMISSION-CHECKPOINT for source custody.
@@ -615,9 +606,9 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   forged descriptions, description-to-callable
   conversion, and same-build generated/layout cycles reject. Preserve
   `compiler/tests/build_target_activation/{foreign_helper_product_queries,qualified_root_bindings,product_query_paths}.rs`.
-  The first module's inline computed-result negative returns a forged
-  `ProductEntryRef {}`: it must still reject after an independently
-  compiler-issued inline result becomes supported.
+  Preserve the ordinary-return-to-local, inline, nested-effect, and generic
+  native tests alongside returned-forgery and expression-checking negatives in
+  the foreign-helper module.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
