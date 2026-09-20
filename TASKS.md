@@ -7121,7 +7121,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   substitution, nominal literals, array literals and constrained carriers —
   each with an explicit refusal rather than a silent pass. Witness on the
   sibling row: `public_float_constants_retain_landed_identity_and_exact_import_owner`
-  green at `cdee121ee9`. Sibling stubs on the same surface:
+  green at `cdee121ee9`. Re-verified at `d32183a35c` (linux x86-64,
+  `cargo nextest run -p compiler -E
+  'test(~public_float_constants_retain_landed_identity_and_exact_import_owner)'`:
+  1/1 pass; `closed_leaf_carrier` lanes still present in
+  `constant/initializer_leaves.rs`). Sibling stubs on the same surface:
   PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, PACKAGE-INPUTS-PSI-FAILURES.
 - **CONCURRENCY-COMPOSITION-EXTRACTION.** Resolved — mined alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface; its authorization gate applies (spec defers whole-composition extraction until a concrete protocol or safety-profile customer needs it).
 - **CONCURRENT-COMPOSITION-EXTRACTION.** Resolved — mined alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface; its authorization gate applies (spec defers whole-composition extraction until a concrete protocol or safety-profile customer needs it).
