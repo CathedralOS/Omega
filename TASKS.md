@@ -6690,7 +6690,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under the parent row, so no independent slice exists here. Re-verified at
   `62c502f9f6` on linux x86-64.
 - **BENCHMARK-CROSS-TARGET-COMPILE-ROWS** — mined candidate; verify scope then implement.
-- **BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT** — mined candidate; verify scope then implement.
+- **BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT** — mined candidate; scope verified,
+  gated — same verdict as the sibling DEPENDENCY-FREE-RUNTIME-BENCHMARK-
+  SUBJECT row. The depend-free subject itself already landed: `samples/cli/
+  basics/standalone/wrapping_square_sum` (`3dd805679c`, committed records
+  `tools/benchmark/records/wrapping_square_sum__*`). What it cannot do is
+  *run*: process completion is a provider operation — linux_x86_64 `entry.omg`
+  completes through the `exit_group` sequence bound to the std package
+  identity (`process_exit.omg` + `targets/*/process_exit_impl.omg`), which a
+  `depend()`-free subject can neither import nor select, and a
+  package-declared boundary produces no provider plan
+  (`standalone/README.md`; consistent with entry_roots.md's complete-set
+  authority clause). The repair is the PROCESS-EXIT-CONTRACT migration
+  (TASKS.md's process-exit contract section, still open at `edc77c2148`),
+  not a benchmark-harness change; until it lands depend-free subjects stay
+  `--no-run` with `runtime_ms` honestly `skipped`. `tools/benchmark` is
+  fenced by BENCHMARK-COMPARISON-OCCURRENCE-GATE (~22:09Z). Sibling stubs on
+  the same gated surface: DEPENDENCY-FREE-BENCHMARK-SUBJECT,
+  DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT,
+  BENCHMARK-MEASURABLE-SUBJECT-CORPUS, BENCHMARK-STANDALONE-SUBJECT.
 - **BENCHMARK-HOST-ROW-MATRIX.** Host-row matrix machinery verified already landed: `tools/benchmark/benchmark.py matrix` renders one row per committed `tools/benchmark/records/` record plus one explicit row per catalogued deployment profile (`HOST_LEGS`, `TargetProfile::ALL` order) so unavailable host legs stay visible; the rendered table is embedded in `wiki/drafts/benchmarks.md` between `benchmark-matrix` markers and drift-pinned by `tools/tests/test_benchmark.py` (regenerate via the `matrix` command after each row lands). At `749794ddeb` the comparison-occurrence rejection recorded in that note is lifted — a `cli_mvp` default-selection probe on linux x86-64 reached `published native output` after `29ca2fd46e` — and the frontier paragraph now records it. Remaining legs belong to sibling items: new record production under `tools/benchmark/records/` (BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-CROSS-TARGET-COMPILE-ROWS) and uncovered host rows (BENCHMARK-LINUX-ARM64-ROW, BENCHMARK-MACOS-ARM64-ROW, windows/uefi hosts); `macos_x86_64` stays structurally unavailable under MACOS-X64-HOST-PROFILE.
 - **BENCHMARK-LINUX-X64-ROW-REFRESH** — mined candidate; verify scope then implement.
 - **BENCHMARK-MACOS-ARM64-ROW.** Mined candidate; scope verified at
