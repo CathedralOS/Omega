@@ -2,6 +2,7 @@
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::semantic_calls::CallSite;
+#[cfg(test)]
 use crate::semantic_calls::find_call_site;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -275,9 +276,9 @@ pub(super) fn record_transition(
 }
 
 /// Ordinary invocations are not narrowed by the internal transition proof.
-pub(super) fn record_invocation(
-    program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+pub(super) fn record_invocation<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
@@ -303,8 +304,9 @@ pub(super) fn record_invocation(
     }
     if owner.symbol == machine.symbol
         && matches!(
-            find_call_site(
+            super::calls::memoized_find_call_site(
                 program,
+                ctx,
                 machine.symbol,
                 state.symbol,
                 call.statement_index,

@@ -17,13 +17,13 @@ use checked_trees::{
 };
 use facts::{FactPlan, ProgramPoint};
 
-pub(super) fn build_state_flow_fact(
-    program: &typed_trees::TypedTrees,
+pub(super) fn build_state_flow_fact<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext,
+    ctx: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     declaration_groups: [facts::FactContextGroup; 2],

@@ -46,10 +46,53 @@ pub struct CallFrameResolver<'program> {
     /// fixpoints. The program is immutable for this resolver's lifetime, so a
     /// call-node address plus its owning machine is a stable cache key.
     statement_calls: Mutex<HashMap<(u32, u32, usize), NormalizedWriteFrame>>,
+    /// Every public query below is pure over that same immutable program, so
+    /// the fixpoint's per-pass repetition memoizes under the same law: AST
+    /// nodes key by address plus owning machine, handles and symbols by their
+    /// own durable identities.
+    binding_replacements: Mutex<HashMap<(SymbolHandle, usize), Option<bool>>>,
+    local_reference_origins: Mutex<
+        HashMap<
+            (SymbolHandle, usize, SymbolHandle),
+            Option<(SymbolHandle, Vec<facts::PlaceSegment>)>,
+        >,
+    >,
+    stable_expression_bindings: Mutex<HashMap<(SymbolHandle, ExpressionHandle), bool>>,
+    stable_call_bindings: Mutex<HashMap<(SymbolHandle, usize), bool>>,
+    caller_isolated_proof_values: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
+    write_origin_requirements: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
+    assignment_targets: Mutex<HashMap<(SymbolHandle, usize), Option<AssignmentWriteTarget>>>,
+    assignment_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
+    local_write_origins: Mutex<HashMap<(SymbolHandle, usize), Option<Vec<LocalWriteOrigin>>>>,
+    expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
+    statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
+    inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
+    inferred_machine_frames:
+        Mutex<HashMap<SymbolHandle, std::sync::Arc<Vec<NormalizedWriteFrame>>>>,
     /// Successful acyclic state summaries are context-independent relative
     /// frames. Retain them across resolver queries; opaque and cycle fallback
     /// results remain one-shot so the conservative frontier is unchanged.
     complete_state_summaries: Mutex<Vec<(SymbolHandle, Vec<String>)>>,
+}
+
+/// Run `compute` once per key for the resolver's immutable program. The lock
+/// is not held across `compute`, so nested resolver queries through it cannot
+/// deadlock; concurrent misses may compute twice and publish the same value.
+fn memoized<K, V>(cache: &Mutex<HashMap<K, V>>, key: K, compute: impl FnOnce() -> V) -> V
+where
+    K: Eq + std::hash::Hash,
+    V: Clone,
+{
+    if let Ok(cache) = cache.lock()
+        && let Some(hit) = cache.get(&key)
+    {
+        return hit.clone();
+    }
+    let value = compute();
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(key, value.clone());
+    }
+    value
 }
 
 impl<'program> CallFrameResolver<'program> {
@@ -61,7 +104,11 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
     ) -> Option<bool> {
-        super::reference_subjects::replaces_binding(self.program, machine, statement)
+        memoized(
+            &self.binding_replacements,
+            (machine.symbol, std::ptr::from_ref(statement).addr()),
+            || super::reference_subjects::replaces_binding(self.program, machine, statement),
+        )
     }
 
     /// Resolve a bare local reference to exact live storage at this prefix.
@@ -73,14 +120,20 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
         local: SymbolHandle,
     ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
-        let source = super::reference_subjects::local_origin(
-            self.program,
-            machine,
-            &self.symbols,
-            statement,
-            local,
-        )?;
-        Some((source.root, source.segments))
+        memoized(
+            &self.local_reference_origins,
+            (machine.symbol, std::ptr::from_ref(statement).addr(), local),
+            || {
+                super::reference_subjects::local_origin(
+                    self.program,
+                    machine,
+                    &self.symbols,
+                    statement,
+                    local,
+                )
+                .map(|source| (source.root, source.segments))
+            },
+        )
     }
 
     /// A complete may-write frame does not exempt reference-binding exposure.
@@ -91,23 +144,35 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         expression: ExpressionHandle,
     ) -> bool {
-        super::reference_subjects::bindings::are_stable_at_site(
-            self.program,
-            machine,
-            &self.symbols,
-            CallerWriteSite::Expression(expression),
+        memoized(
+            &self.stable_expression_bindings,
+            (machine.symbol, expression),
+            || {
+                super::reference_subjects::bindings::are_stable_at_site(
+                    self.program,
+                    machine,
+                    &self.symbols,
+                    CallerWriteSite::Expression(expression),
+                )
+                .is_some()
+            },
         )
-        .is_some()
     }
 
     pub fn call_reference_bindings_are_stable(&self, machine: &Machine, call: &TableCall) -> bool {
-        super::reference_subjects::bindings::are_stable_at_site(
-            self.program,
-            machine,
-            &self.symbols,
-            CallerWriteSite::Call(call),
+        memoized(
+            &self.stable_call_bindings,
+            (machine.symbol, std::ptr::from_ref(call).addr()),
+            || {
+                super::reference_subjects::bindings::are_stable_at_site(
+                    self.program,
+                    machine,
+                    &self.symbols,
+                    CallerWriteSite::Call(call),
+                )
+                .is_some()
+            },
         )
-        .is_some()
     }
 
     /// Reference-free erased value shape; unlike runtime layout, inline proof
@@ -116,7 +181,9 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         reference: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
-        super::isolation::type_is_caller_isolated_proof_value(self.program, reference)
+        memoized(&self.caller_isolated_proof_values, reference, || {
+            super::isolation::type_is_caller_isolated_proof_value(self.program, reference)
+        })
     }
 
     /// Shared classification only; storage origins still require prefix evidence.
@@ -124,8 +191,10 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         reference: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
-        super::type_may_carry_write(self.program, reference)
-            && !super::type_is_caller_isolated_local(self.program, reference)
+        memoized(&self.write_origin_requirements, reference, || {
+            super::type_may_carry_write(self.program, reference)
+                && !super::type_is_caller_isolated_local(self.program, reference)
+        })
     }
 
     pub fn assignment_write_target(
@@ -133,7 +202,11 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &Machine,
         statement: &StatementNode,
     ) -> Option<AssignmentWriteTarget> {
-        assignment_write_target(self.program, current_machine, &self.symbols, statement)
+        memoized(
+            &self.assignment_targets,
+            (current_machine.symbol, std::ptr::from_ref(statement).addr()),
+            || assignment_write_target(self.program, current_machine, &self.symbols, statement),
+        )
     }
 
     /// Direct store only; operand calls have their own value-expression frame.
@@ -142,13 +215,19 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &Machine,
         statement: &StatementNode,
     ) -> NormalizedWriteFrame {
-        let written = super::caller_aliases::assignment_write_paths(
-            self.program,
-            current_machine,
-            &self.symbols,
-            statement,
-        );
-        written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+        memoized(
+            &self.assignment_frames,
+            (current_machine.symbol, std::ptr::from_ref(statement).addr()),
+            || {
+                super::caller_aliases::assignment_write_paths(
+                    self.program,
+                    current_machine,
+                    &self.symbols,
+                    statement,
+                )
+                .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+            },
+        )
     }
 
     /// Recover the exact prefix origins shared with inferred state frames.
@@ -159,11 +238,17 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &Machine,
         statement: &StatementNode,
     ) -> Option<Vec<LocalWriteOrigin>> {
-        local_write_origins_before_statement(
-            self.program,
-            current_machine,
-            &self.symbols,
-            statement,
+        memoized(
+            &self.local_write_origins,
+            (current_machine.symbol, std::ptr::from_ref(statement).addr()),
+            || {
+                local_write_origins_before_statement(
+                    self.program,
+                    current_machine,
+                    &self.symbols,
+                    statement,
+                )
+            },
         )
     }
 
@@ -174,6 +259,19 @@ impl<'program> CallFrameResolver<'program> {
             program,
             symbols,
             statement_calls: Mutex::new(HashMap::new()),
+            binding_replacements: Mutex::new(HashMap::new()),
+            local_reference_origins: Mutex::new(HashMap::new()),
+            stable_expression_bindings: Mutex::new(HashMap::new()),
+            stable_call_bindings: Mutex::new(HashMap::new()),
+            caller_isolated_proof_values: Mutex::new(HashMap::new()),
+            write_origin_requirements: Mutex::new(HashMap::new()),
+            assignment_targets: Mutex::new(HashMap::new()),
+            assignment_frames: Mutex::new(HashMap::new()),
+            local_write_origins: Mutex::new(HashMap::new()),
+            expression_frames: Mutex::new(HashMap::new()),
+            statement_value_frames: Mutex::new(HashMap::new()),
+            inferred_state_frames: Mutex::new(HashMap::new()),
+            inferred_machine_frames: Mutex::new(HashMap::new()),
             complete_state_summaries: Mutex::new(Vec::new()),
         })
     }
@@ -358,6 +456,18 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         expression: ExpressionHandle,
     ) -> NormalizedWriteFrame {
+        memoized(
+            &self.expression_frames,
+            (current_machine.symbol, expression),
+            || self.expression_write_frame_uncached(current_machine, expression),
+        )
+    }
+
+    fn expression_write_frame_uncached(
+        &self,
+        current_machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> NormalizedWriteFrame {
         let mut diagnostics = Vec::new();
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
@@ -435,6 +545,25 @@ impl<'program> CallFrameResolver<'program> {
         machine_symbols: &MachineSymbols<'program>,
         statement: &StatementNode,
     ) -> NormalizedWriteFrame {
+        memoized(
+            &self.statement_value_frames,
+            (current_machine.symbol, std::ptr::from_ref(statement).addr()),
+            || {
+                self.statement_value_write_frame_uncached(
+                    current_machine,
+                    machine_symbols,
+                    statement,
+                )
+            },
+        )
+    }
+
+    fn statement_value_write_frame_uncached(
+        &self,
+        current_machine: &'program Machine,
+        machine_symbols: &MachineSymbols<'program>,
+        statement: &StatementNode,
+    ) -> NormalizedWriteFrame {
         let expressions = statement_value_expression_roots(self.program, statement);
         if !expressions
             .iter()
@@ -478,16 +607,22 @@ impl<'program> CallFrameResolver<'program> {
         machine: &'program Machine,
         state: &'program State,
     ) -> NormalizedWriteFrame {
-        if !self
-            .program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-        {
-            return NormalizedWriteFrame::opaque();
-        }
-        self.with_complete_state_summaries(|complete_state_summaries| {
-            self.inferred_state_write_frame_with_summaries(machine, state, complete_state_summaries)
+        memoized(&self.inferred_state_frames, state.symbol, || {
+            if !self
+                .program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+            {
+                return NormalizedWriteFrame::opaque();
+            }
+            self.with_complete_state_summaries(|complete_state_summaries| {
+                self.inferred_state_write_frame_with_summaries(
+                    machine,
+                    state,
+                    complete_state_summaries,
+                )
+            })
         })
     }
 
@@ -499,19 +634,24 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
     ) -> Vec<NormalizedWriteFrame> {
-        self.with_complete_state_summaries(|complete_state_summaries| {
-            self.program
-                .machine_states(machine)
-                .iter()
-                .map(|state| {
-                    self.inferred_state_write_frame_with_summaries(
-                        machine,
-                        state,
-                        complete_state_summaries,
-                    )
-                })
-                .collect()
-        })
+        let frames = memoized(&self.inferred_machine_frames, machine.symbol, || {
+            std::sync::Arc::new(
+                self.with_complete_state_summaries(|complete_state_summaries| {
+                    self.program
+                        .machine_states(machine)
+                        .iter()
+                        .map(|state| {
+                            self.inferred_state_write_frame_with_summaries(
+                                machine,
+                                state,
+                                complete_state_summaries,
+                            )
+                        })
+                        .collect()
+                }),
+            )
+        });
+        (*frames).clone()
     }
 
     fn inferred_state_write_frame_with_summaries(

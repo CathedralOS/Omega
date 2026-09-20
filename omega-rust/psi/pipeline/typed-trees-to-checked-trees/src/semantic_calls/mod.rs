@@ -8,6 +8,7 @@ mod traversal;
 use crate::lookup::machine_by_symbol;
 use traversal::{CallSiteTraversal, find_call_site_in_statement};
 
+#[derive(Clone, Copy)]
 pub(crate) enum CallSite<'program> {
     Statement(&'program typed_trees::statement::TableCall),
     Expression {
