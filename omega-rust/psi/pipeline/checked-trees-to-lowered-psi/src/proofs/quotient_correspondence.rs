@@ -22,7 +22,8 @@
 //! checked trees exist, and the checked stage exits every value path whose
 //! call carries `quotient_operation`, so on the current route the production
 //! entrance sees no request. Its tests substitute a request-bearing typed
-//! program into a checked baseline, the same input the extractor reads.
+//! program into a checked baseline, the same input the extractor reads, and
+//! answer termination from `facts.termination` as the compiler route does.
 
 use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionNode;
@@ -61,8 +62,11 @@ pub(crate) fn install_non_executable_quotient_correspondences(
 ///
 /// The semantic extractor rederives every request from the checked stage's
 /// retained program input (`CheckedTrees::typed`) rather than trusting any
-/// checked-stage summary. With no request present the module is returned
-/// untouched and the extractor never runs.
+/// checked-stage summary, except termination eligibility: the typed machine
+/// carries no guarantee on the compiler route (the checked stage proves
+/// termination after validation into `facts.termination`), so that one
+/// judgment reads the checked termination facts. With no request present the
+/// module is returned untouched and the extractor never runs.
 pub(crate) fn retain_checked_quotient_correspondences(
     checked: &CheckedTrees,
     module: &mut TerminalModule,
@@ -70,13 +74,23 @@ pub(crate) fn retain_checked_quotient_correspondences(
     if !program_carries_quotient_request(checked) {
         return Ok(());
     }
-    let batch = validation::extract_non_executable_quotient_correspondences(&checked.typed)
-        .map_err(|diagnostics| LoweringError::UnadmittedQuotientRequest {
-            diagnostics: diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect(),
-        })?;
+    let checked_termination = |machine: symbols::SymbolHandle| {
+        checked
+            .facts
+            .termination
+            .for_machine(machine)
+            .map(|plan| plan.checked_summary.clone())
+    };
+    let batch = validation::extract_non_executable_quotient_correspondences_with_termination(
+        &checked.typed,
+        &checked_termination,
+    )
+    .map_err(|diagnostics| LoweringError::UnadmittedQuotientRequest {
+        diagnostics: diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect(),
+    })?;
     install_non_executable_quotient_correspondences(batch, module)
 }
 
@@ -222,31 +236,60 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
             top_level_bindings: Vec::new(),
         })
         .expect("package-aware resolution");
-        let mut program = lower_symbol_resolved_trees(&resolved).expect("type lowering");
-        // The extractor requires checked termination on the representative,
-        // theorem and requesting machines; the fixture pins it directly, as
-        // the extractor's own tests do.
-        let eligible = program
+        // As on the compiler route, the typed machines carry no checked
+        // termination guarantee; the checked termination facts supply it.
+        lower_symbol_resolved_trees(&resolved).expect("type lowering")
+    }
+
+    /// The machines the extractor requires an unconditional checked
+    /// termination guarantee for: the representative, the selected theorem
+    /// and the requesting machine.
+    fn eligibility_machines(program: &TypedTrees) -> Vec<symbols::SymbolHandle> {
+        let symbols = program
             .machines()
             .iter()
-            .enumerate()
-            .filter_map(|(position, machine)| {
+            .filter(|machine| {
                 let name = program.symbols.name(machine.symbol);
-                (matches!(name, "representative" | "representative_respects")
+                matches!(name, "representative" | "representative_respects")
                     || name.starts_with("admitted")
-                    || name.starts_with("unsupported"))
-                .then_some(position)
+                    || name.starts_with("unsupported")
             })
+            .map(|machine| machine.symbol)
             .collect::<Vec<_>>();
-        assert!(eligible.len() >= 3);
-        for position in eligible {
-            program.machines_mut()[position]
-                .termination_plan
-                .checked_summary = language_semantics::TerminationGuarantee::Terminates {
-                premises: Vec::new(),
-            };
+        assert!(symbols.len() >= 3);
+        symbols
+    }
+
+    /// Record `guarantee` as the checked termination fact of every
+    /// eligibility machine, the way `build_check_facts` records what the
+    /// checked stage proved.
+    fn record_checked_termination(
+        checked: &mut checked_trees::CheckedTrees,
+        guarantee: language_semantics::TerminationGuarantee,
+    ) {
+        for symbol in eligibility_machines(&checked.typed) {
+            let machine = checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == symbol)
+                .expect("eligibility machine");
+            let mut plan = machine.termination_plan.clone();
+            plan.checked_summary = guarantee.clone();
+            checked
+                .facts
+                .termination
+                .machines
+                .retain(|fact| fact.machine != symbol);
+            checked
+                .facts
+                .termination
+                .machines
+                .push(checked_trees::MachineTerminationFact {
+                    machine: symbol,
+                    plan,
+                });
         }
-        program
     }
 
     fn baseline_checked() -> checked_trees::CheckedTrees {
@@ -272,11 +315,28 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     }
 
     /// The checked baseline with a request-bearing typed program substituted
-    /// as its retained input: the only field the production entrance reads.
+    /// as its retained input and the eligibility machines' checked termination
+    /// facts recorded as proved: the two inputs the production entrance reads.
     fn checked_with_requests(source: &str) -> checked_trees::CheckedTrees {
         let mut checked = baseline_checked();
         checked.typed = quotient_program(source);
+        record_checked_termination(
+            &mut checked,
+            language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
+        );
         checked
+    }
+
+    fn assert_unadmitted_naming(error: LoweringError, fragment: &str) {
+        let LoweringError::UnadmittedQuotientRequest { diagnostics } = error else {
+            panic!("expected the unadmitted-request refusal, got {error:?}");
+        };
+        assert!(
+            diagnostics.iter().any(|message| message.contains(fragment)),
+            "diagnostics name `{fragment}`: {diagnostics:?}"
+        );
     }
 
     #[test]
@@ -294,9 +354,16 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     fn an_admitted_direct_define_installs_its_row_and_stays_non_executable() {
         let checked =
             checked_with_requests(&format!("{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}"));
-        // Ordinary validation still refuses the request; the production
-        // entrance is what carries the admitted batch once it does not.
-        assert!(validation::validate_program(&checked.typed).is_err());
+        // The typed machines carry no guarantee, so the typed-summary
+        // extractor (what ordinary validation consults) refuses the batch;
+        // the production entrance admits it from the checked facts.
+        assert!(checked.typed.machines().iter().all(|machine| matches!(
+            machine.termination_plan.checked_summary,
+            language_semantics::TerminationGuarantee::NoGuarantee
+        )));
+        assert!(
+            validation::extract_non_executable_quotient_correspondences(&checked.typed).is_err()
+        );
         let mut module = baseline_module();
         retain_checked_quotient_correspondences(&checked, &mut module)
             .expect("the admitted batch installs");
@@ -308,12 +375,21 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
             language_semantics::quotient_correspondence::QuotientCorrespondenceOperationKind::Define
         );
         let mut rederived =
-            validation::extract_non_executable_quotient_correspondences(&checked.typed)
-                .expect("rederive")
-                .into_correspondences()
-                .into_iter()
-                .map(terminal_psi::retain_non_executable_quotient_correspondence)
-                .collect::<Vec<_>>();
+            validation::extract_non_executable_quotient_correspondences_with_termination(
+                &checked.typed,
+                &|machine: symbols::SymbolHandle| {
+                    checked
+                        .facts
+                        .termination
+                        .for_machine(machine)
+                        .map(|plan| plan.checked_summary.clone())
+                },
+            )
+            .expect("rederive")
+            .into_correspondences()
+            .into_iter()
+            .map(terminal_psi::retain_non_executable_quotient_correspondence)
+            .collect::<Vec<_>>();
         rederived.sort_by(|left, right| left.identity.cmp(&right.identity));
         assert_eq!(module.quotient_correspondences, rederived);
         // The table is proof-only: representation replay accepts it and the
@@ -337,15 +413,76 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
         let before = module.clone();
         let error = retain_checked_quotient_correspondences(&checked, &mut module)
             .expect_err("one unadmitted request refuses the whole batch");
-        let LoweringError::UnadmittedQuotientRequest { diagnostics } = error else {
-            panic!("expected the unadmitted-request refusal, got {error:?}");
-        };
-        assert!(
-            diagnostics
-                .iter()
-                .any(|message| message.contains("direct transport-backed `lift` only")),
-            "diagnostics name the unadmitted shape: {diagnostics:?}"
+        assert_unadmitted_naming(error, "direct transport-backed `lift` only");
+        assert_eq!(module, before);
+    }
+
+    #[test]
+    fn termination_is_read_from_the_checked_facts_not_the_typed_summary() {
+        let source = format!("{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}");
+        // No checked termination fact at all: the checked stage proved
+        // nothing, so the batch is refused at the termination fence.
+        let mut unproved = baseline_checked();
+        unproved.typed = quotient_program(&source);
+        let mut module = baseline_module();
+        let before = module.clone();
+        let error = retain_checked_quotient_correspondences(&unproved, &mut module)
+            .expect_err("no checked guarantee refuses the batch");
+        assert_unadmitted_naming(
+            error,
+            "purity, termination, or theorem crash eligibility is incomplete",
         );
+        assert_eq!(module, before);
+
+        // A typed summary alone does not admit: the checked facts record no
+        // guarantee for the same machines, and the facts are authoritative.
+        let mut typed_only = baseline_checked();
+        typed_only.typed = quotient_program(&source);
+        for symbol in eligibility_machines(&typed_only.typed) {
+            let position = typed_only
+                .typed
+                .machines()
+                .iter()
+                .position(|machine| machine.symbol == symbol)
+                .expect("eligibility machine");
+            typed_only.typed.machines_mut()[position]
+                .termination_plan
+                .checked_summary = language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            };
+        }
+        record_checked_termination(
+            &mut typed_only,
+            language_semantics::TerminationGuarantee::NoGuarantee,
+        );
+        assert!(
+            validation::extract_non_executable_quotient_correspondences(&typed_only.typed).is_ok(),
+            "the typed summaries alone would admit"
+        );
+        let error = retain_checked_quotient_correspondences(&typed_only, &mut module)
+            .expect_err("checked facts without a guarantee refuse the batch");
+        assert_unadmitted_naming(
+            error,
+            "purity, termination, or theorem crash eligibility is incomplete",
+        );
+        assert_eq!(module, before);
+
+        // A guarantee carrying progress premises is not unconditional.
+        let mut conditional = baseline_checked();
+        conditional.typed = quotient_program(&source);
+        record_checked_termination(
+            &mut conditional,
+            language_semantics::TerminationGuarantee::Terminates {
+                premises: vec![language_semantics::ProgressPremise {
+                    profile: language_semantics::SemanticDomainId::default(),
+                    subject: language_semantics::ProgressSubject {
+                        root: symbols::SymbolHandle::invalid(),
+                        projections: Vec::new(),
+                    },
+                }],
+            },
+        );
+        assert!(retain_checked_quotient_correspondences(&conditional, &mut module).is_err());
         assert_eq!(module, before);
     }
 

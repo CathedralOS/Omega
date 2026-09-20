@@ -428,8 +428,21 @@ impl fmt::Display for RelationPlanError {
     }
 }
 
+/// [`derive_direct_terminal_plan_with_termination`] reading termination
+/// eligibility from the typed machine summaries: what ordinary validation has.
 pub(super) fn derive_direct_terminal_plan(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    request: &QuotientOperationRequest,
+) -> Result<DirectTerminalRelationPlan, RelationPlanError> {
+    derive_direct_terminal_plan_with_termination(program, program, machine, state, call, request)
+}
+
+pub(super) fn derive_direct_terminal_plan_with_termination(
+    program: &TypedTrees,
+    termination: &dyn super::CheckedTerminationOracle,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -438,7 +451,7 @@ pub(super) fn derive_direct_terminal_plan(
     let (input_relations, result_relation, representative) =
         derive_relation_and_representative(program, machine, state, call, request)?;
     let representative_termination =
-        unconditional_representative_termination(program, &representative);
+        unconditional_representative_termination(termination, &representative);
     validate_theorem_role_collection(request)?;
     let theorem_operational = crate::infer_operational_may(program);
     let theorem_reaches = crate::infer_service_reaches(program, &theorem_operational);
@@ -448,8 +461,10 @@ pub(super) fn derive_direct_terminal_plan(
         .map(|evidence| {
             let selected_application =
                 theorem::derive_selected_theorem_telescope(program, &evidence.application)?;
-            let termination =
-                theorem::unconditional_selected_theorem_termination(program, &selected_application);
+            let termination = theorem::unconditional_selected_theorem_termination(
+                termination,
+                &selected_application,
+            );
             let purity = theorem::pure_selected_theorem_effect(
                 &selected_application,
                 &theorem_operational,

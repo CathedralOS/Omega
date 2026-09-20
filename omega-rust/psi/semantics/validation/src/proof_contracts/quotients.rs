@@ -10,6 +10,13 @@
 //! checked. Bare representative calls never discover structural respect proof
 //! machines and never acquire lift authority.
 //!
+//! Termination eligibility of a representative or selected theorem is read
+//! through [`CheckedTerminationOracle`]: ordinary validation supplies the
+//! typed machine summaries it has (no guarantee before the checked stage
+//! proves one), and the Terminal producer supplies the checked termination
+//! facts, so a real-route batch can admit once the checked stage has proved
+//! its machines terminate.
+//!
 //! This file validates quotient formations and extracts correspondences.
 //! `formation_collection.rs` collects validated formations and rejects
 //! operation requests, `equivalence_selection.rs` validates equivalence
@@ -54,6 +61,66 @@ pub(crate) fn type_has_forbidden_denotational_content(
 }
 
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
+
+/// Checked termination summaries the quotient bridge consults for
+/// representative and selected theorem eligibility.
+///
+/// The bridge never proves termination itself; it only asks whether a
+/// machine already carries an unconditional checked guarantee. Which stage
+/// answers decides what the bridge can admit: the typed program answers with
+/// the summaries validation has (nothing before the checked stage runs), the
+/// checked facts answer with what that stage proved.
+pub trait CheckedTerminationOracle {
+    /// The checked termination summary recorded for `machine`, when one is.
+    fn checked_termination(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<language_semantics::TerminationGuarantee>;
+
+    /// Whether `machine` terminates unconditionally: a checked guarantee with
+    /// no progress-profile premises. Premises are observable admission
+    /// dependencies the initial quotient wrapper cannot discharge silently.
+    fn unconditionally_terminates(&self, machine: SymbolHandle) -> bool {
+        matches!(
+            self.checked_termination(machine),
+            Some(language_semantics::TerminationGuarantee::Terminates { premises })
+                if premises.is_empty()
+        )
+    }
+}
+
+/// The typed program's own machine summaries: what ordinary validation has.
+/// The unconditional judgment stays the one denotational-call helper so
+/// quotient eligibility and normal-return eligibility read one rule.
+impl CheckedTerminationOracle for TypedTrees {
+    fn checked_termination(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<language_semantics::TerminationGuarantee> {
+        self.machines()
+            .iter()
+            .find(|candidate| candidate.symbol == machine)
+            .map(|candidate| candidate.termination_plan.checked_summary.clone())
+    }
+
+    fn unconditionally_terminates(&self, machine: SymbolHandle) -> bool {
+        crate::machine_calls::denotational_calls::unconditionally_terminates(self, machine)
+    }
+}
+
+/// A lookup closure, for producers whose summaries live beside rather than on
+/// the typed machine (the checked stage's termination facts).
+impl<Lookup> CheckedTerminationOracle for Lookup
+where
+    Lookup: Fn(SymbolHandle) -> Option<language_semantics::TerminationGuarantee>,
+{
+    fn checked_termination(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<language_semantics::TerminationGuarantee> {
+        self(machine)
+    }
+}
 
 /// Complete source-free quotient-correspondence batch admitted by the narrow
 /// proof-only extraction seam.
@@ -124,13 +191,24 @@ pub fn validate_quotient_formations(
 pub fn extract_non_executable_quotient_correspondences(
     program: &TypedTrees,
 ) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {
+    extract_non_executable_quotient_correspondences_with_termination(program, program)
+}
+
+/// [`extract_non_executable_quotient_correspondences`] with termination
+/// eligibility answered by `termination` instead of the typed machine
+/// summaries. The Terminal producer passes the checked stage's termination
+/// facts here; every other judgment still reads the typed program.
+pub fn extract_non_executable_quotient_correspondences_with_termination(
+    program: &TypedTrees,
+    termination: &dyn CheckedTerminationOracle,
+) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {
     let proof_only = typed_trees::proof_only::classify(program);
     let mut diagnostics = Vec::new();
     collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    terminal_bridge::extract(program)
+    terminal_bridge::extract(program, termination)
         .map(|correspondences| NonExecutableQuotientCorrespondenceBatch { correspondences })
         .map_err(|errors| {
             errors
