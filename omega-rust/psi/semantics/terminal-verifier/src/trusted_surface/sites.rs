@@ -269,7 +269,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/classicality.rs",
-        sha256: Some("6315f5f7c83851c9d0b11260dcd0a631eabc59ccd9a600904a555d78792289b0"),
+        sha256: Some("9a77ad9db24f33e789f7f61063c7eb51fb8e96017bef8822736bd00d34b733f6"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -334,7 +334,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("3d15c6ebdf9343d23851db7611bba7e3540bb7fc95248749d04a60eee2b4d76e"),
+        sha256: Some("24e976ad2e9460e1f550c97cccbc29176ce8b68ba380f7a84aa7a28461f226a0"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -354,7 +354,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/equality_transport.rs",
-        sha256: Some("37e53aa7e3a342ffbbc2d23696826422e6ed32896b52bc5c101b169c42fc05be"),
+        sha256: Some("d747de08a88fe99c3f74e26183f80201a3f73e90862536287edfeb7392316f19"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -684,7 +684,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/block_views.rs",
-        sha256: Some("688a03e14c37744481630ec2e09197e331a9a0429553ec8666af39ba166b8a30"),
+        sha256: Some("a86ec351b2f729222662320a478dcd8559efed535bdd6d2c4b795cfad1162755"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -869,7 +869,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/foundation/machine_foundations.rs",
-        sha256: Some("a54d714b259c2c4c1e55afd81c37b5a3ae2978d15c1475f2b184172b3d32ec7c"),
+        sha256: Some("da6cbd5f0f4294ddecc7e04221b7bd5321930b3563b0b339fef215cbad8cc44a"),
         inventory_machinery: false,
     },
     ImplementationSite {

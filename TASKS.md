@@ -5063,7 +5063,12 @@ Owners include
   all 11 `atomic_coherence` unit-validation tests pass), and TR3-TR8
   itself still lacks a real selected runtime. Nothing implementable
   remains ahead of that route; re-dispatch only once TR3-TR8 publishes
-  it.
+  it. Re-verified at `a51cb805cc` (linux x86-64): absence gate still
+  holds (no atomic operation type in target-operations,
+  selected-instructions, or abstract-operations-to-target-operations);
+  `atomics_and_target_canaries::atomic_global_order_operations_canary_checks`
+  1/1 green; `abstract-operations` `~atomic` 22/22 and
+  `optimization-unit-semantics` `~atomic_coherence` 11/11 green.
 
 - **BLOCKEXEC.** Implement a package-level blocking executor with bounded
   queues, moved custody, linear completion claims, suspension, and provider
@@ -6113,7 +6118,7 @@ validation scope.
 
 Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 
-- **BASELINE-CANARY-PASS-CLUSTER.** Four unrepaired pass-canary failures in the canary suite section; triage and repair or retire each with attribution. w9 leg (this wave): `calls/statement_call_recursive_argument_compile` repaired — fixture's `Nat`/`add` collided with `core/nat.omg` exports (added 2026-09-17); renamed to `Peano`/`peano_add`, and the `read_line`/`extent_shape` diagnostics proved collision collateral. `operators/runtime_integer_division_value` repaired — added the missing `build.omg` entry binds and re-scoped operands to `u64` (the realized `ExactIntegerDivide` carrier); signed `i32` exact division remains attributed to the unsigned-quotient/arithmetic-policy lane (t2s fenced by CORPUS-RED-FAMILY this wave). `atomics/atomic_field_declared` GREEN on Linux at 4607987316 — its recorded failure is the macOS hosted-receiver bridge owned by ENTRY-CONTENT-ROOTS; retired here as host-bound. `filesystem/windows_set_file_time_exit` — owned by WINDOWS-SET-FILE-TIME-RESPELL (in flight); doc already names the unsigned-carrier re-spelling. Doc rows in `wiki/drafts/known_baseline_failures.md` were fenced to another wave member; update pending. **Cluster complete — verified 2026-09-20 on d74f2145b9.** The pending doc update has since landed: `known_baseline_failures.md` now carries all four dispositions — `statement_call_recursive_argument_compile` and `runtime_integer_division_value` both repaired at e5912f303a (the signed `i32` exact-division remainder attributed onward to ARITHMETIC-POLICY-REALIZATION); `atomic_field_declared` retired host-bound, green on Linux x86-64 at 4607987316 and re-confirmed on bbfda8bc2e under `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared`, its macOS hosted-receiver leg staying with ENTRY-CONTENT-ROOTS; and `windows_set_file_time_exit` repaired at ff782bdf21 by WINDOWS-SET-FILE-TIME-RESPELL, now registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1018`) — Windows-gated, so its native-execution leg stays unmeasured on this host and the rooted `windows_x86_64` roster is not its home (the entry's `Main::fs` wants a selected fused `FilesystemHost` provider). No unrepaired pass canary remains here; the "four unrepaired" count in the opening sentence is historical. The doc itself is still fenced (LOWERED-UNIT-FAILURE-ATTRIBUTION, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION), but needs no further edit for this cluster.
+- **BASELINE-CANARY-PASS-CLUSTER.** Four unrepaired pass-canary failures in the canary suite section; triage and repair or retire each with attribution. w9 leg (this wave): `calls/statement_call_recursive_argument_compile` repaired — fixture's `Nat`/`add` collided with `core/nat.omg` exports (added 2026-09-17); renamed to `Peano`/`peano_add`, and the `read_line`/`extent_shape` diagnostics proved collision collateral. `operators/runtime_integer_division_value` repaired — added the missing `build.omg` entry binds and re-scoped operands to `u64` (the realized `ExactIntegerDivide` carrier); signed `i32` exact division remains attributed to the unsigned-quotient/arithmetic-policy lane (t2s fenced by CORPUS-RED-FAMILY this wave). `atomics/atomic_field_declared` GREEN on Linux at 4607987316 — its recorded failure is the macOS hosted-receiver bridge owned by ENTRY-CONTENT-ROOTS; retired here as host-bound. `filesystem/windows_set_file_time_exit` — owned by WINDOWS-SET-FILE-TIME-RESPELL (in flight); doc already names the unsigned-carrier re-spelling. Doc rows in `wiki/drafts/known_baseline_failures.md` were fenced to another wave member; update pending. **Cluster complete — verified 2026-09-20 on d74f2145b9.** The pending doc update has since landed: `known_baseline_failures.md` now carries all four dispositions — `statement_call_recursive_argument_compile` and `runtime_integer_division_value` both repaired at e5912f303a (the signed `i32` exact-division remainder attributed onward to ARITHMETIC-POLICY-REALIZATION); `atomic_field_declared` retired host-bound, green on Linux x86-64 at 4607987316 and re-confirmed on bbfda8bc2e under `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared`, its macOS hosted-receiver leg staying with ENTRY-CONTENT-ROOTS; and `windows_set_file_time_exit` repaired at ff782bdf21 by WINDOWS-SET-FILE-TIME-RESPELL, now registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1018`) — Windows-gated, so its native-execution leg stays unmeasured on this host and the rooted `windows_x86_64` roster is not its home (the entry's `Main::fs` wants a selected fused `FilesystemHost` provider). No unrepaired pass canary remains here; the "four unrepaired" count in the opening sentence is historical. The doc itself is still fenced (LOWERED-UNIT-FAILURE-ATTRIBUTION, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION), but needs no further edit for this cluster. Re-verified at `a51cb805cc` (linux x86-64): all four dispositions still hold — `Peano`/`peano_add` rename present in `statement_call_recursive_argument_compile/main.omg`, `runtime_integer_division_value` entry binds intact in its `build.omg`, `windows_set_file_time_exit` still registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1019`), and `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared` re-ran PASS (78s).
 - **BASELINE-PACKAGE-COMPILATION-INPUTS.** Scope verified at `1f7301b71020` — the
   gap is still open but the count was stale: `cargo nextest run -p compiler --test
   package_compilation_inputs --no-fail-fast` reports 194 run, 191 passed, **three**
@@ -6742,6 +6747,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-SEED-EXECUTION.** Mined candidate — scope verified at
+  `a51cb805cc`, host-gated re-mine: the name re-covers the Windows x64 leg of
+  the audited Alpha seed-execution surface already owned by
+  ALPHA-SEED-WINDOWS-X64-EXECUTION (stub immediately above) and
+  ALPHA-WINDOWS-CONFORMANCE-HOST (resolved-with-remainder row ~line 6520,
+  whose remaining acceptance is exactly the seed-executing legs of
+  `tests/bootstrap/alpha-beta-edge.sh` and `tests/alpha/reference/diamond-py.sh`
+  on a Windows x64 host). The committed seed `bootstrap/0_alpha/
+  alpha_x64_windows.exe` (PE32+ x86-64, hole offset 5120) is already bound,
+  selected, and structurally validated host-free: `tools/bootstrap/alpha/
+  seed_env.sh` pins its size/SHA-256/hole and sets `ALPHA_SEED_EXECUTABLE=1`
+  under `MINGW*-x86_64|MSYS*-x86_64`; `tests/alpha/container.sh` re-verified
+  green on linux x86-64 at this revision (valid pe, pristine + stamped hole
+  contract, bound identity for the non-host seed). Nothing executable remains
+  on a Linux host: the only residual is running the seed on Windows x64,
+  which stays with the owning rows. No independent slice.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
@@ -6760,7 +6781,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
-- **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
+- **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified, real
+  surface under live same-item claims. Mines the atomic-operations half of
+  `wiki/spec/language/concurrency.md` ("Concurrency and atomic
+  observation"): the dedicated `Atomic*` core-requirement table plus the
+  ordering/event rules that follow it — fetch/swap return the prior
+  observed by the atomic instruction (a caller-visible event ordering
+  obligation), placed-access compare-exchange outcomes, and the
+  decode/encode + round-trip laws each realization must prove. Both ends
+  are claimed this wave: two same-item claims are live (Devin /
+  zergling-z155-atomics-ordering exp 02:59Z, Zergling-186 exp 01:38Z) and
+  the sibling ATOMIC-MEMORY-MODEL surface carries three more live claims.
+  Same-item claims cannot be bypassed; do not re-mine.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
   `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
   (TASKS.md:1071 — "first refusing emission stage remains attached-Unit
@@ -6933,7 +6965,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   INTEGER-COMPARISON-OCCURRENCE-* family — the residual surface they name
   (provider coverage for genuinely selected occurrences, std-wide
   verification) is what the publication test pins.
-- **BENCHMARK-CROSS-HOST-ROWS** — mined candidate; verify scope then implement.
+- **BENCHMARK-CROSS-HOST-ROWS.** Mined candidate; verify scope then implement.
   Verified scope: re-mines the host-row matrix's runtime legs in
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md#host-row-matrix) —
   one committed `tools/benchmark/records/` row per catalogued deployment
@@ -6953,6 +6985,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-CROSS-TARGET-COMPILE-ROWS, BENCHMARK-LINUX-ARM64-ROW,
   BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-MACOS-ARM64-ROW,
   BENCHMARK-PRIME-COUNTER-ROW, BENCHMARK-HOST-ROW-MATRIX.
+  Re-verified at `a51cb805cc` on linux x86-64: the staged w9 records
+  have since landed — `tools/benchmark/records/` now carries
+  `wrapping_square_sum` rows for `linux_arm64`, `macos_arm64`, and
+  `windows_x86_64`, but all three are `--no-run` compile legs measured
+  on a linux x86_64 host (`host.os=linux`, `host.machine=x86_64`,
+  `runtime_ms` unmeasured), so the host-native runtime legs this row
+  names remain unconsumed: `macos_arm64` and `windows_x86_64` (peak-RSS
+  leg stays `unavailable` — no `os.wait4`) still need their own hosts,
+  `linux_arm64` needs an arm64 runner, `uefi_x86_64` needs
+  QEMU/hardware. Producing surfaces now fenced by
+  BENCHMARK-ROW-RESUMPTION (03:42Z) and BENCHMARK-PRIME-COUNTER-ROW
+  (05:19Z); the named sibling fences have expired.
 - **BENCHMARK-CROSS-TARGET-COMPILE-LEGS.** Scope verified — re-mine of
   BENCHMARK-COMPILE-ONLY-ROWS (~line 6395), which owns this exact deliverable:
   committed `tools/benchmark/records/` rows for the cross-target compile legs
@@ -7169,6 +7213,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TASKS_BOOTSTRAP.md's OFFLINE-REBUILD paragraph belongs to that row's
   owner; sibling re-mine names on this surface: BETA-SEED-EXEC-HOST-REFUSAL,
   BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST, BOOTSTRAP-CHAIN-NATIVE-EXECUTION.
+  Re-verified on linux x86-64 at `aa98a716664`:
+  `sh tests/beta/compiler/reconstruction.sh` again prints
+  "reconstruction — Beta reconstructs its direct Alpha tape
+  byte-identically", exit 0.
 - **BETA-PE-SEED-REFUSAL.** Resolved at `bde84d1765` — re-mines the
   landed Beta seed-refusal surface per sibling BETA-SEED-EXEC-HOST-REFUSAL's
   verified row: `tests/beta/compiler/reconstruction.sh`,
@@ -7306,12 +7354,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `native_filesystem_canaries` suite is `#![cfg(target_os = "macos")]` and
   asserts via `compile_exact_macos_entry` + real `/tmp` writes, so the
   PASS cannot be witnessed on a linux_x86_64 host (a compile-only leg is
-  already covered by the pass-corpus compile roster). Prerequisite: a
+  already covered by the pass-corpus compile roster). Re-verified at
+  `27deadf4122`: the suite's `#![cfg(target_os = "macos")]` gate is
+  still in place and all four `ProgramEntry` bindings persist in the
+  fixture's `build.omg`, so the only open deliverable remains the
+  macOS witness. Prerequisite: a
   seeded macOS arm64 host (SEED-HOST-CHAIN-LEGS' audited list); then run
   `cargo nextest run -p compiler --test canary_suite -E
   'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
   there and record the result on this row.
-- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT** — mined candidate; scope verified
+- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT.** Mined candidate — resolved (fenced residual): scope verified
   2026-09-20 (z164): re-mines `tests/omega/pass/host/runtime_gui_foreground_window_exit`
   — the fixture exists, is authored correctly (intrinsic `Service<Gui>` field,
   all four hosted ProgramEntry binds), and is rostered in `ACTIVE_PASS_CANARIES`
@@ -10232,6 +10284,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
+  Re-measured at `edc77c21480` on linux x86-64 (`cargo nextest run
+  -p compiler --test samples_compile --no-fail-fast`): still red —
+  8 pass / 24 fail of 32 legs completed; the run-leg
+  `samples_with_documented_exit_run_correctly` was still executing at
+  annotation time (>130 min, compiles + runs every documented-exit
+  sample — its outcome cannot lift the gate). Same named families plus
+  wider coverage now pinned by newer legs: ProgramEntry-rejoin (178
+  diagnostics) and the windows_x86_64 `named-callable(WindowsProcessEntry::
+  enter)` schema rejection of std `entry.omg` (103) still dominate; also
+  observed — `block`-envelope acknowledgement mismatch on `apply` calls
+  (60), `Service field Main::clock/gui requires a selected Fused provider`
+  (35), slice/index-within-length proofs in CompactBinary/write_pixel,
+  non-copy transfer out of borrowed storage, and the `[u8; N]::Utf8`
+  domain-field leg. Newly red legs vs the d8041919ad tally include
+  print_squares, temperature float evidence, text_padding, stdin,
+  unit_closure cli_mvp, and every family `*_from_authored_program_
+  entry_bindings` cohort (algorithm/interpreter/gui/collection/probe/
+  rendering/simulation/text/system/arithmetic/all_samples).
 - **RC-REPRESENTATIVE-PROGRAMS-PER-HOST** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
@@ -10304,7 +10374,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claim. Evidence README updated to match. Residual: none under this
   name — deeper scratch-buffer reuse across the whole capture belongs to
   the capture's own owners if ever needed.
-- **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
+- **REVIEW-RESEAL-ELIMINATION.** Mined candidate — resolved, covered:
+  scope verified at `2e5d4a7324`. The name names the consequence the
+  compiler README records — "review instantiation still uses mutable
+  clones as scratch. Such mutation does not reseal evidence, and
+  downstream reconstruction remains mandatory"
+  (`omega-rust/omega/compiler/compiler/README.md`). Re-seal elimination
+  was never a separable edit: the clone-local instantiation it presumes
+  lived in `review/evidence/src/capture/calling/application/signature/
+  instantiation.rs`, and eliminating the mandatory reconstruction is only
+  coherent once capture reads through borrows — exactly the slice sibling
+  **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH** owned and landed at
+  `19aff0a14a` (instantiation now borrow-projects table rows instead of
+  cloning, `44d328b776`; the evidence README was updated to match). No
+  `reseal` symbol exists in `review/evidence/{record,capture,ledger}`;
+  the ledger's `reconstruct_*` pass is the documented independent-local-
+  reconstruction trust feature of the evidence model, not scratch
+  residue to delete. This commit also refreshes the stale compiler-README
+  sentence to match the landed borrow-projection. No slice remains.
 - **REWRITE-CATALOG-ADMISSION.** Resolved at `9e3edc7be9` — scope
   verified, re-mines the admission leg of the resolved
   SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS
@@ -10577,7 +10664,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   alpha_x64_linux.s (GNU binutils)", full gate VERIFIED).
 - **SEED-PARITY-ASSERTIONS** — mined candidate; scope verified, already landed — same settled surface as sibling SEED-PARITY-ALIGNMENT (adjacent row): the name re-mines the seed↔reference assertion surface closed by `9e18f9cc11b`, where `tests/alpha/parity.sh` joins the per-opcode conformance battery with the diamond edge corpus and asserts exact exit-code + stdout agreement between the audited `alpha_x64_linux` container and `alpha_ref.py` under `require_bound_identity`. Re-verified green on linux x86-64 at `5b3caaf337c`: `sh tests/alpha/parity.sh` → 33 ok / 0 failed (the three "Illegal instruction" lines are the expected native trap cases). The other audited seeds execute on their own hosts (macOS arm64 / Windows x64 `diamond-py.sh` legs) — no unclaimed linux_x86_64 slice remains.
 - **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
-- **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
+- **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — mined candidate; scope verified, covered — sibling re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface (see resolved siblings SELECTED-OPTIMIZATION-DIRECT-READS, SELECTED-REWRITE-ANCESTRY-REMOVAL): staged types expose `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly, `83766d57bf` moved custody reads to `optimized_target_owner`, and `tests/ancestry_contract.rs` pins zero `.optimized_target()` data reads. Re-verified at `9f48bb2a59` on Linux x86-64: no `.optimized_target()` data reads in the crate, and the only `liveness_stage()`/`selected_stage()` hop left is the `validate_optimized_live_range_custody`/`validate_optimized_liveness_custody` custody-validator input at `selected_optimization/optimization_output.rs:53` — a contract input, not a data read. No independent slice remains. Sibling stubs on the same surface: RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-OPTIMIZATION-ANCESTRY-READS/-REMOVAL, SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS, STAGED-ANCESTRY-ELIMINATION.
 - **SELECTED-OPTIMIZATION-CATALOG-ROUTE.** Mined candidate; scope verified
   at d8041919ad — sixth stub on the SELECTED-REWRITE-CATALOG cluster; the
   verdict is recorded on sibling rows SELECTED-REWRITE-CATALOG-DISPOSITION
@@ -11494,6 +11581,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
   independent slice exists here.
 - **ZERO-BYTE-ARRAY-FENCE-PLACEMENT.** Resolved — re-mines the fence-placement leg of the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row. The fences are placed and pinned: check-time rejection covers unprovable `x[0]` into `[u8; 0]` and non-exact fixed literals (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` + `zero_length_byte_literal_length_rejected`, driven by `zero_length_byte_array_use_fences_reject_at_check`), and the non-scalar-leaf `[T; 0]` fence sits in the terminal verifier at `terminal-verifier/src/validation/foundation/structural_types.rs:51` (`InvalidStructuralArrayLength`), mirrored in optimization-unit-semantics — i.e. the placement decision is already made and named. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE, ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-EXTENT-BYTE-ARRAY-FENCE, ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE, ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. The remaining named residual is the native-route corpus pin, which the landed row assigns to the ACTIVE_FAIL roster — not this stub.
+- **ZERO-EXTENT-BYTE-ARRAY-FENCE** — mined candidate; scope verified, covered — re-mines the same landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** cluster (TASKS.md:6195) already settled on resolved siblings ZERO-BYTE-ARRAY-FENCE-PLACEMENT (adjacent row) and ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. Re-verified at `1b2d3fff02`: `[u8; 0]` admission and the use-site fences stand unchanged — check-time rejection fixtures `fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` + `zero_length_byte_literal_length_rejected` all present, `pass/collections/zero_length_byte_array_admission` intact, and the non-scalar-leaf `[T; 0]` fence still sits at `terminal-verifier/src/validation/foundation/structural_types.rs:51` (`InvalidStructuralArrayLength`). The fence itself needs no new leg; the only named residual is the native-route corpus pin assigned to the ACTIVE_FAIL roster by the landed row — not this stub. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE, ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE.
 - **ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE** — mined candidate; scope verified,
   resolved — re-mines the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row
   (TASKS.md:5804). `[u8; 0]` admits at check in every value position,
