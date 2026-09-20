@@ -6098,7 +6098,22 @@ Platform/cross-host (structurally gated — document host limits):
   live era's retained resources; foreign or stale era attribution rejects.
   Deployment journals and restart reconstruction belong to the consuming runtime,
   not this task; see [deployment ownership](wiki/spec/build/component_publication.md#deployment-ownership).
-- **SHARED-MAPPING-REVOCATION.** Shared-mapping revocation and hostile shared-memory placement/remapping.
+- **SHARED-MAPPING-REVOCATION.** Resolved — both legs landed on `origin/main` at
+  `12e35ef7fd` in `omega-rust/psi/foundation/extents/src/mapping/`: revocation is
+  `begin_peer_write_revocation` → linear `PendingPeerWriteRevocation` → `complete`
+  (exact mapping binding, revoked write permission, obligation-fact subset), and
+  hostile placement/remapping is refused by `MappedExtent::stable_loan` under
+  `BorrowedShared` custody until the exact `PeerWriteRevocationReceipt` completes
+  (unreceipted consumers must `loan()`-copy and validate; `loan_mut` rejects
+  shared custody outright). Re-verified green on linux x86-64 at `a3ab15b7611`:
+  `cargo nextest run -p extents --lib` 37/37 incl.
+  `shared_mapping_stable_loan_requires_completed_peer_write_revocation`,
+  `peer_write_revocation_receipt_binds_the_exact_mapping`,
+  `peer_write_revocation_refuses_non_shared_custody`,
+  `peer_writable_backing_never_yields_an_exclusive_borrow`. Sibling re-mines
+  HOSTILE-SHARED-MEMORY-REMAPPING and HOSTILE-SHARED-MEMORY-PLACEMENT record the
+  same landing; Cathedral-side page-table revocation policy belongs to
+  Cathedral's gap_register per the ownership boundary, not this item.
 - **DEVICE-EXTENT-ACCESS.** Device extent access.
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** External data schema conversion.
   Landed: `require_wire_compatibility` CompleteMigration now certifies only a
