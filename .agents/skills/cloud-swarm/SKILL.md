@@ -111,6 +111,16 @@ lists them; `get` returning 403 means foreign-parented.
   coordinator dedupes and commits to TASKS.md (authorized), converting churn
   into new unfenced supply. When retrying anyway, shard big items into
   per-file legs so claims hit narrower (freer) fences.
+- **Batch-merge beats the landing queue at width.** The serialized
+  landing.py queue saturates around ~30 deep with 100+ workers (each enqueue
+  re-runs validation on a serial lane). Faster path: workers commit on their
+  branch and `git push origin HEAD:zergling/z<N>-<item>` then report
+  `branch_ready` with shas; the coordinator fetches `refs/heads/zergling/*`
+  and merges batches onto main each cycle. Claims-disjoint pathsets mean
+  merges apply clean (~0 conflicts observed; ~17 branches/cycle vs ~9
+  queue-landed/cycle). Caveat: merges skip landing.py validation — watch for
+  main breakage, and treat a batch-merge that breaks main as a coordinator
+  priority fix.
 - **Size surplus legs big — small legs churn.** A one-doc mine leg finishes in
   ~2-5 min, so ~half the pool settles every cycle and the coordinator drowns
   in message volume. Give each miner a whole directory/tree
