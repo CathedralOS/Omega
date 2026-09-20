@@ -6307,23 +6307,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; scope verified, resolved — re-mine of BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES' producer fix (integer comparison-occurrence rejection repaired at `76dc49a99e`; `terminal_product::integer_comparisons` counts selected occurrences only against the artifact-bound checked scope). The "std" residual the name implies — provider coverage for genuinely selected occurrences, std-wide verification — is exactly what the landed publication test pins. Re-verified green at `1edade1a48`: `cargo nextest run -p compiler --test integer_comparison_publication` → `selected_comparison_publication_preserves_complete_custody_among_builtins` PASS (19.9s, linux x86-64). Sibling re-mines named on the parent row: BENCHMARK-COMPARISON-OCCURRENCE-GATE, COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, the INTEGER-COMPARISON-OCCURRENCE-* family.
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
 - **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
-- **BENCHMARK-UEFI-ROW** — scope verified 2026-09-20: re-mines the
-  `uefi_x86_64` entry of the host-row matrix in
-  [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md#host-row-matrix). The
-  row is not producible on a linux_x86_64 build host at this revision: its
-  compile-time/code-size leg belongs to the compile-only row surface owned by
-  **BENCHMARK-COMPILE-ONLY-ROWS** (sibling row, verified in
-  BENCHMARK-CROSS-HOST-ROWS's scope note), and its runtime leg needs QEMU or
-  UEFI hardware plus a bootable artifact — realization is still gated on
-  **UEFI-PHYSICAL-SEMANTIC-ENTRY** and **UEFI-OS-HANDOFF** (live claims at
-  verification; the authored UEFI physical entry in
-  `std/targets/uefi_x86_64/entry.omg` remains "a planned, non-invoked
-  surface"). Witness: `benchmark.py measure --root
-  samples/uefi/uefi_hello/main.omg --target uefi_x86_64 --no-run` fails at
-  realization with "terminal-artifact production requires one exact selected
-  program entry" — the sample binds no `uefi_x86_64::ProgramEntry` because it
-  exercises the physical boot path that does not exist yet. No independent
-  slice exists here; sibling re-mines: BENCHMARK-HOST-ROW-MATRIX,
+- **BENCHMARK-UEFI-ROW.** Row consumed — re-verified at `95019d341a9`: the
+  witness `benchmark.py measure --root samples/uefi/uefi_hello/main.omg
+  --target uefi_x86_64 --no-run` still fails at realization with
+  "terminal-artifact production requires one exact selected program entry".
+  No independent slice: compile leg owned by BENCHMARK-COMPILE-ONLY-ROWS;
+  runtime leg needs QEMU/UEFI hardware, gated on UEFI-PHYSICAL-SEMANTIC-ENTRY
+  + UEFI-OS-HANDOFF. Sibling re-mines: BENCHMARK-HOST-ROW-MATRIX,
   BENCHMARK-CROSS-TARGET-COMPILE-{LEGS,ROWS}, BENCHMARK-ROW-RESUMPTION.
 - **BENCHMARK-WINDOWS-PEAK-MEMORY** — mined candidate; verify scope then implement.
 - **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
