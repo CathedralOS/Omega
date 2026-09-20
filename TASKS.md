@@ -7104,7 +7104,38 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT / DEPENDENT-RELATIONAL-PROOFS-VIEWS
   / DEPENDENT-VALUES-CHECKER-COVERAGE are re-mines of the same sentence and
   remain for their own slices.
-- **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT** — mined candidate; verify scope then implement.
+- **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT.** Mined candidate; scope
+  verified — sibling re-mine of the chapter_12 sentence whose relational leg
+  already landed on DEPENDENT-RELATIONAL-PROOF-SUPPORT (composed ceilings
+  admitted at every width via `ordered_values::composed_ceiling_gap` +
+  `operand_carrier_bound`). The "view" share is likewise materially covered
+  on main: `contract_entailment/ranking_range` (identity/scalar views over
+  fields, lengths, calls, requirements) and `value_custody/placed_views`
+  exist, and the dependent corpus already pins relational bounds through
+  view subjects (`embed_self_field_view`,
+  `call_requires_saved_local_slice_length_compile`,
+  `call_requires_mutable_carrier_slice_length_compile`,
+  `relational_loop_invariant_dynamic_length_compile`). The residual the
+  rewritten sentence still names — runtime descriptor views over
+  strided/dynamic extents (spec: access must prove the actual range inside
+  its backing extent, not the compiled record stride) plus solver-general
+  proofs — is a named open frontier, not a stub-sized fix, and its
+  implementing surfaces are sibling-fenced this wave
+  (SIGNED-CALL-PREMISES on `contract_entailment/arithmetic_judgment.rs` and
+  `argument_tests.rs` exp 22:11Z; DOMAIN-REFINEMENT-CHAINS on
+  `proof_contracts/domains.rs` + t2c `checks/contracts/domains.rs` exp
+  22:18Z; devin-w9-dependent-values on `proof_contracts/default_domains`
+  ~22:20Z; PROOF-CERTIFICATION-BRIDGE legs on `inductive_judgment` and
+  `tests/omega/{pass,fail}/proofs` exp 00:51Z; RC fmt-drift on
+  `specification_calls.rs` exp 02:04Z; QUOTIENT-THEOREM-LIFT on
+  `quotients` exp 01:19Z; CONSERVATION-CONTRACT on
+  `value_custody/content_conservation` exp 21:50Z; MATCH-SELECTIVE-LOWERING
+  on `value_custody/expression_types` exp 22:31Z; EXTERNAL-DATA-SCHEMA-
+  CONVERSION on `value_custody/wire` exp 01:50Z; CASE-CONSTRAINTS on
+  dependent corpus rows exp 01:13Z). No independent slice exists here.
+  Sibling re-mines of the same sentence:
+  DEPENDENT-RELATIONAL-PROOFS-VIEWS, DEPENDENT-VALUES-CHECKER-COVERAGE
+  (scope-verified at 33eb8d92ff — the equality-through-writes leg).
 - **DEPENDENT-RELATIONAL-PROOFS-VIEWS** — mined candidate; verify scope then implement.
 - **DEPENDENT-VALUES-CHECKER-COVERAGE.** Mined candidate; scope verified at
   `33eb8d92ff`: the residual named by the rewritten
