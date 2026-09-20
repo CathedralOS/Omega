@@ -19,6 +19,8 @@ pub struct CheckedPackageCallableReview {
     pub(crate) role: PackageReviewCallableRole,
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) supply: PackageReviewCallableSupply,
+    /// Declared token binding, separate from selected operator realizations.
+    pub(crate) spelling: Option<language_core::OperatorSpelling>,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
@@ -86,6 +88,10 @@ impl CheckedPackageCallableReview {
 
     pub const fn supply(&self) -> PackageReviewCallableSupply {
         self.supply
+    }
+
+    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
+        self.spelling
     }
 
     pub const fn lifetime_parameter_count(&self) -> usize {

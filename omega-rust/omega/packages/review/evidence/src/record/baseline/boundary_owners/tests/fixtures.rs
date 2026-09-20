@@ -142,6 +142,7 @@ pub(super) fn pair() -> (PackagePolicyBaseline, PackagePolicyBaseline) {
             ],
         });
     consumer.callables.callables.push(PackagePolicyCallable {
+        spelling: None,
         role: PackagePolicyCallableRole::Public,
         identity,
         supply: PackageReviewCallableSupply::CheckedBody,

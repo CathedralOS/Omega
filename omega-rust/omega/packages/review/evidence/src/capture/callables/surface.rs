@@ -23,6 +23,7 @@ use symbols::SymbolHandle;
 pub(super) struct CallableSurface {
     pub(super) identity: PackageReviewNominalIdentity,
     pub(super) supply: PackageReviewCallableSupply,
+    pub(super) spelling: Option<language_core::OperatorSpelling>,
     pub(super) lifetime_parameter_count: usize,
     pub(super) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(super) policy_type_parameters: Vec<PackagePolicyTypeParameter>,
@@ -361,6 +362,10 @@ pub(super) fn project<'a>(
         surface: CallableSurface {
             identity,
             supply,
+            // Both persisted review forms retain the authored token. A named
+            // callable coordinate or a satisfier row cannot reconstruct this
+            // declaration-owned part of its public signature.
+            spelling: machine.spelling,
             lifetime_parameter_count: machine.lifetime_parameters.len(),
             type_parameters,
             policy_type_parameters,

@@ -47,6 +47,7 @@ pub(in crate::capture) fn project_callable(
             role,
             identity: surface.identity,
             supply: surface.supply,
+            spelling: surface.spelling,
             lifetime_parameter_count: surface.lifetime_parameter_count,
             type_parameters: surface.type_parameters,
             conformance_bounds: surface.conformance_bounds,

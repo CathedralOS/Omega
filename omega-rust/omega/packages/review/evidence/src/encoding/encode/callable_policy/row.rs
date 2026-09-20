@@ -6,7 +6,9 @@ use crate::encoding::encode::declarations::encode_conformance_bound;
 use crate::encoding::encode::declarations::encode_type_identity;
 use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::encode::values::contracts::encode_callable_contract;
-use crate::encoding::encode::values::declarations::encode_operator_coordinate;
+use crate::encoding::encode::values::declarations::{
+    encode_operator_coordinate, operator_spelling_name, operator_spelling_tag,
+};
 use crate::encoding::encode::values::effects::encode_installation_reach;
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::encoding::encode::values::identity::encode_nominal;
@@ -33,6 +35,15 @@ pub(in crate::encoding) fn encode_callable(
         encode_nominal(encoder, &callable.identity)
     })?;
     encoder.field("supply", |encoder| encode_supply(encoder, callable.supply))?;
+    encoder.field("spelling", |encoder| {
+        encoder.option(callable.spelling.as_ref(), |encoder, spelling| {
+            encoder.tag(
+                operator_spelling_name(*spelling),
+                operator_spelling_tag(*spelling),
+            );
+            Ok(())
+        })
+    })?;
     encoder.field("lifetime_parameter_count", |encoder| {
         encoder.usize(callable.lifetime_parameter_count)
     })?;

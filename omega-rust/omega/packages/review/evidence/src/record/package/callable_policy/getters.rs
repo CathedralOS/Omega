@@ -31,6 +31,10 @@ impl PackagePolicyCallable {
         self.supply
     }
 
+    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
+        self.spelling
+    }
+
     pub const fn lifetime_parameter_count(&self) -> usize {
         self.lifetime_parameter_count
     }
