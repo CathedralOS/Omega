@@ -7656,7 +7656,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROGRAM-ENTRY-SELECTION-DIVISION** — resolved: superseded on `origin/main` (verified 8479b3ab86). Entry selection already divides on every axis the entry-roots contract names: per-profile matrix selection (foreign rows resolve profile/slot ownership then stay out of the durable projection), exactly-one binding per required slot, free vs. provisioned receiver modes, the two-surface semantic/physical calling-plan check, and a closed `TargetRequiredRootSlotDeclaration` kind enum that keeps build-bound `ProgramEntry` divided from runtime-installed root kinds (foreign kinds reject by name). Witnesses: 12/12 `build-evaluation admission::selection::tests`; `OMEGA_PASS_CANARY_FILTER="program_entry,root_binding"` corpus green. Known residual: `tests/omega/fail/build/program_entry_binding_outside_build` expected.txt predates the "compiler-issued &mut Build receiver" diagnostic — fenced by RC-DIAGNOSTICS-GATE at verification time, so repinning belongs to that lane.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; verify scope then implement.
 - **PROMOTION-REJOIN-EVIDENCE** — mined candidate; verify scope then implement.
-- **PROOF-AUTOMATION-WIDENING** — mined candidate; verify scope then implement.
+- **PROOF-AUTOMATION-WIDENING.** Verified `ac4e4eee9b`: this names widening
+  the bounded source-automation fragment in `validation/src/proof_contracts/
+  contract_entailment.rs` (canonical integer polynomials, substitutions,
+  difference-bound closure, congruence, correlated intervals, signed
+  remainder bounds, accumulator self-induction, the N3 structural judge).
+  Every documented next rung is live-claimed or upstream-gated: the
+  inductive-gate leg is under PROOF-CERTIFICATION-BRIDGE's claim
+  (`contract_entailment/inductive_judgment.rs`, exp 00:51Z), call-attribution
+  widening under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
+  (`specification_calls`/`refuted_requires`/`call_requirements`, 01:01Z),
+  arithmetic/call-bounds under SIGNED-CALL-PREMISES (`arithmetic_judgment.rs`
+  + `argument_tests.rs`, 22:11Z), quantifiers under
+  PROOF-QUANTIFIER-AUTOMATION, and the corpus pinning dirs
+  (`tests/omega/{pass,fail}/proofs`) are held by the same certification
+  owner; the recorded structural next rung — injectivity decomposition of
+  payload-carrying constructors — is grammar-gated upstream (struct
+  literals still do not parse in contract position, and the pipeline
+  grammar surfaces are fenced by DOMAIN-REFINEMENT-CHAINS and friends). No
+  unmanned widening lane exists; unspec'd judgment surgery in a fail-closed
+  proof engine is exactly what this board must not carry. Row consumed —
+  residual is the canonical items'.
 - **PROOF-CACHE-DEPENDENCY-INVALIDATION** — mined candidate; verify scope then implement.
 - **PROOF-DERIVATION-STORE** — mined candidate; verify scope then implement.
 - **PROOF-DERIVED-LOAN-COMPATIBILITY** — mined candidate; verify scope then implement.
