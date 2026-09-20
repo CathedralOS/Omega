@@ -4,6 +4,7 @@ use super::{
     Polynomial, ProofFact, RankingRangeMeasure, RankingRangeState, SignatureContractKind, State,
     StrictArithmeticBindingValue, TypedTrees, calls, collect_guard, comparison_proven,
     field_coordinates, fields, inductive_judgment, integer_bindings, lengths, meanings,
+    saved_arguments,
 };
 use field_coordinates::FieldCoordinates;
 
@@ -94,9 +95,11 @@ fn prove(
         // An actual whose produced length is exact metadata -- a state-local
         // slice binding, a declared-extent slice view -- is stable the same
         // way: evaluating it at the boundary cannot rewrite an installed
-        // caller fact.
+        // caller fact. Nor can a name an immutable `let` bound to a saved
+        // value: the local is an entry observation, not an effect.
         if meanings::builtin(program, caller, caller_state, *argument, 0).is_none()
             && lengths::produced_length(program, caller, caller_state, *argument, 0).is_none()
+            && saved_arguments::actual(program, caller_state, *argument).is_none()
         {
             return None;
         }
@@ -166,6 +169,20 @@ fn prove(
         &mut source_engine,
         &expressions,
     )?;
+    // Saved caller observations: an immutable state-local `let` denotes the
+    // exact value its initializer produced, so it joins the strict roster and
+    // an actual naming it substitutes that value -- `let n = items.len`
+    // carried into `inner(items, n)` discharges `rest.len <= capacity` as
+    // `items.len <= items.len`. A carrier that can be written between binding
+    // and call yields no observation, so a `mut` formal's incoming value is
+    // never conflated with a later write.
+    saved_arguments::install(
+        program,
+        caller,
+        caller_state,
+        &source_lengths,
+        &mut source_engine,
+    );
     lengths::install(
         program,
         callee,
