@@ -44,6 +44,23 @@ pub(super) fn at_call(
                    relative: &[PlaceSegment]| {
         call_result_value_place(program, frames, state, statement_index, call, relative, 16)
     };
+    // A leaf demanded directly as the call's operand through an exclusive
+    // binding — `r.view.scheduler` where `r: &mut RefBox` — cannot run the
+    // operand-prefix check on its literal spelling: the shared prefix walk
+    // keeps no origin for an exclusive borrow of a carrier that itself stores
+    // shared leaves. Resolve the referent from the binding's own provenance
+    // first so the ordinary reference-storage check sees the spelling it can
+    // name.
+    let place = exclusive_reference_root_place(
+        program,
+        frames,
+        machine,
+        state,
+        call.statement_index,
+        &place,
+        &resolve,
+    )
+    .unwrap_or(place);
     let place = flow::value_origin_at_call_resolving(
         program,
         flow,
@@ -713,12 +730,290 @@ where
         Some(frames),
     )
     .unwrap_or_else(|| place.clone());
+    let exclusive =
+        exclusive_reference_root_place(program, frames, machine, state, bound, &next, resolve);
+    if let Some(resolved) = exclusive {
+        next = resolved;
+    }
     if let Some(resolved) =
         shared_reference_leaf_origin(program, frames, machine, state, bound, &next, resolve)
     {
         next = resolved;
     }
     (next != *place).then_some(next)
+}
+
+/// A demanded place spelled through an exclusive-binding root —
+/// `r.view.scheduler` where `r: &mut RefBox` — names the referent the
+/// binding's latest supply proved, but the shared prefix walk cannot always
+/// name that referent: an exclusive borrow of a carrier that itself stores
+/// shared leaves keeps no alias-table origin, leaving the operand's literal
+/// root without a resolvable spelling. This scan replays the binding's own
+/// provenance instead: the declaration's operand, then every later bare-name
+/// store `r = ..`, each canonicalized the way a stored operand would be — a
+/// borrow's target, another binding's name, or a checked call result the
+/// resolver proves. A statement between the supply and `bound` whose writes
+/// may touch the bare binding — a store the frame cannot name, an operand
+/// call's frame, a `r.field` write reachable through the referent — fails
+/// closed rather than guessing the referent survived. The referent itself
+/// may ride through further reference bindings; each hop repeats the scan at
+/// the position where it was captured.
+fn exclusive_reference_root_place<Resolve>(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &Machine,
+    state: &FlowStateFact,
+    bound: usize,
+    place: &CanonicalPlace,
+    resolve: &Resolve,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+{
+    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let statements = program
+        .statement_table
+        .statements(typed_state.statement_nodes);
+    let mut demanded = place.clone();
+    let mut cursor = bound;
+    for _ in 0..REFERENCE_BOUNDARY_HOPS {
+        let PlaceRoot::Symbol(root) = demanded.root else {
+            return Some(demanded);
+        };
+        let Some((decl_index, local)) =
+            statements
+                .get(..cursor)?
+                .iter()
+                .enumerate()
+                .find_map(|(index, statement)| match statement {
+                    StatementNode::LocalData(local) if local.symbol == root => Some((index, local)),
+                    _ => None,
+                })
+        else {
+            // A parameter or member root keeps its access path.
+            return Some(demanded);
+        };
+        match reference_type(program, local.type_reference) {
+            None => return Some(demanded),
+            Some(language_semantics::ReferenceAccess::Shared) => {
+                // A shared binding is the ordinary reference query's subject;
+                // when it cannot name the referent the demand stays unproven
+                // rather than minting one from this replay.
+                demanded = flow::local_reference_storage_before_statement(
+                    program, frames, machine, state, cursor, demanded,
+                )?;
+                continue;
+            }
+            _ => {}
+        }
+        // `slot` is the binding's own storage: only a bare-name assignment
+        // may replace it, and any other overlap is an untracked touch.
+        let slot = CanonicalPlace {
+            root: PlaceRoot::Symbol(root),
+            segments: Vec::new(),
+        };
+        let mut referent = match reference_bound_operand_place(
+            program,
+            frames,
+            machine,
+            state,
+            decl_index,
+            local.initial_value,
+            resolve,
+        ) {
+            Some(place) => place,
+            None => return None,
+        };
+        let mut captured = decl_index;
+        for (index, statement) in statements
+            .get(decl_index + 1..cursor)?
+            .iter()
+            .enumerate()
+            .map(|(offset, statement)| (decl_index + 1 + offset, statement))
+        {
+            // Operand calls embedded in any statement may reach the binding
+            // before its store replays; an unnamed frame fails the hop.
+            let writes = flow::frame_storage_writes(
+                program,
+                machine.symbol,
+                state.state_symbol,
+                index,
+                &frames.statement_value_write_frame(machine, statement),
+                Some(frames),
+            )?;
+            if writes
+                .iter()
+                .any(|write| places_may_overlap(program, &slot, write))
+            {
+                return None;
+            }
+            if let StatementNode::Assignment(assignment) = statement {
+                let target = flow::statement_mutated_place(
+                    program,
+                    machine.symbol,
+                    state.state_symbol,
+                    index,
+                    statement,
+                )?;
+                if target.root == slot.root && target.segments.is_empty() {
+                    // A bare-name store into a reference local either rebinds
+                    // it — the referent becomes whatever the store's operand
+                    // proves at this position — or writes through it, which
+                    // the delegated scans cannot match on this spelling.
+                    if frames.assignment_replaces_local_reference_binding(machine, statement)? {
+                        referent = reference_bound_operand_place(
+                            program,
+                            frames,
+                            machine,
+                            state,
+                            index,
+                            assignment.value,
+                            resolve,
+                        )?;
+                        captured = index;
+                        continue;
+                    }
+                    return None;
+                }
+                if places_may_overlap(program, &slot, &target) {
+                    return None;
+                }
+            }
+            let writes = flow::statement_storage_writes(
+                program,
+                machine.symbol,
+                state.state_symbol,
+                index,
+                statement,
+                Some(frames),
+            )?;
+            if writes
+                .iter()
+                .any(|write| places_may_overlap(program, &slot, write))
+            {
+                return None;
+            }
+            if let StatementNode::Call(call_statement) = statement {
+                let writes = flow::frame_storage_writes(
+                    program,
+                    machine.symbol,
+                    state.state_symbol,
+                    index,
+                    &frames.may_write_frame(machine, call_statement),
+                    Some(frames),
+                )?;
+                if writes
+                    .iter()
+                    .any(|write| places_may_overlap(program, &slot, write))
+                {
+                    return None;
+                }
+            }
+        }
+        let mut rebased = referent;
+        rebased.segments.extend_from_slice(&demanded.segments);
+        demanded = rebased;
+        cursor = captured;
+    }
+    None
+}
+
+/// The place a reference-binding operand supplies: a borrow's canonicalized
+/// target or another binding's name, and a result-position call asks the
+/// domain resolver for the caller place its checked callee proves — the same
+/// leaf-store discipline `leaf_value_candidate` applies to assignment
+/// operands.
+fn reference_bound_operand_place<Resolve>(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &Machine,
+    state: &FlowStateFact,
+    index: usize,
+    value: ExpressionHandle,
+    resolve: &Resolve,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+{
+    let candidate =
+        flow::canonical_place_from_expression_in_state(program, state.state_symbol, index, value)?;
+    match candidate.root {
+        PlaceRoot::Symbol(root) => {
+            // The operand must name storage this state owns — a local or
+            // parameter declared under it, or the machine's own attached
+            // data — never a same-spelled symbol living in another body.
+            if !(root == machine.symbol || program.symbols.get(root).parent == state.state_symbol) {
+                return None;
+            }
+            // When the operand's own path ends in a reference leaf —
+            // `saved.context` supplying `let borrowed: &mut Context` — the
+            // binding's referent is the leaf's pointee, not the slot. A
+            // shared leaf's referent is its stored origin via the leaf scan;
+            // a write-capable leaf's is the prefix's exact stored origin.
+            // Provenance that stays unproven keeps the whole operand unproven.
+            let Some(root_type) =
+                statements_local_type(program, state, root, index).or_else(|| {
+                    crate::semantic_calls::find_state(program, state.state_symbol).and_then(
+                        |typed_state| {
+                            program
+                                .state_parameters(typed_state)
+                                .iter()
+                                .find(|parameter| parameter.symbol == root)
+                                .map(|parameter| parameter.type_reference)
+                        },
+                    )
+                })
+            else {
+                return None;
+            };
+            let reached = flow::project_type_reference_from_segments(
+                program,
+                root_type,
+                &candidate.segments,
+            )?;
+            match reference_type(program, reached) {
+                Some(language_semantics::ReferenceAccess::Shared) => shared_reference_leaf_origin(
+                    program, frames, machine, state, index, &candidate, resolve,
+                ),
+                Some(_) => flow::rebase_exact_local_place(
+                    program,
+                    state.state_symbol,
+                    index,
+                    candidate,
+                    Some(frames),
+                ),
+                None => Some(candidate),
+            }
+        }
+        PlaceRoot::Expression(rooted) => match program.expression_table.expression(rooted) {
+            ExpressionNode::Call(call) => resolve(state, index, call, &candidate.segments),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The declared type of the `LocalData` declaring `root` before `bound`, when
+/// `root` is a local at all — parameters and members have no declaration
+/// statement.
+fn statements_local_type(
+    program: &TypedTrees,
+    state: &FlowStateFact,
+    root: symbols::SymbolHandle,
+    bound: usize,
+) -> Option<TypeReferenceHandle> {
+    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    program
+        .statement_table
+        .statements(typed_state.statement_nodes)
+        .get(..bound)?
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == root => Some(local.type_reference),
+            _ => None,
+        })
 }
 
 /// What one resolved store did to the leaf slot under the scan.

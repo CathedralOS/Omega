@@ -231,32 +231,37 @@ fn shared_reference_leaf_load_through_an_exclusive_binding_uses_exact_provenance
 
 /// An exclusive-binding leaf read stays unproven whenever the frontier cannot
 /// name its writes exactly: a store spelled through the `&mut` alias replaces
-/// the leaf but cannot be matched to the slot, and a demand spelled directly
-/// as the call's operand cannot run the operand-prefix check on a root the
-/// shared reference query cannot name.
+/// the leaf but cannot be matched to the slot. The operand's literal root is
+/// replayed through the binding's own provenance — the store still leaves the
+/// leaf's replacement unproven.
 #[test]
 fn shared_reference_leaf_load_through_an_exclusive_binding_after_an_alias_store_stays_unproven() {
-    for (statements, argument, subject) in [
-        // `r.view` is rebound through the alias; the replacement's provenance
-        // is reachable only through storage the write frame cannot name.
-        (
-            "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed; r.view = &holder.view; let saved: SchedulerHandle = r.view.scheduler;",
-            "saved",
-            ("saved", &[][..]),
-        ),
-        // Demanded directly at the call: the operand-prefix check needs both
-        // the literal and resolved spellings, and the exclusive binding has
-        // no resolvable spelling.
-        (
-            "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed;",
-            "r.view.scheduler",
-            ("r", &[("RefBox", "view"), ("Context", "scheduler")][..]),
-        ),
-    ] {
-        let fixture =
-            Fixture::with_machines(statements, argument, &[], "data RefBox { view: &Context; }");
-        assert_eq!(fixture.query(fixture.subject(subject.0, subject.1)), None);
-    }
+    // `r.view` is rebound through the alias; the replacement's provenance
+    // is reachable only through storage the write frame cannot name.
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed; r.view = &holder.view; let saved: SchedulerHandle = r.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
+}
+
+/// A leaf demanded directly as the call's operand through an exclusive
+/// binding names the referent from the binding's provenance — `r.view.scheduler`
+/// spells `boxed.view.scheduler`, which resolves to the leaf's stored
+/// referent.
+#[test]
+fn shared_reference_leaf_operand_through_an_exclusive_binding_uses_exact_provenance() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; let r: &mut RefBox = &mut boxed;",
+        "r.view.scheduler",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    let subject = fixture.subject("r", &[("RefBox", "view"), ("Context", "scheduler")]);
+    let expected = fixture.subject("context", &[("Context", "scheduler")]);
+    assert_eq!(fixture.query(subject), Some(expected));
 }
 
 /// The referent is resolved at the store nearest the demand, so a write to
