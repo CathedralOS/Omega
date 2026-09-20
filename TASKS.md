@@ -57,35 +57,32 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   graph. The submodule's TASKS owns port work; this item owns integration and
   compiler blockers exposed by that application.
 
-  The tracked app `4b1f7a6` uses intrinsic `Service<Console>` and pins std
-  to `daa47e2d5048b67840393d2bb05ede58ea38e7c7`, the revision publishing the
-  `CString` domain that the public Objective-C boundary already named; earlier
-  pins fail candidate review on the `Service<R>` carrier mandate (87d8b2) or
-  the private-domain interface check (9a4000a). On Linux x86-64 with the
-  `daa47e2d` release compiler and Python 3.10 + a `tomli` backport for
-  `tomllib`, `python samples/apps/squalr/tools/verify.py native --timeout 600`
-  exits 0 and prints `Squalr geometry: PASS` (201.9 s); the same acceptance
-  passed on macOS ARM64 under the previous pin (66.602 s, Python 3.13,
-  `RUST_MIN_STACK=67108864`). The control was re-verified on Omega
-  `ddc66b61` (210.4 s, release build) from a second relocated checkout:
-  `omega update` + `--resume` review re-published `omega_lock 3` for
-  linux_x86_64 there. All 12 geometry checks and the
-  17-package/37-edge workspace remain intact. The lock was rebuilt as
-  `omega_lock 3` for linux_x86_64 through ordinary update/review after the old
-  schema rejected; checkout relocation still requires fresh local-source
-  review. Windows execution remains untested; the supplied-byte scanner is not
-  ported.
+  The tracked app `4b1f7a6` retains the 12-check geometry baseline and std
+  `daa47e2d5048b67840393d2bb05ede58ea38e7c7`. The local app candidate
+  `ea6c80735e93ae69d3cb8f7d961fdf2b8413e50b` adds region alignment and expansion.
+  With Omega `47db1d16478dc615b5a13155122eec8328f3ef53`, macOS ARM64,
+  a release compiler, Python 3.13 and `RUST_MIN_STACK=67108864`,
+  `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <executable>`
+  passes all 24 checks: native exit 0, `Squalr geometry: PASS` (167.2 s).
+  Omit `--target` for execution; explicit targets only emit an executable.
+  Compiler repairs distinguish callee-local storage from structural call inputs
+  in Terminal and abstract replay, align physical traversal capacity, and remove
+  duplicate ARM64 operand-footprint tables. Source ownership and independent
+  checking remain intact.
 
-  Scanner prerequisites (2026-09-20, Squalr-Omega `4b1f7a6`): the recorded
-  `439090da02eb674eb2511664ae217ede86890e4a` had no surviving published
-  counterpart — upstream upload-pack reports `not our ref` and no refs/pull
-  head or sampled fork contains it. `upstream.json` now records the explicit
-  reference update to published upstream main
-  `568aa7589b68b2fd4621cc66c6dde23fa14c7f50`, the newest upstream commit
-  predating the lost pin's authorship; `tools/verify.py layout --upstream`
-  verifies the recorded 17-package/37-edge map against it exactly.
-  Runtime growable storage remains an implementation dependency:
-  `core/vec.omg` declares no construction or storage mechanics.
+  Publication is pending: GitHub denied the configured `NH21B` account write
+  access to Squalr-Omega (HTTP 403; repository permissions report `push: false`).
+  Both repositories have local checkpoint commits; the app commit must be
+  published before changing this repository's pin. The failed enqueue left no
+  ticket or reservation. Next integration acceptance is publication of the
+  verified app/compiler changes and the parent pin, not another helper test.
+  Checkout relocation still requires ordinary local-source update/review.
+  Windows execution and the supplied-byte scanner remain open.
+
+  The pinned Rust reference is
+  `568aa7589b68b2fd4621cc66c6dde23fa14c7f50`; the ordinary 17-package/37-edge
+  graph is unchanged. Runtime growable storage remains an implementation
+  dependency: `core/vec.omg` declares no construction or storage mechanics.
   **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** own element establishment
   and content-preserving growth; a fixed-capacity scanner does not satisfy
   this customer.
