@@ -794,19 +794,30 @@ where
             // A parameter or member root keeps its access path.
             return Some(demanded);
         };
-        match reference_type(program, local.type_reference) {
+        let shared = match reference_type(program, local.type_reference) {
             None => return Some(demanded),
             Some(language_semantics::ReferenceAccess::Shared) => {
-                // A shared binding is the ordinary reference query's subject;
-                // when it cannot name the referent the demand stays unproven
-                // rather than minting one from this replay.
-                demanded = flow::local_reference_storage_before_statement(
-                    program, frames, machine, state, cursor, demanded,
-                )?;
-                continue;
+                // A shared binding is the ordinary reference query's subject:
+                // ride it while it names the referent. When it declines — a
+                // leaf operand read through an indexed carrier is a selector
+                // it deliberately keeps coarse — the binding's own provenance
+                // still answers exactly, so the replay below applies the same
+                // operand-and-rebind discipline an exclusive hop uses.
+                if let Some(resolved) = flow::local_reference_storage_before_statement(
+                    program,
+                    frames,
+                    machine,
+                    state,
+                    cursor,
+                    demanded.clone(),
+                ) {
+                    demanded = resolved;
+                    continue;
+                }
+                true
             }
-            _ => {}
-        }
+            _ => false,
+        };
         // `slot` is the binding's own storage: only a bare-name assignment
         // may replace it, and any other overlap is an untracked touch.
         let slot = CanonicalPlace {
@@ -821,6 +832,7 @@ where
             decl_index,
             local.initial_value,
             resolve,
+            shared,
         ) {
             Some(place) => place,
             None => return None,
@@ -870,6 +882,7 @@ where
                             index,
                             assignment.value,
                             resolve,
+                            shared,
                         )?;
                         captured = index;
                         continue;
@@ -932,6 +945,7 @@ fn reference_bound_operand_place<Resolve>(
     index: usize,
     value: ExpressionHandle,
     resolve: &Resolve,
+    shared_binding: bool,
 ) -> Option<CanonicalPlace>
 where
     Resolve:
@@ -945,6 +959,14 @@ where
             // parameter declared under it, or the machine's own attached
             // data — never a same-spelled symbol living in another body.
             if !(root == machine.symbol || program.symbols.get(root).parent == state.state_symbol) {
+                return None;
+            }
+            // The contextual resolver rejoins an unbound head by spelling,
+            // so a foreign or corrupted root leaves the name's own written
+            // head/member symbols disagreeing with the adopted root.
+            if shared_binding
+                && !shared_bound_operand_root_symbols_agree(program, value, candidate.root)
+            {
                 return None;
             }
             // When the operand's own path ends in a reference leaf —
@@ -984,7 +1006,21 @@ where
                     candidate,
                     Some(frames),
                 ),
-                None => Some(candidate),
+                // A non-reference operand supplies a shared binding's
+                // referent only through an authored borrow — the target's
+                // spelling itself names the storage. An owned value read
+                // declared `&` by construction is no referent.
+                None => {
+                    if shared_binding
+                        && !matches!(
+                            program.expression_table.expression(value),
+                            ExpressionNode::Borrow(_)
+                        )
+                    {
+                        return None;
+                    }
+                    Some(candidate)
+                }
             }
         }
         PlaceRoot::Expression(rooted) => match program.expression_table.expression(rooted) {
@@ -992,6 +1028,47 @@ where
             _ => None,
         },
         _ => None,
+    }
+}
+
+/// Whether the written root symbols on `value`'s root name agree with the
+/// symbol `root` resolved to. The contextual canonicalizer rejoins an unbound
+/// head by name spelling, so a corrupted or foreign `head_symbol` still
+/// produces the in-scope root while the name's own written identity disagrees
+/// with it; a shared binding may not lend that adopted identity a referent.
+fn shared_bound_operand_root_symbols_agree(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    root: PlaceRoot,
+) -> bool {
+    let PlaceRoot::Symbol(resolved) = root else {
+        return true;
+    };
+    let mut current = value;
+    loop {
+        match program.expression_table.expression(current) {
+            ExpressionNode::Borrow(borrow) => current = borrow.target,
+            ExpressionNode::Member(member) => current = member.receiver,
+            ExpressionNode::Indexed(indexed) => current = indexed.collection,
+            ExpressionNode::Name(path) => {
+                // `path.symbol` names the root on a single-member spelling;
+                // on a dotted path it may name the leaf instead.
+                let single_member =
+                    program.expression_table.name_path_members(path.members).len() == 1;
+                return [Some(path.head_symbol), single_member.then_some(path.symbol)]
+                    .into_iter()
+                    .flatten()
+                    .chain(
+                        program
+                            .expression_table
+                            .name_path_member_symbols(path.member_symbols)
+                            .first()
+                            .copied(),
+                    )
+                    .all(|symbol| !symbol.is_valid() || symbol == resolved);
+            }
+            _ => return true,
+        }
     }
 }
 
