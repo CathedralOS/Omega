@@ -24,6 +24,7 @@ function-identity = { path = "../../representations/function-identity" }
 image = { path = "../../backend/images/image" }
 image-macho = { path = "../../backend/images/image-macho" }
 image-pe = { path = "../../backend/images/image-pe" }
+isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 numerics = { path = "../../../psi/foundation/numerics" }

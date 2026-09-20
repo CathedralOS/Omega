@@ -161,6 +161,12 @@ pub(crate) enum DecodedInstruction {
         destination: u8,
     },
     Return,
+    /// `jmp qword ptr [rip+disp32]`: the closed indirect form the import
+    /// thunk emits. Not a selected instruction kind — image emission owns
+    /// its production; PCC admission owns its replay.
+    JumpIndirectRip {
+        displacement: i32,
+    },
 }
 
 pub(crate) fn decode_all(
@@ -369,6 +375,14 @@ pub(crate) fn decode_one(
                 destination: (modrm & 7) | ((rex & 1) << 3),
             },
             3,
+        ));
+    }
+    if let [0xff, 0x25, d0, d1, d2, d3, ..] = bytes {
+        return Ok((
+            DecodedInstruction::JumpIndirectRip {
+                displacement: i32::from_le_bytes([*d0, *d1, *d2, *d3]),
+            },
+            6,
         ));
     }
     if bytes.starts_with(&[0x0f, 0x0b]) {
