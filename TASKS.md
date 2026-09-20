@@ -6619,6 +6619,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **WORKSPACE-ROLLOUT** — mined candidate; verify scope then implement.
 - **WR-REJOIN-LEGS** — mined candidate; verify scope then implement.
 - **WRAPPER-OBJECT-OWNERSHIP** — mined candidate; verify scope then implement.
+  Verified scope (origin/main c6336b5b02): the name re-mines the
+  `optimized_semantic_wrapper_{encoding,object}` orphan-owner surface in
+  `omega-rust/omega/compiler/native-realization/` — "wrapper object" is the
+  ProgramStorage semantic wrapper object and "ownership" is the question of
+  which pipeline/backend owner keeps it. That decision is an enumerated
+  remaining-work bullet of PIPELINE-OWNER-CONSOLIDATION in TASKS_OPTIMIZER.md
+  ("Move the live part to its backend or representation owner, or delete it");
+  the codec move leg belongs to DURABLE-CODEC-RELOCATION /
+  REPRESENTATION-OWNERSHIP (explicitly deferred until that owner decision
+  lands), and the executable-route leg that would give
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` its first
+  caller outside its own tests is a bullet of UEFI-PHYSICAL-SEMANTIC-ENTRY.
+  No independent slice exists here: the keep/move/delete decision is the owner
+  item's work and must not proceed through a parallel claim on the same files —
+  PIPELINE-WRAPPER-OBJECT-ORPHAN already claims
+  `native-realization/src/optimized_semantic_wrapper_object` under a live
+  ticket. Sibling re-mines of the same surface:
+  SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNERSHIP,
+  SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION,
+  SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP,
+  OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION,
+  OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **WRITE-ONLY-BORROW-RESIDUE** — mined candidate; verify scope then implement.
 - **ZERO-ARRAY-ADMISSION-FENCE** — mined candidate; verify scope then implement.
 - **ZERO-BYTE-ARRAY-FENCE-PLACEMENT** — mined candidate; verify scope then implement.
