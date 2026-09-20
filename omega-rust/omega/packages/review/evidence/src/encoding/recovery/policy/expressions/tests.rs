@@ -214,6 +214,9 @@ fn every_expression_variant_roundtrips_exactly() {
         Expression::CollectionLength {
             collection: operand(),
         },
+        Expression::CollectionCapacity {
+            collection: operand(),
+        },
         Expression::Float(PackageReviewFloatLiteral::F32(0x8000_0000)),
         Expression::Float(PackageReviewFloatLiteral::F64(0x7ff8_0000_0000_0023)),
     ];
@@ -454,7 +457,7 @@ fn recursive_expression_and_static_argument_text_preserve_nested_meaning() {
 #[test]
 fn unknown_expression_tags_enum_values_and_builtin_ordinals_reject() {
     for bytes in [
-        vec![23],
+        vec![24],
         vec![255],
         vec![0, 2],
         vec![7, 2],

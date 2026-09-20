@@ -181,6 +181,12 @@ pub(super) fn encode_contract_expression_body(
                 encode_contract_expression(encoder, collection)
             })?;
         }
+        PackageReviewContractExpression::CollectionCapacity { collection } => {
+            encoder.tag("collection_capacity", 23);
+            encoder.field("collection", |encoder| {
+                encode_contract_expression(encoder, collection)
+            })?;
+        }
         PackageReviewContractExpression::Member {
             receiver,
             member,

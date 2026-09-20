@@ -9,13 +9,48 @@ mod aliases;
 mod points;
 pub(crate) use points::checked_self_parameter_symbol;
 
-pub(crate) fn contract_member_has_exact_collection_length(
+/// A compiler-owned standing measure selected by authored member syntax on a
+/// fixed array or slice receiver. The authored member spelling, its exact
+/// checked intrinsic, and the diagnostic description stay bound together so
+/// contract projection cannot project one under the other's selection row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CollectionMeasure {
+    Length,
+    Capacity,
+}
+
+impl CollectionMeasure {
+    fn member_name(self) -> &'static str {
+        match self {
+            Self::Length => "len",
+            Self::Capacity => "capacity",
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            Self::Length => "collection-length",
+            Self::Capacity => "collection-capacity",
+        }
+    }
+
+    fn intrinsic(
+        self,
+    ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic {
+        use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
+        match self {
+            Self::Length => AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+            Self::Capacity => AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
+        }
+    }
+}
+
+pub(crate) fn contract_member_collection_measure(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
+) -> Option<CollectionMeasure> {
     use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
     compilation
@@ -26,12 +61,14 @@ pub(crate) fn contract_member_has_exact_collection_length(
                 .authored_declaration_selections()
                 .get(occurrence)
         })
-        .any(|selection| {
-            selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
-                && selection.target()
-                    == AuthoredDeclarationSelectionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-                    )
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
+        .find_map(|selection| {
+            [CollectionMeasure::Length, CollectionMeasure::Capacity]
+                .into_iter()
+                .find(|measure| {
+                    selection.target()
+                        == AuthoredDeclarationSelectionTarget::Intrinsic(measure.intrinsic())
+                })
         })
 }
 
@@ -96,15 +133,15 @@ pub(crate) fn exact_checked_contract_nominal_member(
     Ok(target.selected_symbol())
 }
 
-pub(crate) fn require_exact_checked_contract_collection_length(
+pub(crate) fn require_exact_checked_contract_collection_measure(
     compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
+    measure: CollectionMeasure,
 ) -> Result<(), Vec<Diagnostic>> {
     use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
     let selections = compilation
@@ -119,29 +156,31 @@ pub(crate) fn require_exact_checked_contract_collection_length(
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` collection-length projection has {} exact checked member-selection rows; expected one",
+            "reviewed {} `{}` {} projection has {} exact checked member-selection rows; expected one",
             context.subject_kind,
             context.subject_name,
+            measure.description(),
             selections.len()
         ))]);
     };
     if selection.exposure() != context.selection_exposure {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` collection-length projection has the wrong retained selection exposure",
-            context.subject_kind, context.subject_name
+            "reviewed {} `{}` {} projection has the wrong retained selection exposure",
+            context.subject_kind,
+            context.subject_name,
+            measure.description()
         ))]);
     }
-    if member.member.as_str() != "len"
+    if member.member.as_str() != measure.member_name()
         || member.member_symbol.is_valid()
         || member.case_variant.is_some()
-        || selection.target()
-            != AuthoredDeclarationSelectionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-            )
+        || selection.target() != AuthoredDeclarationSelectionTarget::Intrinsic(measure.intrinsic())
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` collection-length syntax disagrees with its exact checked intrinsic selection",
-            context.subject_kind, context.subject_name
+            "reviewed {} `{}` {} syntax disagrees with its exact checked intrinsic selection",
+            context.subject_kind,
+            context.subject_name,
+            measure.description()
         ))]);
     }
     Ok(())
