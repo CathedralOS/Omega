@@ -241,7 +241,11 @@ fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
         top_level_bindings: Vec::new(),
     })
     .expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    // `Service<R>` carrier fields stay unshaped — and the machine fails
+    // closed — until the settled fused-provider input supplies an erasure
+    // authorization, exactly as `checked_with_service` fixtures arrange.
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     lower_typed_trees(typed).expect("check dynamic source")
 }
 
