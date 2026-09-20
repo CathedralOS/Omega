@@ -685,3 +685,42 @@ fn saved_local_value_requires_canaries() {
         );
     }
 }
+
+#[test]
+fn mutable_carrier_slice_length_requires_canaries() {
+    // A `mut` binding nothing in the state writes denotes its entry value at
+    // the call boundary: a mutable slice local's produced extent, a `let mut`
+    // read of it, and a `mut` formal's extent all discharge the callee's
+    // `requires` the same way an immutable binding does.
+    let canary = pass_canary(fixture_roster::MUTABLE_CARRIER_SLICE_LENGTH_COMPILE);
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    // Rebinding the carrier removes the entry observation: no saved extent
+    // survives the write, so the boundary rejects rather than replaying the
+    // stale initializer.
+    let rejected = fail_canary(fixture_roster::MUTABLE_CARRIER_SLICE_REBOUND_REJECTED);
+    let expected = fs::read_to_string(rejected.join("expected.txt"))
+        .expect("mutable-carrier fail canary should carry expected.txt");
+    let diagnostics =
+        check_canary(&rejected).expect_err("a rebound mutable carrier should carry no observation");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "mutable-carrier fail canary should contain {:?}:\n{combined}",
+        expected.trim()
+    );
+}

@@ -213,6 +213,10 @@ pub(crate) const SAVED_LOCAL_LENGTH_BOUND_REJECTED: &str =
     "dependent/call_requires_saved_local_length_bound_rejected";
 pub(crate) const SAVED_LOCAL_MUTABLE_CARRIER_REJECTED: &str =
     "dependent/call_requires_saved_local_mutable_carrier_rejected";
+pub(crate) const MUTABLE_CARRIER_SLICE_LENGTH_COMPILE: &str =
+    "dependent/call_requires_mutable_carrier_slice_length_compile";
+pub(crate) const MUTABLE_CARRIER_SLICE_REBOUND_REJECTED: &str =
+    "dependent/call_requires_mutable_carrier_slice_rebound_rejected";
 
 pub(crate) const STRUCTURED_CONST_PASS_CANARIES: &[&str] = &[
     STRUCTURED_CONST_CANONICAL_IDENTITY,
@@ -346,6 +350,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     SAVED_LOCAL_SLICE_LENGTH_COMPILE,
     SAVED_LOCAL_LENGTH_BOUND_COMPILE,
     SAVED_LOCAL_ARITHMETIC_BOUND_COMPILE,
+    MUTABLE_CARRIER_SLICE_LENGTH_COMPILE,
 ];
 
 pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
@@ -364,4 +369,5 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     SAVED_LOCAL_SLICE_LENGTH_UNMET_REJECTED,
     SAVED_LOCAL_LENGTH_BOUND_REJECTED,
     SAVED_LOCAL_MUTABLE_CARRIER_REJECTED,
+    MUTABLE_CARRIER_SLICE_REBOUND_REJECTED,
 ];

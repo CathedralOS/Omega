@@ -1,0 +1,27 @@
+// FAIL CANARY. A mutable carrier's entry observation names the value the
+// binding site read, never a later write: `relay` rebinds `items` to a
+// shorter slice before reading `items.len`, so the saved observation is
+// withheld and the boundary must still reject `rest.len <= capacity` even
+// though the rebound extent would satisfy it.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.relay(items) }
+}
+
+machine Main::relay(&mut self, mut items: &[i32]) -> u64 {
+    items = &[1, 2];
+    let m: u64 = items.len;
+    transition { _ -> self.inner(items, m) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len <= capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

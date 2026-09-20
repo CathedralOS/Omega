@@ -8,13 +8,14 @@
 //!
 //! A saved value is observed at its binding site, so a local joins the roster
 //! only while every carrier its initializer references is stable for the
-//! whole state: immutable, never the root of an exclusive borrow, and never
-//! an exclusive-reference carrier itself. A `mut` formal's or local's atom
-//! still names its value at the call -- the latest write, not the incoming
-//! value -- so an initializer that reads a mutable carrier produces no saved
-//! observation. The distinction is what keeps `let n = k` honest when `k` is
-//! reassigned before the call: `n` may claim the incoming value only while
-//! nothing can write it away.
+//! whole state: never written anywhere in it, never the root of an exclusive
+//! borrow, and never an exclusive-reference carrier itself. A `mut` formal's
+//! or local's atom names its entry value, so an initializer that reads a
+//! mutable carrier still saves an observation -- but only while the state
+//! never writes the carrier; any assignment target or mutable-receiver call
+//! rooted at it makes the read unstable. The distinction is what keeps
+//! `let n = k` honest when `k` is reassigned before the call: `n` may claim
+//! the incoming value only while nothing can write it away.
 use super::super::StrictArithmeticExpressionBinding;
 use super::{
     BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State, TypedTrees,
@@ -25,10 +26,10 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// An actual that carries a saved caller observation: a plain name bound by
-/// an immutable state-local `let`. Admission is by shape only -- the binding
-/// pass still has to normalize the initializer against the caller's atoms --
-/// because evaluating a stable name at the boundary cannot rewrite an
-/// installed caller fact.
+/// a state-local `let` nothing writes. Admission is by shape only -- the
+/// binding pass still has to normalize the initializer against the caller's
+/// atoms -- because evaluating a stable name at the boundary cannot rewrite
+/// an installed caller fact.
 pub(super) fn actual(
     program: &TypedTrees,
     state: &State,
@@ -59,9 +60,9 @@ pub(super) fn install(
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
-        if local.is_mutable
-            || !local.initial_value.is_valid()
+        if !local.initial_value.is_valid()
             || lengths::binding_is_exclusively_exposed(program, state, local.symbol)
+            || lengths::binding_is_written(program, state, local.symbol)
             || !stable_references(program, state, local.initial_value)
         {
             continue;
@@ -103,10 +104,10 @@ fn plain_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<Symb
         .then_some(path.symbol)
 }
 
-/// The saved local `symbol` names in `state`: exactly one immutable `let`
-/// binding carrying an initializer, never the root of an exclusive borrow.
-/// A mutable local's binding would name its incoming value while a later
-/// write already replaced it, so mutable locals produce no observation;
+/// The saved local `symbol` names in `state`: exactly one `let` binding
+/// carrying an initializer, never written, never the root of an exclusive
+/// borrow. A mutable local's binding names its incoming value only while no
+/// later write replaces it, so written locals produce no observation;
 /// neither do ambiguous or formal names.
 fn saved_local<'a>(
     program: &'a TypedTrees,
@@ -126,8 +127,8 @@ fn saved_local<'a>(
         return None;
     };
     (local.initial_value.is_valid()
-        && !local.is_mutable
-        && !lengths::binding_is_exclusively_exposed(program, state, symbol))
+        && !lengths::binding_is_exclusively_exposed(program, state, symbol)
+        && !lengths::binding_is_written(program, state, symbol))
     .then_some(*local)
 }
 
@@ -147,11 +148,11 @@ fn exclusive_referent(program: &TypedTrees, mut reference: TypeReferenceHandle) 
     false
 }
 
-/// Every name in `expression` must denote a carrier nothing in the state can
-/// write: the saved observation reads each at its binding site, while the
-/// engine's atoms denote values at the call. A carrier that can change
-/// between the two would silently read the wrong value, so the observation
-/// is withheld entirely rather than approximated.
+/// Every name in `expression` must denote a carrier nothing in the state
+/// writes: the saved observation reads each at its binding site, while the
+/// engine's atoms denote the entry value a written carrier has already left.
+/// A carrier that can change between the two would silently read the wrong
+/// value, so the observation is withheld entirely rather than approximated.
 fn stable_references(program: &TypedTrees, state: &State, expression: ExpressionHandle) -> bool {
     let mut nodes = Vec::new();
     crate::value_custody::expression_types::collect_expression_nodes(
@@ -168,9 +169,9 @@ fn stable_references(program: &TypedTrees, state: &State, expression: Expression
             .find(|parameter| parameter.symbol == symbol)
         {
             !parameter.is_self
-                && !parameter.is_mutable
                 && !exclusive_referent(program, parameter.type_reference)
                 && !lengths::binding_is_exclusively_exposed(program, state, symbol)
+                && !lengths::binding_is_written(program, state, symbol)
         } else {
             saved_local(program, state, symbol)
                 .is_some_and(|local| !exclusive_referent(program, local.type_reference))
