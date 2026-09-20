@@ -1,0 +1,176 @@
+use omega::language::core::service;
+
+// BLOCKEXEC — concrete custody/claim pin for the blocking-executor contract
+// surface (source/library/blocking-executor/): bounded submissions, moved
+// custody, linear completion claims, suspension at a wait substrate, and
+// provider selection, instantiated by hand at `Token` following the
+// task_lifecycle_operations / task_outcome_linear_payloads convention:
+// checked helper bodies model the consume/borrow shapes the package's
+// bodyless requirements publish.
+//
+// Three legs stay frontier-bound and are pinned here at contract shape
+// only:
+//
+//   * queue/executor machine bodies — `BoundedQueue<T, N>` machine bodies
+//     (and any concrete ring over `[linear]` slots) are behind the
+//     generic-machine frontier recorded in core/fixed_vec.omg; queue
+//     admission is therefore witnessed by the refused edge only — a
+//     `Rejected` outcome returns the whole moved submission (the
+//     transactional-start rule that rejection returns moved arguments or
+//     proves transfer to another authorized owner).
+//   * call results carrying linear payloads — a `submit` returning the
+//     `SubmitOutcome` sum (two live claim paths) needs the conserved-claim
+//     mapping the multiplicity checker describes as "an explicit outcome
+//     mapping"; the sum's custody shape is exercised on constructed-value
+//     edges below instead. Real admission of the type-attached `boundary
+//     requirement`s (`Submission::submit`, `Ticket::settle`,
+//     `Executor::take_one`, `Executor::close`) rides TR3-TR8's provider
+//     route; this canary satisfies the `WorkerProvider` trait, which is the
+//     provider-selection leg.
+//   * `&Executor` borrows cannot cross a suspending settle
+//     (carry(suspension: forbidden)) — the claim settles against the
+//     executor's wait word by value, which is the shape the package's
+//     `Ticket::settle(&Executor)` requirement records.
+
+data Token {
+    id: u64;
+}
+
+// The executor's own worker-execution provider contract: `execute` carries
+// the same machine-symbol argument shape as `TaskRuntime::start` — the
+// worker body is a compile-time machine selection, never a runtime function
+// value. Build composition picks the concrete provider.
+pub boundary trait WorkerProvider {
+    machine execute<T, Arguments, machine Target>(
+        &self,
+        arguments: Arguments
+    ) -> T
+    where machine Target(arguments: Arguments) -> T suspends; blocks;
+    ensures true;
+}
+
+data CanaryWorkerProvider { }
+
+machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> T
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies WorkerProvider::execute
+via Binding::CompilerIntrinsic;
+
+// The shared wait substrate: a small word/value wait plus wake boundary.
+// `park` suspends the calling activation at a canonical crossing; wake
+// operations are ordinary boundary calls on the same word identity.
+pub boundary data WaitSubstrate;
+boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
+boundary machine WaitSubstrate::wake_one(word: u64);
+boundary machine WaitSubstrate::wake_all(word: u64);
+
+// One unit of moved work. `arguments` arrives by value — custody of the
+// caller's (possibly linear) argument pack moves into the submission;
+// nothing is borrowed.
+data Submission [linear] {
+    arguments: Token;
+}
+
+// Linear completion claim for one accepted submission: the owned right and
+// obligation to observe or settle the activation's lifecycle, discharged
+// exactly once — it cannot be copied, overwritten, or dropped to discharge.
+data Ticket [linear] {
+    executor: u64;
+    slot: u64;
+}
+
+// Why a submission was refused.
+data SubmissionRejection {
+    code: i32;
+}
+
+// Admission result. `Rejected` returns the whole submission — every moved
+// argument comes back to the caller.
+data SubmitOutcome {
+    case Accepted(ticket: Ticket);
+    case Rejected(submission: Submission, reason: SubmissionRejection);
+}
+
+// Lifecycle failure evidence for one settled claim.
+data WorkerFailureReceipt {
+    provider: u64;
+    code: i32;
+}
+
+// Terminal outcome of one `Ticket`.
+data ExecutorOutcome {
+    case Completed(value: Token);
+    case Cancelled;
+    case WorkerFailed(receipt: WorkerFailureReceipt);
+}
+
+// One bounded-queue slot over linear payloads: fixed inline capacity is the
+// "bounded queues" obligation; a Held slot carries one linear obligation.
+data SubmissionSlot {
+    case Empty;
+    case Held(held: Submission);
+}
+
+// One executor instance: the wait word producers and workers park on and
+// the routed worker-provider service worker activations run under.
+// `Service<WorkerProvider>` is the held selected capability — established
+// by build composition, never package-authored.
+data Executor [linear] {
+    wait_word: u64;
+    runtime: Service<WorkerProvider>;
+    open: bool;
+}
+
+// Reclaim helper: consume a submission whose custody came back through
+// `Rejected` (the local consume convention — task_lifecycle_operations'
+// `Task::settle<T>(self) {}` shape).
+machine Submission::release(self) { }
+
+// Terminal consumption of the completion claim: parks on the wait word
+// while the worker is in flight, then reports the lifecycle outcome.
+// Declared `suspends; blocks` because settlement is a blocking wait, not a
+// semantic safe point.
+machine Ticket::settle(self, wait_word: u64) -> ExecutorOutcome suspends; blocks; {
+    suspend block WaitSubstrate::park(wait_word);
+    ExecutorOutcome::Cancelled
+}
+
+// Terminal consumption of the executor itself.
+machine Executor::close(self) { }
+
+// Consume a terminal lifecycle outcome.
+machine ExecutorOutcome::release(self) { }
+
+data Main {
+    executor: Executor;
+}
+
+machine Main::probe(&mut self) reaches WorkerProvider suspends; blocks; {
+    // Moved custody: `arguments` moves into the submission by value.
+    let submission: Submission = Submission {
+        arguments: Token { id: 7 },
+    };
+    // Moved custody into the refused-admission outcome: `Rejected` carries
+    // the whole submission back to its caller.
+    let outcome: SubmitOutcome = SubmitOutcome::Rejected {
+        submission: submission,
+        reason: SubmissionRejection { code: -1 },
+    };
+    // Destructuring the outcome moves the payload claim back out.
+    let returned: Submission = outcome.submission;
+    Submission::release(returned);
+
+    // Linear completion claim: an explicit claim value exercises
+    // multiplicity only (the task_outcome_linear_payloads convention), and
+    // `settle` discharges it exactly once at a blocking wait on the
+    // executor's wait word.
+    let ticket: Ticket = Ticket { executor: 0, slot: 0 };
+    let settled: ExecutorOutcome =
+        suspend block ticket.settle(self.executor.wait_word);
+    ExecutorOutcome::release(settled);
+}
+
+machine Main::main(&mut self) { }

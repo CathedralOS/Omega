@@ -1,0 +1,12 @@
+// Compile canary: provider selection is part of the witnessed surface, so
+// the build selects the canary worker provider and binds every hosted
+// entry even though the driving test only reaches checked trees.
+
+machine build(builder: &mut Build) {
+    builder.application("blocking-executor-custody-claims-compile");
+    builder.select_provider<WorkerProvider, CanaryWorkerProvider>();
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

@@ -4299,17 +4299,42 @@ Owners include
   `WaitSubstrate` word-wait + wake-one/wake-many boundary; and the
   `WorkerProvider` boundary trait selected through ordinary build
   `select_provider` — the package declares its own trait because core's
-  `TaskRuntime` is not public outside the bundled library. Witnessed by
-  `omega --check` compiling the package and an ephemeral consumer across a
-  `builder.depend` edge; the corpus pass canary under
-  `tests/omega/pass/tasks/` is fenced until the live claim on
-  `omega-rust/omega/compiler/compiler/tests` releases — register the
-  fixture in `fixture_rosters/task_runtime.rs` plus a driving test in
-  `canary_suite/task_runtime.rs` then. Remaining legs: queue/executor
-  machine bodies (generic-machine frontier, recorded in
-  `source/library/core/fixed_vec.omg`), real provider admission joining
-  TR3-TR8's execution route, and the process-isolation boundary for
-  hung-worker recovery.
+  `TaskRuntime` is not public outside the bundled library.
+
+  Concrete custody/claim pin landed at
+  `tests/omega/pass/blockexec/blocking_executor_custody_claims_compile`:
+  the contract surface hand-instantiated at `Token` (the
+  `task_lifecycle_operations` convention) — `[linear]` `Submission`,
+  `Ticket`, and `Executor`; refused-admission `Rejected` custody return;
+  `Ticket::settle` declared `suspends; blocks` parking on the wait word via
+  `suspend block`; `WorkerProvider` satisfied by a canary provider and
+  selected through `builder.select_provider`, with the routed
+  `Service<WorkerProvider>` field established into `Executor` on the
+  application root. Registered in `fixture_rosters/task_runtime.rs`; the
+  driving test
+  `task_runtime::blocking_executor_custody_claims_hold_through_the_concrete_pin`
+  compiles it to checked trees and pins linearity, suspension/blocking
+  envelopes, and the selected provider plan.
+
+  The package itself currently fails `omega --check`:
+  `Executor.runtime` is spelled `Service<WorkerProvider> in Bound`, which
+  the closed `Service` carrier now rejects ("admits no authored
+  qualification") — drop the ` in Bound` qualifier to restore it. That
+  repair is fenced under the live `source/library` claim
+  (ENTRY-CONTENT-ROOTS); the depend-and-consume consumer shape is proven on
+  a scratch copy (`builder.depend` + `use blocking_executor::executor` +
+  `select_provider` checks clean once the field is plain
+  `Service<WorkerProvider>`).
+
+  Remaining legs: queue/executor machine bodies (generic-machine frontier,
+  recorded in `source/library/core/fixed_vec.omg`; a concrete ring over
+  `[linear]` slots also has no provable slot-empty fact channel),
+  call-returned sums carrying more than one linear case payload (the
+  multiplicity checker wants "an explicit outcome mapping" — the
+  conserved-claim join machinery), real provider admission for the
+  type-attached `boundary requirement`s joining TR3-TR8's execution route,
+  the `in Bound` carrier-spelling repair above, and the process-isolation
+  boundary for hung-worker recovery.
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned
