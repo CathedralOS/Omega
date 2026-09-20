@@ -58,7 +58,10 @@
 //!   opaquely at the machine's declared result carrier, while calls
 //!   hauling machine, evidence, quotient or operational payload still
 //!   refuse. Member calls keep refusing — resolution leaves their
-//!   `target_symbol` unbound inside `let` bodies.
+//!   `target_symbol` unbound inside `let` bodies. `data` literals and
+//!   `match` expressions intern the same way: the literal inhabits its
+//!   type's interned carrier, and a match denotes at the one carrier
+//!   every arm inhabits.
 //! - Explicit generic applications follow the callee's ordered telescope:
 //!   level binders instantiate `Constant.levels`, while the remaining binders
 //!   form ordinary `Apply` terms before the ordinary argument prefix. A binder
@@ -1171,7 +1174,9 @@ impl<'a> Elaborator<'a> {
             | ExpressionNode::Call(..)
             | ExpressionNode::Unary(..)
             | ExpressionNode::Member(..)
-            | ExpressionNode::Cast(..) => match self.operand_carrier(handle) {
+            | ExpressionNode::Cast(..)
+            | ExpressionNode::StructLiteral(..)
+            | ExpressionNode::Match(..) => match self.operand_carrier(handle) {
                 Some(determined) if determined == carrier => self.elaborate_expression(handle),
                 Some(..) => Err(self.refuse(format!(
                     "operand `{}` inhabits a different scalar carrier",
@@ -1239,6 +1244,35 @@ impl<'a> Elaborator<'a> {
             ExpressionNode::Cast(cast) => self.scalar_carrier_of_type_reference(cast.target_type),
             ExpressionNode::ZeroValue(reference) => {
                 self.scalar_carrier_of_type_reference(*reference)
+            }
+            // A `data` literal inhabits its type's interned carrier; the
+            // type must already appear in the signature (an annotation or
+            // parameter interned it) or the carrier genuinely is not in
+            // scope and the expression keeps refusing.
+            ExpressionNode::StructLiteral(literal) => self
+                .carriers
+                .get(&literal.type_symbol)
+                .map(|&position| self.carrier_class_at(position)),
+            // A match denotes at the one carrier every arm inhabits;
+            // disagreeing or indeterminate arms return no carrier.
+            ExpressionNode::Match(matched) => {
+                let mut carrier = None;
+                for arm in self
+                    .program
+                    .expression_table
+                    .match_arms(matched.arms)
+                    .iter()
+                {
+                    let Some(arm_carrier) = self.operand_carrier(arm.value) else {
+                        return None;
+                    };
+                    match carrier {
+                        None => carrier = Some(arm_carrier),
+                        Some(agreed) if agreed == arm_carrier => {}
+                        Some(_) => return None,
+                    }
+                }
+                carrier
             }
             _ => None,
         }
