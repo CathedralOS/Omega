@@ -55,6 +55,13 @@ or resource semantics.
 
 ## References, calls, and storage
 
+Ordinary direct calls use one `TargetUnitOperation::Call` record for Unit or
+scalar results and any admitted scalar/structural argument mix. Its optional
+scalar home identifies the exact result even when unused; only Unit has no
+result. Source-specific semantic restrictions remain checked independently.
+Foreign calls, dynamic dispatch and structural-result custody still have their
+own carriers; this is not a claim that the full call inventory is normalized.
+
 [Structural signatures](src/lowering/structural_signature.rs) derive placement
 from structural declarations and referent layout. Every borrowed access uses
 `BorrowedReference`; only owned values receive shape-selected value placement.

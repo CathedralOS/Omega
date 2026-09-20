@@ -72,7 +72,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             body.blocks[0]
                 .operations
                 .iter()
-                .any(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+                .any(|operation| matches!(operation, TargetUnitOperation::Call { .. }))
         );
         assert!(body.blocks[0].operations.iter().any(|operation| matches!(
             operation,

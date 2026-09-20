@@ -169,7 +169,7 @@ fn receiver_scalar_call_replay_preserves_exact_ordered_requirements() {
                 .flat_map(|function| &mut function.graph.blocks)
                 .flat_map(|block| &mut block.operations)
                 .find_map(|operation| match operation {
-                    TargetUnitOperation::StructuralScalarCall {
+                    TargetUnitOperation::Call {
                         requirement_obligations,
                         ..
                     } if requirement_obligations.len() == 2 => Some(requirement_obligations),

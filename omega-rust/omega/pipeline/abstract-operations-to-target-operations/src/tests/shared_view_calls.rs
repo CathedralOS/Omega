@@ -113,9 +113,7 @@ fn scalar_graph_lowers_shared_view_call_transport() {
         let caller = &lowered.functions[0];
         let placement = caller.graph.parameters[0].placement.clone();
         for operation in &caller.graph.blocks[0].operations[..2] {
-            let target_operations::TargetUnitOperation::StructuralScalarCall { arguments, .. } =
-                operation
-            else {
+            let target_operations::TargetUnitOperation::Call { arguments, .. } = operation else {
                 panic!("shared-view call");
             };
             assert_eq!(
@@ -161,9 +159,7 @@ fn scalar_graph_lowers_literal_descriptor_calls() {
             target_operations::TargetUnitOperation::EstablishByteSequenceLiteral { .. }
         ));
         for operation in &operations[1..3] {
-            let target_operations::TargetUnitOperation::StructuralScalarCall { arguments, .. } =
-                operation
-            else {
+            let target_operations::TargetUnitOperation::Call { arguments, .. } = operation else {
                 panic!("literal view call");
             };
             assert_eq!(

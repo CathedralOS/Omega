@@ -42,7 +42,7 @@ pub(super) fn retain_result(
     operation: OperationId,
     result: abstract_operations::AbstractResult,
     live: &mut LiveDefinitions,
-) -> Result<(), LoweringError> {
+) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
     let home = TargetUnitScalarHomeRequirement {
         defining_operation: operation,
         source_value: result.value,
@@ -54,12 +54,11 @@ pub(super) fn retain_result(
             &mut live.integers,
             result.value,
             KnownUnitInteger::Home(home),
-        )
+        )?;
     } else if live.scalar_homes.insert(result.value, home).is_some() {
-        Err(LoweringError::DuplicateValue(result.value))
-    } else {
-        Ok(())
+        return Err(LoweringError::DuplicateValue(result.value));
     }
+    Ok(home)
 }
 
 #[allow(clippy::too_many_arguments)]

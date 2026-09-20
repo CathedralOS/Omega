@@ -74,11 +74,6 @@ pub(super) fn validate(
                 psi_operation,
                 arguments,
                 ..
-            }
-            | TargetUnitOperation::StructuralScalarCall {
-                psi_operation,
-                arguments,
-                ..
             } => {
                 target_calls.insert(*psi_operation, arguments.as_slice());
             }

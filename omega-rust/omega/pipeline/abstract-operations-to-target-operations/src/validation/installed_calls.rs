@@ -42,14 +42,6 @@ pub(crate) fn validate(
                     arguments,
                     ..
                 }
-                | TargetUnitOperation::StructuralScalarCall {
-                    psi_operation,
-                    callee,
-                    origin,
-                    scalar_arguments,
-                    arguments,
-                    ..
-                }
                 | TargetUnitOperation::StructuralResultCall {
                     psi_operation,
                     callee,
@@ -92,15 +84,25 @@ pub(crate) fn validate(
                 return Err(invalid());
             }
             let result_matches = match (operation, &call.result) {
-                (TargetUnitOperation::Call { .. }, OperationResult::Unit) => true,
+                (
+                    TargetUnitOperation::Call {
+                        result_home: None, ..
+                    },
+                    OperationResult::Unit,
+                ) => true,
                 (
                     TargetUnitOperation::StructuralResultCall { result, .. },
                     OperationResult::Structural(expected),
                 ) => result == expected,
                 (
-                    TargetUnitOperation::StructuralScalarCall { result, .. },
+                    TargetUnitOperation::Call {
+                        result_home: Some(result),
+                        ..
+                    },
                     OperationResult::Scalar(expected),
-                ) => result.value == expected.id && result.scalar_type == expected.scalar_type,
+                ) => {
+                    result.source_value == expected.id && result.scalar_type == expected.scalar_type
+                }
                 _ => false,
             };
             if !result_matches

@@ -50,10 +50,10 @@ use super::structural_signatures;
 
 /// The result row one retained `Call`-family operation carries.
 enum EmbeddedResult<'a> {
-    /// `Call`: the callee returns Unit and no result row exists.
+    /// The callee returns Unit and no result row exists.
     Unit,
-    /// `StructuralScalarCall`: the retained scalar result row.
-    Scalar(&'a AbstractResult),
+    /// An ordinary scalar call retains its exact semantic result and home.
+    Scalar(&'a TargetUnitScalarHomeRequirement),
     /// `StructuralResultCall`: the call's result row, the retained declared
     /// callee result, the required durable home, and the retained reference
     /// leaf roster.
@@ -65,13 +65,12 @@ enum EmbeddedResult<'a> {
     },
 }
 
-/// One retained call-family row keyed by its source operation identity. Each
-/// variant is a distinct producer role; a row collected under the wrong role
-/// for its source operation rejects rather than silently passing.
+/// One retained call row keyed by its source operation identity. Dispatch kind
+/// selects the custody to check; result and argument shapes remain data. Source
+/// operations retain their own semantic admission checks after collection.
 enum EmbeddedCall<'a> {
-    /// `Call`, `StructuralScalarCall`, and `StructuralResultCall` share one
-    /// scalar plus structural argument roster and an origin row.
-    Structural {
+    /// Ordinary calls share a scalar/structural argument roster and origin.
+    Direct {
         origin: &'a NativeCallOrigin,
         callee: MachineId,
         call_plan: &'a CallPlan,
@@ -80,15 +79,6 @@ enum EmbeddedCall<'a> {
         result: EmbeddedResult<'a>,
         claim_transfers: &'a [ClaimTransfer],
         returned_claim_transfers: &'a [StructuralResultClaimTransfer],
-        requirement_obligations: &'a [ObligationId],
-        crash_continuations: &'a [CrashRouteBucket],
-    },
-    /// `ScalarCall`: a service-free scalar call with no structural roster.
-    Scalar {
-        callee: MachineId,
-        call_plan: &'a CallPlan,
-        result_home: &'a TargetUnitScalarHomeRequirement,
-        arguments: &'a [TargetUnitScalarCallArgument],
         requirement_obligations: &'a [ObligationId],
         crash_continuations: &'a [CrashRouteBucket],
     },
@@ -244,6 +234,7 @@ pub(super) fn validate(
                 TargetUnitOperation::Call {
                     origin,
                     psi_operation,
+                    result_home,
                     callee,
                     call_plan,
                     scalar_arguments,
@@ -253,39 +244,15 @@ pub(super) fn validate(
                     crash_continuations,
                 } => (
                     *psi_operation,
-                    EmbeddedCall::Structural {
+                    EmbeddedCall::Direct {
                         origin,
                         callee: *callee,
                         call_plan,
                         scalar_arguments,
                         arguments,
-                        result: EmbeddedResult::Unit,
-                        claim_transfers,
-                        returned_claim_transfers: &[],
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::StructuralScalarCall {
-                    origin,
-                    psi_operation,
-                    result,
-                    callee,
-                    call_plan,
-                    scalar_arguments,
-                    arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::Structural {
-                        origin,
-                        callee: *callee,
-                        call_plan,
-                        scalar_arguments,
-                        arguments,
-                        result: EmbeddedResult::Scalar(result),
+                        result: result_home
+                            .as_ref()
+                            .map_or(EmbeddedResult::Unit, EmbeddedResult::Scalar),
                         claim_transfers,
                         returned_claim_transfers: &[],
                         requirement_obligations,
@@ -309,7 +276,7 @@ pub(super) fn validate(
                     crash_continuations,
                 } => (
                     *psi_operation,
-                    EmbeddedCall::Structural {
+                    EmbeddedCall::Direct {
                         origin,
                         callee: *callee,
                         call_plan,
@@ -323,25 +290,6 @@ pub(super) fn validate(
                         },
                         claim_transfers,
                         returned_claim_transfers,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::ScalarCall {
-                    psi_operation,
-                    callee,
-                    call_plan,
-                    result_home,
-                    arguments,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::Scalar {
-                        callee: *callee,
-                        call_plan,
-                        result_home,
-                        arguments,
                         requirement_obligations,
                         crash_continuations,
                     },
@@ -624,7 +572,7 @@ pub(super) fn validate(
             continue;
         };
         let row = match target_calls.get(psi_operation) {
-            Some(EmbeddedCall::Structural {
+            Some(EmbeddedCall::Direct {
                 origin: NativeCallOrigin::InstalledProvider { provider, .. },
                 ..
             }) => reference_results::BoundaryCallRow::Installed(provider.candidate),
@@ -934,7 +882,7 @@ impl Replay<'_> {
         let Some(call) = call else {
             return Ok(());
         };
-        let EmbeddedCall::Structural {
+        let EmbeddedCall::Direct {
             origin,
             callee,
             call_plan,
@@ -1061,7 +1009,7 @@ impl Replay<'_> {
                 call,
             );
         }
-        let EmbeddedCall::Structural {
+        let EmbeddedCall::Direct {
             origin:
                 NativeCallOrigin::InstalledProvider {
                     boundary: actual_boundary,
@@ -1395,8 +1343,7 @@ impl Replay<'_> {
             .flat_map(|block| &block.operations)
         {
             let home = match operation {
-                TargetUnitOperation::ScalarCall { result_home, .. }
-                | TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+                TargetUnitOperation::IeeeFloatCompare { result_home, .. }
                 | TargetUnitOperation::StoredDynamicScalarCall { result_home, .. }
                 | TargetUnitOperation::DynamicScalarCall { result_home, .. }
                 | TargetUnitOperation::DynamicParameterScalarCall { result_home, .. }
@@ -1405,7 +1352,8 @@ impl Replay<'_> {
                     ..
                 }
                 | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(result_home),
-                TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
+                TargetUnitOperation::Call { result_home, .. }
+                | TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
                     result_home.as_ref()
                 }
                 _ => None,
@@ -1940,11 +1888,15 @@ impl Replay<'_> {
         crash_continuations: &[CrashRouteBucket],
         call: Option<&EmbeddedCall<'_>>,
     ) -> Result<(), OperationId> {
-        let Some(&EmbeddedCall::Scalar {
+        let Some(&EmbeddedCall::Direct {
+            origin,
             callee,
             call_plan,
-            result_home,
-            arguments: actual,
+            result: EmbeddedResult::Scalar(result_home),
+            scalar_arguments: actual,
+            arguments: structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
             requirement_obligations: actual_obligations,
             crash_continuations: actual_crashes,
         }) = call
@@ -1955,7 +1907,11 @@ impl Replay<'_> {
                 Err(psi_operation)
             };
         };
-        if callee != source_callee
+        if origin != &NativeCallOrigin::Authored
+            || !structural_arguments.is_empty()
+            || !claim_transfers.is_empty()
+            || !returned_claim_transfers.is_empty()
+            || callee != source_callee
             || actual.len() != arguments.len()
             || *actual_obligations != *requirement_obligations
             || *actual_crashes != *crash_continuations
@@ -2947,7 +2903,11 @@ impl Replay<'_> {
             }
             (BoundResult::Scalar(expected), EmbeddedResult::Scalar(actual)) => {
                 let declared = callee.result.scalar().ok_or(psi_operation)?;
-                if **actual != *expected
+                if actual.defining_operation != psi_operation
+                    || actual.source_value != expected.value
+                    || actual.scalar_type != expected.scalar_type
+                    || structural_signatures::fixed_native_scalar_shape(expected.scalar_type)
+                        != Some(actual.shape)
                     || actual.scalar_type != declared.scalar_type
                     || !callee.entry_claims.is_empty()
                     || !callee.published_service_ceiling.is_empty()

@@ -306,15 +306,17 @@ fn zero_call_proposal_and_forward_references_reject() {
 
     let mut forward = target.clone();
     let body = &mut forward.functions[0].graph;
-    let target_operations::TargetUnitOperation::ScalarCall {
-        result_home: future,
+    let target_operations::TargetUnitOperation::Call {
+        result_home: Some(future),
         ..
     } = body.blocks[0].operations[3]
     else {
         unreachable!()
     };
-    let target_operations::TargetUnitOperation::ScalarCall { arguments, .. } =
-        &mut body.blocks[0].operations[2]
+    let target_operations::TargetUnitOperation::Call {
+        scalar_arguments: arguments,
+        ..
+    } = &mut body.blocks[0].operations[2]
     else {
         unreachable!()
     };
@@ -327,11 +329,47 @@ fn zero_call_proposal_and_forward_references_reject() {
 }
 
 #[test]
+fn direct_call_result_home_is_reconstructed_before_receiving() {
+    let (source, target, unit) = scalar_call_unit_fixture();
+    let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+    for mutation in ["missing", "operation", "value", "type", "shape"] {
+        let mut changed = target.clone();
+        let target_operations::TargetUnitOperation::Call { result_home, .. } =
+            &mut changed.functions[0].graph.blocks[0].operations[2]
+        else {
+            panic!("source fixture has a direct scalar call");
+        };
+        if mutation == "missing" {
+            *result_home = None;
+        } else {
+            let home = result_home.as_mut().unwrap();
+            match mutation {
+                "operation" => {
+                    home.defining_operation = semantic_vocabulary::OperationId::new(99).unwrap()
+                }
+                "value" => home.source_value = semantic_vocabulary::ValueId::new(99).unwrap(),
+                "type" => home.scalar_type = semantic_vocabulary::ScalarType::Boolean,
+                "shape" => home.shape = calling_conventions::ValueShape::integer(1, 1),
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            validate_legalized_operations(&changed, &source, &unit, legal.plan().clone()).is_err(),
+            "receiving {mutation}"
+        );
+    }
+}
+
+#[test]
 fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let mut changed = target.clone();
     let body = &mut changed.functions[0].graph;
-    let target_operations::TargetUnitOperation::ScalarCall { call_plan, .. } =
+    let target_operations::TargetUnitOperation::Call { call_plan, .. } =
         &mut body.blocks[0].operations[2]
     else {
         unreachable!()

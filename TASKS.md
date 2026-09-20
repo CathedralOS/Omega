@@ -2049,16 +2049,13 @@ Owners include
   (`calling_policy_plans::borrowed_dynamic_trait_record_fields_retain_both_descriptor_words`);
   layout agreement alone does not close native transport.
 
-  Flag: `TargetUnitOperation`
-  (`target-operations/src/target_operations/operations/unit.rs`) has 12 call
-  variants split by result kind, argument kind and dispatch source (`Call`,
-  `ScalarCall`, `StructuralScalarCall`, `StructuralResultCall`,
-  `Structural{Scalar,Unit}CallWithDynamicArguments`, `StoredDynamicScalarCall`,
-  `Dynamic{Scalar,Unit}Call`, `DynamicParameter{Scalar,Unit}Call`,
-  `NormalizedForeignCall`). That is one producer family per signature
-  permutation, not a normalized signature. The general form is one call
-  operation carrying an ordered per-position parameter class, a result class
-  and a callee source, realized by the target's calling policy.
+  Flag: ordinary Unit/scalar calls now share `TargetUnitOperation::Call`, but
+  structural results and dynamic arguments/dispatch still split the inventory
+  by signature shape (`target-operations/src/target_operations/operations/unit.rs`).
+  Finish normalization as explicit argument classes, result custody and callee
+  source realized by the target's calling policy. Preserve the existing foreign
+  formal-order mapping and independent checks; do not introduce another call
+  family for each newly supported signature combination.
 
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete
   [representation agreement](wiki/spec/build/opaque_representations.md) at

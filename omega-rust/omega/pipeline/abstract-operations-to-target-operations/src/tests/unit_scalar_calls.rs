@@ -128,18 +128,18 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
         assert_eq!(lowered.functions[0].scalar_abi, None);
         let [
             TargetUnitOperation::IntegerConstant { .. },
-            TargetUnitOperation::ScalarCall {
+            TargetUnitOperation::Call {
                 psi_operation: first_operation,
                 call_plan: first_plan,
-                result_home: first_home,
-                arguments: first_arguments,
+                result_home: Some(first_home),
+                scalar_arguments: first_arguments,
                 ..
             },
-            TargetUnitOperation::ScalarCall {
+            TargetUnitOperation::Call {
                 psi_operation: second_operation,
                 call_plan: second_plan,
-                result_home: second_home,
-                arguments: second_arguments,
+                result_home: Some(second_home),
+                scalar_arguments: second_arguments,
                 ..
             },
         ] = body.blocks[0].operations.as_slice()
@@ -187,7 +187,7 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
             body.blocks[0]
                 .operations
                 .iter()
-                .filter(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+                .filter(|operation| matches!(operation, TargetUnitOperation::Call { .. }))
                 .count(),
             2
         );
@@ -267,7 +267,10 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
             let lowered =
                 lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
             let body = &lowered.functions[0].graph;
-            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.blocks[0].operations[1]
+            let TargetUnitOperation::Call {
+                scalar_arguments: arguments,
+                ..
+            } = &body.blocks[0].operations[1]
             else {
                 panic!("first call")
             };
@@ -279,7 +282,10 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
                     value: literal,
                 }
             );
-            let TargetUnitOperation::ScalarCall { arguments, .. } = &body.blocks[0].operations[2]
+            let TargetUnitOperation::Call {
+                scalar_arguments: arguments,
+                ..
+            } = &body.blocks[0].operations[2]
             else {
                 panic!("second call")
             };
@@ -347,9 +353,9 @@ fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                TargetUnitOperation::ScalarCall {
+                TargetUnitOperation::Call {
                     call_plan,
-                    arguments,
+                    scalar_arguments: arguments,
                     ..
                 } => Some((call_plan, arguments)),
                 _ => None,
@@ -385,7 +391,7 @@ fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_calle
         body.blocks[0]
             .operations
             .iter()
-            .filter(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+            .filter(|operation| matches!(operation, TargetUnitOperation::Call { .. }))
             .count(),
         2
     );

@@ -371,9 +371,9 @@ fn selected_record_loan_rejects_changed_origin_geometry_and_home() {
             .flat_map(|function| &mut function.graph.blocks)
             .flat_map(|block| &mut block.operations)
             .find_map(|operation| match operation {
-                target_operations::TargetUnitOperation::StructuralScalarCall {
-                    arguments, ..
-                } => arguments.first_mut(),
+                target_operations::TargetUnitOperation::Call { arguments, .. } => {
+                    arguments.first_mut()
+                }
                 _ => None,
             })
             .unwrap();

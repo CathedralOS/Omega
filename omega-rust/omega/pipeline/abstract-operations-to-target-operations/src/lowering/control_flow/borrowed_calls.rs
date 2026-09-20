@@ -152,33 +152,21 @@ pub(super) fn lower(
         })
         .collect::<Result<Vec<_>, _>>()?;
     super::references::commit_argument_moves(live, &moved);
-    if let Some(result) = result {
-        super::primitive_storage::retain_result(psi_operation, result, live)?;
-        operations.push(TargetUnitOperation::StructuralScalarCall {
-            origin: target_operations::NativeCallOrigin::Authored,
-            psi_operation,
-            result,
-            callee,
-            call_plan: signature.call_plan,
-            scalar_arguments,
-            arguments: target_arguments,
-            claim_transfers: claims.clone(),
-            requirement_obligations: requirements.clone(),
-            crash_continuations: crashes.clone(),
-        });
-    } else {
-        operations.push(TargetUnitOperation::Call {
-            origin: target_operations::NativeCallOrigin::Authored,
-            psi_operation,
-            callee,
-            call_plan: signature.call_plan,
-            scalar_arguments,
-            arguments: target_arguments,
-            claim_transfers: claims.clone(),
-            requirement_obligations: requirements.clone(),
-            crash_continuations: crashes.clone(),
-        });
-    }
+    let result_home = result
+        .map(|result| super::primitive_storage::retain_result(psi_operation, result, live))
+        .transpose()?;
+    operations.push(TargetUnitOperation::Call {
+        origin: target_operations::NativeCallOrigin::Authored,
+        psi_operation,
+        callee,
+        call_plan: signature.call_plan,
+        result_home,
+        scalar_arguments,
+        arguments: target_arguments,
+        claim_transfers: claims.clone(),
+        requirement_obligations: requirements.clone(),
+        crash_continuations: crashes.clone(),
+    });
     provenance.operations.push(psi_operation);
     Ok(())
 }

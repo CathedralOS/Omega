@@ -78,11 +78,6 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
             psi_operation,
             result,
             ..
-        }
-        | TargetUnitOperation::StructuralScalarCall {
-            psi_operation,
-            result,
-            ..
         } => Some((
             result.value,
             Source::Home(target_operations::TargetUnitScalarHomeRequirement {
@@ -120,9 +115,10 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
         )),
         TargetUnitOperation::IeeeFloatCompare { result_home, .. }
         | TargetUnitOperation::ScalarDefinition { result_home, .. }
-        | TargetUnitOperation::ScalarCall { result_home, .. } => {
-            Some((result_home.source_value, Source::Home(*result_home)))
-        }
+        | TargetUnitOperation::Call {
+            result_home: Some(result_home),
+            ..
+        } => Some((result_home.source_value, Source::Home(*result_home))),
         _ => None,
     }
 }

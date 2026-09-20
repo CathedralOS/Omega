@@ -233,12 +233,15 @@ pub(in crate::lowering) fn lower_scalar_call(
     if resolve_source(*result).is_ok() {
         return Err(LoweringError::DuplicateValue(*result));
     }
-    Ok(TargetUnitOperation::ScalarCall {
+    Ok(TargetUnitOperation::Call {
+        origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan,
-        result_home,
-        arguments: target_arguments,
+        result_home: Some(result_home),
+        scalar_arguments: target_arguments,
+        arguments: Vec::new(),
+        claim_transfers: Vec::new(),
         requirement_obligations: requirement_obligations.clone(),
         crash_continuations: crash_continuations.clone(),
     })

@@ -579,9 +579,9 @@ pub(super) fn lower_operation(
                 scalar_abis,
                 |value| super::scalar_sources::source(value, function, live),
             )?;
-            let TargetUnitOperation::ScalarCall {
+            let TargetUnitOperation::Call {
                 psi_operation,
-                result_home: home,
+                result_home: Some(home),
                 ..
             } = &call
             else {

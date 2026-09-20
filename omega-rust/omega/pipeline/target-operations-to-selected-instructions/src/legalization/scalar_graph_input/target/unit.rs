@@ -10,6 +10,7 @@ use target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
 };
 mod aggregate_results;
+mod direct_calls;
 mod ieee_float;
 mod primitive_store;
 /// Replay one ordered Unit operation with only the SSA sources available here.
@@ -40,7 +41,6 @@ pub(super) fn validate_operation(
             let mut ordinary = target.clone();
             match &mut ordinary {
                 TargetUnitOperation::Call { origin, .. }
-                | TargetUnitOperation::StructuralScalarCall { origin, .. }
                 | TargetUnitOperation::StructuralResultCall { origin, .. } => {
                     *origin = target_operations::NativeCallOrigin::Authored
                 }
@@ -523,139 +523,10 @@ pub(super) fn validate_operation(
                 },
             ));
         }
-        (
-            TargetUnitOperation::Call {
-                origin: target_operations::NativeCallOrigin::Authored,
-                psi_operation,
-                callee,
-                call_plan,
-                scalar_arguments,
-                arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            },
-            AbstractOperation::CallUnit {
-                psi_operation: actual,
-                callee: called,
-                arguments: values,
-                structural_arguments,
-                claim_transfers: claims,
-                requirement_obligations: requirements,
-                crash_continuations: crashes,
-            },
-        )
-        | (
-            TargetUnitOperation::StructuralScalarCall {
-                origin: target_operations::NativeCallOrigin::Authored,
-                psi_operation,
-                callee,
-                call_plan,
-                scalar_arguments,
-                arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                ..
-            },
-            AbstractOperation::CallStructuralScalar {
-                psi_operation: actual,
-                callee: called,
-                arguments: values,
-                structural_arguments,
-                claim_transfers: claims,
-                requirement_obligations: requirements,
-                crash_continuations: crashes,
-                ..
-            },
-        ) => {
-            let expected = callee_plan(*callee, native, plan, unit)?;
-            let result_matches = match (target, abstracted) {
-                (TargetUnitOperation::Call { .. }, AbstractOperation::CallUnit { .. }) => {
-                    expected.result.is_none()
-                }
-                (
-                    TargetUnitOperation::StructuralScalarCall { result, .. },
-                    AbstractOperation::CallStructuralScalar { result: actual, .. },
-                ) => {
-                    result == actual
-                        && scalar_shape(actual.scalar_type).is_some()
-                        && expected.result.as_ref().is_some_and(|placement| {
-                            super::super::scalar_shape(actual.scalar_type) == Some(placement.shape)
-                        })
-                }
-                _ => false,
-            };
-            let callee_function = unit
-                .functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or(invalid.clone())?;
-            if arguments.len() != structural_arguments.len()
-                || callee_function.structural_parameters.len() != arguments.len()
-                || callee_function.parameters.len() != values.len()
-            {
-                return Err(invalid);
-            }
-            if !result_matches
-                || psi_operation != actual
-                || callee != called
-                || call_plan != &expected
-                || claim_transfers != claims
-                || requirement_obligations != requirements
-                || crash_continuations != crashes
-                || scalar_arguments.len() != values.len()
-                || expected.parameters.len() != values.len() + arguments.len()
-                || scalar_arguments
-                    .iter()
-                    .zip(values)
-                    .zip(&expected.parameters)
-                    .enumerate()
-                    .any(|(position, ((argument, value), placement))| {
-                        argument.parameter_index != position as u32
-                            || argument.placement != *placement
-                            || !sources.iter().any(|(source, definition)| {
-                                source == value && *definition == argument.source
-                            })
-                    })
-            {
-                return Err(invalid);
-            }
-            if let TargetUnitOperation::StructuralScalarCall {
-                psi_operation,
-                result,
-                ..
-            } = target
-            {
-                sources.push((
-                    result.value,
-                    Source::Home(target_operations::TargetUnitScalarHomeRequirement {
-                        defining_operation: *psi_operation,
-                        source_value: result.value,
-                        scalar_type: result.scalar_type,
-                        shape: super::super::scalar_shape(result.scalar_type)
-                            .ok_or(invalid.clone())?,
-                    }),
-                ));
-            }
-            for (position, (argument, semantic)) in
-                arguments.iter().zip(structural_arguments).enumerate()
-            {
-                if super::super::structural_call::argument_at(
-                    semantic,
-                    position,
-                    *psi_operation,
-                    optimized,
-                    callee_function,
-                    &expected,
-                    native,
-                    plan,
-                    custody,
-                )? != *argument
-                {
-                    return Err(invalid);
-                }
-            }
+        (TargetUnitOperation::Call { .. }, _) => {
+            direct_calls::validate(
+                target, abstracted, sources, custody, optimized, native, plan, unit,
+            )?;
         }
         (
             TargetUnitOperation::IntegerConstant {
@@ -684,55 +555,6 @@ pub(super) fn validate_operation(
                     value: *value,
                 },
             ));
-        }
-        (
-            TargetUnitOperation::ScalarCall {
-                psi_operation,
-                callee,
-                call_plan,
-                result_home,
-                arguments,
-                requirement_obligations,
-                crash_continuations,
-            },
-            AbstractOperation::Call {
-                psi_operation: actual,
-                result,
-                callee: called,
-                arguments: values,
-                scalar_type,
-                requirement_obligations: requirements,
-                crash_continuations: crashes,
-            },
-        ) => {
-            let expected = callee_plan(*callee, native, plan, unit)?;
-            if psi_operation != actual
-                || callee != called
-                || call_plan != &expected
-                || result_home.defining_operation != *actual
-                || result_home.source_value != *result
-                || result_home.scalar_type != *scalar_type
-                || Some(result_home.shape) != expected.result.as_ref().map(|value| value.shape)
-                || requirement_obligations != requirements
-                || crash_continuations != crashes
-                || arguments.len() != values.len()
-                || arguments.len() != expected.parameters.len()
-                || arguments
-                    .iter()
-                    .zip(values)
-                    .zip(&expected.parameters)
-                    .enumerate()
-                    .any(|(index, ((argument, value), placement))| {
-                        argument.parameter_index != index as u32
-                            || argument.placement != *placement
-                            || !sources.iter().any(|(source, definition)| {
-                                source == value && *definition == argument.source
-                            })
-                    })
-            {
-                return Err(invalid);
-            }
-            sources.push((*result, Source::Home(*result_home)));
         }
         (
             TargetUnitOperation::Return {
