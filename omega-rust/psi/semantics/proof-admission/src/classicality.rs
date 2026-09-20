@@ -87,7 +87,7 @@ impl AcceptedProofRule {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AcceptedProofRule, ProofRuleFoundation};
 
     /// Every rule an accepted certificate records. Duplicating the variant
     /// list here is the audit's completeness check: the exhaustive `match`
