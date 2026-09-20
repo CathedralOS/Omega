@@ -6131,7 +6131,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT** — mined candidate; verify scope then implement.
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
-- **CERTIFICATE-ADMISSION-RECORD-BINDING** — mined candidate; verify scope then implement.
+- **CERTIFICATE-ADMISSION-RECORD-BINDING.** Mined candidate — resolved:
+  records already bind to exact bytes, and substitution rejects. Verified
+  both surfaces at `43176cdc92`: trust-model `TrustAdmission` digests
+  `omega.trust-admission.v1` + subject domain + commitment + the underlying
+  subject's strong digest (provider-plan/native-evidence bytes), and
+  `from_persisted` re-derives the digest from a persisted record rather than
+  trusting it; the PCC certificate's native-evidence rows are recomputed by
+  the receiver against the actual artifact bytes (region/gap digests,
+  addresses, fingerprints, inventory seals, closed-form import-thunk
+  re-derivation), so a record authored for one body fails on another — a
+  specialized variant cannot inherit the unspecialized body's admission
+  record, matching `learned_optimization_policy.md`'s contract clause.
+  Sibling stub CERTIFICATE-ADMISSION-RECORD covers the same row family.
 - **CHAIN-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
