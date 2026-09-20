@@ -10341,7 +10341,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   The stale `wiki/drafts/known_baseline_failures.md` entry
   (`UnsupportedControlFlow(MachineId(1))`, expectation from
   `2694d433d3`) belongs to the known-failures doc lane.
-- **STALE-CUSTODY-GATE-EXPECTATIONS** — scope verified at `10d93dd448d`:
+- **STALE-CUSTODY-GATE-EXPECTATIONS.** Scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
   is current, not stale. All five custody-named fail fixtures
   (`core/content_retained_custody_from_borrow`,
