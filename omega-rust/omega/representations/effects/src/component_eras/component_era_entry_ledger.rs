@@ -163,6 +163,26 @@ impl ComponentEraPublicationReceipt {
             previous_era_closed,
         }
     }
+
+    pub(crate) const fn publication_identity(&self) -> u64 {
+        self.publication_identity
+    }
+
+    pub(crate) const fn previous_era_identity(&self) -> Option<u64> {
+        self.previous_era_identity
+    }
+
+    pub(crate) const fn candidate(&self) -> &ComponentEraCandidate {
+        &self.candidate
+    }
+
+    pub(crate) const fn new_era_visible(&self) -> bool {
+        self.new_era_visible
+    }
+
+    pub(crate) const fn previous_era_closed(&self) -> bool {
+        self.previous_era_closed
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +211,22 @@ impl ComponentEraEntryReceipt {
             entry_plan_identity,
             entry_linearized,
         }
+    }
+
+    pub(crate) const fn invocation_identity(&self) -> u64 {
+        self.invocation_identity
+    }
+
+    pub(crate) const fn resolved_era_identity(&self) -> u64 {
+        self.resolved_era_identity
+    }
+
+    pub(crate) fn entry_plan_identity(&self) -> &str {
+        &self.entry_plan_identity
+    }
+
+    pub(crate) const fn entry_linearized(&self) -> bool {
+        self.entry_linearized
     }
 }
 
@@ -231,6 +267,22 @@ impl ComponentEraLeaveReceipt {
             leave_completed,
         }
     }
+
+    pub(crate) const fn invocation_identity(&self) -> u64 {
+        self.invocation_identity
+    }
+
+    pub(crate) const fn era_identity(&self) -> u64 {
+        self.era_identity
+    }
+
+    pub(crate) fn entry_plan_identity(&self) -> &str {
+        &self.entry_plan_identity
+    }
+
+    pub(crate) const fn leave_completed(&self) -> bool {
+        self.leave_completed
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -254,6 +306,18 @@ impl ComponentEraQuiescenceReceipt {
             residual_lifetime_cohort_holds,
             all_dispositions_complete,
         }
+    }
+
+    pub(crate) const fn era_identity(&self) -> u64 {
+        self.era_identity
+    }
+
+    pub(crate) const fn residual_lifetime_cohort_holds(&self) -> usize {
+        self.residual_lifetime_cohort_holds
+    }
+
+    pub(crate) const fn all_dispositions_complete(&self) -> bool {
+        self.all_dispositions_complete
     }
 }
 
@@ -282,6 +346,14 @@ impl ComponentEraRetirementReceipt {
 
     pub const fn era_identity(&self) -> u64 {
         self.era_identity
+    }
+
+    pub(crate) const fn retirement_identity(&self) -> u64 {
+        self.retirement_identity
+    }
+
+    pub(crate) const fn lifetime_cohort_released(&self) -> bool {
+        self.lifetime_cohort_released
     }
 }
 

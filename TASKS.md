@@ -5745,7 +5745,7 @@ Platform/cross-host (structurally gated — document host limits):
   `AB`, retaining exact bounds/Trap observations and register preservation
   through host I/O.
 - **BENCHMARK-HOST-ROW-MATRIX.** Benchmark host-row matrix incl. Windows peak-RSS and UEFI rows.
-- **EPOCH-RESOURCE-SNAPSHOTS.** Epoch aggregate/resource snapshots + installation-era journal (merges EPOCH-AGGREGATE-SNAPSHOTS, INSTALLATION-ERA-JOURNAL, REPLACEMENT-ERA-JOURNAL, SERVICE-ERA-REPLACEMENT-SUBSTRATE).
+- **EPOCH-RESOURCE-SNAPSHOTS.** Epoch aggregate/resource snapshots + installation-era journal (merges EPOCH-AGGREGATE-SNAPSHOTS, INSTALLATION-ERA-JOURNAL, REPLACEMENT-ERA-JOURNAL, SERVICE-ERA-REPLACEMENT-SUBSTRATE). Landed: restart-replayable `ComponentEraJournal`/`ComponentEraJournalFact`/`ComponentEraJournalRoster` covering the era journal legs — replay folds recorded publish/enter/leave/lease/quiesce/retire facts through the ledger's own accept rules and reconstructs the live-era roster. Remaining: epoch-attributed aggregate/resource snapshots checked against the authoritative live-era roster; wider service-era replacement substrate breadth.
 - **SHARED-MAPPING-REVOCATION.** Shared-mapping revocation and hostile shared-memory placement/remapping.
 - **DEVICE-EXTENT-ACCESS.** Device extent access.
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** External data schema conversion.
