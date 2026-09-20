@@ -8433,7 +8433,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STARTUP-ENTRY-MECHANICS-OWNERSHIP.** Resolved by audit at `be03555d17` — startup/entry mechanics already sit under backend runtime ownership per `omega-rust/pipeline.md`: `backend/runtime/external-roots/src/root_entry` owns entry/exit mechanics (validation, admission, provider execution, progress-profile installation) and `platform_bringup` owns UEFI bootstrap + secondary-processor startup; `backend/plans/program-entry-plan` is data-only planning (its lib.rs owns "no emitted bytes, installation state, or legacy backend pipeline"); `_start` symbol resolution under `backend/images/image-{elf,macho}` and `compiler/native-realization/src/entry_settlement` are emission detail and realization orchestration, not mechanics. No placeholder crate owns startup mechanics; `tests/architecture/layering.rs` already pins the external-roots ownership rows. Sibling aliases (STARTUP-ENTRY-MECHANICS, STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS, BACKEND-RUNTIME-STARTUP-*, ENTRY-MECHANICS-RUNTIME-CONSOLIDATION) remain separate stubs.
 - **STARTUP-ENTRY-PLACEHOLDER-SWEEP** — mined candidate; verify scope then implement.
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
-- **STATEMENT-CALL-RECURSIVE-ARGUMENT-DEDUP** — mined candidate; verify scope then implement.
+- **STATEMENT-CALL-RECURSIVE-ARGUMENT-DEDUP.** Resolved — re-mines the
+  `calls/statement_call_recursive_argument_compile` fixture dedup already
+  landed under BASELINE-CANARY-PASS-CLUSTER's w9 leg at `e5912f303a`: the
+  fixture's local `Nat`/`add` collided with the `core/nat.omg` exports
+  added 2026-09-17 and were renamed to `Peano`/`peano_add` (the
+  `read_line`/`extent_shape` diagnostics were collision collateral); the
+  fixture header documents the non-colliding spellings. Re-witnessed green
+  at `5b839c31ab` on linux x86-64:
+  `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile cargo
+  nextest run -p compiler --test canary_suite
+  entry_and_abi::pass_canary_coverage::pass_canaries_compile` PASS (80s).
+  Sibling stub RECURSIVE-CALL-FIXTURE-RESOLUTION carries the same
+  resolution; RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP /
+  RECURSIVE-ARGUMENT-OVERLOAD-DEDUP are the remaining open name-surface
+  siblings.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
 - **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
