@@ -81,8 +81,8 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_data_regions,
-    place_executable_regions,
+    ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, apply_aarch64_relocations,
+    place_data_regions, place_executable_regions,
 };
 
 mod code_signature;
@@ -267,6 +267,9 @@ pub fn emit_macho_aarch64_executable_signed(
         final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
+        // Mach-O binding slots already live inside `image.memory.data`, so the
+        // emitted file carries no separate import-data extent.
+        final_import_data_bytes: Vec::new(),
         bytes,
         file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
         format: "mach-o-arm64-executable".to_owned(),
@@ -278,5 +281,6 @@ pub fn emit_macho_aarch64_executable_signed(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
         data_regions,
+        import_data_regions: PlacedDataRegionInventory::empty(),
     })
 }

@@ -144,8 +144,8 @@ pub use final_image::{
     PlacedDataRegionInventoryDigest, PlacedExecutableGap, PlacedExecutableGapBytesDigest,
     PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
     PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest,
-    bind_compiler_entry_footprint, final_image_symbol_digest, place_data_regions,
-    place_executable_regions, validate_placed_data_region_inventory,
+    bind_compiler_entry_footprint, final_image_symbol_digest, place_data_extent,
+    place_data_regions, place_executable_regions, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
 pub use footprint_certificate::{

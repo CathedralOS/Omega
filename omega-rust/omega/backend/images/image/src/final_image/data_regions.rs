@@ -99,6 +99,16 @@ pub struct PlacedDataRegionInventory {
     pub unclassified_gaps: Vec<PlacedDataGap>,
 }
 
+impl PlacedDataRegionInventory {
+    /// The canonical empty custody inventory: no extent bytes, no rows, no
+    /// gaps, at base address zero. Emitters whose target produces no
+    /// writer-owned extent carry this rather than a fabricated placement.
+    pub fn empty() -> Self {
+        place_data_extent(&[], Vec::new(), 0, "initialized-data")
+            .expect("an empty initialized-data extent places")
+    }
+}
+
 /// Resolve the currently classified initialized-data regions against final
 /// image placement. Bounds and overlap failures are hard errors; gaps remain
 /// explicit evidence that validation must not claim complete enumeration.
@@ -106,7 +116,27 @@ pub fn place_data_regions(
     image: &FinalImage,
     layout: FinalImageLayout,
 ) -> Result<PlacedDataRegionInventory, Diagnostic> {
-    let mut regions = image.data_regions.clone();
+    place_data_extent(
+        &image.memory.data,
+        image.data_regions.clone(),
+        layout.data_address,
+        "initialized-data",
+    )
+}
+
+/// Resolve classified regions over one writer-owned initialized-data extent
+/// against its final placement — the same custody model as
+/// [`place_data_regions`], run over bytes that do not live in
+/// `image.memory.data`. PE's `.rdata` import table is the instance: its IAT
+/// slots are `ImportBindingSlot` custody rows and the descriptors, lookup
+/// tables and name bytes around them remain explicit unclassified gaps.
+/// `extent_name` names the extent in diagnostics.
+pub fn place_data_extent(
+    extent_bytes: &[u8],
+    mut regions: Vec<FinalDataRegion>,
+    base_address: u64,
+    extent_name: &'static str,
+) -> Result<PlacedDataRegionInventory, Diagnostic> {
     regions.sort_by_key(|region| region.section_offset);
 
     let mut placed = Vec::with_capacity(regions.len());
@@ -115,7 +145,7 @@ pub fn place_data_regions(
     for region in regions {
         if region.byte_count == 0 {
             return Err(Diagnostic::error(format!(
-                "final initialized-data region `{}` has zero width",
+                "final {extent_name} region `{}` has zero width",
                 region.symbol
             )));
         }
@@ -124,39 +154,40 @@ pub fn place_data_regions(
             .checked_add(region.byte_count)
             .ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "final initialized-data region `{}` range overflows",
+                    "final {extent_name} region `{}` range overflows",
                     region.symbol
                 ))
             })?;
-        if end > image.memory.data.len() {
+        if end > extent_bytes.len() {
             return Err(Diagnostic::error(format!(
-                "final initialized-data region `{}` [{}..{}) exceeds .data size {}",
+                "final {extent_name} region `{}` [{}..{}) exceeds the {}-byte extent",
                 region.symbol,
                 region.section_offset,
                 end,
-                image.memory.data.len()
+                extent_bytes.len()
             )));
         }
         if region.section_offset < cursor {
             return Err(Diagnostic::error(format!(
-                "final initialized-data region `{}` overlaps a preceding .data region",
+                "final {extent_name} region `{}` overlaps a preceding region",
                 region.symbol
             )));
         }
         if region.section_offset > cursor {
-            unclassified_gaps.push(placed_gap(
-                image,
-                layout,
+            unclassified_gaps.push(placed_gap_from_bytes(
+                base_address,
+                extent_bytes,
                 cursor,
                 region.section_offset - cursor,
             )?);
         }
-        let address = layout
-            .data_address
+        let address = base_address
             .checked_add(region.section_offset as u64)
-            .ok_or_else(|| Diagnostic::error("final initialized-data region address overflows"))?;
+            .ok_or_else(|| {
+                Diagnostic::error(format!("final {extent_name} region address overflows"))
+            })?;
         cursor = end;
-        let region_bytes = &image.memory.data[region.section_offset..end];
+        let region_bytes = &extent_bytes[region.section_offset..end];
         placed.push(PlacedDataRegion {
             origin: region.origin,
             section_offset: region.section_offset,
@@ -170,37 +201,37 @@ pub fn place_data_regions(
             symbol: region.symbol,
         });
     }
-    if cursor < image.memory.data.len() {
-        unclassified_gaps.push(placed_gap(
-            image,
-            layout,
+    if cursor < extent_bytes.len() {
+        unclassified_gaps.push(placed_gap_from_bytes(
+            base_address,
+            extent_bytes,
             cursor,
-            image.memory.data.len() - cursor,
+            extent_bytes.len() - cursor,
         )?);
     }
 
     let data_digest = FinalInitializedDataDigest::from_digest(digest_bytes(
         b"omega.final-initialized-data.sha256.v1\0",
-        &image.memory.data,
+        extent_bytes,
     ));
-    let data_report_fingerprint = byte_report_fingerprint(&image.memory.data);
+    let data_report_fingerprint = byte_report_fingerprint(extent_bytes);
     let inventory_report_fingerprint = data_inventory_report_fingerprint(
-        layout.data_address,
-        image.memory.data.len(),
+        base_address,
+        extent_bytes.len(),
         data_report_fingerprint,
         &placed,
         &unclassified_gaps,
     );
     let inventory_digest = data_inventory_digest(
-        layout.data_address,
-        image.memory.data.len(),
+        base_address,
+        extent_bytes.len(),
         data_digest,
         &placed,
         &unclassified_gaps,
     );
     Ok(PlacedDataRegionInventory {
-        data_address: layout.data_address,
-        data_byte_count: image.memory.data.len(),
+        data_address: base_address,
+        data_byte_count: extent_bytes.len(),
         data_digest,
         data_report_fingerprint,
         inventory_digest,
@@ -342,20 +373,6 @@ pub fn validate_placed_data_region_inventory(
         ));
     }
     Ok(())
-}
-
-fn placed_gap(
-    image: &FinalImage,
-    layout: FinalImageLayout,
-    section_offset: usize,
-    byte_count: usize,
-) -> Result<PlacedDataGap, Diagnostic> {
-    placed_gap_from_bytes(
-        layout.data_address,
-        &image.memory.data,
-        section_offset,
-        byte_count,
-    )
 }
 
 fn placed_gap_from_bytes(

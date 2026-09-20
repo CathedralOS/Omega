@@ -68,7 +68,8 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, apply_x86_64_relocations, place_data_regions,
+    ExecutableImageOutput, FinalDataRegion, FinalDataRegionOrigin, FinalImage,
+    PlacedDataRegionInventory, apply_x86_64_relocations, place_data_extent, place_data_regions,
     place_executable_regions,
 };
 
@@ -84,7 +85,7 @@ mod sections;
 #[cfg(test)]
 mod tests;
 
-use constants::TEXT_RVA;
+use constants::{IMAGE_BASE, TEXT_RVA};
 use entry_symbol::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
 use imports::{
@@ -92,6 +93,8 @@ use imports::{
     validate_import_thunk_footprints,
 };
 use sections::plan_pe_sections;
+
+pub use imports::validate_pe_x86_64_import_binding_pairing;
 
 pub fn emit_pe_x86_64_executable(
     mut image: FinalImage,
@@ -101,6 +104,11 @@ pub fn emit_pe_x86_64_executable(
     let initial_sections = plan_pe_sections(&image, 0);
     let import_table = build_import_table(&import_thunks, initial_sections.rdata_rva);
     let sections = plan_pe_sections(&image, import_table.bytes.len());
+    if sections.rdata_rva != initial_sections.rdata_rva {
+        return Err(Diagnostic::error(
+            "PE section planning moved .rdata between the measurement and final passes",
+        ));
+    }
     let layout = sections.final_image_layout();
 
     // The `.reloc` bytes are built from the relocation table BEFORE
@@ -113,6 +121,32 @@ pub fn emit_pe_x86_64_executable(
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
     let data_regions = place_data_regions(&image, layout)?;
+
+    // The `.rdata` import table is writer-owned initialized data that never
+    // enters `image.memory.data`: each thunk's IAT slot places as an
+    // `ImportBindingSlot` row over the table's own extent, and the
+    // descriptors, lookup tables and name bytes stay explicit unclassified
+    // custody gaps rather than pretending to be compiler data.
+    let import_data_regions = if import_table.bytes.is_empty() {
+        PlacedDataRegionInventory::empty()
+    } else {
+        let slots = import_thunks
+            .iter()
+            .zip(import_table.iat_table_offsets.iter().copied())
+            .map(|(thunk, table_offset)| FinalDataRegion {
+                origin: FinalDataRegionOrigin::ImportBindingSlot,
+                section_offset: table_offset,
+                byte_count: 8,
+                symbol: thunk.symbol.clone(),
+            })
+            .collect();
+        place_data_extent(
+            &import_table.bytes,
+            slots,
+            IMAGE_BASE + u64::from(sections.rdata_rva),
+            "import data",
+        )?
+    };
 
     let entry_rva = pe_entry_rva(&image)?;
 
@@ -222,6 +256,7 @@ pub fn emit_pe_x86_64_executable(
         final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
+        final_import_data_bytes: import_table.bytes,
         bytes,
         file_name: "omega-program.exe".to_owned(),
         format: "pe64-x86_64-executable".to_owned(),
@@ -233,5 +268,6 @@ pub fn emit_pe_x86_64_executable(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
         data_regions,
+        import_data_regions,
     })
 }

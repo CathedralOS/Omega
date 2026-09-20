@@ -16,7 +16,10 @@ use crate::dynamic_executable::load_placement::load_layout::{
 };
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
-use image::{ExecutableImageOutput, FinalImage, place_data_regions, place_executable_regions};
+use image::{
+    ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, place_data_regions,
+    place_executable_regions,
+};
 use target::TargetProfile;
 
 const SECTION_COUNT: usize = 13;
@@ -283,6 +286,7 @@ fn derive_executable_output(
         final_image_layout: load.final_image_layout(),
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
+        final_import_data_bytes: Vec::new(),
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),
         text_bytes: image.memory.text.len(),
@@ -293,6 +297,7 @@ fn derive_executable_output(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
         data_regions,
+        import_data_regions: PlacedDataRegionInventory::empty(),
     })
 }
 

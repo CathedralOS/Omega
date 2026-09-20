@@ -6,16 +6,24 @@
 //! the complete executable-region inventory, then normalized instruction rows
 //! against closed target instruction specifications, then the composed
 //! footprint. This section carries the certificate's first leg plus the
-//! import-thunk leg of the second — the declared executable-text and
-//! initialized-data extents inside the published container, the complete
-//! [`image::PlacedExecutableRegionInventory`] over the text, the complete
-//! [`image::PlacedDataRegionInventory`] over the data, and the closed-form
-//! realization of every claimed import thunk.
+//! import-thunk leg of the second — the declared executable-text,
+//! initialized-data and import-data extents inside the published container,
+//! the complete [`image::PlacedExecutableRegionInventory`] over the text, the
+//! complete [`image::PlacedDataRegionInventory`] over each data extent, and
+//! the closed-form realization of every claimed import thunk.
+//!
+//! The import-data extent is the writer-owned read-only import table a
+//! container carries outside `image.memory.data` — the PE `.rdata` section
+//! holding the import address table each thunk's memory operand names. Its
+//! placed rows are all `ImportBindingSlot`; descriptors, lookup tables and
+//! name bytes sit in unclassified custody gaps rather than pretending to be
+//! compiler data. Containers without such an extent declare the canonical
+//! empty inventory.
 //!
 //! What this evidence honestly establishes on its own: every row the section
 //! claims about the published bytes is *true of those exact bytes*. The
-//! receiver slices both declared extents out of the artifact it holds,
-//! recomputes both commitments, and replays
+//! receiver slices every declared extent out of the artifact it holds,
+//! recomputes every commitment, and replays
 //! [`image::validate_placed_executable_region_inventory`] and
 //! [`image::validate_placed_data_region_inventory`] — region and gap digests,
 //! addresses, fingerprints and both inventory seals are all recomputed
@@ -31,15 +39,19 @@
 //! on aarch64 Mach-O through
 //! [`image_macho::validate_macho_aarch64_import_binding_pairing`], which also
 //! re-decodes each thunk's bound pointer address and requires it to name
-//! exactly one committed import-binding slot. That is the first leg that
-//! checks what the bytes *do* rather than only where they sit: the indirect
-//! target of every Mach-O call through an import is verified, not trusted.
+//! exactly one committed import-binding slot, and on x86-64 Coff through
+//! [`image_pe::validate_pe_x86_64_import_binding_pairing`], which decodes
+//! each `jmp [rip+disp32]` to the absolute slot address it loads through and
+//! requires exactly one placed `ImportBindingSlot` row at that address
+//! inside the import-data extent. That is the first leg that checks what the
+//! bytes *do* rather than only where they sit: the indirect target of every
+//! call through an import is verified, not trusted.
 //!
 //! What the section still does not establish is everything beyond this:
 //! instruction-row semantics inside compiler-function regions, entries and
-//! incoming edges, the PE thunk's `.rdata` slot pairing, premise availability
-//! and lowering correspondence all still need the native semantic and
-//! certification owners. The product leg keeps reporting `Incomplete` for
+//! incoming edges, premise availability and lowering correspondence all
+//! still need the native semantic and certification owners. The product leg
+//! keeps reporting `Incomplete` for
 //! them rather than letting coverage stand in for behavior, which is the
 //! failure the deleted custody scheme committed.
 //!
@@ -58,9 +70,10 @@ use calling_conventions::{
 /// opaque evidence field. An unknown magic or version is an unsupported
 /// section, never a malformed one.
 const EVIDENCE_MAGIC: &[u8; 8] = b"NPLCIMG1";
-/// Section version 2 adds the placed initialized-data inventory and binds
-/// import-thunk rows to the declared target's closed thunk form.
-const EVIDENCE_VERSION: u16 = 2;
+/// Section version 3 adds the placed import-data inventory — the writer-owned
+/// `.rdata` extent carrying each Coff thunk's import-binding slot — over the
+/// version-2 text and data inventories and closed thunk binding.
+const EVIDENCE_VERSION: u16 = 3;
 
 /// Hard caps so a hostile section cannot make the decoder allocate without
 /// bound. Real inventories are small; these bounds are generous, not tight.
@@ -76,10 +89,10 @@ pub enum NativeEvidenceError {
     Malformed(String),
 }
 
-/// The placed-image evidence section: the producer's declared executable-text
-/// and initialized-data extents inside the published bytes, the target the
-/// bytes were realized for, and the complete placed inventories over both
-/// extents.
+/// The placed-image evidence section: the producer's declared executable-text,
+/// initialized-data and import-data extents inside the published bytes, the
+/// target the bytes were realized for, and the complete placed inventories
+/// over all three extents.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlacedImageEvidence {
     target: target::NativeTarget,
@@ -93,6 +106,12 @@ pub struct NativePlacedImageEvidence {
     /// `text_file_offset`; it is `0` when the image carries no data.
     data_file_offset: u64,
     data_inventory: image::PlacedDataRegionInventory,
+    /// Byte offset inside the published artifact at which the exact final
+    /// writer-owned import-table bytes begin (the PE `.rdata` section). The
+    /// same producer-annotation standing as `text_file_offset`; it is `0`
+    /// when the container carries no separate import-data extent.
+    import_data_file_offset: u64,
+    import_data_inventory: image::PlacedDataRegionInventory,
 }
 
 /// Locate `extent` inside the published container exactly once. A missing or
@@ -201,12 +220,19 @@ impl NativePlacedImageEvidence {
             executable_bytes,
             "the final initialized data",
         )?;
+        let import_data_file_offset = locate_unique_extent(
+            output.final_import_data_bytes.as_slice(),
+            executable_bytes,
+            "the final import data",
+        )?;
         Ok(Self {
             target: artifact.target(),
             text_file_offset,
             inventory: output.executable_regions.clone(),
             data_file_offset,
             data_inventory: output.data_regions.clone(),
+            import_data_file_offset,
+            import_data_inventory: output.import_data_regions.clone(),
         })
     }
 
@@ -220,6 +246,8 @@ impl NativePlacedImageEvidence {
         inventory: image::PlacedExecutableRegionInventory,
         data_file_offset: u64,
         data_inventory: image::PlacedDataRegionInventory,
+        import_data_file_offset: u64,
+        import_data_inventory: image::PlacedDataRegionInventory,
     ) -> Self {
         Self {
             target,
@@ -227,6 +255,8 @@ impl NativePlacedImageEvidence {
             inventory,
             data_file_offset,
             data_inventory,
+            import_data_file_offset,
+            import_data_inventory,
         }
     }
 
@@ -256,6 +286,21 @@ impl NativePlacedImageEvidence {
         &self.data_inventory
     }
 
+    /// The declared file offset of the exact final import-data bytes — the
+    /// writer-owned `.rdata` extent a Coff container carries; `0` when the
+    /// container has no separate import-data extent.
+    pub const fn import_data_file_offset(&self) -> u64 {
+        self.import_data_file_offset
+    }
+
+    /// The complete placed inventory this section claims over the declared
+    /// import-data extent. Every row is an `ImportBindingSlot`; a target
+    /// whose container has no separate import-data extent carries the
+    /// canonical empty inventory.
+    pub const fn import_data_inventory(&self) -> &image::PlacedDataRegionInventory {
+        &self.import_data_inventory
+    }
+
     /// Replay the checkable legs of this evidence against the exact published
     /// bytes: both declared extents must lie inside the artifact, both
     /// retained inventories must re-derive byte for byte over the bytes
@@ -281,6 +326,17 @@ impl NativePlacedImageEvidence {
         )?;
         image::validate_placed_data_region_inventory(&self.data_inventory, data_bytes)
             .map_err(|diagnostic| diagnostic.message)?;
+        let import_data_bytes = declared_extent(
+            executable_bytes,
+            self.import_data_file_offset,
+            self.import_data_inventory.data_byte_count as u64,
+            "import data",
+        )?;
+        image::validate_placed_data_region_inventory(
+            &self.import_data_inventory,
+            import_data_bytes,
+        )
+        .map_err(|diagnostic| diagnostic.message)?;
 
         // The thunk leg replays over bytes whose custody has just been
         // re-derived, so the checked opcodes are the committed ones. The
@@ -313,16 +369,24 @@ impl NativePlacedImageEvidence {
                 }
             }
         }
-        if matches!(
-            (self.target.architecture, self.target.object_format),
-            (target::Architecture::Aarch64, target::ObjectFormat::MachO)
-        ) {
-            image_macho::validate_macho_aarch64_import_binding_pairing(
-                text_bytes,
-                &self.inventory,
-                &self.data_inventory,
-            )
-            .map_err(|diagnostic| diagnostic.message)?;
+        match (self.target.architecture, self.target.object_format) {
+            (target::Architecture::Aarch64, target::ObjectFormat::MachO) => {
+                image_macho::validate_macho_aarch64_import_binding_pairing(
+                    text_bytes,
+                    &self.inventory,
+                    &self.data_inventory,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
+            }
+            (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
+                image_pe::validate_pe_x86_64_import_binding_pairing(
+                    text_bytes,
+                    &self.inventory,
+                    &self.import_data_inventory,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -384,35 +448,9 @@ impl NativePlacedImageEvidence {
             writer.u64(gap.byte_report_fingerprint);
         }
         writer.u64(self.data_file_offset);
-        let data_inventory = &self.data_inventory;
-        writer.u64(data_inventory.data_address);
-        writer.u64(data_inventory.data_byte_count as u64);
-        writer.bytes(data_inventory.data_digest.as_bytes());
-        writer.u64(data_inventory.data_report_fingerprint);
-        writer.bytes(data_inventory.inventory_digest.as_bytes());
-        writer.u64(data_inventory.inventory_report_fingerprint);
-        writer.u64(data_inventory.regions.len() as u64);
-        for region in &data_inventory.regions {
-            writer.u8(match region.origin {
-                image::FinalDataRegionOrigin::CompilerData => 1,
-                image::FinalDataRegionOrigin::ImportBindingSlot => 2,
-                image::FinalDataRegionOrigin::AlignmentPadding => 3,
-            });
-            writer.u64(region.section_offset as u64);
-            writer.u64(region.address);
-            writer.u64(region.byte_count as u64);
-            writer.bytes(region.byte_digest.as_bytes());
-            writer.u64(region.byte_report_fingerprint);
-            writer.string(&region.symbol);
-        }
-        writer.u64(data_inventory.unclassified_gaps.len() as u64);
-        for gap in &data_inventory.unclassified_gaps {
-            writer.u64(gap.section_offset as u64);
-            writer.u64(gap.address);
-            writer.u64(gap.byte_count as u64);
-            writer.bytes(gap.byte_digest.as_bytes());
-            writer.u64(gap.byte_report_fingerprint);
-        }
+        writer.data_inventory(&self.data_inventory);
+        writer.u64(self.import_data_file_offset);
+        writer.data_inventory(&self.import_data_inventory);
         writer.bytes
     }
 
@@ -571,64 +609,44 @@ impl NativePlacedImageEvidence {
         }
 
         let data_file_offset = reader.u64()?;
-        let data_address = reader.u64()?;
-        let data_byte_count = reader.usize("data inventory byte count")?;
-        let data_digest = image::FinalInitializedDataDigest::from_digest(reader.array()?);
-        let data_report_fingerprint = reader.u64()?;
-        let data_inventory_digest =
-            image::PlacedDataRegionInventoryDigest::from_digest(reader.array()?);
-        let data_inventory_report_fingerprint = reader.u64()?;
+        let data_inventory = reader.data_inventory("data")?;
 
-        let data_region_count =
-            reader.bounded_count("data inventory regions", MAX_INVENTORY_ROWS)?;
-        let mut data_regions = Vec::with_capacity(data_region_count);
-        let mut previous_data_offset = None;
-        for _ in 0..data_region_count {
-            let origin = match reader.u8()? {
-                1 => image::FinalDataRegionOrigin::CompilerData,
-                2 => image::FinalDataRegionOrigin::ImportBindingSlot,
-                3 => image::FinalDataRegionOrigin::AlignmentPadding,
-                tag => {
-                    return Err(malformed(format!("unknown data region origin tag {tag}")));
-                }
-            };
-            let section_offset = reader.usize("data region section offset")?;
-            if previous_data_offset.is_some_and(|previous| section_offset <= previous) {
-                return Err(malformed("data regions are not in canonical offset order"));
+        let import_data_file_offset = reader.u64()?;
+        let import_data_inventory = reader.data_inventory("import-data")?;
+        // The import-data extent is the writer-owned import table (the PE
+        // `.rdata` section): its placed rows are all `ImportBindingSlot`. A
+        // target that emits no such extent carries the canonical empty
+        // inventory — only (x86_64, Coff) realizes one, so a populated
+        // inventory under any other target is a claim no realization path
+        // produces. An empty extent has no position to commit to and its
+        // offset is recorded as 0; a nonzero offset naming an empty extent
+        // is never the canonical encoding.
+        for region in &import_data_inventory.regions {
+            if region.origin != image::FinalDataRegionOrigin::ImportBindingSlot {
+                return Err(malformed(format!(
+                    "import-data region `{}` is not an import binding slot",
+                    region.symbol
+                )));
             }
-            previous_data_offset = Some(section_offset);
-            let address = reader.u64()?;
-            let byte_count = reader.usize("data region byte count")?;
-            let byte_digest = image::PlacedDataRegionBytesDigest::from_digest(reader.array()?);
-            let byte_report_fingerprint = reader.u64()?;
-            let symbol = reader.string("data region symbol")?;
-            data_regions.push(image::PlacedDataRegion {
-                origin,
-                section_offset,
-                address,
-                byte_count,
-                byte_digest,
-                byte_report_fingerprint,
-                symbol,
-            });
         }
-
-        let data_gap_count = reader.bounded_count("data inventory gaps", MAX_INVENTORY_ROWS)?;
-        let mut data_gaps = Vec::with_capacity(data_gap_count);
-        let mut previous_data_gap_offset = None;
-        for _ in 0..data_gap_count {
-            let section_offset = reader.usize("data gap section offset")?;
-            if previous_data_gap_offset.is_some_and(|previous| section_offset <= previous) {
-                return Err(malformed("data gaps are not in canonical offset order"));
-            }
-            previous_data_gap_offset = Some(section_offset);
-            data_gaps.push(image::PlacedDataGap {
-                section_offset,
-                address: reader.u64()?,
-                byte_count: reader.usize("data gap byte count")?,
-                byte_digest: image::PlacedDataGapBytesDigest::from_digest(reader.array()?),
-                byte_report_fingerprint: reader.u64()?,
-            });
+        let import_data_is_empty = import_data_inventory.data_address == 0
+            && import_data_inventory.data_byte_count == 0
+            && import_data_inventory.regions.is_empty()
+            && import_data_inventory.unclassified_gaps.is_empty();
+        if import_data_is_empty && import_data_file_offset != 0 {
+            return Err(malformed(
+                "an empty import-data inventory must declare file offset 0",
+            ));
+        }
+        if !import_data_is_empty
+            && !matches!(
+                (architecture, object_format),
+                (target::Architecture::X86_64, target::ObjectFormat::Coff)
+            )
+        {
+            return Err(malformed(
+                "the declared target emits no separate import-data extent",
+            ));
         }
 
         if reader.remaining() != 0 {
@@ -651,16 +669,9 @@ impl NativePlacedImageEvidence {
                 unclassified_gaps,
             },
             data_file_offset,
-            data_inventory: image::PlacedDataRegionInventory {
-                data_address,
-                data_byte_count,
-                data_digest,
-                data_report_fingerprint,
-                inventory_digest: data_inventory_digest,
-                inventory_report_fingerprint: data_inventory_report_fingerprint,
-                regions: data_regions,
-                unclassified_gaps: data_gaps,
-            },
+            data_inventory,
+            import_data_file_offset,
+            import_data_inventory,
         };
         if evidence.to_bytes() != bytes {
             return Err(malformed(
@@ -788,6 +799,39 @@ impl EvidenceWriter {
         self.u64(value.len() as u64);
         self.bytes(value.as_bytes());
     }
+
+    /// Serialize one placed data-region inventory — the shared encoding the
+    /// initialized-data and import-data extents both carry.
+    fn data_inventory(&mut self, inventory: &image::PlacedDataRegionInventory) {
+        self.u64(inventory.data_address);
+        self.u64(inventory.data_byte_count as u64);
+        self.bytes(inventory.data_digest.as_bytes());
+        self.u64(inventory.data_report_fingerprint);
+        self.bytes(inventory.inventory_digest.as_bytes());
+        self.u64(inventory.inventory_report_fingerprint);
+        self.u64(inventory.regions.len() as u64);
+        for region in &inventory.regions {
+            self.u8(match region.origin {
+                image::FinalDataRegionOrigin::CompilerData => 1,
+                image::FinalDataRegionOrigin::ImportBindingSlot => 2,
+                image::FinalDataRegionOrigin::AlignmentPadding => 3,
+            });
+            self.u64(region.section_offset as u64);
+            self.u64(region.address);
+            self.u64(region.byte_count as u64);
+            self.bytes(region.byte_digest.as_bytes());
+            self.u64(region.byte_report_fingerprint);
+            self.string(&region.symbol);
+        }
+        self.u64(inventory.unclassified_gaps.len() as u64);
+        for gap in &inventory.unclassified_gaps {
+            self.u64(gap.section_offset as u64);
+            self.u64(gap.address);
+            self.u64(gap.byte_count as u64);
+            self.bytes(gap.byte_digest.as_bytes());
+            self.u64(gap.byte_report_fingerprint);
+        }
+    }
 }
 
 struct EvidenceReader<'a> {
@@ -857,6 +901,125 @@ impl<'a> EvidenceReader<'a> {
         let bytes = self.take(len)?;
         String::from_utf8(bytes.to_vec())
             .map_err(|_| malformed(format!("{label} is not valid UTF-8")))
+    }
+
+    /// Decode one placed data-region inventory — the shared encoding the
+    /// initialized-data and import-data extents both carry. `what` names the
+    /// extent in diagnostics (`"data"` / `"import-data"`).
+    fn data_inventory(
+        &mut self,
+        what: &'static str,
+    ) -> Result<image::PlacedDataRegionInventory, NativeEvidenceError> {
+        let data_address = self.u64()?;
+        let data_byte_count = self.usize(if what == "data" {
+            "data inventory byte count"
+        } else {
+            "import-data inventory byte count"
+        })?;
+        let data_digest = image::FinalInitializedDataDigest::from_digest(self.array()?);
+        let data_report_fingerprint = self.u64()?;
+        let inventory_digest = image::PlacedDataRegionInventoryDigest::from_digest(self.array()?);
+        let inventory_report_fingerprint = self.u64()?;
+
+        let region_count = self.bounded_count(
+            if what == "data" {
+                "data inventory regions"
+            } else {
+                "import-data inventory regions"
+            },
+            MAX_INVENTORY_ROWS,
+        )?;
+        let mut regions = Vec::with_capacity(region_count);
+        let mut previous_offset = None;
+        for _ in 0..region_count {
+            let origin = match self.u8()? {
+                1 => image::FinalDataRegionOrigin::CompilerData,
+                2 => image::FinalDataRegionOrigin::ImportBindingSlot,
+                3 => image::FinalDataRegionOrigin::AlignmentPadding,
+                tag => {
+                    return Err(malformed(format!("unknown {what} region origin tag {tag}")));
+                }
+            };
+            let section_offset = self.usize(if what == "data" {
+                "data region section offset"
+            } else {
+                "import-data region section offset"
+            })?;
+            if previous_offset.is_some_and(|previous| section_offset <= previous) {
+                return Err(malformed(format!(
+                    "{what} regions are not in canonical offset order"
+                )));
+            }
+            previous_offset = Some(section_offset);
+            let address = self.u64()?;
+            let byte_count = self.usize(if what == "data" {
+                "data region byte count"
+            } else {
+                "import-data region byte count"
+            })?;
+            let byte_digest = image::PlacedDataRegionBytesDigest::from_digest(self.array()?);
+            let byte_report_fingerprint = self.u64()?;
+            let symbol = self.string(if what == "data" {
+                "data region symbol"
+            } else {
+                "import-data region symbol"
+            })?;
+            regions.push(image::PlacedDataRegion {
+                origin,
+                section_offset,
+                address,
+                byte_count,
+                byte_digest,
+                byte_report_fingerprint,
+                symbol,
+            });
+        }
+
+        let gap_count = self.bounded_count(
+            if what == "data" {
+                "data inventory gaps"
+            } else {
+                "import-data inventory gaps"
+            },
+            MAX_INVENTORY_ROWS,
+        )?;
+        let mut unclassified_gaps = Vec::with_capacity(gap_count);
+        let mut previous_gap_offset = None;
+        for _ in 0..gap_count {
+            let section_offset = self.usize(if what == "data" {
+                "data gap section offset"
+            } else {
+                "import-data gap section offset"
+            })?;
+            if previous_gap_offset.is_some_and(|previous| section_offset <= previous) {
+                return Err(malformed(format!(
+                    "{what} gaps are not in canonical offset order"
+                )));
+            }
+            previous_gap_offset = Some(section_offset);
+            unclassified_gaps.push(image::PlacedDataGap {
+                section_offset,
+                address: self.u64()?,
+                byte_count: self.usize(if what == "data" {
+                    "data gap byte count"
+                } else {
+                    "import-data gap byte count"
+                })?,
+                byte_digest: image::PlacedDataGapBytesDigest::from_digest(self.array()?),
+                byte_report_fingerprint: self.u64()?,
+            });
+        }
+
+        Ok(image::PlacedDataRegionInventory {
+            data_address,
+            data_byte_count,
+            data_digest,
+            data_report_fingerprint,
+            inventory_digest,
+            inventory_report_fingerprint,
+            regions,
+            unclassified_gaps,
+        })
     }
 
     fn footprint(
@@ -963,6 +1126,8 @@ mod tests {
             placed_inventory(text),
             0,
             empty_data_inventory(),
+            0,
+            empty_data_inventory(),
         )
     }
 
@@ -1053,6 +1218,8 @@ mod tests {
             target::NativeTarget::host(),
             0,
             inventory,
+            0,
+            empty_data_inventory(),
             0,
             empty_data_inventory(),
         );

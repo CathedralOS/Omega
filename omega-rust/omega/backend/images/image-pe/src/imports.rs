@@ -7,8 +7,9 @@ use crate::layout::align_to;
 use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
 use diagnostics::Diagnostic;
 use image::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImportPlan,
-    FinalImageLayout, FinalImageSection,
+    FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage,
+    FinalImageImportPlan, FinalImageLayout, FinalImageSection, PlacedDataRegionInventory,
+    PlacedExecutableRegion, PlacedExecutableRegionInventory,
 };
 use object_file::SymbolKind;
 use target::{Architecture, ForeignLocatorCandidate, ObjectFormat, TargetProfile};
@@ -164,6 +165,9 @@ pub(crate) fn install_import_thunks(
 pub(crate) struct PeImportTable {
     pub(crate) bytes: Vec<u8>,
     pub(crate) iat_rvas: Vec<u32>,
+    /// Each thunk's IAT slot offset within `bytes`, in input thunk order —
+    /// the section-relative coordinate placed custody needs.
+    pub(crate) iat_table_offsets: Vec<usize>,
     pub(crate) import_directory_rva: u32,
     pub(crate) import_directory_size: usize,
     pub(crate) iat_rva: u32,
@@ -180,6 +184,7 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         return PeImportTable {
             bytes: Vec::new(),
             iat_rvas: Vec::new(),
+            iat_table_offsets: Vec::new(),
             import_directory_rva: 0,
             import_directory_size: 0,
             iat_rva: 0,
@@ -265,11 +270,13 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         }
     }
 
-    // Hint/name entries + per-thunk IAT rvas in INPUT order.
+    // Hint/name entries + per-thunk IAT rvas and table offsets in INPUT order.
     let mut iat_rvas = vec![0u32; imports.len()];
+    let mut iat_table_offsets = vec![0usize; imports.len()];
     for (library_index, (_, members)) in libraries.iter().enumerate() {
         for (slot, import_index) in members.iter().enumerate() {
             iat_rvas[*import_index] = rdata_rva + (iat_offsets[library_index] + slot * 8) as u32;
+            iat_table_offsets[*import_index] = iat_offsets[library_index] + slot * 8;
         }
     }
     for (index, import) in imports.iter().enumerate() {
@@ -286,6 +293,7 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     PeImportTable {
         bytes,
         iat_rvas,
+        iat_table_offsets,
         import_directory_rva: rdata_rva,
         import_directory_size: descriptor_table_size,
         iat_rva: rdata_rva + iat_region_offset as u32,
@@ -367,6 +375,106 @@ pub(crate) fn validate_import_thunk_footprints(
         ));
     }
     Ok(())
+}
+
+/// Replay the exact thunk↔IAT-slot pairing against the placed region
+/// inventories. Every import thunk must decode to the canonical
+/// `jmp [rip+disp32]` whose memory operand names a committed import-binding
+/// slot inside the `.rdata` extent, and each thunk must pair with exactly one
+/// placed slot naming the same symbol — and vice versa. An import-directory
+/// RVA or an unrecorded slot cannot substitute for this placed custody.
+pub fn validate_pe_x86_64_import_binding_pairing(
+    final_text_bytes: &[u8],
+    executable_regions: &PlacedExecutableRegionInventory,
+    import_data_regions: &PlacedDataRegionInventory,
+) -> Result<(), Diagnostic> {
+    let thunks: Vec<_> = executable_regions
+        .regions
+        .iter()
+        .filter(|region| region.origin == FinalExecutableRegionOrigin::ImportThunk)
+        .collect();
+    let slots: Vec<_> = import_data_regions
+        .regions
+        .iter()
+        .filter(|region| region.origin == FinalDataRegionOrigin::ImportBindingSlot)
+        .collect();
+
+    let mut bound = Vec::with_capacity(thunks.len());
+    for thunk in &thunks {
+        bound.push((thunk, thunk_bound_slot_address(final_text_bytes, thunk)?));
+    }
+    for (thunk, bound_address) in &bound {
+        let matching = slots
+            .iter()
+            .filter(|slot| {
+                slot.symbol == thunk.symbol
+                    && slot.address == *bound_address
+                    && slot.byte_count == 8
+                    && slot.address.checked_sub(import_data_regions.data_address)
+                        == Some(slot.section_offset as u64)
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "PE import thunk `{}` must bind exactly one placed binding slot at its decoded pointer address; found {matching}",
+                thunk.symbol
+            )));
+        }
+    }
+    for slot in &slots {
+        let matching = bound
+            .iter()
+            .filter(|(thunk, bound_address)| {
+                thunk.symbol == slot.symbol && *bound_address == slot.address
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "PE import binding slot `{}` must be loaded by exactly one placed thunk; found {matching}",
+                slot.symbol
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Decode the canonical `jmp [rip+disp32]` thunk and return the absolute
+/// address its memory operand loads through — the IAT slot a PE loader fills.
+fn thunk_bound_slot_address(
+    final_text_bytes: &[u8],
+    region: &PlacedExecutableRegion,
+) -> Result<u64, Diagnostic> {
+    let end = region.section_offset.checked_add(6).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "PE import thunk `{}` range overflows",
+            region.symbol
+        ))
+    })?;
+    let bytes = final_text_bytes
+        .get(region.section_offset..end)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "PE import thunk `{}` is out of final .text bounds",
+                region.symbol
+            ))
+        })?;
+    if bytes[..2] != [0xff, 0x25] {
+        return Err(Diagnostic::error(format!(
+            "PE import thunk `{}` does not match jmp [rip+disp32]",
+            region.symbol
+        )));
+    }
+    let displacement = i32::from_le_bytes(bytes[2..6].try_into().expect("four-byte disp32"));
+    region
+        .address
+        .checked_add(6)
+        .and_then(|next| next.checked_add_signed(i64::from(displacement)))
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "PE import thunk `{}` bound slot address overflows",
+                region.symbol
+            ))
+        })
 }
 
 #[cfg(test)]
