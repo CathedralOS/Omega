@@ -6362,6 +6362,17 @@ Build/packages:
   canonical frame distinctions). No residual slice: the tool is an
   investigation entry point, not a semantic stage, and `tests/delta` +
   `bootstrap/3_delta` surfaces sit under the DELTA-COMPILER claim.
+- **DELTA-EVALUATOR-EXHAUSTION-TRIAGE.** Resolved at `ded56393da` —
+  re-mines the evaluator-owned leg of the landed
+  DELTA-EXHAUSTION-ATTRIBUTION surface
+  (`tools/bootstrap/delta/exhaustion_triage.py`): bare evaluator statuses
+  132/248..254, the empty-stdout status-3 census preflight, and
+  empty-stdout status-1 invalid Gamma source classify evaluator-owned
+  rather than compiler capacity. Re-verified on linux x86-64:
+  `python3 tools/bootstrap/delta/exhaustion_triage.py --self-check` —
+  17/17 classifications agree. No independent slice; the tool is an
+  investigation entry point, and its producing surfaces sit under the
+  DELTA-COMPILER claim.
 - **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal. Landed: every
   Beta compiler-exec entrypoint refuses (exit 2) on hosts that cannot run the
   audited Alpha container — `tests/beta/compiler/reconstruction.sh`,
