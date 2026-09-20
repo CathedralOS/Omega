@@ -6719,7 +6719,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ENCODER-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
 - **ENTRY-MECHANICS-RUNTIME-CONSOLIDATION** — mined candidate; verify scope then implement.
 - **ENTRYPOINT-MODULE-LAYOUT-GATE** — mined candidate; verify scope then implement.
-- **EPOCH-AGGREGATE-SNAPSHOTS** — mined candidate; verify scope then implement.
+- **EPOCH-AGGREGATE-SNAPSHOTS.** Resolved — verify-scope re-mine of
+  **EPOCH-RESOURCE-SNAPSHOTS**'s acceptance, already landed on main.
+  `external-roots/src/program_local/program_local_roots/epoch_cohorts.rs`
+  carries `ProgramLocalRootEpochAggregate` (exact occurrence roster +
+  symbolic per-occurrence capacity, no scalar multiplication across
+  algebras), `ProgramLocalRootEpochAggregateSnapshot` (cloneable
+  accounting evidence retaining installed-required-slot closure and
+  cohort identity; private construction via
+  `establishment.rs::ProgramLocalRootEpochRuntime::aggregate_snapshot`),
+  and `compose_program_local_root_coexistence_report`, which checks
+  supplied snapshots against the authoritative live-era roster in
+  `effects::ComponentEraEntryLedger` and rejects a foreign-ledger,
+  stale/non-live-epoch, duplicate-epoch, or substituted-closure roster
+  exactly as the sibling item's acceptance requires. Witness on Linux
+  x86-64 at `ea025447fe`: `cargo nextest run -p external-roots --lib
+  program_local_epochs` — 8/8 PASS (cohort sealing, aggregate schema
+  derivation, capacity reconstruction for counted and interval members,
+  coexistence completeness/staleness/cross-cohort rejection, epoch-pinned
+  establishment). The program-local surface itself is fenced to
+  EPOCH-RESOURCE-SNAPSHOTS this wave; deployment journals and restart
+  reconstruction remain with the consuming runtime per the sibling row.
 - **EPSILON-BOOTSTRAP-CHAIN** — mined candidate; verify scope then implement.
 - **EPSILON-EVALUATOR-BOOTSTRAP-PATH.** Scope verified at `83f5477357` — the mined alias names the Delta→Epsilon evaluator bootstrap path. Its in-fence surface is complete and green on Linux x86-64: `tests/bootstrap/epsilon-identity.sh` materializes the exact packed evaluator closure and refuses corrupted manifest/member/driver/entry/receipt shapes, and the source-closure gate checks the fixture plus the canonical `epsilon_compiler.delta.sources` manifest. The remaining legs — compiling the bound evaluator plus `execution_driver.delta` through the bound Delta compiler and executing the evaluator's entries — live under `tests/epsilon`, currently claimed by DELTA-COMPILER, and seed execution needs an audited host (macOS arm64 or Windows x64, none available here). Sibling stubs on the same path: BOOTSTRAP-EPSILON-EVALUATOR, DELTA-EPSILON-CLOSURE-COMPILE, DELTA-EPSILON-CLOSURE-EXECUTION, DELTA-EPSILON-CLOSURE-ACCEPTANCE, EPSILON-BOOTSTRAP-CHAIN.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
