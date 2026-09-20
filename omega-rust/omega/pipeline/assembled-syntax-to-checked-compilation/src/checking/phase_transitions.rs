@@ -66,9 +66,10 @@ pub(crate) struct TypedToCheckedSettlementInput<'a> {
     pub(crate) selected_build_machine: Option<symbols::SymbolHandle>,
     /// The evaluated `Build.freestanding` selection. The asm authority
     /// discharge is a typed-program validation whose only input outside the
-    /// trees is this build.omg fact, which `lower_*` deliberately never sees;
-    /// the settlement input carries it so the gate joins this transition's
-    /// program-validation pass on the exact graph about to be checked.
+    /// trees is the privileged-service admission evidence derived from this
+    /// build.omg fact, which `lower_*` deliberately never sees; the settlement
+    /// input carries it so the gate joins this transition's program-validation
+    /// pass on the exact graph about to be checked.
     pub(crate) freestanding: bool,
     pub(crate) boundary_calling_plan_realizations:
         &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -173,7 +174,12 @@ pub(crate) fn typed_trees_to_checked_trees(
             .filter(|&selection| selection.copy_disposition()
                     == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy ).map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
             .collect::<Vec<_>>();
-        typed_trees_to_checked_trees::validate_asm_discharge(&typed, settlement.freestanding)?;
+        typed_trees_to_checked_trees::validate_asm_discharge(
+            &typed,
+            typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
+                settlement.freestanding,
+            ),
+        )?;
         let mut program = if settlement.package_inputs.is_some() {
             typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(
                 typed,

@@ -113,7 +113,9 @@ pub use machine_calls::effect_inference::{
     infer_operational_may, infer_service_reaches, infer_synchronous_invocations,
     invocation_target_label,
 };
-pub use machine_calls::effects::{validate_asm_discharge, validate_behavior_plan};
+pub use machine_calls::effects::{
+    AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
+};
 pub use machine_calls::machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
     ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,

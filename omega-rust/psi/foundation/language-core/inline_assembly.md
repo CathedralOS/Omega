@@ -32,11 +32,16 @@ entry marker for an ensures-only block.
 use the exact block-point flow facts and explicitly reject stale postconditions
 whose places were written.
 
-[Authority discharge](../../semantics/validation/src/effects/asm_discharge.rs)
-currently has a coarse target-class gate: hosted code rejects authority-bearing
-assembly, while freestanding selection passes that gate. It is not proof of a
-concrete machine-control capability. Full [privileged-service admission](../../../../wiki/spec/build/permissions.md#privileged-services)
-remains required by the language contract. A source gate, catalog row, parser
+[Authority discharge](../../semantics/validation/src/machine_calls/effects/asm_discharge.rs)
+checks each instruction's declared authority class against the build's supplied
+`AsmAuthorityAdmission` evidence. The only admission evidence today is the
+evaluated `Build.freestanding` selection, which is received as machine-owner
+admission covering every defined class (including the deriver-only `lidt`); a
+hosted build admits no class. Granular per-class grants (for example port
+permission without interrupt-table control) have no authored evidence to read
+yet; consumer-defined publication authority stays receiver-side per
+[privileged-service admission](../../../../wiki/spec/build/permissions.md#privileged-services).
+A source gate, catalog row, parser
 test or instruction encoder is not final-artifact or native execution evidence.
 
 The [implicit freestanding entry plan](../../../omega/representations/calling-conventions/src/plans.rs)
