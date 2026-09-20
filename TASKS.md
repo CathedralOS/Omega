@@ -7091,7 +7091,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p compiler --test canary_suite -E
   'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
   there and record the result on this row.
-- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT** — mined candidate; verify scope then implement.
+- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT** — mined candidate; scope verified
+  2026-09-20 (z164): re-mines `tests/omega/pass/host/runtime_gui_foreground_window_exit`
+  — the fixture exists, is authored correctly (intrinsic `Service<Gui>` field,
+  all four hosted ProgramEntry binds), and is rostered in `ACTIVE_PASS_CANARIES`
+  (`canary_suite.rs`). The dedicated run test
+  `runtime_gui_foreground_window_exit_canary_runs` is `#[cfg(windows)]`-gated by
+  design (no value assertion possible off the real desktop), so on linux x86-64
+  the fixture's only leg is `pass_canaries_compile`. Measured at `739e4e81e9`:
+  the compile fails at `selected ProgramEntry Service field Main::gui
+  requires a selected Fused provider for boundary Gui`
+  (`selected-dispatch/src/service_custody/root.rs`) — an EARLIER stop than the
+  ledger's recorded `Lowering(InvalidUnitMachinePlan)` family
+  (`known_baseline_failures.md`:152, stale for this member) and the siblings'
+  moved ProgramEntry-rejoin stop. Sibling gui canaries
+  `runtime_gui_window_{lifecycle,blit}_exit` pass the same leg on the same host
+  — the selected linux Gui provider covers their ops but not `foreground_window`
+  (the 0-arg value-returning GetForegroundWindow import). The producing surfaces
+  (provider-plan production in
+  `typed-trees-to-checked-trees/src/execution/unit/*`, Fused custody in
+  `selected-dispatch`) sit in PROVIDER-ATTACHMENT-MACHINE-PLAN /
+  ENTRY-CONTENT-ROOTS / GENERAL-CYCLIC-EXECUTION lanes — outside this item's
+  fixture fence; the windows run leg is host-gated by design.
 - **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT** — mined candidate; scope verified
   2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
   _literal_dispatch_exit` pair in the known-baseline-failures InvalidUnitMachinePlan
