@@ -96,11 +96,12 @@ invokes Host;
 #[test]
 fn authored_service_reaches_retain_exact_review_sources_and_empty_ceiling_presence() {
     let package = TempPackage::new();
-    let source = r#"pub boundary trait Parent {
+    let source = r#"use omega::language::core::service;
+pub boundary trait Parent {
     machine parent() reaches Parent;
 }
 
-pub boundary trait Child: Parent {
+pub boundary trait Child: Service<Parent> {
     machine ping() reaches Child + Child;
 }
 

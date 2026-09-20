@@ -356,12 +356,13 @@ fn build_omg_subsystem_reaches_the_pe_header() {
         let at = lfanew + 4 + 20 + 68;
         u16::from_le_bytes([bytes[at], bytes[at + 1]])
     };
-    const MAIN: &str = r#"
-boundary trait Console {
+    const MAIN: &str = r#"use omega::language::core::service;
+
+pub boundary trait Console {
     machine exit_process(return_code: i32);
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(0);

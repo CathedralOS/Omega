@@ -77,7 +77,7 @@ fn entry_receiver_standing_bound_is_a_runtime_requirement() {
          where
              value <= 60,
          {
-             console: Console;
+             console: &'s mut Console;
              value: i32;
          }
          machine Main::main(&mut self) reaches Console {
@@ -102,7 +102,7 @@ fn nested_standing_bound_reaches_the_receiver_path() {
          {
              value: i32;
          }
-         data Main { console: Console; map: Map; }
+         data Main<'s> { console: &'s mut Console; map: Map; }
          machine Main::main(&mut self) reaches Console {
              let return_code: i32 = 70 + self.map.value;
              self.console.exit_process(return_code);
@@ -123,7 +123,7 @@ fn gated_definition_facts_are_withheld() {
          where
              health >= 1,
          {
-             console: Console;
+             console: &'s mut Console;
              health: i32;
          }
          machine Main::main(&mut self) reaches Console {
@@ -146,7 +146,7 @@ fn field_to_field_facts_lower_both_sides() {
          where
              count <= len,
          {
-             console: Console;
+             console: &'s mut Console;
              count: i32;
              len: i32;
          }
@@ -185,7 +185,7 @@ fn erased_field_facts_are_withheld() {
              value <= 60,
          {
              witness [erased]: i32;
-             console: Console;
+             console: &'s mut Console;
              value: i32;
          }
          machine Main::main(&mut self) reaches Console {
@@ -215,7 +215,7 @@ fn non_entry_machines_keep_facts_as_write_obligations() {
          {
              count: i32;
          }
-         data Main { console: Console; meter: Meter; }
+         data Main<'s> { console: &'s mut Console; meter: Meter; }
          machine Main::bump(&mut self, target: &mut Meter) {
              target.count = 3;
          }

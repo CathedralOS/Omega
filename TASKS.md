@@ -883,8 +883,20 @@ Owners include
     (library, canaries, samples) is migrated to `Service<R>`; negative controls
     in `tests/omega/fail` still reject, and fixtures whose signatures required
     public slot contracts promote those declarations rather than weakening the
-    gate. Squalr remains the coordinator-scoped surface in the bullet above and
-    is untouched here.
+    gate. Raw-pipeline unit fixtures (no package scope, so `Service` cannot
+    resolve) were migrated onto `&'s mut <boundary trait>` receivers instead;
+    where a test still exercises true carrier semantics (provider attachment,
+    `established by` results, `ensures`-bound out-params), the toolchain
+    `service.omg` is injected into the fixture's `SourceMap` so `Service<R>`
+    resolves against the real core decl. Residual for bullet 3: raw fixtures
+    whose checks need service-activation semantics — `ensures` witnesses on
+    boundary out-params, `established by` establishment routes, and direct
+    dynamic plans through an attached service field — still reject; the
+    intrinsic carrier contract does not yet expose those spellings
+    (`Service<R>` admits no authored `in <domain>` qualification and
+    `established by` expects the old return shape), so those tests stay red
+    until the receiver lifecycle leg lands. Squalr remains the
+    coordinator-scoped surface in the bullet above and is untouched here.
   - Complete receiver nominal-cleanup and callback/signal occupancy through actual
     activation/completion. Reuse `receiver_eligibility.rs`,
     `image-emission/src/hosted_receiver.rs` and

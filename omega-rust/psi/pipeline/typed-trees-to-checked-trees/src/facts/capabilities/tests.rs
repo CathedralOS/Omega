@@ -62,8 +62,8 @@ fn returns_propagates_to_nested_caller() {
                 machine open() -> Folder;
             }
 
-            data Vault {
-                root: RootDir;
+            data Vault<'s> {
+                root: &'s mut RootDir;
             }
 
             machine Vault::open_folder(&self) -> Folder {
@@ -119,26 +119,26 @@ fn derives_propagates_to_nested_caller() {
             }
 
             boundary trait Workspace {
-                machine subfolder(parent: Folder) -> SubFolder
+                machine subfolder<'s>(parent: &'s mut Folder) -> SubFolder
                 reaches
                     Workspace;
             }
 
-            data Broker {
-                workspace: Workspace;
+            data Broker<'s> {
+                workspace: &'s mut Workspace;
             }
 
-            machine Broker::narrow(&self, folder: Folder) -> SubFolder {
+            machine Broker::narrow<'s>(&self, folder: &'s mut Folder) -> SubFolder {
                 self.workspace.subfolder(folder);
             }
 
-            machine Broker::delegate(&self, folder: Folder) -> SubFolder {
+            machine Broker::delegate<'s>(&self, folder: &'s mut Folder) -> SubFolder {
                 self.narrow(folder);
             }
 
-            data Main {
+            data Main<'s> {
                 broker: Broker;
-                folder: Folder;
+                folder: &'s mut Folder;
             }
 
             machine Main::main(&mut self) {
@@ -182,8 +182,8 @@ fn acquires_propagates_through_helper_return() {
                     RootDir;
             }
 
-            data Vault {
-                root: RootDir;
+            data Vault<'s> {
+                root: &'s mut RootDir;
             }
 
             machine Vault::open_folder(&self) -> Folder {
@@ -238,8 +238,8 @@ fn acquires_does_not_propagate_when_helper_keeps_authority() {
                 machine write_line(text: String);
             }
 
-            data Archiver {
-                disk: Disk;
+            data Archiver<'s> {
+                disk: &'s mut Disk;
             }
 
             machine Archiver::flush(&mut self) {
@@ -287,8 +287,8 @@ fn returns_does_not_propagate_to_non_capability_caller() {
                     RootDir;
             }
 
-            data Vault {
-                root: RootDir;
+            data Vault<'s> {
+                root: &'s mut RootDir;
             }
 
             machine Vault::open_folder(&self) -> Folder {

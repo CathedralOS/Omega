@@ -104,12 +104,13 @@ fn terminal_and_interpreter_share_canonical_boundary_calls() {
         let fixture = PreparedFixture::new();
         fs::write(
             &fixture.main,
-            r#"
-boundary trait Sink { machine emit(value: i32); machine echo(value: i32) -> i32; }
+            r#"use omega::language::core::service;
+
+pub boundary trait Sink { machine emit(value: i32); machine echo(value: i32) -> i32; }
 data SinkProvider {}
 machine SinkProvider::emit(RECEIVERvalue: i32) satisfies Sink::emit {}
 machine SinkProvider::echo(RECEIVERvalue: i32) -> i32 satisfies Sink::echo { value }
-data Main { sink: Sink; }
+data Main { sink: Service<Sink>; }
 machine Main::main(&mut self) reaches Sink { self.sink.emit(7); }
 machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
 "#
@@ -176,12 +177,13 @@ fn selected_boundary_adapter_identity_precedes_builtin_spelling() {
     let fixture = PreparedFixture::new();
     fs::write(
         &fixture.main,
-        r#"
-boundary trait Arithmetic { machine max(left: i32, right: i32) -> i32; }
+        r#"use omega::language::core::service;
+
+pub boundary trait Arithmetic { machine max(left: i32, right: i32) -> i32; }
 data Provider {}
 machine Provider::first(left: i32, right: i32) -> i32
 satisfies Arithmetic::max { left }
-data Main { arithmetic: Arithmetic; }
+data Main { arithmetic: Service<Arithmetic>; }
 machine Main::main(&mut self) -> i32 reaches Arithmetic {
 self.arithmetic.max(7, 35)
 }
@@ -208,14 +210,15 @@ fn selected_boundary_adapter_guard_subject_runs_once() {
     let fixture = PreparedFixture::new();
     fs::write(
         &fixture.main,
-        r#"
-boundary trait Switch { machine flip(value: &mut bool) -> bool; }
+        r#"use omega::language::core::service;
+
+pub boundary trait Switch { machine flip(value: &mut bool) -> bool; }
 data Provider {}
 machine Provider::flip(value: &mut bool) -> bool satisfies Switch::flip {
 value = !value;
 value
 }
-data Main { switch: Switch; flag: bool; }
+data Main { switch: Service<Switch>; flag: bool; }
 machine Main::main(&mut self) -> i32 reaches Switch {
 transition self.switch.flip(&mut self.flag) {
     false -> (1)

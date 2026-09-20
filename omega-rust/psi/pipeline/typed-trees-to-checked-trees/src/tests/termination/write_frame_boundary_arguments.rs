@@ -270,7 +270,7 @@ fn boundary_forwarded_reference_reaches_checked_trees() {
             machine inspect(value: &u64);
             machine owned(value: u64);
         }
-        data Main { device: Device; value: u64; other: u32; }
+        data Main<'s> { device: &'s mut Device; value: u64; other: u32; }
         machine identity(value: &mut u64) -> &mut u64 { value }
         machine shared(value: &u64) -> &u64 { value }
         machine other(value: &mut u32) -> &mut u32 { value }
@@ -452,8 +452,8 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
             machine make() -> &mut u64;
             machine mixed(hit: &mut u64, miss: &mut u32) -> &mut u64;
         }
-        data Main {
-            device: Device; value: u64; audit: u64; count: u32;
+        data Main<'s> {
+            device: &'s mut Device; value: u64; audit: u64; count: u32;
             cell: Cell; cells: [u64; 2]; carrier: Carrier;
             cell_array: [Cell; 2]; holder: ReferenceHolder;
         }
@@ -676,8 +676,8 @@ fn boundary_results_bound_to_locals_transport_their_proven_origin() {
             machine empty() -> &mut u64;
             machine carrier_reference(carrier: &mut Carrier) -> &mut u64;
         }
-        data Main {
-            device: Device; value: u64; other: u64; cell: Cell; carrier: Carrier;
+        data Main<'s> {
+            device: &'s mut Device; value: u64; other: u64; cell: Cell; carrier: Carrier;
         }
         machine identity(value: &mut u64) -> &mut u64 { value }
     "#,
@@ -765,7 +765,7 @@ fn boundary_attached_result_requires_the_exact_caller_self_identity() {
     let source = r#"
         boundary trait Device { machine output(value: &mut u64); }
         data Cell { value: u64; }
-        data Main { device: Device; cell: Cell; }
+        data Main<'s> { device: &'s mut Device; cell: Cell; }
         machine Cell::field_reference(&mut self) -> &mut u64 { &mut self.value }
         machine Main::run(&mut self) { self.device.output(self.cell.field_reference()); }
         machine Main::foreign(&mut self) {}
@@ -845,7 +845,7 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
     use typed_trees::types::TypeReferenceNode;
     let source = r#"
         boundary trait Device { machine output(value: &mut u64); }
-        data Main { device: Device; value: u64; }
+        data Main<'s> { device: &'s mut Device; value: u64; }
         machine identity(value: &mut u64) -> &mut u64 { value }
         machine Main::current(&mut self, output: &mut u64) { self.device.output(output); }
         machine Main::wrapped(&mut self, output: &mut u64) {
@@ -1086,7 +1086,7 @@ fn boundary_reference_bindings_keep_exact_origins_without_reborrowing_slots() {
             machine output(value: &mut u64);
             machine output_value(value: &mut u64) -> u64;
         }
-        data Main { device: Device; value: u64; other: u64; carrier: Carrier; }
+        data Main<'s> { device: &'s mut Device; value: u64; other: u64; carrier: Carrier; }
         machine identity(value: &mut u64) -> &mut u64 { value }
     "#,
     );
@@ -1164,7 +1164,7 @@ fn boundary_method_names_do_not_acquire_builtin_empty_frames() {
     ] {
         let source = format!(
             "boundary trait Device {{ machine {target}(value: u64) -> u64; }}
-            data Main {{ device: Device; value: u64; audit: u64; }}
+            data Main<'s> {{ device: &'s mut Device; value: u64; audit: u64; }}
             machine compute(value: &mut u64) -> u64 {{ value = 1; 1 }}
             machine Main::run(&mut self) {{
                 self.value = self.device.{target}(compute(&mut self.audit));
@@ -1201,7 +1201,7 @@ fn constrained_boundary_reference_parameters_keep_their_write_reach() {
         machine overwrite(value: &mut u64);
         machine overwrite_slice(values: &mut [u64]);
     }
-    data Main { device: Device; value: u64; cells: [u64; 2]; }
+    data Main<'s> { device: &'s mut Device; value: u64; cells: [u64; 2]; }
     machine Main::run(&mut self) { self.device.overwrite(&mut self.value); }
     machine Main::slice(&mut self) { self.device.overwrite_slice(&mut self.cells[0..2]); }
     "#;
@@ -1415,8 +1415,8 @@ fn boundary_arguments_publish_declared_reach_and_all_producer_writes() {
         machine ambiguous(value: &mut u64);
     }
     boundary trait OtherDevice { machine scalar(value: &mut u64); }
-    data Nested { device: OtherDevice; }
-    data Main { device: Device; nested: Nested; value: u64; audit: u64; other: u64; cells: [u64; 2]; carrier: Carrier; }
+    data Nested<'s> { device: &'s mut OtherDevice; }
+    data Main<'s> { device: &'s mut Device; nested: Nested; value: u64; audit: u64; other: u64; cells: [u64; 2]; carrier: Carrier; }
     machine compute(value: &mut u64) -> u64 { value = 1; 1 }
     machine recursive(value: &mut u64) -> u64 { recursive(value) }
     machine index(value: &mut u64) -> u64 [0..=1] { value = 1; 0 }

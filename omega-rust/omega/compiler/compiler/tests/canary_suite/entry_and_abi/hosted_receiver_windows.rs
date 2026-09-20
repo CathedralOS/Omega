@@ -58,7 +58,7 @@ fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
     .expect("write authored target and entry selection");
     let (helper_trait, helper_field) = if bare_interface {
         (
-            "boundary trait Helper {\n    machine help();\n}\n\n",
+            "pub boundary trait Helper {\n    machine help();\n}\n\n",
             "    helper: Helper;\n",
         )
     } else {

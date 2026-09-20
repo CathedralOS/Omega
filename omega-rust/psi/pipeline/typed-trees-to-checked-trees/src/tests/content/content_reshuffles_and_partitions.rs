@@ -140,7 +140,7 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
                     Owned::content(&result.right),
                 );
         }
-        data Main { splitter: Splitter; }
+        data Main<'s> { splitter: &'s mut Splitter; }
         machine Main::forward(&mut self, pair: Pair) -> Pair
         reaches Splitter requires
             pair.left in Region::Owned;
@@ -283,9 +283,9 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
                     Owned::content(&result.right),
                 );
         }
-        data Main {
-            splitter: Splitter;
-            pair_splitter: PairSplitter;
+        data Main<'s> {
+            splitter: &'s mut Splitter;
+            pair_splitter: &'s mut PairSplitter;
         }
         machine Main::repack(&mut self, pair: Pair) -> Pair
         reaches Splitter requires
@@ -512,9 +512,9 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
                     Owned::content(&result.right),
                 );
         }
-        data Main {
-            array_splitter: ArraySplitter;
-            case_splitter: CaseSplitter;
+        data Main<'s> {
+            array_splitter: &'s mut ArraySplitter;
+            case_splitter: &'s mut CaseSplitter;
         }
         machine Main::array_argument(
             &mut self,

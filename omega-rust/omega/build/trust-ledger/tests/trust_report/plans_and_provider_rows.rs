@@ -19,13 +19,14 @@ fn granted_plan_receipt_pins_the_fingerprint() {
     .expect("write build.omg");
     let main_with = |slot: i64| {
         format!(
-            r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
-boundary trait Flags {{
+            r#"use omega::language::core::service;
+pub boundary trait Console {{ machine exit_process(return_code: i32); }}
+pub boundary trait Flags {{
     machine open_read() -> i32;
 }}
 machine open_read() -> i32
     satisfies Flags::open_read via Binding::Syscall({slot});
-data Main {{ console: Console; }}
+data Main {{ console: Service<Console>; }}
 machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
@@ -68,13 +69,14 @@ fn derived_provider_plans_surface_as_trust_rows() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Console { machine exit_process(return_code: i32); }
-boundary trait Flags {
+        r#"use omega::language::core::service;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+pub boundary trait Flags {
     machine open_read() -> i32;
 }
 machine open_read() -> i32
     satisfies Flags::open_read via Binding::Syscall(101);
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -171,7 +173,7 @@ machine NoResultPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-boundary trait Tick: Calling<NoResultPolicy> { machine tick(); }
+pub boundary trait Tick: Calling<NoResultPolicy> { machine tick(); }
 machine tick_leaf() satisfies Tick::tick via Binding::Syscall(102);
 
 data Main {}
@@ -236,9 +238,9 @@ fn provider_requirement_rows_keep_operational_blast_radius_axes_independent() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Clock { machine tick(); }
-boundary trait Callback { machine call(); }
-boundary trait Pair {
+        r#"pub boundary trait Clock { machine tick(); }
+pub boundary trait Callback { machine call(); }
+pub boundary trait Pair {
     machine effectful(callback: &mut Callback)
     reaches Clock
     invokes callback;
@@ -318,11 +320,11 @@ domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by SchedulerAdmission::grant;
 
-boundary trait SchedulerAdmission {
+pub boundary trait SchedulerAdmission {
     machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
 }
 
-boundary trait SchedulerRuntime {
+pub boundary trait SchedulerRuntime {
     machine wait(scheduler: SchedulerHandle)
     requires scheduler in WeakFair
     terminates;
@@ -379,7 +381,7 @@ established by StorageEntry::enter;
 domain Token::Issued
 established by Issuer::issue;
 
-boundary trait StorageEntry {
+pub boundary trait StorageEntry {
     machine enter(token: Token in Granted) -> Token;
 }
 
@@ -392,7 +394,7 @@ machine StorageEntryProvider::enter(token: Token in Granted) -> Token
     token as Token
 }
 
-boundary trait Issuer {
+pub boundary trait Issuer {
     machine issue(id: u64) -> Token in Issued
     ensures
         result in Token::Issued;
@@ -517,7 +519,7 @@ fn routed_qualification_rows_retain_exact_root_grant_selectors() {
 domain Token::Issued
 established by Issuer::issue;
 
-boundary trait Issuer {
+pub boundary trait Issuer {
     machine issue(id: u64) -> Token in Issued
     ensures
         result in Token::Issued;
@@ -567,15 +569,16 @@ fn satisfies_leaves_derive_a_covered_plan() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Console { machine exit_process(return_code: i32); }
-boundary trait Pair {
+        r#"use omega::language::core::service;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+pub boundary trait Pair {
     machine first(code: i32) -> i32;
     machine second(code: i32) -> i32;
 }
 
 machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::Syscall(107);
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -625,7 +628,7 @@ established by Pair::bound;
 domain Token::Unbound
 established by Pair::unbound;
 
-boundary trait Pair {
+pub boundary trait Pair {
     machine bound() -> Token in Bound
     ensures
         result in Token::Bound;
@@ -694,8 +697,9 @@ fn provider_type_conformance_closures_remain_separate() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Console { machine exit_process(return_code: i32); }
-boundary trait Pair {
+        r#"use omega::language::core::service;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+pub boundary trait Pair {
     machine first(code: i32) -> i32;
     machine second(code: i32) -> i32;
 }
@@ -708,7 +712,7 @@ data SecondProvider { second: addr; }
 machine SecondProvider::second(code: i32) -> i32
     satisfies Pair::second via Binding::VtableField(second);
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -763,7 +767,7 @@ fn slot_grant_pins_only_the_selected_provider_plan() {
         .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Pair { machine choose() -> i32; }
+        r#"pub boundary trait Pair { machine choose() -> i32; }
 
 data FirstProvider {}
 FirstProviderPair: FirstProvider satisfies Pair;

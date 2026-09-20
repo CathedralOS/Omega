@@ -29,7 +29,8 @@ use std::path::{Path, PathBuf};
 /// must call the requirement — that call is what puts the checked candidate
 /// in the module's realization roster, so the published export roster is
 /// module-derived rather than asserted.
-const COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+const COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+pub boundary trait Pick {
     machine mark(value: i32);
 }
 
@@ -41,7 +42,7 @@ via Binding::VtableField(mark);
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Pick; }
+pub data ComponentEntry { pick: Service<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -52,7 +53,8 @@ pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
 /// description of the earlier component — but it exports the earlier
 /// realization coordinate, so it can no longer realize the consumer's
 /// selected plan.
-const RENAMED_ADAPTER_COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+const RENAMED_ADAPTER_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+pub boundary trait Pick {
     machine mark(value: i32);
 }
 
@@ -64,7 +66,7 @@ via Binding::VtableField(mark);
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter_v2(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Pick; }
+pub data ComponentEntry { pick: Service<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -80,7 +82,8 @@ pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
 /// stop body construction at the provider-attachment gate before any row
 /// is retained, and a direct `pub boundary requirement` call would
 /// demand a selected provider at validation.
-const BOUNDED_COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+const BOUNDED_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+pub boundary trait Pick {
     machine mark(value: i32);
 }
 
@@ -103,7 +106,7 @@ invokes Installer;
     Installer::install();
 }
 
-pub data ComponentEntry { pick: Pick; }
+pub data ComponentEntry { pick: Service<Pick>; }
 pub machine ComponentEntry::main(&mut self)
 reaches Pick + Installer + Console
 invokes Pick;
@@ -117,7 +120,8 @@ invokes Installer;
 /// An unrelated component: it declares, seals, and realizes a requirement of
 /// its own. Its description is complete and verifiable, and it realizes
 /// nothing the consuming root selected.
-const FOREIGN_COMPONENT_SOURCE: &str = r#"pub boundary trait Other {
+const FOREIGN_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+pub boundary trait Other {
     machine mark(value: i32);
 }
 
@@ -129,7 +133,7 @@ via Binding::VtableField(mark);
 pub data OtherProvider { }
 pub machine OtherProvider::mark_adapter(value: i32) satisfies Other::mark { }
 
-pub data ComponentEntry { other: Other; }
+pub data ComponentEntry { other: Service<Other>; }
 pub machine ComponentEntry::main(&mut self) reaches Other invokes Other; {
     self.other.mark(7);
 }

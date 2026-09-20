@@ -67,8 +67,7 @@ pub fn classify_exact_bound_service_carrier(
     }
     if qualified {
         return Err(
-            "the core `Service` carrier is closed; it admits no authored qualification"
-                .to_owned(),
+            "the core `Service` carrier is closed; it admits no authored qualification".to_owned(),
         );
     }
     if !lifetime_arguments.is_empty() {

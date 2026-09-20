@@ -17,7 +17,7 @@ const SOURCE: &str = r#"
         reaches Console;
     }
 
-    data Main { console: Console; }
+    data Main<'s> { console: &'s mut Console; }
     machine Main::main(&mut self)
     reaches Console
     {
@@ -34,7 +34,7 @@ const SCALAR_RESULT_SOURCE: &str = r#"
         reaches Console;
     }
 
-    data Main { console: Console; }
+    data Main<'s> { console: &'s mut Console; }
     machine Main::main(&mut self)
     reaches Console
     {
@@ -57,7 +57,7 @@ fn straight_line_console_source(write_literals: &[String], exit_status: i32) -> 
         reaches Console;
     }}
 
-    data Main {{ console: Console; }}
+    data Main<'s> {{ console: &'s mut Console; }}
     machine Main::main(&mut self)
     reaches Console
     {{

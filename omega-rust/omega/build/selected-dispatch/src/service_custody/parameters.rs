@@ -233,8 +233,7 @@ fn validate_receipt(
         base_and_qualifications(checked, source.type_reference);
     source_qualifications.sort_by_key(|domain| domain.0);
     source_qualifications.dedup();
-    if parameter.type_identity != base_identity
-        || parameter.qualifications != source_qualifications
+    if parameter.type_identity != base_identity || parameter.qualifications != source_qualifications
     {
         diagnostics.push(Diagnostic::error(format!(
             "checked routed Service parameter `{label}` substituted its structural base or authored qualification",

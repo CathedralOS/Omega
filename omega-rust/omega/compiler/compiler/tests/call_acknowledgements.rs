@@ -33,10 +33,10 @@ fn compile_error(name: &str, source: &str) -> String {
 }
 
 const FOUR_ENVELOPES: &str = r#"
-boundary trait Immediate { machine call(); }
-boundary trait Parking { machine call() suspends; }
-boundary trait Waiting { machine call() blocks; }
-boundary trait Combined { machine call() suspends; blocks; }
+pub boundary trait Immediate { machine call(); }
+pub boundary trait Parking { machine call() suspends; }
+pub boundary trait Waiting { machine call() blocks; }
+pub boundary trait Combined { machine call() suspends; blocks; }
 
 data Main { }
 machine run_immediate(immediate: &mut Immediate) reaches Immediate {
@@ -121,8 +121,8 @@ fn missing_partial_and_redundant_acknowledgements_reject() {
 fn suspension_rejects_nested_position_while_blocking_may_nest() {
     let nested_suspend = FOUR_ENVELOPES
         .replace(
-            "boundary trait Immediate { machine call(); }",
-            "boundary trait Immediate { machine call(); }\nboundary trait Value { machine get() -> u64 suspends; }",
+            "pub boundary trait Immediate { machine call(); }",
+            "pub boundary trait Immediate { machine call(); }\nboundary trait Value { machine get() -> u64 suspends; }",
         )
         .replace(
             "machine run_parking(suspend_source: &mut Parking) reaches Parking suspends; {\n    suspend suspend_source.call();\n}",
@@ -136,8 +136,8 @@ fn suspension_rejects_nested_position_while_blocking_may_nest() {
 
     let nested_block = FOUR_ENVELOPES
         .replace(
-            "boundary trait Immediate { machine call(); }",
-            "boundary trait Immediate { machine call(); }\nboundary trait Value { machine get() -> u64 blocks; }",
+            "pub boundary trait Immediate { machine call(); }",
+            "pub boundary trait Immediate { machine call(); }\nboundary trait Value { machine get() -> u64 blocks; }",
         )
         .replace(
             "machine run_waiting(block_source: &mut Waiting) reaches Waiting blocks; {\n    block block_source.call();\n}",
@@ -151,12 +151,13 @@ fn suspension_rejects_nested_position_while_blocking_may_nest() {
 
 #[test]
 fn suspension_accepts_each_direct_continuation_position() {
-    let source = r#"
-boundary trait Event { machine park() suspends; }
-boundary trait Value { machine get() -> u64 suspends; }
-boundary trait Scheduler { machine wait() -> u64 suspends; }
+    let source = r#"use omega::language::core::service;
 
-data Subject { scheduler: Scheduler; }
+pub boundary trait Event { machine park() suspends; }
+pub boundary trait Value { machine get() -> u64 suspends; }
+pub boundary trait Scheduler { machine wait() -> u64 suspends; }
+
+data Subject { scheduler: Service<Scheduler>; }
 data Main { }
 machine Subject::wait(&mut self) -> u64 reaches Scheduler suspends; {
     suspend self.scheduler.wait()

@@ -193,7 +193,7 @@ machine NoResultPolicy::plan(
     }
 }
 
-boundary trait Tick: Calling<NoResultPolicy> {
+pub boundary trait Tick: Calling<NoResultPolicy> {
     machine tick();
 }
 
@@ -206,11 +206,11 @@ const CALLBACK_MATERIALIZATION_POLICY: &str = r#"
 use omega::language::core::layout;
 use calling;
 
-boundary trait WindowProcedure {
+pub boundary trait WindowProcedure {
     machine call(message: u64) -> u64;
 }
 
-boundary trait UnusedProcedure {
+pub boundary trait UnusedProcedure {
     machine call(message: u64) -> u64;
 }
 
@@ -330,7 +330,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
+pub boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
     machine register<machine Selected, machine SecondarySelected>(
         specification: &Spread<ForeignRecord>
     )
@@ -442,7 +442,7 @@ machine MaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
     via Binding::CompilerIntrinsic;
 
-boundary trait LookalikeMaskControl {
+pub boundary trait LookalikeMaskControl {
     machine save(&mut self) -> InterruptMaskGuard in Active;
 }
 
@@ -453,10 +453,10 @@ machine LookalikeMaskProvider::save(&mut self) -> InterruptMaskGuard in Active
     satisfies LookalikeMaskControl::save
     via Binding::CompilerIntrinsic;
 
-boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {
+pub boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {
 }
 
-boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {
+pub boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
     reaches PortIo;
 }
@@ -550,7 +550,7 @@ machine InterruptResultPolicy::plan(
     }
 }
 
-boundary trait InterruptResult: Calling<InterruptResultPolicy> {
+pub boundary trait InterruptResult: Calling<InterruptResultPolicy> {
     machine issue() -> InterruptAcknowledgement;
 }
 "#;
@@ -568,7 +568,7 @@ fn interrupt_envelope_policy(fields: &str, extra_declarations: &str) -> String {
             &representation_declarations,
         )
         .replace(
-            "boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(acknowledgement: InterruptAcknowledgement in Pending)\n    reaches PortIo;\n}",
+            "pub boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(acknowledgement: InterruptAcknowledgement in Pending)\n    reaches PortIo;\n}",
             &lookalike_requirement,
         )
         .replace(
@@ -637,7 +637,8 @@ fn retained_interrupt_representation(
     selection
 }
 
-const FOREIGN_OPAQUE_SOURCE: &str = r#"
+const FOREIGN_OPAQUE_SOURCE: &str = r#"use omega::language::core::service;
+
 use omega::language::core::external_binding;
 use omega::language::core::representation;
 
@@ -651,7 +652,7 @@ data ForeignTokenCarrier {
 ForeignTokenRepresentation:
     ForeignTokenCarrier satisfies OpaqueRepresentation<ForeignToken>;
 
-boundary trait ForeignChannel {
+pub boundary trait ForeignChannel {
     machine deliver(token: ForeignToken);
 }
 
@@ -668,7 +669,7 @@ machine deliver_leaf(token: ForeignToken)
     satisfies ForeignChannel::deliver
     via deliver_binding();
 
-data Main { channel: ForeignChannel; }
+data Main { channel: Service<ForeignChannel>; }
 machine Main::main(&mut self) { }
 "#;
 

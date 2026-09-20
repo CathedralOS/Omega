@@ -81,9 +81,9 @@ fn verify_build_log(
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported = reported_usages(reviews, discarded).and_then(|usages| {
-        usages
-            .iter()
-            .try_fold(0_u64, |total, usage| total.checked_add(usage.build_log_bytes))
+        usages.iter().try_fold(0_u64, |total, usage| {
+            total.checked_add(usage.build_log_bytes)
+        })
     });
     let sponsored = sponsor.consumed_build_log_bytes();
     if reported != Some(sponsored) {
@@ -150,7 +150,8 @@ fn verify_live_cells(
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported_invocation_peak = Some(
-        observed_usages(reviews, discarded).map(|usage| usage.peak_live_cells)
+        observed_usages(reviews, discarded)
+            .map(|usage| usage.peak_live_cells)
             .max()
             .unwrap_or(0),
     );
@@ -181,7 +182,8 @@ fn verify_live_text_bytes(
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported_invocation_peak = Some(
-        observed_usages(reviews, discarded).map(|usage| usage.peak_live_text_bytes)
+        observed_usages(reviews, discarded)
+            .map(|usage| usage.peak_live_text_bytes)
             .max()
             .unwrap_or(0),
     );

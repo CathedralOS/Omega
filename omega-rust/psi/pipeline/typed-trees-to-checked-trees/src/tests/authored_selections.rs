@@ -1294,7 +1294,7 @@ fn successful_checking_binds_boundary_calls_through_parameter_fields() {
             machine open(&self, path: &[u8], flags: i32) -> i32
             reaches FilesystemHost;
         }
-        data Build { filesystem: FilesystemHost; }
+        data Build<'s> { filesystem: &'s mut FilesystemHost; }
         machine build(builder: &mut Build)
         reaches FilesystemHost
         {

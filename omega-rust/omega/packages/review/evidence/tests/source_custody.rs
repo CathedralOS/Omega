@@ -346,11 +346,12 @@ fn dangerous_authority_classification_requires_exact_accepted_binding() {
     let canonical = TempPackage::new();
     canonical.write(
         "main.omg",
-        r#"pub boundary trait FilesystemHost {
+        r#"use omega::language::core::service;
+pub boundary trait FilesystemHost {
     machine write(descriptor: i32, bytes: &[u8]) -> i64;
 }
 
-pub data Journal { files: FilesystemHost; written: i64; }
+pub data Journal { files: Service<FilesystemHost>; written: i64; }
 
 pub machine Journal::append(&mut self, descriptor: i32, bytes: &[u8])
 reaches FilesystemHost
@@ -451,9 +452,10 @@ fn accepted_dependency_console_permission_retains_exact_policy_and_source_custod
 
     root.write(
         "main.omg",
-        r#"use accepted_console::console;
+        r#"use omega::language::core::service;
+use accepted_console::console;
 
-pub machine terminate(console: Console, return_code: i32)
+pub machine terminate(console: Service<Console>, return_code: i32)
 reaches Console
 invokes console;
 {

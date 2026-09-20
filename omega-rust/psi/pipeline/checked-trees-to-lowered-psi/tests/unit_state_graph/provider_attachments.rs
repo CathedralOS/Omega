@@ -15,7 +15,7 @@ const SOURCE: &str = r#"
         machine finish(value: u64) reaches Output;
         machine helper(value: u64) reaches Output;
     }
-    data Counter { counter: u64; output: Output; }
+    data Counter<'s> { counter: u64; output: &'s mut Output; }
     machine Counter::run(&mut self) reaches Output {
         self.counter = 0;
         self.output.write(self.counter);

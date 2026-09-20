@@ -225,8 +225,9 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     TempTree::write(console.join("console.omg"), exact_console_source);
     TempTree::write(
         root.join("main.omg"),
-        r#"use accepted_console::console;
-data Main { console: Console; }
+        r#"use omega::language::core::service;
+use accepted_console::console;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -933,13 +934,14 @@ fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
     );
     TempTree::write(
         root.join("main.omg"),
-        r#"use host_services::filesystem_host;
-data Main { filesystem: FilesystemHost; descriptor: i32; }
+        r#"use omega::language::core::service;
+use host_services::filesystem_host;
+data Main { filesystem: Service<FilesystemHost>; descriptor: i32; }
 machine Main::main(&mut self) reaches FilesystemHost {
     self.descriptor = self.filesystem.create("probe.txt", 438);
 }
 
-pub machine append(filesystem: FilesystemHost, descriptor: i32, bytes: &[u8]) -> i64
+pub machine append(filesystem: Service<FilesystemHost>, descriptor: i32, bytes: &[u8]) -> i64
 reaches FilesystemHost
 invokes filesystem;
 {
@@ -1595,8 +1597,9 @@ fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
     let exit_root = output.package("physical-exit-source");
     TempTree::write(
         exit_root.join("main.omg"),
-        r#"use host_services::console;
-data Main { console: Console; }
+        r#"use omega::language::core::service;
+use host_services::console;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }

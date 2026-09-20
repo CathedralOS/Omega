@@ -69,9 +69,7 @@ fn integer_comparison_without_provider_derives_no_plan() {
         }
         "#,
     );
-    assert!(
-        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None)).is_empty()
-    );
+    assert!(derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None)).is_empty());
 }
 
 /// The authored token is the integer comparison's operation identity: a

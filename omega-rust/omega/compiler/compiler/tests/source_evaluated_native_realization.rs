@@ -172,10 +172,11 @@ impl Fixture {
         Self::with_source(
             name,
             "macos_arm64",
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
 
-boundary trait Process {
+pub boundary trait Process {
     machine ping();
 }
 
@@ -190,7 +191,7 @@ macos_arm64 machine ping_binding() -> Binding<26, 7, 0> {
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
-data Main { process: Process; }
+data Main { process: Service<Process>; }
 machine Main::main(&mut self) reaches Process {
     self.process.ping();
 }
@@ -207,11 +208,12 @@ machine Main::main(&mut self) reaches Process {
         Self::with_source(
             "windows-x86-fma",
             "windows_x86_64",
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
 
-boundary trait Process {
+pub boundary trait Process {
     machine ping();
 }
 
@@ -226,7 +228,7 @@ windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
-data Main { process: Process; }
+data Main { process: Service<Process>; }
 machine Main::main(&mut self) reaches Process {
     let fused: f32 = F32::fused_multiply_add(
         1.00000011920928955078125f32,
@@ -249,10 +251,11 @@ machine Main::main(&mut self) reaches Process {
         Self::with_source(
             "windows-u32-result-chain",
             "windows_x86_64",
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
 
-boundary trait Process {
+pub boundary trait Process {
     machine current_id() -> u32;
     machine sleep(milliseconds: u32);
 }
@@ -283,7 +286,7 @@ machine sleep_leaf(milliseconds: u32)
     satisfies Process::sleep
     via sleep_binding();
 
-data Main { process: Process; }
+data Main { process: Service<Process>; }
 machine Main::main(&mut self) reaches Process {
     let current: u32 = self.process.current_id();
     self.process.sleep(current);
@@ -304,9 +307,10 @@ machine Main::main(&mut self) reaches Process {
             ""
         };
         let source = format!(
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
-boundary trait Process {{
+pub boundary trait Process {{
     machine ping();
 }}
 
@@ -322,7 +326,7 @@ linux_x86_64 machine ping_binding() -> Binding<9, 6, 11> {{
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
-data Main {{ process: Process; }}
+data Main {{ process: Service<Process>; }}
 machine Main::main(&mut self) reaches Process {{
     {marker}
     self.process.ping();
@@ -391,10 +395,11 @@ machine Main::main(&mut self) {
         Self::with_source(
             name,
             "macos_arm64",
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
 
-boundary trait Delay {
+pub boundary trait Delay {
     machine wait(seconds: u32);
 }
 
@@ -409,7 +414,7 @@ macos_arm64 machine wait_binding() -> Binding<26, 6, 0> {
 
 machine wait_leaf(seconds: u32) satisfies Delay::wait via wait_binding();
 
-data Main { delay: Delay; }
+data Main { delay: Service<Delay>; }
 machine Main::main(&mut self) reaches Delay {
     self.delay.wait(3);
 }
@@ -430,10 +435,11 @@ machine Main::main(&mut self) reaches Delay {
         Self::with_source(
             name,
             "macos_arm64",
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
 
-boundary trait Process {
+pub boundary trait Process {
     machine process_id() -> i32;
 }
 
@@ -450,7 +456,7 @@ machine process_id_leaf() -> i32
     satisfies Process::process_id
     via process_id_binding();
 
-data Main { process: Process; }
+data Main { process: Service<Process>; }
 machine Main::main(&mut self) reaches Process {
     let observed_pid: i32 = self.process.process_id();
 }

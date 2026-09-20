@@ -10,6 +10,15 @@ use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use source::{SourceMap, SourceOrigin};
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
+
+const CORE_SERVICE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../source/library/core/service.omg"
+));
 
 const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
     trait Shape {
@@ -38,7 +47,7 @@ const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
 "#;
 
 const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -57,7 +66,7 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         item: Item;
     }
 
@@ -75,7 +84,7 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
 "#;
 
 const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -92,7 +101,7 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         decoy: Item;
         selected: Item;
     }
@@ -207,9 +216,32 @@ const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
 "#;
 
 fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let mut sources = SourceMap::default();
+    let service_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/service.omg"),
+            CORE_SERVICE.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(PathBuf::from("tests/main.omg"), source.to_owned())
+        .source_id;
+    let service_tokens = Lexer::new(CORE_SERVICE)
+        .tokenize()
+        .expect("tokenize service.omg");
+    let mut syntax =
+        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check dynamic source")
 }
