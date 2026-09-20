@@ -6197,7 +6197,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DELTA-POST-FRONTEND-ALLOCATION-STRESS** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-MEASURABLE-SUBJECT** — mined candidate; verify scope then implement.
-- **DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENT-RELATIONAL-PROOF-SUPPORT** — mined candidate; verify scope then implement.
 - **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT** — mined candidate; verify scope then implement.
 - **DEPENDENT-RELATIONAL-PROOFS-VIEWS** — mined candidate; verify scope then implement.

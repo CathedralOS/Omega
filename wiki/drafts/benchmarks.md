@@ -54,6 +54,7 @@ when this block drifts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | Linux ARM64 host | — | — | measurable | measurable | measurable | pending Linux ARM64 host |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 375860 ms | measured 237670400 B compile | measured 8192 B | measured 1.42244 ms |
+| linux_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 3761.02 ms | measured 83734528 B compile | measured 8192 B | measured 4.39915 ms |
 | macos_arm64 | macOS ARM64 host | — | — | measurable | measurable | measurable | pending macOS ARM64 host |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
 | windows_x86_64 | Windows x86-64 host | — | — | measurable | unavailable (os.wait4 absent on Windows) | measurable | pending Windows x86-64 host |
@@ -63,9 +64,15 @@ when this block drifts.
 | alpha_bootstrap | bootstrap chain | — | — | unavailable (realized by the bootstrap chain's own compilers, not this compiler) | unavailable (realized by the bootstrap chain's own compilers, not this compiler) | unavailable (realized by the bootstrap chain's own compilers, not this compiler) | unavailable (realized by the bootstrap chain's own compilers, not this compiler) |
 <!-- benchmark-matrix:end -->
 
-The single measured row came from the w9 session on a Linux x86-64 host
-with a dev-profile `omega`; its numbers live in
-`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`.
+Two measured rows exist. The `cli_mvp` row came from the w9 session on a
+Linux x86-64 host with a dev-profile `omega`; its numbers live in
+`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`. The
+`wrapping_square_sum` row is the dependency-free subject's first
+runtime-measured row — a release-profile `omega` on the same host at
+`54d5dc1cb1` compiled the no-`depend()` project in 3.76s and the native
+executable ran the 2M-iteration wrapping square-sum loop in a 4.4ms
+median, exit 0 on all five runs; its numbers live in
+`tools/benchmark/records/wrapping_square_sum__linux_x86_64__default.json`.
 `cli_mvp` is the canonical compile-and-run smoke subject (expected exit
 0, EOF-tolerant stdin); `prime_counter` was ruled out on this revision
 because its `i32` remainder operation does not legalize to a native
