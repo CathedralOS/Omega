@@ -7813,7 +7813,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   time. No independent slice exists here. Sibling re-mines of the same
   surface: MATHEMATICAL-PREDICATE-PARAMETERS, MATHEMATICAL-FOUNDATIONS-REAL,
   MATH-PROOFS-CALL-SELECTION-OCCURRENCE, MATH-PROOFS-DECLARATION-SELECTION.
-- **TRANSFORM-CODEC-RELOCATION** — mined candidate; verify scope then implement.
+- **TRANSFORM-CODEC-RELOCATION** — verified 54984323b2: duplicate of the
+  live **DURABLE-CODEC-RELOCATION.** item (TASKS.md:6530), which already
+  carries the verified three-site scope (`post_allocation_manifest/codec`,
+  `fixed_view_copy/codec`, `optimized_semantic_wrapper_object/codec` →
+  `representations/` homes) and a dependency-ordered landing plan. Row
+  consumed — the work continues there. Dispatch note: every current leg of
+  that item sits under live fences (register-homes + selected-instructions
+  trees, native-realization `optimized_semantic_wrapper_object`, and the
+  `optimizer_source_organization` gate tables were all claimed at
+  verification time, expiries 22:20Z–00:56Z); leg 4 additionally waits on
+  PIPELINE-OWNER-CONSOLIDATION.
 - **TRANSLATION-VALIDATION** — verified `fcef01c59a`: duplicate pointer to the
   live `**TRANSLATION-VALIDATION.**` item in TASKS_OPTIMIZER.md, which now
   carries the verified frontier. Scope findings: `CallDynamic*` and the
