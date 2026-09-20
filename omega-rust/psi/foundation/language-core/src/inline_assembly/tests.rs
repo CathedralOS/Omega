@@ -1,10 +1,11 @@
 //! Inline assembly tests.
 
 use super::{
-    AsmAuthorityRequirement, AsmCatalogEntry, AsmControlRegister, AsmFenceKind, AsmFlagsDataFlow,
-    AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionSerializationKind,
-    AsmInstructionShape, AsmInterruptFlagEffect, AsmMemoryOrdering, AsmOperandAccess,
-    AsmSchedulingHintKind, AsmTargetApplicability, asm_catalog_entry,
+    AsmAuthorityRequirement, AsmCacheOperationKind, AsmCatalogEntry, AsmControlRegister,
+    AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
+    AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptFlagEffect,
+    AsmMemoryOrdering, AsmOperandAccess, AsmSchedulingHintKind, AsmTargetApplicability,
+    asm_catalog_entry,
 };
 
 #[test]
@@ -378,6 +379,27 @@ fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
         assert!(contract.operands.is_empty());
         assert!(contract.clobbers.is_empty());
     }
+}
+
+#[test]
+fn cache_operation_contracts_pin_machine_owner_and_no_operands() {
+    let AsmCatalogEntry::Contract(contract) =
+        asm_catalog_entry("wbinvd").expect("wbinvd contract")
+    else {
+        panic!("wbinvd must be contracted");
+    };
+    assert_eq!(
+        contract.shape,
+        AsmInstructionShape::CacheOperation(AsmCacheOperationKind::WriteBackInvalidate)
+    );
+    assert_eq!(contract.target, AsmTargetApplicability::X86_64);
+    assert_eq!(
+        contract.required_authority,
+        AsmAuthorityRequirement::MachineOwner
+    );
+    assert_eq!(contract.availability, AsmInstructionAvailability::UserChecked);
+    assert!(contract.operands.is_empty());
+    assert!(contract.clobbers.is_empty());
 }
 
 #[test]
