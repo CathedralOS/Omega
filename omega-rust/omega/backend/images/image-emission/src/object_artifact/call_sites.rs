@@ -955,3 +955,230 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
     }
     Some(bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    //! Rejection pins for the retained ABI-plan coordinates on
+    //! `ForeignCallRelocation`: the selected call plan, the boundary plan's
+    //! call facet, and the boundary plan's state facet are each re-derived at
+    //! image custody, so a retained row that drifts on any of them rejects.
+
+    use super::*;
+    use machine_code::{
+        ForeignCallRelocation, MachineCodeFunction, ProviderExecutionRecord, UnitCallStackEvidence,
+    };
+    use semantic_vocabulary::{EdgeId, OperationId};
+    use target_operations::TerminalPsiProvenance;
+
+    const MACHINE: u64 = 61;
+    const OPERATION: u64 = 61;
+    const EDGE: u64 = 61;
+
+    fn machine() -> MachineId {
+        MachineId::new(MACHINE).expect("machine")
+    }
+
+    fn operation() -> OperationId {
+        OperationId::new(OPERATION).expect("operation")
+    }
+
+    fn edge() -> EdgeId {
+        EdgeId::new(EDGE).expect("edge")
+    }
+
+    /// A zero-argument SysV foreign call whose only stack custody is the
+    /// evaluated plan's 8-byte alignment pad: `sub rsp,8` allocates it before
+    /// the call and `add rsp,8` releases it immediately after.
+    fn zero_argument_foreign_call() -> (MachineCodeFunction, ForeignCallRelocation) {
+        let target = NativeTarget::linux_x64();
+        let signature = calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        };
+        let call_plan = calling_conventions::evaluate_call_plan(
+            calling_conventions::CallingPolicy::native_for_target(target),
+            &signature,
+        )
+        .expect("native call plan");
+        let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            calling_conventions::CallingPolicy::native_for_target(target),
+            &signature,
+        )
+        .expect("ordinary boundary entry plan")
+        .plan()
+        .clone();
+        let locator = target::normalize_foreign_locator(
+            target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libc.so.6".to_vec(),
+                symbol: b"write".to_vec(),
+                version: b"GLIBC_2.2.5".to_vec(),
+            },
+            target::TargetProfile::LinuxX64,
+        )
+        .expect("normalized ELF import");
+        let provider_plan_commitment =
+            task_plans::SameStackProviderPlanCommitment::from_digest([7; 32]);
+        let same_stack_contribution = task_plans::admit_same_stack_contribution(
+            task_plans::SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: 1,
+                provider_plan_commitment,
+                requirement_identity: "libc::write".to_string(),
+                receipt:
+                    task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                        0x4c49_4e55_0001,
+                    )
+                    .expect("same-stack admission receipt"),
+                bytes: 64,
+                alignment: 16,
+            },
+            1,
+            provider_plan_commitment,
+            "libc::write",
+        )
+        .expect("admitted same-stack contribution");
+        // sub rsp,8 | call rel32 | add rsp,8 | ret
+        let bytes = vec![
+            0x48, 0x83, 0xec, 0x08, 0xe8, 0, 0, 0, 0, 0x48, 0x83, 0xc4, 0x08, 0xc3,
+        ];
+        let call_offset = 5;
+        let outbound = machine_code::StackAdjustmentPair {
+            byte_size: 8,
+            allocation_offset: 0,
+            allocation_byte_count: 4,
+            release_offset: 9,
+            release_byte_count: 4,
+        };
+        let call = ForeignCallRelocation {
+            owner: CallSiteOwner::Operation(operation()),
+            operation_ordinal: 0,
+            offset: call_offset,
+            locator,
+            provider_execution: ProviderExecutionRecord::new(1, 1, 1, 1, 1)
+                .expect("provider execution record"),
+            boundary_entry_plan,
+            call_plan,
+            scalar_arguments: Vec::new(),
+            callback_address: None,
+            scalar_result: None,
+            x86_floating_control: None,
+            aarch64_floating_control: None,
+            unit_stack: UnitCallStackEvidence {
+                outbound: Some(outbound),
+            },
+            same_stack_contribution,
+        };
+        let function = MachineCodeFunction {
+            machine: machine(),
+            attachment: None,
+            scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            structural_call_scalar_return: None,
+            parameter_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![operation()],
+                edges: vec![edge()],
+            },
+            bytes,
+            x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
+            unit_stack: None,
+            unit_parameter_homes: Vec::new(),
+            unit_parameters: Vec::new(),
+            scalar_stack: None,
+            internal_calls: Vec::new(),
+            foreign_calls: vec![call.clone()],
+            internal_unit_calls: Vec::new(),
+            internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
+            dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
+            dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_descriptor_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
+            scalar_structural_scalar_field_stores: Vec::new(),
+            unit_affine_cleanup: None,
+            unit_continuations: Vec::new(),
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+            semantic_code_attribution: vec![SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(operation()),
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: 13,
+            }],
+            port_effects: Vec::new(),
+            boundary_settlements: Vec::new(),
+            structural_return: None,
+        };
+        (function, call)
+    }
+
+    fn assert_invalid_foreign_call_argument(
+        function: &MachineCodeFunction,
+        call: &ForeignCallRelocation,
+    ) {
+        let result = validate_foreign_scalar_arguments(NativeTarget::linux_x64(), function, call);
+        assert!(
+            matches!(
+                result,
+                Err(ObjectError::InvalidForeignCallArgument { caller, owner })
+                    if caller == machine() && owner == CallSiteOwner::Operation(operation())
+            ),
+            "expected InvalidForeignCallArgument, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn foreign_call_accepts_the_re_derived_boundary_plan() {
+        let (function, call) = zero_argument_foreign_call();
+        validate_foreign_scalar_arguments(NativeTarget::linux_x64(), &function, &call)
+            .expect("honest foreign call validates");
+    }
+
+    #[test]
+    fn foreign_call_rejects_a_drifted_boundary_state_facet() {
+        let (function, mut call) = zero_argument_foreign_call();
+        let signature = calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        };
+        let expected_state = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            calling_conventions::CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+            &signature,
+        )
+        .expect("ordinary boundary entry plan")
+        .plan()
+        .state
+        .clone();
+        call.boundary_entry_plan.state.saved_state = if expected_state.saved_state.is_empty() {
+            calling_conventions::MachineStateSet::new([
+                calling_conventions::MachineState::VectorRegisters,
+            ])
+        } else {
+            calling_conventions::MachineStateSet::empty()
+        };
+        assert_invalid_foreign_call_argument(&function, &call);
+    }
+
+    #[test]
+    fn foreign_call_rejects_a_divergent_boundary_call_facet() {
+        let (function, mut call) = zero_argument_foreign_call();
+        call.boundary_entry_plan.call.shadow_bytes += 8;
+        assert_invalid_foreign_call_argument(&function, &call);
+    }
+
+    #[test]
+    fn foreign_call_rejects_a_drifted_selected_call_plan() {
+        let (function, mut call) = zero_argument_foreign_call();
+        call.call_plan.stack_alignment += 8;
+        assert_invalid_foreign_call_argument(&function, &call);
+    }
+}
