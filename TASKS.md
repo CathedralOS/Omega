@@ -8508,6 +8508,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `optimizer_source_organization` gate tables were all claimed at
   verification time, expiries 22:20Z–00:56Z); leg 4 additionally waits on
   PIPELINE-OWNER-CONSOLIDATION.
+  Re-verified at `5b839c31ab`: all three codec sites still sit in their
+  transform/native-realization homes (`post_allocation_manifest/codec.rs`,
+  `fixed_view_copy/codec/`, `optimized_semantic_wrapper_object/codec.rs`)
+  and DURABLE-CODEC-RELOCATION stays open; the wrapper codec remains
+  fenced (PIPELINE-WRAPPER-OBJECT-ORPHAN, 22:46Z). Still consumed.
 - **TRANSLATION-VALIDATION** — verified `fcef01c59a`: duplicate pointer to the
   live `**TRANSLATION-VALIDATION.**` item in TASKS_OPTIMIZER.md, which now
   carries the verified frontier. Scope findings: `CallDynamic*` and the
