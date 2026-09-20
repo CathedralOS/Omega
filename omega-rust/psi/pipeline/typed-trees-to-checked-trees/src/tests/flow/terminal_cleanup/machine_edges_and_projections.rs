@@ -451,18 +451,6 @@ fn projected_transition_cleanup_fences_shapes_outside_the_first_checked_cohort()
             "#,
         ),
         (
-            "three-field root",
-            r#"
-            data Token { value: i32; }
-            data Pair { left: Token; middle: Token; right: Token; }
-            data Root {}
-            machine Root::route(pair: Pair) {
-                transition { _ -> next(pair.left) }
-                state next(token: Token) {}
-            }
-            "#,
-        ),
-        (
             "extra affine root",
             r#"
             data Token { value: i32; }
@@ -483,19 +471,6 @@ fn projected_transition_cleanup_fences_shapes_outside_the_first_checked_cohort()
             machine Root::route(pair: Pair) -> i32 {
                 transition { _ -> next(pair.left) }
                 state next(token: Token) -> i32 { 0 }
-            }
-            "#,
-        ),
-        (
-            "nested projection",
-            r#"
-            data Token { value: i32; }
-            data Inner { token: Token; spare: Token; }
-            data Pair { left: Inner; right: Token; }
-            data Root {}
-            machine Root::route(pair: Pair) {
-                transition { _ -> next(pair.left.token) }
-                state next(token: Token) {}
             }
             "#,
         ),
@@ -525,6 +500,157 @@ fn projected_transition_cleanup_fences_shapes_outside_the_first_checked_cohort()
                 .for_projected_edge(machine, entry, 0)
                 .is_none(),
             "{case} must remain outside the bounded projected cleanup cohort"
+        );
+    }
+}
+
+#[test]
+fn projected_transition_cleanup_admits_wider_exact_paths() {
+    let cases: [(&str, &str, &[&[&str]], &str); 4] = [
+        (
+            "three-field root",
+            r#"
+            data Token { value: i32; }
+            data Pair { left: Token; middle: Token; right: Token; }
+            data Root {}
+            machine Root::route(pair: Pair) {
+                transition { _ -> next(pair.left) }
+                state next(token: Token) {}
+            }
+            "#,
+            &[&["right"], &["middle"]],
+            "named(name(Token))",
+        ),
+        (
+            "nested projection",
+            r#"
+            data Token { value: i32; }
+            data Inner { token: Token; spare: Token; }
+            data Pair { left: Inner; right: Token; }
+            data Root {}
+            machine Root::route(pair: Pair) {
+                transition { _ -> next(pair.left.token) }
+                state next(token: Token) {}
+            }
+            "#,
+            &[&["right"], &["left", "spare"]],
+            "named(name(Token))",
+        ),
+        (
+            "array element",
+            r#"
+            data Token { value: i32; }
+            data Root {}
+            machine Root::route(items: [Token; 3]) {
+                transition { _ -> next(items[2]) }
+                state next(token: Token) {}
+            }
+            "#,
+            &[&["1"], &["0"]],
+            "named(name(Token))",
+        ),
+        (
+            "array field element",
+            r#"
+            data Token { value: i32; }
+            data Row { items: [Token; 3]; extra: Token; }
+            data Root {}
+            machine Root::route(row: Row) {
+                transition { _ -> next(row.items[1]) }
+                state next(token: Token) {}
+            }
+            "#,
+            &[&["extra"], &["items", "2"], &["items", "0"]],
+            "named(name(Token))",
+        ),
+    ];
+    for (case, source, expected_residuals, expected_type) in cases {
+        let checked = checked(source);
+        let (machine, entry) = machine_and_entry_state(&checked, "route");
+        let edge = checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_projected_edge(machine, entry, 0)
+            .unwrap_or_else(|| panic!("{case} should retain checked projected cleanup"));
+        assert_eq!(
+            edge.transfer.source_parameter_position, 0,
+            "{case}: transfer must name the single source parameter"
+        );
+        assert_eq!(
+            edge.transfer.target_parameter_position, 0,
+            "{case}: transfer must name the single target parameter"
+        );
+        assert_eq!(
+            edge.transfer.type_identity, expected_type,
+            "{case}: moved leaf keeps the target parameter's exact identity"
+        );
+        let residual_paths = edge
+            .residual_affine_discards
+            .iter()
+            .map(|residual| {
+                assert_eq!(
+                    residual.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 0
+                    },
+                    "{case}: residuals keep the source-parameter root"
+                );
+                assert_eq!(
+                    residual.type_identity, expected_type,
+                    "{case}: residual keeps its exact leaf identity"
+                );
+                residual
+                    .path
+                    .iter()
+                    .map(|segment| match segment {
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                            identity.clone()
+                        }
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                            index.to_string()
+                        }
+                        checked_trees::CheckedUnitStructuralPathSegment::Referent => {
+                            panic!("{case}: projected residuals never name a referent")
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            residual_paths.len(),
+            expected_residuals.len(),
+            "{case}: residual count covers exactly the untouched complement"
+        );
+        for (path, expected_path) in residual_paths.iter().zip(expected_residuals.iter()) {
+            assert_eq!(
+                path.len(),
+                expected_path.len(),
+                "{case}: residual path {path:?} length drifted"
+            );
+            for (segment, expected) in path.iter().zip(expected_path.iter()) {
+                assert!(
+                    segment == *expected || segment.ends_with(expected),
+                    "{case}: residual segment {segment} drifted from {expected}"
+                );
+            }
+        }
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_structural_control_cleanups
+                .for_edge(machine, entry, 0)
+                .is_none(),
+            "{case}: whole-root consumers must fail closed on a projected edge"
+        );
+        assert_eq!(
+            crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+                &checked.typed,
+                &checked.facts,
+            ),
+            checked.facts.flow.terminal_structural_control_cleanups,
+            "{case}: projected cleanup reconstruction is deterministic"
         );
     }
 }

@@ -106,18 +106,21 @@ fn build_projected_edge_plan(
     let facts::PlaceRoot::Symbol(argument_root) = argument_place.root else {
         return None;
     };
-    let [
-        facts::PlaceSegment::Field {
-            symbol: moved_field,
-        },
-    ] = argument_place.segments.as_slice()
-    else {
-        return None;
-    };
     if argument_root != source_parameter.symbol {
         return None;
     }
-
+    // Exact projected moves admit field and literal-index segments only; case
+    // projections, computed indexes and referent segments keep the older
+    // fail-closed behavior for the path-sensitive lane.
+    let (moved_type, moved_path) = super::terminal_unit::calls::projected_argument_path(
+        program,
+        state.symbol,
+        0,
+        &argument_place,
+    )?;
+    if moved_path.is_empty() {
+        return None;
+    }
     let discard_parameters =
         checked_whole_affine_discard_parameters(program, facts, machine.symbol, state)?;
     if discard_parameters != [(source_parameter.symbol, 0)]
@@ -163,17 +166,80 @@ fn build_projected_edge_plan(
         return None;
     }
 
-    let (
-        moved_field_identity,
-        moved_type_identity,
-        residual_field_identity,
-        residual_type_identity,
-    ) = super::terminal_unit::exact_two_field_record_projection(
-        program,
-        source_parameter.type_reference,
-        *moved_field,
-        target_parameter.type_reference,
-    )?;
+    // The original direct-field cohort keeps its dedicated validator: one
+    // whole-field move out of a two-field record, one maximal sibling. Wider
+    // exact paths and roots rely on the shared residual complement instead.
+    let narrow = match argument_place.segments.as_slice() {
+        [
+            facts::PlaceSegment::Field {
+                symbol: moved_field,
+            },
+        ] => super::terminal_unit::exact_two_field_record_projection(
+            program,
+            source_parameter.type_reference,
+            *moved_field,
+            target_parameter.type_reference,
+        ),
+        _ => None,
+    };
+    let (moved_type_identity, residual_affine_discards) = match narrow {
+        Some((_, moved_type_identity, residual_field_identity, residual_type_identity)) => (
+            moved_type_identity,
+            vec![CheckedUnitPartialAffineDiscardPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: 0,
+                },
+                path: vec![CheckedUnitStructuralPathSegment::Field(
+                    residual_field_identity,
+                )],
+                type_identity: residual_type_identity,
+            }],
+        ),
+        None => {
+            // The root stays a closed affine record or array: generic,
+            // carried, or destructor-bearing storage cannot partition its
+            // residual custody under this row's exact vocabulary.
+            match program
+                .type_reference_table
+                .type_reference(source_parameter.type_reference)
+            {
+                typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                | typed_trees::types::TypeReferenceNode::Generic {
+                    base_symbol: symbol,
+                    ..
+                } => {
+                    let root = program
+                        .data_definitions()
+                        .iter()
+                        .find(|data| data.symbol == *symbol)?;
+                    if root.properties.carry.is_some()
+                        || !root.lifetime_parameters.is_empty()
+                        || !program.data_type_parameters(root).is_empty()
+                    {
+                        return None;
+                    }
+                }
+                typed_trees::types::TypeReferenceNode::FixedArray { .. } => {}
+                _ => return None,
+            }
+            if super::terminal_unit::types::type_graph_requires_nominal_drop(
+                program,
+                source_parameter.type_reference,
+            ) {
+                return None;
+            }
+            super::terminal_unit::types::projected_move_residuals(
+                program,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: 0,
+                },
+                source_parameter.type_reference,
+                &moved_path,
+                moved_type,
+                target_parameter.type_reference,
+            )?
+        }
+    };
     Some(CheckedStructuralControlProjectedEdgeCleanupPlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -181,21 +247,11 @@ fn build_projected_edge_plan(
         target_state: target.symbol,
         transfer: CheckedStructuralControlProjectedTransferPlan {
             source_parameter_position: 0,
-            path: vec![CheckedUnitStructuralPathSegment::Field(
-                moved_field_identity,
-            )],
+            path: moved_path,
             type_identity: moved_type_identity,
             target_parameter_position: 0,
         },
-        residual_affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: 0,
-            },
-            path: vec![CheckedUnitStructuralPathSegment::Field(
-                residual_field_identity,
-            )],
-            type_identity: residual_type_identity,
-        }],
+        residual_affine_discards,
     })
 }
 

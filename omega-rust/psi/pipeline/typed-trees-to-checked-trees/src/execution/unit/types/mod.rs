@@ -10,7 +10,10 @@ use super::{
     SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode, TypedTrees,
 };
-use checked_trees::CheckedStructuralPathQualification;
+use checked_trees::{
+    CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+};
 use typed_trees::type_identity::TypeIdentityRequest;
 
 mod scalar_fields;
@@ -1953,6 +1956,48 @@ pub(super) fn scalar_type(
             _ => return None,
         }
     }
+}
+
+/// Maximal untouched complement of one projected owned move into a finite
+/// record or array root, in reverse establishment order — the same residual
+/// vocabulary the partial-affine Unit lane publishes for anonymous
+/// temporaries. The projected leaf must itself resolve to a collected
+/// structural shape and carry the target parameter's exact partial-affine
+/// identity, so the transfer names real structural custody rather than a
+/// scalar or byte-carrier move that never had residual partition.
+pub(crate) fn projected_move_residuals(
+    program: &TypedTrees,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    root_type: TypeReferenceHandle,
+    moved_path: &[CheckedUnitStructuralPathSegment],
+    moved_type: TypeReferenceHandle,
+    target_type: TypeReferenceHandle,
+) -> Option<(String, Vec<CheckedUnitPartialAffineDiscardPlan>)> {
+    if moved_path.is_empty() {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let root_identity = shapes.add_partial_affine_type(root_type, &[])?;
+    let moved_identity = shapes.add_partial_affine_type(moved_type, &[])?;
+    if !matches!(
+        shapes.types.get(&moved_identity).map(|plan| &plan.shape),
+        Some(
+            CheckedUnitStructuralTypeShape::Record { .. }
+                | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        )
+    ) {
+        return None;
+    }
+    if shapes.add_partial_affine_type(target_type, &[])? != moved_identity {
+        return None;
+    }
+    let residuals = super::cleanup::partial_affine_residuals(
+        &shapes.types,
+        &source,
+        &root_identity,
+        &[(moved_path.to_vec(), moved_identity.clone())],
+    )?;
+    Some((moved_identity, residuals))
 }
 
 pub(crate) fn byte_sequence_carrier(
