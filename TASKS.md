@@ -6352,7 +6352,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION scope.
 - **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
-- **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
+  Verified scope: re-mines the same race-window residual assigned to
+  **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
+  **BUILD-DIR-ALIAS-RACE-DETECTION**'s record and sibling
+  **HOST-ALIAS-BUILD-DIR-DETECTION**'s verification at `7452910c6e`) — a
+  host alias created between admission's `overlap_key` check and the
+  first write (e.g. a symlink planted inside the window) is invisible to
+  the spelling-level fence in `build-evaluation/src/evidence/filesystem_scope.rs`.
+  Every implementing surface is live-fenced: request/options admission
+  plus `behavior_exclusions` (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION,
+  expires 22:14Z), `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION,
+  23:07Z), `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z), and `build-output`
+  (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
+  exists; retire or re-scope once the sibling lanes land detection.
 - **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
 - **C2L-FAILURE-TRIAGE** — mined candidate; verify scope then implement.
 - **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
