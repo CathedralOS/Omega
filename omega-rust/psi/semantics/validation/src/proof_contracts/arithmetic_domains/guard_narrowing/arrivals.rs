@@ -139,6 +139,18 @@ fn condition_belongs_to_state(
                     .state_parameters(state)
                     .iter()
                     .any(|parameter| parameter.symbol == path.head_symbol)
+                    // The receiver parameter's name path binds to the machine
+                    // symbol, not the `is_self` parameter symbol; a `requires`
+                    // fact on `self` or its fields is a precondition on an
+                    // established input and belongs to every state the
+                    // receiver scope covers (same `attached` rule as
+                    // `ordered_values::build_operand`).
+                    || (path.symbol == path.head_symbol
+                        && path.symbol == machine.symbol
+                        && program
+                            .state_parameters(state)
+                            .iter()
+                            .any(|parameter| parameter.is_self))
                     || (path.symbol == path.head_symbol
                         && program
                             .machine_type_parameters(machine)
