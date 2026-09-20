@@ -6552,6 +6552,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RO-STAGE-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
 - **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
+  Verified scope: the name re-mines WORKSPACE-ROLLOUT's exact-rule promotion
+  territory in TASKS_OPTIMIZER.md — six staged records in
+  `omega-rust/omega/representations/optimization-core/promotions/` must each
+  carry the [promotion contract's](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+  full evidence set before any `Approved status` completes, gated by
+  `exact_rule_rollout_is_complete_and_promotion_gated`. Current state: the
+  `Rollback evidence` rejoin legs for CopyPropagation,
+  GlobalValueNumbering, ProofCheckElision, and
+  SparseConditionalConstantPropagation are under a live claim
+  (PROMOTION-ROLLBACK-REJOIN-LEGS); `Measurement evidence` waits on the
+  BENCHMARKS native-realization failure; owner approval and the
+  `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
+  gate are product decisions, not implementable slices here. Sibling
+  re-mine: RULE-PROMOTION-EVIDENCE-COMPLETION.
 - **RULE-PROMOTION-EVIDENCE-COMPLETION** — mined candidate; verify scope then implement.
 - **RUNTIME-CAPABLE-BINDERS** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT** — mined candidate; verify scope then implement.
