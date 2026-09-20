@@ -10,7 +10,10 @@
 //!   gates clear IF in hardware; trap gates do not, so the deriver masks);
 //! - error-code normalization: a synthetic zero word when hardware pushes no
 //!   code, so every arrival context shares one frame shape;
-//! - the declared register save area, in contract order;
+//! - the declared register save area, in contract order: GPRs push in roster
+//!   order, then vector registers stage through a `movdqu` slot area — vector
+//!   state cannot ride a qword push, so the contract reserves a 16-byte store
+//!   slot per XMM save and emission occupies exactly those slots;
 //! - the member call: the interrupted state is anchored on the stack because
 //!   the member's transitive use may clobber every saved register, so `rsp`
 //!   alignment and restore must route through memory, not a register;
@@ -136,7 +139,9 @@ pub enum X86_64DeriverStubEmissionError {
     /// Arrival contexts disagree on the error-code disposition; one emitted
     /// byte body cannot both synthesize and not synthesize the word.
     DivergentArrivalContexts,
-    /// The save roster names a register the byte recipe cannot push.
+    /// The save roster names a register the byte recipe cannot realize: a
+    /// non-GPR, non-XMM register, a vector index outside xmm0-xmm15, or RSP
+    /// (whose save must ride the hardware frame, not the stub's own stack).
     UnsupportedSavedRegister(MachineRegister),
     /// Interrupt-return boundaries carry no result placement.
     ResultPlacementUnsupported,
@@ -398,10 +403,14 @@ fn project_encoding_plan(
 
     let saved_registers = contract.saved_footprint.registers().as_slice().to_vec();
     for register in &saved_registers {
-        if gpr_code(*register).is_none() || *register == MachineRegister::X86Rsp {
-            return Err(X86_64DeriverStubEmissionError::UnsupportedSavedRegister(
-                *register,
-            ));
+        match register {
+            MachineRegister::X86Xmm(index) if *index < 16 => {}
+            _ if gpr_code(*register).is_some() && *register != MachineRegister::X86Rsp => {}
+            _ => {
+                return Err(X86_64DeriverStubEmissionError::UnsupportedSavedRegister(
+                    *register,
+                ));
+            }
         }
     }
 
@@ -582,8 +591,17 @@ fn encode_stub(plan: &StubEncodingPlan) -> Result<EncodedStub, X86_64DeriverStub
     if plan.synthesize_error_code {
         bytes.extend([0x6a, 0x00]); // push imm8 0 — one normalized qword
     }
+    let vector_saves = vector_save_codes(&plan.saved_registers);
     for register in &plan.saved_registers {
-        append_push(&mut bytes, gpr_code(*register).expect("projected GPR"));
+        if let Some(code) = gpr_code(*register) {
+            append_push(&mut bytes, code);
+        }
+    }
+    if !vector_saves.is_empty() {
+        append_sub_rsp(&mut bytes, vector_saves.len() as u64 * 16)?;
+        for (slot, code) in vector_saves.iter().enumerate() {
+            append_movdqu_rsp(&mut bytes, 0x7f, *code, slot as u64 * 16)?;
+        }
     }
     bytes.extend([0x48, 0x89, 0xe0]); // mov rax, rsp — capture the save-area top
     bytes.extend([0x48, 0x83, 0xe4, 0xf0]); // and rsp, -16
@@ -604,8 +622,16 @@ fn encode_stub(plan: &StubEncodingPlan) -> Result<EncodedStub, X86_64DeriverStub
         .map_err(|_| X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 — unresolved member field
     append_load_rsp(&mut bytes, plan.anchor_offset())?; // mov rsp, [rsp+S]
+    if !vector_saves.is_empty() {
+        for (slot, code) in vector_saves.iter().enumerate() {
+            append_movdqu_rsp(&mut bytes, 0x6f, *code, slot as u64 * 16)?;
+        }
+        append_add_rsp(&mut bytes, vector_saves.len() as u64 * 16)?;
+    }
     for register in plan.saved_registers.iter().rev() {
-        append_pop(&mut bytes, gpr_code(*register).expect("projected GPR"));
+        if let Some(code) = gpr_code(*register) {
+            append_pop(&mut bytes, code);
+        }
     }
     bytes.extend([0x48, 0x83, 0xc4, 0x08]); // add rsp, 8 — drop the error-code word
     bytes.extend([0x48, 0xcf]); // iretq
@@ -613,6 +639,18 @@ fn encode_stub(plan: &StubEncodingPlan) -> Result<EncodedStub, X86_64DeriverStub
         bytes,
         relocation_offset: call_opcode_offset + 1,
     })
+}
+
+/// The roster's vector saves in store order: each XMM entry occupies one
+/// 16-byte `movdqu` slot in the save area the contract reserves for it.
+fn vector_save_codes(saved_registers: &[MachineRegister]) -> Vec<u8> {
+    saved_registers
+        .iter()
+        .filter_map(|register| match register {
+            MachineRegister::X86Xmm(index) => Some(*index),
+            _ => None,
+        })
+        .collect()
 }
 
 fn gpr_code(register: MachineRegister) -> Option<u8> {
@@ -731,6 +769,47 @@ fn append_sub_rsp(bytes: &mut Vec<u8>, amount: u64) -> Result<(), X86_64DeriverS
     Ok(())
 }
 
+fn append_add_rsp(bytes: &mut Vec<u8>, amount: u64) -> Result<(), X86_64DeriverStubEmissionError> {
+    if amount == 0 {
+        return Ok(());
+    }
+    if amount <= 127 {
+        bytes.extend([0x48, 0x83, 0xc4, amount as u8]);
+    } else {
+        let amount = u32::try_from(amount)
+            .map_err(|_| X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
+        bytes.extend([0x48, 0x81, 0xc4]);
+        bytes.extend_from_slice(&amount.to_le_bytes());
+    }
+    Ok(())
+}
+
+/// `movdqu` between an XMM register and its `[rsp+disp]` save slot — unaligned
+/// because the slot area sits above the stub's `and rsp, -16` normalization.
+/// `opcode` selects the direction: 0x7f stores, 0x6f loads.
+fn append_movdqu_rsp(
+    bytes: &mut Vec<u8>,
+    opcode: u8,
+    xmm_code: u8,
+    disp: u64,
+) -> Result<(), X86_64DeriverStubEmissionError> {
+    let [modrm, sib, _] = rsp_disp32_modrm(xmm_code, disp)
+        .ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
+    bytes.push(0xf3);
+    if xmm_code >= 8 {
+        bytes.push(0x44); // REX.R extends the register field to xmm8-xmm15
+    }
+    bytes.extend([0x0f, opcode, modrm, sib]);
+    if disp == 0 {
+        // disp0 form carries no displacement field
+    } else if disp <= 127 {
+        bytes.push(disp as u8);
+    } else {
+        bytes.extend_from_slice(&(disp as u32).to_le_bytes());
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Replay: parse the fixed grammar back into its semantic fields and compare
 // against the request's own expectation. A byte the grammar does not admit
@@ -742,6 +821,10 @@ struct DecodedStub {
     mask_at_entry: bool,
     synthesized_error_code: bool,
     saved_registers: Vec<u8>,
+    /// Vector saves as (xmm code, slot displacement) pairs in store order;
+    /// the restore half replays them in the same order before the `add rsp`.
+    vector_saves: Vec<(u8, u64)>,
+    vector_save_bytes: u64,
     reserved_frame_bytes: u64,
     anchor_offset: u64,
     stack_operands: Vec<(u32, u64, u8)>,
@@ -750,14 +833,21 @@ struct DecodedStub {
 }
 
 fn decoded_expectation(plan: &StubEncodingPlan, encoded: &EncodedStub) -> DecodedStub {
+    let vector_saves = vector_save_codes(&plan.saved_registers);
     DecodedStub {
         mask_at_entry: plan.mask_at_entry,
         synthesized_error_code: plan.synthesize_error_code,
         saved_registers: plan
             .saved_registers
             .iter()
-            .map(|register| gpr_code(*register).expect("projected GPR"))
+            .filter_map(|register| gpr_code(*register))
             .collect(),
+        vector_saves: vector_saves
+            .iter()
+            .enumerate()
+            .map(|(slot, code)| (*code, slot as u64 * 16))
+            .collect(),
+        vector_save_bytes: vector_saves.len() as u64 * 16,
         reserved_frame_bytes: plan.reserved_frame_bytes,
         anchor_offset: plan.anchor_offset(),
         stack_operands: plan
@@ -787,6 +877,19 @@ fn decode_stub(bytes: &[u8]) -> Result<DecodedStub, X86_64DeriverStubEmissionErr
     let mut saved_registers = Vec::new();
     while let Some(code) = cursor.push_register()? {
         saved_registers.push(code);
+    }
+    // A vector save area sits between the pushes and the anchor: the `sub rsp`
+    // reserves it, then one `movdqu [rsp+disp], xmm` per slot.
+    let vector_save_bytes = if cursor.take(&[0x48, 0x83, 0xec]) {
+        u64::from(cursor.byte()?)
+    } else if cursor.take(&[0x48, 0x81, 0xec]) {
+        u64::from(cursor.u32()?)
+    } else {
+        0
+    };
+    let mut vector_saves = Vec::new();
+    while cursor.peek(&[0xf3]) {
+        vector_saves.push(cursor.movdqu_rsp(0x7f)?);
     }
     cursor.expect(&[0x48, 0x89, 0xe0])?;
     cursor.expect(&[0x48, 0x83, 0xe4, 0xf0])?;
@@ -856,6 +959,27 @@ fn decode_stub(bytes: &[u8]) -> Result<DecodedStub, X86_64DeriverStubEmissionErr
     if cursor.rsp_load()? != anchor_offset {
         return Err(X86_64DeriverStubEmissionError::MalformedEmission);
     }
+    // The restore replays the vector area upward, then releases it before
+    // the pops unwind the push list.
+    let mut restored_vectors = Vec::with_capacity(vector_saves.len());
+    while cursor.peek(&[0xf3]) {
+        restored_vectors.push(cursor.movdqu_rsp(0x6f)?);
+    }
+    if restored_vectors != vector_saves {
+        return Err(X86_64DeriverStubEmissionError::MalformedEmission);
+    }
+    if vector_save_bytes > 0 {
+        let released = if cursor.take(&[0x48, 0x83, 0xc4]) {
+            u64::from(cursor.byte()?)
+        } else if cursor.take(&[0x48, 0x81, 0xc4]) {
+            u64::from(cursor.u32()?)
+        } else {
+            return Err(X86_64DeriverStubEmissionError::MalformedEmission);
+        };
+        if released != vector_save_bytes {
+            return Err(X86_64DeriverStubEmissionError::MalformedEmission);
+        }
+    }
     let mut restored = Vec::with_capacity(saved_registers.len());
     while let Some(code) = cursor.pop_register()? {
         restored.push(code);
@@ -870,6 +994,8 @@ fn decode_stub(bytes: &[u8]) -> Result<DecodedStub, X86_64DeriverStubEmissionErr
         mask_at_entry,
         synthesized_error_code,
         saved_registers,
+        vector_saves,
+        vector_save_bytes,
         reserved_frame_bytes,
         anchor_offset,
         stack_operands,
@@ -968,6 +1094,33 @@ impl StubCursor<'_> {
         }
     }
 
+    /// Parse one `movdqu xmm, [rsp+disp]` (opcode 0x6f) or
+    /// `movdqu [rsp+disp], xmm` (0x7f). Returns (xmm code, displacement);
+    /// REX.R extends the register field to xmm8-xmm15.
+    fn movdqu_rsp(&mut self, opcode: u8) -> Result<(u8, u64), X86_64DeriverStubEmissionError> {
+        self.expect(&[0xf3])?;
+        let extension = if self.take(&[0x44]) { 8 } else { 0 };
+        self.expect(&[0x0f, opcode])?;
+        let (field, disp) = self.rsp_access()?;
+        Ok((extension + field, disp))
+    }
+
+    /// Parse `modrm, sib, disp` of a `[rsp+disp]` access and return the modrm
+    /// register field alongside the displacement.
+    fn rsp_access(&mut self) -> Result<(u8, u64), X86_64DeriverStubEmissionError> {
+        let modrm = self.byte()?;
+        if modrm & 0x07 != 0x04 || self.byte()? != 0x24 {
+            return Err(X86_64DeriverStubEmissionError::MalformedEmission);
+        }
+        let field = (modrm >> 3) & 0x07;
+        match modrm & 0xc0 {
+            0x00 => Ok((field, 0)),
+            0x40 => Ok((field, u64::from(self.byte()?))),
+            0x80 => Ok((field, u64::from(self.u32()?))),
+            _ => Err(X86_64DeriverStubEmissionError::MalformedEmission),
+        }
+    }
+
     /// Parse `modrm, sib, disp` of a `[rsp+disp]` access; returns the decoded
     /// displacement. The register field is fixed by each call site's opcode.
     fn rsp_disp(&mut self, reg_field: u8) -> Result<u64, X86_64DeriverStubEmissionError> {
@@ -1025,19 +1178,19 @@ fn emission_report_fingerprint(emission: &X86_64DeriverStubEmission) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
+        X86_64DeriverStubEmissionError, X86_64DeriverStubMemberCall,
         emit_x86_64_deriver_entry_exit_stub, resolve_x86_64_deriver_stub_member_call,
         validate_x86_64_deriver_entry_exit_stub, validate_x86_64_resolved_deriver_stub,
-        X86_64DeriverStubEmissionError, X86_64DeriverStubMemberCall,
     };
     use calling_conventions::{
-        derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
-        validate_boundary_entry_plan, validate_x86_64_installed_hardware_entry_facts,
         ArrivalContextId, BoundaryEntryPlan, CallSignature, CallingPolicy, EntryControl,
         EntryStack, InstalledEntryFactIdentity, MachineRegime, MachineRegister, MachineState,
         MachineStateSet, Preemption, RegisterSet, StatePlan, ValidatedBoundaryEntryPlan,
         ValidatedX86_64DeriverStub, X86_64ArrivalMechanism, X86_64GateKind,
         X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
         X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
+        derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
+        validate_boundary_entry_plan, validate_x86_64_installed_hardware_entry_facts,
     };
     use semantic_vocabulary::MachineId;
 
@@ -1215,9 +1368,11 @@ mod tests {
         // Five `movabs rax, imm64 ; mov [rsp+o], rax` pairs precede the call.
         let call_offset = usize::from(emission.relocation.opcode_byte_offset);
         assert_eq!(emission.bytes[call_offset], 0xe8);
-        assert!(emission.bytes[..call_offset]
-            .windows(10)
-            .any(|w| { w[..2] == [0x48, 0xb8] && w[2..10] == 1u64.to_le_bytes() }));
+        assert!(
+            emission.bytes[..call_offset]
+                .windows(10)
+                .any(|w| { w[..2] == [0x48, 0xb8] && w[2..10] == 1u64.to_le_bytes() })
+        );
     }
 
     /// A 23-byte integer parameter fragments to three stack pieces whose
@@ -1358,6 +1513,103 @@ mod tests {
             .expect("emission");
         assert_eq!(&emission.emission().bytes[..3], &[0x6a, 0x00, 0x50]);
         assert!(!emission.emission().footprint.masks_maskable_interrupts);
+    }
+
+    /// A boundary whose saved-state law names `VectorRegisters` admits all
+    /// sixteen XMM registers into the roster; the stub stages them through a
+    /// `movdqu` slot area instead of rejecting the non-GPR saves.
+    fn vector_saving_boundary() -> ValidatedBoundaryEntryPlan {
+        let signature = CallSignature {
+            parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let ordinary =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+                .expect("ordinary boundary");
+        let mut call = ordinary.plan().call.clone();
+        call.ordinary_clobbers = gpr_clobbers();
+        call.entry_control = EntryControl::InterruptReturn;
+        let saved_state = MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+            MachineState::VectorRegisters,
+        ]);
+        validate_boundary_entry_plan(
+            BoundaryEntryPlan {
+                call,
+                state: StatePlan {
+                    initial_regime: MachineRegime::X86Long64,
+                    interrupted_state: interrupted_state(),
+                    saved_state,
+                    restored_state: saved_state,
+                    permitted_transitive_use: MachineStateSet::new([
+                        MachineState::GeneralRegisters,
+                        MachineState::Flags,
+                        MachineState::VectorRegisters,
+                    ]),
+                    stack: EntryStack::Dedicated { class: 11 },
+                    preemption: Preemption::Masked,
+                },
+            },
+            &signature,
+        )
+        .expect("interrupt-return boundary")
+    }
+
+    #[test]
+    fn vector_saves_stage_a_movdqu_slot_area() {
+        let boundary = vector_saving_boundary();
+        let stub = stub(
+            0,
+            X86_64GateKind::Trap,
+            X86_64ArrivalMechanism::Exception,
+            &boundary,
+        );
+        let emission = emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &member_call(0x2a))
+            .expect("emission")
+            .emission()
+            .clone();
+        validate_x86_64_deriver_entry_exit_stub(&stub, &boundary, &member_call(0x2a), &emission)
+            .expect("replay");
+        assert_eq!(emission.footprint.saved_registers.as_slice().len(), 31);
+        let bytes = &emission.bytes;
+        // 256-byte vector area, then sixteen slot stores in roster order.
+        assert!(
+            bytes
+                .windows(7)
+                .any(|w| { w[..7] == [0x48, 0x81, 0xec, 0x00, 0x01, 0x00, 0x00][..] })
+        );
+        // xmm0 at [rsp+0]: f3 0f 7f 04 24; xmm15 at [rsp+240]:
+        // f3 44 0f 7f bc 24 f0 00 00 00 — REX.R carries the high index.
+        assert!(
+            bytes
+                .windows(5)
+                .any(|w| w == [0xf3, 0x0f, 0x7f, 0x04, 0x24])
+        );
+        assert!(
+            bytes
+                .windows(9)
+                .any(|w| w == [0xf3, 0x44, 0x0f, 0x7f, 0xbc, 0x24, 0xf0, 0x00, 0x00])
+        );
+        // The restore reloads the slots before releasing the area.
+        assert!(
+            bytes
+                .windows(5)
+                .any(|w| w == [0xf3, 0x0f, 0x6f, 0x04, 0x24])
+        );
+        assert!(
+            bytes
+                .windows(7)
+                .any(|w| { w[..7] == [0x48, 0x81, 0xc4, 0x00, 0x01, 0x00, 0x00][..] })
+        );
+        let emission = emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &member_call(0x2a))
+            .expect("emission");
+        let resolved =
+            resolve_x86_64_deriver_stub_member_call(&emission, 0x1000, 0x2080).expect("resolve");
+        validate_x86_64_resolved_deriver_stub(&emission, 0x1000, 0x2080, resolved.bytes())
+            .expect("resolved replay");
     }
 
     #[test]
