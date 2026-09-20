@@ -6870,6 +6870,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN** — mined candidate; verify scope then implement.
 - **PSI-HOSTED-ENTRY-RECEIVER-PROVISIONING.** Done (linux x86-64 witnessed): respelled the hosted-receiver provisioning canaries off the closed `in Bound` carrier qualification — the core `Service` carrier admits no authored qualification, so `Service<Console>` alone denotes the toolchain service era — and re-pinned the bare-interface rejections on the moved check-stage diagnostic ("the intrinsic `Service<R>` carrier is the only service value spelling"). `select_provider` operands now spell product-scope paths (`omega_language_std::Console` / `omega_language_std::ConsoleNativeProvider`); the same respell was applied to `tests/omega/pass/expressions/runtime_float_receiver_storage_exit/build.omg` under a companion fixture claim. hosted_receiver{,_linux,_linux_arm64} now pass their provisioning, explicit-exit, erased-receiver, record-array, float-leaf, and bare-interface legs; the linux x86-64 legs emit and execute real ELF artifacts (exit 37/0 + stdout "A" witnessed). Remaining: `hosted_receiver_windows.rs` carries the same stale spellings but sits under the RC-WINDOWS-X64-NATIVE-ROW claim; its windows legs and macOS/aarch64 execution legs remain host-gated.
 - **PSI-NATIVE-FIELD-STORES** — mined candidate; verify scope then implement.
+  Verified scope: re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
+  the recorded `structural field store: scalar field type` frontier in
+  `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store`
+  (the path admits scalar fields while native customers like
+  `filesystem/windows_canonicalize_exit` store structural `UnitResult`;
+  the transitive closure is nested structural sum construction/extraction,
+  borrowed case observation, and whole nominal receiver replacement through
+  shared state/value planning, with composed control and native execution).
+  Implementing surfaces are under live claims:
+  CORPUS-RED-FAMILY-TRAPSTORE holds `structural_scalar_store` +
+  `primitive_store.rs` (expires 21:48Z), GENERAL-CYCLIC-EXECUTION holds
+  `execution/unit/{control,state_graph,composed_control}` (19:37Z),
+  WRITE-ONLY-BORROW/integer-entry-ranges holds `values` +
+  `state_graph/mod.rs` (20:07Z), NOMINAL-FIELD-FLOW/flow-leg holds
+  `flow/{reference_places,transfers}` (20:36Z), and
+  DOMAIN-REFINEMENT-CHAINS-EXTRA holds `facts/field_domain.rs` (22:36Z).
+  Sibling re-mine names: BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.
 - **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY** — mined candidate; verify scope then implement.
 - **PURPOSE-AWARE-PACKAGE-LOCKS** — mined candidate; verify scope then implement.
 - **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
