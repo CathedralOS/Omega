@@ -66,7 +66,10 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `tomllib`, `python samples/apps/squalr/tools/verify.py native --timeout 600`
   exits 0 and prints `Squalr geometry: PASS` (201.9 s); the same acceptance
   passed on macOS ARM64 under the previous pin (66.602 s, Python 3.13,
-  `RUST_MIN_STACK=67108864`). All 12 geometry checks and the
+  `RUST_MIN_STACK=67108864`). The control was re-verified on Omega
+  `ddc66b61` (210.4 s, release build) from a second relocated checkout:
+  `omega update` + `--resume` review re-published `omega_lock 3` for
+  linux_x86_64 there. All 12 geometry checks and the
   17-package/37-edge workspace remain intact. The lock was rebuilt as
   `omega_lock 3` for linux_x86_64 through ordinary update/review after the old
   schema rejected; checkout relocation still requires fresh local-source
