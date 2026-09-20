@@ -2067,12 +2067,20 @@ Owners include
 
   Remaining work:
 
-  - Widen foreign arguments and results. The scalar lane admits fixed-width
-    integers only; add floating-point and other admitted scalar shapes. Borrowed
-    flat-record projections compose with scalars in retained formal order
-    (`abstract-operations-to-target-operations/src/lowering/unit/boundary_call/normalized_foreign.rs`).
-    Add owned aggregates and dynamic descriptors without replacing the shared
-    formal-order mapping with signature-shape-specific routes.
+  - Widen foreign arguments and results. The scalar lane now admits every
+    `fixed_native_scalar_shape` kind — fixed-width integers, booleans, and
+    `IeeeFloat` binary32/64 — with retained-order sources resolved by the same
+    dominance precedence as the ordinary call lanes, in lowering and in
+    crate-local replay validation
+    (`abstract-operations-to-target-operations/src/lowering/unit/boundary_call/normalized_foreign.rs`),
+    witnessed on all four targets by
+    `normalized_foreign_calls::normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources`.
+    `target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
+    still validates Integer only, so selected-instruction admission of the
+    widened shapes is the next leg. Borrowed flat-record projections compose
+    with scalars in retained formal order. Add owned aggregates and dynamic
+    descriptors without replacing the shared formal-order mapping with
+    signature-shape-specific routes.
   - Dynamic descriptor calls. Target lowering produces
     `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
     and the `...WithDynamicArguments` calls, and

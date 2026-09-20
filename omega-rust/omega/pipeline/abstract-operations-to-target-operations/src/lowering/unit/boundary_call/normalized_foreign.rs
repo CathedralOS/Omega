@@ -1,16 +1,21 @@
 //! Normalized foreign scalar and structural argument and result projection.
 
-use super::super::super::scalar_abi::fixed_native_integer_shape;
+use super::super::super::control_flow::scalar_sources::{ScalarSources, resolved_source};
+use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
     resolve_structural_field_path, structural_parameter_shape,
 };
+#[cfg(test)]
+use super::KnownUnitInteger;
 use super::{
-    BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, KnownUnitInteger, LoweringError,
-    MachineId, NativeTarget, OperationId, PlaceId, ScalarType, StructuralAccess,
-    StructuralPathSegment, StructuralTypeId, StructuralTypeLookup, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
-    ValueId, ValueLocation, ValueShape,
+    AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
+    MachineId, NativeTarget, OperationId, PlaceId, StructuralAccess, StructuralPathSegment,
+    StructuralTypeId, StructuralTypeLookup, TargetStructuralArgument, TargetStructuralParameter,
+    TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId, ValueLocation,
+    ValueShape,
 };
+#[cfg(test)]
+use semantic_vocabulary::BlockId;
 
 /// Lower source-rooted borrowed structural arguments for one evaluated
 /// normalized foreign call, preserving the exact caller place, semantic field
@@ -158,12 +163,21 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
         .collect()
 }
 
+/// Scalar foreign arguments admit every fixed-native scalar shape — Booleans,
+/// fixed-width integers, and IEEE floats — and resolve their sources through
+/// the same dominating-definition precedence ordinary call lanes use:
+/// retained integer identities and scalar homes, then boolean and IEEE
+/// immediates, block parameters, and the caller's declared parameters.
+/// Aggregate ABI classification stays outside this lane; owned arguments still
+/// fail closed in the structural projection.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     boundary: BoundaryMachineId,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
+    function: &AbstractFunction,
     arguments: &[ValueId],
     boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
-    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
+    sources: &ScalarSources<'_>,
     result_shape: Option<ValueShape>,
     native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
     structural_parameter_shapes: &[ValueShape],
@@ -177,16 +191,8 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         .scalar_parameters
         .iter()
         .map(|parameter| {
-            let ScalarType::Integer(integer_type) = parameter else {
-                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-            };
-            if integer_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-                || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
-            {
-                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-            }
-            let bytes = integer_type.bits().div_ceil(8);
-            Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+            fixed_native_scalar_shape(*parameter)
+                .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let callback_ordinal = native_callback
@@ -268,17 +274,12 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                     .parameters
                     .get(parameter_index)
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
-                let ScalarType::Integer(integer_type) = parameter else {
-                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                };
-                let Some(known) = scalar_values.get(source_value).copied() else {
-                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                };
                 // Keep entry/block coordinates as ordinary SSA sources. In
                 // particular, a ranked backedge supplies a new runtime value;
                 // an immediate or synthetic operation-defined home cannot
                 // stand in for that parameter's identity.
-                let source = known.into_target_source(*source_value);
+                let source = resolved_source(*source_value, function, sources)
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
                 let placed_byte_size = match placement.locations.as_slice() {
                     [
                         ValueLocation::Register {
@@ -296,20 +297,20 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                     ] => *byte_size,
                     _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
                 };
-                if known.scalar_type() != *integer_type
+                if source.scalar_type() != *parameter
                     || source.source_value() != *source_value
                     || placement.shape != *shape
                     || shape.byte_size != placed_byte_size
                     || match source {
                         TargetUnitScalarArgumentSource::Parameter { .. }
-                        | TargetUnitScalarArgumentSource::BlockParameter(_) => false,
+                        | TargetUnitScalarArgumentSource::BlockParameter(_)
+                        | TargetUnitScalarArgumentSource::BooleanImmediate { .. }
+                        | TargetUnitScalarArgumentSource::IeeeFloatImmediate { .. } => false,
                         TargetUnitScalarArgumentSource::IntegerImmediate {
                             scalar_type,
                             value,
                             ..
                         } => semantic_vocabulary::ScalarTerm::integer(scalar_type, value).is_err(),
-                        TargetUnitScalarArgumentSource::BooleanImmediate { .. }
-                        | TargetUnitScalarArgumentSource::IeeeFloatImmediate { .. } => true,
                         TargetUnitScalarArgumentSource::Home(home) => home.shape != *shape,
                     }
                 {
@@ -334,12 +335,34 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
     boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
 ) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+    let scalar_homes = BTreeMap::new();
+    let booleans = BTreeMap::new();
+    let ieee_float_constants = BTreeMap::new();
+    let scalar_block_parameters = BTreeMap::new();
     lower_normalized_foreign_scalar_arguments_with_result(
         boundary,
         declaration,
+        &AbstractFunction {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            entry: BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: abstract_operations::AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: Vec::new(),
+            operations: Vec::new(),
+        },
         arguments,
         boundary_entry_plan,
-        scalar_values,
+        &ScalarSources {
+            integers: scalar_values,
+            scalar_homes: &scalar_homes,
+            booleans: &booleans,
+            ieee_float_constants: &ieee_float_constants,
+            scalar_block_parameters: &scalar_block_parameters,
+        },
         None,
         None,
         &[],
@@ -353,26 +376,22 @@ pub(super) fn lower_normalized_foreign_scalar_result(
     result: Option<abstract_operations::AbstractResult>,
     boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
 ) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
-    let (declaration_result, result) = match (&declaration.result, result) {
+    let (declaration_result, source_value) = match (&declaration.result, result) {
         (terminal_psi::BoundaryMachineResult::Unit, None) => {
             if boundary_entry_plan.call.result.is_some() {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
             return Ok(None);
         }
-        (
-            terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(declaration_result)),
-            Some(result),
-        ) => {
-            let ScalarType::Integer(result_type) = result.scalar_type else {
+        (terminal_psi::BoundaryMachineResult::Scalar(declaration_result), Some(result)) => {
+            if result.scalar_type != *declaration_result {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-            };
-            (*declaration_result, (result.value, result_type))
+            }
+            (*declaration_result, result.value)
         }
         _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
     };
-    let (source_value, result_type) = result;
-    let shape = fixed_native_integer_shape(result_type)
+    let shape = fixed_native_scalar_shape(declaration_result)
         .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
     let Some(placement) = boundary_entry_plan.call.result.as_ref() else {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
@@ -387,16 +406,13 @@ pub(super) fn lower_normalized_foreign_scalar_result(
     else {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     };
-    if declaration_result != result_type
-        || placement.shape != shape
-        || *byte_size != shape.byte_size
-    {
+    if placement.shape != shape || *byte_size != shape.byte_size {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
     Ok(Some(TargetUnitScalarHomeRequirement {
         defining_operation,
         source_value,
-        scalar_type: ScalarType::Integer(result_type),
+        scalar_type: declaration_result,
         shape,
     }))
 }

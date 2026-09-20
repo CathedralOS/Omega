@@ -1213,28 +1213,22 @@ impl Replay<'_> {
             .scalar_parameters
             .iter()
             .map(|parameter| {
-                let ScalarType::Integer(integer) = parameter else {
-                    return Err(psi_operation);
-                };
-                structural_signatures::fixed_native_integer_shape(*integer).ok_or(psi_operation)
+                structural_signatures::fixed_native_scalar_shape(*parameter).ok_or(psi_operation)
             })
             .collect::<Result<Vec<_>, _>>()?;
         let expected_result = match (result, &declaration.result) {
             (AbstractBoundaryResult::Unit, terminal_psi::BoundaryMachineResult::Unit) => None,
             (
                 AbstractBoundaryResult::Scalar(result),
-                terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(declared)),
+                terminal_psi::BoundaryMachineResult::Scalar(declared),
             ) => {
                 // A scalar result needs the attached Unit frame to retain the
-                // home, and the declared result must be the same fixed-width
-                // integer the abstract result names.
-                let ScalarType::Integer(result_type) = result.scalar_type else {
-                    return Err(psi_operation);
-                };
-                if *declared != result_type || self.source.attachment.is_none() {
+                // home, and the declared result must be the same fixed-native
+                // scalar the abstract result names.
+                if *declared != result.scalar_type || self.source.attachment.is_none() {
                     return Err(psi_operation);
                 }
-                let shape = structural_signatures::fixed_native_integer_shape(result_type)
+                let shape = structural_signatures::fixed_native_scalar_shape(*declared)
                     .ok_or(psi_operation)?;
                 Some((
                     TargetUnitScalarHomeRequirement {
@@ -1376,13 +1370,14 @@ impl Replay<'_> {
             };
             let source_invalid = match &actual.source {
                 TargetUnitScalarArgumentSource::Parameter { .. }
-                | TargetUnitScalarArgumentSource::BlockParameter(_) => {
-                    let ScalarType::Integer(integer) = declaration.scalar_parameters[index] else {
-                        return Err(psi_operation);
-                    };
-                    self.integer_argument_source(psi_operation, *value, integer, &actual.source)
-                        .is_err()
-                }
+                | TargetUnitScalarArgumentSource::BlockParameter(_) => self
+                    .scalar_argument_source(
+                        psi_operation,
+                        *value,
+                        declaration.scalar_parameters[index],
+                        &actual.source,
+                    )
+                    .is_err(),
                 TargetUnitScalarArgumentSource::IntegerImmediate {
                     defining_operation,
                     source_value,
@@ -1406,13 +1401,50 @@ impl Replay<'_> {
                             )
                         })
                 }
+                TargetUnitScalarArgumentSource::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value: literal,
+                } => {
+                    *source_value != *value
+                        || !self.source.operations.iter().any(|operation| {
+                            matches!(
+                                operation,
+                                AbstractOperation::BooleanConstant {
+                                    psi_operation,
+                                    result,
+                                    value
+                                } if *psi_operation == *defining_operation
+                                    && *result == *source_value
+                                    && *value == *literal
+                            )
+                        })
+                }
+                TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value,
+                    value: literal,
+                } => {
+                    *source_value != *value
+                        || !self.source.operations.iter().any(|operation| {
+                            matches!(
+                                operation,
+                                AbstractOperation::IeeeFloatConstant {
+                                    psi_operation,
+                                    result,
+                                    value
+                                } if *psi_operation == *defining_operation
+                                    && *result == *source_value
+                                    && *value == *literal
+                            )
+                        })
+                }
                 TargetUnitScalarArgumentSource::Home(home) => {
                     home.source_value != *value
                         || home.shape != *shape
                         || home.defining_operation == psi_operation
                         || retained_scalar_homes.get(&home.defining_operation) != Some(&home)
                 }
-                _ => true,
             };
             // When a retained callback claims a native-only slot, every
             // semantic scalar at or after its ordinal shifts one placement
@@ -1720,7 +1752,12 @@ impl Replay<'_> {
                 {
                     return Err(psi_operation);
                 }
-                self.integer_argument_source(psi_operation, source_value, i32_type, &row.source)
+                self.scalar_argument_source(
+                    psi_operation,
+                    source_value,
+                    ScalarType::Integer(i32_type),
+                    &row.source,
+                )
             }
             BoundaryRealization::HostedReadByte(_) => {
                 // The hosted byte read writes one `[empty, byte]` sum result:
@@ -1790,14 +1827,14 @@ impl Replay<'_> {
     /// `IntegerConstant` the source body already defined, or the durable home
     /// one earlier integer result left behind. Every other `source` kind is
     /// a substitution.
-    fn integer_argument_source(
+    fn scalar_argument_source(
         &self,
         psi_operation: OperationId,
         source_value: ValueId,
-        scalar_type: IntegerType,
+        scalar_type: ScalarType,
         source: &TargetUnitScalarArgumentSource,
     ) -> Result<(), OperationId> {
-        let expected_scalar = ScalarType::Integer(scalar_type);
+        let expected_scalar = scalar_type;
         let valid = match source {
             TargetUnitScalarArgumentSource::Parameter {
                 parameter_index,
@@ -1833,7 +1870,7 @@ impl Replay<'_> {
                 value,
             } => {
                 *actual == source_value
-                    && *actual_type == scalar_type
+                    && ScalarType::Integer(*actual_type) == expected_scalar
                     && actual_type.admits(*value)
                     && self.source.operations.iter().any(|operation| {
                         matches!(
@@ -1850,21 +1887,60 @@ impl Replay<'_> {
                         )
                     })
             }
+            TargetUnitScalarArgumentSource::BooleanImmediate {
+                defining_operation,
+                source_value: actual,
+                value,
+            } => {
+                *actual == source_value
+                    && expected_scalar == ScalarType::Boolean
+                    && self.source.operations.iter().any(|operation| {
+                        matches!(
+                            operation,
+                            AbstractOperation::BooleanConstant {
+                                psi_operation: produced,
+                                result,
+                                value: literal,
+                            } if *produced == *defining_operation
+                                && *result == *actual
+                                && *literal == *value
+                        )
+                    })
+            }
+            TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                defining_operation,
+                source_value: actual,
+                value,
+            } => {
+                *actual == source_value
+                    && expected_scalar == ScalarType::IeeeFloat(value.format())
+                    && self.source.operations.iter().any(|operation| {
+                        matches!(
+                            operation,
+                            AbstractOperation::IeeeFloatConstant {
+                                psi_operation: produced,
+                                result,
+                                value: literal,
+                            } if *produced == *defining_operation
+                                && *result == *actual
+                                && *literal == *value
+                        )
+                    })
+            }
             TargetUnitScalarArgumentSource::Home(home) => {
                 home.source_value == source_value
                     && home.scalar_type == expected_scalar
                     && home.defining_operation != psi_operation
                     && Some(home.shape)
-                        == structural_signatures::fixed_native_integer_shape(scalar_type)
+                        == structural_signatures::fixed_native_scalar_shape(scalar_type)
                     && self.source.operations.iter().any(|operation| {
-                        integer_home_result(operation).is_some_and(|(produced, result)| {
+                        scalar_home_result(operation).is_some_and(|(produced, result)| {
                             produced == home.defining_operation
                                 && result.value == home.source_value
                                 && result.scalar_type == home.scalar_type
                         })
                     })
             }
-            _ => false,
         };
         if valid { Ok(()) } else { Err(psi_operation) }
     }
@@ -3375,6 +3451,74 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             scalar_type,
             ..
         } => integer(*psi_operation, *result, *scalar_type),
+        _ => return None,
+    })
+}
+
+/// Non-integer scalar producers: boolean and IEEE results that
+/// `integer_home_result` does not project. Integer-producing operations
+/// delegate there first so one projector owns each operation kind.
+fn scalar_home_result(operation: &AbstractOperation) -> Option<(OperationId, AbstractResult)> {
+    if let Some(result) = integer_home_result(operation) {
+        return Some(result);
+    }
+    let boolean = |operation: OperationId, result: ValueId| {
+        (
+            operation,
+            AbstractResult {
+                value: result,
+                scalar_type: ScalarType::Boolean,
+            },
+        )
+    };
+    Some(match operation {
+        AbstractOperation::BooleanStructuralField {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::BooleanNot {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::BooleanEqual {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerEqual {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerLessThan {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerLessOrEqual {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IeeeFloatCompare {
+            psi_operation,
+            result,
+            ..
+        } => boolean(*psi_operation, *result),
+        AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+            psi_operation,
+            result,
+            format,
+            ..
+        } => (
+            *psi_operation,
+            AbstractResult {
+                value: *result,
+                scalar_type: ScalarType::IeeeFloat(*format),
+            },
+        ),
         _ => return None,
     })
 }

@@ -1,6 +1,7 @@
 //! Boundary settlement lowering. Installed providers use ordinary call transport.
 
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
+use super::super::control_flow::scalar_sources::ScalarSources;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::structural_sum_layout;
@@ -33,6 +34,10 @@ pub(in crate::lowering) fn lower_boundary_call(
         (OperationId, StructuralTypeDeclaration, Vec<u8>),
     >,
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    scalar_homes: &mut BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    booleans: &BTreeMap<ValueId, (OperationId, bool)>,
+    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
+    scalar_block_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
     nonreturning_boundary: &mut bool,
@@ -88,9 +93,16 @@ pub(in crate::lowering) fn lower_boundary_call(
                 let scalar_arguments = lower_normalized_foreign_scalar_arguments_with_result(
                     *boundary,
                     declaration,
+                    function,
                     arguments,
                     &foreign.boundary_entry_plan,
-                    scalar_values,
+                    &ScalarSources {
+                        integers: scalar_values,
+                        scalar_homes: &*scalar_homes,
+                        booleans,
+                        ieee_float_constants,
+                        scalar_block_parameters,
+                    },
                     result_home.map(|home| home.shape),
                     native_callback,
                     &structural_parameter_shapes,
@@ -118,11 +130,18 @@ pub(in crate::lowering) fn lower_boundary_call(
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 };
                 if let Some(home) = result_home {
-                    insert_known_unit_integer(
-                        scalar_values,
-                        home.source_value,
-                        KnownUnitInteger::Home(home),
-                    )?;
+                    match home.scalar_type {
+                        ScalarType::Integer(_) => insert_known_unit_integer(
+                            scalar_values,
+                            home.source_value,
+                            KnownUnitInteger::Home(home),
+                        )?,
+                        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+                            if scalar_homes.insert(home.source_value, home).is_some() {
+                                return Err(LoweringError::DuplicateValue(home.source_value));
+                            }
+                        }
+                    }
                 }
                 operations.push(TargetUnitOperation::NormalizedForeignCall {
                     psi_operation: *psi_operation,

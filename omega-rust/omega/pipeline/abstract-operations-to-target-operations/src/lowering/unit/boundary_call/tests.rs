@@ -8,8 +8,47 @@ use super::{
     lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
     lower_normalized_foreign_structural_arguments,
 };
+use crate::lowering::control_flow::scalar_sources::ScalarSources;
 use calling_conventions::MachineRegister;
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, IeeeFloatFormat, IeeeFloatValue};
+
+#[derive(Default)]
+struct Sources {
+    integers: BTreeMap<ValueId, KnownUnitInteger>,
+    scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    booleans: BTreeMap<ValueId, (OperationId, bool)>,
+    ieee_float_constants: BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
+    scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
+}
+
+impl Sources {
+    fn view(&self) -> ScalarSources<'_> {
+        ScalarSources {
+            integers: &self.integers,
+            scalar_homes: &self.scalar_homes,
+            booleans: &self.booleans,
+            ieee_float_constants: &self.ieee_float_constants,
+            scalar_block_parameters: &self.scalar_block_parameters,
+        }
+    }
+}
+
+fn function(
+    parameters: Vec<abstract_operations::AbstractParameter>,
+) -> abstract_operations::AbstractFunction {
+    abstract_operations::AbstractFunction {
+        machine: MachineId::new(1).unwrap(),
+        attachment: None,
+        entry: BlockId::new(1).unwrap(),
+        parameters,
+        structural_parameters: Vec::new(),
+        result: abstract_operations::AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: Vec::new(),
+        operations: Vec::new(),
+    }
+}
 
 fn declaration(
     boundary: BoundaryMachineId,
@@ -144,12 +183,18 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
         ),
     ]);
     let (plan, callback) = interleaved_callback(boundary);
+    let function = function(Vec::new());
+    let sources = Sources {
+        integers: scalar_values,
+        ..Default::default()
+    };
     let arguments = lower_normalized_foreign_scalar_arguments_with_result(
         boundary,
         &declaration,
+        &function,
         &[first, second],
         &plan,
-        &scalar_values,
+        &sources.view(),
         None,
         Some(&callback),
         &[],
@@ -169,9 +214,10 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
         lower_normalized_foreign_scalar_arguments_with_result(
             boundary,
             &declaration,
+            &function,
             &[first, second],
             &plan,
-            &scalar_values,
+            &sources.view(),
             None,
             Some(&wrong_ordinal),
             &[],
@@ -189,9 +235,10 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
         lower_normalized_foreign_scalar_arguments_with_result(
             boundary,
             &declaration,
+            &function,
             &[first, second],
             &plan,
-            &scalar_values,
+            &sources.view(),
             None,
             Some(&wrong_plan),
             &[],
@@ -1390,4 +1437,144 @@ fn normalized_foreign_structural_mutations_fail_closed() {
         )
         .is_ok()
     );
+}
+
+#[test]
+fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
+    let boundary = BoundaryMachineId::new(41).unwrap();
+    let f32_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+    let f64_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+    let bool_type = ScalarType::Boolean;
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let mut declaration = declaration(boundary, vec![f64_type, bool_type, f32_type]);
+        declaration.result = terminal_psi::BoundaryMachineResult::Scalar(f64_type);
+        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![
+                    ValueShape::float(8),
+                    ValueShape::integer(1, 1),
+                    ValueShape::float(4),
+                ],
+                result: Some(ValueShape::float(8)),
+            },
+        )
+        .expect("evaluated entry plan")
+        .plan()
+        .clone();
+        let parameter = ValueId::new(50).unwrap();
+        let flag = ValueId::new(51).unwrap();
+        let homed = ValueId::new(52).unwrap();
+        let result = ValueId::new(53).unwrap();
+        let producing = OperationId::new(60).unwrap();
+        let home = TargetUnitScalarHomeRequirement {
+            defining_operation: producing,
+            source_value: homed,
+            scalar_type: f32_type,
+            shape: ValueShape::float(4),
+        };
+        let function = function(vec![abstract_operations::AbstractParameter {
+            value: parameter,
+            scalar_type: f64_type,
+        }]);
+        let sources = Sources {
+            booleans: BTreeMap::from([(flag, (producing, true))]),
+            scalar_homes: BTreeMap::from([(homed, home)]),
+            ..Default::default()
+        };
+        let arguments = lower_normalized_foreign_scalar_arguments_with_result(
+            boundary,
+            &declaration,
+            &function,
+            &[parameter, flag, homed],
+            &plan,
+            &sources.view(),
+            Some(ValueShape::float(8)),
+            None,
+            &[],
+        )
+        .expect("boolean and floating arguments retain evaluated destinations");
+        assert_eq!(arguments.len(), 3);
+        assert_eq!(
+            arguments[0].source,
+            TargetUnitScalarArgumentSource::Parameter {
+                parameter_index: 0,
+                source_value: parameter,
+                scalar_type: f64_type,
+            }
+        );
+        assert_eq!(
+            arguments[1].source,
+            TargetUnitScalarArgumentSource::BooleanImmediate {
+                defining_operation: producing,
+                source_value: flag,
+                value: true,
+            }
+        );
+        assert_eq!(
+            arguments[2].source,
+            TargetUnitScalarArgumentSource::Home(home)
+        );
+        for (argument, declared) in arguments.iter().zip(plan.call.parameters.iter()) {
+            assert_eq!(argument.placement, *declared);
+        }
+
+        let home = lower_normalized_foreign_scalar_result(
+            boundary,
+            &declaration,
+            producing,
+            Some(abstract_operations::AbstractResult {
+                value: result,
+                scalar_type: f64_type,
+            }),
+            &plan,
+        )
+        .expect("floating result home")
+        .expect("scalar result");
+        assert_eq!(home.scalar_type, f64_type);
+        assert_eq!(home.shape, ValueShape::float(8));
+
+        // A substituted source kind fails closed against the declared type.
+        let substituted = Sources {
+            booleans: BTreeMap::from([(parameter, (producing, true)), (flag, (producing, true))]),
+            scalar_homes: sources.scalar_homes.clone(),
+            ..Default::default()
+        };
+        assert!(
+            lower_normalized_foreign_scalar_arguments_with_result(
+                boundary,
+                &declaration,
+                &function,
+                &[parameter, flag, homed],
+                &plan,
+                &substituted.view(),
+                Some(ValueShape::float(8)),
+                None,
+                &[],
+            )
+            .is_err()
+        );
+        // An f32 declaration against an f64 source is likewise refused.
+        let mut mismatched = declaration.clone();
+        mismatched.scalar_parameters[0] = f32_type;
+        assert!(
+            lower_normalized_foreign_scalar_arguments_with_result(
+                boundary,
+                &mismatched,
+                &function,
+                &[parameter, flag, homed],
+                &plan,
+                &sources.view(),
+                Some(ValueShape::float(8)),
+                None,
+                &[],
+            )
+            .is_err()
+        );
+    }
 }

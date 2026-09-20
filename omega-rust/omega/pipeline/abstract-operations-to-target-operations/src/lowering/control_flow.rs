@@ -14,7 +14,7 @@ mod primitive_storage;
 mod records;
 mod references;
 pub(super) mod scalar_arrays;
-mod scalar_sources;
+pub(super) mod scalar_sources;
 mod structural_case;
 mod terminator;
 mod transfers;
