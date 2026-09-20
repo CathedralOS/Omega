@@ -7989,7 +7989,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PASS-CANARY-UNIT-PLAN-CLASS** — mined candidate; verify scope then implement.
 - **PER-RULE-AXIS-ENFORCEMENT** — mined candidate; scope verified, already landed and enforced. Re-mines PER-RULE-COVERAGE's enforcement leg (TASKS_OPTIMIZER.md): the checked per-rule axis table at `tests/architecture/optimizer_rollout/coverage.rs` derives the rule set from `Optimization::ALL` + the stage catalogs, reconciles names/phase/applicability/rollback per row, and fails on any axis absent without a closed absent-reason — with `coverage::tests::the_gate_flags_every_table_failure_mode` proving the gate catches missing rows, unrecorded absent axes, and duplicate entries. Verified green on `7a5a87d5a1`: `cargo nextest run -p omega-architecture-test --test optimizer_rollout` 9/9 pass on Linux x86-64, including `exact_rule_rollout_is_complete_and_promotion_gated`. The residuals the parent item names — missing matrix legs for the 40 uncalled rewrite modules and the parameterised shared matrix harness (~128k hand-maintained test lines) — belong to EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY cataloging and remain open under PER-RULE-COVERAGE itself, not this row.
 - **PERSISTENT-CHECKED-SOURCE-CACHE** — mined candidate; verify scope then implement.
-- **PHYSICAL-ACCESS-PROFILES** — mined candidate; verify scope then implement.
+- **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
+  stub names the physical-lane access-profile surface covered at `9ced81e046`
+  ("backend: cover every access profile through the mixed structural rejoin"):
+  `native-artifact/src/native_artifact/mixed_structural_scalar.rs` pins
+  `every_access_profile_rejoins_terminal` (all four `StructuralAccess` profiles —
+  Owned, SharedBorrow, MutableBorrow, WriteOnlyBorrow — rejoin the terminal
+  machine) and `mismatched_access_profiles_reject`, while
+  `physical/derivation/tests.rs` rejects access substitution inside the
+  normalized foreign structural lane (`normalized_foreign_structural_signature_requires_the_exact_admitted_lane`)
+  and argument-access mutation. Re-verified green at `cdee121ee9`:
+  `cargo nextest run -p native-artifact -E 'test(/access_profile/) or test(/mismatched_access/)'`
+  — 2/2 pass on linux x86-64. The remaining physical-evidence legs (dynamic-call
+  and call-occurrence spans) belong to TRANSLATION-VALIDATION's named remaining
+  work under DYNAMIC-CALL-OCCURRENCE-SPANS, not to access profiles.
 - **PHYSICAL-ENTRY-BRIDGES** — mined candidate; verify scope then implement.
 - **PHYSICAL-ENTRY-END-TO-END** — mined candidate; verify scope then implement.
 - **PIN-CONNECTED-PIPELINE-ROUTE** — mined candidate; verify scope then implement.
