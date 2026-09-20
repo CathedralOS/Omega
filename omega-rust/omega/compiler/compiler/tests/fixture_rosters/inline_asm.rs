@@ -5,6 +5,7 @@ pub const ASM_INTERRUPT_CONTROL_COMPILE: &str = "inline_asm/asm_interrupt_contro
 pub const ASM_FLAGS_COMPILE: &str = "inline_asm/asm_flags_compile";
 pub const ASM_MSR_COMPILE: &str = "inline_asm/asm_msr_compile";
 pub const ASM_CONTROL_REGISTERS_COMPILE: &str = "inline_asm/asm_control_registers_compile";
+pub const ASM_REGISTER_MOVE_COMPILE: &str = "inline_asm/asm_register_move_compile";
 pub const ASM_CLI_REQUIRES_MACHINE_AUTHORITY: &str =
     "inline_asm/asm_cli_requires_machine_authority";
 
@@ -14,6 +15,7 @@ pub const PASS_CANARIES: &[&str] = &[
     ASM_FLAGS_COMPILE,
     ASM_MSR_COMPILE,
     ASM_CONTROL_REGISTERS_COMPILE,
+    ASM_REGISTER_MOVE_COMPILE,
 ];
 
 pub const FAIL_CANARIES: &[&str] = &[ASM_CLI_REQUIRES_MACHINE_AUTHORITY];

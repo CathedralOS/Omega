@@ -204,19 +204,45 @@ fn control_register_contracts_pin_exact_u64_flow_and_machine_authority() {
 }
 
 #[test]
+fn register_move_contracts_delegate_operand_checking_to_the_assignment() {
+    for mnemonic in ["mov", "movq"] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("register-move contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::RegisterMove);
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.target, AsmTargetApplicability::Any);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
 fn catalog_names_semantic_refusal_classes() {
-    assert_eq!(
-        asm_catalog_entry("ret"),
-        Some(AsmCatalogEntry::Refused(
-            AsmInstructionRefusal::HiddenControlExit
-        ))
-    );
-    assert_eq!(
-        asm_catalog_entry("ldr"),
-        Some(AsmCatalogEntry::Refused(
-            AsmInstructionRefusal::UnmodeledMemoryAccess
-        ))
-    );
+    for mnemonic in ["ret", "retq", "call", "br", "blr"] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::HiddenControlExit
+            )),
+            "{mnemonic} stays a hidden-exit refusal"
+        );
+    }
+    for mnemonic in ["ldr", "str", "ldp", "stp", "push", "pop"] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::UnmodeledMemoryAccess
+            )),
+            "{mnemonic} stays an unmodeled-memory refusal"
+        );
+    }
     assert_eq!(asm_catalog_entry("db"), None);
 }
 

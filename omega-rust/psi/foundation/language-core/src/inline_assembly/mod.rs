@@ -19,6 +19,12 @@ pub enum AsmInstructionShape {
     Halt,
     PortOut,
     PortIn,
+    /// A data move between a writable Omega place and a readable value. The
+    /// accepted form carries no memory-addressing operand: it lowers to an
+    /// ordinary checked assignment, so provenance, permission and exact-type
+    /// obligations are the assignment's own. Bracketed `[address]` spellings
+    /// are not expressions and refuse before this shape applies.
+    RegisterMove,
     MemoryFence(AsmFenceKind),
     InterruptControl(AsmInterruptControlKind),
     FlagsSnapshot,
@@ -416,7 +422,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
     use AsmInstructionShape::{
         DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt, InterruptControl,
-        JumpState, MemoryFence, MsrRead, MsrWrite, PortIn, PortOut,
+        JumpState, MemoryFence, MsrRead, MsrWrite, PortIn, PortOut, RegisterMove,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
@@ -656,13 +662,27 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             Refused(HiddenControlExit)
         }
 
-        // Recognize common target spellings so they refuse for the semantic
-        // reason, not as arbitrary unknown text. `mov` is included because its
-        // operand mode may access memory; structured operand decoding will
-        // eventually distinguish its register-only form.
-        "mov" | "movq" | "ldr" | "str" | "ldp" | "stp" | "push" | "pop" => {
-            Refused(UnmodeledMemoryAccess)
-        }
+        // The register-only move is the structured decoding of `mov`: both
+        // operands are ordinary Omega expressions (a writable destination place
+        // and a readable value), so the copy's provenance, permission and
+        // exact-type contract is the ordinary assignment's. A bracketed
+        // `[address]` operand still refuses as unmodeled memory access, and
+        // an authorized view spells its access as an ordinary indexed place.
+        "mov" | "movq" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: RegisterMove,
+            target: Any,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+
+        // Recognize common memory-addressing spellings so they refuse for the
+        // semantic reason, not as arbitrary unknown text.
+        "ldr" | "str" | "ldp" | "stp" | "push" | "pop" => Refused(UnmodeledMemoryAccess),
         _ => return None,
     };
     Some(entry)

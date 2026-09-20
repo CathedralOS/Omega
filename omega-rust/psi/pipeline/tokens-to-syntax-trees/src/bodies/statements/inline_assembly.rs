@@ -35,6 +35,10 @@ use tokens::PunctuationKind;
 ///   (reaches `PortIo`)
 /// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
 ///   Intel dest-first operand order (reaches `PortIo`)
+/// - `asm { mov <dest>, <src> }` -> the ordinary checked assignment
+///   `<dest> = <src>`; `mov`/`movq` accept place/value operands only, so a
+///   bracketed `[address]` operand keeps refusing as unmodeled memory access
+///   and view-addressed data spells its authorized index expression
 /// - x86 fences and `cli`/`sti` -> zero-operand unnameable intrinsics carrying
 ///   their catalog ordering/state/effect contracts
 /// - `pushfq <dest>`            -> `<dest> = asm#pushfq()`; the backend emits
@@ -315,6 +319,30 @@ struct ParsedAsmInstruction {
     contract: language_core::inline_assembly::AsmInstructionContract,
 }
 
+/// A `[address]` operand spells raw memory addressing, not an Omega place:
+/// the catalog's unmodeled-memory refusal applies to the operand rather than
+/// to the instruction spelling. Authorized memory data still moves through an
+/// ordinary typed view such as `self.buffer[index]`.
+fn reject_bracketed_asm_operand(
+    syntax_trees: &SyntaxTrees,
+    mnemonic_site: Input<'_, '_>,
+    mnemonic: &str,
+    operand: ExpressionHandle,
+) -> Result<(), ParseError> {
+    if matches!(
+        syntax_trees.expressions.expression(operand),
+        ExpressionNode::ArrayLiteral(_)
+    ) {
+        return Err(mnemonic_site.error_here(format!(
+            "asm instruction `{mnemonic}` operand uses bracketed `[...]` memory \
+             addressing: no structured operand provenance/permission contract is \
+             modeled for raw memory operands; spell authorized access as a typed \
+             Omega view such as `self.buffer[index]`"
+        )));
+    }
+    Ok(())
+}
+
 fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -325,7 +353,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
+             (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
              `pushfq`, `popfq`, `rdmsr`, `wrmsr`, structured `read_crN`/`write_crN`); opaque forms \
              (`db`, raw bytes) are rejected",
             mnemonic.as_str()
@@ -358,6 +386,30 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     }
 
     match contract.shape {
+        AsmInstructionShape::RegisterMove => {
+            let (destination, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (source, input) = parse_expression_handle(syntax_trees, input)?;
+            reject_bracketed_asm_operand(
+                syntax_trees,
+                mnemonic_site,
+                mnemonic.as_str(),
+                destination,
+            )?;
+            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), source)?;
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
+                        TableAssignment {
+                            target: destination,
+                            value: source,
+                        },
+                    )),
+                    contract,
+                },
+                input,
+            ))
+        }
         AsmInstructionShape::JumpState => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
             Ok((
