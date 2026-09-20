@@ -8238,7 +8238,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   proof engine is exactly what this board must not carry. Row consumed —
   residual is the canonical items'.
 - **PROOF-CACHE-DEPENDENCY-INVALIDATION** — mined candidate; verify scope then implement.
-- **PROOF-DERIVATION-STORE** — mined candidate; verify scope then implement.
+- **PROOF-DERIVATION-STORE.** Resolved — covered by owned sibling rows. The stub re-mines `wiki/drafts/proof_search_cache.md`'s derivation-store leg, which is already delivered and decomposed: the store substrate is `proof/src/derivation_store.rs` (PROOF-DERIVATION-STORE-INDEX, landed `68ce33d9de` — canonical `ProofObligationKey` index, generational `DerivationId` handles, `DerivationStoreFull` refusal, key-granularity invalidate, candidate-only lookups), the `check_proof_plan` consultation is DERIVATION-RECHECK-CACHE (resolved at `28a3cc7fea` — `check_proof_plan_with_derivation_cache` re-decides retained candidates through the admission kernel with `DerivationCacheReport` tallies), measurement gating the whole scheme is PROOF-SEARCH-MEASUREMENT (resolved — `OMEGA_PROOF_MEASUREMENTS`), and the open residual is dependency invalidation, owned by the adjacent PROOF-CACHE-DEPENDENCY-INVALIDATION row. No independent slice remains under this name.
 - **PROOF-DERIVED-LOAN-COMPATIBILITY** — mined candidate; verify scope then implement.
 - **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; scope
   verified: merged alias of PROOF-INTERCHANGE-IMPORT's "arithmetic import"
