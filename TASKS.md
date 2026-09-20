@@ -4448,9 +4448,26 @@ Owners include
     meaning operands to strictly earlier rows, and re-runs
     `kernel_discharge` when every meaning operand is a literal — the
     discharged result rides the shared proof-value space so equality
-    propositions admit it unchanged (landed 2026-09-19). Remaining: no
-    checked obligation cites the binding yet — the checked-trees -> lowered
-    -> Terminal production of a semantic application is still missing.
+    propositions admit it unchanged (landed 2026-09-19). The checked side
+    now produces the binding (landed 2026-09-19): each sealed
+    `FloatSemantics::*` call inside a contract expression —
+    declaration-level or transported `ensures` use site — resolves through
+    the complete toolchain signature via `from_source_identity` (never the
+    leaf spelling) and gains a `CheckedFloatSemanticApplication` row on the
+    new `ProofFacts::float_semantic_applications` side table plus a
+    transitional `SemanticApplication`-keyed projection row for its result.
+    `Format` operands match the const-substituted `FloatFormat` literal
+    against the sealed `BINARY32`/`BINARY64` canonical encodings;
+    `Meaning` operands rejoin declaration invocations, nested applications,
+    or the use site's operand key, and each `==` pairing an application
+    emits its equality at the site coordinate (`None` at the declaration).
+    Producer and kernel discharge meet in
+    `typed-trees-to-checked-trees/src/proof/float_meaning.rs` /
+    `checked-trees/src/checked_trees/proof/float_meaning.rs`. Remaining:
+    `checked-trees-to-lowered-psi` emission of the application rows into
+    Terminal `FloatMeaningSource::SemanticApplication` is still missing
+    (c2l is fenced this wave), so no lowered/Terminal obligation cites the
+    binding yet.
   - The non-call operation result and call result
     [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     now carry the use-site coordinate settled
@@ -4490,8 +4507,9 @@ Owners include
   equality only between projection invocations, so projection-to-
   `FloatSemantics::*` application contracts lack the required obligation.
   Terminal, codec and the verifier now carry exact semantic applications and
-  their operand/result relationships; the open leg is producing them from
-  checked facts. Reuse
+  their operand/result relationships, and checked facts produce the rows —
+  the open leg is `checked-trees-to-lowered-psi` emission of the checked
+  side table into Terminal rows (fenced this wave). Reuse
   `float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract`
   and the signature-selected `numerics::FloatSemanticOperation::kernel_discharge`;
   catalog identity alone is insufficient. An application can produce the

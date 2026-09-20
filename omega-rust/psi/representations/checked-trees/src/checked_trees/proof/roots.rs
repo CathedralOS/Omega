@@ -42,6 +42,12 @@ pub struct ProofFacts {
     pub float_meaning_projection_occurrences: Vec<crate::CheckedFloatMeaningProjectionOccurrence>,
     /// Proof-position equalities over exact float-meaning projection results.
     pub float_meaning_equalities: Vec<crate::CheckedFloatMeaningEqualityProposition>,
+    /// Proof-only applications of sealed `FloatSemantics` catalog rows, keyed
+    /// by the proof value each produced. Each result rides the same
+    /// `float_meaning_projections` table; the projection source stays
+    /// transitional until Terminal lowering rejoins it to the
+    /// `SemanticApplication` carrier.
+    pub float_semantic_applications: Vec<crate::CheckedFloatSemanticApplication>,
     /// Canonical nominal proposition declarations and applications after
     /// transparent aliases and source handles have been eliminated.
     pub proposition_vocabulary: crate::CheckedPropositionVocabulary,
@@ -167,6 +173,7 @@ mod tests {
         assert_eq!(facts.contract_operator_uses, contract_operator_uses);
         assert_eq!(facts.float_meaning_projections, float_meaning_projections);
         assert_eq!(facts.float_meaning_equalities, float_meaning_equalities);
+        assert!(facts.float_semantic_applications.is_empty());
         assert_eq!(facts.proposition_vocabulary, proposition_vocabulary);
         assert!(facts.mathematical_declarations.is_empty());
     }
