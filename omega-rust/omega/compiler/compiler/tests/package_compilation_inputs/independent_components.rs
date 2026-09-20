@@ -141,6 +141,27 @@ pub machine ComponentEntry::main(&mut self) reaches Other invokes Other; {
 }
 "#;
 
+/// The unrelated component renamed to coexist as a second bound dependency:
+/// its public entry names must not collide with the first dependency's.
+const SECOND_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+pub boundary trait Other {
+    machine mark(value: i32);
+}
+
+pub data VtableOther { mark: addr; }
+pub machine VtableOther::mark(value: i32)
+satisfies Other::mark
+via Binding::VtableField(mark);
+
+pub data OtherProvider { }
+pub machine OtherProvider::mark_adapter(value: i32) satisfies Other::mark { }
+
+pub data OtherEntry { other: Service<Other>; }
+pub machine OtherEntry::main(&mut self) reaches Other invokes Other; {
+    self.other.mark(7);
+}
+"#;
+
 fn write_component_package(
     directory: &Path,
     package_name: &str,
@@ -223,6 +244,27 @@ fn write_consuming_root_with(directory: &Path, target_name: &str, extra_build: &
 
 fn write_consuming_root_fused(directory: &Path, target_name: &str) {
     write_consuming_root_selecting(directory, target_name, "Fused", "");
+}
+
+/// The consuming root whose build never selects the dependency's provider at
+/// all. An attached description is then evidence no `Independent` selection
+/// consumes, so the join refuses it rather than silently discarding it.
+fn write_consuming_root_unselected(directory: &Path, target_name: &str) {
+    TempTree::write(
+        directory.join("main.omg"),
+        "data Main { }\nmachine Main::main(&mut self) { }\n",
+    );
+    TempTree::write(
+        directory.join("build.omg"),
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("independent-consumer");
+    builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
+    builder.roots.bind({target_name}::ProgramEntry, Main::main);
+}}
+"#
+        ),
+    );
 }
 
 fn write_consuming_root_selecting(
@@ -863,5 +905,154 @@ fn an_attached_description_is_unmatched_when_the_dependency_selects_fused() {
     rejects_with(
         &diagnostics,
         &["realizes no independently selected provider plan"],
+    );
+}
+
+#[test]
+fn an_attached_description_is_unmatched_without_any_selection() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    write_consuming_root_unselected(&fixture.root, target_name);
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![fixture.published()]))
+        .expect_err("attaching a description declares no selection and grants no authority");
+    rejects_with(
+        &diagnostics,
+        &["realizes no independently selected provider plan"],
+    );
+}
+
+#[test]
+fn a_corrupt_description_fails_independent_verification() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let corrupt = IndependentComponentDescription::new(
+        published.package(),
+        published.expected_subject(),
+        b"these are not canonical component description bytes".to_vec(),
+    );
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![corrupt]))
+        .expect_err("bytes that are not a component description cannot verify");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "not a component description",
+        ],
+    );
+}
+
+#[test]
+fn a_truncated_description_fails_independent_verification() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let truncated = published.description()[..published.description().len() / 2].to_vec();
+    let description = IndependentComponentDescription::new(
+        published.package(),
+        published.expected_subject(),
+        truncated,
+    );
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![description]))
+        .expect_err("a canonical prefix is not a component description");
+    rejects_with(&diagnostics, &["failed independent verification"]);
+}
+
+/// A description realizes exactly the component it was published from, not a
+/// whole dependency edge: a second dependency's own `Independent` selection
+/// stays unmatched when only the first dependency's description is attached.
+#[test]
+fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
+    const OTHER_PACKAGE_MARKER: u8 = 4;
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let other_directory = fixture._tree.0.join("other-component");
+    std::fs::create_dir(&other_directory).expect("create second dependency directory");
+    TempTree::write(other_directory.join("other.omg"), SECOND_COMPONENT_SOURCE);
+    TempTree::write(
+        other_directory.join("build.omg"),
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.package("other-component");
+    builder.select_provider<Other, OtherProvider>(CompositionMode::Fused);
+    builder.roots.bind({target_name}::ProgramEntry, OtherEntry::main);
+}}
+"#
+        ),
+    );
+    TempTree::write(
+        fixture.root.join("main.omg"),
+        "use dep::pick;\nuse dep2::other;\n\ndata Main { }\nmachine Main::main(&mut self) { }\n",
+    );
+    TempTree::write(
+        fixture.root.join("build.omg"),
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("independent-consumer");
+    builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
+    builder.depend_as("dep2", Source::Path {{ location: "../other-component" }});
+    builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
+    builder.select_provider<Other, OtherProvider>(CompositionMode::Independent);
+    builder.roots.bind({target_name}::ProgramEntry, Main::main);
+}}
+"#
+        ),
+    );
+    let inputs = PackageCompilationInputs::new(
+        identity(ROOT_PACKAGE_MARKER),
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(
+                identity(ROOT_PACKAGE_MARKER),
+                "consumer",
+                fixture.root.clone(),
+            ),
+            PackageSourceBinding::new(
+                identity(DEPENDENCY_PACKAGE_MARKER),
+                "component",
+                fixture.dependency.clone(),
+            ),
+            PackageSourceBinding::new(
+                identity(OTHER_PACKAGE_MARKER),
+                "other-component",
+                other_directory,
+            ),
+        ],
+        vec![
+            PackageDependencyBinding::new(
+                identity(ROOT_PACKAGE_MARKER),
+                "dep",
+                identity(DEPENDENCY_PACKAGE_MARKER),
+            ),
+            PackageDependencyBinding::new(
+                identity(ROOT_PACKAGE_MARKER),
+                "dep2",
+                identity(OTHER_PACKAGE_MARKER),
+            ),
+        ],
+    )
+    .expect("three-package independent consumer graph")
+    .with_independent_component_descriptions(vec![fixture.published()])
+    .expect("the first dependency's description attaches to the consuming root");
+    let diagnostics = fixture
+        .compile_root(inputs)
+        .expect_err("the described component cannot realize the second dependency's own selection");
+    rejects_with(
+        &diagnostics,
+        &[
+            "retains independent composition",
+            "no verified component realizes it",
+        ],
     );
 }
