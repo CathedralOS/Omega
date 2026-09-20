@@ -7,6 +7,8 @@ pub(crate) const ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED: &str =
     "data/zero_length_byte_array_literal_arity_rejected";
 pub(crate) const ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED: &str =
     "data/zero_length_byte_literal_length_rejected";
+pub(crate) const ZERO_LENGTH_NON_SCALAR_ARRAY_REJECTED: &str =
+    "data/zero_length_non_scalar_array_rejected";
 
 // Checked source acceptance is owned by compiler/tests/domain_predicate_types.rs.
 pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
@@ -14,6 +16,7 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     ZERO_LENGTH_BYTE_ARRAY_INDEX_REJECTED,
     ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED,
     ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED,
+    ZERO_LENGTH_NON_SCALAR_ARRAY_REJECTED,
 ];
 
 // Checked admission for the empty fixed byte array: `[u8; 0]` is a first-class
@@ -30,6 +33,16 @@ pub(crate) const ZERO_LENGTH_BYTE_ARRAY_USE_FENCE_FAIL_CANARIES: &[&str] = &[
     ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED,
     ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED,
 ];
+
+// The remaining zero-length fixed-array fence lives past checked semantics:
+// check admits `[T; 0]` for any element, and the native route must keep
+// refusing an element without a scalar leaf. Authored source does not reach
+// the terminal verifier's `InvalidStructuralArrayLength` type-table fence --
+// the checked-unit structural shape already refuses a length-0 non-scalar
+// array, unadmitting the machines that carry it -- so the corpus pin records
+// the current surface diagnostic until the fence becomes reachable.
+pub(crate) const ZERO_LENGTH_NON_SCALAR_ARRAY_NATIVE_FAIL_CANARIES: &[&str] =
+    &[ZERO_LENGTH_NON_SCALAR_ARRAY_REJECTED];
 
 pub(crate) const RUNTIME_COPY_THEN_READ_EXIT: &str = "arithmetic/runtime_copy_then_read_exit";
 pub(crate) const RUNTIME_I64_FULL_WIDTH_EXIT: &str = "arithmetic/runtime_i64_full_width_exit";

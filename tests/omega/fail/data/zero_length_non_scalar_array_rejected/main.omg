@@ -1,0 +1,13 @@
+// `[u8; 0]` admits as an empty scalar array, but a zero-length fixed array
+// whose element has no scalar leaf must stay refused. Authored source never
+// reaches the terminal verifier's `InvalidStructuralArrayLength` type-table
+// fence: the checked-unit structural shape refuses a length-0 array of a
+// non-scalar-leaf element first, so `Main::take` and its caller unadmit and
+// native production surfaces the entry-selection rejection below. This pin
+// observes that current surface; a reachable semantic fence would drift it.
+use omega::language::std::console;
+use omega::language::core::service;
+data Rec { x: u8; }
+data Main { console: Service<Console>; }
+machine Main::take(&mut self, rows: [Rec; 0]) -> u64 { rows.len }
+machine Main::main(&mut self) reaches Console { let n: u64 = self.take([]); self.console.exit_process(0); }
