@@ -2,8 +2,10 @@
 
 use checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
-    CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource, CheckedProofOnlyValueType,
-    CheckedTrees, types::PrimitiveType,
+    CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource,
+    CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationError,
+    CheckedFloatSemanticApplicationOperand, CheckedProofOnlyValueType, CheckedTrees,
+    types::PrimitiveType,
 };
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, MachineId, ScalarType};
 use terminal_psi::{
@@ -11,7 +13,8 @@ use terminal_psi::{
     DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
     FloatMeaningSource, FloatProjectionContractIdentity, FloatProjectionInput,
-    FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+    FloatProjectionInputId, FloatSemanticApplication, FloatSemanticApplicationOperand,
+    FloatSemanticContractIdentity, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
     ProofValueId, TerminalMachine, TerminalMachineResult,
 };
 
@@ -614,9 +617,63 @@ fn resolve_float_operation_result_source(
     )))
 }
 
+/// Rejoin each checked semantic application to the proof-value row it
+/// produced. `result` names a dense `float_meaning_projections` row whose
+/// checked source stayed transitional; the row takes the exact
+/// `SemanticApplication` carrier here, before surviving transitional
+/// fallbacks renumber in the caller. Re-applying the same application is
+/// idempotent; a row that already names any other source fails.
+pub(crate) fn rejoin_float_semantic_applications(
+    applications: &[CheckedFloatSemanticApplication],
+    projections: &mut [FloatMeaningProjection],
+) -> Result<(), FloatMeaningProjectionLoweringError> {
+    for application in applications {
+        application
+            .validate()
+            .map_err(FloatMeaningProjectionLoweringError::InvalidSemanticApplication)?;
+        let index = usize::try_from(application.result.0)
+            .map_err(|_| FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow)?;
+        let Some(row) = projections.get_mut(index) else {
+            return Err(FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow);
+        };
+        let expected = FloatSemanticApplication {
+            contract: FloatSemanticContractIdentity {
+                row: application.contract.row,
+                catalog_version: application.contract.catalog_version,
+                commitment: application.contract.commitment,
+            },
+            format: application.format,
+            operands: application
+                .operands
+                .iter()
+                .map(|operand| match operand {
+                    CheckedFloatSemanticApplicationOperand::Format(format) => {
+                        FloatSemanticApplicationOperand::Format(*format)
+                    }
+                    CheckedFloatSemanticApplicationOperand::Meaning(value) => {
+                        FloatSemanticApplicationOperand::Meaning(ProofValueId(value.0))
+                    }
+                })
+                .collect(),
+        };
+        match &row.source {
+            FloatMeaningSource::TransitionalInput(_) => {
+                row.source = FloatMeaningSource::SemanticApplication(expected);
+            }
+            FloatMeaningSource::SemanticApplication(existing) if *existing == expected => {}
+            _ => {
+                return Err(FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow);
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatMeaningProjectionLoweringError {
     InvalidCheckedProjection(CheckedFloatMeaningProjectionError),
+    InvalidSemanticApplication(CheckedFloatSemanticApplicationError),
+    InvalidSemanticApplicationRow,
     InvalidSourceCarrier,
 }
 
