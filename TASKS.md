@@ -7966,7 +7966,13 @@ Platform/cross-host (structurally gated — document host limits):
   or native codegen. A real preserving decode must validate known members,
   capture unknown-member bytes + ordering sidecar, and bind codec identity
   into `OpaqueWireRemainder` — a multi-crate slice (validation + interpreter
-  + codegen), larger than a single bounded leg.
+  + codegen), larger than a single bounded leg. Re-verified at
+  `4c8ebd7ba8c`: `2b000b60660` landed the admission route's current shape —
+  the report scans machine conformances for
+  `PreservingDecode<Policy, Local>::decode_preserving` per schema row
+  (`wire_protocol.rs:410-448`); `decode_preserving` remains recognized
+  only in admission + the `wire.omg` trait declaration, so the frontier
+  and remaining legs are unchanged.
 
 Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
