@@ -330,6 +330,10 @@ impl SelectedProviderPlanFacts {
     /// Attach checked realization reach to provider-selected bounded
     /// requirements. The requirement ceiling stays in the provider schema;
     /// this row is derived implementation evidence used by root composition.
+    /// One requirement identity resolves once per selected plan — distinct
+    /// root traits inheriting the same requirement each retain their own row —
+    /// so the roster key is the (requirement identity, provider plan report
+    /// identity) pair.
     pub fn with_installation_reach_resolutions(
         mut self,
         mut resolutions: Vec<InstallationReachResolution>,
@@ -343,10 +347,12 @@ impl SelectedProviderPlanFacts {
                 })
         });
         for pair in resolutions.windows(2) {
-            if pair[0].requirement_identity == pair[1].requirement_identity {
+            if pair[0].requirement_identity == pair[1].requirement_identity
+                && pair[0].provider_plan_report_identity == pair[1].provider_plan_report_identity
+            {
                 return Err(format!(
-                    "installation reach requirement `{}` has more than one selected resolution",
-                    pair[0].requirement_identity
+                    "installation reach requirement `{}` has more than one selected resolution under provider plan {:#018x}",
+                    pair[0].requirement_identity, pair[0].provider_plan_report_identity
                 ));
             }
         }
@@ -399,18 +405,50 @@ impl SelectedProviderPlanFacts {
         &self.installation_reach_resolutions
     }
 
+    /// Requirement lookup for identities realized by exactly one selected
+    /// plan. A shared requirement identity — distinct root traits may inherit
+    /// the same requirement, so several plans can each carry its row — is
+    /// ambiguous here and yields `None`; scoped callers use
+    /// [`Self::installation_reach_resolution_for_plan`].
     pub fn installation_reach_resolution(
         &self,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
+        let mut matches = self
+            .installation_reach_resolutions
+            .iter()
+            .filter(|resolution| resolution.requirement_identity == requirement_identity);
+        let resolution = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(resolution)
+    }
+
+    /// Resolve one requirement identity under the selected provider plan that
+    /// realized it for this root. Root traits inheriting a shared requirement
+    /// each retain a row under their own selected plan, so the pair
+    /// (requirement identity, provider plan report identity) is the exact
+    /// resolution address.
+    pub fn installation_reach_resolution_for_plan(
+        &self,
+        provider_plan_report_identity: u64,
+        requirement_identity: &str,
+    ) -> Option<&InstallationReachResolution> {
         self.installation_reach_resolutions
             .iter()
-            .find(|resolution| resolution.requirement_identity == requirement_identity)
+            .find(|resolution| {
+                resolution.provider_plan_report_identity == provider_plan_report_identity
+                    && resolution.requirement_identity == requirement_identity
+            })
     }
 
     /// Resolve one root closure from its concrete reach plus exact bounded
     /// requirement dependencies. Absence rejects; an upper bound is never
-    /// silently used as the selected row.
+    /// silently used as the selected row. A requirement identity realized by
+    /// more than one selected plan is ambiguous unscoped and rejects —
+    /// resolve it through the owning root's plan with
+    /// [`Self::resolve_installation_reach_for_plan`].
     pub fn resolve_installation_reach(
         &self,
         concrete_reach: &[String],
@@ -418,12 +456,64 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Vec<String>, String> {
         let mut resolved = concrete_reach.to_vec();
         for requirement_identity in requirement_identities {
-            let Some(row) = self.installation_reach_resolution(requirement_identity) else {
+            if let Some(row) = self.installation_reach_resolution(requirement_identity) {
+                resolved.extend(row.resolved_row.iter().cloned());
+                continue;
+            }
+            if self
+                .installation_reach_resolutions
+                .iter()
+                .any(|resolution| resolution.requirement_identity == *requirement_identity)
+            {
                 return Err(format!(
-                    "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
+                    "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan; resolve it through the root's selected provider plan"
                 ));
-            };
-            resolved.extend(row.resolved_row.iter().cloned());
+            }
+            return Err(format!(
+                "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
+            ));
+        }
+        resolved.sort();
+        resolved.dedup();
+        Ok(resolved)
+    }
+
+    /// Resolve one root closure from its concrete reach plus exact bounded
+    /// requirement dependencies, addressed through the root's own selected
+    /// provider plan. A requirement the root's plan realizes binds that
+    /// plan's row; a requirement realized by exactly one other selected plan
+    /// still resolves unscoped. Any other multiplicity rejects.
+    pub fn resolve_installation_reach_for_plan(
+        &self,
+        concrete_reach: &[String],
+        requirement_identities: &[String],
+        provider_plan_report_identity: u64,
+    ) -> Result<Vec<String>, String> {
+        let mut resolved = concrete_reach.to_vec();
+        for requirement_identity in requirement_identities {
+            if let Some(row) = self.installation_reach_resolution_for_plan(
+                provider_plan_report_identity,
+                requirement_identity,
+            ) {
+                resolved.extend(row.resolved_row.iter().cloned());
+                continue;
+            }
+            if let Some(row) = self.installation_reach_resolution(requirement_identity) {
+                resolved.extend(row.resolved_row.iter().cloned());
+                continue;
+            }
+            if self
+                .installation_reach_resolutions
+                .iter()
+                .any(|resolution| resolution.requirement_identity == *requirement_identity)
+            {
+                return Err(format!(
+                    "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan, none under provider plan {provider_plan_report_identity:#018x}"
+                ));
+            }
+            return Err(format!(
+                "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
+            ));
         }
         resolved.sort();
         resolved.dedup();
