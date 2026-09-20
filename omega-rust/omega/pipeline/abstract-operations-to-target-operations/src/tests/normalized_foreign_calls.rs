@@ -429,6 +429,154 @@ fn normalized_foreign_mut(
 }
 
 #[test]
+fn foreign_parameter_sources_replay_against_exact_entry_and_block_coordinates() {
+    use abstract_operations::{AbstractParameter, ValueBinding};
+    use target_operations::{TargetScalarBlockValue, TargetUnitScalarArgumentSource};
+
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let incoming = ValueId::new(20).unwrap();
+    let other_incoming = ValueId::new(21).unwrap();
+    let joined = ValueId::new(50).unwrap();
+    let other_joined = ValueId::new(51).unwrap();
+    let join_block = BlockId::new(2).unwrap();
+    let shape = ValueShape::integer(4, 4);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for uses_block_parameter in [false, true] {
+            let mut source = empty_plan(MachineId::new(1).unwrap());
+            source.boundary_machines.push(declaration(
+                vec![scalar_type],
+                Vec::new(),
+                terminal_psi::BoundaryMachineResult::Unit,
+            ));
+            let function = &mut source.functions[0];
+            function.parameters = [incoming, other_incoming]
+                .map(|value| AbstractParameter { value, scalar_type })
+                .to_vec();
+            let argument = if uses_block_parameter {
+                joined
+            } else {
+                incoming
+            };
+            function.operations.insert(
+                0,
+                AbstractOperation::BoundaryCall {
+                    psi_operation: OperationId::new(7).unwrap(),
+                    result: AbstractBoundaryResult::Unit,
+                    boundary: BoundaryMachineId::new(1).unwrap(),
+                    arguments: vec![argument],
+                    structural_arguments: Vec::new(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+            );
+            if uses_block_parameter {
+                function.block_entries.push(AbstractBlockEntry {
+                    block: join_block,
+                    parameters: [joined, other_joined]
+                        .map(|value| AbstractParameter { value, scalar_type })
+                        .to_vec(),
+                    structural_parameters: Vec::new(),
+                    operation_offset: 1,
+                });
+                function.operations.insert(
+                    0,
+                    AbstractOperation::Jump {
+                        psi_edge: EdgeId::new(2).unwrap(),
+                        target: join_block,
+                        bindings: [(joined, incoming), (other_joined, other_incoming)]
+                            .map(|(parameter, argument)| ValueBinding {
+                                parameter,
+                                argument,
+                                scalar_type,
+                            })
+                            .to_vec(),
+                        structural_bindings: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    },
+                );
+            }
+            let execution = Execution {
+                plan_report: 0xA1,
+                requirement: REQUIREMENT.into(),
+            };
+            let target = lower(
+                &source,
+                native,
+                &execution,
+                &[(
+                    1,
+                    binding(
+                        native,
+                        CallSignature {
+                            parameters: vec![shape],
+                            result: None,
+                        },
+                    ),
+                )],
+            );
+            crate::validate_abstract_to_target_translation(&source, native, &target)
+                .expect("parameter source rejoins the source declaration");
+            for mutation in 0..5 {
+                let mut changed = target.clone();
+                let TargetUnitOperation::NormalizedForeignCall {
+                    scalar_arguments, ..
+                } = normalized_foreign_mut(&mut changed, 7)
+                else {
+                    panic!("foreign call row")
+                };
+                let argument = &mut scalar_arguments[0];
+                match &mut argument.source {
+                    TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index,
+                        source_value,
+                        scalar_type,
+                    } => match mutation {
+                        0 => *parameter_index = 1,
+                        1 => *source_value = other_incoming,
+                        2 => *scalar_type = ScalarType::Boolean,
+                        3 => {
+                            argument.source = TargetUnitScalarArgumentSource::BlockParameter(
+                                TargetScalarBlockValue {
+                                    block: join_block,
+                                    value: incoming,
+                                    scalar_type: *scalar_type,
+                                },
+                            )
+                        }
+                        _ => argument.parameter_index = 1,
+                    },
+                    TargetUnitScalarArgumentSource::BlockParameter(parameter) => match mutation {
+                        0 => parameter.block = source.functions[0].entry,
+                        1 => parameter.value = other_joined,
+                        2 => parameter.scalar_type = ScalarType::Boolean,
+                        3 => {
+                            argument.source = TargetUnitScalarArgumentSource::Parameter {
+                                parameter_index: 0,
+                                source_value: joined,
+                                scalar_type: parameter.scalar_type,
+                            }
+                        }
+                        _ => argument.parameter_index = 1,
+                    },
+                    _ => panic!("parameter source"),
+                }
+                assert!(
+                    crate::validate_abstract_to_target_translation(&source, native, &changed)
+                        .is_err(),
+                    "forged parameter source {mutation}, block={uses_block_parameter}, target={native:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn normalized_foreign_rows_replay_on_both_linux_targets() {
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (source, execution) = scalar_fixture();

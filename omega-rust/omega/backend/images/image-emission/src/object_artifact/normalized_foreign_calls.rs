@@ -15,8 +15,13 @@
 //! normalization instruction that produces the durable definition after the
 //! call. Result and `Home` records share one per-caller home-area map so a
 //! consumer names the producer's slot exactly. Floating controls name the
-//! call-owned frame slot and the selected save/restore intervals. Callback
-//! materialization stays out of the projection; selection
+//! call-owned frame slot and the selected save/restore intervals.
+//! Incoming and block parameters use ordinary `SelectedCall` custody: the
+//! argument retains its exact SSA value and type, and its span names the call
+//! instruction. The validated selected graph and physical replay own entry
+//! transport and edge copies, including changing values on ranked backedges.
+//! No parameter is relabeled as an immediate or an operation-defined home.
+//! Callback materialization stays out of the projection; selection
 //! rejects callback-bearing calls before they reach this roster at all.
 
 mod floating_control;
@@ -433,6 +438,15 @@ where
             })
             .count();
         let (source, span) = match argument.source {
+            source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
+            | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)) => (
+                machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
+                    source_value: source.source_value(),
+                    scalar_type: source.scalar_type(),
+                    instruction: record.instruction,
+                },
+                instruction_span(fragment, record.instruction).ok_or_else(invalid)?,
+            ),
             target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                 defining_operation,
                 source_value,
