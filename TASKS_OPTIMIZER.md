@@ -129,15 +129,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   which omits doctests. The command cannot pass today: `AGENTS.md` records a
   full `canary_suite` run as red, and
   [known baseline failures](wiki/drafts/known_baseline_failures.md) lists open
-  library and native-differential failures. Two staged records now exist:
-  [promotions/ControlFlowCleanup.md](omega-rust/omega/representations/optimization-core/promotions/ControlFlowCleanup.md)
-  and
-  [promotions/DeadPureScalarElimination.md](omega-rust/omega/representations/optimization-core/promotions/DeadPureScalarElimination.md),
-  each recording that rule's coverage state with a completed `Rollback
-  evidence` field (the every-target rejoin legs in
-  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`)
-  and `Approved status`, owner approval, and measurement evidence still
-  `PENDING` — the measurement leg waits on the native realization failure the
+  library and native-differential failures. Six staged records now exist —
+  the complete Psi-phase selection vocabulary in
+  [promotions/](omega-rust/omega/representations/optimization-core/promotions/),
+  one per rule — each recording that rule's coverage state. Only
+  ControlFlowCleanup and DeadPureScalarElimination carry a completed
+  `Rollback evidence` field (the every-target rejoin legs in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`);
+  the other four name the selected-rule rejoin leg still missing. `Approved
+  status`, owner approval, and measurement evidence stay `PENDING` on all
+  six — the measurement leg waits on the native realization failure the
   BENCHMARKS item records (every `depend()`-ing subject rejects at the
   integer-comparison-occurrence gate). `omega-architecture-test`'s
   `exact_rule_rollout_is_complete_and_promotion_gated` keeps the inventory and
