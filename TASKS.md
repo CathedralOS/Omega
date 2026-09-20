@@ -695,6 +695,18 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
     installation controls on both Windows/macOS; the macOS ordinary Console
     publication above is not installation/replacement acceptance.
 
+  Next native control: reuse the `sink-app` / `logger-kit` package composition
+  from `compiler/tests/behavior_exclusions.rs`, target `macos_arm64`, replace
+  `exclude_service<Sink>()` with
+  `exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput)`, and
+  request `NativeArtifact`. A temporary probe at `ee249ec910` on macOS ARM64
+  reaches `Selection(Legalization(SourceCustodyMismatch))` before publication.
+  The silent service invocation therefore still needs ordinary native custody
+  in `target-operations-to-selected-instructions/src/legalization`, not another
+  authority classifier. After that dependency closes, require native execution
+  with empty output and independent retained-product replay; preserve the
+  existing service-exclusion rejection for the same invocation.
+
   Reuse `terminal_authority_policy/` and the mechanism-closure review;
   classification is not receiving permission. Do not invent a second classifier,
   synthesize receiver approval, or claim that semantic exclusion replay
@@ -3453,7 +3465,7 @@ Owners include
   `requires` contracts bind the realized subject, and `const` binders still
   reject runtime inputs. `compiler/tests/runtime_value_generics.rs` replays
   captured, forwarded, reassigned, guard-established and structural subjects
-  from Terminal artifacts, with five native scenarios on macOS ARM64. None of
+  from Terminal artifacts, with native scenarios on macOS ARM64. None of
   this lets a type depend on a runtime subject:
   `monomorphization/body_rewriting/type_parameter_substitution.rs` rejects a
   runtime-bound binder in every type position, and data declarations parse no
@@ -3492,16 +3504,11 @@ Owners include
     `scalar_case_results::record_reads::call_requirements` as the working
     indexed-field receiver-call control: scalar requirements preserve their
     ordered proof custody without relaxing ownership `entry_claims`.
-    At `29ca2fd46e`, the guarded-subject and state-transition tests (Terminal
-    and native) additionally fail before target lowering with `Terminal
-    proposal must retain every integer comparison occurrence exactly once`.
-    This reproduces with the borrowed-call change absent;
-    **CRASH-CONTRACT** owns the newly required comparison occurrence custody.
-    Recheck those four cases separately from the passing indexed-field case.
     A structural subject over a record local beside a provider receiver gets
     no checked Unit plan
     (**STATE-LOCAL-VALUE-FRONTIER**). Native receivers spell
-    `console: Service<Console> in Bound`; a bare `Console` field stops in
+    `console: Service<Console>`; validity is intrinsic to the closed carrier,
+    not an authored `Bound` qualification. A bare `Console` field stops in
     `image-emission/src/hosted_receiver.rs` (**ENTRY-CONTENT-ROOTS**). Only a
     macOS ARM64 host runs the native module; other hosts report a skip.
 
@@ -3665,14 +3672,6 @@ Owners include
   not collapse nominal identity. Preserve const staging, initialization,
   stack supply and artifact replay.
 
-  The range fixture's scalar consumers and `Main::main` publish Terminal
-  artifacts. Hosted native publication still stops at `Terminal proposal must
-  retain every integer comparison occurrence exactly once`, reproduced with
-  the endpoint change absent at `5bce741c11` on macOS ARM64. The owner is
-  `compilation-report/src/terminal_product/integer_comparisons.rs` under
-  CRASH-CONTRACT. Recheck with `cargo nextest run -p compiler --test canary_suite
-  declared_range_inference_hosted_entry_runs_natively --no-fail-fast` after that
-  comparison-occurrence path is connected, with `RUST_MIN_STACK=67108864`.
   Borrowed-local mutation calls
   (`declared_range_inference_local_effects_retain_pending_terminal_boundaries`)
   still follow STATE-LOCAL-VALUE-FRONTIER. Do not add generic-specific storage
