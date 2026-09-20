@@ -207,10 +207,7 @@ fn arguments(
     {
         let argument_ordinal = u32::try_from(argument_position).ok()?;
         if formal.relevance.is_erased() {
-            let Some(primitive_type) = program.primitive_type_reference(formal.type_reference)
-            else {
-                return None;
-            };
+            let primitive_type = program.primitive_type_reference(formal.type_reference)?;
             let target_erased_parameter_index = u32::try_from(rows.erased.len()).ok()?;
             let retained = target.erased_scalar_parameters.get(rows.erased.len())?;
             if retained.source_position != argument_ordinal

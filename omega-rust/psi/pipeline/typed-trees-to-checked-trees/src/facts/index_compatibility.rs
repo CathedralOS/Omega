@@ -1169,11 +1169,10 @@ pub(crate) fn bound_index_substitutions(
         };
         match slot {
             Slot::Const => {
-                if let Some(parameter) = const_parameters.get(const_index) {
-                    if let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
-                    {
-                        substitutions.push((parameter.symbol, bound));
-                    }
+                if let Some(parameter) = const_parameters.get(const_index)
+                    && let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
+                {
+                    substitutions.push((parameter.symbol, bound));
                 }
                 const_index += 1;
             }

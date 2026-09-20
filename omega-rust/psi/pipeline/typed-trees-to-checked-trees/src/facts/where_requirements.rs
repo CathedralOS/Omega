@@ -241,10 +241,10 @@ fn append_where_requirements(
 /// The nominal data definition a field OWNS inline: `Constrained` wrappers
 /// peel, but a `&T`/`&mut T` field is borrowed storage whose referee's facts
 /// do not ride on this machine's storage.
-fn owned_field_data_definition<'program>(
-    program: &'program TypedTrees,
+fn owned_field_data_definition(
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&'program DataDefinition> {
+) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             owned_field_data_definition(program, *base_type)
@@ -620,12 +620,12 @@ fn where_boolean(
             // A bare Boolean field leaf (`where initialized,`) is a structural
             // Boolean observation at the same path.
             let (path, leaf_type) = where_field_path(program, prefix, definition, expression)?;
-            (program.primitive_type_reference(leaf_type) == Some(PrimitiveType::Bool)).then(|| {
+            (program.primitive_type_reference(leaf_type) == Some(PrimitiveType::Bool)).then_some(
                 CheckedBooleanExpression::StructuralParameterField {
                     parameter_position,
                     path,
-                }
-            })
+                },
+            )
         }
     }
 }
