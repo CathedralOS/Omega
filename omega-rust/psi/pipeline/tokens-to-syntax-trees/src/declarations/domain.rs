@@ -3,8 +3,9 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{DomainAliasDefinition, DomainDefinition, ProofFact};
+use syntax_trees::item::{DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact};
 use syntax_trees::types::TypeReferenceNode;
 use tokens::{KeywordKind, PunctuationKind};
 
@@ -28,33 +29,94 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     // `[u8]` slice). A bracket-prefixed target is parsed as a full type reference;
     // every other target stays the bare-identifier path, so existing named-target
     // declarations are completely unchanged (zero fallout).
-    let (target_type, target_label, input) = if input.at_punctuation(PunctuationKind::LeftBracket) {
-        let (handle, input) =
-            crate::type_syntax::parse_type::parse_type_reference_handle(syntax_trees, input)?;
-        let label = type_reference_target_label(syntax_trees, handle);
-        (handle, label, input)
-    } else {
-        let (target_name, input) = input.take_identifier()?;
-        let handle = syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Named(target_name.clone()));
-        (handle, target_name.to_string(), input)
-    };
+    let (target_type, target_label, target_identifier, input) =
+        if input.at_punctuation(PunctuationKind::LeftBracket) {
+            let (handle, input) =
+                crate::type_syntax::parse_type::parse_type_reference_handle(syntax_trees, input)?;
+            let label = type_reference_target_label(syntax_trees, handle);
+            (handle, label, None, input)
+        } else {
+            let (target_name, input) = input.take_identifier()?;
+            let handle = syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::Named(target_name.clone()));
+            (handle, target_name.to_string(), Some(target_name), input)
+        };
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-    let (domain_name, input) = input.take_identifier()?;
-    let (index_arguments, input) =
+    // A refinement chain (`domain A::B::C`) declares the last segment as a
+    // single-parent refinement of the prefix domain `A::B`; each `::Segment`
+    // continues the chain and may carry its own indexed application.
+    let (first_segment, mut input) = input.take_identifier()?;
+    let (first_arguments, rest) =
         crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, input)?;
+    let mut name_segments = vec![(first_segment, first_arguments)];
+    input = rest;
+    while input.at_punctuation(PunctuationKind::ColonColon) {
+        let rest = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (segment, rest) = rest.take_identifier()?;
+        let (arguments, rest) =
+            crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, rest)?;
+        name_segments.push((segment, arguments));
+        input = rest;
+    }
+    let domain_name = name_segments
+        .last()
+        .expect("a domain chain always holds its first segment")
+        .0
+        .clone();
+    let index_arguments = name_segments
+        .last()
+        .expect("a domain chain always holds its first segment")
+        .1;
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
+    // A chained declaration is authored at the last segment and carries the
+    // leading `self in <parent>` proposition its refinement semantics imply;
+    // the parent path spells the chain's own prefix so a bracketed target
+    // (`[u8]::A::B`) spells only the domain segments that identifiers can name.
+    let refinement_parent = if name_segments.len() > 1 {
+        let parent_span = name_segments[name_segments.len() - 2].0.source_span();
+        let parent_path = syntax_trees.items.insert_identifier_path_members(
+            target_identifier.iter().cloned().chain(
+                name_segments[..name_segments.len() - 1]
+                    .iter()
+                    .map(|(segment, _)| segment.clone()),
+            ),
+        );
+        Some((
+            ProofMembershipFact {
+                value: syntax_trees.expressions.insert(ExpressionNode::SelfValue),
+                domain: parent_path,
+                domain_arguments: name_segments[name_segments.len() - 2].1,
+            },
+            parent_span,
+        ))
+    } else {
+        None
+    };
     let name = if generic_parameters.type_parameters.is_empty() {
         // The combined semantic path is synthesized, but the declaration is still authored at
         // the domain-name token. Retaining that span lets symbol provenance recover the exact
         // package owner without treating the combined spelling as an identity oracle.
         Identifier::new(
-            format!("{target_label}::{domain_name}"),
+            format!(
+                "{target_label}::{}",
+                name_segments
+                    .iter()
+                    .map(|(segment, _)| segment.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            ),
             domain_name.source_span(),
         )
     } else {
-        domain_name
+        Identifier::new(
+            name_segments
+                .iter()
+                .map(|(segment, _)| segment.as_str())
+                .collect::<Vec<_>>()
+                .join("::"),
+            domain_name.source_span(),
+        )
     };
     let (
         alias,
@@ -65,6 +127,11 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         semantic_clause_token_count,
         input,
     ) = if input.at_punctuation(PunctuationKind::Equal) {
+        if refinement_parent.is_some() {
+            return Err(input.error_here(
+                "a domain refinement chain cannot be an alias; write the parent membership in the alias explicitly",
+            ));
+        }
         let (alias, input) = parse_domain_alias(syntax_trees, input)?;
         (
             Some(alias),
@@ -76,8 +143,26 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             input,
         )
     } else {
-        let ((predicate_body, facts, requires_token_count), input) =
+        // The implied parent membership leads the proposition list so authored
+        // `requires` facts append contiguously behind it (parent-first order).
+        let parent_fact = refinement_parent.map(|(membership, parent_span)| {
+            let handle = syntax_trees
+                .items
+                .append_proof_fact(ProofFact::Membership(membership));
+            syntax_trees
+                .items
+                .set_proof_fact_source_span(handle, parent_span);
+            handle
+        });
+        let ((predicate_body, authored_facts, requires_token_count), input) =
             parse_domain_requires(syntax_trees, input)?;
+        let (predicate_body, facts) = match parent_fact {
+            Some(handle) => (
+                language_core::DomainPredicateBody::Present,
+                HandleSpan::from_parts(handle, 1 + authored_facts.count()),
+            ),
+            None => (predicate_body, authored_facts),
+        };
         let ((authored_routes, semantic_clause_token_count), input) =
             parse_domain_establishment(input, predicate_body.is_present())?;
         (

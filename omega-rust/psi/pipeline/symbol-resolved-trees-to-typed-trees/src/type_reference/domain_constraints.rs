@@ -275,8 +275,14 @@ pub(crate) fn select_domain_candidates(
             } else {
                 let local = domain.name.as_str();
                 let qualified = source.symbols.display_path(domain.symbol, "::");
+                // A refinement-chain domain also answers to its carrier-relative
+                // member spelling: `Token in Issued::Fresh` names the
+                // `Token::Issued::Fresh` declaration the way `Token in Issued`
+                // names `Token::Issued`.
+                let member_relative = local.split_once("::").map(|(_, members)| members);
                 qualified == authored_name
                     || ((local == authored_name
+                        || member_relative == Some(authored_name)
                         || local.rsplit("::").next().unwrap_or(local) == authored_name)
                         && domain_exposed_to(source, domain, &qualified, authored_name, reference))
             };

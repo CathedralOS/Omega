@@ -498,7 +498,8 @@ pub(crate) fn domain_requires_provenance(
                 .constituents
                 .iter()
                 .any(|part| visit(program, part.domain_symbol, ancestors))
-        });
+        }) || typed_trees::domain::self_membership_facts(program, domain)
+            .any(|membership| visit(program, membership.domain_symbol, ancestors));
         ancestors.pop();
         routed
     }
