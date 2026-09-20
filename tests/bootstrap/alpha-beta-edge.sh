@@ -76,14 +76,33 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
   esac
 fi
 
+# Seed-execution legs need a host that can run an audited Alpha container.
+# On any other host they refuse (exit 2 at the leaf gates), and the edge then
+# reports unavailable rather than failed: no seed case ran, so none failed.
+ALPHA_SEED_EXECUTABLE=0
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
+esac
+refused=0
+
 echo "--- behavior (conformance) ---"
-if sh "$OMEGA_REPO_ROOT/tests/alpha/conformance.sh"; then :; else rc=1; fi
+if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
+  if sh "$OMEGA_REPO_ROOT/tests/alpha/conformance.sh"; then :; else rc=1; fi
+else
+  echo "alpha conformance: requires macOS arm64 or Windows x64" >&2
+  refused=1
+fi
 
 echo "--- reconstruction (trusted Beta compiler) ---"
-if [ -f "$OMEGA_REPO_ROOT/tests/beta/compiler/reconstruction.sh" ]; then
-  if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/reconstruction.sh"; then :; else rc=1; fi
+if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
+  if [ -f "$OMEGA_REPO_ROOT/tests/beta/compiler/reconstruction.sh" ]; then
+    if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/reconstruction.sh"; then :; else rc=1; fi
+  else
+    echo "reconstruction SKIP - Beta compiler gate not found"
+  fi
 else
-  echo "reconstruction SKIP - Beta compiler gate not found"
+  echo "Beta compiler reconstruction: requires macOS arm64 or Windows x64" >&2
+  refused=1
 fi
 
 echo "--- finite root audit (diagnostic decoder/correspondence) ---"
@@ -94,16 +113,22 @@ else
 fi
 
 echo "--- shared hexadecimal prefix (strict grammar) ---"
-if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/word-prefix.sh"; then :; else rc=1; fi
+if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
+  if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/word-prefix.sh"; then :; else rc=1; fi
+else
+  echo "Beta word prefix: requires macOS arm64 or Windows x64" >&2
+  refused=1
+fi
 
 echo ""
-if [ $rc = 0 ]; then
-  if [ "$ALPHA_VERIFY_MODE" = full ]; then
-    echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction)"
-  else
-    echo "Alpha-to-Beta edge VERIFIED (behavior + exact Beta compiler construction; provenance diagnostic omitted)"
-  fi
-else
+if [ $rc != 0 ]; then
   echo "alpha seed verification FAILED"
+elif [ $refused != 0 ]; then
+  echo "Alpha-to-Beta edge UNAVAILABLE — seed execution requires macOS arm64 or Windows x64"
+  rc=2
+elif [ "$ALPHA_VERIFY_MODE" = full ]; then
+  echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction)"
+else
+  echo "Alpha-to-Beta edge VERIFIED (behavior + exact Beta compiler construction; provenance diagnostic omitted)"
 fi
 exit $rc
