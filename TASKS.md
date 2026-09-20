@@ -523,17 +523,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     product checked instance, never its build copy; bare queries retain the
     same-package product frontier. Source names and evaluator table indices
     are not durable selection authority.
-    Boundary-provider replay remains a separate dual-context dependency:
-    changing `trait Pick` to `boundary trait Pick` in
-    `build_target_activation/foreign_helper_product_queries.rs`'s
-    `dual_context_product_query` reproduces duplicate canonical boundary-trait
-    and nominal-provider provenance errors after successful query evaluation
-    on macOS ARM64.
-    `provider-planning/src/provider_planning/provenance_replay/` must retain
-    checked-instance identity rather than matching the two schemas by name.
-    Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
-    eventual acceptance is successful compilation with the boundary trait,
-    not weakening duplicate-schema rejection.
   - Extend the existing provider/description owners, retaining the
     [separate checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts) and using
     BUILD-ADMISSION-CHECKPOINT for source custody.

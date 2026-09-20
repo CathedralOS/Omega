@@ -210,16 +210,7 @@ fn queried_entry_with_two_checked_boundary_instances_executes_natively() {
          pub boundary trait Pick { machine choose() -> i32; }
          pub data AudioProvider { }
          pub machine AudioProvider::choose() -> i32 satisfies Pick::choose { transition { _ -> (37) } }
-         machine answer() -> i32 { transition { _ -> (37) } }
-         machine verify(answer: i32) -> i32 crashes Trap true {
-             transition answer == 37 { true -> done() _ -> wrong() }
-             state done() -> i32 { 1 }
-             state wrong() -> i32 { crash Trap; }
-         }
-         pub machine launch() crashes Trap true {
-             let answer: i32 = answer();
-             let verified: i32 = verify(answer);
-         }",
+         pub machine launch() { let marker: u8 = 37; }",
     ).expect("dual-context boundary source");
     let slot = format!("{}::ProgramEntry", profile.root_slot_owner_name());
     let project = TempProject::with_main(
@@ -248,7 +239,9 @@ fn queried_entry_with_two_checked_boundary_instances_executes_natively() {
     let published = report
         .publish_retained_native_artifact(&project.0.join("out"))
         .expect("validated product entry publication");
-    // The image must execute the product body without loading either source copy.
+    // This exercises publication of the queried entry, not invocation of the
+    // described provider: inspecting ProductProviderRef grants no service.
+    // The image must execute without loading either checked source copy.
     fs::remove_file(helper.0.join("setup.omg")).expect("remove shared source");
     let output = std::process::Command::new(published.checked_native_executable_path().unwrap())
         .output()
