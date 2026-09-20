@@ -142,12 +142,31 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   establish erased service authority, not that receiver storage;
   `ProviderAttachment` is a specialization witness and cannot serve as an
   ordinary structural argument.
+  Verified on `ddc66b61b5` (linux_x86_64 host, self-contained probe packages,
+  `--target macos_arm64`): the `Service<R>` + `select_provider` + `roots.bind`
+  chain compiles, passes package review, and publishes native output for a
+  one-provider-field entry whose selected provider uses unit-result checked
+  adapters. Recipe pins: provider is `pub data`; adapters are
+  `machine P::m(&mut self, ..) satisfies T::m { }` (trait methods must declare
+  `&mut self`, and adapters may not widen `reaches` beyond the requirement —
+  a requirement that covers delegation carries `reaches X invokes X`);
+  `builder.select_provider<Trait, Provider>()`; every `Service` field anywhere
+  needs its trait's selected plan to hold at least one CheckedAdapter row once
+  any adapters exist ("routed service field .. no exact Fused
+  selected-provider-plan join"), so leaf-only providers cannot join and foreign
+  leaves on providers currently fail realization ("no supplied execution and
+  stack custody", and `via` must name a satisfies requirement plus a
+  `Binding`-returning producer). Calls through a nested carrier's `Service`
+  field do not resolve; the field must sit on the receiver itself.
   `typed-trees-to-checked-trees/src/execution/unit/providers.rs` and independent
   lowering/replay currently limit an attachment to one provider field, while
-  this entry has four. Lowered `attached_unit/providers.rs` also rejects
-  scalar-result provider candidates. These are implementation dependencies
-  under **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and **STATE-LOCAL-VALUE-FRONTIER**,
-  not language-design blockers or permission to inject global provider state.
+  this entry has four (verified: two `Service` fields with selected providers
+  rejoin `0 Terminal attachment identities; expected one`). Lowered
+  `attached_unit/providers.rs` also rejects scalar-result provider candidates,
+  and every window/input/clock op returns a scalar. These are implementation
+  dependencies under **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
+  **STATE-LOCAL-VALUE-FRONTIER**, not language-design blockers or permission to
+  inject global provider state.
   After those dependencies and provider settlement, follow remaining checked
   call, array and cyclic execution failures through their existing owners,
   then finish ordinary package review without automatic admissions. The

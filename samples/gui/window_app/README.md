@@ -49,6 +49,22 @@ The next step is exact declared conformances and provider selection under the
 The historical `std/macos_gui.omg` wrapper is not already a selected conformer to
 these sample-owned boundary traits; matching method names do not supply nominal
 satisfaction. Keep the render loop and its actual storage/effects intact.
+
+Verified recipe (self-contained probe, `ddc66b61b5`, `--target macos_arm64`):
+a `pub data` provider plus `machine P::m(&mut self, ..) satisfies T::m { }`
+checked adapters, `builder.select_provider<Trait, Provider>()` in `build.omg`,
+and one `Service<R>` field on the entry receiver compiles, passes package
+review, and publishes native output. Every `Service` field in the program must
+route to a selected plan holding at least one checked-adapter row; leaf-only
+providers (`via Binding::..` rows alone) cannot join the Fused boundary.
+Adapters may call ordinary machines but cannot reach satisfies-leaf callees or
+foreign imports (both currently fail realization), and the entry receiver's
+carrier is limited to one provider field — `Main` holds four, so checked
+compilation still ends at "selected ProgramEntry establishment rejoins 0
+Terminal attachment identities; expected one". The multi-field attachment and
+scalar-result provider admissions are tracked on TASKS.md under
+ENTRY-CONTENT-ROOTS / TR3-TR8 / STATE-LOCAL-VALUE-FRONTIER.
+
 After provider wiring, complete any remaining lowering work and ordinary
 checkout-specific package review. Test-owned acceptance does not complete that
 review. No app has launched through this command yet. See
