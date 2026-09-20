@@ -390,8 +390,10 @@ fn const_generic_evaluation_requires_direct_authority_before_execution() {
     .expect_err("early const-generic execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("const-generic evaluation")
-                && diagnostic.message.contains("build-time invocation")
+            diagnostic
+                .message
+                .contains("const-generic application evaluation")
+                && diagnostic.message.contains("authored Call selection")
                 && diagnostic.message.contains("direct dependency authority")
         }),
         "unexpected diagnostics: {diagnostics:#?}"
@@ -444,11 +446,12 @@ fn build_time_call_closure_rejects_internal_undeclared_package_selection() {
     .expect_err("dependency code may not select root declarations without dependency authority");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("const-generic evaluation")
+            diagnostic
+                .message
+                .contains("const-generic application evaluation")
                 && diagnostic
                     .message
-                    .contains("authored StaticPathSegment selection")
-                && diagnostic.message.contains("direct dependency authority")
+                    .contains("private constant declaration cannot be selected")
         }),
         "unexpected diagnostics: {diagnostics:#?}"
     );
@@ -857,7 +860,7 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
     builder.package("root");
-    builder.select_provider<Pair, Provider>(CompositionMode::Fused);
+    builder.select_provider<dep::Pair, dep::Provider>(CompositionMode::Fused);
 }
 "#,
     );
@@ -942,7 +945,7 @@ fn provider_selection_rejects_an_authored_composition_mode_lookalike() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("does not name an exact compiler-owned CompositionMode case")),
+            .contains("requires an exact payload-free compiler-owned CompositionMode case")),
         "unexpected diagnostics: {diagnostics:#?}"
     );
 }
@@ -959,7 +962,7 @@ fn provider_selection_rejects_an_arbitrary_composition_expression() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("must be the exact compiler-owned CompositionMode::Fused or CompositionMode::Independent case")),
+            .contains("provider selection requires a compiler-owned CompositionMode case")),
         "unexpected diagnostics: {diagnostics:#?}"
     );
 }
@@ -1041,7 +1044,7 @@ fn dependency_operator_family_selection_covers_every_overload_atomically() {
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
     builder.package("root");
-    builder.select_provider<Convert::apply, ConvertProvider>();
+    builder.select_provider<dep::Convert::apply, dep::ConvertProvider>();
 }
 "#,
     );
@@ -1235,6 +1238,8 @@ fn native_package_entrypoint_uses_the_same_reconciled_binding_mode() {
         r#"use omega::language::core::service;
 use dep::values;
 pub boundary trait Console { machine exit_process(return_code: i32); }
+data ConsoleProvider { }
+machine ConsoleProvider::exit_process(return_code: i32) satisfies Console::exit_process { }
 data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     transition ANSWER == 42 { true -> yes() _ -> no() }
@@ -1247,6 +1252,7 @@ machine Main::main(&mut self) reaches Console {
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
     builder.application("native-package-entrypoint");
+    builder.select_provider<Console, ConsoleProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
@@ -1544,7 +1550,7 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
-fn one_root_source_cannot_join_both_dependency_scopes() {
+fn one_root_source_checks_as_separate_per_scope_instances() {
     let tree = TempTree::new();
     let root = tree.package("root");
 
@@ -1555,6 +1561,7 @@ fn one_root_source_cannot_join_both_dependency_scopes() {
     TempTree::write(
         root.join("build.omg"),
         r#"use common;
+const KEPT: u32 = SHARED;
 machine build(builder: &mut Build) {
     builder.package("root");
 }
@@ -1569,17 +1576,11 @@ machine build(builder: &mut Build) {
     )
     .expect("root-only package graph should validate");
 
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&root.join("main.omg"), None)
     })
-    .expect_err("one physical root source must not serve both scopes");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("exactly one dependency scope")),
-        "unexpected diagnostics: {diagnostics:#?}"
-    );
+    .expect("one physical root source checks once per dependency scope");
 }
 
 #[test]

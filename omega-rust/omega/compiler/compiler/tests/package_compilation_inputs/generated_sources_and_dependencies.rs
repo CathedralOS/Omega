@@ -71,6 +71,20 @@ machine build(builder: &mut Build) {
         consumer.join("main.omg"),
         "use dependency::generated_api;\npub machine consume() -> u64 { generated_value() }\n",
     );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for directory in [&producer, &consumer] {
+            for entry in std::fs::read_dir(directory).unwrap() {
+                std::fs::set_permissions(
+                    entry.unwrap().path(),
+                    std::fs::Permissions::from_mode(0o444),
+                )
+                .unwrap();
+            }
+            std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o555)).unwrap();
+        }
+    }
     let session_root = tree.0.join("dual-build");
     std::fs::create_dir(&session_root).unwrap();
     let session_root = std::fs::canonicalize(session_root).unwrap();
