@@ -86,12 +86,13 @@ fn fresh_reviews_report_only_the_exact_package_with_changed_retained_policy() {
         .source()
         .packages()
         .iter()
-        .zip(checked.accepted().baselines())
+        .zip(checked.accepted().occurrences())
     {
         let review = checked.reviews().review(source.key()).unwrap();
+        assert_eq!(accepted.context(), review.checked_context());
         assert_eq!(
             &package_manager::lock::PackagePolicyAcceptance::from_policy(review.policy()).unwrap(),
-            accepted
+            accepted.acceptance()
         );
         assert_eq!(review.resolution(), source.resolution());
     }
@@ -129,9 +130,13 @@ fn fresh_reviews_report_only_the_exact_package_with_changed_retained_policy() {
     )
     .unwrap();
     let altered = roundtrip(
-        PackageLockTarget::from_parts(
+        PackageLockTarget::from_policies(
             accepted.source().clone(),
-            baselines,
+            &baselines
+                .iter()
+                .zip(accepted.occurrences())
+                .map(|(policy, occurrence)| (occurrence.context(), policy))
+                .collect::<Vec<_>>(),
             accepted.decisions().clone(),
         )
         .unwrap(),
@@ -232,9 +237,9 @@ fn a_readable_baseline_does_not_suppress_current_compilation_failure() {
     // A project can edit pins and retain stale analysis. Format recovery does
     // not certify that analysis; checking must still reject the invalid body.
     let lock = roundtrip(
-        PackageLockTarget::from_acceptances(
+        PackageLockTarget::from_occurrences(
             source,
-            accepted.target(TARGET).unwrap().baselines().to_vec(),
+            accepted.target(TARGET).unwrap().occurrences().to_vec(),
             decisions,
         )
         .unwrap(),
@@ -340,7 +345,7 @@ fn independent_compiler_reviews_require_exact_target_resolution_and_coverage() {
                 .policy()
         )
         .unwrap(),
-        &accepted.baselines()[index],
+        accepted.occurrences()[index].acceptance(),
         "this implementation body edit leaves normalized public policy unchanged"
     );
     assert_eq!(

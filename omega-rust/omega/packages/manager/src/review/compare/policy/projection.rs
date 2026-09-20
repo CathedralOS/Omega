@@ -1,17 +1,22 @@
 use super::{PackagePolicyChangeError as Error, limits::Budget};
 use crate::declarations::PackageKey;
-use crate::lock::PackageAcceptanceRow;
-use crate::resolution::graph::ExactTargetPackageSourceClosure;
+use crate::lock::{PackageAcceptanceRow, PackageOccurrenceRoster};
+use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::record::PackagePolicyBaseline;
 
 pub(super) fn candidate<'a>(
     candidate: &'a CompilerIssuedPackageReviewSet,
     sources: &ExactTargetPackageSourceClosure<'_>,
+    source: &CanonicalSourceClosureSubject,
     budget: &mut Budget,
 ) -> Result<Vec<&'a CompilerIssuedPackageReview>, Error> {
     let count = candidate.reviews().len();
-    if count > budget.limits.maximum_packages
+    if count
+        > budget
+            .limits
+            .maximum_packages
+            .saturating_mul(crate::declarations::DependencyPurpose::ALL.len())
         || sources.source_closure().custodies().len() > budget.limits.maximum_packages
     {
         return Err(Error::LimitExceeded {
@@ -28,19 +33,35 @@ pub(super) fn candidate<'a>(
         .try_reserve_exact(count)
         .map_err(|_| Error::AllocationFailed)?;
     reviews.extend(candidate.reviews());
-    reviews.sort_unstable_by(|left, right| left.key().cmp(right.key()));
+    reviews.sort_unstable_by(|left, right| {
+        (left.key(), left.checked_context().purpose())
+            .cmp(&(right.key(), right.checked_context().purpose()))
+    });
     let mut custodies = Vec::new();
     custodies
         .try_reserve_exact(sources.source_closure().custodies().len())
         .map_err(|_| Error::AllocationFailed)?;
     custodies.extend(sources.source_closure().custodies());
     custodies.sort_unstable_by(|left, right| left.key().cmp(right.key()));
-    if let Some(pair) = reviews
-        .windows(2)
-        .find(|pair| pair[0].key() == pair[1].key())
-    {
-        return Err(invalid(pair[0].key(), "duplicate review"));
+    if let Some(pair) = reviews.windows(2).find(|pair| {
+        pair[0].key() == pair[1].key()
+            && pair[0].checked_context().purpose() == pair[1].checked_context().purpose()
+    }) {
+        return Err(invalid(
+            pair[0].key(),
+            "duplicate checked occurrence review",
+        ));
     }
+    let roster = PackageOccurrenceRoster::derive(source)?;
+    if count != roster.occurrence_count() {
+        return Err(Error::CandidateReview {
+            package: None,
+            reason: "checked review occurrences do not cover the source graph",
+        });
+    }
+    let execution_profile = reviews
+        .first()
+        .and_then(|review| review.checked_context().build_execution_profile());
     for review in &reviews {
         budget.context(review.canonical_review_bytes().len())?;
         budget.context(review.selected_build_machine_identity().len())?;
@@ -52,17 +73,42 @@ pub(super) fn candidate<'a>(
                 reason: "normalized policy owner differs",
             });
         }
-        if review.projection().target() != sources.target_profile()
-            || review.policy().target() != sources.target_profile()
+        let context = review.checked_context();
+        if !roster.is_occurrence(review.key(), context.purpose()) {
+            return Err(invalid(
+                review.key(),
+                "checked review purpose differs from its source occurrence",
+            ));
+        }
+        let expected_target = if context.purpose().is_product() {
+            Some(sources.target_profile())
+        } else {
+            execution_profile
+        };
+        if Some(context.target()) != expected_target
+            || review.projection().target() != context.target()
+            || review.policy().target() != context.target()
         {
             return Err(Error::TargetMismatch);
         }
+        if context.build_execution_profile() != execution_profile {
+            return Err(invalid(
+                review.key(),
+                "checked reviews use different build execution profiles",
+            ));
+        }
     }
     for custody in &custodies {
-        let index = reviews
-            .binary_search_by(|review| review.key().cmp(custody.key()))
-            .map_err(|_| invalid(custody.key(), "missing review"))?;
-        if reviews[index].resolution() != custody.resolution() {
+        let start = reviews.partition_point(|review| review.key() < custody.key());
+        let selected = &reviews[start..]
+            [..reviews[start..].partition_point(|review| review.key() == custody.key())];
+        if selected.is_empty() {
+            return Err(invalid(custody.key(), "missing review"));
+        }
+        if selected
+            .iter()
+            .any(|review| review.resolution() != custody.resolution())
+        {
             return Err(invalid(
                 custody.key(),
                 "immutable source resolution differs",

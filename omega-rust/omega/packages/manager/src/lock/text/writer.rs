@@ -4,7 +4,7 @@ use super::super::{
     PackageLockRecoveryLimits,
 };
 use super::{HEADER, budget::Budget, framing::Writer};
-use crate::lock::PackagePolicyAcceptance;
+use crate::lock::PackagePolicyOccurrence;
 
 impl PackageLock {
     /// Diffable child texts remain verbatim, with explicit byte lengths to
@@ -36,24 +36,37 @@ impl PackageLock {
             drop(budget.source(&source)?);
             writer.section("source", &source)?;
             drop(source);
-            // The recorded roster join: which occurrences each positional
-            // baseline answers. Recovery re-derives and compares it.
-            writer.row(
-                "occurrences",
-                target
-                    .occurrence_purposes
-                    .iter()
-                    .map(Vec::len)
-                    .sum::<usize>(),
-            )?;
-            for (index, purposes) in target.occurrence_purposes.iter().enumerate() {
-                for purpose in purposes {
-                    writer.row("occurrence", format!("{index} {}", purpose.name()))?;
+            writer.row("occurrences", target.occurrences.len())?;
+            budget.entries::<PackagePolicyOccurrence>(target.occurrences.len())?;
+            let mut index = 0;
+            for occurrence in &target.occurrences {
+                let policy = occurrence.acceptance();
+                let context = occurrence.context();
+                // Validation established source order; each package is visited
+                // once even when both purposes retain independent consent.
+                while target
+                    .source
+                    .packages()
+                    .get(index)
+                    .is_some_and(|package| package.key().identity() != policy.package())
+                {
+                    index += 1;
                 }
-            }
-            writer.row("acceptances", target.baselines.len())?;
-            budget.entries::<PackagePolicyAcceptance>(target.baselines.len())?;
-            for policy in &target.baselines {
+                if index == target.source.packages().len() {
+                    return Err(Error::OccurrenceCoverage);
+                }
+                let execution = context
+                    .build_execution_profile()
+                    .map(|profile| profile.identity().as_str())
+                    .unwrap_or("none");
+                writer.row(
+                    "occurrence",
+                    format!(
+                        "{index} {} {execution} {}",
+                        context.purpose().name(),
+                        context.target().identity().as_str()
+                    ),
+                )?;
                 let text = policy.canonical_text()?;
                 drop(budget.baseline(&text, policy.package(), policy.target())?);
                 writer.section("acceptance", &text)?;

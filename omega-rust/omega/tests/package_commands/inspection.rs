@@ -159,9 +159,9 @@ fn current_root_api_changes_are_reported_without_new_consent_or_lock_updates() {
     );
     assert!(
         fixture.lock().targets()[0]
-            .baselines()
+            .occurrences()
             .iter()
-            .all(|acceptance| acceptance.rows().is_empty())
+            .all(|occurrence| occurrence.acceptance().rows().is_empty())
     );
     assert_eq!(fixture.accepted_files(), before);
 }

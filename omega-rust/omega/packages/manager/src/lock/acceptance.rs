@@ -4,6 +4,7 @@
 //! output interprets their meaning; equality never turns them into checked facts.
 
 use super::PackageLockError;
+use crate::declarations::DependencyPurpose;
 use package_evidence::record::{
     PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
     PackagePolicyRowUsage,
@@ -11,6 +12,45 @@ use package_evidence::record::{
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use target::TargetProfile;
+
+/// Independently retained consent for one exact checked package occurrence.
+/// The execution profile is recorded context, never inferred from this host.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackagePolicyOccurrence {
+    pub(super) acceptance: PackagePolicyAcceptance,
+    pub(super) context: super::PackageCheckedContext,
+}
+
+impl PackagePolicyOccurrence {
+    pub fn from_policy(
+        policy: &PackagePolicyBaseline,
+        context: super::PackageCheckedContext,
+    ) -> Result<Self, PackageLockError> {
+        let value = Self {
+            acceptance: PackagePolicyAcceptance::from_policy(policy)?,
+            context,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub const fn acceptance(&self) -> &PackagePolicyAcceptance {
+        &self.acceptance
+    }
+    pub const fn context(&self) -> super::PackageCheckedContext {
+        self.context
+    }
+
+    pub(super) fn validate(&self) -> Result<(), PackageLockError> {
+        if self.context.target() != self.acceptance.target()
+            || (self.context.purpose() == DependencyPurpose::Build
+                && self.context.build_execution_profile() != Some(self.acceptance.target()))
+        {
+            return Err(PackageLockError::TargetMismatch);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyAcceptance {

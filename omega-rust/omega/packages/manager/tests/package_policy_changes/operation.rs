@@ -69,15 +69,17 @@ fn assert_round_trip(review: &PackageChangeReview, proposed: PackageLockTarget) 
     .unwrap();
     assert_eq!(proposed.source(), &source);
     assert_eq!(proposed.target(), review.target());
-    assert_eq!(proposed.baselines().len(), review.reviews().reviews().len());
-    for (baseline, package) in proposed.baselines().iter().zip(source.packages()) {
-        assert_eq!(
-            baseline,
-            &package_manager::lock::PackagePolicyAcceptance::from_policy(
-                review.reviews().review(package.key()).unwrap().policy()
-            )
-            .unwrap()
-        );
+    assert_eq!(
+        proposed.occurrences().len(),
+        review.reviews().reviews().len()
+    );
+    for checked in review.reviews().reviews() {
+        let expected = package_manager::lock::PackagePolicyOccurrence::from_policy(
+            checked.policy(),
+            checked.checked_context(),
+        )
+        .unwrap();
+        assert!(proposed.occurrences().contains(&expected));
     }
     assert_eq!(
         proposed.decisions().comparison(),

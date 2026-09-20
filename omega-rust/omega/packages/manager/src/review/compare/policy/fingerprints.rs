@@ -4,9 +4,8 @@ use super::{
     PackagePolicyPackageChange, PackagePolicyReplacementSite,
 };
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::DependencyPurpose;
-use crate::lock::PackageAcceptanceRow;
 use crate::lock::PackageLockTarget;
+use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::{
     CompilerIssuedPackageReview,
@@ -21,8 +20,8 @@ pub(super) fn context(
 ) -> Sha256 {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-COMPARISON-CONTEXT\0");
-    // Version 3 scopes unchanged-row reuse to the accepted occurrence.
-    hash.update(3_u16.to_le_bytes());
+    // Each role has independently retained policy and a checked execution context.
+    hash.update(4_u16.to_le_bytes());
     hash.update(PACKAGE_POLICY_ROW_VERSION.to_le_bytes());
     hash.update([u8::from(accepted.is_some())]);
     if let Some(accepted) = accepted {
@@ -35,15 +34,18 @@ pub(super) fn context(
 pub(super) fn package_context(
     hash: &mut Sha256,
     key: &PackageKey,
-    baseline_present: bool,
+    baseline_context: Option<PackageCheckedContext>,
     baseline: &[PackageAcceptanceRow],
     candidate: Option<&CompilerIssuedPackageReview>,
     rows: &[PackageAcceptanceRow],
 ) {
     field(hash, &key.identity().digest());
-    hash.update([u8::from(baseline_present)]);
+    checked_context(hash, baseline_context);
     row_set(hash, baseline);
-    hash.update([u8::from(candidate.is_some())]);
+    checked_context(
+        hash,
+        candidate.map(CompilerIssuedPackageReview::checked_context),
+    );
     row_set(hash, rows);
     if let Some(candidate) = candidate {
         field(hash, &candidate.source_consumption_commitment().digest());
@@ -65,9 +67,8 @@ pub(super) fn finish_package(
 ) {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-PACKAGE-CHANGE\0");
-    // Version 2 binds each side's authorized occurrence purposes; version 1
-    // fingerprints predated the roster join.
-    hash.update(2_u16.to_le_bytes());
+    // Package summaries retain full checked contexts, including empty policy.
+    hash.update(3_u16.to_le_bytes());
     field(&mut hash, &context.digest());
     field(&mut hash, &package.key.identity().digest());
     // The context contains both exact immutable source resolutions, including
@@ -75,8 +76,8 @@ pub(super) fn finish_package(
     // report consumers.
     path(&mut hash, package.baseline_path.as_ref());
     path(&mut hash, package.candidate_path.as_ref());
-    purpose_set(&mut hash, package.baseline_occurrence_purposes.as_deref());
-    purpose_set(&mut hash, package.candidate_occurrence_purposes.as_deref());
+    context_set(&mut hash, &package.baseline_occurrence_contexts);
+    context_set(&mut hash, &package.candidate_occurrence_contexts);
     hash.update([
         u8::from(package.source_changed),
         u8::from(package.source_association_changed),
@@ -86,8 +87,10 @@ pub(super) fn finish_package(
     for delta in &mut package.rows {
         let mut hash = Sha256::new();
         field(&mut hash, b"OMEGA-PACKAGE-POLICY-ROW-CHANGE\0");
-        hash.update(1_u16.to_le_bytes());
+        hash.update(2_u16.to_le_bytes());
         field(&mut hash, &package.fingerprint.digest());
+        checked_context(&mut hash, delta.baseline_context);
+        checked_context(&mut hash, delta.candidate_context);
         hash.update([match delta.change {
             PackagePolicyChangeKind::Added => 1,
             PackagePolicyChangeKind::Removed => 2,
@@ -107,13 +110,22 @@ pub(super) fn finish_package(
     }
 }
 
-fn purpose_set(hash: &mut Sha256, purposes: Option<&[DependencyPurpose]>) {
-    hash.update([u8::from(purposes.is_some())]);
-    if let Some(purposes) = purposes {
-        hash.update((purposes.len() as u64).to_le_bytes());
-        for purpose in purposes {
-            hash.update([u8::from(!purpose.is_product())]);
+fn checked_context(hash: &mut Sha256, context: Option<PackageCheckedContext>) {
+    hash.update([u8::from(context.is_some())]);
+    if let Some(context) = context {
+        hash.update([u8::from(!context.purpose().is_product())]);
+        field(hash, context.target().target_name().as_bytes());
+        hash.update([u8::from(context.build_execution_profile().is_some())]);
+        if let Some(profile) = context.build_execution_profile() {
+            field(hash, profile.target_name().as_bytes());
         }
+    }
+}
+
+fn context_set(hash: &mut Sha256, contexts: &[PackageCheckedContext]) {
+    hash.update((contexts.len() as u64).to_le_bytes());
+    for context in contexts {
+        checked_context(hash, Some(*context));
     }
 }
 

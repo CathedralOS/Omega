@@ -43,6 +43,16 @@ pub struct CompilerIssuedPackageReview {
 }
 
 impl CompilerIssuedPackageReview {
+    /// The checked activation that produced these findings. Equal package
+    /// sources do not make build and product reviews interchangeable.
+    pub fn checked_context(&self) -> crate::lock::PackageCheckedContext {
+        crate::lock::PackageCheckedContext::new(
+            self.generated_source_bundle.purpose(),
+            self.generated_source_bundle.target(),
+            self.generated_source_bundle.build_execution_profile(),
+        )
+    }
+
     pub fn key(&self) -> &PackageKey {
         &self.key
     }
@@ -176,8 +186,31 @@ impl CompilerIssuedPackageReviewSet {
         &self.reviews
     }
 
+    /// Return the package's review only when it has one checked occurrence.
+    /// Callers handling both roles must select a purpose or visit every review.
     pub fn review(&self, key: &PackageKey) -> Option<&CompilerIssuedPackageReview> {
-        self.reviews.iter().find(|review| review.key() == key)
+        let mut matching = self.reviews.iter().filter(|review| review.key() == key);
+        let review = matching.next()?;
+        matching.next().is_none().then_some(review)
+    }
+
+    pub fn reviews_for<'a>(
+        &'a self,
+        key: &'a PackageKey,
+    ) -> impl Iterator<Item = &'a CompilerIssuedPackageReview> {
+        self.reviews
+            .iter()
+            .filter(move |review| review.key() == key)
+    }
+
+    pub fn review_occurrence(
+        &self,
+        key: &PackageKey,
+        purpose: crate::declarations::DependencyPurpose,
+    ) -> Option<&CompilerIssuedPackageReview> {
+        self.reviews
+            .iter()
+            .find(|review| review.key() == key && review.checked_context().purpose() == purpose)
     }
 }
 

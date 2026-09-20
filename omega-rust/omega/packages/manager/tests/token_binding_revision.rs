@@ -135,12 +135,15 @@ fn accepted_lock(
         HistoricalPackagePolicyLimits::default(),
     )
     .expect("empty decision history");
-    let baselines = source
-        .packages()
-        .iter()
-        .map(|package| reviews.review(package.key()).unwrap().policy().clone())
-        .collect();
-    PackageLockTarget::from_parts(source, baselines, decisions).expect("accepted lock target")
+    let mut policies = Vec::new();
+    for package in source.packages() {
+        for purpose in package_manager::declarations::DependencyPurpose::ALL {
+            if let Some(review) = reviews.review_occurrence(package.key(), purpose) {
+                policies.push((review.checked_context(), review.policy()));
+            }
+        }
+    }
+    PackageLockTarget::from_policies(source, &policies, decisions).expect("accepted lock target")
 }
 
 fn callable_texts(reviews: &CompilerIssuedPackageReviewSet, name: &str) -> Vec<String> {

@@ -183,15 +183,15 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
     let policy = fresh.review(replacement.key()).unwrap().policy();
     assert!(
         original_target
-            .baselines()
+            .occurrences()
             .iter()
-            .all(|acceptance| acceptance.rows().is_empty())
+            .all(|occurrence| occurrence.acceptance().rows().is_empty())
     );
     assert!(
         target
-            .baselines()
+            .occurrences()
             .iter()
-            .all(|acceptance| acceptance.rows().is_empty())
+            .all(|occurrence| occurrence.acceptance().rows().is_empty())
     );
     assert!(previous_policy.dangerous_capabilities().is_empty());
     assert!(policy.dangerous_capabilities().is_empty());

@@ -7,9 +7,10 @@ fn rejects(text: &str) {
 }
 
 pub(super) fn assert_canonical_framing(text: &str) {
-    assert!(text.starts_with("omega_lock 2\ntargets 2\n"));
-    rejects(&text.replacen("omega_lock 2\n", "omega_lock 99\n", 1));
-    rejects(&text.replacen("omega_lock 2\n", "omega_lock 02\n", 1));
+    assert!(text.starts_with("omega_lock 3\ntargets 2\n"));
+    for version in ["1", "2", "99", "03"] {
+        rejects(&text.replacen("omega_lock 3\n", &format!("omega_lock {version}\n"), 1));
+    }
     rejects(&text.replace('\n', "\r\n"));
     rejects(&format!("{text}\n"));
     rejects(&format!("{text}end\n"));
@@ -24,7 +25,7 @@ pub(super) fn assert_canonical_framing(text: &str) {
     for label in [
         "targets",
         "source",
-        "acceptances",
+        "occurrences",
         "acceptance",
         "decisions",
     ] {
@@ -58,7 +59,7 @@ pub(super) fn assert_canonical_framing(text: &str) {
     );
     rejects(&split_character);
 
-    for length in [0, "omega_lock 2\n".len() - 1, text.len() - 1] {
+    for length in [0, "omega_lock 3\n".len() - 1, text.len() - 1] {
         rejects(&text[..length]);
     }
     for (length, _) in text.match_indices('\n').step_by(53) {

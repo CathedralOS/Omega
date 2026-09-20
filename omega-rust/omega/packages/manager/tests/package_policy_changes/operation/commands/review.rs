@@ -259,10 +259,11 @@ fn retained_filesystem_authority_recommends_audit_for_repeated_source_upgrades()
         accepted
             .target(TARGET)
             .unwrap()
-            .baselines()
+            .occurrences()
             .iter()
             .any(|baseline| {
                 baseline
+                    .acceptance()
                     .rows()
                     .iter()
                     .any(|row| row.kind() == PackagePolicyRowKind::DangerousCapability)
@@ -349,8 +350,8 @@ fn repeated_update_audit(dependency: &str) -> PackageLock {
         assert_ne!(old_dependency.resolution(), new_dependency.resolution());
         assert_eq!(old_source.root().selected(), new_source.root().selected());
         assert_eq!(
-            current.target(TARGET).unwrap().baselines(),
-            accepted.target(TARGET).unwrap().baselines()
+            current.target(TARGET).unwrap().occurrences(),
+            accepted.target(TARGET).unwrap().occurrences()
         );
         assert!(!proposal_path(&tree).exists());
         previous = current;

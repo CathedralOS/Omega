@@ -76,8 +76,8 @@ fn pinned_ssh_filesystem_install_and_retained_authority_update() {
     let old_target = baseline.target(TARGET).unwrap();
     let new_target = candidate.target(TARGET).unwrap();
     assert_eq!(
-        new_target.baselines(),
-        old_target.baselines(),
+        new_target.occurrences(),
+        old_target.occurrences(),
         "normalized policy changed"
     );
     assert_eq!(
@@ -154,8 +154,8 @@ fn pinned_ssh_filesystem_install_and_retained_authority_update() {
         "Filesystem",
     );
     assert_eq!(
-        fixture.lock().target(TARGET).unwrap().baselines(),
-        new_target.baselines()
+        fixture.lock().target(TARGET).unwrap().occurrences(),
+        new_target.occurrences()
     );
     assert_no_proposal(&fixture);
     check_import(&fixture, "file-journal");
@@ -398,13 +398,18 @@ fn assert_locked_authority(fixture: &Fixture, name: &str, pin: &str, service: &s
         assert_eq!(actual_revision, revision);
     }
     let fresh = fixture.fresh_reviews(TARGET);
-    let consumer_policy = fresh.review(consumer.key()).unwrap().policy();
+    let consumer_review = fresh.review(consumer.key()).unwrap();
+    let consumer_policy = consumer_review.policy();
     let host_policy = fresh.review(host.key()).unwrap().policy();
     let consent = target
-        .baselines()
+        .occurrences()
         .iter()
-        .find(|policy| policy.package() == consumer.key().identity())
-        .unwrap();
+        .find(|occurrence| {
+            occurrence.acceptance().package() == consumer.key().identity()
+                && occurrence.context() == consumer_review.checked_context()
+        })
+        .unwrap()
+        .acceptance();
     assert!(
         consent
             .rows()

@@ -173,8 +173,8 @@ fn unavailable_old_git_source_preserves_policy_comparison_without_selector_fallb
             assert!(source.contains(&format!("candidate_git_commit {new}\n")));
             assert!(!source.contains("baseline_git_commit"));
             assert_eq!(
-                fixture.lock().targets()[0].baselines(),
-                accepted.targets()[0].baselines()
+                fixture.lock().targets()[0].occurrences(),
+                accepted.targets()[0].occurrences()
             );
         },
     );

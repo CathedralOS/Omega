@@ -191,9 +191,13 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         PackagePolicyTextRecoveryLimits::default(),
     )
     .unwrap();
-    let altered_accepted = PackageLockTarget::from_parts(
+    let altered_accepted = PackageLockTarget::from_policies(
         accepted.source().clone(),
-        altered_baselines,
+        &altered_baselines
+            .iter()
+            .zip(accepted.occurrences())
+            .map(|(policy, occurrence)| (occurrence.context(), policy))
+            .collect::<Vec<_>>(),
         accepted.decisions().clone(),
     )
     .unwrap();

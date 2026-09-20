@@ -402,15 +402,14 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         crate::resolution::graph::CanonicalSourceClosureSubjectLimits::default(),
     )
     .expect("baseline subject");
-    let baselines = baseline_source
+    let baselines: Vec<_> = baseline_source
         .packages()
         .iter()
         .map(|package| {
-            baseline_reviews
+            let review = baseline_reviews
                 .review(package.key())
-                .expect("baseline review")
-                .policy()
-                .clone()
+                .expect("baseline review");
+            (review.checked_context(), review.policy())
         })
         .collect();
     let history = crate::lock::HistoricalPackagePolicyDecisions::capture_policy(
@@ -420,8 +419,9 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         crate::lock::HistoricalPackagePolicyLimits::default(),
     )
     .expect("capture initial choices");
-    let accepted = crate::lock::PackageLockTarget::from_parts(baseline_source, baselines, history)
-        .expect("accepted baseline");
+    let accepted =
+        crate::lock::PackageLockTarget::from_policies(baseline_source, &baselines, history)
+            .expect("accepted baseline");
 
     // The unchanged closure keeps one product occurrence per package.
     let stable = crate::review::compare_package_policy_changes(
@@ -437,14 +437,81 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         .find(|change| change.key().name().as_str() == "occurrence-dep")
         .expect("dep change row");
     assert_eq!(
-        stable_dep.baseline_occurrence_purposes(),
-        Some(&[crate::declarations::dependencies::DependencyPurpose::Product][..])
+        stable_dep.baseline_occurrence_contexts(),
+        &[crate::lock::PackageCheckedContext::new(
+            crate::declarations::dependencies::DependencyPurpose::Product,
+            target,
+            Some(target)
+        )][..]
     );
     assert_eq!(
-        stable_dep.candidate_occurrence_purposes(),
-        stable_dep.baseline_occurrence_purposes()
+        stable_dep.candidate_occurrence_contexts(),
+        stable_dep.baseline_occurrence_contexts()
     );
-    assert!(!stable_dep.occurrence_purposes_changed());
+    assert!(!stable_dep.occurrence_contexts_changed());
+
+    // An inert retained record may describe a different execution context.
+    // Keep the real compiler-issued candidate untouched and require visibility,
+    // not consent, for changing context on an otherwise benign empty policy.
+    let old_execution = target::TargetProfile::ALL
+        .into_iter()
+        .find(|profile| *profile != target)
+        .expect("alternate execution profile");
+    let recontextualized = baselines
+        .iter()
+        .map(|(context, policy)| {
+            (
+                crate::lock::PackageCheckedContext::new(
+                    context.purpose(),
+                    context.target(),
+                    Some(old_execution),
+                ),
+                *policy,
+            )
+        })
+        .collect::<Vec<_>>();
+    let different_execution = crate::lock::PackageLockTarget::from_policies(
+        accepted.source().clone(),
+        &recontextualized,
+        accepted.decisions().clone(),
+    )
+    .expect("inert previous execution context");
+    assert!(matches!(
+        crate::review::compare_locked_package_policies(&different_execution, &baseline_reviews),
+        Err(crate::review::LockedPolicyComparisonError::ExecutionProfileMismatch { .. })
+    ));
+    let context_changes = crate::review::compare_package_policy_changes(
+        Some(&different_execution),
+        &baseline_reviews,
+        &baseline_target,
+        super::PackagePolicyChangeLimits::default(),
+    )
+    .expect("compare benign execution profile change");
+    assert!(!context_changes.requires_decision());
+    assert!(context_changes.audit_recommended());
+    assert_ne!(context_changes.fingerprint(), stable.fingerprint());
+    assert!(!context_changes.source_subject_changed());
+    for change in context_changes.packages() {
+        assert!(change.rows().is_empty());
+        assert!(change.occurrence_contexts_changed());
+        assert!(change.audit_recommended());
+        assert!(!change.source_changed());
+        assert!(!change.source_association_changed());
+    }
+    let rendered = crate::review::render_package_policy_review(&context_changes, 1024 * 1024)
+        .expect("render empty-policy context change");
+    assert!(rendered.contains(&format!(
+        "- occurrence product target {} execution {}",
+        target.target_name(),
+        old_execution.target_name()
+    )));
+    assert!(rendered.contains(&format!(
+        "+ occurrence product target {} execution {}",
+        target.target_name(),
+        target.target_name()
+    )));
+    assert!(rendered.contains("occurrence-contexts-changed true"));
+    assert!(!rendered.contains("decision row "));
 
     let candidate_closure = resolve_external_local_package_closure_from_hardened_base(
         &candidate_root,
@@ -474,14 +541,22 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         .find(|change| change.key().name().as_str() == "occurrence-dep")
         .expect("dep still shares custody");
     assert_eq!(
-        dep_change.baseline_occurrence_purposes(),
-        Some(&[crate::declarations::dependencies::DependencyPurpose::Product][..])
+        dep_change.baseline_occurrence_contexts(),
+        &[crate::lock::PackageCheckedContext::new(
+            crate::declarations::dependencies::DependencyPurpose::Product,
+            target,
+            Some(target)
+        )][..]
     );
     assert_eq!(
-        dep_change.candidate_occurrence_purposes(),
-        Some(&[crate::declarations::dependencies::DependencyPurpose::Build][..])
+        dep_change.candidate_occurrence_contexts(),
+        &[crate::lock::PackageCheckedContext::new(
+            crate::declarations::dependencies::DependencyPurpose::Build,
+            target,
+            Some(target)
+        )][..]
     );
-    assert!(dep_change.occurrence_purposes_changed());
+    assert!(dep_change.occurrence_contexts_changed());
     assert!(
         !dep_change.requires_decision(),
         "benign policy does not become a blocking finding when its purpose changes"

@@ -8,7 +8,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn policy_source_membership(
     source: &CanonicalSourceClosureSubject,
-    baselines: &[PackagePolicyBaseline],
+    baselines: &[(super::PackageCheckedContext, &PackagePolicyBaseline)],
     maximum_owned_bytes: usize,
     maximum_identity_nodes: usize,
 ) -> Result<(), Error> {
@@ -41,7 +41,7 @@ pub(super) fn policy_source_membership(
             .ok()
             .map(|index| packages[index].1)
     };
-    for baseline in baselines {
+    for (context, baseline) in baselines {
         let usage = baseline
             .validate_package_membership(
                 |identity| lookup(identity).is_some(),
@@ -56,7 +56,12 @@ pub(super) fn policy_source_membership(
             .ok_or(Error::CountLimitExceeded)?;
         baseline
             .validate_boundary_application_owners(|identity| {
-                lookup(identity).map(|index| &baselines[index])
+                baselines
+                    .iter()
+                    .find(|(owner_context, owner)| {
+                        owner.package() == identity && owner_context == context
+                    })
+                    .map(|(_, owner)| *owner)
             })
             .map_err(|_| Error::BoundaryApplicationMismatch)?;
     }

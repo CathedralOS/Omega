@@ -9,10 +9,17 @@ retaining an old checkout, compiler session, proof certificate, evaluator
 receipt, or native replay. It does not write files, resolve selectors, acquire
 sources, certify an audit, or authorize a changed candidate.
 
-Each `PackageLockTarget` contains a canonical source subject, exactly one
-`PackagePolicyAcceptance` per source package in source order, and historical
-decisions against that source subject's fingerprint. Acceptance package identities
-and targets must match exactly. Sections are strictly sorted by the target's
+Each `PackageLockTarget` contains a canonical source subject, one independent
+`PackagePolicyOccurrence` per source-package/purpose pair in canonical source and
+purpose order, and historical decisions against that source subject's fingerprint.
+Each occurrence carries a `PackageCheckedContext` with purpose, checked target,
+and explicit optional build execution profile. Product targets equal the section
+target; Build targets equal its required execution profile. All occurrences in
+one section agree on the execution profile. The derived source roster must match
+these records bijectively; a single acceptance cannot cover two purposes.
+`from_policies` also checks full policy source membership and boundary owners in
+the same exact context before discarding compiler-only associations. Sections are
+strictly sorted by the target's
 canonical semantic identity. Every section has the same root request and role,
 package identities and immutable resolutions, navigations, authored dependency
 projections, and selected dependency edges. Only target-sensitive baseline and
@@ -40,19 +47,20 @@ Acceptance comparison uses the fresh risk projection and needs no old-source
 analysis pass. Source pins, graph edges, root roles, and historical decisions
 remain exact.
 
-## Version 2 text
+## Version 3 text
 
 The outer grammar is line-oriented ASCII. Counts and byte lengths are unsigned
 decimal with no signs or leading zeroes. Target identities come from the trusted
 toolchain catalog. All rows end in LF, and there is no trailing material.
 
 ```text
-omega_lock 2
+omega_lock 3
 targets <count>
 target <canonical target identity>
 source <byte length>
 <verbatim canonical source text>
-acceptances <source package count>
+occurrences <checked occurrence count>
+occurrence <source package index> <product|build> <execution profile|none> <checked target>
 acceptance <byte length>
 <verbatim canonical acceptance text>
 decisions <byte length>
@@ -61,8 +69,8 @@ end_target
 end
 ```
 
-Repeat `acceptance` sections in source-package order and target sections in
-canonical target order. Child text already includes its final LF; the envelope
+Repeat occurrence/acceptance pairs in source-package then purpose order and target
+sections in canonical target order. Child text already includes its final LF; the envelope
 does not insert another separator. Byte lengths delimit children without
 escaping an entire source graph or policy into an opaque string. Each child
 owner validates its own format. The manager checks the joins and outer framing.
@@ -71,7 +79,7 @@ Acceptance children use:
 ```text
 acceptance_schema 2
 rows <count>
-row <callable|external_supply|dangerous_capability|terminal_permission>
+row <callable|external_supply|dangerous_capability|terminal_permission|restricted_build_request>
 key <SHA-256 of canonical row coordinate bytes>
 meaning <byte length>
 <complete canonical readable risk-row text>
@@ -80,14 +88,13 @@ end_acceptance
 
 Repeat row/key/meaning groups in strict kind/key order. The meaning includes its
 final LF. Keys are lowercase hexadecimal, and duplicate coordinates reject.
-Source-package order supplies package identity; the enclosing target supplies
-target identity. Historical text is not promoted into fresh typed analysis.
+The occurrence's source-package index supplies package identity; its explicit
+checked context supplies target identity. Historical text is not promoted into
+fresh typed analysis.
 
-Known version 1 locks remain readable through the existing full-baseline decoder,
-then project only risk-bearing rows into compact acceptance. This migration
-requires no filesystem access, source analysis, or compiler invocation. Writers
-emit version 2 only. Unknown versions fail with recovery guidance; loading never
-upgrades pins or treats unknown policy as empty.
+Only version 3 is accepted. Older package-only or implicit-coverage formats reject;
+recovery never invents role-specific consent. The compact acceptance child schema
+remains unchanged.
 
 ## Decision history
 
@@ -151,13 +158,11 @@ The owned-storage allowance counts requested vector, string, and box storage,
 typed constructor allowances, retained source binary, and validation scratch.
 Input text and previously owned values remain borrowed and are not charged;
 allocator overhead is excluded. Each child reports its consumed allowance, which
-the lock subtracts before recovering the next child. Outer target and baseline
+the lock subtracts before recovering the next child. Outer target and occurrence
 vectors are charged before reservation.
-Legacy full-baseline recovery additionally charges typed policy recovery and
-exact unescape buffers to the same owned-storage allowance. It checks referenced
-package owners against the retained source graph before projection. Its semantic identity
-work is cumulative across baselines and targets, with an additional per-identity
-nesting ceiling of 128; its existing binary and semantic child limits also apply.
+Occurrence vectors contain at most two entries per source package. Full-policy
+construction additionally bounds source-owner identity traversal; compact
+recovery does not manufacture full policy.
 
 `canonical_text_with_limits` uses the same child recovery accounting so it does
 not emit a record that exceeds the chosen recovery ceilings. It drops each

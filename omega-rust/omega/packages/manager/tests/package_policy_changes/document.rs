@@ -671,8 +671,9 @@ fn accepted_build_requests_retain_in_lock_and_widened_requests_require_decisions
     let acceptance = lock
         .target(TARGET)
         .unwrap()
-        .baselines()
+        .occurrences()
         .iter()
+        .map(|occurrence| occurrence.acceptance())
         .find(|acceptance| acceptance.package() == dep_changes(&initial).key().identity())
         .expect("dep acceptance retains in the lock");
     let retained = acceptance

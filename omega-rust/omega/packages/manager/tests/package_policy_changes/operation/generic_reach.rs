@@ -118,7 +118,7 @@ fn invoked_generic_contract_reach_changes_fresh_audit_without_new_consent() {
             .unwrap()
             .all_required_changes_accepted()
     );
-    assert_eq!(propose(&updated).baselines(), accepted.baselines());
+    assert_eq!(propose(&updated).occurrences(), accepted.occurrences());
     assert_round_trip(&updated, propose(&updated));
     assert!(!tree.path("sources/root/omega.lock").exists());
 }
@@ -221,7 +221,7 @@ where machine Step satisfies StepContract::step;
             .unwrap()
             .all_required_changes_accepted()
     );
-    assert_eq!(propose(&updated).baselines(), accepted.baselines());
+    assert_eq!(propose(&updated).occurrences(), accepted.occurrences());
     assert_round_trip(&updated, propose(&updated));
     assert!(!tree.path("sources/root/omega.lock").exists());
 }

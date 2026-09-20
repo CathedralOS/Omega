@@ -144,8 +144,9 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
             .unwrap()
             .contains("Generated")
     );
-    assert!(proposed.baselines().iter().all(|acceptance| {
+    assert!(proposed.occurrences().iter().all(|acceptance| {
         acceptance
+            .acceptance()
             .rows()
             .iter()
             .all(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)

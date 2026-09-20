@@ -165,8 +165,8 @@ fn initial_authority(build: &str, source: &str, package: &str, service: &str) {
     assert_status(&fixture.omega(&["install", "--resume"]), 0);
     let lock = fixture.lock();
     let target = lock.target(TARGET).unwrap();
-    assert!(target.baselines().iter().any(|baseline| {
-        baseline.rows().iter().any(|row| {
+    assert!(target.occurrences().iter().any(|baseline| {
+        baseline.acceptance().rows().iter().any(|row| {
             row.kind().as_str() == "dangerous_capability" && row.canonical_text().contains(service)
         })
     }));
@@ -208,7 +208,7 @@ fn retained_filesystem_implementation_upgrade_recommends_audit_without_reapprova
     let updated = fixture.lock();
     let old_target = accepted.target(TARGET).unwrap();
     let new_target = updated.target(TARGET).unwrap();
-    assert_eq!(new_target.baselines(), old_target.baselines());
+    assert_eq!(new_target.occurrences(), old_target.occurrences());
     let old_package = old_target
         .source()
         .packages()

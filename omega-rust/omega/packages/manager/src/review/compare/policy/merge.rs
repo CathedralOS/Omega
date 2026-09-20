@@ -3,16 +3,19 @@ use super::{
     PackagePolicyRowChange,
     limits::{Budget, row_bytes},
 };
-use crate::lock::PackageAcceptanceRow;
+use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
 use std::cmp::Ordering;
 
-pub(super) fn rows(
+pub(super) fn append_rows(
     baseline: Vec<PackageAcceptanceRow>,
     candidate: Vec<PackageAcceptanceRow>,
     existing_package: bool,
-    occurrence_changed: bool,
+    baseline_context: Option<PackageCheckedContext>,
+    candidate_context: Option<PackageCheckedContext>,
     budget: &mut Budget,
-) -> Result<Vec<PackagePolicyRowChange>, Error> {
+    result: &mut Vec<PackagePolicyRowChange>,
+) -> Result<(), Error> {
+    let occurrence_changed = baseline_context != candidate_context;
     let mut count = 0usize;
     let mut bytes = 0usize;
     walk(&baseline, &candidate, |old, new| {
@@ -28,7 +31,6 @@ pub(super) fn rows(
         Ok(())
     })?;
     budget.changed(count, bytes)?;
-    let mut result = Vec::new();
     result
         .try_reserve_exact(count)
         .map_err(|_| Error::AllocationFailed)?;
@@ -71,6 +73,8 @@ pub(super) fn rows(
                 .as_ref()
                 .is_some_and(PackageAcceptanceRow::audit_recommended_on_change);
         result.push(PackagePolicyRowChange {
+            baseline_context: previous.as_ref().and(baseline_context),
+            candidate_context: current.as_ref().and(candidate_context),
             baseline: previous,
             candidate: current,
             change,
@@ -79,7 +83,7 @@ pub(super) fn rows(
             fingerprint: PackagePolicyChangeFingerprint([0; 32]),
         });
     }
-    Ok(result)
+    Ok(())
 }
 
 fn compare(old: Option<&PackageAcceptanceRow>, new: Option<&PackageAcceptanceRow>) -> Ordering {

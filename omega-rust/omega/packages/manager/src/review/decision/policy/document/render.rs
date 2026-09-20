@@ -82,8 +82,19 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
         resolution(output, "+ source", package.candidate_resolution())?;
         path(output, "- path", package.baseline_path())?;
         path(output, "+ path", package.candidate_path())?;
-        purposes(output, "-", package.baseline_occurrence_purposes())?;
-        purposes(output, "+", package.candidate_occurrence_purposes())?;
+        purposes(output, "-", package.baseline_occurrence_contexts())?;
+        purposes(output, "+", package.candidate_occurrence_contexts())?;
+        for context in package.baseline_occurrence_contexts() {
+            checked_context(output, "-", Some(*context))?;
+        }
+        for context in package.candidate_occurrence_contexts() {
+            checked_context(output, "+", Some(*context))?;
+        }
+        writeln!(
+            output,
+            "occurrence-contexts-changed {}",
+            package.occurrence_contexts_changed()
+        )?;
         writeln!(output, "source-changed {}", package.source_changed())?;
         writeln!(
             output,
@@ -101,6 +112,8 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
                 PackagePolicyChangeKind::Changed => "changed",
             };
             writeln!(output, "change {} {change}", row.kind().as_str())?;
+            checked_context(output, "-", row.baseline_context())?;
+            checked_context(output, "+", row.candidate_context())?;
             writeln!(output, "audit-recommended {}", row.audit_recommended())?;
             policy(output, "-", row.baseline())?;
             policy(output, "+", row.candidate())?;
@@ -113,19 +126,37 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
     writeln!(output, "end-review")
 }
 
+fn checked_context(
+    output: &mut Output,
+    prefix: &str,
+    context: Option<crate::lock::PackageCheckedContext>,
+) -> fmt::Result {
+    match context {
+        Some(context) => writeln!(
+            output,
+            "{prefix} occurrence {} target {} execution {}",
+            context.purpose().name(),
+            context.target().target_name(),
+            context
+                .build_execution_profile()
+                .map_or("none", |profile| profile.target_name())
+        ),
+        None => writeln!(output, "{prefix} occurrence none"),
+    }
+}
+
 fn purposes(
     output: &mut Output,
     prefix: &str,
-    values: Option<&[crate::declarations::DependencyPurpose]>,
+    values: &[crate::lock::PackageCheckedContext],
 ) -> fmt::Result {
     write!(output, "{prefix} purposes")?;
-    match values {
-        Some(values) => {
-            for value in values {
-                write!(output, " {}", value.name())?;
-            }
+    if values.is_empty() {
+        write!(output, " none")?;
+    } else {
+        for value in values {
+            write!(output, " {}", value.purpose().name())?;
         }
-        None => write!(output, " none")?,
     }
     writeln!(output)
 }

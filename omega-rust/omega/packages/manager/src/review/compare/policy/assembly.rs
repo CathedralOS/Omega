@@ -2,6 +2,7 @@ use super::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyPackageChange,
     fingerprints, limits::Budget, merge, paths, projection,
 };
+use crate::declarations::DependencyPurpose;
 use crate::lock::{PackageLockTarget, PackageOccurrenceRoster};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::CompilerIssuedPackageReview;
@@ -46,6 +47,7 @@ pub(super) fn packages(
         .try_reserve_exact(count)
         .map_err(|_| PackagePolicyChangeError::AllocationFailed)?;
     let (mut old_index, mut new_index) = (0, 0);
+    let (mut old_occurrence_index, mut new_occurrence_index) = (0, 0);
     while old_index < old_sources.len() || new_index < new_sources.len() {
         let old = old_sources.get(old_index);
         let new = new_sources.get(new_index);
@@ -58,50 +60,89 @@ pub(super) fn packages(
         let old = if ordering.is_gt() { None } else { old };
         let new = if ordering.is_lt() { None } else { new };
         let key = old.or(new).expect("package union has one side").key();
-        let baseline =
-            old.map(|_| &accepted.expect("old package has baseline").baselines()[old_index]);
-        let review = new.map(|_| reviews[new_index]);
         let baseline_occurrence_purposes = old.and_then(|_| {
             old_roster
                 .as_ref()
                 .expect("old package implies baseline roster")
                 .purposes(key)
-                .map(<[_]>::to_vec)
         });
-        let candidate_occurrence_purposes =
-            new.and_then(|_| new_roster.purposes(key).map(<[_]>::to_vec));
-        if let Some(review) = review {
-            // This producer still issues one review per package. A purpose
-            // roster is not evidence that the same review covers both roles.
-            if candidate_occurrence_purposes.as_deref()
-                != Some(&[review.generated_source_bundle().purpose()][..])
-            {
-                return Err(PackagePolicyChangeError::CandidateReview {
-                    package: Some(Box::new(key.clone())),
-                    reason: "checked review purpose differs from its source occurrence",
-                });
-            }
-        }
-        let occurrence_purposes_changed =
-            baseline_occurrence_purposes != candidate_occurrence_purposes;
-        let retained = baseline.map_or(&[][..], |value| value.rows());
-        budget.slots::<crate::lock::PackageAcceptanceRow>(retained.len())?;
-        for row in retained {
-            budget.context(row.canonical_text().len())?;
-        }
-        let old_rows = retained.to_vec();
-        let new_rows = review
-            .map(|value| projection::rows(key, value.policy(), budget))
-            .transpose()?
-            .unwrap_or_default();
-        fingerprints::package_context(
-            context,
-            key,
-            baseline.is_some(),
-            &old_rows,
-            review,
-            &new_rows,
+        let candidate_occurrence_purposes = new.and_then(|_| new_roster.purposes(key));
+        let old_count = baseline_occurrence_purposes.map_or(0, <[_]>::len);
+        let new_count = candidate_occurrence_purposes.map_or(0, <[_]>::len);
+        let baselines = accepted.map_or(&[][..], |accepted| {
+            &accepted.occurrences()[old_occurrence_index..old_occurrence_index + old_count]
+        });
+        let candidate_reviews = &reviews[new_occurrence_index..new_occurrence_index + new_count];
+        old_occurrence_index += old_count;
+        new_occurrence_index += new_count;
+        budget.slots::<crate::lock::PackageCheckedContext>(old_count + new_count)?;
+        let mut baseline_occurrence_contexts = Vec::new();
+        baseline_occurrence_contexts
+            .try_reserve_exact(old_count)
+            .map_err(|_| PackagePolicyChangeError::AllocationFailed)?;
+        baseline_occurrence_contexts.extend(baselines.iter().map(|value| value.context()));
+        let mut candidate_occurrence_contexts = Vec::new();
+        candidate_occurrence_contexts
+            .try_reserve_exact(new_count)
+            .map_err(|_| PackagePolicyChangeError::AllocationFailed)?;
+        candidate_occurrence_contexts.extend(
+            candidate_reviews
+                .iter()
+                .map(|value| value.checked_context()),
         );
+        let occurrence_contexts_changed =
+            baseline_occurrence_contexts != candidate_occurrence_contexts;
+        let mut rows = Vec::new();
+        let mut audit_present = false;
+        // At most two roles per package. Keep a single package audit summary,
+        // but compare each independently checked occurrence; adding a build
+        // role must neither reuse nor invalidate the product role's consent.
+        for purpose in DependencyPurpose::ALL {
+            let baseline = baselines
+                .iter()
+                .find(|value| value.context().purpose() == purpose);
+            let review = candidate_reviews
+                .iter()
+                .copied()
+                .find(|value| value.checked_context().purpose() == purpose);
+            if baseline.is_none() && review.is_none() {
+                continue;
+            }
+            let retained = baseline.map_or(&[][..], |value| value.acceptance().rows());
+            budget.slots::<crate::lock::PackageAcceptanceRow>(retained.len())?;
+            for row in retained {
+                budget.context(row.canonical_text().len())?;
+            }
+            let old_rows = retained.to_vec();
+            let new_rows = review
+                .map(|value| projection::rows(key, value.policy(), budget))
+                .transpose()?
+                .unwrap_or_default();
+            let baseline_context = baseline.map(|value| value.context());
+            let candidate_context = review.map(CompilerIssuedPackageReview::checked_context);
+            fingerprints::package_context(
+                context,
+                key,
+                baseline_context,
+                &old_rows,
+                review,
+                &new_rows,
+            );
+            audit_present |= !new_rows.is_empty()
+                || review.is_some_and(|review| {
+                    !review.policy().slack_uses().is_empty()
+                        || !review.policy().representation().demands().is_empty()
+                });
+            merge::append_rows(
+                old_rows,
+                new_rows,
+                old.is_some(),
+                baseline_context,
+                candidate_context,
+                budget,
+                &mut rows,
+            )?;
+        }
         let baseline_path = old
             .map(|_| {
                 old_paths
@@ -111,18 +152,6 @@ pub(super) fn packages(
             })
             .transpose()?;
         let candidate_path = new.map(|_| new_paths.path(key, budget)).transpose()?;
-        let audit_present = !new_rows.is_empty()
-            || review.is_some_and(|review| {
-                !review.policy().slack_uses().is_empty()
-                    || !review.policy().representation().demands().is_empty()
-            });
-        let rows = merge::rows(
-            old_rows,
-            new_rows,
-            old.is_some(),
-            occurrence_purposes_changed,
-            budget,
-        )?;
         budget.key(key)?;
         let source_changed =
             old.map(|value| value.resolution()) != new.map(|value| value.resolution());
@@ -135,18 +164,19 @@ pub(super) fn packages(
         let audit_recommended = audit_present
             || rows.iter().any(|row| row.audit_recommended)
             || (accepted.is_some()
-                && (source_changed || source_association_changed || occurrence_purposes_changed));
+                && (source_changed || source_association_changed || occurrence_contexts_changed));
         packages.push(PackagePolicyPackageChange {
             key: key.clone(),
             baseline_resolution: old.map(|value| value.resolution().clone()),
             candidate_resolution: new.map(|value| value.resolution().clone()),
             baseline_path,
             candidate_path,
-            restricted_build_requests: review.map_or_else(Vec::new, |review| {
-                review.restricted_build_requests().to_vec()
-            }),
-            baseline_occurrence_purposes,
-            candidate_occurrence_purposes,
+            restricted_build_requests: candidate_reviews
+                .iter()
+                .flat_map(|review| review.restricted_build_requests().iter().cloned())
+                .collect(),
+            baseline_occurrence_contexts,
+            candidate_occurrence_contexts,
             source_changed,
             source_association_changed,
             audit_recommended,

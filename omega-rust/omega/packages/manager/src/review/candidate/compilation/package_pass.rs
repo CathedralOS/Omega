@@ -47,10 +47,11 @@ pub(super) enum TargetEntryDiscovery {
 }
 
 /// Derive checked roles from graph edges before any build executes. Generated
-/// source handoffs distinguish these roles; package acceptance still has one
-/// row per package at one target, so this coordinator must reject graphs that
-/// would collapse distinct instances until that consumer is migrated. This
-/// limit applies even when a helper does not have a build dependency of its own.
+/// source handoffs and lock acceptance distinguish these roles, but this pass
+/// and reconstructed evidence still retain one policy per package. Reject graphs
+/// that would collapse distinct instances until production and reconstruction
+/// retain each occurrence. This limit applies even when a helper has no build
+/// dependency of its own.
 pub(super) fn checked_package_purposes(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     execution_profile: Option<target::TargetProfile>,
@@ -67,7 +68,7 @@ pub(super) fn checked_package_purposes(
             return Err(
                 CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
                     package: package.clone(),
-                    reason: "cross-profile build activations require separate execution-profile package acceptance rows",
+                    reason: "cross-profile build activations require separate execution-profile review production and reconstruction",
                 },
             );
         }
@@ -81,7 +82,7 @@ pub(super) fn checked_package_purposes(
                 return Err(
                     CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
                         package: package.clone(),
-                        reason: "dual-purpose build activations require separate build and product package acceptance rows",
+                        reason: "dual-purpose build activations require separate build and product review production and reconstruction",
                     },
                 );
             }

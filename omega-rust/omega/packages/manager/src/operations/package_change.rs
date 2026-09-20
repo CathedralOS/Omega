@@ -88,21 +88,18 @@ impl PackageChangeReview {
             HistoricalPackagePolicyLimits::default(),
         )
         .map_err(PackageChangeError::Decisions)?;
-        let mut baselines = Vec::new();
-        baselines
-            .try_reserve_exact(source.packages().len())
+        let mut policies = Vec::new();
+        policies
+            .try_reserve_exact(self.reviews.reviews().len())
             .map_err(|_| PackageChangeError::AllocationFailed)?;
         for package in source.packages() {
-            let review = self
-                .reviews
-                .review(package.key())
-                .expect("comparison checked complete source coverage");
-            baselines.push(
-                crate::lock::PackagePolicyAcceptance::from_policy(review.policy())
-                    .map_err(PackageChangeError::Lock)?,
-            );
+            for purpose in crate::declarations::DependencyPurpose::ALL {
+                if let Some(review) = self.reviews.review_occurrence(package.key(), purpose) {
+                    policies.push((review.checked_context(), review.policy()));
+                }
+            }
         }
-        PackageLockTarget::from_acceptances(source, baselines, decisions)
+        PackageLockTarget::from_policies(source, &policies, decisions)
             .map_err(PackageChangeError::Lock)
     }
 }

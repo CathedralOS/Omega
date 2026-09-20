@@ -314,8 +314,8 @@ fn equal_policy_source_edit_remains_visible_and_resolution_update_preserves_assu
     .unwrap();
     let proposed = review.propose_lock_target(&decisions).unwrap();
     assert_eq!(
-        proposed.baselines(),
-        accepted.target(target).unwrap().baselines()
+        proposed.occurrences(),
+        accepted.target(target).unwrap().occurrences()
     );
     assert_ne!(
         proposed.source().fingerprint(),

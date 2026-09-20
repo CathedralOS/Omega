@@ -55,22 +55,21 @@ pub(super) fn assert_complete_lock(
         .packages()
         .iter()
         .map(|source| {
-            scenario
-                .candidate_reviews
-                .review(source.key())
-                .unwrap()
-                .policy()
-                .clone()
+            let review = scenario.candidate_reviews.review(source.key()).unwrap();
+            (review.checked_context(), review.policy())
         })
         .collect::<Vec<_>>();
     let windows =
-        PackageLockTarget::from_parts(windows_source.clone(), baselines.clone(), decisions.clone())
+        PackageLockTarget::from_policies(windows_source.clone(), &baselines, decisions.clone())
             .unwrap();
-    assert_eq!(windows.baselines().len(), windows.source().packages().len());
+    assert_eq!(
+        windows.occurrences().len(),
+        windows.source().packages().len()
+    );
     assert_eq!(windows.decisions(), &decisions);
     assert_eq!(
-        PackageLockTarget::from_parts(windows_source.clone(), Vec::new(), decisions.clone()),
-        Err(PackageLockError::BaselineCoverage),
+        PackageLockTarget::from_policies(windows_source.clone(), &[], decisions.clone()),
+        Err(PackageLockError::OccurrenceCoverage),
     );
 
     // The second target is genuinely compiled from identical resolver custody;
@@ -91,19 +90,22 @@ pub(super) fn assert_complete_lock(
     let linux_baselines = linux_source
         .packages()
         .iter()
-        .map(|source| linux_reviews.review(source.key()).unwrap().policy().clone())
+        .map(|source| {
+            let review = linux_reviews.review(source.key()).unwrap();
+            (review.checked_context(), review.policy())
+        })
         .collect::<Vec<_>>();
     let linux_decisions = empty_decisions(&linux_source);
     assert_eq!(
-        PackageLockTarget::from_parts(linux_source.clone(), baselines, linux_decisions.clone()),
+        PackageLockTarget::from_policies(linux_source.clone(), &baselines, linux_decisions.clone()),
         Err(PackageLockError::TargetMismatch),
     );
     assert_eq!(
-        PackageLockTarget::from_parts(linux_source.clone(), linux_baselines.clone(), decisions),
+        PackageLockTarget::from_policies(linux_source.clone(), &linux_baselines, decisions),
         Err(PackageLockError::DecisionSourceMismatch),
     );
     let linux =
-        PackageLockTarget::from_parts(linux_source, linux_baselines, linux_decisions).unwrap();
+        PackageLockTarget::from_policies(linux_source, &linux_baselines, linux_decisions).unwrap();
     assert_eq!(
         PackageLock::from_targets(vec![]),
         Err(PackageLockError::EmptyTargets)
@@ -128,17 +130,13 @@ pub(super) fn assert_complete_lock(
         .packages()
         .iter()
         .map(|source| {
-            scenario
-                .baseline_reviews
-                .review(source.key())
-                .unwrap()
-                .policy()
-                .clone()
+            let review = scenario.baseline_reviews.review(source.key()).unwrap();
+            (review.checked_context(), review.policy())
         })
-        .collect();
+        .collect::<Vec<_>>();
     let old_decisions = empty_decisions(&old_source);
     let old_windows =
-        PackageLockTarget::from_parts(old_source, old_baselines, old_decisions).unwrap();
+        PackageLockTarget::from_policies(old_source, &old_baselines, old_decisions).unwrap();
     assert_eq!(
         PackageLock::from_targets(vec![linux.clone(), old_windows]),
         Err(PackageLockError::SourceGraphMismatch)

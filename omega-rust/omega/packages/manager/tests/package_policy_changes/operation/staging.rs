@@ -134,7 +134,7 @@ fn staged_new_assumptions_require_decisions_without_changing_project_files() {
         checked.propose_lock_target(&decisions(&checked, "reject")),
         Err(PackageChangeError::RejectedChanges)
     ));
-    assert_eq!(propose(&checked).baselines().len(), 2);
+    assert_eq!(propose(&checked).occurrences().len(), 2);
     assert_eq!(fs::read(root.join("build.omg")).unwrap(), original);
     assert!(!root.join("omega.lock").exists());
     staged.verify_live_source_unchanged().unwrap();
@@ -194,7 +194,7 @@ fn planned_source_replacement_reviews_candidate_when_old_checkout_is_unavailable
     let (staged, checked) = staged_review(&tree, &replacement, Some(&accepted));
     assert_eq!(checked.changes().source_replacements().len(), 1);
     assert!(checked.changes().requires_decision());
-    assert_eq!(propose(&checked).baselines().len(), 2);
+    assert_eq!(propose(&checked).occurrences().len(), 2);
     assert_eq!(fs::read(root.join("build.omg")).unwrap(), original_build);
     assert!(!root.join("omega.lock").exists());
     staged.verify_live_source_unchanged().unwrap();
