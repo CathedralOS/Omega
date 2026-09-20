@@ -5220,10 +5220,19 @@ Owners include
     emits its equality at the site coordinate (`None` at the declaration).
     Producer and kernel discharge meet in
     `typed-trees-to-checked-trees/src/proof/float_meaning.rs` /
-    `checked-trees/src/checked_trees/proof/float_meaning.rs`. Remaining:
-    `checked-trees-to-lowered-psi` emission of the application rows into
-    Terminal `FloatMeaningSource::SemanticApplication` is still missing,
-    but emission alone does not close the source-proof path described below.
+    `checked-trees/src/checked_trees/proof/float_meaning.rs`, and
+    `checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs`
+    (`rejoin_float_semantic_applications`, landed 409eb250ab) emits every
+    checked application row as Terminal `FloatMeaningSource::SemanticApplication`
+    with the exact catalog identity, result format and operand roster,
+    refusing by result row an application that fails catalog replay, names
+    no row or a resolved row, or declares a format the row does not project
+    (`semantic_application_lowers_to_the_terminal_carrier_end_to_end`).
+    Emission alone does not close the source-proof path described below: the
+    selected machine's scalar-contract lowering
+    (`scalar_graph/scalar_contracts.rs::covered_requires`) still admits no
+    non-reflexive meaning clause, so a contract naming an application lowers
+    only when another machine is selected.
   - The non-call operation result and call result
     [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     now carry the use-site coordinate settled
@@ -5276,9 +5285,9 @@ Owners include
   ```
 
   Next retain this authored equality as a typed contract proposition with its
-  exact owner/use-site obligation, emit the application through
-  `checked-trees-to-lowered-psi`, and discharge that obligation through the
-  ordinary `CertificateDerived` production and independent replay route.
+  exact owner/use-site obligation, admit it through the owner's scalar-contract
+  lowering, and discharge that obligation through the ordinary
+  `CertificateDerived` production and independent replay route.
   The checked equality side table and Terminal mathematical-value rows alone
   do not join `TerminalMachine.contract.ensures` to a proved obligation.
   Do not erase the claim to `Truth`/`Empty` or treat well-formed metadata as
