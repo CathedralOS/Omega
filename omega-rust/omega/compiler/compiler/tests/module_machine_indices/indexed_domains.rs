@@ -22,6 +22,132 @@ fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
+fn generic_carrier_aliases_retain_constituent_bindings_through_terminal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for declaration in [
+        "domain<U> U::Marked; domain<T> T::Alias = T::Marked;",
+        "domain<U> U::T; domain<T> T::Alias = T::T;",
+        "domain<U> U::Marked requires true; domain<V> V::Both = V::Marked;
+         domain<T> T::Alias = T::Both & T::Marked;",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{declaration} const VALUE: u64 in Alias = 7;
+                      machine read() -> u64 {{ VALUE as u64 }}"
+            ),
+        );
+        assert_source_free_seven(compile(&root, super::root_inputs(&root)));
+    }
+}
+
+#[test]
+fn generic_carrier_aliases_select_constituents_in_the_authors_package() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; pub domain<U> U::Marked requires true;",
+    );
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; use policy;
+         pub domain<T> T::Alias = T::Marked;
+         pub const VALUE: u64 in Alias = 7;",
+    );
+    Sources::write(
+        root.join("policy.omg"),
+        "module policy; pub domain<U> U::Marked requires false;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use policy; use library::settings;
+         machine read() -> u64 { settings::VALUE as u64 }",
+    );
+    assert_source_free_seven(compile(&root, package_inputs(&root, &library)));
+
+    // An import by another file is not exposure for the alias author.
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; pub domain<T> T::Alias = T::Marked;
+         pub const VALUE: u64 in Alias = 7;",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(error.contains("does not select one exposed"), "{error}");
+}
+
+#[test]
+fn generic_carrier_aliases_do_not_erase_application_obligations() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (declaration, expected) in [
+        (
+            "domain<U [copy]> U::Marked; domain<T> T::Alias = T::Marked;",
+            "carrier requires `copy`",
+        ),
+        (
+            "domain<U> U::Marked; domain<T [copy]> T::Alias = T::Marked;",
+            "typed carrier-bound application evidence",
+        ),
+        (
+            "domain<U> U::Marked; domain<T, const N: u64> T::Alias<N> = T::Marked;",
+            "typed index-application evidence",
+        ),
+        (
+            "domain<U, const N: u64> U::Marked<N>; domain<T> T::Alias = T::Marked;",
+            "supplies no index arguments",
+        ),
+        (
+            "domain<U> U::Marked; domain<T, V> T::Alias = V::Marked;",
+            "must name this alias's carrier type binder",
+        ),
+        (
+            "domain<U> U::Marked; domain<const T: u64> u64::Alias<T> = T::Marked;",
+            "must name this alias's carrier type binder",
+        ),
+        (
+            "domain<U> U::Marked; pub domain<T> T::Alias = T::Marked;",
+            "private constituent",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("{declaration} machine read() -> u64 {{ 7 }}"),
+        );
+        let error = rejection(&root, super::root_inputs(&root));
+        assert!(error.contains(expected), "{declaration}: {error}");
+    }
+
+    Sources::write(
+        root.join("main.omg"),
+        "domain<U> U::Marked requires false; domain<T> T::Alias = T::Marked;
+         const UNUSED: u64 in Alias = 7; machine read() -> u64 { 7 }",
+    );
+    let error = rejection(&root, super::root_inputs(&root));
+    assert!(error.contains("failed domain `Marked`"), "{error}");
+}
+
+#[test]
+fn generic_alias_carrier_prefix_cannot_select_a_same_named_module() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    std::fs::create_dir(root.join("T")).unwrap();
+    Sources::write(
+        root.join("T/nested.omg"),
+        "module T::nested; pub domain<U> U::Marked;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use T::nested; domain<T> T::Alias = T::nested::Marked;
+         const VALUE: u64 in Alias = 7; machine read() -> u64 { VALUE as u64 }",
+    );
+    let error = rejection(&root, super::root_inputs(&root));
+    assert!(error.contains("carrier type binder"), "{error}");
+}
+
+#[test]
 fn scalar_constant_aliases_discharge_every_constituent_through_terminal() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -303,11 +429,23 @@ fn domain_membership_subjects_retain_literal_and_computed_types() {
 fn scalar_constant_predicates_cannot_mint_routed_or_aliased_authority() {
     let tree = Sources::new();
     let root = tree.package("root");
-    for declaration in [
-        "domain<T> T::Issued established by Issuer::issue;",
-        "domain<T> T::Issued requires true\n established by Issuer::issue;",
-        "domain u64::Issued established by Issuer::issue;",
-        "domain<T> T::Never requires false; domain<T> T::Issued = T::Never;",
+    for (declaration, expected) in [
+        (
+            "domain<T> T::Issued established by Issuer::issue;",
+            "declaration-site proof checking",
+        ),
+        (
+            "domain<T> T::Issued requires true\n established by Issuer::issue;",
+            "declaration-site proof checking",
+        ),
+        (
+            "domain u64::Issued established by Issuer::issue;",
+            "declaration-site proof checking",
+        ),
+        (
+            "domain<T> T::Never requires false; domain<T> T::Issued = T::Never;",
+            "failed domain `Never`",
+        ),
     ] {
         Sources::write(
             root.join("main.omg"),
@@ -319,10 +457,7 @@ fn scalar_constant_predicates_cannot_mint_routed_or_aliased_authority() {
             ),
         );
         let error = rejection(&root, super::root_inputs(&root));
-        assert!(
-            error.contains("declaration-site proof checking"),
-            "{declaration}: {error}"
-        );
+        assert!(error.contains(expected), "{declaration}: {error}");
     }
 }
 

@@ -17,6 +17,9 @@ mod owned_state;
 #[path = "scalar_case_results/membership.rs"]
 mod membership;
 
+#[path = "scalar_case_results/generic_aliases.rs"]
+mod generic_aliases;
+
 #[path = "scalar_case_results/projected_membership.rs"]
 mod projected_membership;
 

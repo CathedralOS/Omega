@@ -460,14 +460,22 @@ intermediate arithmetic and nested membership; comparisons cannot hide an
 earlier Exact overflow or borrow the enclosing subject's width. Anonymous
 peers land against that carrier, while authored operator meanings still need
 ordinary typed selection. Generic `self` and carrier-property bounds remain
-unavailable to this early evaluator. Fixed scalar aliases discharge every
+unavailable to this early evaluator. Scalar aliases discharge every
 constituent through the same source-owned membership replay; nested aliases
 retain ordinary Boolean truth, and direct rejection names the failing domain.
 The original alias stays intact for typed expansion and identity normalization.
 The recursion guard uses declaration source custody as well as logical names,
 so equal alias paths in distinct packages do not form a false cycle. Predicates
-alone never discharge routed authority, and generic carrier-alias correspondence
-and compiler-owned alias atoms still need typed evidence.
+alone never discharge routed authority. Generic carrier-alias heads bind in the
+author's telescope before early module admission; repeated preparation keeps
+the selected declaration address, never reinterpreting it as a carrier binder.
+Typed alias validation applies each constituent family to the alias's subject
+under its exact binder scope, without equating unrelated same-named types.
+Alias-owned carrier bounds and indices remain fenced until their application
+evidence survives expansion; compiler-owned alias atoms still need typed evidence.
+`omega-native-differential-test --test scalar_case_results -E 'test(generic_aliases)'`
+exercises a constrained scalar constant through ordinary source compilation,
+source-free Terminal replay, four-target native emission, and host execution.
 Trait-default preparation retains the source
 map and import bindings when it rechecks these declarations, so that later
 pass cannot merge equal logical domain paths from distinct packages.

@@ -1,4 +1,4 @@
-//! Resolve a generic field's carrier-qualified domain before substituting its carrier.
+//! Resolve carrier-binder domain heads before substituting their carrier.
 //!
 //! `T in T::Marked` selects a family in the template author's scope. Once
 //! `T` becomes an array or a foreign nominal type, the original carrier prefix
@@ -7,6 +7,10 @@
 //! address with the authored use span. Original templates and their instances
 //! then use the same ordinary domain lookup and authored-selection evidence;
 //! the receiving package's imports cannot redirect either one.
+//! Alias constituents use the same selection: their carrier prefix refers to
+//! the alias's binder, not a top-level module with the same spelling. This
+//! binds names only; typed alias application still checks subject compatibility
+//! and the selected family's requirements before expanding its atoms.
 
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
@@ -16,12 +20,58 @@ use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReference
 
 use super::constant_selection::ConstantSelection;
 
-pub(super) fn normalize(
+pub(in crate::preparation) fn normalize(
     syntax: &mut SyntaxTrees,
     selection: Option<&ConstantSelection>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut pending = Vec::new();
-    for item in syntax.root_items() {
+    let mut alias_heads = Vec::new();
+    for &declaration in syntax.root_item_handles() {
+        let item = syntax.root_item(declaration);
+        if let Item::Domain(domain) = item {
+            let Some(alias) = &domain.alias else {
+                continue;
+            };
+            let parameters = syntax.items.type_parameters(domain.type_parameters);
+            for (ordinal, constituent) in alias.constituents.iter().enumerate() {
+                let members = syntax.items.identifier_path_members(*constituent);
+                if members.len() < 2 {
+                    continue;
+                }
+                let Some(carrier) = members.first() else {
+                    continue;
+                };
+                let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == carrier.as_str())
+                else {
+                    continue;
+                };
+                let [_, leaf] = members else {
+                    // A lexical binder cannot become a same-spelled module
+                    // just because another path component follows it.
+                    return Err(vec![Diagnostic::error(format!(
+                        "domain alias carrier type binder `{}` must be followed by one domain name",
+                        carrier.as_str()
+                    )).with_source_span(carrier.source_span())]);
+                };
+                if !matches!(parameter.kind, TypeParameterKind::Type)
+                    || named_carrier(syntax, domain.target_type) != Some(carrier.as_str())
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "domain alias constituent `{}::{}` must name this alias's carrier type binder",
+                        carrier.as_str(), leaf.as_str()
+                    )).with_source_span(carrier.source_span())]);
+                }
+                alias_heads.push((
+                    declaration,
+                    ordinal,
+                    leaf.as_str().to_owned(),
+                    carrier.source_span(),
+                ));
+            }
+            continue;
+        }
         let Item::Data(definition) = item else {
             continue;
         };
@@ -101,7 +151,7 @@ pub(super) fn normalize(
             }
         }
     }
-    if pending.is_empty() {
+    if pending.is_empty() && alias_heads.is_empty() {
         return Ok(());
     }
     let fallback;
@@ -140,6 +190,27 @@ pub(super) fn normalize(
                 constraints,
             },
         );
+    }
+    for (declaration, ordinal, leaf, reference) in alias_heads {
+        let Some(address) = selection.generic_carrier_domain_address(syntax, &leaf, reference)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "carrier-qualified domain `{leaf}` does not select one exposed generic-carrier family"
+            )).with_source_span(reference)]);
+        };
+        let Item::Domain(mut domain) = syntax.root_item(declaration).clone() else {
+            continue;
+        };
+        let Some(alias) = &mut domain.alias else {
+            continue;
+        };
+        // One selected address is not another authored carrier-head path.
+        // Retaining it as one identifier also makes repeated preparation
+        // idempotent when the declaring module has a binder's spelling.
+        alias.constituents[ordinal] = syntax
+            .items
+            .insert_identifier_path_members([Identifier::new(address, reference)]);
+        syntax.items.replace_item(declaration, Item::Domain(domain));
     }
     Ok(())
 }
