@@ -115,6 +115,7 @@ pub(crate) fn retain(
                 pending.push(binary.right);
                 pending.push(binary.left);
             }
+            ExpressionNode::Member(member) => pending.push(member.receiver),
             ExpressionNode::Unary(unary) => {
                 operators.push(syntax.expressions.source_span(expression));
                 pending.push(unary.operand);
