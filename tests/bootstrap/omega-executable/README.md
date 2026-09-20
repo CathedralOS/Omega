@@ -132,6 +132,28 @@ form. Each part carries seven or fewer controls and ends with the same
 `20 + 22` success compile, byte `67`, and tape publication, so every run
 checks the same observation and executes the same emitted program.
 
+## Bound customer entries
+
+Every entry the harness may select is bound: `main.epsilon` and the eight
+controls files are gate-local inputs packed on top of the bound member
+closure, never part of the manifested members.
+
+| Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
+| --- | ---: | --- | ---: | --- |
+| `main.epsilon` | 1,759 | `4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b` | 559,824 | `c3b86f71eba1e0f7317c9c4cd1b3afc8d26e2d80a1e114322c84beb20234548d` |
+| `controls.epsilon` | 3,339 | `44b8f0d15df414a80728918560ef988341537cfa25c0e21d6240a52c7f72f91b` | 561,404 | `a30e4e007367669e90e6356407eb0647552ec4415947b34629c4ce8601c3865a` |
+| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 561,149 | `ebbab1f132eafc5d3910d7ca7b90f1d7280caad9bad9c6d0f2f0b818bf559748` |
+| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 560,889 | `dcca542508d8a5c8406b0cbeacb53ef9f2d17c5d43cc16a0c3d5aecefa17ef8a` |
+| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 560,915 | `9ea9b0abca75b330fbbde43fc40e801a85a9fca184f79324849ff94d79c71e23` |
+| `controls_e.epsilon` | 2,703 | `42090d41fbfa2068e1063bebfa7caae4373ac7b5825ede94b8edbc8877338248` | 560,768 | `a62270323e17dea5fef4da69fb2042c1c690a5cbb36ca471cf5d7709a6c84ed1` |
+| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 562,490 | `be615c94a9f7812e33743580758e4bc66b2439f2e267dcec35ad68c285ce8822` |
+| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 561,192 | `3d2ebf05e91b6357d971acf291d8f04dec2e96444f17365339869ce787d4554a` |
+| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 561,258 | `4414e832300e9cc352a02b53e01baf1d1bb8cc3dd7dbf7d342e968a27b8f9e0e` |
+
+`tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
+each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and
+verifies each packed customer, compiler bytes plus entry, against this table.
+
 ## Execution boundary
 
 This is a component-level source-to-executable regression, not the final

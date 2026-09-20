@@ -311,8 +311,8 @@ prerequisite to every lower-rung milestone.
   a subject's exact size and digest against the audit record that states them,
   each edge's `*_env.sh` wraps it per subject — seed container, flat-edge
   source and tape, request entry, manifests, members, composed record, driver,
-  receipt — and every test gate consuming a canonical closure reaches it
-  through those materializers. The `tests/bootstrap/*-identity.sh` gates cover
+  receipt, gate-local customer entry — and every test gate consuming a
+  canonical closure reaches it through those materializers. The `tests/bootstrap/*-identity.sh` gates cover
   identity, refusal, and agreement with every other repository record that
   pins a bound subject. These are byte identities, not evidence that a rung
   ran: the gates bind without executing, and seed execution needs macOS arm64
@@ -322,8 +322,10 @@ prerequisite to every lower-rung milestone.
 
   - D's OCREQ request entry, still framed per gate rather than bound.
   - The gate-local prefixes packed on top of bound member bytes: every
-    gate-local driver except the shared Epsilon slice driver, and D's
-    gate-local entries.
+    gate-local driver except the shared Epsilon slice driver. D's gate-local
+    customer entries bind in `tools/bootstrap/omega/compiler_env.sh`, recorded
+    in each omega-* gate README; `tests/bootstrap/omega-identity.sh` checks
+    them and the packed compiler-plus-entry customer bytes on Linux.
   - The `omega0` and `omega` compiler tapes, which **OMEGA-C** has yet to
     produce.
   - The certificates and disclosed admission records, as the edges producing

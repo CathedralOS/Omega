@@ -29,5 +29,6 @@ materialize_delta_compiler "$OUTPUT_DIR/delta_compiler.gamma"
 materialize_delta_support "$OUTPUT_DIR/support.bin"
 materialize_epsilon_evaluator "$OUTPUT_DIR/epsilon_compiler.delta"
 materialize_omega_compiler "$OUTPUT_DIR/omega_compiler.epsilon"
+require_omega_outcome_entry_identity
 materialize_gamma_evaluator "$OUTPUT_DIR/evaluator.exe" >/dev/null
 python3 "$GATE_DIR/gate.py" "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"
