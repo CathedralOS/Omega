@@ -727,6 +727,158 @@ fn ordinary_native_product_publishes_its_completed_companion() {
     );
 }
 
+fn terminal_companion_product(
+    label: &str,
+    request_proof: bool,
+) -> (Project, Project, compiler::CompileReport) {
+    let project = Project::new(&format!("{label}-source"));
+    let publication = Project::new(&format!("{label}-publication"));
+    project.write(
+        "main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    project.write(
+        "build.omg",
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("terminal-companion");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.pcc.psi = {request_proof};
+    let scratch: BuildPath = builder.output.resolve("scratch.txt");
+    let temporary: i32 = builder.output.create(scratch, 438);
+    let discarded: i64 = builder.output.write(temporary, "not a product");
+    let released: i32 = builder.output.close(temporary);
+    let required: RequiredOutput = builder.output.require("companion.txt");
+    let path: BuildPath = builder.output.resolve("companion.txt");
+    let descriptor: i32 = builder.output.create(path, 438);
+    let written: i64 = builder.output.write(descriptor, "companion\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, path);
+}}
+"#
+        ),
+    );
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: project.main(),
+            build_dir: Some(publication.root.clone()),
+            target_name: Some("linux_x86_64".to_owned()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact)
+        .with_package_inputs(package_inputs(&project.root)),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report);
+    set_canonical_source_tree_permissions(&project.root, false);
+    let report =
+        result.unwrap_or_else(|diagnostics| panic!("{}", diagnostic_messages(&diagnostics)));
+    (project, publication, report)
+}
+
+#[test]
+fn ordinary_terminal_product_publishes_its_completed_companions() {
+    for request_proof in [false, true] {
+        let (_project, publication, report) = terminal_companion_product(
+            &format!("terminal-companion-{request_proof}"),
+            request_proof,
+        );
+        let expected_artifact = report.artifact().unwrap().to_bytes();
+        assert!(report.has_consistent_executable_publication_custody());
+        assert!(!publication.root.join("main.psi").exists());
+        assert!(!publication.root.join("completed").exists());
+        let report = report
+            .publish_retained_terminal_artifact(&publication.root)
+            .unwrap();
+        assert!(report.wrote_output());
+        assert!(
+            report.has_consistent_executable_publication_custody(),
+            "published Terminal custody must remain valid for companion publication"
+        );
+        assert_eq!(
+            std::fs::read(publication.root.join("main.psi")).unwrap(),
+            expected_artifact
+        );
+        assert_eq!(
+            publication.root.join("main.psi.proof").is_file(),
+            request_proof
+        );
+        let report = report
+            .publish_completed_build_outputs(&publication.root)
+            .unwrap();
+        let outputs = report.build_outputs().unwrap();
+        let directory = outputs.published_directory().unwrap();
+        assert_eq!(
+            std::fs::read(directory.join("files/companion.txt")).unwrap(),
+            b"companion\n"
+        );
+        assert_eq!(
+            std::fs::read(directory.join("manifest.bin")).unwrap(),
+            outputs.manifest_bytes()
+        );
+        assert!(!directory.join("files/scratch.txt").exists());
+        assert!(report.has_consistent_executable_publication_custody());
+        assert!(report.checked_native_executable_path().is_none());
+        let report = report
+            .publish_completed_build_outputs(&publication.root)
+            .expect("the same completed set can be verified again");
+        assert!(
+            report
+                .publish_retained_terminal_artifact(&publication.root)
+                .is_err(),
+            "publishing companions does not reopen primary publication"
+        );
+    }
+}
+
+#[test]
+fn terminal_companions_cannot_publish_before_the_primary_product() {
+    let (_project, publication, report) =
+        terminal_companion_product("terminal-before-primary", false);
+    let error = report
+        .publish_completed_build_outputs(&publication.root)
+        .unwrap_err();
+    assert!(
+        error.contains("checked, published primary product"),
+        "{error}"
+    );
+    assert!(!publication.root.join("main.psi").exists());
+    assert!(!publication.root.join("completed").exists());
+}
+
+#[test]
+fn terminal_product_check_failure_publishes_no_completed_companions() {
+    let (project, publication, report) =
+        terminal_companion_product("terminal-product-failure", false);
+    assert!(
+        report.build_outputs().is_some(),
+        "the build completes its file"
+    );
+    drop(report);
+    let source = std::fs::read_to_string(project.root.join("build.omg"))
+        .unwrap()
+        .replace("builder.pcc.psi = false;", "builder.pcc.native = true;");
+    project.write("build.omg", &source);
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: project.main(),
+            build_dir: Some(publication.root.clone()),
+            target_name: Some("linux_x86_64".to_owned()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact)
+        .with_package_inputs(package_inputs(&project.root)),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report);
+    set_canonical_source_tree_permissions(&project.root, false);
+    let diagnostics =
+        result.expect_err("the authored native proof request cannot stop at Terminal");
+    let message = diagnostic_messages(&diagnostics);
+    assert!(message.contains("Terminal stop"), "{message}");
+    assert!(!publication.root.join("main.psi").exists());
+    assert!(!publication.root.join("main.psi.proof").exists());
+    assert!(!publication.root.join("completed").exists());
+}
+
 #[test]
 fn artifact_only_build_without_a_completed_output_rejects() {
     let project = Project::new("artifact-only-empty");
