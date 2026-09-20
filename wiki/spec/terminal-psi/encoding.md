@@ -1286,6 +1286,91 @@ counted requirement propositions, counted semantic-axiom propositions, and a
 | 1 | Derivable | — |
 | 2 | AdmissionAuthorized | admission site id + admission kind + authority evidence identity |
 
+## Canonical artifact
+
+The transport envelope is `PSIART\0\0` + `u16` format marker 2 + the counted
+section framing below; a receiver rejects an unknown magic, a stale marker,
+an unknown debug-presence tag, and trailing bytes.
+
+<!-- artifact-framing -->
+| # | Framing field | Bytes |
+| --- | --- | --- |
+| 1 | semantic section length | `u64` byte length of the semantic module section |
+| 2 | proof section length | `u64` byte length of the sealed proof section |
+| 3 | optimization section length | `u64` byte length of the optimization execution section |
+| 4 | debug presence | `u8`: 0 absent; 1 + `u64` debug section byte length |
+| 5 | section bytes | semantic, sealed proof, optimization, then debug bytes when present, in that order |
+
+Decoding is reconstruction: the semantic module validates on its own; the
+sealed proof section decodes only against that decoded module's identity, so
+the producer cannot choose the verifier's subject; the optimization and debug
+sections rebind to it. The artifact manifest is rebuilt from the section
+bytes, never transported. Every decoded section must re-encode to the exact
+transported bytes — a producer's non-canonical serialization rejects.
+
+## Debug map
+
+A debug map is `PSIDBG\0\0` + `u16` format marker 1 + `u16` vocabulary marker
++ the 32-byte semantic-module fingerprint it presents + counted source files
++ counted sites. The fingerprint must equal the decoded module's identity:
+presentation metadata binds the exact subject, never a different program.
+
+A source file row is a `u32` file id + `u8` origin tag + `u64` byte length +
+32-byte content digest + string path. A site row is a subject + `u32` file id
++ `u64` start offset + `u64` end offset. Files are strictly increasing by id,
+sites strictly increasing by subject, every site references a file row whose
+byte length covers its span, and every subject names an identity that occurs
+in the module. Decoding rejects trailing bytes and requires byte-for-byte
+re-encoding.
+
+<!-- debug-source-origin-tags -->
+| Tag | Source origin |
+| --- | --- |
+| 1 | User |
+| 2 | Toolchain |
+
+<!-- debug-subject-tags -->
+| Tag | Debug subject | Id fields |
+| --- | --- | --- |
+| 1 | Machine | machine id |
+| 2 | Block | block id |
+| 3 | Operation | operation id |
+| 4 | Edge | edge id |
+| 5 | Value | value id |
+| 6 | Contract | contract id |
+| 7 | Obligation | obligation id |
+| 8 | Place | place id |
+| 9 | Claim | machine id + claim id |
+
+## Optimization execution
+
+The record is `PSIOEXE\0` + `u16` format marker 1 + `u64` selection byte
+length + the selection bytes + input terminal identity + 32-byte input proof
+fingerprint + output terminal identity + 32-byte output proof fingerprint. A
+terminal identity is `u16` vocabulary marker + 32-byte program fingerprint.
+Decoding rejects trailing bytes, requires the empty selection set to leave
+both input/output identities unchanged, and requires byte-for-byte
+re-encoding.
+
+## PCC proof sidecar
+
+A proof-carrying-code sidecar is `PCCPROOF` + `u16` format marker 1 + `u8`
+product kind + the 32-byte artifact commitment + string semantic profile +
+string checker profile + counted guarantees + `u64` evidence length +
+evidence bytes + counted assumption strings + counted dependencies + no
+trailing bytes. A guarantee is a string identity + counted premise strings; a
+dependency is a string identity + a 32-byte content commitment. The guarantee
+set is nonempty; guarantees, assumptions, and dependencies are canonically
+ordered, and the decoded value re-encodes byte-for-byte. [PCC
+publication](../proofs/publication.md) owns the semantic contract these
+identities certify.
+
+<!-- pcc-product-kind-tags -->
+| Tag | Product |
+| --- | --- |
+| 1 | Psi |
+| 2 | Native |
+
 ## Section identities
 
 | Section | Identity and role |

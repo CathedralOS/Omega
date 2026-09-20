@@ -1535,3 +1535,208 @@ fn module_table_order_matches_codec() {
         }
     }
 }
+
+/// `(spec field, encode sentinels, decode sentinels)` pinning the
+/// canonical-artifact framing order — the byte sequence a receiver must split
+/// before it can decode or reject anything inside `PSIART\0\0`. The sentinels
+/// are the exact calls inside `to_bytes`/`from_bytes`; moving a field is a
+/// wire change and must move its spec row with it.
+const ARTIFACT_FRAMING_ORDER: &[(&str, &[&str], &[&str])] = &[
+    (
+        "semantic section length",
+        &["encode_section_len(&mut bytes, self.semantic_bytes.len())"],
+        &["cursor.section_len(\"semantic\")"],
+    ),
+    (
+        "proof section length",
+        &["encode_section_len(&mut bytes, self.proof_bytes.len())"],
+        &["cursor.section_len(\"proof\")"],
+    ),
+    (
+        "optimization section length",
+        &["encode_section_len(&mut bytes, self.optimization_bytes.len())"],
+        &["cursor.section_len(\"optimization\")"],
+    ),
+    (
+        "debug presence",
+        &[
+            "bytes.push(1)",
+            "encode_section_len(&mut bytes, debug.len())",
+        ],
+        &["cursor.byte()", "cursor.section_len(\"debug\")"],
+    ),
+    (
+        "section bytes",
+        &[
+            "bytes.extend_from_slice(&self.semantic_bytes)",
+            "bytes.extend_from_slice(&self.proof_bytes)",
+            "bytes.extend_from_slice(&self.optimization_bytes)",
+            "bytes.extend_from_slice(debug)",
+        ],
+        &[
+            "cursor.take(semantic_len)",
+            "cursor.take(proof_len)",
+            "cursor.take(optimization_len)",
+            "cursor.take(len)",
+        ],
+    ),
+];
+
+/// The artifact envelope is the discard-producer boundary: nothing but bytes
+/// crosses it, so the framing order is contract.
+#[test]
+fn artifact_framing_matches_codec() {
+    let rows = spec_data_rows("<!-- artifact-framing -->");
+    let expected: Vec<&str> = ARTIFACT_FRAMING_ORDER.iter().map(|row| row.0).collect();
+    assert_eq!(
+        rows.len(),
+        expected.len(),
+        "spec artifact framing count changed"
+    );
+    for (index, cells) in rows.iter().enumerate() {
+        let number: u8 = cells[1].parse().expect("artifact framing row number");
+        assert_eq!(
+            number as usize,
+            index + 1,
+            "artifact framing numbering breaks"
+        );
+        assert_eq!(
+            cells[2],
+            expected[index],
+            "spec artifact framing row {} renamed",
+            index + 1
+        );
+    }
+    let source = strip_line_comments(&read_workspace_file(
+        "omega-rust/psi/semantics/terminal-codec/src/canonical_artifact.rs",
+    ));
+    for (function, column, direction) in [
+        ("to_bytes", 1usize, "encode"),
+        ("from_bytes", 2usize, "decode"),
+    ] {
+        let body = function_body(&source, function);
+        let mut cursor = 0usize;
+        for (field, encode_sentinels, decode_sentinels) in ARTIFACT_FRAMING_ORDER {
+            let sentinels = if column == 1 {
+                encode_sentinels
+            } else {
+                decode_sentinels
+            };
+            for sentinel in *sentinels {
+                let offset = body[cursor..].find(sentinel).unwrap_or_else(|| {
+                    panic!(
+                        "{direction} order for artifact field '{field}' ({sentinel}) is missing or out of order"
+                    )
+                });
+                cursor += offset + sentinel.len();
+            }
+        }
+    }
+}
+
+/// Reconstruction, not trust, is what makes the artifact a receiver-side
+/// boundary: every section is decoded against the freshly decoded module, the
+/// manifest is rebuilt rather than read, and the transported bytes must be
+/// reproducible field-for-field.
+#[test]
+fn artifact_decode_rederives_sections_and_manifest() {
+    let source = strip_line_comments(&read_workspace_file(
+        "omega-rust/psi/semantics/terminal-codec/src/canonical_artifact.rs",
+    ));
+    let body = function_body(&source, "from_bytes");
+    for required in [
+        "decode_module(semantic_bytes)",
+        "decode_proof_section_for(&semantic_module, proof_bytes)",
+        "decode_psi_optimization_execution_record(optimization_bytes)",
+        "decode_debug_map(&semantic_module, debug)",
+        "Self::from_parts(",
+        "artifact.semantic_bytes() != semantic_bytes",
+        "artifact.proof_bytes() != proof_bytes",
+        "artifact.optimization_bytes() != optimization_bytes",
+        "artifact.debug_bytes() != debug_bytes",
+        "NonCanonicalSections",
+    ] {
+        assert!(
+            body.contains(required),
+            "canonical_artifact::from_bytes no longer contains {required}"
+        );
+    }
+    assert!(
+        function_body(&source, "validate").contains("validate_artifact_manifest("),
+        "artifact validation no longer rebuilds and compares the manifest"
+    );
+}
+
+/// Every companion envelope that accepts bytes off the wire must prove its
+/// decoded value is canonical by re-encoding it and comparing, so a producer
+/// cannot smuggle an alternate serialization of the same value.
+#[test]
+fn companion_envelopes_reencode_on_decode() {
+    for (path, function, marker) in [
+        (
+            "omega-rust/psi/semantics/terminal-codec/src/sections/debug_map.rs",
+            "decode_debug_map",
+            "NonCanonicalEncoding",
+        ),
+        (
+            "omega-rust/psi/semantics/terminal-codec/src/sections/optimization_execution.rs",
+            "decode_psi_optimization_execution_record",
+            "NonCanonicalEncoding",
+        ),
+        (
+            "omega-rust/psi/semantics/terminal-codec/src/sections/proof_sidecar.rs",
+            "from_bytes",
+            "NonCanonicalEncoding",
+        ),
+        (
+            "omega-rust/psi/semantics/terminal-codec/src/canonical_artifact.rs",
+            "from_bytes",
+            "NonCanonicalSections",
+        ),
+    ] {
+        let source = strip_line_comments(&read_workspace_file(path));
+        let body = function_body(&source, function);
+        assert!(
+            body.contains(marker),
+            "{path}::{function} no longer rejects a non-canonical encoding"
+        );
+    }
+}
+
+#[test]
+fn debug_source_origin_table_matches_codec() {
+    assert_table_matches(
+        "<!-- debug-source-origin-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/debug_map.rs",
+            "encode_raw",
+            "DebugSourceOrigin",
+        ),
+    );
+}
+
+#[test]
+fn debug_subject_table_matches_codec() {
+    assert_table_matches(
+        "<!-- debug-subject-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/debug_map.rs",
+            "encode_subject",
+            "DebugSubject",
+        ),
+    );
+}
+
+/// `PccProductKind::encode` writes its tag arms as `Self::Variant`, so the
+/// scan prefix is the enum's `Self` qualifier.
+#[test]
+fn pcc_product_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- pcc-product-kind-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/proof_sidecar.rs",
+            "encode",
+            "Self",
+        ),
+    );
+}
