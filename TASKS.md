@@ -15625,7 +15625,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SHARED-RECEIVER-LOAN-ORIGIN.** Resolved — superseded on `origin/main` (verified e76d715c8e, linux-x86_64). The recorded failure `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence` ("state `code` requires an exact retained loan origin for its shared receiver", baseline row at 63f625f942, macOS arm64) now passes; the whole `package_compilation_inputs` run emits zero "loan origin" diagnostics. Fixed by the retained-lineage/borrow-evidence cluster (f8efecfb76/b336531455/2aba180197 family). Residual: 13 unrelated authority/provider-selection failures in the same target remain red under their own items. Re-verified at `0a0662ad27a` (linux x86-64): `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence` still passes — the resolution is current.
 - **SHARED-WORD-PREFIX-NATIVE-RUN** — mined candidate; verify scope then implement.
 - **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE** — mined candidate; verify scope then implement.
-- **SINGLE-PROGRAM-ENTRY-SELECTION** — mined candidate; verify scope then implement.
+- **SINGLE-PROGRAM-ENTRY-SELECTION.** Mined candidate; scope verified at
+  `9f48bb2a594` — the mechanism exists; the residuals are owned elsewhere.
+  Single-entry selection is enforced today by
+  `selected-dispatch/src/service_custody/root.rs::derive_fused_program_entry_establishments`:
+  the selected ProgramEntry must rejoin exactly one Terminal attachment
+  identity and one Terminal structural type (`root.rs:145`, `:152`), and the
+  receiver must be one exact record — ambiguity or absence rejects, not a
+  silently picked entry. The currently-red legs recorded on the RC gate rows
+  are NOT selection-gate gaps: (a) `windows_x86_64` entry.omg rejected by
+  the `named-callable(WindowsProcessEntry::enter)` schema — package-binding
+  leg; (b) `Service<R>`-fielded ProgramEntry receivers rejoin 0 attachment
+  identities — the checked-side establishment leg owned by
+  ENTRY-CONTENT-ROOTS (`derive_fused_program_entry_establishments` rejects
+  `Service<R>` receivers upstream of selection); (c) the
+  `program_entry_binding_outside_build` diagnostic drift is assigned to
+  RC-DIAGNOSTICS-GATE by the PROGRAM-ENTRY-SELECTION-DIVISION lane. Fence
+  note: `image-emission` is path-claimed under WIRE-RUNTIME-AND-INSTALLATION
+  (Zergling-163) this wave. No independent slice exists; selection work
+  resumes inside the owning lanes.
 - **SNAPSHOT-STORAGE** — mined candidate; verify scope then implement.
 - **SNAPSHOT-STORAGE-AND-FILTERING** — mined candidate; verify scope then implement.
 - **SOURCE-SEMANTICS-SUITE** — mined candidate; scope verified,
