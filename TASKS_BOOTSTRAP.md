@@ -174,7 +174,15 @@ prerequisite to every lower-rung milestone.
     stay as the Source base case and the contract-required distinct
     exhaustion admission), and 1,911 of the 2,811 declared clauses appear
     as unfolding premises with the unexercised remainder retained for
-    function totality on malformed input.
+    function totality on malformed input. The emitted section's
+    functions-table length word was repaired to match: the handwritten
+    `theory/definitions.gamma` dispatcher still declared 108 records over
+    the post-renumber 107, and emit_gamma.py does not generate that file,
+    so the stale count survived the census. The bound closure is
+    re-pinned (member digest, manifest and packed identities, producer
+    source row); the emitted-section identity the evaluator-side gates
+    pin is unchanged, so the repair moves the Gamma emission onto the
+    already-pinned 107-function bytes instead of revising them.
 
   Acceptance: the full certificate checks under the exact
   [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with

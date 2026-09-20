@@ -35,9 +35,9 @@ The checker receives Gamma-emitted package bytes, not host-generated
 definitions. No new checker primitive is introduced.
 
 The packed member closure materializes 3,408 lines / 130,363 bytes, SHA-256
-`48e7a097a1fa6f50a3528e1205d91b229e2f2cbf3216661902ff6bc037d6410d`.
+`632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25be08840b41ddf`.
 The manifest itself is 5,536 bytes, SHA-256
-`23f66be32b10de64929ea5721e98f8ae331323e03c5ad6bc40e361e5add08862`;
+`f93d98315b2197d81babcc8b3345a1df0e4eb219bf7e5c3288132ec2d3fe2e5d`;
 `tools/bootstrap/proofs/sources_env.sh` checks both identities against every
 materialization and `tests/bootstrap/proofs-identity.sh` covers the refusals.
 A digest is an identity check on the member bytes, not artifact authority for
