@@ -167,6 +167,145 @@ require_epsilon_evaluator_receipt_identity "$TMP/zero-receipt" \
   fail "zero receipt: expected exit 3, got $rc"
 echo "receipt: a same-size divergent reconstruction is refused"
 
+# Gate-local driver entries packed on top of the bound member closure:
+# single-file drivers bind the file directly; controls closures bind the
+# gate-owned manifest plus the packed bytes the manifest repacks to.
+require_epsilon_checking_driver_identity ||
+  fail "bound checking driver check refused the canonical driver"
+require_epsilon_array_storage_driver_identity ||
+  fail "bound array-storage driver check refused the canonical driver"
+echo "drivers: bound checking and array-storage drivers pass the identity check"
+
+cp "$OMEGA_PATH_EPSILON_CHECKING_DRIVER" "$TMP/corrupt-checking-driver.delta"
+printf 'x' | dd of="$TMP/corrupt-checking-driver.delta" bs=1 seek=0 conv=notrunc status=none
+rc=0
+(
+  export OMEGA_PATH_EPSILON_CHECKING_DRIVER=$TMP/corrupt-checking-driver.delta
+  require_epsilon_checking_driver_identity
+) 2>"$TMP/corrupt-checking-driver.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted checking driver: expected exit 3, got $rc"
+grep -q 'checking/README.md' "$TMP/corrupt-checking-driver.err" ||
+  fail "corrupted checking driver: refusal did not cite the driver record"
+head -c $((EPSILON_CHECKING_DRIVER_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_CHECKING_DRIVER" > "$TMP/truncated-checking-driver.delta"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_CHECKING_DRIVER=$TMP/truncated-checking-driver.delta
+  require_epsilon_checking_driver_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated checking driver: expected exit 3, got $rc"
+echo "drivers: a corrupted or truncated checking driver is refused"
+
+cp "$OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER" "$TMP/corrupt-array-driver.delta"
+printf 'x' | dd of="$TMP/corrupt-array-driver.delta" bs=1 seek=0 conv=notrunc status=none
+rc=0
+(
+  export OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER=$TMP/corrupt-array-driver.delta
+  require_epsilon_array_storage_driver_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted array-storage driver: expected exit 3, got $rc"
+head -c $((EPSILON_ARRAY_STORAGE_DRIVER_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER" > "$TMP/truncated-array-driver.delta"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER=$TMP/truncated-array-driver.delta
+  require_epsilon_array_storage_driver_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated array-storage driver: expected exit 3, got $rc"
+echo "drivers: a corrupted or truncated array-storage driver is refused"
+
+require_epsilon_checking_invariants_controls_identity ||
+  fail "bound checking-invariants controls check refused the canonical closure"
+require_epsilon_runtime_invariants_controls_identity ||
+  fail "bound runtime-invariants controls check refused the canonical closure"
+require_epsilon_runtime_references_controls_identity ||
+  fail "bound runtime-references controls check refused the canonical closure"
+require_epsilon_source_views_controls_identity ||
+  fail "bound source-views controls check refused the canonical closure"
+echo "controls: bound gate-owned closures repack exactly"
+
+cp -R "$OMEGA_REPO_ROOT/tests/epsilon/checking-invariants" "$TMP/checking-invariants"
+head -c $((EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES" \
+  > "$TMP/checking-invariants/checking_invariants.delta.sources"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES=$TMP/checking-invariants/checking_invariants.delta.sources
+  require_epsilon_checking_invariants_controls_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated checking-invariants manifest: expected exit 3, got $rc"
+cp "$OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES" \
+  "$TMP/checking-invariants/checking_invariants.delta.sources"
+if [ "$(od -An -tc -j 100 -N1 "$TMP/checking-invariants/observations.delta" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$TMP/checking-invariants/observations.delta" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$TMP/checking-invariants/observations.delta" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES=$TMP/checking-invariants/checking_invariants.delta.sources
+  require_epsilon_checking_invariants_controls_identity
+) 2>"$TMP/corrupt-ci-member.err" || rc=$?
+[ "$rc" != 0 ] ||
+  fail "corrupted checking-invariants member: repack unexpectedly succeeded"
+grep -q 'digest' "$TMP/corrupt-ci-member.err" ||
+  fail "corrupted checking-invariants member: refusal did not name the member digest"
+echo "controls: a truncated manifest or changed checking-invariants member refuses"
+
+cp -R "$OMEGA_REPO_ROOT/tests/epsilon/runtime-invariants" "$TMP/runtime-invariants"
+head -c $((EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES" \
+  > "$TMP/runtime-invariants/runtime_invariants.delta.sources"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES=$TMP/runtime-invariants/runtime_invariants.delta.sources
+  require_epsilon_runtime_invariants_controls_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated runtime-invariants manifest: expected exit 3, got $rc"
+
+cp -R "$OMEGA_REPO_ROOT/tests/epsilon/runtime-references" "$TMP/runtime-references"
+head -c $((EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES" \
+  > "$TMP/runtime-references/runtime_references.delta.sources"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES=$TMP/runtime-references/runtime_references.delta.sources
+  require_epsilon_runtime_references_controls_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated runtime-references manifest: expected exit 3, got $rc"
+
+cp -R "$OMEGA_REPO_ROOT/tests/epsilon/source-views" "$TMP/source-views"
+head -c $((EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES" \
+  > "$TMP/source-views/controls/source_views.delta.sources"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES=$TMP/source-views/controls/source_views.delta.sources
+  require_epsilon_source_views_controls_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated source-views manifest: expected exit 3, got $rc"
+echo "controls: a truncated manifest refuses for each remaining controls closure"
+
+for needle in "$EPSILON_CHECKING_DRIVER_SIZE" "$EPSILON_CHECKING_DRIVER_SHA256"
+do
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/epsilon/checking/run.sh" ||
+    fail "epsilon checking gate lacks bound driver record $needle"
+done
+for needle in "$EPSILON_ARRAY_STORAGE_DRIVER_SHA256"
+do
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/epsilon/array-storage/gate.py" ||
+    fail "epsilon array-storage gate lacks bound driver record $needle"
+done
+echo "records: bound gate-local driver pins match the consuming gates"
+
 for needle in \
   "$EPSILON_EVALUATOR_MANIFEST_SHA256" "$EPSILON_EVALUATOR_PACKED_SHA256" \
   "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
@@ -239,4 +378,4 @@ do
 done
 echo "records: bound identities match the rung README, the edge profile, the entry envelope, the driver and entry owner READMEs, and every consuming gate"
 
-echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, entry, and receipts refused"
+echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, entry, receipts, gate-local drivers, and controls refused"
