@@ -61,6 +61,7 @@ fn physical_projection() -> NativeOptimizationProjection {
         terminal,
         vec![operator],
         vec![boundary],
+        Vec::new(),
         NativeOptimizationProjectionIdentity::from_canonical_bytes(b"physical projection"),
     )
 }
@@ -1899,6 +1900,7 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
         terminal,
         vec![operator, operator],
         vec![boundary],
+        Vec::new(),
         NativeOptimizationProjectionIdentity::from_canonical_bytes(b"repeated projection"),
     );
     assert_eq!(
@@ -1953,6 +1955,90 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
 }
 
 #[test]
+fn dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity() {
+    use crate::physical::derivation::evidence::physical_child_identity;
+    use crate::physical::model::{dynamic_call_dispatch, native_byte_span};
+    use crate::{PhysicalChildParent, PhysicalRelocationDisposition};
+
+    let terminal = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        program_fingerprint: SemanticFingerprint::from_bytes([23; 32]),
+    };
+    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let dynamic = optimized_operator_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(4).expect("dynamic operation"),
+        0,
+        OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"dynamic survivor"),
+    );
+    let projection = native_optimization_projection(
+        terminal,
+        Vec::new(),
+        Vec::new(),
+        vec![dynamic],
+        NativeOptimizationProjectionIdentity::from_canonical_bytes(b"dynamic projection"),
+    );
+    let coordinate = PhysicalChildCoordinate {
+        projection: projection.identity(),
+        occurrence: NativePhysicalOccurrence::DynamicCall(dynamic.identity()),
+        parent_role: 3,
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [coordinate]),
+        Ok(())
+    );
+
+    // The same identity under the operator tag is a substituted occurrence.
+    let substituted = PhysicalChildCoordinate {
+        occurrence: NativePhysicalOccurrence::Operator(dynamic.identity()),
+        parent_role: 1,
+        ..coordinate
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [substituted]),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+
+    // A dynamic child carrying the boundary parent role is a role swap.
+    let swapped = PhysicalChildCoordinate {
+        parent_role: 2,
+        ..coordinate
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [swapped]),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+
+    // The surviving dynamic occurrence must be covered exactly.
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, []),
+        Err("native physical evidence does not cover the exact surviving occurrence set")
+    );
+
+    // The child identity commits the dispatch-row identity: the same
+    // occurrence under a substituted dispatch row produces a different child.
+    let identity = |dispatch_identity: [u8; 32]| {
+        physical_child_identity(
+            &PhysicalChildParent::DynamicCallDispatch(dynamic_call_dispatch(
+                dynamic,
+                dispatch_identity,
+            )),
+            projection.identity(),
+            NativePhysicalOccurrence::DynamicCall(dynamic.identity()),
+            native_byte_span(0, 5),
+            native_byte_span(10, 5),
+            native_byte_span(20, 5),
+            [1; 32],
+            [2; 32],
+            [3; 32],
+            PhysicalRelocationDisposition::ResolvedInternalCall,
+        )
+    };
+    assert_ne!(identity([7; 32]), identity([8; 32]));
+}
+
+#[test]
 fn physical_evidence_gap_identity_binds_the_exact_subject() {
     use crate::physical::derivation::hashing::physical_evidence_gap_identity;
     use crate::physical::model::NativePhysicalEvidenceGapSubject;
@@ -1982,6 +2068,9 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
             occurrence: boundary,
         },
         NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
+            occurrence: operator,
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan {
             occurrence: operator,
         },
         NativePhysicalEvidenceGapSubject::UnownedPortEffect {
@@ -2024,9 +2113,9 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
         operation_ordinal,
         code_offset,
         ..
-    } = subjects[5]
+    } = subjects[6]
     else {
-        unreachable!("subjects[5] is an unowned port effect");
+        unreachable!("subjects[6] is an unowned port effect");
     };
     let moved = NativePhysicalEvidenceGapSubject::UnownedPortEffect {
         machine: moved_machine,
@@ -2039,7 +2128,7 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
         byte_count: 4,
     };
     assert_ne!(
-        physical_evidence_gap_identity(&subjects[5]),
+        physical_evidence_gap_identity(&subjects[6]),
         physical_evidence_gap_identity(&moved)
     );
     let other_owner = NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
