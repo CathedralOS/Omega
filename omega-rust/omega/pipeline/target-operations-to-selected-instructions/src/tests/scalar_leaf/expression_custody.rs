@@ -7,6 +7,94 @@ use crate::validate_legalized_operations;
 use target_operations::{TargetControlTerminator, TargetScalarExpression};
 
 #[test]
+fn literal_negation_retains_its_operation_and_exact_operand() {
+    use target_operations::{TargetBooleanExpression, TargetUnitOperation};
+
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        for literal in [false, true] {
+            let (mut source, _, previous) = fixture(Some(7), native);
+            let function = &mut source.functions[0];
+            let operand = ValueId::new(2).unwrap();
+            let negated = ValueId::new(4).unwrap();
+            let result = function.result.scalar().unwrap().value;
+            function.result = AbstractFunctionResult::Scalar(AbstractResult {
+                value: result,
+                scalar_type: ScalarType::Boolean,
+            });
+            function.operations = vec![
+                AbstractOperation::BooleanConstant {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: operand,
+                    value: literal,
+                },
+                AbstractOperation::BooleanNot {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    result: negated,
+                    operand,
+                },
+                AbstractOperation::Return {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    result,
+                    value: negated,
+                    scalar_type: ScalarType::Boolean,
+                    cleanup_actions: Vec::new(),
+                },
+            ];
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                previous.fuel_schedule,
+            )
+            .unwrap();
+            let legal = legalize_target_operations(&target, &source, &unit)
+                .expect("lowering preserves the authored negation, including a literal operand");
+            for replacement in [
+                // Equal results do not authorize folding during target lowering.
+                TargetBooleanExpression::Immediate {
+                    source_value: negated,
+                    value: !literal,
+                },
+                TargetBooleanExpression::Not {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    operand: Box::new(TargetBooleanExpression::Immediate {
+                        source_value: operand,
+                        value: literal,
+                    }),
+                },
+                TargetBooleanExpression::Not {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    operand: Box::new(TargetBooleanExpression::Immediate {
+                        source_value: negated,
+                        value: literal,
+                    }),
+                },
+            ] {
+                let mut changed = target.clone();
+                let TargetUnitOperation::ScalarDefinition { expression, .. } =
+                    &mut changed.functions[0].graph.blocks[0].operations[1]
+                else {
+                    panic!("negation definition");
+                };
+                *expression = TargetScalarExpression::Boolean(replacement);
+                assert!(
+                    validate_legalized_operations(&changed, &source, &unit, legal.plan().clone())
+                        .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
     let native = target::NativeTarget::linux_x64();
     let (mut source, _, previous) = fixture(Some(7), native);

@@ -9,7 +9,7 @@ mod shift;
 use super::shared::*;
 use expressions::*;
 pub(in crate::lowering) use expressions::{
-    KnownInteger, KnownScalar, equal_boolean, equal_integer, negate_boolean, order_integer,
+    KnownInteger, KnownScalar, equal_boolean, equal_integer, order_integer,
     scalar_parameter_location, scalar_shape,
 };
 pub(in crate::lowering) use integer_binary::{IntegerBinaryKind, lower_integer_binary};

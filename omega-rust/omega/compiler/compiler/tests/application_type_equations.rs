@@ -494,6 +494,16 @@ fn boolean_constructor_equations_agree_at_repeated_nested_positions() {
 }
 
 #[test]
+fn boolean_data_equation_negations_execute_natively() {
+    for enabled in [false, true] {
+        let source =
+            boolean_data_equation_sources(enabled)[0].replace("{ Enabled }", "{ !Enabled }");
+        let artifact = boolean_equation_artifact(&source, !enabled, &[]);
+        assert_native_boolean(&artifact, !enabled);
+    }
+}
+
+#[test]
 fn boolean_attached_body_keeps_runtime_local_selection() {
     let artifact = boolean_equation_artifact(
         "data Flag<const Enabled:bool> { value:u64; }
@@ -508,10 +518,7 @@ fn boolean_attached_body_keeps_runtime_local_selection() {
         &[],
     );
     assert_native_boolean(&artifact, false);
-    // Keep this composition's existing Terminal coverage: its unattached
-    // twin also awaits native Boolean graph replay, independently of the
-    // attachment ABI exercised above.
-    drop(boolean_equation_artifact(
+    let artifact = boolean_equation_artifact(
         "data Flag<const Enabled:bool> { value:u64; }
          data Envelope<Backing,const Enabled:bool>
          where Backing == Flag<Enabled> { storage:Backing; }
@@ -523,7 +530,8 @@ fn boolean_attached_body_keeps_runtime_local_selection() {
          machine preserve(value:Envelope<Flag<true>>)->Envelope<Flag<true>,true> { value }",
         true,
         &[],
-    ));
+    );
+    assert_native_boolean(&artifact, true);
 }
 
 #[test]
