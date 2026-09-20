@@ -29,8 +29,11 @@ pub(super) fn check(audit: &mut Audit) {
 
 fn check_build_optimization_vocabulary(audit: &mut Audit) {
     let fragments = "omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/fragments.rs";
-    let source_assembly =
-        "omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly.rs";
+    // `97de35d903cc` (COORDINATOR-SCOPE-AUDIT F1) moved the toolchain prelude
+    // out of the crate's entry file and into its own domain file beside
+    // `build_vocabulary`, leaving `source_assembly.rs` the coordinator. The
+    // sole-owner invariant is unchanged — only which file holds the slots.
+    let build_prelude = "omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly/build_prelude.rs";
     let mut files = Vec::new();
     for root in [
         "omega-rust/omega/pipeline/source-files-to-assembled-syntax/src",
@@ -66,7 +69,7 @@ fn check_build_optimization_vocabulary(audit: &mut Audit) {
         }
     }
 
-    match fs::read_to_string(audit.repository.join(source_assembly)) {
+    match fs::read_to_string(audit.repository.join(build_prelude)) {
         Ok(contents) => {
             for slot in [
                 "// compiler-owned optimization declarations",
@@ -76,14 +79,14 @@ fn check_build_optimization_vocabulary(audit: &mut Audit) {
                 let count = contents.matches(slot).count();
                 if count != 1 {
                     audit.violations.insert(format!(
-                        "the sole build prelude must contain exactly one `{slot}` slot; found {count} in {source_assembly}"
+                        "the sole build prelude must contain exactly one `{slot}` slot; found {count} in {build_prelude}"
                     ));
                 }
             }
         }
         Err(error) => {
             audit.violations.insert(format!(
-                "cannot read compiler build-prelude owner {source_assembly}: {error}"
+                "cannot read compiler build-prelude owner {build_prelude}: {error}"
             ));
         }
     }
