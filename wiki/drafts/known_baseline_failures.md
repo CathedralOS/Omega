@@ -215,6 +215,93 @@ keeps the `native_*` family off native realization.
 was bounded; the other four tests in the command pass, so the roster,
 fail-canary fragments, and umbrella membership are all consistent.
 
+## compiler canary suite (fail-canary diagnostic fragments)
+
+`mbx nextest run -p compiler --test canary_suite
+proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+at e12b9e8e06 (2026-09-20, macOS arm64): 1108 registered members checked,
+11 red. Of the eleven, six are stale `expected.txt` fragments — the
+member still rejects for the same reason under reworded diagnostics —
+and five are true failures (the member accepts, or rejects for a
+semantically different reason that masks the intended check). The full
+audit, including specialized-owner members and the three unregistered
+fixtures reported by
+`roster::registered_fail_canaries_have_source_and_their_owned_expectations`,
+is at `build/swarm/dev-l3/fail-map.md` on the `swarm/dev-l3-failsweep`
+branch worktree.
+
+Verified stale fragments (a later leg can re-pin `expected.txt`
+wording; none unblock a correct rejection):
+
+- `build/program_entry_binding_outside_build`: expected
+  "root binding requires a compiler-issued &mut Build place", actual
+  "…&mut Build receiver"
+  (`typed-trees-to-checked-trees/src/authored_selections/finalization.rs:78`).
+- `comptime/fuel_exhausted_const_array_length`: expected
+  "machine `table_size` is not build-time admissible", actual
+  "fixed-array length `[i64; table_size()]`: const evaluation of
+  `table_size` failed: step budget exceeded" — the fuel backstop still
+  fires (`build-time-evaluation/src/const_evaluation/const_lengths.rs:71`).
+- `expressions/indexed_qualified_call_argument_mismatch`: expected
+  "cannot prove requires contract", actual
+  "index compatibility condition … `Coordinate<7>` and expected
+  `Coordinate<9>` are distinct normalized instances …"
+  (`typed-trees-to-checked-trees/src/facts/index_compatibility.rs:441`).
+- `providers/provider_selection_outside_build`: expected
+  "has no local state `select_provider`", actual
+  "value call `select_provider(..)` does not resolve to a state of this
+  machine, an attached sibling machine, or a free machine -- it would
+  silently bind 0 (ZII) at runtime"
+  (`validation/src/machine_calls/calls/expression_scanning/target_resolution.rs:173`).
+- `generics/const_data_machine_call_requires_zero_arguments`: expected
+  "takes 1 parameter(s); a const-evaluated generic argument must call a
+  zero-argument machine", actual "const-generic application evaluation
+  failed: constant call argument count differs from its exact entry"
+  (`build-time-evaluation/src/const_evaluation/const_generic_calls.rs:260`).
+- `generics/const_data_machine_call_requires_pure`: expected
+  "const-generic evaluation of `loud_size()` failed: …", actual
+  "const-generic application evaluation failed: machine `loud_size` is
+  not build-time admissible: service reach [Console]; …" — identical
+  inner reason under a renamed wrapper (`const_generic_calls.rs:260`).
+- `generics/closed_indexed_qualification_unknown_const` and
+  `generics/closed_indexed_qualification_wrong_arity` (masked inside
+  `closed_indexed_domain_canaries`, verified by direct check): expected
+  "neither a canonical named const nor a direct in-scope const binder"
+  and "requires 1 closed const argument(s)", actual "machine index
+  operand must select a constant in its original lexical scope; …" and
+  "indexed domain `Quantity` requires 1 closed index argument(s), but 0
+  were supplied"
+  (`build-time-evaluation/…/lexical_selection.rs:364`,
+  `syntax-trees-to-symbol-resolved-trees/…/const_evaluation/domains.rs:319`).
+- `canary_suite/relational_invariants.rs:5` shares the stale inline pin
+  `INDEX_REJECTION = "cannot prove index `self.i` is within length 8"`
+  across six `dependent/relational_loop_invariant_*` members whose own
+  `expected.txt` files are accurate; the constant needs per-member or
+  shortened wording (actuals: "within length 1", "within unknown slice
+  length of `self.items`"). Test-code drift, not corpus drift.
+
+True failures the audit found (not wording drift):
+
+- `ownership/linear_ambiguous_state_result_mapping` and
+  `calls/guarded_value_call_terminal_rejected` compile successfully;
+  `calls/free_machine_named_transition_rejected` compiles through its
+  owner test's native path.
+- `proofs/mathematical_declaration_lowering_rejected` compiles cleanly
+  on `linux_x86_64` (its only bound target); on macOS hosts it is red
+  for an unrelated root-slot reason that masks the intended check.
+- `domains/boundary_operator_mutation_invalidates_domain` rejects
+  earlier on a `&mut` lending refusal, masking the NoNul-invalidation
+  proof it exists to pin.
+- `generics/colon_bound_rejected` rejects because `T: copy` now parses
+  as a value-parameter binder refused by the data-template gate; the
+  colon-bound guidance diagnostic no longer exists.
+- `host/console_byte_field_target_rejected` rejects on undeclared
+  service reach before the byte-op serving-shape blocker it pins.
+- Unregistered fixtures (roster gap, all verified green):
+  `borrows/borrow_proposition_opaque_mut`,
+  `operators/mismatched_operand_tuple`,
+  `generics/authored_const_call_operator_unselected_provider`.
+
 ## checked-trees-to-lowered-psi
 
 Repaired: `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
