@@ -117,46 +117,22 @@ fn shared_loan_write_reborrows_reject_during_checking() {
     }
 }
 
-/// Whole-aggregate stores through a borrow, an owned record's field lent as a
-/// call argument, and domain-qualified field stores meet the same hole.
+/// A domain-qualified field store of a runtime byte sequence meets the same
+/// hole.
 #[test]
-fn aggregate_and_owned_borrow_stores_still_miss_the_checked_control_plan() {
-    for (name, entry, source) in [
-        (
-            "owned record field borrow argument",
-            "enter",
-            "data Pair [copy] { left: u64; right: u64; }
-            machine stamp(left: &write u64, value: u64) { left = value; }
-            machine enter(value: u64) -> u64 {
-                let mut pair: Pair = Pair { left: 1, right: 2 };
-                stamp(&write pair.left, value);
-                pair.left
-            }",
-        ),
-        (
-            "whole aggregate store through borrow",
-            "forward",
-            "data Pair [copy] { left: u64; right: u64; }
-            machine forward(pair: &write Pair, left: u64, right: u64) {
-                pair = Pair { left: left, right: right };
-            }",
-        ),
-        (
-            "domain-qualified record field store",
-            "forward",
-            "domain [u8; 8]::Utf8 requires valid_utf8(self);
-            data Limited { label: [u8; 8] in Utf8; }
-            machine forward(limited: &write Limited, next: [u8; 8] in Utf8) {
-                limited.label = next;
-            }",
-        ),
-    ] {
-        let rendered = production_error(source, entry);
-        assert!(
-            rendered.contains("no source-independent checked scalar control plan"),
-            "{name}: {rendered}"
-        );
-    }
+fn domain_qualified_field_store_still_misses_the_checked_control_plan() {
+    let rendered = production_error(
+        "domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data Limited { label: [u8; 8] in Utf8; }
+        machine forward(limited: &write Limited, next: [u8; 8] in Utf8) {
+            limited.label = next;
+        }",
+        "forward",
+    );
+    assert!(
+        rendered.contains("no source-independent checked scalar control plan"),
+        "domain-qualified record field store: {rendered}"
+    );
 }
 
 /// Guarded runtime-index stores and receiver calls, and computed IEEE stores

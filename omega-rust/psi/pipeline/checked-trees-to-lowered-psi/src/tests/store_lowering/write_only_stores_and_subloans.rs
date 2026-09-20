@@ -990,10 +990,20 @@ fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
     terminal_verifier::validate_module(&reordered_index)
         .expect_err("moving the index before its field path must reject");
 
-    let mut source_access_drifted = decoded.clone();
-    source_access_drifted.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
-    terminal_verifier::validate_module(&source_access_drifted)
-        .expect_err("an indexed subloan requires exact write-only source access");
+    // Field-prefixed `Owned` sources are a valid subloan authority now, so
+    // drifting the source access to `Owned` no longer describes a real fault.
+    // Retarget the callee's expected leaf to a record declaration instead:
+    // the supplied `u16` leaf then mismatches the referent the subloan names.
+    let mut leaf_type_drifted = decoded.clone();
+    let record_type = leaf_type_drifted
+        .structural_types
+        .iter()
+        .find(|declaration| matches!(declaration.shape, StructuralTypeShape::Record { .. }))
+        .expect("a record type declaration")
+        .id;
+    leaf_type_drifted.machines[1].structural_parameters[0].structural_type = record_type;
+    terminal_verifier::validate_module(&leaf_type_drifted)
+        .expect_err("an indexed subloan's leaf type must match the callee referent");
 
     let mut target_multiplicity_drifted = decoded.clone();
     target_multiplicity_drifted.machines[1].structural_parameters[0].multiplicity =

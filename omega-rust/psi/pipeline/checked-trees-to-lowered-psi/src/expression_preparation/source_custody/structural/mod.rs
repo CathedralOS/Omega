@@ -793,6 +793,7 @@ pub(crate) fn operand_source(
         .get(statement as usize)
     {
         Some(StatementNode::LocalData(local)) => vec![local.initial_value],
+        Some(StatementNode::Assignment(assignment)) => vec![assignment.value],
         Some(StatementNode::Expression(expression)) => vec![*expression],
         Some(StatementNode::Transition(transition))
             if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>

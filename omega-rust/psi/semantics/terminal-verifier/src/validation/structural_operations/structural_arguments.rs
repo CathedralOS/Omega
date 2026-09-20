@@ -337,10 +337,32 @@ pub(crate) fn is_unrestricted_write_only_subloan(
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
 ) -> bool {
-    let Some(actual) = caller
+    // An established, claim-free result keeps whole-value custody like an
+    // owned parameter does: it can lend one exact subtree as a write-only
+    // projection while its producer's cleanup stays intact.
+    let Some((actual_type, actual_access, actual_multiplicity)) = caller
         .structural_parameters
         .iter()
         .find(|actual| actual.place == argument.place)
+        .map(|actual| (actual.structural_type, actual.access, actual.multiplicity))
+        .or_else(|| {
+            let result =
+                crate::validation::record::completed_source(module, caller, argument.place)?;
+            (result.multiplicity == StructuralMultiplicity::Unrestricted
+                && !caller
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place)
+                && !caller
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == argument.place))
+            .then_some((
+                result.structural_type,
+                StructuralAccess::Owned,
+                result.multiplicity,
+            ))
+        })
     else {
         return false;
     };
@@ -348,33 +370,32 @@ pub(crate) fn is_unrestricted_write_only_subloan(
         .path
         .iter()
         .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-        || (is_material_write_only_type(module, actual.structural_type)
-            && resolve_structural_path(module, actual.structural_type, &argument.path)
-                .is_some_and(|leaf| {
-                    module.structural_types.iter().any(|declaration| {
-                        declaration.id == leaf
-                            && matches!(
-                                &declaration.shape,
-                                StructuralTypeShape::PrimitiveScalar(_)
-                                    | StructuralTypeShape::Record { .. }
-                            )
-                    })
-                }));
+        || (is_material_write_only_type(module, actual_type)
+            && resolve_structural_path(module, actual_type, &argument.path).is_some_and(|leaf| {
+                module.structural_types.iter().any(|declaration| {
+                    declaration.id == leaf
+                        && matches!(
+                            &declaration.shape,
+                            StructuralTypeShape::PrimitiveScalar(_)
+                                | StructuralTypeShape::Record { .. }
+                        )
+                })
+            }));
 
     !argument.path.is_empty()
         && argument.access == StructuralAccess::WriteOnlyBorrow
         && expected.access == StructuralAccess::WriteOnlyBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
         && matches!(
-            actual.access,
+            actual_access,
             StructuralAccess::Owned
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow
         )
-        && actual.multiplicity == StructuralMultiplicity::Unrestricted
+        && actual_multiplicity == StructuralMultiplicity::Unrestricted
         && indexed_path_is_material
-        && (actual.access != StructuralAccess::Owned
-            || resolve_structural_path(module, actual.structural_type, &argument.path)
+        && (actual_access != StructuralAccess::Owned
+            || resolve_structural_path(module, actual_type, &argument.path)
                 == Some(expected.structural_type))
 }
 

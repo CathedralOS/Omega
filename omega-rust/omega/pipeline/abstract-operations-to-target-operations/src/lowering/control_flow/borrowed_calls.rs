@@ -199,6 +199,66 @@ pub(super) fn argument(
         )?
         .ok_or_else(invalid);
     }
+    // A live aggregate home lends one exact subtree through a borrow: the
+    // producer keeps whole storage, and the argument transports the leaf's
+    // address inside it. The verifier admits the same projected loan only
+    // under its exact-access and claim-free bounds, which this shape check
+    // replays against the home's own result metadata.
+    if !argument.path.is_empty()
+        && let Some(home) = live.structural_homes.get(&argument.place)
+    {
+        let (producer, result) = home.operation_result().ok_or_else(invalid)?;
+        let mut shape_cache = BTreeMap::new();
+        let mut active = BTreeSet::new();
+        let (projected_type, projected_shape, source_byte_offset) =
+            crate::lowering::structural_layout::resolve_structural_projection_path(
+                result.structural_type,
+                &argument.path,
+                types,
+                &mut shape_cache,
+                &mut active,
+            )?;
+        if argument.access != declaration.access
+            || !matches!(
+                argument.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            )
+            || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+            || !declaration.qualifications.is_empty()
+            || !declaration.projected_qualifications.is_empty()
+            || projected_type != declaration.structural_type
+            || result.multiplicity == StructuralMultiplicity::Linear
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || crate::lowering::structural_layout::structural_parameter_shape(
+                projected_shape,
+                declaration.access,
+            ) != destination.shape
+            || u32::from(projected_shape.byte_size)
+                .checked_add(source_byte_offset)
+                .is_none_or(|end| end > u32::from(home.layout.shape().byte_size))
+        {
+            return Err(invalid());
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path.clone(),
+            root_structural_type: result.structural_type,
+            structural_type: projected_type,
+            shape: destination.shape,
+            source_byte_offset,
+            fixed_array_length: None,
+            element_stride: None,
+            source: TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+            destination: destination.placement.clone(),
+        });
+    }
     if !argument.path.is_empty()
         || argument.access != declaration.access
         || !super::primitive_storage::is_primitive_reference(declaration, types)

@@ -803,6 +803,7 @@ pub(crate) fn validate_usage(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::SharedBorrow
                     | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             ) && matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::CallUnit { .. }
@@ -1452,7 +1453,41 @@ pub(crate) fn validate_consumer(
         {
             return unsupported("Unit structural result argument has invalid claim-free custody");
         }
+        // A live result binding may lend one of its record's leaves through
+        // an exclusive borrow: the binding is not consumed, the projected
+        // field path is already rejoined against the authored operand above,
+        // and the borrowed formal carries no claims.
+        let scalar_leaf_borrow =
+            matches!(
+                result.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) && matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                && !argument.path.is_empty()
+                && argument.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                    )
+                })
+                && matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+                        | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                )
+                && argument.access == parameter.access
+                && !parameter.is_self
+                && parameter.type_identity == argument.type_identity
+                && parameter.multiplicity == Multiplicity::Unrestricted
+                && parameter.qualifications.is_empty()
+                && parameter.fused_service_erasure.is_none()
+                && target_entry_claims
+                    .iter()
+                    .all(|claim| claim.parameter_index as usize != index)
+                && claim_transfers
+                    .iter()
+                    .all(|transfer| transfer.argument_index as usize != index);
         if !linear_result_move
+            && !scalar_leaf_borrow
             && (!matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
@@ -1766,13 +1801,19 @@ fn named_result_operand(
     checked_trees::expression::ExpressionHandle,
     checked_trees::CheckedStructuralAccess,
 ) {
-    if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression)
-        && borrow.access == language_core::ReferenceAccess::Shared
-    {
-        (
-            borrow.target,
-            checked_trees::CheckedStructuralAccess::SharedBorrow,
-        )
+    if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) {
+        let access = match borrow.access {
+            language_core::ReferenceAccess::Shared => {
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
+            language_core::ReferenceAccess::Mutable => {
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+            }
+            language_core::ReferenceAccess::WriteOnly => {
+                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+            }
+        };
+        (borrow.target, access)
     } else {
         (expression, checked_trees::CheckedStructuralAccess::Owned)
     }

@@ -1057,12 +1057,22 @@ pub(crate) fn call_claim_transfers(
                     && !(argument
                         .source_structural_result_binding_ordinal()
                         .is_some()
-                        && argument.access == CheckedStructuralAccess::Owned))
+                        && matches!(
+                            argument.access,
+                            CheckedStructuralAccess::Owned
+                                | CheckedStructuralAccess::MutableBorrow
+                                | CheckedStructuralAccess::WriteOnlyBorrow
+                        )))
                 || (argument.access != CheckedStructuralAccess::Owned
                     && !(argument
                         .source_structural_result_binding_ordinal()
                         .is_some()
-                        && argument.access == CheckedStructuralAccess::SharedBorrow))
+                        && matches!(
+                            argument.access,
+                            CheckedStructuralAccess::SharedBorrow
+                                | CheckedStructuralAccess::MutableBorrow
+                                | CheckedStructuralAccess::WriteOnlyBorrow
+                        )))
             {
                 return None;
             }

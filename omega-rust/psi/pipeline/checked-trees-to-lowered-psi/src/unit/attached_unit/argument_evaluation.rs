@@ -782,9 +782,10 @@ impl Evaluation {
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let scalar_type = terminal_scalar_type(store.primitive_type)?;
-        crate::emission::structural_scalar_store_source::computation_root(
+        let computation_role = crate::emission::structural_scalar_store_source::computation_root(
             checked, machine, state, store,
-        )?;
+        )?
+        .map(|(_, role)| role);
         // The store may consume the SSA result of the scalar call this same
         // statement performed. That value has no authored local binding and so
         // no `AssignmentValue` expression row; it is reconstructed from the
@@ -838,7 +839,7 @@ impl Evaluation {
         let entry = expansion.retained_value(
             state,
             store.statement_index,
-            CheckedScalarExpressionRole::AssignmentValue,
+            computation_role.unwrap_or(CheckedScalarExpressionRole::AssignmentValue),
             symbols::SymbolHandle::invalid(),
             &bindings,
             &source_types,

@@ -1,4 +1,5 @@
-//! Whole-scalar replacement uses its original primitive referent through calls.
+//! Whole-replacement stores use their original referent through calls:
+//! scalars and decomposed whole aggregates alike.
 
 use super::{NativeTarget, native_function, native_text};
 const FORWARDED_SCALAR: &str = "machine replace(destination: &write i32, value: i32) {
@@ -263,4 +264,73 @@ fn primitive_stores_preserve_exact_runtime_width_and_neighbor_bytes() {
         all(target_os = "macos", target_arch = "aarch64")
     )))]
     eprintln!("SKIP: primitive caller observation requires a supported Linux or macOS native host");
+}
+
+/// A whole-record replacement through an exclusive borrow decomposes into one
+/// ordered field store per member; every field and the untouched frame bytes
+/// around them stay caller-visible.
+#[test]
+fn whole_aggregate_replacement_updates_every_field_through_the_borrow() {
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    ))]
+    for access in ["write", "mut"] {
+        let source = format!(
+            "data Pair [copy] {{ left: u64; right: u64; }}
+            machine forward(pair: &{access} Pair, left: u64, right: u64) {{
+                pair = Pair {{ left: left, right: right }};
+            }}"
+        );
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let (bytes, entry_offset) = published_text(&source, target);
+            if target != NativeTarget::host() {
+                continue;
+            }
+            native_function::assert_c_text(
+                &bytes,
+                entry_offset,
+                r#"
+                #include <stdint.h>
+                #include <string.h>
+                extern void omega_entry(uint64_t left, uint64_t right, uint64_t *pair);
+                int main(void) {
+                    struct {
+                        uint64_t before;
+                        uint64_t left; uint64_t right;
+                        uint64_t after;
+                    } frame;
+                    memset(&frame, 0xa5, sizeof frame);
+                    __typeof__(frame) expected = frame;
+                    expected.left = 7;
+                    expected.right = 9;
+                    omega_entry(7, 9, &frame.left);
+                    if (memcmp(&expected, &frame, sizeof frame) != 0) return 1;
+                    memset(&frame, 0x5a, sizeof frame);
+                    expected = frame;
+                    expected.left = 41;
+                    expected.right = 77;
+                    omega_entry(41, 77, &frame.left);
+                    return memcmp(&expected, &frame, sizeof frame) != 0;
+                }
+            "#,
+            );
+        }
+    }
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    )))]
+    eprintln!("SKIP: aggregate caller observation requires a supported Linux or macOS native host");
 }

@@ -115,7 +115,7 @@ fn selected_roots(
                 continue;
             }
             if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
-                if let Some(root) =
+                if let Some((root, _)) =
                     crate::emission::structural_scalar_store_source::computation_root(
                         checked,
                         machine,

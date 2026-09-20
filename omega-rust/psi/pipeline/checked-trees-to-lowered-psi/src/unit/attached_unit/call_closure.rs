@@ -549,19 +549,38 @@ pub(super) fn validate_unit_operation_sequence(
                 | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
         ) && coordinate.call_ordinal == 0;
+        // A whole-record replacement decomposes into one ordered field store
+        // per member. Each store keeps the statement's own coordinate, so
+        // consecutive same-coordinate field stores stay canonical only by
+        // operation order; the exact field roster is rejoined against the
+        // authored literal in `structural_scalar_store_source`.
+        let repeated_record_field_store = matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+        ) && previous == Some(key)
+            && matches!(
+                operation_index
+                    .checked_sub(1)
+                    .and_then(|previous| machine.operations.get(previous)),
+                Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+                    _
+                ))
+            );
         // Coordinates retain preorder identity. Same-statement producers are
         // published in postorder; exact syntax and argument ordering rejoin in
         // structural result consumer validation after this shape check.
-        if (previous.is_some_and(|previous| previous >= key)
-            && !(same_statement && previous_nested && nested_consumer))
-            || (previous_nested && (!same_statement || !nested_consumer))
-            || (same_statement && nested && !previous_nested)
-            || coordinates.contains(&key)
-            || coordinate.statement_index >= *statement_index
-        {
-            return unsupported("Unit machine operation order is not canonical source order");
+        if !repeated_record_field_store {
+            if (previous.is_some_and(|previous| previous >= key)
+                && !(same_statement && previous_nested && nested_consumer))
+                || (previous_nested && (!same_statement || !nested_consumer))
+                || (same_statement && nested && !previous_nested)
+                || coordinates.contains(&key)
+                || coordinate.statement_index >= *statement_index
+            {
+                return unsupported("Unit machine operation order is not canonical source order");
+            }
+            coordinates.push(key);
         }
-        coordinates.push(key);
         previous = Some(key);
         previous_nested = nested;
     }

@@ -128,20 +128,31 @@ pub(super) fn argument(
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
+    // A projected exclusive borrow lends a subtree of a result binding that
+    // stays live after the call. The loan evidence comes from the borrow
+    // record below rather than from an owned-projection permission, so this
+    // lane is separate from `allow_projection`: no custody moves.
+    let projected_borrow = projected
+        && matches!(
+            access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        );
     // A projected owned-record operand carries its subtree's captured leaves
     // into the call; the same resolved path both proves that custody and
-    // names the argument's projected edge below.
-    let projected_path = if projected && access == CheckedStructuralAccess::Owned {
-        projected_argument_path_with_identity(
-            program,
-            state,
-            call.statement_index,
-            place,
-            target_identity,
-        )
-    } else {
-        None
-    };
+    // names the argument's projected edge below. A projected exclusive
+    // borrow resolves the same path to name the loaned subtree.
+    let projected_path =
+        if projected && (access == CheckedStructuralAccess::Owned || projected_borrow) {
+            projected_argument_path_with_identity(
+                program,
+                state,
+                call.statement_index,
+                place,
+                target_identity,
+            )
+        } else {
+            None
+        };
     let owned_reference_record = access == CheckedStructuralAccess::Owned
         && validation::reference_result_custody::is_reference_record(
             program,
@@ -197,6 +208,7 @@ pub(super) fn argument(
         return None;
     }
     if unrestricted
+        && !projected_borrow
         && (projected
             || access != CheckedStructuralAccess::Owned
             || !(validation::is_closed_primitive_array_type(program, parameter.type_reference)
@@ -208,8 +220,10 @@ pub(super) fn argument(
         return None;
     }
     let path = if projected {
-        if access != CheckedStructuralAccess::Owned || !(allow_projection || owned_reference_record)
-        {
+        if access != CheckedStructuralAccess::Owned && !projected_borrow {
+            return None;
+        }
+        if !projected_borrow && !(allow_projection || owned_reference_record) {
             return None;
         }
         projected_path?
@@ -246,7 +260,51 @@ pub(super) fn argument(
             (borrow.target, referee)
         }
         CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
-            return None;
+            // Only a projected subtree of a live result binding can be lent
+            // here: whole-place borrows still travel the parameter and alias
+            // routes that own their own custody checks.
+            if !projected_borrow {
+                return None;
+            }
+            let expected_access = match access {
+                CheckedStructuralAccess::MutableBorrow => {
+                    language_semantics::ReferenceAccess::Mutable
+                }
+                CheckedStructuralAccess::WriteOnlyBorrow => {
+                    language_semantics::ReferenceAccess::WriteOnly
+                }
+                _ => return None,
+            };
+            let typed_trees::types::TypeReferenceNode::Reference {
+                access: reference_access,
+                referee,
+                ..
+            } = program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                return None;
+            };
+            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            if *reference_access != expected_access
+                || borrow.access != expected_access
+                || !program.expression_table.expression_is_valid(borrow.target)
+            {
+                return None;
+            }
+            let facts::PlaceRoot::Symbol(_) = place.root else {
+                return None;
+            };
+            if exact_structural_argument_access(
+                program, facts, machine, state, call, place, access,
+            )? != access
+            {
+                return None;
+            }
+            (borrow.target, *referee)
         }
     };
     if (!projected && result.type_identity != target_identity)
@@ -289,7 +347,10 @@ pub(super) fn argument(
                 else {
                     return None;
                 };
-                if local.is_mutable
+                // An exclusive subloan needs mutable owned storage behind
+                // the binding; every other lane reads or moves immutable
+                // owned storage.
+                if local.is_mutable != projected_borrow
                     || local.symbol != symbol
                     || (!unrestricted
                         && !linear
@@ -421,7 +482,7 @@ pub(super) fn argument(
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             },
-            path: Vec::new(),
+            path: path.clone(),
             type_identity: target_identity.to_owned(),
             access,
         });

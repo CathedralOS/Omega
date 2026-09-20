@@ -274,6 +274,36 @@ pub(crate) fn ordinary_projected_call_is_supported(
     if target_parameters.len() != arguments.len() {
         return false;
     }
+    // A live result binding lends a record subtree through an exclusive
+    // borrow: the binding itself is not moved, the checked loan evidence was
+    // already rejoined by the result-argument builder, and lowering replays
+    // the same projected place against its own result roster.
+    if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+        && arguments
+            .iter()
+            .zip(&target_parameters)
+            .all(|(argument, target)| {
+                if argument.path.is_empty() {
+                    return true;
+                }
+                argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some()
+                    && !target.is_self
+                    && argument.path.iter().all(|segment| {
+                        matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+                    })
+                    && matches!(
+                        argument.access,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::WriteOnlyBorrow
+                    )
+                    && structural_access_for_type_reference(program, target.type_reference)
+                        == Some(argument.access)
+            })
+    {
+        return true;
+    }
     let has_content_evidence = |machine, state| {
         facts
             .qualifications

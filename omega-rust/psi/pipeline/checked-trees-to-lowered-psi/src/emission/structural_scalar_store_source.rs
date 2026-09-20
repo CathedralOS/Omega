@@ -161,19 +161,29 @@ pub(crate) fn validate(
             .iter()
             .filter(|store| store.statement_index == statement_index)
             .collect::<Vec<_>>();
-        let [store] = matching.as_slice() else {
-            return unsupported(
-                "structural scalar store roster omits or duplicates an authored assignment",
-            );
-        };
-        validate_assignment(
-            checked,
-            plan.machine,
-            plan.state,
-            statement_index,
-            assignment,
-            store,
-        )?;
+        match matching.as_slice() {
+            [] => {
+                return unsupported(
+                    "structural scalar store roster omits or duplicates an authored assignment",
+                );
+            }
+            [store] => validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                statement_index,
+                assignment,
+                store,
+            )?,
+            stores => validate_record_stores(
+                checked,
+                plan.machine,
+                plan.state,
+                statement_index,
+                assignment,
+                stores,
+            )?,
+        }
     }
     for operation in &plan.operations {
         if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
@@ -511,6 +521,147 @@ pub(crate) fn validate_assignment(
     )
 }
 
+/// A whole-record replacement decomposes into one ordered field store per
+/// member. Rejoin the rooted literal and require the exact retained field
+/// roster, in authored order, against each store's destination, declared
+/// field, and field computation.
+fn validate_record_stores(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    assignment: &checked_trees::statement::TableAssignment,
+    stores: &[&&checked_trees::CheckedStructuralScalarFieldStorePlan],
+) -> Result<(), LoweringError> {
+    let (owner, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    if owner.symbol != machine {
+        return unsupported("structural scalar store has a different authored machine");
+    }
+    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine,
+        state_symbol,
+        Some(statement_index as usize),
+        assignment.target,
+    )?;
+    if !source.path.is_empty() {
+        return unsupported("record store destination projected beyond its authored root");
+    }
+    let root = checked
+        .facts
+        .values
+        .structural_values
+        .root_for_expression(state.symbol, statement_index, assignment.value)
+        .ok_or(LoweringError::Unsupported(
+            "record store has no rooted record literal",
+        ))?;
+    if root.machine != machine {
+        return unsupported("record store literal has different custody");
+    }
+    let node = checked.facts.values.structural_values.nodes.get(root.root);
+    let checked_trees::CheckedStructuralValueKind::Record {
+        data_symbol: record_symbol,
+        fields: record_fields,
+    } = &node.kind
+    else {
+        return unsupported("record store literal is not a plain record");
+    };
+    let record_symbol = *record_symbol;
+    let fields = checked
+        .facts
+        .values
+        .structural_values
+        .record_fields
+        .span(*record_fields)
+        .ok_or(LoweringError::Unsupported(
+            "record store literal field roster is stale",
+        ))?;
+    let ExpressionNode::StructLiteral(literal) =
+        checked.expression_table.expression(assignment.value)
+    else {
+        return unsupported("record store has no authored literal");
+    };
+    let authored = checked.expression_table.struct_fields(literal.fields);
+    if fields.len() != authored.len() || fields.len() != stores.len() {
+        return unsupported("record store changed its complete field roster");
+    }
+    for (ordinal, ((field, initializer), store)) in fields
+        .iter()
+        .zip(authored.iter())
+        .zip(stores.iter())
+        .enumerate()
+    {
+        if field.field != initializer.field_symbol
+            || field.expression != initializer.value
+            || store.statement_index != statement_index
+        {
+            return unsupported("record store reordered or substituted a field");
+        }
+        let destination = match store.destination {
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+                checked
+                    .state_parameters(state)
+                    .get(position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "record store has no authored destination parameter",
+                    ))?
+                    .symbol
+            }
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+                local_destination(checked, state, statement_index, symbol)?;
+                symbol
+            }
+        };
+        if source.root != destination || !store.carrier_path.is_empty() {
+            return unsupported("record store destination drifted from its authored place");
+        }
+        let declaration = checked
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == record_symbol)
+            .and_then(|data| {
+                checked
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        checked_trees::data::DataMember::Field(declaration)
+                            if declaration.symbol == field.field =>
+                        {
+                            Some(declaration)
+                        }
+                        _ => None,
+                    })
+            })
+            .ok_or(LoweringError::Unsupported(
+                "record store field declaration is missing",
+            ))?;
+        let identity = declaration
+            .identity
+            .map(|identity| format!("#{identity}"))
+            .unwrap_or_else(|| declaration.name.as_str().to_owned());
+        if store.field_identity != identity {
+            return unsupported("record store field drifted from its literal ordinal");
+        }
+        let checked_trees::CheckedStructuralRecordFieldValue::Scalar(expected) = field.value else {
+            return unsupported("record store field has no scalar computation");
+        };
+        let Some((handle, role)) = computation_root(checked, machine, state_symbol, store)? else {
+            return unsupported("record store replaced its field computation");
+        };
+        let expected_role = CheckedScalarExpressionRole::RecordField {
+            expression: assignment.value,
+            field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("record store field ordinal exceeds u32")
+            })?,
+        };
+        if handle != expected || role != expected_role {
+            return unsupported("record store computation drifted from its literal field");
+        }
+    }
+    Ok(())
+}
+
 /// A local store names a unique, earlier owned declaration. Its current live
 /// home is resolved separately by the ordered lowering namespace, so a move
 /// cannot be undone merely by finding the old declaration again.
@@ -550,12 +701,21 @@ pub(crate) fn local_destination<'a>(
 }
 
 /// Select a computation only through its exact authored assignment coordinate.
+/// A whole-record replacement selects each field through the literal's own
+/// `RecordField` root rather than the assignment's role, so the returned role
+/// is the one the resolved root actually carries.
 pub(crate) fn computation_root(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
-) -> Result<Option<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
+) -> Result<
+    Option<(
+        checked_trees::CheckedScalarComputationHandle,
+        CheckedScalarExpressionRole,
+    )>,
+    LoweringError,
+> {
     let role = CheckedScalarExpressionRole::AssignmentValue;
     let plans = &checked.facts.values.scalar_computations;
     let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
@@ -573,17 +733,80 @@ pub(crate) fn computation_root(
             unsupported("field assignment replaced its computation with a pure value")
         };
     };
-    let root = root.ok_or(LoweringError::Unsupported(
-        "field assignment has no computation root",
-    ))?;
+    let root = match root {
+        Some(root) => root,
+        None => {
+            let mut record_roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
+                root.state == state
+                    && root.statement_ordinal == store.statement_index
+                    && root.root == handle
+                    && matches!(root.role, CheckedScalarExpressionRole::RecordField { .. })
+            });
+            let root = record_roots.next().ok_or(LoweringError::Unsupported(
+                "field assignment has no computation root",
+            ))?;
+            if record_roots.next().is_some() {
+                return unsupported("field assignment has duplicate record computation roots");
+            }
+            root
+        }
+    };
     if root.machine != machine || root.root != handle || !plans.nodes.is_valid(handle) {
         return unsupported("field assignment computation root has different custody");
+    }
+    if let CheckedScalarExpressionRole::RecordField {
+        expression,
+        field_ordinal,
+    } = root.role
+    {
+        // The store's declared field must be exactly the literal position the
+        // computation root names; an ordinal pointing at a sibling field would
+        // otherwise write that field's value into this store's member.
+        let ExpressionNode::StructLiteral(literal) =
+            checked.expression_table.expression(expression)
+        else {
+            return unsupported("record store field has no authored literal owner");
+        };
+        let field = checked
+            .expression_table
+            .struct_fields(literal.fields)
+            .get(field_ordinal as usize)
+            .ok_or(LoweringError::Unsupported(
+                "record store field ordinal escaped its literal",
+            ))?;
+        let identity = checked
+            .data_definitions()
+            .iter()
+            .find_map(|data| {
+                checked
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        checked_trees::data::DataMember::Field(declaration)
+                            if declaration.symbol == field.field_symbol =>
+                        {
+                            Some(
+                                declaration
+                                    .identity
+                                    .map(|identity| format!("#{identity}"))
+                                    .unwrap_or_else(|| declaration.name.as_str().to_owned()),
+                            )
+                        }
+                        _ => None,
+                    })
+            })
+            .ok_or(LoweringError::Unsupported(
+                "record store field declaration is missing",
+            ))?;
+        if identity != store.field_identity {
+            return unsupported("record store field drifted from its literal ordinal");
+        }
     }
     let source = crate::expression_preparation::source_custody::locate(
         checked,
         state,
         store.statement_index,
-        role,
+        root.role,
     )?;
     let node = plans.nodes.get(handle);
     if source.machine != machine
@@ -602,5 +825,5 @@ pub(crate) fn computation_root(
         handle,
         source.expression,
     )?;
-    Ok(Some(handle))
+    Ok(Some((handle, root.role)))
 }

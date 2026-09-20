@@ -804,15 +804,37 @@ pub(crate) fn validate_transfer_shape(
                                 | StructuralTypeShape::Record { .. }
                         )
                 });
+            // A live result binding lends one of its record's scalar leaves
+            // through an exclusive borrow; the projected path resolves to the
+            // same plain leaf shape the argument presents.
+            let scalar_leaf_borrow = matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+            ) && lookup_type_id(type_ids, &argument.type_identity)
+                .ok()
+                .and_then(|leaf| {
+                    structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == leaf)
+                        .map(|declaration| &declaration.shape)
+                })
+                .is_some_and(|expected| {
+                    record_scalar_leaf_shape(structural_types, structural_type, &argument.path)
+                        .as_ref()
+                        == Some(expected)
+                });
             if (!argument.path.is_empty()
                 && argument.access != checked_trees::CheckedStructuralAccess::Owned
                 && !record_borrow
-                && !reference_borrow)
+                && !reference_borrow
+                && !scalar_leaf_borrow)
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
                     && structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
                 || (!record_borrow
                     && !reference_borrow
+                    && !scalar_leaf_borrow
                     && !matches!(
                         argument.access,
                         checked_trees::CheckedStructuralAccess::Owned
@@ -823,6 +845,7 @@ pub(crate) fn validate_transfer_shape(
                     != if unrestricted_array
                         || record_borrow
                         || reference_borrow
+                        || scalar_leaf_borrow
                         || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                     {
                         Multiplicity::Unrestricted
@@ -1225,6 +1248,34 @@ fn record_projection_type(
         StructuralTypeShape::Record { .. }
     )
     .then_some(current)
+}
+
+/// Follow owned record fields to a plain scalar leaf. An exclusive borrow
+/// projected from a live result names exactly that stored primitive; a
+/// structural child or non-scalar leaf belongs to the other custody lanes.
+fn record_scalar_leaf_shape(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<StructuralTypeShape> {
+    let mut current = root;
+    let (last, prefix) = path.split_last()?;
+    for segment in prefix {
+        current = record_field_type(types, current, std::slice::from_ref(segment))?;
+    }
+    let StructuralTypeShape::Record { fields } =
+        &types.iter().find(|item| item.id == current)?.shape
+    else {
+        return None;
+    };
+    let CheckedUnitStructuralPathSegment::Field(identity) = last else {
+        return None;
+    };
+    fields
+        .iter()
+        .find(|field| field.identity == *identity)?
+        .field_type
+        .canonical_leaf_shape()
 }
 
 /// Follow only owned record fields. The caller separately decides whether
