@@ -3635,6 +3635,24 @@ Owners include
 
   Remaining work:
 
+  - (new-scope) Enforce predicate-domain establishment on local initializers;
+    selecting the right domain/carrier is not proof of membership. On unchanged
+    `4dc78c119be9` (macOS ARM64), ordinary `compile_to_checked` incorrectly accepts
+    `data Choice [copy] { case Empty; case Some(value: u32); }`
+    with `domain Choice::NonEmpty requires self in Choice::Some;` and
+    `machine read() -> u32 { let value: Choice in Choice::NonEmpty = Choice::Empty; value.value }`.
+    `typed-trees-to-checked-trees/src/checks/contracts/writes.rs` checks local
+    initializer qualification only when `domain_requires_provenance` is true;
+    predicate-only annotations can supply their own unproved facts. Require the
+    initializer's obligations before admitting destination facts, retaining
+    valid case construction and rejecting `Empty`, stale facts and wrong owners.
+    The foreign qualified variant has the same source-checking gap. Runtime
+    qualified-record/case helpers also stop at the missing checked scalar control
+    plan in Terminal production; neither gap is closed by the native constant
+    helper control `scalar_case_results::package_membership::foreign_domain_constant_helpers_execute_after_source_removal`.
+    `module_machine_indices::domain_carriers` checks exact carrier selection,
+    retained formal predicates and cross-package owner rejection, not proof
+    that a caller establishes those predicates.
   - Unmanaged source maps still have no portable package commitment for
     equal module/domain paths across distinct roots. Keep the independent
     collision rejection in `validation/src/proof_contracts/domains.rs` until
