@@ -3,10 +3,11 @@ use build_time_evaluation::compute_layout_plan;
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use layout::build_layout_plan;
 use layout_plans::{
-    ByteOrder, ConsumptionInstant, ConventionalRecursiveRecordSumPathsLayoutReport, DataSymbolId,
-    EntryStubId, LayoutPlacementReport, MaterializationAction, MaterializationContext,
-    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
-    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
+    ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
+    ConventionalRecordSumChildInterior, DataSymbolId, EntryStubId, LayoutPlacementReport,
+    MaterializationAction, MaterializationContext, RelocationTarget, SymbolicFieldInnerLayout,
+    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
+    derive_symbolic_materialization_with_inner_layouts,
 };
 use target::NativeTarget;
 
@@ -1220,7 +1221,7 @@ machine Main::main(&mut self) { }
     );
     assert_eq!(
         paths
-            .outer_layout()
+            .outer_layout
             .entries
             .iter()
             .map(|entry| (entry.field.as_str(), entry.placement))
@@ -1230,33 +1231,33 @@ machine Main::main(&mut self) { }
             ("middle", LayoutPlacementReport::At { offset: 8 }),
         ]
     );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(root) = &paths else {
-        panic!("the outer record projects as a recursive branch");
+    assert_eq!(paths.children.len(), 1);
+    assert_eq!(paths.children[0].field, "middle");
+    assert_eq!(paths.children[0].member_identity, Some(2));
+    let ConventionalRecordSumChildInterior::Record(middle) = &paths.children[0].interior else {
+        panic!("the middle row carries a record interior");
     };
-    assert_eq!(root.paths.len(), 1);
-    assert_eq!(root.paths[0].outer_field, "middle");
-    assert_eq!(root.paths[0].outer_member_identity, Some(2));
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(middle) = &root.paths[0].inner
-    else {
-        panic!("the middle record projects as a recursive branch");
-    };
-    assert_eq!(middle.paths.len(), 1);
-    assert_eq!(middle.paths[0].outer_field, "inner");
-    assert_eq!(middle.paths[0].outer_member_identity, Some(1));
     // `middle` retains its own direct sum `route` beside the deeper `inner`
-    // record path — the branch level carries both child kinds.
-    assert_eq!(middle.child_sum_layouts.len(), 1);
-    assert_eq!(middle.child_sum_layouts[0].field, "route");
-    assert_eq!(middle.child_sum_layouts[0].member_identity, Some(3));
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_layouts, ..
-    } = &middle.paths[0].inner
-    else {
-        panic!("the innermost record is the direct-sum leaf");
+    // record path — one channel carrying both kinds in authored order.
+    assert_eq!(middle.children.len(), 2);
+    assert_eq!(middle.children[0].field, "inner");
+    assert_eq!(middle.children[0].member_identity, Some(1));
+    assert!(matches!(
+        middle.children[0].interior,
+        ConventionalRecordSumChildInterior::Record(_)
+    ));
+    assert_eq!(middle.children[1].field, "route");
+    assert_eq!(middle.children[1].member_identity, Some(3));
+    let ConventionalRecordSumChildInterior::Record(inner) = &middle.children[0].interior else {
+        panic!("the inner row carries a record interior");
     };
-    assert_eq!(child_sum_layouts.len(), 1);
-    assert_eq!(child_sum_layouts[0].field, "choice");
-    assert_eq!(child_sum_layouts[0].member_identity, Some(1));
+    assert_eq!(inner.children.len(), 1);
+    assert_eq!(inner.children[0].field, "choice");
+    assert_eq!(inner.children[0].member_identity, Some(1));
+    assert!(matches!(
+        inner.children[0].interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
     let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
         .expect("the recursive report folds into inner layout carriers");
 
@@ -1315,7 +1316,7 @@ machine Main::main(&mut self) { }
             ),
     ];
     let materialization = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &symbolic,
         MaterializationContext {
@@ -1447,7 +1448,7 @@ machine Main::main(&mut self) { }
     );
     assert_eq!(
         paths
-            .outer_layout()
+            .outer_layout
             .entries
             .iter()
             .map(|entry| (entry.field.as_str(), entry.placement))
@@ -1457,74 +1458,65 @@ machine Main::main(&mut self) { }
             ("middle", LayoutPlacementReport::At { offset: 8 }),
         ]
     );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(root) = &paths else {
-        panic!("the outer record projects as a recursive branch");
+    assert_eq!(paths.children.len(), 1);
+    assert_eq!(paths.children[0].field, "middle");
+    assert_eq!(paths.children[0].member_identity, Some(2));
+    let ConventionalRecordSumChildInterior::Record(middle) = &paths.children[0].interior else {
+        panic!("the middle row carries a record interior");
     };
-    assert_eq!(root.paths.len(), 1);
-    assert_eq!(root.paths[0].outer_field, "middle");
-    assert_eq!(root.paths[0].outer_member_identity, Some(2));
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(middle) = &root.paths[0].inner
-    else {
-        panic!("the middle record projects as a recursive branch");
+    // The `middle` level co-locates all three child kinds on one channel in
+    // authored order: the deeper `inner` record path, its own direct sum
+    // `route`, and its own sum array `batches`.
+    let [middle_inner, middle_route, middle_batches] = middle.children.as_slice() else {
+        panic!("the middle level spells three children");
     };
-    assert_eq!(middle.paths.len(), 1);
-    assert_eq!(middle.paths[0].outer_field, "inner");
-    assert_eq!(middle.paths[0].outer_member_identity, Some(1));
-    // The `middle` branch level co-locates all three child kinds: its own
-    // direct sum `route`, its own sum array `batches`, and the deeper `inner`
-    // record path.
-    assert_eq!(
-        middle
-            .child_sum_layouts
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("route", Some(3))]
-    );
-    assert_eq!(
-        middle
-            .child_sum_array_layouts
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("batches", Some(4), 2, 24)]
-    );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_layouts,
-        child_sum_array_layouts,
-        ..
-    } = &middle.paths[0].inner
-    else {
-        panic!("the innermost record is a leaf level");
+    assert_eq!(middle_inner.field, "inner");
+    assert_eq!(middle_inner.member_identity, Some(1));
+    assert_eq!(middle_route.field, "route");
+    assert_eq!(middle_route.member_identity, Some(3));
+    assert!(matches!(
+        middle_route.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    assert_eq!(middle_batches.field, "batches");
+    assert_eq!(middle_batches.member_identity, Some(4));
+    assert!(matches!(
+        middle_batches.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 24,
+        }
+    ));
+    assert!(matches!(
+        middle_batches.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    let ConventionalRecordSumChildInterior::Record(inner) = &middle_inner.interior else {
+        panic!("the inner row carries a record interior");
     };
-    assert_eq!(
-        child_sum_layouts
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("choice", Some(1))]
-    );
-    assert_eq!(
-        child_sum_array_layouts
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("choices", Some(2), 2, 24)]
-    );
+    // The innermost level spells its direct sum beside its sum array.
+    let [inner_choice, inner_choices] = inner.children.as_slice() else {
+        panic!("the innermost level spells two children");
+    };
+    assert_eq!(inner_choice.field, "choice");
+    assert_eq!(inner_choice.member_identity, Some(1));
+    assert!(matches!(
+        inner_choice.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    assert_eq!(inner_choices.field, "choices");
+    assert_eq!(inner_choices.member_identity, Some(2));
+    assert!(matches!(
+        inner_choices.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 24,
+        }
+    ));
+    assert!(matches!(
+        inner_choices.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
     let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
         .expect("the recursive report folds sum and sum-array carriers at every level");
 
@@ -1622,7 +1614,7 @@ machine Main::main(&mut self) { }
             ),
     ];
     let materialization = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &symbolic,
         MaterializationContext {
@@ -1797,7 +1789,7 @@ machine Main::main(&mut self) { }
     );
     assert_eq!(
         paths
-            .outer_layout()
+            .outer_layout
             .entries
             .iter()
             .map(|entry| (entry.field.as_str(), entry.placement))
@@ -1808,54 +1800,44 @@ machine Main::main(&mut self) { }
             ("route", LayoutPlacementReport::At { offset: 72 }),
         ]
     );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_layouts,
-        child_sum_array_layouts,
-        child_record_array_layouts,
-        ..
-    } = &paths
-    else {
-        panic!("the outer record is a leaf level: no deeper record paths");
+    // The level co-locates the record array `members` beside its own direct
+    // sum `route` on one authored-order channel — one `At` extent per
+    // repeated field, one compact row carrying the element record's complete
+    // report beside its literal count and stride.
+    let [members_row, route_row] = paths.children.as_slice() else {
+        panic!("the outer record spells a record array and a direct sum");
     };
-    // The leaf level co-locates its own direct sum `route` beside the record
-    // array `members` — one `At` extent per repeated field, one compact row
-    // carrying the element record's complete leaf report for every index.
-    assert_eq!(
-        child_sum_layouts
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("route", Some(3))]
-    );
-    assert!(child_sum_array_layouts.is_empty());
-    assert_eq!(
-        child_record_array_layouts
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("members", Some(2), 2, 32)]
-    );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_layouts: element_sums,
-        ..
-    } = &child_record_array_layouts[0].inner
-    else {
-        panic!("the record-array element record is a leaf level");
+    assert_eq!(members_row.field, "members");
+    assert_eq!(members_row.member_identity, Some(2));
+    assert!(matches!(
+        members_row.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 32,
+        }
+    ));
+    assert_eq!(route_row.field, "route");
+    assert_eq!(route_row.member_identity, Some(3));
+    assert!(matches!(
+        route_row.hop,
+        ConventionalRecordSumChildHop::Field
+    ));
+    assert!(matches!(
+        route_row.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    let ConventionalRecordSumChildInterior::Record(element_report) = &members_row.interior else {
+        panic!("the record-array element record is a report interior");
     };
-    assert_eq!(
-        element_sums
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("choice", Some(1))]
-    );
+    let [element_choice] = element_report.children.as_slice() else {
+        panic!("the element record spells one direct sum");
+    };
+    assert_eq!(element_choice.field, "choice");
+    assert_eq!(element_choice.member_identity, Some(1));
+    assert!(matches!(
+        element_choice.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
     let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
         .expect("the recursive report folds the record-array carrier");
 
@@ -1910,7 +1892,7 @@ machine Main::main(&mut self) { }
             ),
     ];
     let materialization = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &symbolic,
         MaterializationContext {
@@ -1955,7 +1937,7 @@ machine Main::main(&mut self) { }
     // count rejects against the row's own bounds — both before any byte
     // offset is chosen.
     let unindexed = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &[
             SymbolicFieldValue::new_numbered("members", 2, 64, member_one_target)
@@ -1986,7 +1968,7 @@ machine Main::main(&mut self) { }
         "{unindexed:?}"
     );
     let out_of_range = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &[
             SymbolicFieldValue::new_indexed_numbered("members", 2, 2, 64, member_one_target)
@@ -2137,7 +2119,7 @@ machine Main::main(&mut self) { }
     );
     assert_eq!(
         paths
-            .outer_layout()
+            .outer_layout
             .entries
             .iter()
             .map(|entry| (entry.field.as_str(), entry.placement))
@@ -2149,67 +2131,56 @@ machine Main::main(&mut self) { }
             ("route", LayoutPlacementReport::At { offset: 168 }),
         ]
     );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_layouts,
-        child_sum_array_layouts,
-        child_record_array_layouts,
-        ..
-    } = &paths
-    else {
-        panic!("the outer record is a leaf level: no deeper record paths");
-    };
     // `matrix` packs `2 * 2 = 4` elements at the innermost Choice stride (24)
     // spanning 8..104; `rows` packs `2 * 1 = 2` Neighbor elements at stride
     // 32 spanning 104..168; the level's own direct sum `route` sits at 168.
-    assert_eq!(
-        child_sum_layouts
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("route", Some(4))]
-    );
-    assert_eq!(
-        child_sum_array_layouts
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("matrix", Some(2), 4, 24)]
-    );
-    assert_eq!(
-        child_record_array_layouts
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("rows", Some(3), 2, 32)]
-    );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_layouts: element_sums,
-        ..
-    } = &child_record_array_layouts[0].inner
-    else {
-        panic!("the record-array element record is a leaf level");
+    let [matrix_row, rows_row, route_row] = paths.children.as_slice() else {
+        panic!("the outer record spells a packed sum array, a record array, and a direct sum");
     };
-    assert_eq!(
-        element_sums
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("choice", Some(1))]
-    );
+    assert_eq!(matrix_row.field, "matrix");
+    assert_eq!(matrix_row.member_identity, Some(2));
+    assert!(matches!(
+        matrix_row.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 4,
+            element_stride: 24,
+        }
+    ));
+    assert!(matches!(
+        matrix_row.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    assert_eq!(rows_row.field, "rows");
+    assert_eq!(rows_row.member_identity, Some(3));
+    assert!(matches!(
+        rows_row.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 32,
+        }
+    ));
+    assert_eq!(route_row.field, "route");
+    assert_eq!(route_row.member_identity, Some(4));
+    assert!(matches!(
+        route_row.hop,
+        ConventionalRecordSumChildHop::Field
+    ));
+    assert!(matches!(
+        route_row.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    let ConventionalRecordSumChildInterior::Record(element_report) = &rows_row.interior else {
+        panic!("the record-array element record is a report interior");
+    };
+    let [element_choice] = element_report.children.as_slice() else {
+        panic!("the element record spells one direct sum");
+    };
+    assert_eq!(element_choice.field, "choice");
+    assert_eq!(element_choice.member_identity, Some(1));
+    assert!(matches!(
+        element_choice.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
     let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
         .expect("the recursive report folds the packed nested-array carriers");
 
@@ -2266,7 +2237,7 @@ machine Main::main(&mut self) { }
             ),
     ];
     let materialization = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &symbolic,
         MaterializationContext {
@@ -2309,7 +2280,7 @@ machine Main::main(&mut self) { }
     // The flat packed index keeps the row's exact bound: index 4 names a
     // fifth packed element the `[[Choice; 2]; 2]` field does not carry.
     let out_of_range = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &[
             SymbolicFieldValue::new_indexed_numbered("matrix", 2, 4, 64, matrix_three_target)
@@ -2484,7 +2455,7 @@ machine Main::main(&mut self) { }
     );
     assert_eq!(
         paths
-            .outer_layout()
+            .outer_layout
             .entries
             .iter()
             .map(|entry| (entry.field.as_str(), entry.placement))
@@ -2496,80 +2467,72 @@ machine Main::main(&mut self) { }
             ("route", LayoutPlacementReport::At { offset: 128 }),
         ]
     );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) = &paths else {
-        panic!("`grid` and `grids` carry record paths below the outer level");
+    // `grid` and `grids` carry record paths beside the direct sum `route`,
+    // all on one authored-order channel.
+    let [grid_row, grids_row, route_row] = paths.children.as_slice() else {
+        panic!("the outer record spells a record path, a record array, and a direct sum");
     };
-    assert_eq!(
-        report
-            .child_sum_layouts
-            .iter()
-            .map(|row| (row.field.as_str(), row.member_identity))
-            .collect::<Vec<_>>(),
-        vec![("route", Some(4))]
-    );
-    assert_eq!(
-        report
-            .paths
-            .iter()
-            .map(|path| (path.outer_field.as_str(), path.outer_member_identity))
-            .collect::<Vec<_>>(),
-        vec![("grid", Some(2))]
-    );
+    assert_eq!(grid_row.field, "grid");
+    assert_eq!(grid_row.member_identity, Some(2));
+    assert!(matches!(grid_row.hop, ConventionalRecordSumChildHop::Field));
+    assert_eq!(grids_row.field, "grids");
+    assert_eq!(grids_row.member_identity, Some(3));
+    assert!(matches!(
+        grids_row.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 32,
+        }
+    ));
+    assert_eq!(route_row.field, "route");
+    assert_eq!(route_row.member_identity, Some(4));
+    assert!(matches!(
+        route_row.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
     // `grid: Neighbor<2>` — the instantiated record carries its own literal
     // `cells` row: count 2 at the Choice stride 24, beside `pad` at 48.
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_array_layouts: grid_arrays,
-        ..
-    } = &report.paths[0].inner
-    else {
-        panic!("the instantiated record is a leaf level");
+    let ConventionalRecordSumChildInterior::Record(grid_report) = &grid_row.interior else {
+        panic!("the grid row carries a record interior");
     };
-    assert_eq!(
-        grid_arrays
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("cells", Some(1), 2, 24)]
-    );
-    // `grids: [Neighbor<1>; 2]` is the record-array channel with an instance
+    let [grid_cells] = grid_report.children.as_slice() else {
+        panic!("the instantiated record spells one packed sum array");
+    };
+    assert_eq!(grid_cells.field, "cells");
+    assert_eq!(grid_cells.member_identity, Some(1));
+    assert!(matches!(
+        grid_cells.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 24,
+        }
+    ));
+    assert!(matches!(
+        grid_cells.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
+    // `grids: [Neighbor<1>; 2]` is the record-array row with an instance
     // element: count 2 at the `Neighbor<1>` extent 32, every index sharing
-    // the element's own leaf report (its `cells` row packs one Choice).
-    assert_eq!(
-        report
-            .child_record_array_layouts
-            .iter()
-            .map(|row| {
-                (
-                    row.field.as_str(),
-                    row.member_identity,
-                    row.element_count,
-                    row.element_stride,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![("grids", Some(3), 2, 32)]
-    );
-    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-        child_sum_array_layouts: element_arrays,
-        ..
-    } = &report.child_record_array_layouts[0].inner
-    else {
-        panic!("the instantiated record-array element is a leaf level");
+    // the element's own report (its `cells` row packs one Choice).
+    let ConventionalRecordSumChildInterior::Record(element_report) = &grids_row.interior else {
+        panic!("the grids row carries a record interior");
     };
-    assert_eq!(
-        element_arrays
-            .iter()
-            .map(|row| (row.field.as_str(), row.element_count, row.element_stride))
-            .collect::<Vec<_>>(),
-        vec![("cells", 1, 24)]
-    );
+    let [element_cells] = element_report.children.as_slice() else {
+        panic!("the instantiated element record spells one packed sum array");
+    };
+    assert_eq!(element_cells.field, "cells");
+    assert_eq!(element_cells.member_identity, Some(1));
+    assert!(matches!(
+        element_cells.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 1,
+            element_stride: 24,
+        }
+    ));
+    assert!(matches!(
+        element_cells.interior,
+        ConventionalRecordSumChildInterior::Sum(_)
+    ));
     let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
         .expect("the recursive report folds the generic-instance carriers");
 
@@ -2634,7 +2597,7 @@ machine Main::main(&mut self) { }
             ),
     ];
     let materialization = derive_symbolic_materialization_with_inner_layouts(
-        paths.outer_layout(),
+        &paths.outer_layout,
         &carriers,
         &symbolic,
         MaterializationContext {

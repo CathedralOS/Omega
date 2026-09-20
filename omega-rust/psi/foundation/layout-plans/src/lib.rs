@@ -23,8 +23,8 @@ mod symbolic_values;
 pub use layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalNestedRecordSumOccurrenceLayoutReport,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
-    ConventionalRecordArrayFieldLayoutReport, ConventionalRecordSumOccurrenceLayoutReport,
-    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
+    ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
     ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
     ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, IntegerInterpretation, LayoutFieldEntryReport,
@@ -57,7 +57,7 @@ pub use symbolic_materialization::{
     derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
 };
 pub use symbolic_values::{
-    DataSymbolId, EntryStubId, RelocationTarget, SymbolicFieldInnerLayout,
+    DataSymbolId, EntryStubId, RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInterior,
     SymbolicFieldInteriorLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
 };
 

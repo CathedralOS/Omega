@@ -2,18 +2,16 @@
 
 use super::{
     BuildTimeValue, ByteOrder, ConventionalNestedRecordSumPathLayoutReport,
-    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordArrayFieldLayoutReport,
-    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumChildHop,
+    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
-    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
-    ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumFieldMaterialization,
-    ValidatedConstRecordWithSumMaterialization,
-    ValidatedConstRecursiveNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordSumArrayElementSelection,
+    ValidatedConstRecordSumChildMaterialization, ValidatedConstRecordWithSumMaterialization,
     conventional_sum_layout_reports_match_for_replay, field_occurrence_matches, hash_byte,
-    hash_bytes, hash_compact_sum_array_occurrence, hash_text, hash_u64, hash_value,
-    layout_plan_reports_match_for_replay, normalized_layout_plan_report_fingerprint,
-    sum_array_layout_sets_match_for_replay,
+    hash_bytes, hash_text, hash_u64, hash_value, layout_plan_reports_match_for_replay,
+    normalized_conventional_sum_layout_report_fingerprint,
+    normalized_layout_plan_report_fingerprint,
 };
 pub(super) fn nested_path_reports_match_for_replay(
     left: &ConventionalNestedRecordSumPathLayoutReport,
@@ -46,47 +44,30 @@ pub(super) trait RecordSumPathsReplay {
     fn matches_for_replay(&self, other: &Self) -> bool;
 }
 
-fn child_sum_rows_match_for_replay(
-    left: &[ConventionalSumFieldLayoutReport],
-    right: &[ConventionalSumFieldLayoutReport],
-) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.field,
-                left.member_identity,
-                &right.field,
-                right.member_identity,
-            ) && conventional_sum_layout_reports_match_for_replay(&left.layout, &right.layout)
-        })
-}
-
-/// Hash-free replay equality for one direct `[R; N]` compact row: field
-/// identity, literal count and stride, and the shared element record's
-/// complete recursive report.
-fn record_array_layouts_match_for_replay(
-    left: &ConventionalRecordArrayFieldLayoutReport,
-    right: &ConventionalRecordArrayFieldLayoutReport,
+/// Hash-free replay equality for one classified child row: the same field
+/// occurrence, the same hop — `Field` or a literal `Index` carrying equal
+/// count and stride — and recursively equal interiors.
+fn child_rows_match_for_replay(
+    left: &ConventionalRecordSumChildLayoutReport,
+    right: &ConventionalRecordSumChildLayoutReport,
 ) -> bool {
     field_occurrence_matches(
         &left.field,
         left.member_identity,
         &right.field,
         right.member_identity,
-    ) && left.element_count == right.element_count
-        && left.element_stride == right.element_stride
-        && left.inner.matches_for_replay(&right.inner)
-}
-
-pub(super) fn record_array_layout_sets_match_for_replay(
-    left: &[ConventionalRecordArrayFieldLayoutReport],
-    right: &[ConventionalRecordArrayFieldLayoutReport],
-) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| record_array_layouts_match_for_replay(left, right))
+    ) && left.hop == right.hop
+        && match (&left.interior, &right.interior) {
+            (
+                ConventionalRecordSumChildInterior::Sum(left),
+                ConventionalRecordSumChildInterior::Sum(right),
+            ) => conventional_sum_layout_reports_match_for_replay(left, right),
+            (
+                ConventionalRecordSumChildInterior::Record(left),
+                ConventionalRecordSumChildInterior::Record(right),
+            ) => left.matches_for_replay(right),
+            _ => false,
+        }
 }
 
 fn record_array_selections_match(
@@ -103,51 +84,113 @@ fn record_array_selections_match(
         })
 }
 
-/// Exact replay comparison for one level's retained record-array custody:
-/// field identity plus every indexed element selection.
-pub(super) fn record_array_fields_match(
-    left: &[ValidatedConstRecordArrayFieldMaterialization],
-    right: &[ValidatedConstRecordArrayFieldMaterialization],
+fn sum_array_element_selections_match(
+    left: &[ValidatedConstRecordSumArrayElementSelection],
+    right: &[ValidatedConstRecordSumArrayElementSelection],
 ) -> bool {
     left.len() == right.len()
         && left.iter().zip(right).all(|(left, right)| {
+            left.literal_index == right.literal_index
+                && left.non_authoritative_schema_report_fingerprint
+                    == right.non_authoritative_schema_report_fingerprint
+                && left.value == right.value
+                && left.non_authoritative_layout_report_fingerprint
+                    == right.non_authoritative_layout_report_fingerprint
+                && left.selected_case_identity == right.selected_case_identity
+                && left.selected_case_ordinal == right.selected_case_ordinal
+                && left.bytes == right.bytes
+                && left.non_authoritative_materialization_report_fingerprint
+                    == right.non_authoritative_materialization_report_fingerprint
+        })
+}
+
+/// Exact replay comparison for one retained child custody row: the same
+/// custody kind carrying equal field identity and equal nested coordinates.
+/// A record child's deeper level replays pairwise at the call site before
+/// this fingerprint coordinate compares.
+pub(super) fn child_materializations_match_for_replay(
+    left: &ValidatedConstRecordSumChildMaterialization,
+    right: &ValidatedConstRecordSumChildMaterialization,
+) -> bool {
+    match (left, right) {
+        (
+            ValidatedConstRecordSumChildMaterialization::Sum(left),
+            ValidatedConstRecordSumChildMaterialization::Sum(right),
+        ) => {
+            field_occurrence_matches(
+                &left.field,
+                left.field_identity,
+                &right.field,
+                right.field_identity,
+            ) && left.nested_sum.schema_name() == right.nested_sum.schema_name()
+                && left.nested_sum.value() == right.nested_sum.value()
+                && left.nested_sum.selected_case_identity()
+                    == right.nested_sum.selected_case_identity()
+                && left.nested_sum.selected_case_ordinal()
+                    == right.nested_sum.selected_case_ordinal()
+                && left.nested_sum.bytes() == right.nested_sum.bytes()
+                && conventional_sum_layout_reports_match_for_replay(
+                    left.nested_sum.layout(),
+                    right.nested_sum.layout(),
+                )
+                && left
+                    .nested_sum
+                    .non_authoritative_materialization_report_fingerprint()
+                    == right
+                        .nested_sum
+                        .non_authoritative_materialization_report_fingerprint()
+        }
+        (
+            ValidatedConstRecordSumChildMaterialization::SumArray(left),
+            ValidatedConstRecordSumChildMaterialization::SumArray(right),
+        ) => {
+            field_occurrence_matches(
+                &left.field,
+                left.field_identity,
+                &right.field,
+                right.field_identity,
+            ) && sum_array_element_selections_match(&left.elements, &right.elements)
+        }
+        (
+            ValidatedConstRecordSumChildMaterialization::Record(left),
+            ValidatedConstRecordSumChildMaterialization::Record(right),
+        ) => {
+            field_occurrence_matches(
+                left.outer_field(),
+                left.outer_member_identity(),
+                right.outer_field(),
+                right.outer_member_identity(),
+            ) && left
+                .inner
+                .non_authoritative_materialization_report_fingerprint()
+                == right
+                    .inner
+                    .non_authoritative_materialization_report_fingerprint()
+        }
+        (
+            ValidatedConstRecordSumChildMaterialization::RecordArray(left),
+            ValidatedConstRecordSumChildMaterialization::RecordArray(right),
+        ) => {
             field_occurrence_matches(
                 &left.field,
                 left.field_identity,
                 &right.field,
                 right.field_identity,
             ) && record_array_selections_match(&left.elements, &right.elements)
-        })
+        }
+        _ => false,
+    }
 }
 
 impl RecordSumPathsReplay for ConventionalRecursiveRecordSumPathsLayoutReport {
     fn matches_for_replay(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Leaf {
-                    outer_layout: left_layout,
-                    child_sum_layouts: left_sums,
-                    child_sum_array_layouts: left_arrays,
-                    child_record_array_layouts: left_record_arrays,
-                },
-                Self::Leaf {
-                    outer_layout: right_layout,
-                    child_sum_layouts: right_sums,
-                    child_sum_array_layouts: right_arrays,
-                    child_record_array_layouts: right_record_arrays,
-                },
-            ) => {
-                layout_plan_reports_match_for_replay(left_layout, right_layout)
-                    && child_sum_rows_match_for_replay(left_sums, right_sums)
-                    && sum_array_layout_sets_match_for_replay(left_arrays, right_arrays)
-                    && record_array_layout_sets_match_for_replay(
-                        left_record_arrays,
-                        right_record_arrays,
-                    )
-            }
-            (Self::Branch(left), Self::Branch(right)) => left.matches_for_replay(right),
-            _ => false,
-        }
+        layout_plan_reports_match_for_replay(&self.outer_layout, &other.outer_layout)
+            && self.children.len() == other.children.len()
+            && self
+                .children
+                .iter()
+                .zip(&other.children)
+                .all(|(left, right)| child_rows_match_for_replay(left, right))
     }
 }
 
@@ -182,30 +225,6 @@ impl RecordSumPathsReplay for ConventionalNestedRecordSumPathsLayoutReport {
     }
 }
 
-impl RecordSumPathsReplay for ConventionalRecordSumPathsLayoutReport {
-    fn matches_for_replay(&self, other: &Self) -> bool {
-        layout_plan_reports_match_for_replay(&self.outer_layout, &other.outer_layout)
-            && child_sum_rows_match_for_replay(&self.child_sum_layouts, &other.child_sum_layouts)
-            && sum_array_layout_sets_match_for_replay(
-                &self.child_sum_array_layouts,
-                &other.child_sum_array_layouts,
-            )
-            && record_array_layout_sets_match_for_replay(
-                &self.child_record_array_layouts,
-                &other.child_record_array_layouts,
-            )
-            && self.paths.len() == other.paths.len()
-            && self.paths.iter().zip(&other.paths).all(|(left, right)| {
-                field_occurrence_matches(
-                    &left.outer_field,
-                    left.outer_member_identity,
-                    &right.outer_field,
-                    right.outer_member_identity,
-                ) && left.inner.matches_for_replay(&right.inner)
-            })
-    }
-}
-
 pub(super) fn record_sum_paths_reports_match_for_replay<Paths: RecordSumPathsReplay>(
     left: &Paths,
     right: &Paths,
@@ -213,76 +232,36 @@ pub(super) fn record_sum_paths_reports_match_for_replay<Paths: RecordSumPathsRep
     left.matches_for_replay(right)
 }
 
-fn hash_direct_sum_occurrences(
-    hash: &mut u64,
-    nested_sums: &[ValidatedConstRecordSumFieldMaterialization],
-) {
-    hash_u64(hash, nested_sums.len() as u64);
-    for nested in nested_sums {
-        match nested.field_identity {
-            Some(identity) => {
-                hash_byte(hash, 1);
-                hash_u64(hash, identity);
-            }
-            None => {
-                hash_byte(hash, 0);
-                hash_text(hash, &nested.field);
-            }
-        }
-        hash_u64(
-            hash,
-            nested
-                .nested_sum
-                .non_authoritative_layout_report_fingerprint(),
-        );
-        match nested.nested_sum.selected_case_identity() {
-            Some(identity) => {
-                hash_byte(hash, 1);
-                hash_u64(hash, identity);
-            }
-            None => hash_byte(hash, 0),
-        }
-        hash_u64(hash, u64::from(nested.nested_sum.selected_case_ordinal()));
-    }
-}
-
-fn hash_direct_sum_array_occurrences(
-    hash: &mut u64,
-    array_layouts: &[ConventionalSumArrayFieldLayoutReport],
-    nested_sum_arrays: &[ValidatedConstRecordSumArrayFieldMaterialization],
-) {
-    hash_u64(hash, nested_sum_arrays.len() as u64);
-    for (array_layout, array) in array_layouts.iter().zip(nested_sum_arrays) {
-        hash_compact_sum_array_occurrence(hash, array_layout, &array.elements);
-    }
-}
-
-/// Non-authoritative coordinate for one direct `[R; N]` occurrence: field
-/// identity, literal count and stride, the shared element report's outer
-/// layout coordinate, and every indexed element's recursive materialization
-/// coordinate. The shared inner report itself is compared hash-free on
-/// replay; this coordinate carries its outer extent and the per-element
-/// recursive custody fingerprints.
-fn hash_compact_record_array_occurrence(
-    hash: &mut u64,
-    array_layout: &ConventionalRecordArrayFieldLayoutReport,
-    elements: &[ValidatedConstRecordArrayElementSelection],
-) {
-    match array_layout.member_identity {
+fn hash_field_identity(hash: &mut u64, identity: Option<u64>, field: &str) {
+    match identity {
         Some(identity) => {
             hash_byte(hash, 1);
             hash_u64(hash, identity);
         }
         None => {
             hash_byte(hash, 0);
-            hash_text(hash, &array_layout.field);
+            hash_text(hash, field);
         }
     }
-    hash_u64(hash, array_layout.element_count);
-    hash_u64(hash, array_layout.element_stride);
+}
+
+/// Non-authoritative coordinate for one `[R; N]` child row's compact
+/// custody: the literal count and stride, the shared element report's outer
+/// layout coordinate, and every indexed element's recursive materialization
+/// coordinate. The shared inner report itself is compared hash-free on
+/// replay.
+fn hash_record_array_child_custody(
+    hash: &mut u64,
+    element_count: u64,
+    element_stride: u64,
+    inner_outer_layout: &layout_plans::LayoutPlanReport,
+    elements: &[ValidatedConstRecordArrayElementSelection],
+) {
+    hash_u64(hash, element_count);
+    hash_u64(hash, element_stride);
     hash_u64(
         hash,
-        normalized_layout_plan_report_fingerprint(array_layout.inner.outer_layout()),
+        normalized_layout_plan_report_fingerprint(inner_outer_layout),
     );
     hash_u64(hash, elements.len() as u64);
     for element in elements {
@@ -297,29 +276,124 @@ fn hash_compact_record_array_occurrence(
     }
 }
 
-fn hash_direct_record_array_occurrences(
+/// Hash one supplied child row beside its retained custody: the row's field
+/// identity and hop vocabulary, then the coordinate matching its kind.
+fn hash_child_row_with_custody(
     hash: &mut u64,
-    array_layouts: &[ConventionalRecordArrayFieldLayoutReport],
-    nested_record_arrays: &[ValidatedConstRecordArrayFieldMaterialization],
+    row: &ConventionalRecordSumChildLayoutReport,
+    child: &ValidatedConstRecordSumChildMaterialization,
 ) {
-    hash_u64(hash, nested_record_arrays.len() as u64);
-    for (array_layout, array) in array_layouts.iter().zip(nested_record_arrays) {
-        hash_compact_record_array_occurrence(hash, array_layout, &array.elements);
+    hash_field_identity(hash, row.member_identity, &row.field);
+    match &row.hop {
+        ConventionalRecordSumChildHop::Field => hash_byte(hash, 0),
+        ConventionalRecordSumChildHop::Index {
+            element_count,
+            element_stride,
+        } => {
+            hash_byte(hash, 1);
+            hash_u64(hash, *element_count);
+            hash_u64(hash, *element_stride);
+        }
+    }
+    match child {
+        ValidatedConstRecordSumChildMaterialization::Sum(custody) => {
+            hash_byte(hash, 0);
+            hash_u64(
+                hash,
+                custody
+                    .nested_sum
+                    .non_authoritative_layout_report_fingerprint(),
+            );
+            match custody.nested_sum.selected_case_identity() {
+                Some(identity) => {
+                    hash_byte(hash, 1);
+                    hash_u64(hash, identity);
+                }
+                None => hash_byte(hash, 0),
+            }
+            hash_u64(hash, u64::from(custody.nested_sum.selected_case_ordinal()));
+        }
+        ValidatedConstRecordSumChildMaterialization::SumArray(custody) => {
+            hash_byte(hash, 1);
+            let ConventionalRecordSumChildInterior::Sum(element_layout) = &row.interior else {
+                unreachable!("sum-array custody pairs with an index hop beside a sum interior")
+            };
+            hash_u64(
+                hash,
+                normalized_conventional_sum_layout_report_fingerprint(element_layout),
+            );
+            hash_u64(hash, custody.elements.len() as u64);
+            for element in &custody.elements {
+                hash_u64(hash, element.literal_index);
+                hash_u64(hash, element.non_authoritative_schema_report_fingerprint);
+                hash_value(hash, &element.value);
+                hash_u64(hash, element.non_authoritative_layout_report_fingerprint);
+                match element.selected_case_identity {
+                    Some(identity) => {
+                        hash_byte(hash, 1);
+                        hash_u64(hash, identity);
+                    }
+                    None => hash_byte(hash, 0),
+                }
+                hash_u64(hash, u64::from(element.selected_case_ordinal));
+                hash_u64(hash, element.bytes.len() as u64);
+                hash_bytes(hash, &element.bytes);
+                hash_u64(
+                    hash,
+                    element.non_authoritative_materialization_report_fingerprint,
+                );
+            }
+        }
+        ValidatedConstRecordSumChildMaterialization::Record(occurrence) => {
+            hash_byte(hash, 2);
+            let ConventionalRecordSumChildInterior::Record(inner) = &row.interior else {
+                unreachable!("record custody pairs with a field hop beside a record interior")
+            };
+            hash_u64(
+                hash,
+                normalized_layout_plan_report_fingerprint(&inner.outer_layout),
+            );
+            hash_u64(
+                hash,
+                occurrence
+                    .inner
+                    .non_authoritative_materialization_report_fingerprint(),
+            );
+        }
+        ValidatedConstRecordSumChildMaterialization::RecordArray(custody) => {
+            hash_byte(hash, 3);
+            let (
+                ConventionalRecordSumChildHop::Index {
+                    element_count,
+                    element_stride,
+                },
+                ConventionalRecordSumChildInterior::Record(inner),
+            ) = (&row.hop, &row.interior)
+            else {
+                unreachable!(
+                    "record-array custody pairs with an index hop beside a record interior"
+                )
+            };
+            hash_record_array_child_custody(
+                hash,
+                *element_count,
+                *element_stride,
+                &inner.outer_layout,
+                &custody.elements,
+            );
+        }
     }
 }
 
 /// Non-authoritative report coordinate for one recursive record level's
-/// complete direct-sum children — direct sums, direct sum arrays, and
-/// direct record arrays alike.
-pub(super) fn record_level_materialization_report_fingerprint(
+/// complete child custody — every classified child row on the single
+/// `children` channel beside its retained custody.
+pub(super) fn recursive_level_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     outer_layout_report_fingerprint: u64,
-    child_sum_array_layouts: &[ConventionalSumArrayFieldLayoutReport],
-    child_record_array_layouts: &[ConventionalRecordArrayFieldLayoutReport],
-    nested_sums: &[ValidatedConstRecordSumFieldMaterialization],
-    nested_sum_arrays: &[ValidatedConstRecordSumArrayFieldMaterialization],
-    nested_record_arrays: &[ValidatedConstRecordArrayFieldMaterialization],
+    path_layout: &ConventionalRecursiveRecordSumPathsLayoutReport,
+    children: &[ValidatedConstRecordSumChildMaterialization],
     byte_order: ByteOrder,
     value: &BuildTimeValue,
     bytes: &[u8],
@@ -327,85 +401,14 @@ pub(super) fn record_level_materialization_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(
         &mut hash,
-        b"omega.const-materializable-record-level-sum-children.v2",
+        b"omega.const-materializable-recursive-level-children.v1",
     );
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);
     hash_u64(&mut hash, outer_layout_report_fingerprint);
-    hash_direct_sum_occurrences(&mut hash, nested_sums);
-    hash_direct_sum_array_occurrences(&mut hash, child_sum_array_layouts, nested_sum_arrays);
-    hash_direct_record_array_occurrences(
-        &mut hash,
-        child_record_array_layouts,
-        nested_record_arrays,
-    );
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
-}
-
-pub(super) fn record_sum_paths_materialization_report_fingerprint(
-    schema_name: &str,
-    schema_report_fingerprint: u64,
-    outer_layout_report_fingerprint: u64,
-    path_layout: &ConventionalRecordSumPathsLayoutReport,
-    occurrences: &[ValidatedConstRecursiveNestedSumOccurrenceMaterialization],
-    nested_sums: &[ValidatedConstRecordSumFieldMaterialization],
-    nested_sum_arrays: &[ValidatedConstRecordSumArrayFieldMaterialization],
-    nested_record_arrays: &[ValidatedConstRecordArrayFieldMaterialization],
-    byte_order: ByteOrder,
-    value: &BuildTimeValue,
-    bytes: &[u8],
-) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(
-        &mut hash,
-        b"omega.const-materializable-recursive-record-sum-paths.v4",
-    );
-    hash_text(&mut hash, schema_name);
-    hash_u64(&mut hash, schema_report_fingerprint);
-    hash_u64(&mut hash, outer_layout_report_fingerprint);
-    hash_direct_sum_occurrences(&mut hash, nested_sums);
-    hash_direct_sum_array_occurrences(
-        &mut hash,
-        &path_layout.child_sum_array_layouts,
-        nested_sum_arrays,
-    );
-    hash_direct_record_array_occurrences(
-        &mut hash,
-        &path_layout.child_record_array_layouts,
-        nested_record_arrays,
-    );
-    hash_u64(&mut hash, occurrences.len() as u64);
-    for (path, occurrence) in path_layout.paths.iter().zip(occurrences) {
-        match path.outer_member_identity {
-            Some(identity) => {
-                hash_byte(&mut hash, 1);
-                hash_u64(&mut hash, identity);
-            }
-            None => {
-                hash_byte(&mut hash, 0);
-                hash_text(&mut hash, &path.outer_field);
-            }
-        }
-        hash_u64(
-            &mut hash,
-            normalized_layout_plan_report_fingerprint(path.inner.outer_layout()),
-        );
-        hash_u64(
-            &mut hash,
-            occurrence
-                .inner
-                .non_authoritative_materialization_report_fingerprint(),
-        );
+    hash_u64(&mut hash, path_layout.children.len() as u64);
+    for (row, child) in path_layout.children.iter().zip(children) {
+        hash_child_row_with_custody(&mut hash, row, child);
     }
     hash_byte(
         &mut hash,
@@ -419,7 +422,6 @@ pub(super) fn record_sum_paths_materialization_report_fingerprint(
     hash_bytes(&mut hash, bytes);
     if hash == 0 { 1 } else { hash }
 }
-
 pub(super) fn nested_record_sum_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,

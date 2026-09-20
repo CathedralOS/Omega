@@ -23,7 +23,7 @@ use crate::placement::{
     MaterializationWrite, StoredIntegerFit,
 };
 use crate::symbolic_values::{
-    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInteriorLayout, SymbolicFieldValue,
+    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInterior, SymbolicFieldValue,
 };
 
 /// Derives a phase-aware consumer plan. `resolve` is compiler/provider
@@ -792,71 +792,45 @@ fn prepare_inner_layouts<'a>(
                 "inner layout for `{path_display}` is supplied more than once"
             )));
         }
-        let (interior, byte_len) = match &carrier.inner_layout {
-            SymbolicFieldInteriorLayout::Record(inner_layout) => {
-                prepare_record_interior(inner_layout, None, carrier, &path_display, depth, nodes)?
-            }
-            SymbolicFieldInteriorLayout::RecordArray {
-                element_layout,
-                element_count,
-                element_stride,
-            } => {
-                if *element_count == 0 {
+        let repetition = match carrier.inner_layout.repetition() {
+            Some((element_count, element_stride)) => {
+                if element_count == 0 {
                     return Err(MaterializationDiagnostic(format!(
-                        "inner layout for `{path_display}` repeats its record interior zero times"
+                        "inner layout for `{path_display}` repeats its interior zero times"
                     )));
                 }
-                let repetition = Some((*element_count, *element_stride));
-                prepare_record_interior(
-                    element_layout,
-                    repetition,
-                    carrier,
-                    &path_display,
-                    depth,
-                    nodes,
-                )?
+                Some((element_count, element_stride))
             }
-            SymbolicFieldInteriorLayout::Sum(sum_layout) => {
+            None => None,
+        };
+        let (interior, byte_len) = match carrier.inner_layout.interior() {
+            SymbolicFieldInterior::Record(inner_layout) => prepare_record_interior(
+                inner_layout,
+                repetition,
+                carrier,
+                &path_display,
+                depth,
+                nodes,
+            )?,
+            SymbolicFieldInterior::Sum(sum_layout) => {
                 if !carrier.inner_layouts.is_empty() {
                     return Err(MaterializationDiagnostic(format!(
                         "inner layout for `{path_display}` binds a sum interior; its case payload fields carry no nested record carriers"
                     )));
                 }
                 let byte_len = prepare_sum_interior(sum_layout, &path_display)?;
+                if let Some((_, element_stride)) = repetition
+                    && element_stride < sum_layout.size
+                {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{path_display}` strides repeated sum elements by {element_stride} bytes inside their {}-byte extent",
+                        sum_layout.size
+                    )));
+                }
                 (
                     PreparedInterior::Sum {
                         layout: sum_layout,
-                        repetition: None,
-                    },
-                    byte_len,
-                )
-            }
-            SymbolicFieldInteriorLayout::SumArray {
-                element_layout,
-                element_count,
-                element_stride,
-            } => {
-                if !carrier.inner_layouts.is_empty() {
-                    return Err(MaterializationDiagnostic(format!(
-                        "inner layout for `{path_display}` binds a repeated sum interior; its elements carry no nested record carriers"
-                    )));
-                }
-                let byte_len = prepare_sum_interior(element_layout, &path_display)?;
-                if *element_count == 0 {
-                    return Err(MaterializationDiagnostic(format!(
-                        "inner layout for `{path_display}` repeats its sum interior zero times"
-                    )));
-                }
-                if *element_stride < element_layout.size {
-                    return Err(MaterializationDiagnostic(format!(
-                        "inner layout for `{path_display}` strides repeated sum elements by {element_stride} bytes inside their {}-byte extent",
-                        element_layout.size
-                    )));
-                }
-                (
-                    PreparedInterior::Sum {
-                        layout: element_layout,
-                        repetition: Some((*element_count, *element_stride)),
+                        repetition,
                     },
                     byte_len,
                 )
