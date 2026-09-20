@@ -65,72 +65,69 @@ pub(super) fn propagate_statement_transfers(
             // close the window on the aliased field. A local binding
             // replacement rebinds the reference itself and an ambiguous
             // origin proves nothing exact, so both keep the alias place.
-            let Some(target_place) = crate::flow::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                assignment.target,
-            )
-            .map(|canonical| {
-                let mut owned_frames = None;
-                let writes_through_alias =
-                    crate::flow::shared_call_frames_or(ctx.call_frames, program, &mut owned_frames)
-                        .zip(
-                            program
-                                .machines()
-                                .iter()
-                                .find(|machine| machine.symbol == machine_symbol),
-                        )
-                        .and_then(|(resolver, machine)| {
-                            resolver.assignment_write_target(machine, statement)
-                        })
-                        // An unclassified target is a write through a
-                        // reference local the resolver has no origin for;
-                        // only a local binding replacement keeps the alias.
-                        .is_none_or(|target| {
-                            matches!(target, validation::AssignmentWriteTarget::Storage { .. })
-                        });
-                if !writes_through_alias {
-                    return canonical;
-                }
-                match crate::flow::rebase_exact_local_place(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    canonical.clone(),
-                    ctx.call_frames,
-                ) {
-                    Some(exact) => exact,
-                    None => {
-                        if let PlaceRoot::Symbol(root) = canonical.root
-                            && let Some(candidates) =
-                                crate::flow::reference_result_candidates_before_statement(
+            let Some(target_place) = ctx
+                .canonical_place_at(program, state_symbol, statement_index, assignment.target)
+                .map(|canonical| {
+                    let mut owned_frames = None;
+                    let writes_through_alias = crate::flow::shared_call_frames_or(
+                        ctx.call_frames,
+                        program,
+                        &mut owned_frames,
+                    )
+                    .zip(
+                        ctx.machine_index(program, machine_symbol)
+                            .map(|index| &program.machines()[index]),
+                    )
+                    .and_then(|(resolver, machine)| {
+                        resolver.assignment_write_target(machine, statement)
+                    })
+                    // An unclassified target is a write through a
+                    // reference local the resolver has no origin for;
+                    // only a local binding replacement keeps the alias.
+                    .is_none_or(|target| {
+                        matches!(target, validation::AssignmentWriteTarget::Storage { .. })
+                    });
+                    if !writes_through_alias {
+                        return canonical;
+                    }
+                    match crate::flow::rebase_exact_local_place(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        canonical.clone(),
+                        ctx.call_frames,
+                    ) {
+                        Some(exact) => exact,
+                        None => {
+                            if let PlaceRoot::Symbol(root) = canonical.root
+                                && let Some(candidates) = ctx.reference_candidate_places_at(
                                     program,
                                     state_symbol,
                                     statement_index,
                                     root,
-                                    ctx.call_frames,
                                 )
-                        {
-                            candidate_targets = candidates
-                                .into_iter()
-                                .map(|mut candidate| {
-                                    candidate.segments.extend_from_slice(&canonical.segments);
-                                    candidate
-                                })
-                                .collect();
+                            {
+                                candidate_targets = candidates
+                                    .iter()
+                                    .cloned()
+                                    .map(|mut candidate| {
+                                        candidate.segments.extend_from_slice(&canonical.segments);
+                                        candidate
+                                    })
+                                    .collect();
+                            }
+                            canonical
                         }
-                        canonical
                     }
-                }
-            })
-            .map(|canonical| {
-                crate::semantic_places::append_place_with_segments(
-                    semantic,
-                    canonical.root,
-                    &canonical.segments,
-                )
-            }) else {
+                })
+                .map(|canonical| {
+                    crate::semantic_places::append_place_with_segments(
+                        semantic,
+                        canonical.root,
+                        &canonical.segments,
+                    )
+                })
+            else {
                 return;
             };
             let source_place = contextual_expression_place(
@@ -341,6 +338,7 @@ pub(super) fn propagate_statement_transfers(
             {
                 retain_qualification_correspondence(
                     program,
+                    ctx,
                     semantic,
                     source_fact,
                     fact,
@@ -811,6 +809,7 @@ pub(super) fn propagate_statement_transfers(
 #[allow(clippy::too_many_arguments)]
 fn retain_qualification_correspondence(
     program: &typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
     semantic: &mut FactPlan,
     source_fact: facts::FactHandle,
     destination_fact: facts::FactHandle,
@@ -834,6 +833,7 @@ fn retain_qualification_correspondence(
         || !exact_statement_owner(program, machine_symbol, state_symbol)
         || !exact_structural_symbol_place(
             program,
+            ctx,
             semantic,
             source_place,
             machine_symbol,
@@ -842,6 +842,7 @@ fn retain_qualification_correspondence(
         )
         || !exact_structural_symbol_place(
             program,
+            ctx,
             semantic,
             source_occurrence_place,
             machine_symbol,
@@ -850,6 +851,7 @@ fn retain_qualification_correspondence(
         )
         || !exact_structural_symbol_place(
             program,
+            ctx,
             semantic,
             destination_place,
             machine_symbol,
@@ -933,6 +935,7 @@ fn exact_evidence_source(
 
 fn exact_structural_symbol_place(
     program: &typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
     semantic: &FactPlan,
     handle: PlaceHandle,
     machine_symbol: SymbolHandle,
@@ -952,13 +955,24 @@ fn exact_structural_symbol_place(
     let Some(segments) = semantic.place_segments.span(place.segments) else {
         return false;
     };
-    let Some(mut current) = correspondence_root_type_reference(
-        program,
-        machine_symbol,
-        state_symbol,
-        formation_statement_index,
-        root,
-    ) else {
+    let Some(mut current) = *ctx
+        .correspondence_root_types
+        .entry((
+            machine_symbol,
+            state_symbol,
+            formation_statement_index,
+            root,
+        ))
+        .or_insert_with(|| {
+            correspondence_root_type_reference(
+                program,
+                machine_symbol,
+                state_symbol,
+                formation_statement_index,
+                root,
+            )
+        })
+    else {
         return false;
     };
     let mut selected_variant = None;

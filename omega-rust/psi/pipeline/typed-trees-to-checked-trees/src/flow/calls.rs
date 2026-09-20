@@ -44,37 +44,43 @@ pub(super) fn build_call_flow_fact<'plans>(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     );
-    let entry = build_call_entry_contexts(
-        borrow,
-        ctx,
-        *active_contexts,
-        *active_constraints,
-        machine.symbol,
-        state.symbol,
-        borrow_call,
-    );
-    let requires = build_call_requires_contexts(semantic, ctx, machine, state, borrow_call);
-    let invalidation = apply_call_invalidations(
-        program,
-        borrow,
-        semantic,
-        domains,
-        ctx,
-        machine,
-        state,
-        *active_contexts,
-        *active_constraints,
-        borrow_call,
-    );
-    let mut exit = build_call_exit_contexts(
-        semantic,
-        ctx,
-        machine,
-        state,
-        borrow_call,
-        invalidation.post_contexts,
-        invalidation.post_constraints,
-    );
+    let entry = {
+        build_call_entry_contexts(
+            borrow,
+            ctx,
+            *active_contexts,
+            *active_constraints,
+            machine.symbol,
+            state.symbol,
+            borrow_call,
+        )
+    };
+    let requires = { build_call_requires_contexts(semantic, ctx, machine, state, borrow_call) };
+    let invalidation = {
+        apply_call_invalidations(
+            program,
+            borrow,
+            semantic,
+            domains,
+            ctx,
+            machine,
+            state,
+            *active_contexts,
+            *active_constraints,
+            borrow_call,
+        )
+    };
+    let mut exit = {
+        build_call_exit_contexts(
+            semantic,
+            ctx,
+            machine,
+            state,
+            borrow_call,
+            invalidation.post_contexts,
+            invalidation.post_constraints,
+        )
+    };
     append_one_to_one_call_carry_facts(
         program,
         semantic,
@@ -106,7 +112,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         entry.contexts,
         &mut exit,
     );
-    let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
+    let boundary_edges = { append_call_boundary_edges(program, ctx, borrow_call) };
     *active_contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, exit.contexts);
     *active_constraints = retained_constraint_refs(&ctx.contexts.constraint_refs, exit.constraints);
 

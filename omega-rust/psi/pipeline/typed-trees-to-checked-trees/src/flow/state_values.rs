@@ -201,10 +201,9 @@ pub(super) fn record_transition(
         TransitionTargetNode::Named {
             path, arguments, ..
         } => {
-            let Some(destination) = program
-                .machine_states(machine)
-                .iter()
-                .find(|candidate| candidate.symbol == path.symbol)
+            let Some(destination) = ctx
+                .state_index_in_machine(program, machine.symbol, path.symbol)
+                .and_then(|index| program.machine_states(machine).get(index))
             else {
                 return;
             };
@@ -286,13 +285,13 @@ pub(super) fn record_invocation<'plans>(
     if !reachable(ctx, program, machine, state.symbol) {
         return;
     }
-    let Some((owner, destination)) = program.machines().iter().find_map(|owner| {
-        program
-            .machine_states(owner)
-            .iter()
-            .find(|candidate| candidate.symbol == call.target_symbol)
-            .map(|state| (owner, state))
-    }) else {
+    let Some((owner, destination)) =
+        ctx.state_location(program, call.target_symbol)
+            .map(|(machine_index, state_index)| {
+                let owner = &program.machines()[machine_index];
+                (owner, &program.machine_states(owner)[state_index])
+            })
+    else {
         return;
     };
     if program

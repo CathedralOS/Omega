@@ -8,8 +8,12 @@ pub(super) fn append_call_boundary_edges(
     ctx: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
 ) -> HandleSpan<FlowBoundaryEdgeFact> {
-    let Some((target_machine, target_state)) =
-        target_machine_and_state(program, borrow_call.target_symbol)
+    let Some((target_machine, target_state)) = ctx
+        .state_location(program, borrow_call.target_symbol)
+        .map(|(machine_index, state_index)| {
+            let machine = &program.machines()[machine_index];
+            (machine, &program.machine_states(machine)[state_index])
+        })
     else {
         return HandleSpan::empty();
     };
@@ -87,17 +91,4 @@ fn append_boundary_edges_for_trait(
     }
 
     visited_traits.pop();
-}
-
-fn target_machine_and_state(
-    program: &typed_trees::TypedTrees,
-    target_state_symbol: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target_state_symbol)
-            .map(|state| (machine, state))
-    })
 }

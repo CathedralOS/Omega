@@ -1,10 +1,9 @@
+use crate::flow::CanonicalPlace;
 use crate::flow::common;
-use checked_trees::statement::StatementNode;
 use checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
     FlowConstraintRef, FlowInvalidationSource,
 };
-use symbols::SymbolHandle;
 
 pub(crate) fn filter_expired_borrow_loans(
     borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
@@ -59,31 +58,15 @@ pub(crate) fn filter_reassigned_borrow_loans(
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     program: &typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
+    reassigned_place: Option<CanonicalPlace>,
     statement_index: usize,
-    statement: &StatementNode,
 ) -> arena::HandleSpan<FlowConstraintRef> {
-    let (reassigned_symbol, reassigned_segments) = match statement {
-        StatementNode::Assignment(assignment) => {
-            let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                assignment.target,
-            ) else {
-                return source;
-            };
-            match place.root {
-                facts::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
-                _ => return source,
-            }
-        }
-        StatementNode::RootBinding(_)
-        | StatementNode::AssemblyFact(_)
-        | StatementNode::Call(_)
-        | StatementNode::Expression(_)
-        | StatementNode::LocalData(_)
-        | StatementNode::Transition(_) => return source,
+    let Some(place) = reassigned_place else {
+        return source;
+    };
+    let (reassigned_symbol, reassigned_segments) = match place.root {
+        facts::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
+        _ => return source,
     };
 
     common::filter_constraint_refs(

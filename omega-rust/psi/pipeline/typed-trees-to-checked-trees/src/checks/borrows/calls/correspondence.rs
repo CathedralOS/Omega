@@ -11,6 +11,7 @@
 //! comparison. This replay does not create or restore resource authority.
 
 use arena::{Arena, Handle, HandleSpan};
+use checked_trees::statement::StatementNode;
 use checked_trees::{
     CheckFacts, FlowBorrowWeakeningReason, FlowConstraintKind, FlowConstraintRef, FlowStateFact,
 };
@@ -185,15 +186,24 @@ pub(super) fn matches_entry_loans(
         }
         // RHS calls see the old carrier. Retirement and replacement formation
         // occur only afterward; expiry already happened before statement entry.
+        let reassigned_place = if let StatementNode::Assignment(assignment) = statement {
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                assignment.target,
+            )
+        } else {
+            None
+        };
         active = crate::flow::filter_reassigned_borrow_loans(
             &mut weakenings,
             &mut constraints,
             active,
             &facts.borrow,
             program,
-            state.symbol,
+            reassigned_place,
             statement_index,
-            statement,
         );
         while loans
             .peek()

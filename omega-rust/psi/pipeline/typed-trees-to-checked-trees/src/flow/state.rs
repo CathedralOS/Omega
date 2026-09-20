@@ -88,15 +88,17 @@ pub(super) fn build_state_flow_fact<'plans>(
             state_symbol: state.symbol,
         }],
     );
-    let (rebased_contexts, _) = super::entry_origins::rebase_contexts(
-        program,
-        semantic,
-        ctx,
-        machine,
-        state,
-        state_contexts,
-        true,
-    );
+    let (rebased_contexts, _) = {
+        super::entry_origins::rebase_contexts(
+            program,
+            semantic,
+            ctx,
+            machine,
+            state,
+            state_contexts,
+            true,
+        )
+    };
     state_contexts = rebased_contexts;
     state_constraints = project_constraint_refs_to_active_contexts(
         &mut ctx.contexts.constraint_refs,
@@ -140,19 +142,21 @@ pub(super) fn build_state_flow_fact<'plans>(
     let state_boundary_edges_start = ctx.boundaries.edges.len();
     let state_statements_start = ctx.control.statements.len();
     let state_exits_start = ctx.control.exits.len();
-    let state_calls = append_state_statement_flow_facts(
-        program,
-        borrow,
-        proof,
-        semantic,
-        domains,
-        ctx,
-        machine,
-        state,
-        &mut active_contexts,
-        &mut active_constraints,
-        borrow_state,
-    );
+    let state_calls = {
+        append_state_statement_flow_facts(
+            program,
+            borrow,
+            proof,
+            semantic,
+            domains,
+            ctx,
+            machine,
+            state,
+            &mut active_contexts,
+            &mut active_constraints,
+            borrow_state,
+        )
+    };
     active_constraints = filter_expired_borrow_loans(
         &mut ctx.borrow_lifetimes.weakenings,
         &mut ctx.contexts.constraint_refs,
