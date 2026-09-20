@@ -7021,7 +7021,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
 - **ENCODER-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
 - **ENTRY-MECHANICS-RUNTIME-CONSOLIDATION** — mined candidate; verify scope then implement.
-- **ENTRYPOINT-MODULE-LAYOUT-GATE** — mined candidate; verify scope then implement.
+- **ENTRYPOINT-MODULE-LAYOUT-GATE.** Resolved — the gate already exists and
+  is green on main: `tests/architecture/entrypoint_module_layout.rs`
+  codifies the AGENTS.md/omega-rust README discoverability contract as a
+  gate (every workspace crate keeps a readable `src/lib.rs`/`src/main.rs`
+  entrypoint; each representation crate keeps exactly one named root file
+  beside `lib.rs`; `model/` grab-bag directories stay out of crate source
+  trees; test families live in named modules rather than inline bodies in
+  the entrypoint file), with pinned exception rosters that fail on drift in
+  either direction. Re-verified at `28a3cc7fea` on linux x86-64:
+  `cargo nextest run -p omega-architecture-test -E
+  'test(/entrypoint_module_layout/)'` — 4/4 green. No live violation; the
+  remaining rostered exceptions are deliberate placements recorded in the
+  gate, so no new slice exists on this row.
 - **EPOCH-AGGREGATE-SNAPSHOTS.** Resolved — verify-scope re-mine of
   **EPOCH-RESOURCE-SNAPSHOTS**'s acceptance, already landed on main.
   `external-roots/src/program_local/program_local_roots/epoch_cohorts.rs`
