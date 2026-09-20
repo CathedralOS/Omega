@@ -7285,17 +7285,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   row, not a standalone completion: the release contract still requires
   all eight gates on one clean commit across the four required hosts, and
   the test surface is owned by PORTABLE-TERMINAL-RELOAD work.
-- **RC-PORTABLE-PSI-RELOAD** — mined candidate; verify scope then implement.
-  Verified scope: re-mines the completed **PORTABLE-TERMINAL-RELOAD** item
-  (landed and row-removed at 8ae40607a3, 2026-09-20).
-  `canary_suite/portable_terminal_reload.rs` now proves both halves of the
-  portable-product boundary for every `RELOAD_CANARIES` fixture: a Terminal
-  artifact produced in one process decodes, verifies, and interprets in a
-  second, and the consumer refuses truncated envelopes, mutated section
-  bytes, and trailing bytes. The generic portable-psi surface legs that
-  remain are the sibling re-mines RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
-  RC-PORTABLE-PSI-ENVELOPE and RC-PORTABLE-PSI-GATE — no independent reload
-  slice exists here.
+- **RC-PORTABLE-PSI-RELOAD.** Resolved — re-mines the completed
+  **PORTABLE-TERMINAL-RELOAD** item (landed; row-removed at `8ae40607a3`):
+  `canary_suite/portable_terminal_reload.rs` proves both halves of the
+  portable-product boundary for every `RELOAD_CANARIES` fixture — a
+  Terminal artifact produced in one process decodes, verifies, and
+  interprets in a second, and the consumer refuses truncated envelopes,
+  mutated section bytes, and trailing bytes. Witnessed on linux x86-64
+  this wave: `portable_terminal_product_reloads_across_process_boundary`
+  PASS (32.7s) under the RC-PORTABLE-PSI-GATE resolution. Sibling re-mines
+  of the same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
+  RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-GATE. The gate remains a
+  release-matrix row — release closure still needs all eight gates, one
+  clean commit, four required hosts.
 - **RC-RELEASE-CLOSURE-RUN** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD-AND-CLOSURE** — mined candidate.
