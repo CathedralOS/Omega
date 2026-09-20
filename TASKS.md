@@ -1743,12 +1743,27 @@ Owners include
     existing source-to-recovery control. The retired `proposition`
     declaration surface belongs to **PROOF-CONTRACT-MIGRATION**, not an
     independent membership-extension task.
-  - Entry provenance still widens a surviving route to `Truth` for
-    `start..end` index leaves, `Opaque` and `ContentConservation` leaves, and
-    element reads below a collection root. Extend it only with proven
-    origins: divergent arrivals, unresolvable cycles and other unknown
-    provenance must remain conservative, and current spelling/live storage is
-    not a saved actual. This owns **MATCH-SELECTIVE-LOWERING**'s
+  - Fixed element provenance landed: the local `PlaceSegment` now mirrors the
+    canonical `facts::PlaceSegment` algebra with `FixedIndex`/`FixedRange`
+    (normalized from constant index expressions, including `start..end`
+    literals through `expression_table.constant_integer_value`), and
+    `paths_interfere` carries the canonical disjointness rules — same-kind
+    disjointness, half-open window overlap, and fixed-index containment —
+    plus the conservative `_ => true` fallback for heterogeneous pairs.
+    `operand_entry_provenance`, `entry_operand_projected`, `rooted_place_path`
+    and `statement_may_overwrite_place` all project indexed steps through it,
+    so a read of `items[1]` keeps its bound snapshot across writes provably
+    outside `[1]` while a dynamic index still dirties everything at or below
+    the root. (this branch — `facts/crash_entry_values/mutable.rs`,
+    `crash_entry_values.rs`, `literal_projection.rs`; 3 witness tests pin the
+    fixed-index/fixed-range disjointness and the dynamic-index refusal)
+  - Entry provenance still widens a surviving route to `Truth` for `Opaque`
+    and `ContentConservation` leaves, non-constant index expressions, and
+    whole-collection value reads below an element write (whole-storage
+    identity needs a pristine check that does not exist yet). Extend it only
+    with proven origins: divergent arrivals, unresolvable cycles and other
+    unknown provenance must remain conservative, and current spelling/live
+    storage is not a saved actual. This owns **MATCH-SELECTIVE-LOWERING**'s
     crash-qualified equality dependency and shares entry snapshots with
     **STATE-LOCAL-VALUE-FRONTIER**.
 

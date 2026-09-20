@@ -42,7 +42,7 @@ mod literal_projection;
 pub(super) use checked_projection::entry_value as checked_projected_entry_value;
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
-use mutable::{PlaceSegment, storage_holds_bound_value};
+use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
 
 /// Arrival provenance can revisit a state parameter through a transition
 /// cycle, so the fold carries a depth bound. Exhaustion is unproven
@@ -112,7 +112,10 @@ pub(super) fn operand_entry_provenance(
                 leaf_place = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
-                projection.push(PlaceSegment::Opaque);
+                // A statically fixed index keeps its element identity, so a
+                // disjoint element write does not dirty the leaf's read; a
+                // dynamic index stays opaque below the collection root.
+                projection.push(fixed_index_segment(program, indexed.index));
                 leaf_place = indexed.collection;
             }
             ExpressionNode::Borrow(borrow) => leaf_place = borrow.target,
@@ -149,11 +152,12 @@ pub(super) fn operand_entry_provenance(
                 // initializer supplies the whole operand's entry identity
                 // under any leaf projection. Otherwise the operand's index
                 // step sits between its root and the leaf's projection.
-                // Element writes cannot be separated below the collection
-                // root (`PlaceSegment::Opaque`), so the collection's bound
-                // snapshot must hold across its whole storage, and the index
-                // must carry its own entry operand — otherwise the read
-                // element is not the place the leaf names.
+                // A statically fixed index separates provably disjoint
+                // element writes; anything else stays opaque below the
+                // collection root, so the collection's bound snapshot must
+                // hold across its whole storage, and the index must carry
+                // its own entry operand — otherwise the read element is not
+                // the place the leaf names.
                 if literal_projection::entry_value(
                     program,
                     machine_symbol,
@@ -178,7 +182,7 @@ pub(super) fn operand_entry_provenance(
                 {
                     return false;
                 }
-                projection.insert(0, PlaceSegment::Opaque);
+                projection.insert(0, fixed_index_segment(program, indexed.index));
                 operand_place = indexed.collection;
             }
             ExpressionNode::Borrow(borrow)
@@ -280,12 +284,12 @@ pub(super) fn entry_operand_projected(
                 // Otherwise the operand's index step composes like a member
                 // hop: `cells[i]` under a projected leaf replays as the
                 // entry `Indexed` operand below the leaf's own `Member`
-                // nodes. Element writes cannot be separated below the
-                // collection root (`PlaceSegment::Opaque`), so the
-                // collection's bound snapshot must hold across its whole
-                // storage, and the index must carry its own entry operand —
-                // a moved or unproven selector would not name the element
-                // the leaf read.
+                // nodes. A statically fixed index separates provably
+                // disjoint element writes; anything else stays opaque below
+                // the collection root, so the collection's bound snapshot
+                // must hold across its whole storage, and the index must
+                // carry its own entry operand — a moved or unproven selector
+                // would not name the element the leaf read.
                 let index = entry_operand_at(
                     program,
                     machine_symbol,
@@ -295,7 +299,7 @@ pub(super) fn entry_operand_projected(
                     0,
                 )?;
                 spine.insert(0, OperandSpineStep::Indexed(index));
-                projection.insert(0, PlaceSegment::Opaque);
+                projection.insert(0, fixed_index_segment(program, indexed.index));
                 operand_place = indexed.collection;
             }
             ExpressionNode::Borrow(borrow)

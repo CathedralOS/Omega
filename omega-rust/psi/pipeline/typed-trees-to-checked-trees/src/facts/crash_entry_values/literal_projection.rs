@@ -127,6 +127,12 @@ fn projected_entry_value(
                 .map(|segment| match segment {
                     PlaceSegment::Field(symbol) => Some(facts::PlaceSegment::Field { symbol }),
                     PlaceSegment::Case(variant) => Some(facts::PlaceSegment::Case { variant }),
+                    PlaceSegment::FixedIndex(index) => {
+                        Some(facts::PlaceSegment::FixedIndex { index })
+                    }
+                    PlaceSegment::FixedRange { start, end } => {
+                        Some(facts::PlaceSegment::FixedRange { start, end })
+                    }
                     PlaceSegment::Opaque => None,
                 })
                 .collect::<Option<Vec<_>>>()?;

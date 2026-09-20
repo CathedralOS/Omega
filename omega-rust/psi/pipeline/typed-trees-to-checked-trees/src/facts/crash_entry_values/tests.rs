@@ -1986,3 +1986,176 @@ fn a_literal_indexed_operand_recovers_its_element_below_a_leaf() {
         "the literal initializer supplies `input` as the element's entry operand",
     );
 }
+
+/// A statically fixed element selection keeps its normalized `FixedIndex`
+/// identity: a write to a provably disjoint element no longer retires the
+/// whole collection's bound snapshot, so the projected leaf still binds the
+/// entry operand rather than widening the surviving route to `Truth`.
+#[test]
+fn a_fixed_index_operand_separates_a_disjoint_element_write() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(mut items: [Cell; 4], spare: Cell) -> u64 {
+             items[0u64] = spare;
+             sink(items[1u64])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    assert!(
+        matches!(
+            program.expression_table.expression(operand),
+            ExpressionNode::Indexed(_)
+        ),
+        "the operand is the caller's `items[1]` read"
+    );
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a disjoint fixed element write does not retire the read element's snapshot",
+    );
+    let probe = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == probe_machine)
+        .unwrap();
+    let state = program
+        .machine_states(probe)
+        .iter()
+        .find(|state| state.name.as_str() == "entry")
+        .unwrap();
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "cell")
+        .unwrap();
+    let projection =
+        formal_member_projection(&program, parameter.type_reference, &["count".into()]);
+    assert!(
+        matches!(
+            entry_operand_projected(&program, machine, entry, call_index, operand, &projection,),
+            Some(CrashPredicateExpression::Indexed { .. })
+        ),
+        "the produced entry operand keeps the structured `items[1]` element read",
+    );
+
+    // A write to the read element itself still retires the snapshot.
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(mut items: [Cell; 4], spare: Cell) -> u64 {
+             items[1u64] = spare;
+             sink(items[1u64])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        !operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a write to the read element retires its snapshot",
+    );
+}
+
+/// The leaf side of the same boundary: a guard reading `holder.items[1]` asks
+/// only for that element's storage, so a caller write to `items[0]` leaves
+/// the leaf's entry operand intact. A dynamic index selects any element and
+/// still refuses.
+#[test]
+fn a_fixed_index_leaf_separates_disjoint_element_writes() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         data Holder { items: [Cell; 4] }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(holder: Holder) -> u64 { sink(holder.items[1]) }
+         machine value(mut rec: Holder, spare: Cell) -> u64 {
+             rec.items[0u64] = spare;
+             sink(rec)
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        matches!(
+            program.expression_table.expression(leaf),
+            ExpressionNode::Indexed(_)
+        ),
+        "the leaf is the callee's `holder.items[1]` element read"
+    );
+    assert!(
+        operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a write to a disjoint fixed element leaves the leaf's entry operand intact",
+    );
+
+    // A dynamic index selects any element, so the same write shape stays
+    // opaque and the leaf keeps no provenance.
+    let program = typed_program(
+        "data Cell { count: u64 }
+         data Holder { items: [Cell; 4] }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(holder: Holder) -> u64 { sink(holder.items[1]) }
+         machine value(mut rec: Holder, slot: u64, spare: Cell) -> u64
+         requires slot < 4 {
+             rec.items[slot] = spare;
+             sink(rec)
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        !operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a dynamic index could name the read element, so provenance stays refused",
+    );
+}
+
+/// A `start..end` index operand keeps its normalized `FixedRange` window: a
+/// write to an element outside the window leaves the read's bound snapshot
+/// intact, while a write inside the window still retires it.
+#[test]
+fn a_fixed_range_operand_separates_disjoint_element_writes() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(mut items: [Cell; 4], spare: Cell) -> u64 {
+             items[0u64] = spare;
+             sink(items[1u64..3u64])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a write outside the fixed window does not reach the range read",
+    );
+
+    // An element write inside the window still interferes.
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(mut items: [Cell; 4], spare: Cell) -> u64 {
+             items[2u64] = spare;
+             sink(items[1u64..3u64])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        !operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a write inside the fixed window retires the range read's snapshot",
+    );
+}
