@@ -74,6 +74,8 @@ pub fn derive_symbolic_materialization(
 /// walk with no depth-specific case. Supplying an inner layout no symbolic
 /// path traverses is rejected: a carrier that outlives the semantic path it
 /// describes would let a stale interior join a renamed or reshaped schema.
+/// Empty aggregates are the exception: they retain validated identity and
+/// element geometry, but no valid write can traverse their absent storage.
 pub fn derive_symbolic_materialization_with_inner_layouts(
     layout: &LayoutPlanReport,
     inner_layouts: &[SymbolicFieldInnerLayout],
@@ -190,8 +192,15 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     // interior, so a deeper path resolves against the same shape the compiler
     // derived. Preparation is one bounded recursion over the carrier tree.
     let mut carrier_nodes = Vec::new();
-    let (top_carriers, top_carrier_order) =
-        prepare_inner_layouts(inner_layouts, &planned, "", 0, true, &mut carrier_nodes)?;
+    let (top_carriers, top_carrier_order) = prepare_inner_layouts(
+        inner_layouts,
+        &planned,
+        byte_len,
+        "",
+        0,
+        true,
+        &mut carrier_nodes,
+    )?;
 
     let mut traversed_inner = std::collections::BTreeSet::new();
     let prepared_writes = symbolic_fields
@@ -250,6 +259,17 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                             drifted.field
                         )
                     }));
+                }
+                // An empty aggregate's whole-field At is identity/geometry,
+                // not a scalar slot. It can coincide with a live sibling;
+                // reject before the leaf shortcut could write that sibling.
+                if depth == last
+                    && let Some(&node_id) = current_carriers.get(&key)
+                    && carrier_nodes[node_id].has_no_storage()
+                {
+                    return Err(MaterializationDiagnostic(format!(
+                        "symbolic field `{path_display}` cannot write an empty interior"
+                    )));
                 }
                 if depth == last {
                     let selected = select_materialization_entries(
@@ -326,68 +346,16 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 "symbolic field `{path_display}` element index {index} is outside its {element_count} element placements"
                             )));
                         }
-                        // Both repeated placement vocabularies carry the same
-                        // boundary: one whole-extent `At` spans the array, or
-                        // one `At` per element addresses each element
-                        // directly. Per-element entries are evidence only
-                        // when sorted offsets replay the carrier's exact
-                        // count and constant stride — drift means a stale
-                        // report or carrier, not a different placement.
-                        let base = match entries.as_slice() {
-                            [entry] => {
-                                let LayoutPlacementReport::At { offset } = entry.placement
-                                else {
-                                    return Err(MaterializationDiagnostic(format!(
-                                        "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to use a whole `At` placement"
-                                    )));
-                                };
-                                offset
-                            }
-                            _ => {
-                                if u64::try_from(entries.len()).ok() != Some(element_count) {
-                                    return Err(MaterializationDiagnostic(format!(
-                                        "symbolic field `{path_display}` repeated {kind} field `{prefix}` retains {} element placements, but its carrier claims {element_count} elements",
-                                        entries.len()
-                                    )));
-                                }
-                                let mut element_offsets = Vec::with_capacity(entries.len());
-                                for entry in entries {
-                                    let LayoutPlacementReport::At { offset } = entry.placement
-                                    else {
-                                        return Err(MaterializationDiagnostic(format!(
-                                            "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to retain only `At` element placements"
-                                        )));
-                                    };
-                                    element_offsets.push(offset);
-                                }
-                                element_offsets.sort_unstable();
-                                if element_offsets
-                                    .windows(2)
-                                    .any(|pair| pair[1].checked_sub(pair[0]) != Some(element_stride))
-                                {
-                                    return Err(MaterializationDiagnostic(format!(
-                                        "symbolic field `{path_display}` repeated {kind} field `{prefix}` element placements drift from the carrier's {element_stride}-byte stride"
-                                    )));
-                                }
-                                element_offsets[0]
-                            }
-                        };
-                        // The carrier's claimed array extent is evidence about
-                        // the whole field, not just the selected element: a
-                        // carrier describing a shrunken array must reject
-                        // here rather than serve a stale element offset.
-                        let array_end = (element_count - 1)
-                            .checked_mul(element_stride)
-                            .and_then(|span| base.checked_add(span))
-                            .and_then(|last_start| last_start.checked_add(node.byte_len as u64));
-                        match array_end {
-                            Some(end) if end <= current_byte_len as u64 => {}
-                            _ => {
-                                return Err(MaterializationDiagnostic(format!(
-                                    "symbolic field `{path_display}` repeated interior for `{prefix}` exceeds the enclosing {current_byte_len}-byte record extent"
-                                )));
-                            }
-                        }
+                        // Preparation already replayed whole/per-element At
+                        // geometry, count, stride and enclosing extent, even
+                        // beneath empty ancestors. Select the validated base
+                        // without rebuilding that geometry for every write.
+                        let base = entries.iter().filter_map(|entry| match entry.placement {
+                            LayoutPlacementReport::At { offset } => Some(offset),
+                            _ => None,
+                        }).min().ok_or_else(|| MaterializationDiagnostic(format!(
+                            "inner layout for `{prefix}` has no whole `At` placement"
+                        )))?;
                         base.checked_add(
                             index.checked_mul(element_stride).ok_or_else(|| {
                                 MaterializationDiagnostic(format!(
@@ -750,6 +718,20 @@ struct PreparedInnerLayout<'a> {
     path_display: String,
 }
 
+impl PreparedInnerLayout<'_> {
+    fn has_no_storage(&self) -> bool {
+        let repetition = match self.interior {
+            PreparedInterior::Record { repetition, .. }
+            | PreparedInterior::Sum { repetition, .. } => repetition,
+        };
+        match repetition {
+            Some((0, _)) => true,
+            Some((count, stride)) => self.byte_len == 0 && (count == 1 || stride == 0),
+            None => self.byte_len == 0,
+        }
+    }
+}
+
 /// Validates and indexes one level of supplied interior carriers. `planned`
 /// is the enclosing plan's field-keyed entries — the outer validated plan at
 /// the top level, or the parent carrier's interior below it. Each carrier's
@@ -760,6 +742,7 @@ struct PreparedInnerLayout<'a> {
 fn prepare_inner_layouts<'a>(
     carriers: &'a [SymbolicFieldInnerLayout],
     planned: &std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
+    enclosing_byte_len: usize,
     path_prefix: &str,
     depth: usize,
     outermost: bool,
@@ -792,17 +775,7 @@ fn prepare_inner_layouts<'a>(
                 "inner layout for `{path_display}` is supplied more than once"
             )));
         }
-        let repetition = match carrier.inner_layout.repetition() {
-            Some((element_count, element_stride)) => {
-                if element_count == 0 {
-                    return Err(MaterializationDiagnostic(format!(
-                        "inner layout for `{path_display}` repeats its interior zero times"
-                    )));
-                }
-                Some((element_count, element_stride))
-            }
-            None => None,
-        };
+        let repetition = carrier.inner_layout.repetition();
         let (interior, byte_len) = match carrier.inner_layout.interior() {
             SymbolicFieldInterior::Record(inner_layout) => prepare_record_interior(
                 inner_layout,
@@ -836,12 +809,75 @@ fn prepare_inner_layouts<'a>(
                 )
             }
         };
-        let node_id = nodes.len();
-        nodes.push(PreparedInnerLayout {
+        let node = PreparedInnerLayout {
             byte_len,
             interior,
             path_display,
-        });
+        };
+        // Empty carriers cannot be traversed by a valid write, so their
+        // binding must validate now, before unused-carrier exemption. Still
+        // prepare their complete interior above: zero repetitions do not
+        // excuse stale identities, overlapping strides or malformed children.
+        if node.has_no_storage() {
+            let entries = &planned[&key];
+            if !matches!(entries.as_slice(), [entry]
+                if matches!(entry.placement, LayoutPlacementReport::At { offset }
+                    if offset <= enclosing_byte_len as u64))
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "empty inner layout for `{}` requires one whole `At` placement within the enclosing {enclosing_byte_len}-byte record extent",
+                    node.path_display
+                )));
+            }
+        } else {
+            // Preparation covers descendants even when an empty ancestor
+            // makes traversal impossible. Check the complete placed extent,
+            // not only geometry of the leaf that a particular write selects.
+            let entries = &planned[&key];
+            let mut offsets = Vec::with_capacity(entries.len());
+            for entry in entries {
+                let LayoutPlacementReport::At { offset } = entry.placement else {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{}` requires a whole `At` placement",
+                        node.path_display
+                    )));
+                };
+                offsets.push(offset);
+            }
+            offsets.sort_unstable();
+            let extent = match repetition {
+                Some((count, stride)) if offsets.len() == 1 => count
+                    .checked_sub(1)
+                    .and_then(|last| last.checked_mul(stride))
+                    .and_then(|span| span.checked_add(byte_len as u64)),
+                Some((count, stride)) => {
+                    if u64::try_from(offsets.len()).ok() != Some(count)
+                        || offsets
+                            .windows(2)
+                            .any(|pair| pair[1].checked_sub(pair[0]) != Some(stride))
+                    {
+                        return Err(MaterializationDiagnostic(format!(
+                            "inner layout for `{}` element placements drift from its count or stride",
+                            node.path_display
+                        )));
+                    }
+                    Some(byte_len as u64)
+                }
+                None => Some(byte_len as u64),
+            };
+            if offsets.iter().any(|offset| {
+                extent
+                    .and_then(|extent| offset.checked_add(extent))
+                    .is_none_or(|end| end > enclosing_byte_len as u64)
+            }) {
+                return Err(MaterializationDiagnostic(format!(
+                    "interior layout for `{}` exceeds the enclosing {enclosing_byte_len}-byte record extent",
+                    node.path_display
+                )));
+            }
+        }
+        let node_id = nodes.len();
+        nodes.push(node);
         bound.insert(key, node_id);
         order.push(node_id);
     }
@@ -902,6 +938,7 @@ fn prepare_record_interior<'a>(
         prepare_inner_layouts(
             &carrier.inner_layouts,
             &planned_inner,
+            inner_byte_len,
             &format!("{path_display}."),
             depth + 1,
             false,
@@ -992,6 +1029,11 @@ fn first_untraversed_inner_layout(
     traversed: &std::collections::BTreeSet<usize>,
 ) -> Option<usize> {
     for &node_id in order {
+        // No symbolic write can reach an empty aggregate or its descendants.
+        // Preparation has already validated their retained element geometry.
+        if nodes[node_id].has_no_storage() {
+            continue;
+        }
         if !traversed.contains(&node_id) {
             return Some(node_id);
         }

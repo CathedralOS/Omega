@@ -12,6 +12,163 @@ use layout_plans::{
 use target::NativeTarget;
 
 #[test]
+fn empty_array_children_preserve_live_sibling_writes_and_reject_every_index() {
+    let main_path = write_program(
+        "empty-array-symbolic-fields",
+        r#"
+data Choice [copy] { case Empty; case Address(value: u64); }
+data Cell [copy] { choice: Choice; value: u64; }
+data Buffer<const Count: u64> [copy] { entries: [Cell; Count]; }
+data EmptyArrays [copy] {
+    head: u64;
+    choices: [Choice; 0];
+    cells: [Cell; 0];
+    matrix: [[Choice; 2]; 0];
+    empty_rows: [[Cell; 0]; 2];
+    buffer: Buffer<0>;
+    tail: u64;
+}
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("closed empty arrays are valid source types");
+    let plan = build_layout_plan(&checked, NativeTarget::linux_x64(), &[]).unwrap();
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "EmptyArrays")
+        .unwrap();
+    let report =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            owner.symbol,
+        )
+        .expect("zero repetitions retain their element geometry without occupying bytes");
+    assert_eq!(report.outer_layout.size, Some(16));
+    assert_eq!(
+        report.children.len(),
+        5,
+        "empty children retain semantic identity"
+    );
+    for child in &report.children[..4] {
+        assert!(matches!(
+            child.hop,
+            ConventionalRecordSumChildHop::Index {
+                element_count: 0,
+                element_stride: 16 | 24,
+            }
+        ));
+    }
+    let ConventionalRecordSumChildInterior::Record(buffer) = &report.children[4].interior else {
+        panic!("the closed generic buffer retains its record interior");
+    };
+    assert_eq!(buffer.outer_layout.size, Some(0));
+    assert!(matches!(
+        buffer.children[0].hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 0,
+            element_stride: 24,
+        }
+    ));
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&report).unwrap();
+    let target = RelocationTarget::Data(DataSymbolId::from_normalized_identity(7).unwrap());
+    let context = MaterializationContext {
+        consumption: ConsumptionInstant::AfterOmegaHandoff,
+        byte_order: ByteOrder::LittleEndian,
+        native_pointer_relocation_bits: Some(64),
+        placement: layout_plans::PlacementConstraints::unconstrained(
+            layout_plans::PlacementPhase::PostHandoff,
+        ),
+    };
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        &report.outer_layout,
+        &carriers,
+        &[
+            SymbolicFieldValue::new("head", 64, target).unwrap(),
+            SymbolicFieldValue::new("tail", 64, target).unwrap(),
+        ],
+        context,
+        |_| None,
+    )
+    .expect("empty sibling carriers must not block ordinary field writes");
+    let writer = materialization.derive_post_handoff_writer().unwrap();
+    let value = 0x1122_3344_5566_7788_u64;
+    let expected = value.to_le_bytes().repeat(2);
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &expected, |resolved| {
+        assert_eq!(resolved, target);
+        value
+    });
+    for field in ["choices", "cells", "matrix", "empty_rows", "buffer"] {
+        for symbolic in [
+            SymbolicFieldValue::new(field, 64, target).unwrap(),
+            SymbolicFieldValue::new_indexed(field, 0, 64, target).unwrap(),
+        ] {
+            let error = derive_symbolic_materialization_with_inner_layouts(
+                &report.outer_layout,
+                &carriers,
+                &[symbolic],
+                context,
+                |_| None,
+            )
+            .expect_err("an empty whole-field At must not alias the live tail");
+            assert!(
+                error.0.contains("cannot write an empty interior"),
+                "{error:?}"
+            );
+        }
+    }
+    let nested_empty = SymbolicFieldValue::new("buffer", 64, target)
+        .unwrap()
+        .with_inner_segment(SymbolicFieldPathSegment::new("entries"));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &report.outer_layout,
+        &carriers,
+        &[nested_empty],
+        context,
+        |_| None,
+    )
+    .expect_err("the direct leaf guard also applies within an empty record");
+    assert!(
+        error.0.contains("cannot write an empty interior"),
+        "{error:?}"
+    );
+    for (field, path) in [
+        (
+            "choices",
+            SymbolicFieldPathSegment::new("Address")
+                .with_inner_segment(SymbolicFieldPathSegment::new("value")),
+        ),
+        ("cells", SymbolicFieldPathSegment::new("value")),
+        (
+            "matrix",
+            SymbolicFieldPathSegment::new("Address")
+                .with_inner_segment(SymbolicFieldPathSegment::new("value")),
+        ),
+        ("empty_rows", SymbolicFieldPathSegment::new("value")),
+    ] {
+        let error = derive_symbolic_materialization_with_inner_layouts(
+            &report.outer_layout,
+            &carriers,
+            &[SymbolicFieldValue::new_indexed(field, 0, 64, target)
+                .unwrap()
+                .with_inner_segment(path)],
+            context,
+            |_| None,
+        )
+        .expect_err("an empty array has no addressable element");
+        assert!(
+            error
+                .0
+                .contains("element index 0 is outside its 0 element placements"),
+            "{field}: {error:?}"
+        );
+    }
+}
+
+#[test]
 fn indexed_symbolic_materialization_preserves_the_exact_element_path() {
     // One nested field/index case, end to end: `handlers[2]` is a field/index
     // path into a repeated field. The symbolic value preserves the exact index
@@ -2396,26 +2553,30 @@ machine Main::main(&mut self) { }
             .contains("must be one closed non-generic `[copy]` record"),
         "{template_error:?}"
     );
-    // `Neighbor<0>` is closed but binds `M` to zero, so its `cells` field
-    // keeps the nonzero literal-length fence the literal hops already carry.
+    // `Neighbor<0>` is also closed: its empty `cells` field retains the
+    // complete element geometry without occupying any bytes.
     let zero_cell = checked
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "ZeroCell")
         .expect("the zero-length instance holder");
-    let zero_error =
+    let zero =
         layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
             &checked,
             &plan,
             zero_cell.symbol,
         )
-        .expect_err("a zero-count instance must stay fenced");
-    assert!(
-        zero_error
-            .message
-            .contains("must have nonzero literal length"),
-        "{zero_error:?}"
-    );
+        .expect("a zero-count closed instance projects");
+    let ConventionalRecordSumChildInterior::Record(neighbor) = &zero.children[0].interior else {
+        panic!("the instance remains a record");
+    };
+    assert!(matches!(
+        neighbor.children[0].hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 0,
+            ..
+        }
+    ));
     // The single-hop standalone rungs keep their fences: `grid` is a record
     // path the direct-sum owner does not lift.
     let owner = checked

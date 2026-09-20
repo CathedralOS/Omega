@@ -298,21 +298,40 @@ fn lower_writer_on_both_linux_isas(
         bytes.extend_from_slice(&0xd65f03c0_u32.to_le_bytes());
         bytes
     };
-    #[cfg(any(
-        not(target_os = "linux"),
-        all(
-            target_os = "linux",
-            not(any(target_arch = "x86_64", target_arch = "aarch64"))
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let bytes = {
+        let mac = program_entry_plan::lower_post_handoff_writer_fragment(
+            NativeTarget::macos_arm64(),
+            MachineRegister::Aarch64X(0),
+            writer,
         )
-    ))]
+        .expect("the symbolic writer lowers to macos_arm64 code");
+        program_entry_plan::validate_lowered_post_handoff_writer(&mac)
+            .expect("the macos_arm64 writer fragment replays exactly");
+        assert_eq!(mac.invocation(), invocation);
+        assert_eq!(
+            mac.fragment().normalized_plan_report_fingerprint(),
+            arm.fragment().normalized_plan_report_fingerprint(),
+        );
+        let mut bytes = mac.fragment().bytes().to_vec();
+        bytes.extend_from_slice(&0xd65f03c0_u32.to_le_bytes());
+        bytes
+    };
+    #[cfg(not(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64")
+    )))]
     {
-        eprintln!("skip: native writer execution needs a Linux x86-64 or aarch64 host");
+        let _ = fill;
+        eprintln!("skip: native writer execution needs Linux x86-64/aarch64 or macOS aarch64");
         return;
     }
 
     #[cfg(any(
         all(target_os = "linux", target_arch = "x86_64"),
-        all(target_os = "linux", target_arch = "aarch64")
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64")
     ))]
     {
         let expected = expected_image
