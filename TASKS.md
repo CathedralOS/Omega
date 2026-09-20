@@ -9047,6 +9047,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (~14:19Z). No unfenced slice exists on this host.
 
   slice remains under this name.
+||||||| parent of 913c4532674c (board: BENCHMARK-PROOF-SUBJECT-SELECTION re-verified at e5bbe53956f)
+- **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
+- **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
+  Re-verified at `e5bbe53956f` (Zergling-52): the authored-entry half is
+  fully landed — `samples/cli/proofs/structural_proofs/build.omg` binds
+  `ProgramEntry` for all four hosted targets to the inert `Main::main`,
+  and its README documents that a target compile produces a native
+  artifact (compile + code-size legs only; run behavior unspecified).
+  Fence map now: the prior z148 claim expired; the remaining surfaces are
+  held by BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION (z175, TASKS.md,
+  05:33Z) and `tools/benchmark` under PRIME-COUNTER-BENCHMARK-ROW (Jarod,
+  07:21Z). Note: a fresh worktree's target compile stops at the
+  package-review gate — the recorded scratch-copy ceremony applies; that
+  is checkout state, not subject state.
+- **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
+- **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-ISOLATION-ROWS.** Resolved — the per-selection row
   isolation the name asks for is the record contract itself and is already
   exercised on `origin/main`: one versioned JSON per
