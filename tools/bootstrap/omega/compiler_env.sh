@@ -18,9 +18,9 @@
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
 OMEGA_COMPILER_MANIFEST_SIZE=1338
-OMEGA_COMPILER_MANIFEST_SHA256=1b13e19dcd7abbb3af26547c41eee5472689cd3c9e901879c4e2eaf8eb820aa4
-OMEGA_COMPILER_PACKED_SIZE=558065
-OMEGA_COMPILER_PACKED_SHA256=3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950
+OMEGA_COMPILER_MANIFEST_SHA256=07e0205f88ae4cb4b9ec799cf8f524eaacb50fe2cae0e97ce5eb31e0d8fb50cb
+OMEGA_COMPILER_PACKED_SIZE=558161
+OMEGA_COMPILER_PACKED_SHA256=8f0321344c893c3c64bb631bfde10e3ecbde4384e130dca9f7e2c21818a9eca3
 
 # Bound gate-local entries packed on top of the bound member bytes. Each
 # omega-* gate appends its own customer entry after the packed D closure —
@@ -37,6 +37,10 @@ OMEGA_PARSER_ENTRY_SIZE=4583
 OMEGA_PARSER_ENTRY_SHA256=61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618
 OMEGA_OUTCOME_ENTRY_SIZE=18230
 OMEGA_OUTCOME_ENTRY_SHA256=c92fdbd62f7933859922481c021b951ffb01baec7efee5d4ee8f72c9f3d8ca4d
+OMEGA_REQUEST_ENTRY_SIZE=4115
+OMEGA_REQUEST_ENTRY_SHA256=0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0
+OMEGA_REQUEST_FIXTURE_SIZE=132
+OMEGA_REQUEST_FIXTURE_SHA256=ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062
 OMEGA_EXECUTABLE_MAIN_ENTRY_SIZE=1759
 OMEGA_EXECUTABLE_MAIN_ENTRY_SHA256=4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b
 OMEGA_EXECUTABLE_CONTROLS_ENTRY_SIZE=3339
@@ -117,6 +121,25 @@ require_omega_outcome_entry_identity() {
     "$OMEGA_PATH_OMEGA_OUTCOME_ENTRY" "$OMEGA_OUTCOME_ENTRY_SIZE" \
     "$OMEGA_OUTCOME_ENTRY_SHA256" \
     "tests/bootstrap/omega-outcome/README.md"
+}
+
+# require_omega_request_entry_identity : the request gate's main.epsilon is
+# the bound file — the canonical OCREQ request entry, not an ad-hoc per-gate
+# customer. Same contract as require_omega_parser_entry_identity.
+require_omega_request_entry_identity() {
+  require_bound_identity "main.epsilon" \
+    "$OMEGA_PATH_OMEGA_REQUEST_ENTRY" "$OMEGA_REQUEST_ENTRY_SIZE" \
+    "$OMEGA_REQUEST_ENTRY_SHA256" \
+    "tests/bootstrap/omega-request/README.md"
+}
+
+# require_omega_request_fixture_identity : the request gate's canonical
+# sealed request is the bound byte stream. Same contract.
+require_omega_request_fixture_identity() {
+  require_bound_identity "request.bin" \
+    "$OMEGA_PATH_OMEGA_REQUEST_FIXTURE" "$OMEGA_REQUEST_FIXTURE_SIZE" \
+    "$OMEGA_REQUEST_FIXTURE_SHA256" \
+    "tests/bootstrap/omega-request/README.md"
 }
 
 # require_omega_executable_entries_identity : every entry the executable

@@ -34,6 +34,8 @@ machine omega_compiler_resource_space(code: i32) -> i32 {
         12 -> return 2
         13 -> return 2
         14 -> return 2
+        25 -> return 0
+        26 -> return 1
         _ -> return -1
     }
 }
@@ -56,6 +58,8 @@ machine omega_compiler_resource_limit(code: i32) -> i32 {
         12 -> return 16777212
         13 -> return 1864134
         14 -> return 16777212
+        25 -> return 0
+        26 -> return 65536
         _ -> return 0
     }
 }
