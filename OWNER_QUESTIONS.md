@@ -100,6 +100,29 @@ it instantiates. A reviewer verifies those citations before the framing.
    assumption carries, so the missing piece is the ruling, not the
    plumbing.
 
+## Squalr scalar-scan port: surface-driven shape choices
+
+The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced
+interface-shape decisions; none are silent semantic changes, but each is worth a
+ruling or at least a note so later legs make the same choice:
+
+- `Vec<T>` has no constructor until `Allocation<T>` can borrow an `Arena`, so
+  the upstream eager `Vec<SnapshotRegionFilter>` result was ported as a pull
+  driver (`next() -> EmittedRegion`). Emission order/content identical; the
+  caller drains instead of receiving a buffer.
+- `Optional<T>` scrutinees whose payload is a foreign-package type cannot be
+  matched in states ("not a declared ... type in this state"), so
+  `Option<ScanFunctionScalar>` became `has_scan_function_scalar: bool` beside a
+  `[copy]` payload field, and encoder emissions became a package-local
+  `EmittedRegion` enum instead of `Optional<SnapshotRegionFilter>`.
+- Sibling-length bounds (`index: u64 [0..sibling.len]`) must be re-proven by an
+  explicit guard on every call arm that passes the bounded value, so the scan
+  loop forwards plain `u64` between states and enters each bounded leaf under a
+  restated `index < slice.len` guard.
+- Bare `machine Name::state` only resolves when `Name` is a declared data type;
+  upstream unit-struct namespaces became `[copy]` marker data (e.g.
+  `ScannerScalarSingleElement`).
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
