@@ -7,6 +7,12 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
+    *) echo "Functional Gamma evaluator: unsupported host; needs macOS arm64 or Windows x64" >&2
+       exit 2 ;;
+esac
+
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 EXPERIMENT="$OMEGA_REPO_ROOT/tests/gamma/evaluator-development"

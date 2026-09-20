@@ -12,6 +12,12 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
+    *) echo "Gamma self-augmentation: unsupported host; needs macOS arm64 or Windows x64" >&2
+       exit 2 ;;
+esac
+
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 AUGMENTER="$GATE_DIR/constant_augmenter.gamma"
