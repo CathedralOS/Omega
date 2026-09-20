@@ -1348,17 +1348,26 @@ Owners include
   own the vocabulary. The [encoding contract](wiki/spec/terminal-psi/encoding.md)
   now specifies every operation, terminator, scalar-term, proposition, and
   proof-node form the codec accepts, plus the machine, scalar-block-invariant,
-  catalog, and obligation-ledger row layouts and the byte envelope — magic,
-  format marker, and vocabulary field — each codec emission opens with;
+  catalog, and obligation-ledger row layouts, the byte envelope — magic,
+  format marker, and vocabulary field — each codec emission opens with, and
+  the decode-and-rederive payloads a receiver must reconstruct: canonical
+  artifact framing, debug-map file/site rows and subject tags, the
+  optimization-execution record, and the PCC proof sidecar.
   `tests/architecture/encoding_contract.rs` pins each closed tag space, the
-  module's counted-table declaration order, and every envelope marker against
-  the `terminal-codec` definitions so they cannot drift.
+  module's counted-table declaration order, the artifact framing order, the
+  section rederivation and byte-for-byte re-encoding obligations, and every
+  envelope marker against the `terminal-codec` definitions so they cannot
+  drift.
 
   Acceptance: source and producer state can be discarded before an
   independent verifier reconstructs every obligation and executes or lowers
   the same artifact, and the encoding contract specifies every operation and
-  proof-node form the codec accepts. The physical-table leg is landed; the
-  independent-reconstruction half remains open.
+  proof-node form the codec accepts. The wire-surface legs are landed
+  (`1b5a521a1f`, `ad130023702d`): the contract now covers every emission and
+  payload `terminal-codec` accepts. Remaining legs are the
+  execution/interpretation side of acceptance — interpretation, resource
+  analysis, native lowering, and installation custody — which live outside
+  this codec fence.
 
   Native/external execution, ABI, fixed native resource, and final-code replay
   claims additionally require exact final-realization evidence. Preserve
