@@ -8613,7 +8613,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `manager/tests/locked_source_checking` by Devin's
   PACKAGE-LOCK-SOURCE-IDENTITY. Coordinate with those owners before working
   it.
-- **PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION** — mined candidate; verify scope then implement.
+- **PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION.** Mined candidate; scope
+  verified, resolved — the deliverable is already landed. The stub names
+  the documented package-review route cost attribution, which
+  `c10a1f85fe3` ("perf: attribute package-review route cost by pass and
+  phase") appended to
+  `wiki/drafts/test_cycle_measurements.md`: Linux x86_64 at `a9fa1a4fe6`,
+  the hosted-consumer review test's 18 checked compilations attributed by
+  phase — `build_flow_facts` fixed-point sweeps own ~105.8 s of each ~128 s
+  large pass (125 sweeps, ~11-12.6 s first then ~0.7-0.9 s draining),
+  `check_flow_call_contracts`/`check_call_requires` own 82.5-86.7 s (75.5%
+  of check-stage replay), `validate_specialized_program` owns 22.3-25.7 s
+  of validation — and the repeated classification named alongside it is
+  already attributed: `infer_path_conditioned_guard_coverage` sits at
+  ~0.25 s per large pass, confirming the earlier crash-classification work
+  retired that hotspot, so no repeated-work removal in `checks/crashes.rs`
+  is warranted. Measured optimization targets — the flow fixed-point sweep
+  schedule, `check_call_requires`, `validate_specialized_program`, the
+  multiplicity/borrow/ranges trio — are recorded on the row for their
+  owning lanes. File disposition (this claim's rider): the note's removal
+  clause is satisfied on the selection-cost side by
+  `test_cycle_selection_remeasurement.md`, but the file is retained as the
+  standing package-review attribution record the clause never covered —
+  header updated to say so; references in AGENTS.md "Slow builds",
+  tools/testing.md, and the advance skill stay valid.
 - **PAIR-RULE-DESCRIPTOR-AXES** — mined candidate; verify scope then implement.
 - **PARTIAL-OWNERSHIP-CLEANUP-EXPANSION.** Resolved — re-mine of **CML4**'s
   named remaining work, not an independent item. The surface is partial
