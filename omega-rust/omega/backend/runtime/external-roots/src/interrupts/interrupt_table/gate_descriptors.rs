@@ -29,16 +29,6 @@ pub const X86_64_GATE_DESCRIPTOR_BYTES: u64 = 16;
 /// descriptor field naming IST1 through IST7; zero means no IST switch).
 pub const X86_64_IST_SLOT_LIMIT: u8 = 7;
 
-// x86-64 long-mode gate-descriptor constant bits. These are ISA encoding
-// facts, not consumer policy: the present bit, the always-clear storage
-// segment bit, and the two gate type codes.
-
-const X86_64_GATE_TYPE_INTERRUPT: u8 = 0x0e;
-
-const X86_64_GATE_TYPE_TRAP: u8 = 0x0f;
-
-const X86_64_GATE_PRESENT: u8 = 0x80;
-
 /// One declared member's descriptor constants — the table's
 /// consumer-authored content for that vector's x86-64 gate.
 ///
@@ -47,32 +37,14 @@ const X86_64_GATE_PRESENT: u8 = 0x80;
 /// consumer's code-segment selector, `entry_privilege` the descriptor DPL,
 /// and `interrupt_stack_table_slot` the declared IST field — `None` encodes
 /// the architectural zero (no IST switch), which cannot select a dedicated
-/// critical stack.
+/// critical stack. How these fields pack into the produced slot is the
+/// consumer's authored gate layout, not a compiler-held encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InterruptTableGateDescriptor {
     pub gate: X86_64GateKind,
     pub selector: u16,
     pub entry_privilege: u8,
     pub interrupt_stack_table_slot: Option<u8>,
-}
-
-impl InterruptTableGateDescriptor {
-    /// The descriptor's second flag byte: present bit, DPL, and gate type.
-    /// Callers see the declared fields, never this packed encoding.
-    pub(crate) fn attribute_byte(&self) -> u8 {
-        X86_64_GATE_PRESENT
-            | (self.entry_privilege << 5)
-            | match self.gate {
-                X86_64GateKind::Interrupt => X86_64_GATE_TYPE_INTERRUPT,
-                X86_64GateKind::Trap => X86_64_GATE_TYPE_TRAP,
-            }
-    }
-
-    /// The descriptor's IST byte: the declared slot in bits 0..=2 with the
-    /// reserved upper bits clear.
-    pub(crate) fn ist_byte(&self) -> u8 {
-        self.interrupt_stack_table_slot.unwrap_or(0)
-    }
 }
 
 /// One declared member of the consumer's table plan: the vector the table
