@@ -32,6 +32,13 @@ pub enum LoweringError {
         omission: Option<String>,
     },
     Unsupported(&'static str),
+    /// A borrowed-storage restoration window the checked facts do not pin to
+    /// one exact place, or whose restoration is missing on a path. `place` is
+    /// the authored-facing spelling of the moved or stored place.
+    UnpinnedBorrowedStorageWindow {
+        place: String,
+        reason: &'static str,
+    },
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,
     IntegerLandingMismatch,
