@@ -32,7 +32,7 @@ use crate::lock::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
-    purpose: DependencyPurpose,
+    context: PackageCheckedContext,
     request_meaning: String,
 }
 
@@ -43,9 +43,17 @@ impl UngrantedRestrictedBuildRequest {
         self.package
     }
 
+    /// The complete checked context — purpose, selected target, and build
+    /// execution profile — whose request lacks retained accepted meaning.
+    /// Sibling occurrences of one package grant independently, so the
+    /// context is the attribution, not an optional refinement.
+    pub const fn context(&self) -> PackageCheckedContext {
+        self.context
+    }
+
     /// The authorized context — product or build — the request belongs to.
     pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
+        self.context.purpose()
     }
 
     /// The complete normalized request meaning the accepted policy did not
@@ -63,10 +71,14 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
         }
         write!(
             formatter,
-            "package {identity}… {} occurrence requests:\n    {}",
-            self.purpose.name(),
-            self.request_meaning
-        )
+            "package {identity}… {} {} occurrence",
+            self.context.purpose().name(),
+            self.context.target().identity().as_str(),
+        )?;
+        if let Some(profile) = self.context.build_execution_profile() {
+            write!(formatter, " on build host {}", profile.identity().as_str())?;
+        }
+        write!(formatter, " requests:\n    {}", self.request_meaning)
     }
 }
 
@@ -135,7 +147,7 @@ impl RestrictedBuildCheckpoint {
             .filter(|meaning| granted.is_none_or(|texts| !texts.contains(*meaning)))
             .map(|meaning| UngrantedRestrictedBuildRequest {
                 package,
-                purpose: context.purpose(),
+                context,
                 request_meaning: meaning.to_owned(),
             })
             .collect()
