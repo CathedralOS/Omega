@@ -6264,7 +6264,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
 - **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER** — mined candidate; verify scope then implement.
-- **DELTA-EPSILON-CLOSURE-ACCEPTANCE** — mined candidate; verify scope then implement.
+- **DELTA-EPSILON-CLOSURE-ACCEPTANCE.** Scope verified at `54d5dc1cb1`: the
+  alias names the Delta→Epsilon evaluator closure's *acceptance* surface,
+  and that surface is already landed and green — `evaluator_env.sh`
+  materializes the canonical packed closure behind bound identity checks,
+  `tests/bootstrap/epsilon-identity.sh` refuses corrupted
+  manifest/member/driver/entry/receipt shapes, and
+  `tests/bootstrap/epsilon-source-closure` + `source-closure.sh` pin the
+  exact source manifest against repacking. The unclosed legs of the same
+  Delta→Epsilon path — compiling the bound evaluator through the bound
+  Delta compiler and executing it — live under `tests/epsilon` (DELTA-COMPILER
+  claim, expires ~21:48Z) and require a seed-execution host (macOS arm64 or
+  Windows x64). No unowned in-fence slice; this row records the resolution.
 - **DELTA-EPSILON-CLOSURE-COMPILE.** Mined candidate; verify scope then implement.
 - **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
 - **DELTA-EVALUATOR-EXHAUSTION-TRIAGE** — mined candidate; verify scope then implement.
