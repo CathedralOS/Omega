@@ -126,6 +126,21 @@ both fail review settlement with "no bound required root slot
 macOS host-profile gap) — record them as non-applicable, not failed
 compiles.
 
+Update (z113, `1a772e4ae1`, linux x86_64 host): the remaining
+measurable cross-target compile legs for `wrapping_square_sum`
+produced schema-valid records — `windows_x86_64` 24.3 s compile /
+148.8 MiB peak RSS / 1,024 B image and `macos_arm64` 24.4 s /
+153.5 MiB / 16,640 B — each via `measure --no-run --compile-samples 1`
+with `validate` clean. `uefi_x86_64`, `cross_platform_cli`, and
+`local_unchecked` are non-applicable for this subject: review
+settlement rejects each with "no bound required root slot
+`<target>::ProgramEntry`" (the subject binds only the four hosted
+targets). Note `omega.lock` settles per target — `prepare` must run
+once per `--target` leg before `measure`, and a failed settlement
+leaves the lock's earlier accepted sections intact. The produced JSON
+rows await commit under `tools/benchmark/records/` once its claim
+frees; regenerating them is one `measure` invocation per target.
+
 ## Reading a row
 
 `key.selection.enabled`/`disabled` name the exact rules in effect, not
