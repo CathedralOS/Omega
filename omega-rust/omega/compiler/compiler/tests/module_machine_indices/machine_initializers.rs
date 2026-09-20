@@ -512,6 +512,54 @@ fn widened_constant_helper_executes_natively_after_source_removal() {
     assert_native_constant_after_source_removal(tree, root);
 }
 
+#[test]
+fn constant_helper_preconditions_reach_native_execution_after_source_removal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         machine divide(value: u64) -> u64 requires value != 0 { 10 / value }
+         machine forward(value: u64) -> u64 requires value != 0 {
+             divide(value)
+         }
+         pub const VALUE: u64 = forward(2);",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use settings; machine read() -> u64 { settings::VALUE }",
+    );
+    assert_native_constant_after_source_removal(tree, root);
+}
+
+#[test]
+fn constant_helper_preconditions_reject_false_concrete_invocations() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    // The body itself returns successfully even at zero. Only checking the
+    // invocation's authored premise can reject this unused initializer.
+    Sources::write(
+        root.join("main.omg"),
+        "machine five(value: u64) -> u64 requires value != 0 { 5 }
+         const UNUSED: u64 = five(0);
+         machine read() -> u64 { 5 }",
+    );
+    let diagnostics = compiler::compile_to_checked(compiler::CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        None,
+    ))
+    .expect_err("successful evaluation cannot discharge a false authored premise");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("violates required fact `value != 0`")
+                && diagnostic.message.contains("structurally false")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
 fn assert_native_constant_after_source_removal(tree: Sources, root: std::path::PathBuf) {
     let checked = compile(&root, root_inputs(&root));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
