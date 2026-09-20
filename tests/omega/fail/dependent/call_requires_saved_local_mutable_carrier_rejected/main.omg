@@ -1,0 +1,30 @@
+// FAIL CANARY. A saved observation may only read carriers nothing in the
+// state can write: `k` is a `mut` formal whose later write already replaced
+// the value `let n = k` read, so `n` carries no exact observation and the
+// boundary must still reject `items.len <= n`. Claiming `n` still equals
+// `k`'s incoming value would wrongly satisfy `rest.len <= capacity` through
+// the `requires items.len <= k` entry fact.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.outer(items, 3) }
+}
+
+machine Main::outer(&mut self, items: &[i32], mut k: u64) -> u64
+requires items.len <= k
+{
+    let n: u64 = k;
+    k = 0;
+    transition { _ -> self.inner(items, n) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len <= capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

@@ -1,0 +1,24 @@
+// COMPILE CANARY. The saved observation keeps the initializer's arithmetic,
+// not merely a bare projection: `n` denotes `items.len + 1`, so the callee's
+// `requires rest.len < capacity` discharges as `items.len < items.len + 1`.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.outer(items) }
+}
+
+machine Main::outer(&mut self, items: &[i32]) -> u64 {
+    let n: u64 = items.len + 1;
+    transition { _ -> self.inner(items, n) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len < capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

@@ -387,7 +387,7 @@ pub(super) fn produced_length(
 /// initializer no longer names the referent the call sees. The scan is
 /// deliberately state-wide -- the caller's obligation order is not the
 /// statement order -- and covers every carrier that can hold an expression.
-fn binding_is_exclusively_exposed(
+pub(super) fn binding_is_exclusively_exposed(
     program: &TypedTrees,
     state: &State,
     symbol: SymbolHandle,

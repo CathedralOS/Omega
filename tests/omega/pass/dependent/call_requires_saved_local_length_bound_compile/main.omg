@@ -1,0 +1,25 @@
+// COMPILE CANARY. A `let` binding that reads a borrowed collection's length is
+// a saved caller observation: `n` denotes the exact value `items.len` produced,
+// so the callee's `requires rest.len <= capacity` discharges from that saved
+// fact (`items.len <= items.len`) rather than from a literal actual alone.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.outer(items) }
+}
+
+machine Main::outer(&mut self, items: &[i32]) -> u64 {
+    let n: u64 = items.len;
+    transition { _ -> self.inner(items, n) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len <= capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

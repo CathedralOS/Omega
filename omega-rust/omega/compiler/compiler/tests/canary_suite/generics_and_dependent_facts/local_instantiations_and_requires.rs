@@ -634,3 +634,54 @@ fn saved_local_slice_length_requires_canaries() {
         expected.trim()
     );
 }
+
+#[test]
+fn saved_local_value_requires_canaries() {
+    // A `let` binding that reads a borrowed collection's length is a saved
+    // caller observation: `n` denotes the exact value `items.len` produced, so
+    // the callee's `requires rest.len <= capacity` discharges from the saved
+    // fact (`items.len <= items.len`), not from a literal actual alone.
+    for fixture in [
+        fixture_roster::SAVED_LOCAL_LENGTH_BOUND_COMPILE,
+        fixture_roster::SAVED_LOCAL_ARITHMETIC_BOUND_COMPILE,
+    ] {
+        let canary = pass_canary(fixture);
+        check_canary(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{} failed:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+
+    // The saved observation is exact, not permissive: `items.len` cannot be
+    // strictly below itself, and a `let` read of a `mut` formal that a later
+    // write already replaced carries no observation at all -- either escape
+    // would wrongly satisfy the callee's bound through the caller's entry
+    // fact.
+    for fixture in [
+        fixture_roster::SAVED_LOCAL_LENGTH_BOUND_REJECTED,
+        fixture_roster::SAVED_LOCAL_MUTABLE_CARRIER_REJECTED,
+    ] {
+        let rejected = fail_canary(fixture);
+        let expected = fs::read_to_string(rejected.join("expected.txt"))
+            .expect("saved-local-value fail canary should carry expected.txt");
+        let diagnostics = check_canary(&rejected)
+            .expect_err("an unmet or unstable saved local value should be rejected");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.trim()),
+            "saved-local-value fail canary should contain {:?}:\n{combined}",
+            expected.trim()
+        );
+    }
+}

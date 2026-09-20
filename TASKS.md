@@ -4143,8 +4143,18 @@ Owners include
   - Complete caller-specific saved-argument and result facts: nonliteral
     contract arithmetic, borrowed collection lengths, dependent/public-trait
     results and subslice bounds need exact entry observations and
-    substitutions. Mutable formals/storage must distinguish their incoming
-    value from subsequent writes. **CRASH-CONTRACT** shares the capture path;
+    substitutions. An immutable state-local `let` now discharges a callee
+    `requires` from the saved value -- `let n = items.len` then
+    `inner(items, n)` proves `rest.len <= capacity`, and the observation
+    keeps the initializer's arithmetic (`items.len + 1`) -- through
+    `ranking_range/saved_arguments` binding each stable local to its
+    initializer's polynomial before the boundary substitution. A local
+    whose initializer reads a `mut` formal/local, an exclusively borrowed
+    carrier or an exclusive-reference holder yields no observation, so a
+    mutable carrier's incoming value is never conflated with a later
+    write; giving mutable carriers an entry-value atom so that reading
+    also discharges remains open, as do dependent/public-trait results
+    and subslice bounds. **CRASH-CONTRACT** shares the capture path;
     case-qualified, indexed, generic, reference-valued and floating entry
     predicates need exact identities/totality. Unchanged entry observations
     may justify published routes; later writes and current body facts may
