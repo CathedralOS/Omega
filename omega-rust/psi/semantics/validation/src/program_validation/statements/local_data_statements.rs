@@ -235,6 +235,7 @@ pub(super) fn validate(
                 current_state,
                 local_data.type_reference,
                 local_data.initial_value,
+                value_env,
                 &owner,
                 diagnostics,
             );

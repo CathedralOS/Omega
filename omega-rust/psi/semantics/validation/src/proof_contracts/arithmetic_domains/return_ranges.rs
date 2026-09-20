@@ -241,6 +241,7 @@ pub(crate) fn validate_return_value_range(
         Some(state),
         state.return_type,
         return_expression,
+        env,
         owner,
         diagnostics,
     );
@@ -301,12 +302,14 @@ pub(crate) fn validate_return_value_range(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn enforce_symbolic_range(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     return_type: TypeReferenceHandle,
     return_expression: ExpressionHandle,
+    environment: &ValueEnv,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -316,6 +319,7 @@ pub(crate) fn enforce_symbolic_range(
         state,
         return_type,
         return_expression,
+        environment,
     ) == Some(false)
     {
         diagnostics.push(Diagnostic::error(format!(

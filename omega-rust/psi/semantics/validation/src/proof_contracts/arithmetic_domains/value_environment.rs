@@ -71,6 +71,36 @@ pub(crate) struct ValueEnv {
 }
 
 impl ValueEnv {
+    /// Current scalar-place relations, identified by resolved symbols. Fields
+    /// and computed operands cannot become a scalar atom merely by sharing a
+    /// display path. Existing joins, edge rebinding and writes own fact lifetime.
+    pub(crate) fn ordered_scalar_bounds(
+        &self,
+    ) -> impl Iterator<Item = (symbols::SymbolHandle, symbols::SymbolHandle, i64)> + '_ {
+        self.ordered_values.iter().filter_map(|relation| {
+            let (
+                ordered_values::Operand::Place {
+                    root: left,
+                    fields: left_fields,
+                    ..
+                },
+                ordered_values::Operand::Place {
+                    root: right,
+                    fields: right_fields,
+                    ..
+                },
+            ) = (&relation.left, &relation.right)
+            else {
+                return None;
+            };
+            (left_fields.is_empty() && right_fields.is_empty()).then_some((
+                *left,
+                *right,
+                relation.floor,
+            ))
+        })
+    }
+
     /// Translate only explicitly bound roots. A source root may feed several
     /// target parameters; unrelated same-spelled roots never survive the edge.
     pub(super) fn rebind(&self, bindings: &[(String, String)]) -> Self {

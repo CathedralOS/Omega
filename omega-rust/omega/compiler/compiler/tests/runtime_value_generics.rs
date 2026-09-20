@@ -45,6 +45,15 @@ struct Published {
 }
 
 fn publish(name: &str, source: &str) -> Published {
+    try_publish(name, source).unwrap_or_else(|(fixture, diagnostics)| {
+        panic!(
+            "runtime value generic publication failed; artifacts at {}:\n{diagnostics}",
+            fixture.0.display()
+        )
+    })
+}
+
+fn try_publish(name: &str, source: &str) -> Result<Published, (Fixture, String)> {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -72,29 +81,29 @@ machine build(builder: &mut Build) {
         target_name: Some("linux_x86_64".to_owned()),
     })
     .with_requested_product(RequestedCompileProduct::TerminalArtifact);
-    let report = compile(request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .unwrap_or_else(|diagnostics| {
-            panic!(
-                "runtime value generic publication failed; artifacts at {}:\n{}",
-                fixture.0.display(),
+    let report = match compile(request).and_then(compiler::CompileOutcomes::into_single_report) {
+        Ok(report) => report,
+        Err(diagnostics) => {
+            return Err((
+                fixture,
                 diagnostics
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join("\n"),
-            )
-        });
+            ));
+        }
+    };
     let retained = report
         .into_retained_terminal_artifact()
         .expect("Terminal product");
     let artifact = retained.artifact();
-    Published {
+    Ok(Published {
         semantic: artifact.semantic_bytes().to_vec(),
         proof: artifact.proof_bytes().to_vec(),
         module: terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         _fixture: fixture,
-    }
+    })
 }
 
 /// Compile `source` at `Check` level and return the joined diagnostics when
@@ -593,6 +602,142 @@ machine Main::main(&mut self) reaches Trace {
         &[3],
         "the guard-satisfied state observes the captured subject",
         &[],
+    );
+}
+
+const GUARDED_RESULT_BOUND_MACHINES: &str = r#"
+machine bounded_result<Limit: u8>(value: u8) -> u8[0..=Limit]
+requires value <= Limit;
+{
+    value
+}
+
+machine guarded_result(value: u8, limit: u8) -> u8 {
+    transition value <= limit {
+        true -> allowed(value, limit)
+        false -> 0
+    }
+    state allowed(value: u8, limit: u8) {
+        let captured: u8[0..=limit] = bounded_result<limit>(value);
+        captured
+    }
+}
+"#;
+
+#[test]
+fn runtime_bound_result_qualification_follows_the_dominating_guard() {
+    let source = [
+        r#"
+use omega::language::core::external_binding;
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+data Main {}
+"#,
+        GUARDED_RESULT_BOUND_MACHINES,
+        r#"
+machine Main::main(&mut self) reaches Trace {
+    Trace::record(guarded_result(3, 7) as u64);
+    Trace::record(guarded_result(7, 3) as u64);
+    Trace::record(guarded_result(8, 8) as u64);
+}
+"#,
+    ]
+    .concat();
+    let published = publish("guarded-result-bound", &source);
+    let entry_calls = calls(&published.module, published.module.entry);
+    assert_eq!(entry_calls.len(), 3);
+    assert!(entry_calls.iter().all(|call| call.0 == entry_calls[0].0));
+    let guarded_calls = calls(&published.module, entry_calls[0].0);
+    assert_eq!(guarded_calls.len(), 1);
+    assert_eq!(
+        guarded_calls[0].1.len(),
+        2,
+        "value and runtime bound remain ordinary arguments"
+    );
+    assert_eq!(
+        guarded_calls[0].2, 1,
+        "the call retains its required proof obligation"
+    );
+    replay(
+        &published,
+        &[3, 0, 8],
+        "a guard establishes the runtime result qualification without a declared input range",
+        &[],
+    );
+    // The same live relation also establishes a local qualification directly,
+    // without borrowing the result claim from a contracted callee.
+    let direct = source.replace("bounded_result<limit>(value)", "value");
+    let published = publish("guarded-local-bound", &direct);
+    replay(
+        &published,
+        &[3, 0, 8],
+        "the guard directly establishes the local range",
+        &[],
+    );
+}
+
+#[test]
+fn runtime_bound_result_qualification_rejects_missing_or_stale_guards() {
+    for (name, machines) in [
+        (
+            "missing-guard",
+            GUARDED_RESULT_BOUND_MACHINES.replace("transition value <= limit", "transition true"),
+        ),
+        (
+            "reversed-subject",
+            GUARDED_RESULT_BOUND_MACHINES.replace(
+                "bounded_result<limit>(value)",
+                "bounded_result<value>(limit)",
+            ),
+        ),
+        (
+            "stale-guard",
+            GUARDED_RESULT_BOUND_MACHINES
+                .replace(
+                    "state allowed(value: u8, limit: u8) {",
+                    "state allowed(value: u8, mut limit: u8) { limit = 0;",
+                )
+                .replace("bounded_result<limit>(value)", "value"),
+        ),
+        (
+            "stale-return-contract",
+            GUARDED_RESULT_BOUND_MACHINES
+                .replace(
+                    "(value: u8) -> u8[0..=Limit]",
+                    "(mut value: u8) -> u8[0..=Limit]",
+                )
+                .replace("{\n    value\n}", "{\n    value = 255;\n    value\n}"),
+        ),
+    ] {
+        let source = format!(
+            "{machines}\ndata Main {{}}\nmachine Main::main(&mut self) {{ let result: u8 = guarded_result(3, 7); }}"
+        );
+        let Err(diagnostic) = check_source(name, &source) else {
+            panic!("{name} must not establish the result qualification");
+        };
+        assert!(
+            diagnostic.contains("requires")
+                || diagnostic.contains("not provably within its declared symbolic const range"),
+            "{name}: {diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn runtime_bound_stale_call_guard_rejects_publication() {
+    let source = GUARDED_RESULT_BOUND_MACHINES.replace(
+        "state allowed(value: u8, limit: u8) {",
+        "state allowed(value: u8, mut limit: u8) { limit = 0;",
+    ) + "\ndata Main {}\nmachine Main::main(&mut self) { let result: u8 = guarded_result(3, 7); }";
+    let Err((_fixture, diagnostic)) = try_publish("stale-call-guard", &source) else {
+        panic!("stale call guard must not publish");
+    };
+    // Check alone currently retains the stale call premise. Artifact production
+    // must still demand operation evidence for the actual, reassigned subject.
+    assert!(
+        diagnostic.contains("OperationProofUnavailable")
+            || diagnostic.contains("cannot prove requires contract"),
+        "{diagnostic}"
     );
 }
 
@@ -1488,6 +1633,28 @@ machine Main::main(&mut self) reaches Console {
 "#,
             3,
         );
+    }
+
+    #[test]
+    fn runtime_bound_result_qualification_follows_the_dominating_guard_natively() {
+        let source = [
+            r#"
+use omega_language_std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; }
+"#,
+            super::GUARDED_RESULT_BOUND_MACHINES,
+            r#"
+machine Main::main(&mut self) reaches Console {
+    let below: i32 in Wrapping = guarded_result(3, 7) as i32 in Wrapping;
+    let denied: i32 in Wrapping = guarded_result(7, 3) as i32 in Wrapping;
+    let equal: i32 in Wrapping = guarded_result(8, 8) as i32 in Wrapping;
+    self.console.exit_process((below + denied + equal) as i32);
+}
+"#,
+        ]
+        .concat();
+        run_native("guarded-result-bound", &source, 11);
     }
 
     /// The captured subject flows through a literal-indexed scalar field on

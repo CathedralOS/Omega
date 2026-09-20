@@ -3521,8 +3521,17 @@ Owners include
     compatibility and requires-fact instantiation, so
     `machine outer<N: u32>(v: i64 in Coordinate<N>) { relay<N>(v) }` now
     checks while `relay<M>(v)` still rejects.
-    Remaining: bound subjects that
-    exist only under a dominating guard rather than a declared type.
+    Ordered scalar guards now establish result and local qualifications through
+    the existing write-invalidated arithmetic environment, with independent
+    Terminal replay and macOS ARM64 native execution in
+    `runtime_value_generics::runtime_bound_result_qualification_follows_the_dominating_guard`.
+    Remaining: equality-only subject relationships and guard-derived parameter
+    qualifications. A stale guard followed by `limit = 0` before
+    `bounded_result<limit>(value)` still passes `Check`, but artifact production
+    rejects with `OperationProofUnavailable`; move that rejection to the
+    exact call's source contract check without weakening the artifact gate.
+    The regression is `runtime_bound_stale_call_guard_rejects_publication`;
+    owning source check is `typed-trees-to-checked-trees/src/checks/contracts/calls.rs`.
   - Parse and check value binders on data declarations:
     `data Index<Limit: u32> { value: u32 [0..Limit]; }` owes the range at
     construction, erases a proof-only index, and keeps an executable index as
