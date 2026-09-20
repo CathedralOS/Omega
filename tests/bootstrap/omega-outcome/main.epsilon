@@ -182,8 +182,16 @@ machine Main::main(&mut self) {
     assert omega_compiler_resource_space(14) == 2;
     assert omega_compiler_resource_limit(0) == 0;
     assert omega_compiler_resource_limit(15) == 0;
+    assert omega_compiler_resource_limit(24) == 0;
     assert omega_compiler_resource_space(0) == -1;
-    assert omega_compiler_resource_space(15) == -1;
+    // Coverage provisions 15..23 anchor in canonical source; 24 and 25 are
+    // coordinate-free; request_staging_bytes stays request-anchored.
+    assert omega_compiler_resource_space(15) == 4;
+    assert omega_compiler_resource_space(23) == 4;
+    assert omega_compiler_resource_space(24) == 0;
+    assert omega_compiler_resource_space(25) == 0;
+    assert omega_compiler_resource_space(26) == 1;
+    assert omega_compiler_resource_space(27) == -1;
 
     // Parser resource projection onto wire codes 3..11.
     assert omega_parser_resource_code(OmegaParserResource::Roots) == 3;
@@ -212,8 +220,14 @@ machine Main::main(&mut self) {
     assert omega_reject_code_space(10) == 4;
     assert omega_reject_code_space(11) == 0;
     assert omega_reject_code_space(12) == 4;
+    // The syntax inventory 13..89 and the checking codes 90..97 all anchor
+    // in canonical source; 98 is the next unassigned code.
     assert omega_reject_code_space(0) == -1;
-    assert omega_reject_code_space(13) == -1;
+    assert omega_reject_code_space(13) == 4;
+    assert omega_reject_code_space(89) == 4;
+    assert omega_reject_code_space(90) == 4;
+    assert omega_reject_code_space(97) == 4;
+    assert omega_reject_code_space(98) == -1;
 
     // The retained lexical diagnostic projects onto Reject codes 2..9.
     assert omega_lexical_reject_code(
@@ -283,9 +297,23 @@ machine Main::main(&mut self) {
     // and the first unassigned Reject code.
     assert self.frame.encode(1, 1, 5, 0, 0, 0, 0, 0) == 0;
     assert self.frame.encode(1, 0, 11, 5, 0, 0, 0, 0) == 0;
-    assert self.frame.encode(1, 4, 13, 0, 0, 0, 0, 0) == 0;
+    assert self.frame.encode(1, 4, 98, 0, 0, 0, 0, 0) == 0;
     assert self.frame.encoded == 0;
     assert self.frame.length == 0;
+
+    // Newly assigned codes encode: a syntax Reject anchors in canonical
+    // source, a source-anchored coverage Incomplete reports its refused
+    // occurrence count with no provisioned limit, and a coordinate-free
+    // coverage provision publishes a 40-byte frame.
+    assert self.frame.encode(1, 4, 13, 777, 1, 2, 0, 0) == 1;
+    assert self.frame.length == 48;
+    self.emit_frame();
+    assert self.frame.encode(2, 4, 20, 888, 3, 4, 0, 1) == 1;
+    assert self.frame.length == 48;
+    self.emit_frame();
+    assert self.frame.encode(2, 0, 24, 0, 0, 0, 0, 5) == 1;
+    assert self.frame.length == 40;
+    self.emit_frame();
 
     // Bounded publication arithmetic: exact, saturated, and defect results.
     self.emit_i32(omega_saturating_i32_sum(3, 4));
