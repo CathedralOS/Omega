@@ -8266,7 +8266,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   proof --all-targets` clean.
 - **PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION** — mined candidate; scope verified, owned surface. Re-mines the call-preconditions leg of OPERATOR-MACHINE-SUPPLY: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject, not to an unrelated prior fact. Implemented on origin/main 1fc01bb690: `validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; the caller-terms attribution diagnostic is `typed-trees-to-checked-trees/src/checks/operators/requires.rs` ("cannot prove requires contract for specification call `X` in machine `Y` ... contract: establish its selected precondition in an independently formed prior requires fact"). Verified live: `proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established (different subject not attributed), `case_citation_wrong_result` pins the result side, and pass twin `proofs/case_call_premises` compiles with same-subject premises discharged. Remaining owners are the item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction) — not an independent slice. Sibling stubs on the same surface: PROOF-SUBJECT-CALL-SELECTION, PROOF-SUBJECT-CHECKED-CALL-SELECTION, PROOFS-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS, PROOF-SAMPLES-CHECKED-CALL-SELECTION.
-- **PROOF-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
+- **PROOF-SUBJECT-CHECKED-CALL-SELECTION** — resolved; re-mines the
+  PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION surface, whose canonical row owns
+  it (checked/specification calls cited as proof subjects attribute the
+  callee's selected precondition to the call's exact subject, implemented
+  in `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
+  with the caller-terms diagnostic in
+  `typed-trees-to-checked-trees/src/checks/operators/requires.rs`).
+  Re-verified green at `f1675418b1`:
+  `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result
+  OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises cargo nextest run -p
+  compiler --test canary_suite` — both fail fixtures reject with their
+  expected fragments and the pass twin compiles. The remaining named legs
+  (abstract signatures, domain predicates, case-membership postcondition
+  transport, induction) belong to the owning row's list, not to an
+  independent slice here.
 - **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
