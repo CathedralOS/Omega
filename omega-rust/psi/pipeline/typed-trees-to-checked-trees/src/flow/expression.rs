@@ -16,7 +16,6 @@ use crate::flow::common;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::semantic_calls::CallSite;
-use crate::semantic_calls::find_call_site;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
@@ -49,7 +48,7 @@ enum InvocationSite {
 }
 
 pub(super) struct Execution<'a, 'b, 'plans> {
-    program: &'a typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     borrow: &'a BorrowFacts,
     proof: &'a ProofFacts,
     domains: &'a DomainFacts,
@@ -64,13 +63,13 @@ pub(super) struct Execution<'a, 'b, 'plans> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append_statement_calls(
-    program: &typed_trees::TypedTrees,
+pub(super) fn append_statement_calls<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    context: &mut FlowBuildContext,
+    context: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -129,7 +128,7 @@ pub(super) fn append_statement_calls(
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        program: &'a typed_trees::TypedTrees,
+        program: &'plans typed_trees::TypedTrees,
         borrow: &'a BorrowFacts,
         proof: &'a ProofFacts,
         domains: &'a DomainFacts,
@@ -147,8 +146,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let invocations = calls
             .iter()
             .filter_map(|call| {
-                let site = match find_call_site(
+                let site = match super::calls::memoized_find_call_site(
                     program,
+                    &mut *context,
                     machine.symbol,
                     state.symbol,
                     statement_index,

@@ -23,13 +23,13 @@ use facts::{
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_call_flow_fact(
-    program: &typed_trees::TypedTrees,
+pub(super) fn build_call_flow_fact<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext,
+    ctx: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
@@ -147,17 +147,59 @@ pub(super) fn build_call_flow_fact(
 /// output. The original evidence stays attached; declared-domain membership is
 /// intentionally not copied, so qualification weakening cannot launder carry.
 /// Conditional aggregates and every n-ary shape wait for P1c path mappings.
-fn append_one_to_one_call_carry_facts(
-    program: &typed_trees::TypedTrees,
+fn memoized_call_target_return_type<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext<'plans>,
+    target: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    *ctx.call_target_returns
+        .entry(target)
+        .or_insert_with(|| call_target_return_type(program, target))
+}
+
+fn memoized_call_target_parameters<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext<'plans>,
+    target: SymbolHandle,
+) -> Option<&'plans [typed_trees::signature::StateParameter]> {
+    *ctx.call_target_parameters
+        .entry(target)
+        .or_insert_with(|| crate::semantic_calls::call_target_parameters(program, target))
+}
+
+pub(super) fn memoized_find_call_site<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext<'plans>,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<crate::semantic_calls::CallSite<'plans>> {
+    *ctx.call_sites
+        .entry((machine_symbol, state_symbol, statement_index, call_ordinal))
+        .or_insert_with(|| {
+            crate::semantic_calls::find_call_site(
+                program,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                call_ordinal,
+            )
+        })
+}
+
+fn append_one_to_one_call_carry_facts<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    ctx: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     entry: &CallFlowContexts,
     exit: &mut CallFlowContexts,
 ) {
-    let Some(target_return_type) = call_target_return_type(program, borrow_call.target_symbol)
+    let Some(target_return_type) =
+        memoized_call_target_return_type(program, ctx, borrow_call.target_symbol)
     else {
         return;
     };
@@ -167,8 +209,9 @@ fn append_one_to_one_call_carry_facts(
         return;
     }
     let Some(crate::semantic_calls::CallSite::Expression { expression, call }) =
-        crate::semantic_calls::find_call_site(
+        memoized_find_call_site(
             program,
+            ctx,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
@@ -181,8 +224,7 @@ fn append_one_to_one_call_carry_facts(
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut argument_index = 0usize;
     let mut linear_inputs = Vec::new();
-    let Some(parameters) =
-        crate::semantic_calls::call_target_parameters(program, borrow_call.target_symbol)
+    let Some(parameters) = memoized_call_target_parameters(program, ctx, borrow_call.target_symbol)
     else {
         return;
     };
@@ -311,10 +353,10 @@ fn append_one_to_one_call_carry_facts(
 /// (`-> &Row`/`-> &mut Row`) produces no result storage of its own; its fields
 /// stay proven through the borrowed source place and are deliberately absent
 /// here so a later source write still invalidates them.
-fn append_call_result_field_domain_facts(
-    program: &typed_trees::TypedTrees,
+fn append_call_result_field_domain_facts<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    ctx: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
@@ -324,13 +366,23 @@ fn append_call_result_field_domain_facts(
     // content checker independently rejoins routed result claims to this
     // invocation after linear claim reconstruction; ordinary callee exits
     // must establish every qualification before CheckedTrees can be accepted.
-    let paths = call_result_qualification_identities(program, borrow_call.target_symbol);
+    let paths = ctx
+        .call_result_identities
+        .entry(borrow_call.target_symbol)
+        .or_insert_with(|| {
+            std::rc::Rc::new(call_result_qualification_identities(
+                program,
+                borrow_call.target_symbol,
+            ))
+        })
+        .clone();
     if paths.is_empty() {
         return;
     }
     let Some(crate::semantic_calls::CallSite::Expression { expression, .. }) =
-        crate::semantic_calls::find_call_site(
+        memoized_find_call_site(
             program,
+            ctx,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
@@ -350,11 +402,11 @@ fn append_call_result_field_domain_facts(
         borrow_call.target_symbol,
     );
     let mut refs = HandleSpan::empty();
-    for (path, domain_symbol, semantic_domain) in paths {
+    for (path, domain_symbol, semantic_domain) in paths.iter() {
         let place = crate::semantic_places::append_place_with_segments(
             semantic,
             facts::PlaceRoot::Expression(expression),
-            &path,
+            path,
         );
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
@@ -364,8 +416,8 @@ fn append_call_result_field_domain_facts(
             payload: FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
-                domain_symbol,
-                semantic_domain,
+                domain_symbol: *domain_symbol,
+                semantic_domain: *semantic_domain,
             },
         });
         semantic.append_ref(&mut refs, fact);

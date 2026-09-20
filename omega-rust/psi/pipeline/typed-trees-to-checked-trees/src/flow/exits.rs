@@ -109,13 +109,13 @@ pub(super) fn append_state_exit_facts(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append_transition_flow_facts(
-    program: &typed_trees::TypedTrees,
+pub(super) fn append_transition_flow_facts<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext,
+    ctx: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

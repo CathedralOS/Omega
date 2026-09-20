@@ -4,6 +4,8 @@ use checked_trees::{
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
 };
 use facts::FactPlan;
+use std::collections::HashMap;
+use std::rc::Rc;
 use symbols::SymbolHandle;
 
 pub(super) struct FlowBuildContext<'plans> {
@@ -30,6 +32,29 @@ pub(super) struct FlowBuildContext<'plans> {
         Vec<crate::facts::field_domain::ByteSequencePredicate>,
     )>,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
+    /// Program-global lookups repeated by every call site on every pass. The
+    /// typed program is immutable for the whole fixpoint, so each answer
+    /// memoizes once and survives `discard_output` like the immutable plans
+    /// above -- they hold typed-tree handles only, never sweep-local arena
+    /// handles.
+    pub(super) call_sites: HashMap<
+        (SymbolHandle, SymbolHandle, usize, usize),
+        Option<crate::semantic_calls::CallSite<'plans>>,
+    >,
+    pub(super) call_target_parameters:
+        HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
+    pub(super) call_target_returns:
+        HashMap<SymbolHandle, Option<typed_trees::types::TypeReferenceHandle>>,
+    pub(super) call_result_identities: HashMap<
+        SymbolHandle,
+        Rc<
+            Vec<(
+                Vec<facts::PlaceSegment>,
+                SymbolHandle,
+                language_semantics::SemanticDomainId,
+            )>,
+        >,
+    >,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
     pub(super) borrow_lifetimes: FlowBorrowLifetimeFacts,
@@ -63,6 +88,10 @@ impl<'plans> FlowBuildContext<'plans> {
             state_value_inputs_changed_after_build: false,
             new_state_field_input_height: 0,
             element_store_potentials: Vec::new(),
+            call_sites: HashMap::new(),
+            call_target_parameters: HashMap::new(),
+            call_target_returns: HashMap::new(),
+            call_result_identities: HashMap::new(),
             state_mutation_summary_cache,
             contexts: FlowContextFacts::with_roots(
                 arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),

@@ -102,6 +102,7 @@ pub(crate) enum CallerWriteSite<'query> {
 /// Transient caller-prefix evidence for projecting a local reference into
 /// another place representation. Coarse storage paths cannot acquire a field
 /// or index suffix when the consumer transports a write through this origin.
+#[derive(Clone)]
 pub struct LocalWriteOrigin {
     pub local_symbol: SymbolHandle,
     /// Empty for a bare reference; otherwise the exact reference leaf selector.
@@ -120,6 +121,7 @@ pub struct LocalWriteOrigin {
 
 /// The direct assignment effect, excluding calls evaluated in its operands.
 /// A binding replacement changes the local slot, not its previous referent.
+#[derive(Clone)]
 pub enum AssignmentWriteTarget {
     LocalBindingReplacement { path: String },
     Storage { paths: Vec<String> },
