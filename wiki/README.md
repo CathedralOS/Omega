@@ -66,6 +66,7 @@ beside code; completed work belongs in Git, not current reference material.
   [placed access](spec/resources/placed_access.md),
   [device custody and ordering](spec/resources/device_access.md),
   [carry demands](spec/resources/carry.md),
+  [runtime-sized activation storage](spec/resources/activation_storage.md),
   [allocation strategies](spec/resources/allocation.md),
   [bounded byte input](spec/resources/bounded_input.md), and
   [bounded growth](spec/resources/bounded_growth.md).
