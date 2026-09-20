@@ -90,6 +90,7 @@ pub(crate) fn project_representation_target(
             target::TargetProfile::MacosArm64 => {
                 PackageReviewRepresentationTargetProfile::MacosArm64
             }
+            target::TargetProfile::MacosX64 => PackageReviewRepresentationTargetProfile::MacosX64,
             target::TargetProfile::WindowsX64 => {
                 PackageReviewRepresentationTargetProfile::WindowsX64
             }

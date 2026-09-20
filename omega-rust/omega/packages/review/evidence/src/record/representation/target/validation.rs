@@ -14,6 +14,7 @@ impl Target {
             Profile::LinuxArm64 => target::TargetProfile::LinuxArm64,
             Profile::LinuxX64 => target::TargetProfile::LinuxX64,
             Profile::MacosArm64 => target::TargetProfile::MacosArm64,
+            Profile::MacosX64 => target::TargetProfile::MacosX64,
             Profile::WindowsX64 => target::TargetProfile::WindowsX64,
             Profile::UefiX64 => target::TargetProfile::UefiX64,
             Profile::CrossPlatformCli | Profile::LocalUnchecked => {

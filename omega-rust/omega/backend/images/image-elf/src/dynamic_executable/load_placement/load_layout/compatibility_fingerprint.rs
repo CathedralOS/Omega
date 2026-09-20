@@ -83,6 +83,8 @@ const fn target_tag(target: TargetProfile) -> u8 {
         // Recognized but never ELF-realized: the tag reserves the profile
         // identity in the fingerprint vocabulary without an emission path.
         TargetProfile::AlphaBootstrap => 8,
+        // Catalogued but not ELF-realized either: macOS carries Mach-O.
+        TargetProfile::MacosX64 => 9,
     }
 }
 

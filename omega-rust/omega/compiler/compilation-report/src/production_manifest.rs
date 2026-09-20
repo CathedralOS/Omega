@@ -584,6 +584,7 @@ fn target_profile_tag(profile: target::TargetProfile) -> u8 {
         target::TargetProfile::CrossPlatformCli => 6,
         target::TargetProfile::LocalUnchecked => 7,
         target::TargetProfile::AlphaBootstrap => 8,
+        target::TargetProfile::MacosX64 => 9,
     }
 }
 

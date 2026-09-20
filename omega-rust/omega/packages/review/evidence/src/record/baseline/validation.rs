@@ -217,6 +217,7 @@ fn representation_profile(profile: PackageReviewRepresentationTargetProfile) -> 
         Profile::LinuxArm64 => TargetProfile::LinuxArm64,
         Profile::LinuxX64 => TargetProfile::LinuxX64,
         Profile::MacosArm64 => TargetProfile::MacosArm64,
+        Profile::MacosX64 => TargetProfile::MacosX64,
         Profile::WindowsX64 => TargetProfile::WindowsX64,
         Profile::UefiX64 => TargetProfile::UefiX64,
         Profile::CrossPlatformCli => TargetProfile::CrossPlatformCli,
