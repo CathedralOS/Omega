@@ -35,7 +35,9 @@
 //!   from `Int` because the bounded vocabulary's order relations are
 //!   fixed non-address integers. `f32` and `f64` intern one dedicated
 //!   `Type 0` carrier per format, kept distinct so an `f32` element
-//!   never denotes into `f64`. Every other resolved non-core symbol —
+//!   never denotes into `f64`. The unit type `()` interns one dedicated
+//!   `Unit : Type 0` carrier of its own. Every other resolved non-core
+//!   symbol —
 //!   authored `data` types, other builtin atoms — interns a per-symbol
 //!   `Declaration::assumption(0, Type 0)` in the shared signature prefix
 //!   (the `bounded_denotation` pattern), so later declarations can
@@ -46,9 +48,10 @@
 //!   `IntAdd`/`IntSub` function assumptions, comparisons and `&&`/`||`
 //!   denote `Type 0` propositions (`IntLt`/`IntLe`, `Id` over the
 //!   operand's scalar carrier, right-nested `Σ`, and the tagged
-//!   `Σ(t : Two). caseTwo` sum), a bare `bool` subject `x` means
-//!   `x = true`, and a `core::Strict` result wraps the proposition in
-//!   `Squash` at the authored boundary. Float literals intern one
+//!   `Σ(t : Two). caseTwo` sum), `!=` denotes the interned `Not`
+//!   assumption applied to the shared-carrier `Id`, a bare `bool`
+//!   subject `x` means `x = true`, and a `core::Strict` result wraps
+//!   the proposition in `Squash` at the authored boundary. Float literals intern one
 //!   constant per exact value at their format carrier — `1.5` and
 //!   `1.50` share — and unlanded literals defer to the demanded
 //!   carrier exactly as anonymous integer literals do. Every other
@@ -90,9 +93,8 @@
 //! level arguments omitted where no explicit type argument determines them
 //! (a bare reference to a generalized declaration), references to the declaration being elaborated or a later one,
 //! machine/evidence/quotient/private-layout call payloads, borrow /
-//! constrained / dynamic-trait / array / slice / unit type references,
-//! computed level expressions other than literals, `!=` as a proposition
-//! (the bounded vocabulary holds no negation), order relations over
+//! constrained / dynamic-trait / array / slice type references,
+//! computed level expressions other than literals, order relations over
 //! non-integer operands — floats included, since `IntLt`/`IntLe` are
 //! fixed non-address integers only — scalar equality over operands
 //! whose carriers differ or cannot be determined, a whole-body float
@@ -194,6 +196,10 @@ struct Elaborator<'a> {
     float32: Option<u32>,
     /// `f64`'s carrier.
     float64: Option<u32>,
+    /// `()`'s carrier — unit is a `Type 0` assumption like every other
+    /// fixed scalar, so a `()` binder domain or machine-call carrier
+    /// denotes without naming `Int` or `Two`.
+    unit: Option<u32>,
     /// `IntLt`/`IntLe : Π(_ : Int). Π(_ : Int). Type 0`, interned on demand.
     integer_less_than: Option<u32>,
     integer_less_or_equal: Option<u32>,
@@ -202,6 +208,10 @@ struct Elaborator<'a> {
     /// operation interns opaquely through `open_terms` instead.
     integer_add: Option<u32>,
     integer_subtract: Option<u32>,
+    /// `Not : Π(_ : Type 0). Type 0` — proposition negation stays at
+    /// `Type 0` so `x != y` composes inside the `Σ`-conjunction and
+    /// `Two`-disjunction vocabulary exactly like `x == y`.
+    proposition_negation: Option<u32>,
     /// Open machine terms the composing vocabulary does not name intern
     /// as opaque carrier assumptions keyed by expression structure — the
     /// `MathTermKey::Open`/`scalar_integer_terms` rule of the bounded
@@ -260,10 +270,12 @@ pub(crate) fn check_mathematical_signature(
         address: None,
         float32: None,
         float64: None,
+        unit: None,
         integer_less_than: None,
         integer_less_or_equal: None,
         integer_add: None,
         integer_subtract: None,
+        proposition_negation: None,
         numeric_literals: BTreeMap::new(),
         open_terms: BTreeMap::new(),
         boolean_literals: [None, None],
@@ -668,9 +680,7 @@ impl<'a> Elaborator<'a> {
                 "mathematical type `{}` has no kernel denotation yet",
                 self.program.display_type_reference(reference)
             ))),
-            TypeReferenceNode::Unit => {
-                Err(self.refuse("the unit type has no kernel denotation yet".to_owned()))
-            }
+            TypeReferenceNode::Unit => Ok(self.carrier_term(ScalarCarrier::Unit)),
         }
     }
 
@@ -884,7 +894,8 @@ impl<'a> Elaborator<'a> {
     /// falls back to `elaborate_expression`, while `Err` is a refused
     /// proposition. Comparisons need a shared scalar carrier: integer
     /// orders (`<`, `<=`, `>`, `>=`) denote `IntLt`/`IntLe` over the
-    /// shared `Int`, `==` denotes `Id` over the operands' carrier, `&&`
+    /// shared `Int`, `==` denotes `Id` over the operands' carrier, `!=`
+    /// denotes `Not` applied to the same `Id`, `&&`
     /// denotes a right-nested `Σ`, `||` the tagged `Two` sum, `true` and
     /// `false` the `Two` identities, and any `bool`-carried subject — a
     /// name, a call result, `!b`, a field or a cast — means
@@ -905,13 +916,9 @@ impl<'a> Elaborator<'a> {
                 let binary = *binary;
                 match binary.operator {
                     BinaryOperator::Equal => self.equality_proposition(handle, binary).map(Some),
-                    BinaryOperator::NotEqual => Err(self.refuse(format!(
-                        "proposition `{}` negates equality; the bounded vocabulary holds no negation",
-                        self.program.render_proof_expression(
-                            handle,
-                            typed_trees::proposition::ProofSubstitutions::None
-                        )
-                    ))),
+                    BinaryOperator::NotEqual => {
+                        self.inequality_proposition(handle, binary).map(Some)
+                    }
                     BinaryOperator::Less
                     | BinaryOperator::LessOrEqual
                     | BinaryOperator::Greater
@@ -948,6 +955,26 @@ impl<'a> Elaborator<'a> {
             }
             _ => Ok(None),
         }
+    }
+
+    /// `l != r : Type 0` — `Not (Id S l r)`, reusing the shared-carrier
+    /// equality endpoints so `x != y` and `y != x` order canonically the
+    /// way `x == y` and `y == x` do. `Not` is an opaque assumption at
+    /// `Type 0`, not the kernel's `sEmpty` elimination, so the negated
+    /// proposition composes inside `&&`/`||` without leaving the `Type 0`
+    /// vocabulary.
+    fn inequality_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let equality = self.equality_proposition(handle, binary)?;
+        let position = self.proposition_negation();
+        let function = self.constant(position);
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: equality,
+        }))
     }
 
     /// `l = r : Type 0` — `Id` over the operands' shared scalar carrier.
@@ -1516,6 +1543,12 @@ impl<'a> Elaborator<'a> {
                 _ => Some(ScalarCarrier::Integer),
             };
         }
+        if matches!(
+            self.program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Unit
+        ) {
+            return Some(ScalarCarrier::Unit);
+        }
         if let TypeReferenceNode::Named { symbol, .. } =
             self.program.type_reference_table.type_reference(reference)
         {
@@ -1559,6 +1592,8 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Float32
         } else if self.float64 == Some(position) {
             ScalarCarrier::Float64
+        } else if self.unit == Some(position) {
+            ScalarCarrier::Unit
         } else {
             ScalarCarrier::Carrier(position)
         }
@@ -1572,6 +1607,7 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Address => "address",
             ScalarCarrier::Float32 => "f32",
             ScalarCarrier::Float64 => "f64",
+            ScalarCarrier::Unit => "unit",
             ScalarCarrier::Carrier(..) => "scalar",
         }
     }
@@ -1584,6 +1620,7 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Address => self.address_carrier(),
             ScalarCarrier::Float32 => self.float32_carrier(),
             ScalarCarrier::Float64 => self.float64_carrier(),
+            ScalarCarrier::Unit => self.unit_carrier(),
             ScalarCarrier::Carrier(position) => position,
         }
     }
@@ -1637,6 +1674,16 @@ impl<'a> Elaborator<'a> {
         self.float64.unwrap()
     }
 
+    /// `Unit : Type 0` — the unit type interns a dedicated carrier, so
+    /// `()` binder domains and call-carried `()` results denote without
+    /// claiming a fixed-integer or `Two` vocabulary position.
+    fn unit_carrier(&mut self) -> u32 {
+        if self.unit.is_none() {
+            self.unit = Some(self.push_type_carrier());
+        }
+        self.unit.unwrap()
+    }
+
     /// `Π(_ : Int). Π(_ : Int). Type 0` — the shape `IntLt`/`IntLe`
     /// share.
     fn integer_relation(&mut self) -> u32 {
@@ -1665,6 +1712,18 @@ impl<'a> Elaborator<'a> {
             self.integer_less_or_equal = Some(self.integer_relation());
         }
         self.integer_less_or_equal.unwrap()
+    }
+
+    /// `Not : Π(_ : Type 0). Type 0` — the negation assumption `!=`
+    /// denotes through, interned on demand like `IntLt`/`IntLe`.
+    fn proposition_negation(&mut self) -> u32 {
+        if self.proposition_negation.is_none() {
+            let domain = self.type_zero();
+            let codomain = self.type_zero();
+            let ty = self.arena.insert(Term::Pi { domain, codomain });
+            self.proposition_negation = Some(self.push_assumption(ty));
+        }
+        self.proposition_negation.unwrap()
     }
 
     /// `Π(_ : Int). Π(_ : Int). Int` — the shape `IntAdd`/`IntSub`
@@ -1969,8 +2028,9 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Address => out.push(2),
             ScalarCarrier::Float32 => out.push(3),
             ScalarCarrier::Float64 => out.push(4),
+            ScalarCarrier::Unit => out.push(5),
             ScalarCarrier::Carrier(position) => {
-                out.push(5);
+                out.push(6);
                 out.extend_from_slice(&position.to_le_bytes());
             }
         }
@@ -2608,6 +2668,7 @@ enum ScalarCarrier {
     Address,
     Float32,
     Float64,
+    Unit,
     Carrier(u32),
 }
 
