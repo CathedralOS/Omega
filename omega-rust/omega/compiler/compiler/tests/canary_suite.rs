@@ -315,7 +315,6 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "structural/local_record_receivers",
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
-    "memory/bump_allocator_canary",
     // `drop<T>` specializations check through checked semantics and lower to
     // terminal nominal cleanup; the native codec route is not yet realized.
     "drops/core_drop_explicit_consume",
@@ -3768,6 +3767,52 @@ fn boundary_equality_recast_witness_compiles_to_checked_trees() {
     let canary = pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE);
     compile_reviewed_repository_fixture(CheckedCompileRequest::new(&canary.join("main.omg"), None))
         .expect("boundary equality/recast witness should reach checked trees");
+}
+
+#[test]
+fn bump_allocator_canary_consumes_the_alloc_package_through_the_depend_edge() {
+    // BUMP-ALLOCATOR-CANARY package leg: the fixture's authored
+    // `builder.depend` row reaches the bundled alloc package through real
+    // package inputs, so `use alloc::bump` resolves the package's own
+    // ExtentPartition contract and Bump/BumpVec strategy declarations rather
+    // than a copied contract.
+    let pass = pass_canary(fixture_roster::ALLOC_BUMP_ALLOCATOR_CANARY);
+    let root = pass.join("main.omg");
+    let package_inputs = task_runtime::depend_edge_package_inputs(&root)
+        .expect("the depend edge wires package inputs");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&root, None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "bump allocator consumer should reach checked trees:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    // The strategy's record and sum declarations arrive through the depend
+    // edge — the consumer declares none of them itself.
+    for name in [
+        "Split",
+        "Bump",
+        "Issued",
+        "Attempt",
+        "BumpVec",
+        "Recomposed",
+        "Growth",
+        "RetiredSlot",
+    ] {
+        checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .unwrap_or_else(|| panic!("checked-in `{name}` declaration"));
+    }
 }
 
 #[test]

@@ -319,7 +319,7 @@ fn fixture_dependency_rows(project_root: &Path) -> Vec<FixtureDependencyRow> {
 /// service bindings still apply; every other package receives a fresh
 /// marker identity. Rows project transitively so a dependency's own
 /// path dependencies join the same inputs.
-fn depend_edge_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
+pub(super) fn depend_edge_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
     let project_root = root_path
         .parent()
         .expect("fixture source has a project root");
