@@ -13,9 +13,10 @@ case "${1:-}" in
     --subject-shape) ENCODING_GATE=subject_shape.py ;;
     --counter-cost) ENCODING_GATE=counter_cost.py ;;
     --full-subject) ENCODING_GATE=full_subject.py ;;
-    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject]" >&2; exit 2 ;;
+    --mutations) ENCODING_GATE=mutations.py ;;
+    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations]" >&2; exit 2 ;;
 esac
-[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject]" >&2; exit 2; }
+[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations]" >&2; exit 2; }
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Beta encoding theory: skipped (python3 absent)"
