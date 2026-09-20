@@ -7754,6 +7754,13 @@ Build/packages:
   `tests/beta/compiler` + `tools/bootstrap/beta` dirs sit under
   BETA-PE-SEED-REFUSAL (w9-ffival, exp 22:13Z) — do not re-mine while the
   same-item claim stands.
+||||||| parent of 1d2b703116c8 (board: BETA-RECONSTRUCTION-REFUSAL re-verified at 6a3ba61f744)
+  GAMMA-DERIVATION-CHECKER certificate acceptance.
+  GAMMA-DERIVATION-CHECKER certificate acceptance.
+  Re-verified at `6a3ba61f744` (linux x86-64): all three entrypoints still
+  carry the exit-2 refusal on hosts that cannot exec the selected
+  container; the refusal side stays host-gated (this host execs
+  `alpha_x64_linux`, so only the positive legs run here).
 
 Platform/cross-host (structurally gated — document host limits):
 
