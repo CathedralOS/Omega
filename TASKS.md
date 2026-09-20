@@ -9528,7 +9528,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (2) run each seed-executing leg on Windows x64 and record the per-host
   result — every Windows leg stays outstanding until a Windows host validates
   it; no leg may report an unexecuted host result as passing.
-- **SEED-PARITY-ALIGNMENT** — mined candidate; verify scope then implement.
+- **SEED-PARITY-ALIGNMENT.** Mined candidate — scope verified, already
+  landed. The stub re-covers the seed↔reference alignment surface closed
+  by `9e18f9cc11b` ("tests: assert alpha_x64_linux parity with the
+  reference VM"): `tests/alpha/parity.sh` joins the conformance battery's
+  per-opcode cases with the diamond edge corpus (signedness, traps, EOF,
+  calls, the V5 memory extent, the host-I/O register fixture) and asserts
+  exact exit-code + stdout agreement between the committed
+  `alpha_x64_linux` container and `alpha_ref.py`, after binding the
+  container to its `bootstrap/0_alpha/README.md` inventory row via
+  `require_bound_identity`. Witnessed green on this host: `sh
+  tests/alpha/parity.sh` at `d8041919add` → 33 ok / 0 failed (the three
+  "Illegal instruction" lines are the expected native trap cases).
+  Linux x86-64 only by design — the other two audited seeds execute on
+  macOS arm64 / Windows x64 where `diamond-py.sh` already asserts
+  host-seed↔reference agreement, so no unclaimed slice remains on this
+  surface. Sibling stub on the same settled surface:
+  SEED-PARITY-ASSERTIONS.
 - **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
 - **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
