@@ -7939,7 +7939,43 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   field_arrivals / computed_field_limits. Sibling stub
   TERMINATION-RANK-RANGE-FIELDS names the same surface.
 - **TARGET-BATCH-MANIFEST** — mined candidate; scope verified, no slice — the stub re-mines `wiki/spec/build/configuration.md`'s optional batch-manifest clause ("An optional batch manifest binds the explicit set and child commitments/outcomes, not completeness of a support/test/deployment matrix"). The batched semantics already exist: `compiler/README.md` runs distinct `TargetCompileConfiguration::with_build_snapshot` requests through one prepared continuation, collects one ordered outcome per target without fail-fast, and deliberately grants no batch manifest — the manifest is optional spec machinery no board deliverable requires, and adding one would invent an authority the spec says binds nothing extra. Sibling stubs on the same clause: COMPILER-BATCH-MANIFEST, MULTI-TARGET-BATCH-MANIFEST.
-- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION** — mined candidate; verify scope then implement.
+- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Scope verified; audit plus
+  one landed fix. The mined name resolves to the exact-target-request
+  contract (`wiki/spec/build/configuration.md`): reject `all`, `*`, empty
+  sets and inference from source/dependencies/the toolchain catalog, and
+  certify selected platforms mechanically (semantics, ABI/layout, resources,
+  reach validate — "mechanical closure, not a claim of human testing").
+  Already implemented and pinned before this leg: `ExplicitTargetSet`
+  (`compiler/request/targets.rs`) rejects empty/`all`/`*`, dedups and orders
+  canonically; `CompileRequest::validate_for_execution` (`request.rs`)
+  requires exact names on multi-target runs, resolves an omitted name
+  through `TargetProfile::host_if_supported` for NativeArtifact and refuses
+  with a diagnostic on uncatalogued hosts, and keeps absent targets
+  target-neutral for Check/TerminalArtifact; selected-profile certification
+  runs through `required_root_slots` binding plus exact physical-contract
+  package digests in `build-evaluation/admission/selection.rs`, with
+  recognized-but-unrealized `alpha_bootstrap` reporting not-implemented.
+  Landed fix: `NativeTarget::from_omega_target_name(None)` resolved through
+  raw `NativeTarget::host()`, which panics in `host_architecture` on
+  uncatalogued architectures and fabricates `(Aarch64, Coff)` /
+  `(X86_64, Elf)` triples on hosts with no catalogued profile (the
+  `host_if_supported` contract on `TargetProfile` requires build-scope
+  source-selection callers to carry that absence, never panic or name a
+  foreign shape); the `None` arm now routes through a new
+  `NativeTarget::host_if_supported()` (`TargetProfile::host_if_supported`
+  → `native_target`), so target-neutral admission paths
+  (`filter_target_machines_by_scope`, `filter_generated_extension`,
+  provider settlement's profile-absent fallback entry) refuse with a
+  diagnostic instead of panicking or fabricating on uncatalogued hosts.
+  Identical triples on every catalogued host. Also refreshed the stale
+  `MacosX64` doc comment (the Mach-O x86-64 writer and
+  `targets/macos_x86_64` package landed at `5a5046d1dbc`; the slot arm stays
+  empty under MACOS-X64-HOST-PROFILE). Residual nits not owned here: the
+  uncatalogued-host diagnostic in `request.rs` lists seven profiles and
+  omits `macos_x86_64`/`alpha_bootstrap`. Verified at HEAD on linux x86-64:
+  `cargo check -p build-evaluation -p provider-planning -p
+  package-compilation --all-targets` clean; `nextest -p target` 55/55,
+  `-p build-evaluation` 90/90.
 - **TASK-RUNTIME-NATIVE-SUPPORT** — mined candidate; verify scope then implement.
 - **TERMINAL-SOURCE-CUSTODY-GATE-ORDER.** Resolved — alias of the landed
   terminal-verifier custody-ordering surface. Every successor-bearing edge
