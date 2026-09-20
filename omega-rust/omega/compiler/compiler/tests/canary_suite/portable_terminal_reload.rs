@@ -40,9 +40,50 @@ fn orchestrate_process_boundary() {
             "producer must publish one Psi product for {fixture}"
         );
         run_stage(CONSUME, &artifact_path, fixture);
+
+        // The portable contract's refused half: a consumer that silently
+        // accepts a tampered product is not a boundary. Truncation and
+        // trailing bytes fail the envelope cursor, and a mutated section
+        // byte fails decode or the byte-exact canonicality replay.
+        let exact_bytes = fs::read(&artifact_path).expect("read produced artifact");
+        for (leg, tamper) in REFUSAL_LEGS {
+            let tampered_path = directory.join(format!("{}-{leg}.psi", fixture.replace('/', "_")));
+            let mut bytes = exact_bytes.clone();
+            tamper(&mut bytes);
+            fs::write(&tampered_path, &bytes).expect("write tampered artifact");
+            assert_consume_refuses(&tampered_path, fixture, leg);
+            fs::remove_file(&tampered_path).expect("remove tampered artifact");
+        }
     }
 
     let _ = fs::remove_dir_all(directory);
+}
+
+const REFUSAL_LEGS: &[(&str, fn(&mut Vec<u8>))] = &[
+    ("truncated", |bytes| {
+        bytes.pop();
+    }),
+    ("mutated", |bytes| {
+        let index = bytes.len() / 2;
+        bytes[index] ^= 0xFF;
+    }),
+    ("trailing", |bytes| bytes.push(0)),
+];
+
+fn assert_consume_refuses(artifact_path: &Path, fixture: &str, leg: &str) {
+    let output = Command::new(std::env::current_exe().expect("locate canary test executable"))
+        .args(["--exact", TEST_NAME, "--nocapture"])
+        .env(STAGE_ENV, CONSUME)
+        .env(PATH_ENV, artifact_path)
+        .env(FIXTURE_ENV, fixture)
+        .output()
+        .unwrap_or_else(|error| panic!("run portable Terminal {leg} refusal: {error}"));
+    assert!(
+        !output.status.success(),
+        "portable Terminal consume accepted a {leg} artifact for {fixture}:\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }
 
 fn run_stage(stage: &str, artifact_path: &Path, fixture: &str) {
