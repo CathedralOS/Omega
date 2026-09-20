@@ -185,6 +185,34 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                         declaration_target(argument.map(|argument| argument.symbol).unwrap_or_default())
                     }
                 }
+                // A sealed quotient request selects compiler vocabulary, not a
+                // declaration: it has no target symbol and produces no checked
+                // call fact (the checked value paths skip it), so it resolves
+                // as a proof-only intrinsic. Its representative and theorem
+                // operands are separate static-argument selections.
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    ExpressionNode::Call(call),
+                ) if call.quotient_operation.is_some() => {
+                    let request = call
+                        .quotient_operation
+                        .as_ref()
+                        .expect("guarded sealed quotient request");
+                    if call.target_symbol.is_valid() {
+                        return Err(Diagnostic::error(
+                            "a sealed quotient request cannot also select an authored declaration",
+                        )
+                        .with_source_span(selection.source_span()));
+                    }
+                    Some(CheckedResolutionTarget::Intrinsic(match request.kind {
+                        typed_trees::expression::QuotientOperationKind::Define => {
+                            AuthoredDeclarationSelectionIntrinsic::QuotientDefine
+                        }
+                        typed_trees::expression::QuotientOperationKind::Lift => {
+                            AuthoredDeclarationSelectionIntrinsic::QuotientLift
+                        }
+                    }))
+                }
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
