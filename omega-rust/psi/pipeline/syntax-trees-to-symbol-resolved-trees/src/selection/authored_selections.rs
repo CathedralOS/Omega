@@ -18,7 +18,7 @@ use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind, SymbolLookup};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CandidateTarget {
@@ -950,9 +950,40 @@ fn expression_candidates(
             // Contract clauses admit uninterpreted proof-view applications:
             // a callee naming no declaration (`Bag(items)`) is an opaque atom
             // the proof checker evaluates structurally, not a declaration
-            // selection, so no Call occurrence is recorded for it.
-            let unbound_contract_call =
-                !call.target_symbol.is_valid() && contract_clause_expressions.contains(&expression);
+            // selection, so no Call occurrence is recorded for it. A
+            // symbol-unresolved callee that still names visible declarations
+            // (an operator overload set settled by contract context, say)
+            // keeps its occurrence for checking to finalize.
+            let unbound_contract_call = !call.target_symbol.is_valid()
+                && !call.receiver.is_valid()
+                && contract_clause_expressions.contains(&expression)
+                && matches!(
+                    program
+                        .symbols
+                        .lookup_top_level_by_name_and_kinds_from_source_matching(
+                            call.target.as_str(),
+                            &[
+                                SymbolKind::Module,
+                                SymbolKind::BuiltinType,
+                                SymbolKind::BuiltinFunction,
+                                SymbolKind::Data,
+                                SymbolKind::Domain,
+                                SymbolKind::Machine,
+                                SymbolKind::Operator,
+                                SymbolKind::Measure,
+                                SymbolKind::Proposition,
+                                SymbolKind::MathematicalDefinition,
+                                SymbolKind::Trait,
+                                SymbolKind::Conformance,
+                                SymbolKind::Const,
+                                SymbolKind::ConformanceParameter,
+                                SymbolKind::WireSchema,
+                            ],
+                            call.target.source_span(),
+                            |_| true,
+                        ),
+                    SymbolLookup::NotFound
+                );
             if call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::Source
                 && !unbound_contract_call
