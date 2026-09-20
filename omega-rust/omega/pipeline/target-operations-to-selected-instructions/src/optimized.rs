@@ -28,6 +28,7 @@ pub fn stage_optimized_instruction_selection(
         &optimized_target,
         &register_environment,
     )?;
+    let optimized_target = std::sync::Arc::new(optimized_target);
     let custody = validate_optimized_selection_custody(
         &optimized_target,
         &register_environment,
@@ -40,7 +41,7 @@ pub fn stage_optimized_instruction_selection(
     let selections = optimized_target.optimized().selections().clone();
     let budget_per_pass = optimized_target.optimized().budget_per_pass();
     Ok(StagedOptimizedSelectedInstructions {
-        optimized_target: optimized_target.into(),
+        optimized_target,
         register_environment,
         selections,
         budget_per_pass,

@@ -13,7 +13,9 @@ mod validation;
 pub use model::*;
 #[cfg(any(test, feature = "test-support"))]
 pub use test_support::*;
-pub use validation::validate_optimized_liveness_custody;
+pub use validation::{
+    validate_optimized_liveness_custody, validate_staged_optimized_liveness_custody,
+};
 
 use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
