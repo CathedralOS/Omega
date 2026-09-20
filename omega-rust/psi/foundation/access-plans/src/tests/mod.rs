@@ -18,13 +18,13 @@ use crate::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
     AdmittedResourceProfile, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach,
-    BoundaryServiceReachId, DeviceOperation, DeviceOperationProviderPlanId,
-    DeviceOperationRequirement, DeviceOperationRequirementId, DeviceOrderingScopeId,
-    DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId, DormantOwnedAtomicResident,
-    EffectFootprint, EffectiveFieldSupply, EffectiveSupplyKind, EstablishedOwnedPlacement,
-    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, FieldAccessDescriptor,
-    LogicalFieldExtent, ObservationModel, PlacedOccurrenceId, PlacementAdmission,
-    PlacementAdmissionId, PlacementPlan, PlacementPlanId, PlacementRejection,
+    BoundaryServiceReachId, DeviceOperation, DeviceOperationCoordinates,
+    DeviceOperationProviderPlanId, DeviceOperationRequirement, DeviceOperationRequirementId,
+    DeviceOrderingScopeId, DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
+    DormantOwnedAtomicResident, EffectFootprint, EffectiveFieldSupply, EffectiveSupplyKind,
+    EstablishedOwnedPlacement, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
+    FieldAccessDescriptor, LogicalFieldExtent, ObservationModel, PlacedOccurrenceId,
+    PlacementAdmission, PlacementAdmissionId, PlacementPlan, PlacementPlanId, PlacementRejection,
     PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim, ResourceProfile,
     ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
     SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
@@ -848,6 +848,34 @@ fn device_claim(
     .expect("scope occurrence covers the demanded scope capability")
 }
 
+fn device_coordinates(operation: DeviceOperation, range_offset: u64) -> DeviceOperationCoordinates {
+    let primary = || device_requirement_mapped_range(range_offset, 0x80);
+    let secondary = || device_requirement_mapped_range(range_offset + 0x100, 0x40);
+    match operation {
+        DeviceOperation::DmaPublication => DeviceOperationCoordinates::DmaPublication {
+            data: primary(),
+            descriptor: secondary(),
+        },
+        DeviceOperation::DeviceAcquisition => DeviceOperationCoordinates::DeviceAcquisition {
+            request: primary(),
+            completion: secondary(),
+        },
+        DeviceOperation::CacheMaintenance => DeviceOperationCoordinates::CacheMaintenance {
+            maintained: primary(),
+        },
+        DeviceOperation::MmioNotification => DeviceOperationCoordinates::MmioNotification {
+            doorbell: primary(),
+            request: secondary(),
+        },
+        DeviceOperation::PostedWriteCompletion => {
+            DeviceOperationCoordinates::PostedWriteCompletion {
+                request: primary(),
+                completion: secondary(),
+            }
+        }
+    }
+}
+
 fn device_requirement(
     identity: u64,
     operation: DeviceOperation,
@@ -858,8 +886,7 @@ fn device_requirement(
     DeviceOperationRequirement::new(
         DeviceOperationRequirementId::from_normalized_identity(identity)
             .expect("device requirement identity"),
-        operation,
-        device_requirement_mapped_range(range_offset, 0x80),
+        device_coordinates(operation, range_offset),
         device_requirement_correspondence(correspondence_provider),
         DeviceOrderingScopeId::from_normalized_identity(ordering_scope)
             .expect("device ordering scope"),
