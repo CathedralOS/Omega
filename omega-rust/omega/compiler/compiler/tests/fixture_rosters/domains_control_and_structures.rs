@@ -1,8 +1,35 @@
 //! Corpus inputs used by the domain, control-flow, and structure tests.
 //! Native exits, abnormal termination, checked facts, and targets stay with their owners.
 
+pub(crate) const ZERO_LENGTH_BYTE_ARRAY_INDEX_REJECTED: &str =
+    "data/zero_length_byte_array_index_rejected";
+pub(crate) const ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED: &str =
+    "data/zero_length_byte_array_literal_arity_rejected";
+pub(crate) const ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED: &str =
+    "data/zero_length_byte_literal_length_rejected";
+
 // Checked source acceptance is owned by compiler/tests/domain_predicate_types.rs.
-pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &["domains/nonboolean_member_predicate"];
+pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
+    "domains/nonboolean_member_predicate",
+    ZERO_LENGTH_BYTE_ARRAY_INDEX_REJECTED,
+    ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED,
+    ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED,
+];
+
+// Checked admission for the empty fixed byte array: `[u8; 0]` is a first-class
+// value in every structural position (locals, constants, parameters, returns,
+// record fields, nested arrays); the only fences sit at use.
+pub(crate) const ZERO_LENGTH_BYTE_ARRAY_ADMISSION: &str =
+    "collections/zero_length_byte_array_admission";
+
+// The empty byte array's use-site fences: an unprovable index, an array literal
+// with nonzero arity, and a quoted byte literal with nonzero byte count each
+// reject at check.
+pub(crate) const ZERO_LENGTH_BYTE_ARRAY_USE_FENCE_FAIL_CANARIES: &[&str] = &[
+    ZERO_LENGTH_BYTE_ARRAY_INDEX_REJECTED,
+    ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED,
+    ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED,
+];
 
 pub(crate) const RUNTIME_COPY_THEN_READ_EXIT: &str = "arithmetic/runtime_copy_then_read_exit";
 pub(crate) const RUNTIME_I64_FULL_WIDTH_EXIT: &str = "arithmetic/runtime_i64_full_width_exit";
@@ -375,4 +402,5 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_SHIFT_COUNT_PROVEN_RANGE_EXIT,
     FLOAT_TRAPPING_DIVZERO_TRAPS,
     FLOAT_TRAPPING_INVALID_TRAPS,
+    ZERO_LENGTH_BYTE_ARRAY_ADMISSION,
 ];
