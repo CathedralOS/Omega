@@ -7843,7 +7843,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   EDGE-CLEANUP-ERROR-PRECEDENCE, SUCCESSOR-DISCARD-ORDER,
   FRONTIER-EDGE-ERROR-ORDERING; OWNED-SUCCESSOR-DISCARD-ORDER and
   STALE-CUSTODY-GATE-EXPECTATIONS remain for their own verified slices.
-- **TERMINATION-FIELD-ENDPOINT-TRIO** — mined candidate; verify scope then implement.
+- **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
+  names the three `rank_ranges` field-endpoint failures recorded in
+  `wiki/drafts/known_baseline_failures.md` at `660f5af762`
+  (`computed_field_limits::field_endpoint_formation_never_uses_final_cancellation_to_excuse_overflow`,
+  `field_coordinates::field_endpoints_require_defined_intermediates_and_exact_owned_carriers`,
+  `field_endpoint_arithmetic::constant_rank_endpoints_preserve_landing_and_rational_meaning`),
+  which that row already assigned to the live TERMINATION-RANKING-CHECKS
+  lane. All three pass on linux x86-64 at `54984323b2`
+  (`cargo nextest run -p typed-trees-to-checked-trees --lib`, filtered to
+  the trio). No independent slice exists; refreshing the stale draft row
+  belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
+  KNOWN-BASELINE-FAILURES-REFRESH items.
 - **TERMINATION-RANK-RANGE-FIELDS** — mined candidate; verify scope then implement.
 - **TEST-CYCLE-SELECTION-REMEASUREMENT** — mined candidate; verify scope then implement.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — scope verified 2026-09-20:
