@@ -7446,7 +7446,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TV-BOUNDARY-SETTLEMENTS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
-- **TV-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
+- **TV-INTRINSIC-SPAN-ARMS** — verified 14e6f8f72e: the span-arm surface
+  for every intrinsic family that produces coverage occurrences is
+  complete — IEEE FMA joins `x86_scalar_fma_occurrences` fragments
+  (`derive_fma_span`), integer comparisons join
+  `semantic_code_attribution` rows with relocation-overlap rejection
+  (`derive_integer_comparison_span`), float comparisons take the
+  fragment-publication arm, and structural returns arrive through the
+  checked-body call span. All other intrinsic realizations produce no
+  occurrences — `checked_boundary_operator_occurrences` replays only the
+  four families — so an arm has no demand side and adding one before the
+  occurrence replay family lands would be dead code joining nothing.
+  Occurrence production for the remaining intrinsic and dynamic-call
+  operations is **TV-OPERATOR-APPLICATIONS-REPLAY**'s scope;
+  `native-artifact/src/physical` is fenced by
+  DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Row consumed — the residual
+  stays on the live **TRANSLATION-VALIDATION.** item in
+  TASKS_OPTIMIZER.md.
 - **TV-OPERATOR-APPLICATIONS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-PRIVILEGED-PORT-EFFECTS** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-DISPOSITION.** Mined candidate; verify scope then implement.
