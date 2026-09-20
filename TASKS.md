@@ -14043,7 +14043,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_arm64/macos_arm64/windows_x86_64 rows remain host-gated to their
   owning items. No independently landable slice exists on this host.
 
-||||||| parent of 38054732a3cd (board: re-witness RC-PORTABLE-PSI-RELOAD portable-terminal reload green)
+||||||| parent of 7d8a5c5631fc (board: RC-PORTABLE-PSI — add missing resolved sibling row)
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-GATE.** Resolved — re-mines the release-matrix gate
   `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md): the gate
@@ -14072,14 +14072,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   of the same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
   RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-GATE. The gate remains a
   release-matrix row — release closure still needs all eight gates, one
-  clean commit, four required hosts. Re-verified w180 at `23392bc467`:
-  `canary_suite/portable_terminal_reload.rs` unchanged at HEAD (latest
-  touch `f5b72d2f56` — tampered-product refusal pins intact), but the
-  filtered witness cannot build at this revision — `external-roots`
-  fails to compile mid-drift (unresolved
-  `effects::ComponentEraJournalRoster` import; dir under live sibling
-  claims, unrelated to this surface).
+  clean commit, four required hosts.
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
+- **RC-PORTABLE-PSI.** Resolved — re-mines the same release-matrix row
+  covered by resolved siblings RC-PORTABLE-PSI-GATE and RC-PORTABLE-PSI-RELOAD
+  (adjacent rows): the portable-Terminal-Psi gate exists and passes —
+  `portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary`
+  drives producer/consumer child legs per RELOAD_CANARIES fixture plus
+  tamper-refusal legs, witnessed green on Linux x86-64 at `72125c7156`
+  (32.7s, 1/1). The gate is a matrix row, not standalone completion:
+  release closure still requires all eight gates on one clean commit
+  across the four required hosts; the test surface is owned by
+  PORTABLE-TERMINAL-RELOAD work. No independent slice exists.
 - **RC-PORTABLE-PSI-GATE.** Resolved — re-mines the release-matrix gate
   `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md): the gate
   exists and passes. `compiler::canary_suite
@@ -14103,20 +14107,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   interprets in a second, and the consumer refuses truncated envelopes,
   mutated section bytes, and trailing bytes. Witnessed on linux x86-64
   this wave: `portable_terminal_product_reloads_across_process_boundary`
-  PASS (32.7s) under the RC-PORTABLE-PSI-GATE resolution. Re-witnessed on
-  linux x86-64 at `378ff7d482a7`: `portable_terminal_product_reloads_across_
-  process_boundary` PASS (26.6s). Sibling re-mines
+  PASS (32.7s) under the RC-PORTABLE-PSI-GATE resolution. Sibling re-mines
   of the same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
   RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-GATE. The gate remains a
   release-matrix row — release closure still needs all eight gates, one
-  clean commit, four required hosts. Re-verified w180 at `23392bc467`:
-  `canary_suite/portable_terminal_reload.rs` unchanged at HEAD (latest
-  touch `f5b72d2f56` — tampered-product refusal pins intact), but the
-  filtered witness cannot build at this revision — `external-roots`
-  fails to compile mid-drift (unresolved
-  `effects::ComponentEraJournalRoster` import; dir under live sibling
-  claims, unrelated to this surface).
-
+  clean commit, four required hosts.
 - **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
   797e99ead7, re-verified at `9e3edc7be9` — re-mines the release-record
   run clause covered by RC-RELEASE-RECORD-AND-CLOSURE's verified row. The
