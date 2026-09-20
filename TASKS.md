@@ -7237,13 +7237,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   selection. Selecting a proof subject for a row therefore means either an
   authored `build.omg` + `ProgramEntry` on a proof sample (both subjects are
   already pinned in `tests/samples_compile.rs`'s roster at
-  `cli__proofs__*`) or a landing of the checked-call-selection fix. Both
-  candidate surfaces are under live claims: this item's own claim (Devin /
-  zergling-148, `samples/cli/proofs/structural_proofs` +
-  `tests/samples_compile.rs`, ~22:34Z) and PROOF-SAMPLES-CHECKED-CALL-
-  SELECTION (Jarod / swarm-w9, `samples/cli/proofs/math_proofs`, ~22:41Z);
-  `tools/benchmark` itself is held by BENCHMARK-COMPARISON-OCCURRENCE-GATE
-  (~22:09Z). Sibling stubs on the same sentence: BENCHMARK-PROOF-SUBJECT-
+  `cli__proofs__*`) or a landing of the checked-call-selection fix. Those
+  claims have expired and the first route already landed:
+  `structural_proofs` carries authored `build.omg` + `ProgramEntry`
+  bindings (`EXPLICIT_ENTRY_PROOF_SAMPLES` pins it). Selection verified
+  live at `3533f7d0e86` on linux x86-64: `python3
+  tools/benchmark/benchmark.py measure --root
+  samples/cli/proofs/structural_proofs/main.omg --target linux_x86_64
+  --no-run --print` emits a conforming record — 3 compile samples, median
+  31.7 s, published 8192-byte artifact, runtime `skipped`. The remaining
+  leg commits that record under `tools/benchmark/records/` plus the
+  `wiki/drafts/benchmarks.md` matrix entry — both fenced by
+  BENCHMARK-PRIME-COUNTER-ROW (~05:19Z); `math_proofs`'s
+  checked-call-selection fix stays with PROOF-SAMPLES-CHECKED-CALL-
+  SELECTION. Sibling stubs on the same sentence: BENCHMARK-PROOF-SUBJECT-
   CALL-SELECTION, BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION,
   BENCHMARK-MEASURABLE-SUBJECT-CORPUS, BENCHMARK-DEPEND-FREE-RUNNABLE-
   SUBJECT.
@@ -9778,7 +9785,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an
   entry does not claim that its native bridge has been installed"), which
   the note itself assigns to ENTRY-CONTENT-ROOTS. Its acceptance leg now
-  passes natively on linux x86-64 at `cdee121ee9`, re-verified `25709a68706`:
+  passes natively on linux x86-64 at `cdee121ee9`, re-verified `9ff8673b31`:
   `samples_with_documented_exit_run_correctly`
   (`OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`) compiles
   number_guess — a published process with a `Service<Console>` receiver and
