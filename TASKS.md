@@ -7159,7 +7159,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-FOUNDATIONS-REAL** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
-- **MODEL-FREE-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
+- **MODEL-FREE-CANDIDATE-SEARCH.** Resolved — re-mine of
+  **BOUNDED-OPTIMIZATION-SEARCH** (TASKS.md ~5904): the "bounded model-free
+  search" phrase in `wiki/drafts/learned_optimization_policy.md` names a
+  far-future evaluation extension the doc explicitly does not authorize —
+  gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE)
+  plus a concrete justification. The seam it would plug into already exists
+  and re-verified green on Linux x86-64 at `ac4e4eee9b` (`cargo nextest run
+  -p abstract-operations-to-abstract-operations --lib -E 'test(~budget) or
+  test(~external_polic) or test(~invalidation) or test(~stale_candidate) or
+  test(~convergence) or test(~baseline)'` — 28/28): five-axis
+  OptimizationWorkBudget bounding and exact candidate budgets, deterministic
+  `choose_baseline` over validated rows with duplicate-candidate rejection
+  and decreasing convergence, `replay_psi_pipeline` external-decision replay
+  through the identical validated-candidate path
+  (`external_policy_input_cannot_bypass_candidate_validation`,
+  `external_decision_replay_preserves_the_complete_baseline_run`),
+  stale-input candidate rejection, and cold-recompute
+  `UndeclaredInvalidation` auditing. The versioned workload corpus and
+  measurement protocol its evaluation needs stay gated under
+  WORKLOAD-CORPUS-AND-MULTIVERSIONING. Sibling re-mines of the same row:
+  BOUNDED-CANDIDATE-SEARCH (resolved at 97eeaf222a),
+  CANDIDATE-REVALIDATION-AT-SEARCH-SCALE.
 - **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; scope verified, covered — module-scoped `const` on builtin carriers is already landed end-to-end: `wiki/spec/language/constants.md` authors `pub const PAGE_SIZE: u64 = 4096` at package/module scope; `syntax-trees-to-symbol-resolved-trees/tests/constant_carriers.rs` proves `module constants; const SIZE: u8 = 255` resolves with declared landing and authored selection occurrence preserved; `compiler/tests/package_compilation_inputs/module_constants.rs` pins floating-carrier conflicts, nominal/qualified/imported carriers, wrong-carrier rejection and empty arrays in exact copy carriers. Anonymous numeric initializers retain exact arithmetic to the declared landing boundary. The adjacent computed/structured-carrier leg (machine calls in initializers, `builtin_operators`/`call_selections` admission in `const_evaluation/const_initializers.rs`) is **MODULE-CONSTANT-COMPUTED-CARRIER**'s row and sits under the live FLOAT-IDENTITY-LITERAL-CARRIER claim (expires 21:41Z); const-generic applications are under TARGET-SEMANTIC-APPLICATIONS (23:46Z).
 - **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
 - **MULTI-TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
