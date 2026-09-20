@@ -142,14 +142,25 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    crate::realize_native_artifact_with_behavior_exclusions(artifact, request, &behavior_exclusions)
-        .map_err(|error| error.into_parts().1)?
-        .into_direct()
-        .map_err(|_| {
-            vec![Diagnostic::error(
-                "direct native realization returned a different image kind",
-            )]
-        })
+    // Unions carrying no physical-authority row leave mechanism adjudication
+    // with nothing to reject, so they take the canonical entry; a union that
+    // requests a physical absence goes through the exclusion-taking entry.
+    if behavior_exclusions.physical_authority_classes().is_empty() {
+        crate::realize_native_artifact(artifact, request)
+    } else {
+        crate::realize_native_artifact_with_behavior_exclusions(
+            artifact,
+            request,
+            &behavior_exclusions,
+        )
+    }
+    .map_err(|error| error.into_parts().1)?
+    .into_direct()
+    .map_err(|_| {
+        vec![Diagnostic::error(
+            "direct native realization returned a different image kind",
+        )]
+    })
 }
 
 #[cfg(test)]
@@ -229,10 +240,13 @@ mod tests {
             .expect("selected source signature");
         let produced =
             terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-                .produce_program_entry(signature.identity().bytes())
+                .produce_program_entry_with_callback_custody(signature.identity().bytes(), ())
                 .expect("Sink entry produces a Terminal artifact");
         let plans = hosted_calling_plans(target_profile);
-        let (artifact, receipt, _, _, _, _) = produced.into_parts();
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&produced.artifact().to_bytes())
+                .expect("produced artifact replays from canonical bytes");
+        let receipt = produced.receipt().clone();
         (artifact, receipt, signature, plans)
     }
 
@@ -330,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn forwarded_exclusion_union_reaches_mechanism_adjudication() {
+    fn exclusion_taking_entry_reaches_mechanism_adjudication() {
         let (artifact, receipt, signature, plans) = sink_entry_artifact();
         let requirement = sink_requirement(&artifact);
         let target_name = signature.target_slot().owner.target_name();

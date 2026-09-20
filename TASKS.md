@@ -685,10 +685,12 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   it: `realize_native_artifact_with_behavior_exclusions` is the crate's
   exclusion-taking entry point (re-exported from `lib.rs`);
   `native_product/realization.rs` resolves the authored rows into the canonical
-  union against the produced module and forwards it, and
+  union against the produced module — unions without a physical-authority row
+  keep the canonical `realize_native_artifact` entry, and a union that
+  requests a physical absence enters the exclusion-taking entry — and
   `retained_native_product.rs` forwards the proposal's retained union
-  (linux-x86_64, exercised end-to-end by
-  `native_product::realization::tests::forwarded_exclusion_union_reaches_mechanism_adjudication`).
+  (linux-x86_64, entry/adjudication exercised by
+  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`).
 
   Remaining work:
   - Authoring surface: an `AuthoredBehaviorExclusionKind` physical-class row plus
