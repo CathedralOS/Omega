@@ -6054,7 +6054,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **EPSILON-BOOTSTRAP-CHAIN** — mined candidate; verify scope then implement.
 - **EPSILON-EVALUATOR-BOOTSTRAP-PATH** — mined candidate; verify scope then implement.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION** — mined candidate; verify scope then implement.
-- **EXACT-PROGRAM-ENTRY-MULTIPLICITY** — mined candidate; verify scope then implement.
+- **EXACT-PROGRAM-ENTRY-MULTIPLICITY.** Verified on `main`: entry
+  multiplicity is already enforced end to end — `admission/selection.rs`
+  requires exactly one binding per required catalog slot, exactly one
+  ProgramEntry-schema root (a defensive arm while every profile catalog is a
+  singleton), a non-generic machine with at most one provisioned `&mut self`,
+  and `root_bindings.rs` rejects a re-bound slot or ambiguous implementation;
+  integration coverage lives in `build_target_activation`. Landed unit pins
+  for the previously unexercised edges: empty root bindings keep the
+  migration fallback, an unqualified slot spelling rejects, malformed or
+  unknown-profile foreign rows still reject beside a valid selection, and the
+  binding walk collects every malformed row's diagnostic in order.
 - **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
 - **EXECUTABLE-PUBLICATION-JOIN** — mined candidate; verify scope then implement.
 - **EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; verify scope then implement.
