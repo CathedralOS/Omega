@@ -7452,7 +7452,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
   gate are product decisions, not implementable slices here. Sibling
   re-mine: RULE-PROMOTION-EVIDENCE-COMPLETION.
-- **RULE-PROMOTION-EVIDENCE-COMPLETION** — mined candidate; verify scope then implement.
+- **RULE-PROMOTION-EVIDENCE-COMPLETION** — mined candidate; scope verified, covered — sibling stub RULE-PROMOTION-EVIDENCE's landed annotation already scopes this surface verbatim: WORKSPACE-ROLLOUT's exact-rule promotion territory (six staged records in `optimization-core/promotions/` each need the promotion contract's full evidence set before `Approved status` completes, gated by `exact_rule_rollout_is_complete_and_promotion_gated`). The `Rollback evidence` rejoin legs sit under PROMOTION-ROLLBACK-REJOIN-LEGS's live claim; `Measurement evidence` waits on the BENCHMARKS native-realization failure; owner approval and the `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast` gate are product decisions. No independent slice exists here.
 - **RUNTIME-CAPABLE-BINDERS** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE** — mined candidate; verify scope then implement.
