@@ -6248,7 +6248,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS.** Done: free Unit entries now emit process adapters on linux_x86_64 (`call` + exit_group(231)) and linux_arm64 (`bl` + exit_group(94)) — previously `hosted_unit_entry::prepare` returned `Ok(None)`, leaving ELF `e_entry` pointing at a semantic function that `ret`s into no kernel continuation (process faults). Final-image validation decodes the adapter and checks e_entry→file-bytes round-trip for both targets. Witness: `linux_free_unit_entry_runs_and_completes_with_status_zero` compiles, publishes, and executes the emitted ELF to exit 0 on linux/x86-64; linux_arm64 cross-emission validated on-host (no QEMU harness). Host acceptance on macOS/Windows/QEMU remains a host leg.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
-- **BACKEND-VOCABULARY-REJECTION-AUDIT** — mined candidate; verify scope then implement.
+- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
+  cb01abfa42 — audit that every vocabulary operation reaching the backend is
+  either legalized+selected or cleanly refused, never silently miscompiled or
+  panicked on. The classification point is
+  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`:
+  `admit()` covers 83 `AbstractOperation` variants, falling through to
+  `Err(NodeRejection::UnsupportedFamily)` → `LegalizationError::UnsupportedScalarOperation`
+  (model.rs:120); `control::validate` classifies terminators with the same
+  `_ => SourceCustodyMismatch` refusal. Ordering is the audit's core fact:
+  `nodes::validate` runs per-block inside `legalize_target_operations` BEFORE
+  `validate_target` and before `source/scalar_graph`'s `instruction()` calls —
+  so the `admit(..).ok()`/`filter_map` sites downstream can only ever see
+  admitted nodes, never a suppressed UnsupportedFamily. Open audit questions
+  for the implementing leg: (a) whether every *admitted* family has selection
+  coverage on every ISA (admitted-but-unencodable is the remaining hole class
+  — e.g. `NearestIeeeFloatFusedMultiplyAdd` is ingest-refused today, tracked
+  by FLOAT-FMA-NATIVE-TRANSPORT); (b) whether `UnsupportedScalarOperation`
+  surfaces as a compile diagnostic end-to-end rather than aborting; (c)
+  whether any `match` on `node.operation` outside nodes.rs/control.rs is
+  reachable before `nodes::validate` (none found at verify time — all are
+  provenance replays under validate_target or per-node dispatch under
+  validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
+  + `representations/abstract-operations` (read-only enumeration).
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
 - **BASELINE-SERVICE-CARRIER-FAILURES** — mined candidate; verify scope then implement.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
