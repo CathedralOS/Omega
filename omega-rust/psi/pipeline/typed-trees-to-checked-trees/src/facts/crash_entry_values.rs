@@ -37,6 +37,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
 use validation::has_stable_observable_contents;
 
+mod literal_projection;
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, storage_holds_bound_value};
@@ -378,6 +379,19 @@ fn entry_operand_at(
         || !program.expression_table.expression_is_valid(expression)
     {
         return None;
+    }
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
+    ) && let Some(value) = literal_projection::entry_value(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        expression,
+        depth,
+    ) {
+        return Some(value);
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => Some(CrashPredicateExpression::Boolean(*value)),
