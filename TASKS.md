@@ -6915,7 +6915,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION** — mined candidate; verify scope then implement.
 - **GENERIC-DYNAMIC-FAMILY-DISPATCH** — mined candidate; verify scope then implement.
 - **GENERIC-RETURNED-VIEW-LIFETIMES** — mined candidate; verify scope then implement.
-- **GENERIC-VIRTUAL-CALLS** — mined candidate; scope verified, covered — same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet "Runtime-capable family calls in Psi checking (`execution/unit/dynamic_scalar_calls/`)": a `Value` argument proven a roster member selects its row through generated dispatch among the closed bodies, and an unproven argument rejects. The item itself declares the leg depends on RUNTIME-VALUE-GENERICS (still open), the `dynamic_scalar_calls` surface is fenced by that parent item's own live claim, and the item explicitly rules out "a new reflection API or arbitrary generic virtual method" — no independent slice exists under this stub. Sibling stubs on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH, GENERIC-VIRTUAL-DISPATCH.
+- **GENERIC-VIRTUAL-CALLS.** Mined candidate — scope verified, covered:
+  same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet
+  "Runtime-capable family calls in Psi checking
+  (`execution/unit/dynamic_scalar_calls/`)" — a `Value` argument proven
+  a roster member selects its row through generated dispatch among the
+  closed bodies, and an unproven argument rejects. Re-verified at
+  `8734480a01`: the leg still depends on RUNTIME-VALUE-GENERICS (open),
+  `dynamic_scalar_calls` is fenced by the parent item's live claim, and
+  the item rules out "a new reflection API or arbitrary generic virtual
+  method" — no independent slice exists under this stub. Sibling stubs
+  on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH,
+  GENERIC-VIRTUAL-DISPATCH.
 - **GENERIC-VIRTUAL-DISPATCH** — mined candidate; verify scope then implement.
 - **GEOMETRY-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
