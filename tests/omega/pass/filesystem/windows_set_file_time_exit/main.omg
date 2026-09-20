@@ -65,14 +65,21 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
     }
     state decode(&mut self) {
         // Windows `_stat64` st_mtime @40, pinned by the target StatLayout.
-        self.mtime = widen_u8_to_i64(self.stat_buf[40])
-            | (widen_u8_to_i64(self.stat_buf[41]) << 8)
-            | (widen_u8_to_i64(self.stat_buf[42]) << 16)
-            | (widen_u8_to_i64(self.stat_buf[43]) << 24)
-            | (widen_u8_to_i64(self.stat_buf[44]) << 32)
-            | (widen_u8_to_i64(self.stat_buf[45]) << 40)
-            | (widen_u8_to_i64(self.stat_buf[46]) << 48)
-            | (widen_u8_to_i64(self.stat_buf[47]) << 56);
+        // carrier note: the little-endian field is assembled in `u64` and
+        // reinterpreted once at the landing, so every shifted byte is
+        // Exact-representable: 255 << 56 is 18374686479671623680 against a u64
+        // ceiling of 18446744073709551615. Shifting in `i64` reaches the same
+        // 18374686479671623680 against a ceiling of 9223372036854775807, which
+        // is a decision-17 obligation no return range can discharge.
+        self.mtime = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(self.stat_buf[40])
+                | (widen_u8_to_u64(self.stat_buf[41]) << 8)
+                | (widen_u8_to_u64(self.stat_buf[42]) << 16)
+                | (widen_u8_to_u64(self.stat_buf[43]) << 24)
+                | (widen_u8_to_u64(self.stat_buf[44]) << 32)
+                | (widen_u8_to_u64(self.stat_buf[45]) << 40)
+                | (widen_u8_to_u64(self.stat_buf[46]) << 48)
+                | (widen_u8_to_u64(self.stat_buf[47]) << 56));
         transition self.mtime == 1500000000 { true -> good() _ -> bad(75) }
     }
     state good(&mut self) { self.console.exit_process(70); }
