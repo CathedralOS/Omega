@@ -194,6 +194,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         parent: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs",
         module: "tests",
     },
+    TestOnlySource {
+        path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/transport/tests.rs",
+        parent: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/transport.rs",
+        module: "tests",
+    },
 ];
 
 pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
@@ -1209,7 +1214,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts.rs",
-        sha256: Some("e7afbbf974395bcaa94cbd4a888bfa3ccd30f240ce801db919d39ae56bf1aa2d"),
+        sha256: Some("63c8699084d143d30c7638fff1a1a76f284138f6fc5326fcbd5c6f14e01e8256"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1220,6 +1225,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/discrete.rs",
         sha256: Some("ae495c6aac20ddae2ab1644dd0a538ee9308f330a52345e15a3aa5459aa20bba"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/transport.rs",
+        sha256: Some("4a88a18a24432b29036ae77af7fae6099f1e58b62103918375113fcfca02f1d1"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1234,7 +1244,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/terminator_facts.rs",
-        sha256: Some("a7f5710978f3fad95f7ba1997a0842b611825b97659b8fe956d99b9f276abbe8"),
+        sha256: Some("7722eb863d0ee71818a9605a2931392fdbfb0805f5f839c2c724718985d7ac90"),
         inventory_machinery: false,
     },
     ImplementationSite {
