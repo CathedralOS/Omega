@@ -161,8 +161,8 @@ fn domain_positions_report_the_evaluator_boundary_instead_of_truncating() {
 }
 
 #[test]
-fn nominal_policy_and_invalid_type_handles_do_not_become_integer_positions() {
-    for parameter in ["Token", "u64 in Wrapping"] {
+fn nominal_trapping_and_invalid_type_handles_do_not_become_integer_positions() {
+    for parameter in ["Token", "u64 in Trapping"] {
         let program = typed(&format!(
             "data Token {{}} machine endpoint(value: {parameter}) {{}}"
         ));
@@ -328,25 +328,11 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
 fn bare_boolean_parameters_are_boolean_positions_and_ranges_stay_integer() {
     let program = typed("machine endpoint(flag: bool, count: u64[0..=8]) {}");
     assert!(matches!(
-        ScalarPosition::prepare(
-            &program,
-            &program,
-            parameter_type(&program, 0),
-            None,
-            super::integer_type::PositionRole::Result
-        )
-        .unwrap(),
+        ScalarPosition::prepare(&program, &program, parameter_type(&program, 0), None,).unwrap(),
         ScalarPosition::Boolean
     ));
     assert!(matches!(
-        ScalarPosition::prepare(
-            &program,
-            &program,
-            parameter_type(&program, 1),
-            None,
-            super::integer_type::PositionRole::Result
-        )
-        .unwrap(),
+        ScalarPosition::prepare(&program, &program, parameter_type(&program, 1), None,).unwrap(),
         ScalarPosition::Integer(_)
     ));
     // The range bound never prepares as a scalar position: a Boolean there

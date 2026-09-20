@@ -227,8 +227,9 @@ fn join(
             (Shape::Anonymous(expression), Shape::Anonymous(_)) => {
                 validate_anonymous_fragments(program, context, expression)?;
             }
-            (Shape::Integer(left, _), Shape::Integer(right, _)) if left == right => {}
-            (Shape::Anonymous(expression), Shape::Integer(carrier, _)) => {
+            (Shape::Integer(left, _, left_policy), Shape::Integer(right, _, right_policy))
+                if left == right && left_policy == right_policy => {}
+            (Shape::Anonymous(expression), Shape::Integer(carrier, _, _)) => {
                 validate_landing(program, context, expression, primitive(carrier)?, warnings)?;
             }
             _ => {
@@ -612,18 +613,23 @@ pub(super) fn coerce(
                 },
             ))
         }
-        (Value::Anonymous(expression), Shape::Integer(carrier, _)) => land_anonymous(
+        (Value::Anonymous(expression), Shape::Integer(carrier, _, policy)) => land_anonymous(
             program,
             context,
             expression,
             primitive(carrier)?,
             selected,
             warnings,
-        ),
+        )
+        .map(|value| super::retag_landed(value, policy)),
         (Value::Anonymous(_), Shape::Anonymous(_)) | (Value::Boolean(_), Shape::Boolean) => {
             Ok(value)
         }
-        (Value::Landed(left, _), Shape::Integer(right, _)) if left == right => Ok(value),
+        (Value::Landed(left, _, left_policy), Shape::Integer(right, _, right_policy))
+            if left == right && left_policy == right_policy =>
+        {
+            Ok(value)
+        }
         (Value::Float(left, _), Shape::Float(right)) if left == right => Ok(value),
         _ => Err("constant Match execution changed its scalar join type".into()),
     }

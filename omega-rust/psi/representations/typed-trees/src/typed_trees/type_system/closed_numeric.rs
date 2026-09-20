@@ -2,6 +2,9 @@
 //! The source expression and selected operation remain authoritative. Anonymous
 //! arithmetic stays rational until an operand lands; each typed node checks its
 //! own carrier. No parameter, field, call or flow fact becomes a static value.
+//! Completed endpoint literals retain their landing policy. Reading their bits
+//! does not erase it: surrounding closed operations use the same carrier/policy
+//! rules as evaluation, and mixed policies never acquire a common implicit type.
 
 use crate::{
     TypedTrees,
@@ -181,7 +184,7 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                     }
                     ExpressionNode::Integer(literal) if typed_owner.is_some() => {
                         let landing = literal.landing()?;
-                        if landing.domain != ArithmeticDomain::Exact {
+                        if landing.domain == ArithmeticDomain::Trapping {
                             return None;
                         }
                         let (primitive, atom) = literal_carrier(landing.landed_type)?;
@@ -193,7 +196,7 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                             })?;
                         let type_reference = program
                             .type_reference_table
-                            .find_named_type_reference(symbol)?;
+                            .find_arithmetic_result_type_reference(symbol, landing.domain)?;
                         let value = literal.value_bignum()?;
                         land_integer(&value, primitive)?;
                         values.push(NumericValue {
@@ -309,15 +312,68 @@ fn apply_numeric(
         return None;
     }
     let primitive = left.primitive.or(right.primitive)?;
+    let left_policy = left
+        .type_reference
+        .map(|reference| program.type_reference_table.arithmetic_domain(reference));
+    let right_policy = right
+        .type_reference
+        .map(|reference| program.type_reference_table.arithmetic_domain(reference));
+    if left_policy
+        .zip(right_policy)
+        .is_some_and(|(left, right)| left != right)
+    {
+        return None;
+    }
+    let policy = left_policy.or(right_policy)?;
     let integer = integer_carrier(primitive)?;
     let left_value = land_integer(&left.value.to_integer_exact()?, primitive)?;
     let right_value = land_integer(&right.value.to_integer_exact()?, primitive)?;
-    let result = match operator {
-        BinaryOperator::Add => integer.exact_add(left_value, right_value),
-        BinaryOperator::Subtract => integer.exact_sub(left_value, right_value),
-        BinaryOperator::Multiply => integer.exact_mul(left_value, right_value),
-        BinaryOperator::Divide => integer.exact_div(left_value, right_value),
-        BinaryOperator::Modulo => integer.exact_rem(left_value, right_value),
+    let result = match (policy, operator) {
+        (ArithmeticDomain::Exact, BinaryOperator::Add) => {
+            integer.exact_add(left_value, right_value)
+        }
+        (ArithmeticDomain::Exact, BinaryOperator::Subtract) => {
+            integer.exact_sub(left_value, right_value)
+        }
+        (ArithmeticDomain::Exact, BinaryOperator::Multiply) => {
+            integer.exact_mul(left_value, right_value)
+        }
+        (ArithmeticDomain::Exact, BinaryOperator::Divide) => {
+            integer.exact_div(left_value, right_value)
+        }
+        (ArithmeticDomain::Exact, BinaryOperator::Modulo) => {
+            integer.exact_rem(left_value, right_value)
+        }
+        (ArithmeticDomain::Wrapping, BinaryOperator::Add) => {
+            integer.wrapping_add(left_value, right_value)
+        }
+        (ArithmeticDomain::Wrapping, BinaryOperator::Subtract) => {
+            integer.wrapping_sub(left_value, right_value)
+        }
+        (ArithmeticDomain::Wrapping, BinaryOperator::Multiply) => {
+            integer.wrapping_mul(left_value, right_value)
+        }
+        (ArithmeticDomain::Wrapping, BinaryOperator::Divide) => {
+            integer.wrapping_div(left_value, right_value)
+        }
+        (ArithmeticDomain::Wrapping, BinaryOperator::Modulo) => {
+            integer.wrapping_rem(left_value, right_value)
+        }
+        (ArithmeticDomain::Saturating, BinaryOperator::Add) => {
+            integer.saturating_add(left_value, right_value)
+        }
+        (ArithmeticDomain::Saturating, BinaryOperator::Subtract) => {
+            integer.saturating_sub(left_value, right_value)
+        }
+        (ArithmeticDomain::Saturating, BinaryOperator::Multiply) => {
+            integer.saturating_mul(left_value, right_value)
+        }
+        (ArithmeticDomain::Saturating, BinaryOperator::Divide) => {
+            integer.saturating_div(left_value, right_value)
+        }
+        (ArithmeticDomain::Saturating, BinaryOperator::Modulo) => {
+            integer.saturating_rem(left_value, right_value)
+        }
         _ => return None,
     }?;
     let result = match result {

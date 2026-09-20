@@ -10,7 +10,9 @@ fn program(body: &str, destination: PrimitiveType) -> (TypedTrees, ExpressionHan
         "machine choose() -> {} {{ {body} }}
          machine number(value: u8) -> u8 {{ value }}
          machine truth(value: bool) -> bool {{ value }}
-         machine never(value: u8) -> u8 {{ value }}",
+         machine never(value: u8) -> u8 {{ value }}
+         machine wrapping_seed() -> u8 in Wrapping {{ 255 }}
+         machine saturating_seed() -> u8 in Saturating {{ 255 }}",
         destination.name(),
     );
     let tokens = source_files_to_tokens::Lexer::new(&source)
@@ -24,12 +26,19 @@ fn program(body: &str, destination: PrimitiveType) -> (TypedTrees, ExpressionHan
     let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
     let state = &program.machine_states(&program.machines()[0])[0];
-    let [typed_trees::statement::StatementNode::Expression(expression)] =
-        program.statement_table.statements(state.statement_nodes)
-    else {
-        panic!("one source expression");
+    use typed_trees::statement::StatementNode;
+    let expression = match program.statement_table.statements(state.statement_nodes) {
+        [StatementNode::Expression(expression)] => *expression,
+        // A direct returned call is normalized into a saved local. This unit
+        // harness exercises the authored scalar call, not machine-local reads.
+        [
+            StatementNode::LocalData(local),
+            StatementNode::Expression(expression),
+        ] if matches!(program.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == local.symbol) => {
+            local.initial_value
+        }
+        statements => panic!("one source expression for {body}: {statements:?}"),
     };
-    let expression = *expression;
     (program, expression)
 }
 
@@ -58,6 +67,17 @@ impl Calls<'_> {
 }
 
 impl ConstantCalls for Calls<'_> {
+    fn result_type(&self, expression: ExpressionHandle) -> typed_trees::types::TypeReferenceHandle {
+        let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+        else {
+            return typed_trees::types::TypeReferenceHandle::invalid();
+        };
+        self.target(call.target_symbol).map_or(
+            typed_trees::types::TypeReferenceHandle::invalid(),
+            |(_, entry)| entry.return_type,
+        )
+    }
+
     fn validate_call(
         &self,
         expression: ExpressionHandle,
@@ -118,6 +138,13 @@ impl ConstantCalls for Calls<'_> {
         let (callee, entry) = self.target(call.target_symbol)?;
         if callee.symbol == forbidden.symbol {
             return Err("skipped call executed".into());
+        }
+        if matches!(callee.name.as_str(), "wrapping_seed" | "saturating_seed") {
+            let identity = CanonicalConstIdentity::integer("u8", 255);
+            return Ok((
+                CanonicalConstValue::new(identity.type_name, identity.encoding, "255"),
+                Vec::new(),
+            ));
         }
         let [parameter] = self.program.state_parameters(entry) else {
             return Err("identity call requires one parameter".into());
@@ -314,7 +341,8 @@ fn call_result_cannot_change_its_validated_carrier_or_encoding() {
             &value,
             Shape::Integer(
                 LandedIntegerType::U8,
-                typed_trees::types::TypeReferenceHandle::invalid()
+                typed_trees::types::TypeReferenceHandle::invalid(),
+                numerics::arithmetic::ArithmeticDomain::Exact
             )
         )
         .is_err()
@@ -326,7 +354,8 @@ fn call_result_cannot_change_its_validated_carrier_or_encoding() {
             &value,
             Shape::Integer(
                 LandedIntegerType::U8,
-                typed_trees::types::TypeReferenceHandle::invalid()
+                typed_trees::types::TypeReferenceHandle::invalid(),
+                numerics::arithmetic::ArithmeticDomain::Exact
             )
         )
         .is_err()
@@ -336,7 +365,8 @@ fn call_result_cannot_change_its_validated_carrier_or_encoding() {
             &CanonicalConstValue::boolean(true),
             Shape::Integer(
                 LandedIntegerType::U8,
-                typed_trees::types::TypeReferenceHandle::invalid()
+                typed_trees::types::TypeReferenceHandle::invalid(),
+                numerics::arithmetic::ArithmeticDomain::Exact
             )
         )
         .is_err()
@@ -392,5 +422,125 @@ fn cast_graphs_reject_stale_and_cyclic_operands_before_type_queries() {
         )
         .expect_err("malformed cast graph");
         assert!(error.contains("invalid or cyclic"), "{error}");
+    }
+}
+
+#[test]
+fn policy_calls_reduce_each_node_before_explicit_erasure() {
+    for (source, expected) in [
+        ("(wrapping_seed() + 2) as u8", 1),
+        ("((wrapping_seed() + 2) * 3) as u8", 3),
+        ("(saturating_seed() + 2) as u8", 255),
+        ("((saturating_seed() + 2) - 1) as u8", 254),
+        ("(1 + wrapping_seed()) as u8", 0),
+        ("(wrapping_seed() << 9u64) as u8", 254),
+        ("((255u8 as u8 in Wrapping) + 2) as u8", 1),
+        ("((255u8 as u8 in Saturating) + 2) as u8", 255),
+    ] {
+        let (program, expression) = program(source, PrimitiveType::U8);
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let (value, _) =
+            super::evaluate_closed_scalar(&program, expression, PrimitiveType::U8, &calls)
+                .unwrap_or_else(|reason| panic!("{source}: {reason}"));
+        assert_eq!(
+            value.identity(),
+            CanonicalConstIdentity::integer("u8", expected),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn policy_destinations_keep_landing_and_all_arm_compatibility() {
+    use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Wrapping};
+    for (source, policy, expected) in [
+        ("wrapping_seed() + 2", Wrapping, Some(1)),
+        ("saturating_seed() + 2", Saturating, Some(255)),
+        (
+            "(match false { true -> wrapping_seed(), false -> 7 })",
+            Wrapping,
+            Some(7),
+        ),
+        ("255", Wrapping, Some(255)),
+        ("256", Wrapping, None),
+        ("1 / 2", Saturating, None),
+        ("255u8", Wrapping, None),
+        ("wrapping_seed()", Exact, None),
+        ("wrapping_seed()", Saturating, None),
+        ("wrapping_seed() + 1u8", Wrapping, None),
+        (
+            "(match true { true -> wrapping_seed(), false -> saturating_seed() })",
+            Wrapping,
+            None,
+        ),
+        (
+            "(match false { true -> wrapping_seed(), false -> 7u8 })",
+            Exact,
+            None,
+        ),
+    ] {
+        let (program, expression) = program(source, PrimitiveType::U8);
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let validated = super::validate_closed_scalar_with_policy(
+            &program,
+            expression,
+            PrimitiveType::U8,
+            policy,
+            &calls,
+        );
+        assert_eq!(
+            calls.executed.get(),
+            0,
+            "validation executed a call: {source}"
+        );
+        if let Some(expected) = expected {
+            validated.unwrap_or_else(|reason| panic!("{source}: {reason}"));
+            let (value, _) = super::evaluate_closed_scalar_with_policy(
+                &program,
+                expression,
+                PrimitiveType::U8,
+                policy,
+                &calls,
+            )
+            .unwrap_or_else(|reason| panic!("{source}: {reason}"));
+            assert_eq!(
+                value.identity(),
+                CanonicalConstIdentity::integer("u8", expected)
+            );
+        } else {
+            assert!(validated.is_err(), "policy was erased: {source}");
+        }
+    }
+}
+
+#[test]
+fn endpoint_literal_retains_call_result_policy() {
+    for (source, policy, expected) in [
+        (
+            "wrapping_seed() + 2",
+            numerics::arithmetic::ArithmeticDomain::Wrapping,
+            1,
+        ),
+        (
+            "saturating_seed() + 2",
+            numerics::arithmetic::ArithmeticDomain::Saturating,
+            255,
+        ),
+    ] {
+        let (program, expression) = program(source, PrimitiveType::U8);
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let (literal, _) = super::evaluate_integer_endpoint(&program, expression, &calls)
+            .unwrap_or_else(|reason| panic!("{source}: {reason}"));
+        assert_eq!(literal.value_u64(), Some(expected));
+        assert_eq!(literal.landing().unwrap().domain, policy);
     }
 }

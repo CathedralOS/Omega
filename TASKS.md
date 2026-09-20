@@ -3508,8 +3508,7 @@ Owners include
     that rejection on clean `02778e24e5`; resume in
     `target-operations-to-selected-instructions/src/legalization`, preserving
     the native expectation. Free-machine equation consumers execute natively.
-  - Endpoint invocation admission for nominal parameters, already-landed policy
-    arguments, Trapping parameters and policy-qualified results,
+  - Endpoint invocation admission for nominal parameters and Trapping positions,
     trait-operator owners (owner-sensitive typed operations), and applications
     that need inference in data-field types or machine/evidence binders.
     Closed named and structural type/const applications retain their declaration's
@@ -3518,6 +3517,12 @@ Owners include
     type choices. `compiler --test bounded_slice_selectors` exercises a
     computed bound driving declared-range inference through source-free Terminal
     and native execution, with out-of-range argument and store rejection.
+    Wrapping/Saturating argument and result transport uses the shared scalar
+    evaluator, preserving policy through calls, arithmetic, Match and folded
+    endpoint literals. Its `policy_endpoint_values` controls cover native
+    inferred capacities and reject implicit policy changes or invalid initial
+    landings. Saturating left shift still needs its shared integer primitive;
+    partial narrowing keeps its independent conversion-evidence requirement.
     Nested computed bounds retain their type obligations until folding and
     specialization complete, including through nongeneric helpers. Extend the
     existing whole-expression scalar evaluator and shared admission plan;
