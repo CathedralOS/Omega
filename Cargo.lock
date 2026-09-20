@@ -351,6 +351,7 @@ name = "checked-compilation-to-terminal-artifact"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "artifacts",
  "assembled-syntax-to-checked-compilation",
  "backend-plan",
  "boundary-applications",
@@ -1219,6 +1220,7 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "artifacts",
  "assembled-syntax-to-checked-compilation",
  "backend-plan",
  "boundary-applications",
