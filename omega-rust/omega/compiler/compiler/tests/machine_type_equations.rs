@@ -133,7 +133,7 @@ fn machine_array_equation_recovers_element_and_extent_through_terminal() {
 }
 
 #[test]
-fn static_attached_equations_discharge_closed_tuples_during_checking() {
+fn static_attached_equations_execute_closed_tuples() {
     let source = r#"
         data Buffer {}
         machine Buffer::capacity<Backing, Element, const Count: u64>() -> u64
@@ -141,9 +141,8 @@ fn static_attached_equations_discharge_closed_tuples_during_checking() {
         { Count }
         machine recovered() -> u64 { Buffer::capacity<[u8; 7]>() }
         "#;
-    SourceFixture::new(source)
-        .check()
-        .expect("the complete attached tuple checks");
+    let artifact = assert_recovered_executes_without_source(source, 7);
+    assert_native_execution(&artifact, 7);
     assert_equation_rejects(
         &source.replace("capacity<[u8; 7]>()", "capacity<[u8; 7], u8, 8>()"),
         "explicit argument is 8",
@@ -151,8 +150,105 @@ fn static_attached_equations_discharge_closed_tuples_during_checking() {
 }
 
 #[test]
+fn ordinary_static_helpers_compose_with_arguments_and_nested_calls() {
+    let source = r#"
+        data Buffer {}
+        data Other {}
+        machine Buffer::capacity() -> u64 { 7 }
+        machine Buffer::retain(value: u64) -> u64 { value }
+        machine Other::capacity() -> u64 { 99 }
+        machine recovered() -> u64 {
+            let capacity: u64 = Buffer::capacity();
+            Buffer::retain(Buffer::retain(capacity))
+        }
+    "#;
+    let artifact = assert_recovered_executes_without_source(source, 7);
+    assert_native_execution(&artifact, 7);
+    let fixture = SourceFixture::new(source);
+    let checked = fixture
+        .check()
+        .expect("ordinary static helpers check")
+        .into_program();
+    let target = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked.typed.symbols.display_path(machine.symbol, "::") == "Buffer::capacity"
+        })
+        .expect("exact static helper")
+        .symbol;
+    let mut boundary = checked.clone();
+    boundary
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == target)
+        .expect("retained helper")
+        .supply_mode = language_semantics::MachineSupplyMode::Boundary;
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(&boundary, "recovered").is_err(),
+        "a retained scalar graph cannot turn boundary supply into a checked body"
+    );
+    assert!(
+        SourceFixture::new(&source.replace("Buffer::capacity() ->", "Buffer::capacity(&self) ->"))
+            .check()
+            .is_err(),
+        "a static call cannot omit a runtime receiver"
+    );
+
+    let other = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked.typed.symbols.display_path(machine.symbol, "::") == "Other::capacity"
+        })
+        .expect("same-leaf competing declaration");
+    let other_machine = other.symbol;
+    let other_state = checked.typed.machine_states(other)[0].symbol;
+    let mut retargeted = checked.clone();
+    let nodes = &mut retargeted.facts.values.scalar_computations.nodes;
+    let calls = nodes
+        .iter()
+        .filter_map(|(handle, computation)| {
+            let checked_trees::CheckedScalarComputationKind::Call { target_machine, .. } =
+                computation.kind
+            else {
+                return None;
+            };
+            (target_machine == target).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.len(),
+        1,
+        "mutate the actual retained computation call"
+    );
+    for handle in calls {
+        let computation = nodes.get_mut(handle);
+        if let checked_trees::CheckedScalarComputationKind::Call {
+            target_machine,
+            target_state,
+            ..
+        } = &mut computation.kind
+            && *target_machine == target
+        {
+            *target_machine = other_machine;
+            *target_state = other_state;
+        }
+    }
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(&retargeted, "recovered").is_err(),
+        "another receiver-free helper cannot replace the authored declaration"
+    );
+}
+
+#[test]
 fn receiver_machine_equation_updates_the_original_record() {
     let artifact = assert_recovered_executes_without_source(RECEIVER_EQUATION, 7);
+    assert_native_execution(&artifact, 7);
+}
+
+fn assert_native_execution(artifact: &terminal_codec::CanonicalTerminalArtifact, expected: u64) {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -204,7 +300,9 @@ fn receiver_machine_equation_updates_the_original_record() {
             native_function::assert_c_text(
                 &image.output().final_text_bytes,
                 object.entry_function().text_offset,
-                "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == 7 ? 0 : 1; }",
+                &format!(
+                    "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) {{ return omega_entry() == {expected} ? 0 : 1; }}"
+                ),
             );
             #[cfg(not(any(
                 all(

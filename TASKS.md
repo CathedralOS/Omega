@@ -3444,8 +3444,9 @@ Owners include
   and discharge complete supplied tuples. Actual static type arguments survive
   resolution, caller-scope validation, specialization and normalized identity.
   `compiler --test machine_type_equations` exercises source-free Terminal
-  execution, receiver mutation through four-target native publication and macOS
-  ARM64 execution, and rejection of conflicting tuples, open/noncall selections,
+  execution, receiver mutation and receiver-free attached scalar calls through
+  four-target native publication and macOS ARM64 execution, and rejection of
+  conflicting tuples, open/noncall selections,
   implicit cleanup, kind mixtures, forwarding, lifetime errors and unmet named
   conformances. Open or retained applications lacking
   their equation syntax reject explicitly. Provisional normalization retains
@@ -3488,11 +3489,6 @@ Owners include
     explicit tuple. Keep that fence until the obligation follows late selection.
     An open endpoint binds as one whole expression (`0..=N` may bind
     `Limit + 1`); solving `N * 2 == 256` stays outside.
-    Zero-receiver attached scalar calls also need the ordinary shared-call
-    lowering route in `checked-trees-to-lowered-psi/src/scalar_graph`:
-    `Buffer::capacity<[u8; 7]>()` checks, but Terminal production rejects the
-    same bounded-static-realization gate as nongeneric `Buffer::capacity()`.
-    Receiver-method equation discharge does not depend on that separate gap.
   - Endpoint invocation admission for nominal parameters and Trapping positions,
     trait-operator owners (owner-sensitive typed operations), and applications
     that need inference in data-field types or machine/evidence binders.
