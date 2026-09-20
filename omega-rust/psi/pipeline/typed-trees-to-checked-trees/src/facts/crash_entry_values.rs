@@ -143,6 +143,44 @@ pub(super) fn operand_entry_provenance(
                 }
                 operand_place = member.receiver;
             }
+            ExpressionNode::Indexed(indexed) => {
+                // A constructed element recovers through the same literal
+                // projection `entry_operand_at` consults first — the saved
+                // initializer supplies the whole operand's entry identity
+                // under any leaf projection. Otherwise the operand's index
+                // step sits between its root and the leaf's projection.
+                // Element writes cannot be separated below the collection
+                // root (`PlaceSegment::Opaque`), so the collection's bound
+                // snapshot must hold across its whole storage, and the index
+                // must carry its own entry operand — otherwise the read
+                // element is not the place the leaf names.
+                if literal_projection::entry_value(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    operand_place,
+                    0,
+                )
+                .is_some()
+                {
+                    return true;
+                }
+                if entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    indexed.index,
+                    0,
+                )
+                .is_none()
+                {
+                    return false;
+                }
+                projection.insert(0, PlaceSegment::Opaque);
+                operand_place = indexed.collection;
+            }
             ExpressionNode::Borrow(borrow)
                 if borrow.access == language_core::ReferenceAccess::Shared =>
             {
@@ -195,7 +233,7 @@ pub(super) fn entry_operand_projected(
     leaf_projection: &[PlaceSegment],
 ) -> Option<CrashPredicateExpression> {
     let mut projection = leaf_projection.to_vec();
-    let mut member_names = Vec::new();
+    let mut spine = Vec::new();
     let mut operand_place = operand;
     loop {
         if !program.expression_table.expression_is_valid(operand_place) {
@@ -206,11 +244,59 @@ pub(super) fn entry_operand_projected(
                 // An unresolvable member is not a separable place, so the
                 // operand keeps no entry identity.
                 let (symbol, hop) = member_hop_path(program, member)?;
-                member_names.insert(0, member_entry_name(program, member, symbol));
+                spine.insert(
+                    0,
+                    OperandSpineStep::Member(member_entry_name(program, member, symbol)),
+                );
                 for segment in hop.into_iter().rev() {
                     projection.insert(0, segment);
                 }
                 operand_place = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                // A constructed element recovers through the same literal
+                // projection `entry_operand_at` consults first — the saved
+                // initializer supplies the element's entry operand, over
+                // which the operand's member spine still applies.
+                if let Some(value) = literal_projection::entry_value(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    operand_place,
+                    0,
+                ) {
+                    return Some(spine.iter().fold(value, |receiver, step| match step {
+                        OperandSpineStep::Member(member) => CrashPredicateExpression::Member {
+                            receiver: Box::new(receiver),
+                            member: member.clone(),
+                        },
+                        OperandSpineStep::Indexed(index) => CrashPredicateExpression::Indexed {
+                            collection: Box::new(receiver),
+                            index: Box::new(index.clone()),
+                        },
+                    }));
+                }
+                // Otherwise the operand's index step composes like a member
+                // hop: `cells[i]` under a projected leaf replays as the
+                // entry `Indexed` operand below the leaf's own `Member`
+                // nodes. Element writes cannot be separated below the
+                // collection root (`PlaceSegment::Opaque`), so the
+                // collection's bound snapshot must hold across its whole
+                // storage, and the index must carry its own entry operand —
+                // a moved or unproven selector would not name the element
+                // the leaf read.
+                let index = entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    indexed.index,
+                    0,
+                )?;
+                spine.insert(0, OperandSpineStep::Indexed(index));
+                projection.insert(0, PlaceSegment::Opaque);
+                operand_place = indexed.collection;
             }
             ExpressionNode::Borrow(borrow)
                 if borrow.access == language_core::ReferenceAccess::Shared =>
@@ -227,11 +313,15 @@ pub(super) fn entry_operand_projected(
                     &projection,
                     0,
                 )?;
-                return Some(member_names.iter().fold(root, |receiver, member| {
-                    CrashPredicateExpression::Member {
+                return Some(spine.iter().fold(root, |receiver, step| match step {
+                    OperandSpineStep::Member(member) => CrashPredicateExpression::Member {
                         receiver: Box::new(receiver),
                         member: member.clone(),
-                    }
+                    },
+                    OperandSpineStep::Indexed(index) => CrashPredicateExpression::Indexed {
+                        collection: Box::new(receiver),
+                        index: Box::new(index.clone()),
+                    },
                 }));
             }
             // A non-place operand carries only whole-value provenance, and
@@ -252,6 +342,15 @@ pub(super) fn entry_operand_projected(
             }
         }
     }
+}
+
+/// One step of the operand's own place spine, root-to-leaf: a resolved
+/// member keeps its authored (possibly case-qualified) name, while an index
+/// step carries the index's entry operand so the produced `Indexed` node
+/// replays the caller's read at the invocation's values.
+enum OperandSpineStep {
+    Member(String),
+    Indexed(CrashPredicateExpression),
 }
 
 /// The place steps one member hop adds below its receiver, in root-to-leaf

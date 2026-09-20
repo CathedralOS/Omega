@@ -1,4 +1,7 @@
-use super::{entry_operand, has_stable_observable_contents, operand_entry_provenance};
+use super::{
+    entry_operand, entry_operand_projected, formal_member_projection,
+    has_stable_observable_contents, operand_entry_provenance,
+};
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -1749,5 +1752,237 @@ fn indexed_read_below_rewritten_collection_storage_widens() {
         entry_operand(&program, machine.symbol, entry, call_index, argument),
         None,
         "an element write retires the whole collection's entry snapshot",
+    );
+}
+
+/// The projected-leaf twin of `indexed_read_transports_collection_and_index_entry_operands`:
+/// an indexed actual bound to a formal whose guard reads only a member
+/// projection (`cell.count`) keeps provenance. The operand's index step
+/// composes like a member hop — the collection owes its whole-storage bound
+/// snapshot and the index its own entry operand — so `operand_entry_provenance`
+/// admits the read instead of widening the surviving route to `Truth`.
+#[test]
+fn an_indexed_operand_keeps_provenance_below_a_projected_leaf() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(items: [Cell; 4], index: u64) -> u64
+         requires index < 4 {
+             sink(items[index])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    assert!(
+        matches!(
+            program.expression_table.expression(operand),
+            ExpressionNode::Indexed(_)
+        ),
+        "the operand is the caller's `items[index]` read"
+    );
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        matches!(
+            program.expression_table.expression(leaf),
+            ExpressionNode::Member(_)
+        ),
+        "the leaf is the callee's `cell.count` projection"
+    );
+    assert!(
+        operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "an indexed actual still proves the projected read",
+    );
+}
+
+/// A mutable collection's bound snapshot must cover its whole storage: an
+/// element write anywhere inside it ends the projected leaf's provenance even
+/// though the read index is provably elsewhere. The leaf still widens.
+#[test]
+fn an_indexed_operand_below_rewritten_collection_storage_loses_provenance() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(mut items: [Cell; 4], index: u64, spare: Cell) -> u64
+         requires index < 4 {
+             items[0u64] = spare;
+             sink(items[index])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        !operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "an element write retires the whole collection below the projection",
+    );
+}
+
+/// The index itself must carry entry provenance: a rebound selector cannot
+/// name the element the leaf read at the invocation, so the operand keeps no
+/// provenance even while the collection is pristine.
+#[test]
+fn an_indexed_operand_requires_the_index_entry_operand() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(items: [Cell; 4], index: u64) -> u64
+         requires index < 4 {
+             let mut slot: u64 = index;
+             slot = 0;
+             sink(items[slot])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        !operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "a rebound selector cannot name the element the leaf read",
+    );
+}
+
+/// `entry_operand_projected` transports the operand's own index step: the
+/// callee's `cell.count` leaf resolves the actual's `items[index]` to the
+/// structured `Indexed` entry operand, which the substitution's `Member`
+/// nodes re-project to `items[index].count`.
+#[test]
+fn an_indexed_operand_projects_its_own_index_step() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(items: [Cell; 4], index: u64) -> u64
+         requires index < 4 {
+             sink(items[index])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, _) = named_state(&program, "probe", "entry");
+    let probe = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == probe_machine)
+        .unwrap();
+    let state = program
+        .machine_states(probe)
+        .iter()
+        .find(|state| state.name.as_str() == "entry")
+        .unwrap();
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "cell")
+        .unwrap();
+    let projection =
+        formal_member_projection(&program, parameter.type_reference, &["count".into()]);
+    assert_eq!(
+        entry_operand_projected(&program, machine, entry, call_index, operand, &projection,),
+        Some(CrashPredicateExpression::Indexed {
+            collection: Box::new(CrashPredicateExpression::Parameter(0)),
+            index: Box::new(CrashPredicateExpression::Parameter(1)),
+        }),
+        "the projected leaf keeps the structured `items[index]` entry operand",
+    );
+}
+
+/// The operand spine composes members and index steps in order: `pair.cells[i]`
+/// replays as `Indexed` over the declared `cells` member — never flattened —
+/// while the leaf's own projection still applies above the produced operand.
+#[test]
+fn a_member_indexed_operand_keeps_its_spine_order() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         data Pair { cells: [Cell; 4] }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(pair: Pair, index: u64) -> u64
+         requires index < 4 {
+             sink(pair.cells[index])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, _) = named_state(&program, "probe", "entry");
+    let probe = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == probe_machine)
+        .unwrap();
+    let state = program
+        .machine_states(probe)
+        .iter()
+        .find(|state| state.name.as_str() == "entry")
+        .unwrap();
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "cell")
+        .unwrap();
+    let projection =
+        formal_member_projection(&program, parameter.type_reference, &["count".into()]);
+    assert_eq!(
+        entry_operand_projected(&program, machine, entry, call_index, operand, &projection,),
+        Some(CrashPredicateExpression::Indexed {
+            collection: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "cells".to_owned(),
+            }),
+            index: Box::new(CrashPredicateExpression::Parameter(1)),
+        }),
+        "the member-over-index spine stays root-to-leaf ordered",
+    );
+}
+
+/// A literal-initialized local recovers its indexed element through the same
+/// literal projection `entry_operand_at` uses for the bare operand: the saved
+/// initializer names `input` for `cells[1]`, so a projected leaf still binds
+/// the entry actual rather than falling off the structural walk.
+#[test]
+fn a_literal_indexed_operand_recovers_its_element_below_a_leaf() {
+    let program = typed_program(
+        "data Cell { count: u64 }
+         machine sink(value: u64) -> u64 { value }
+         machine probe(cell: Cell) -> u64 { sink(cell.count) }
+         machine value(input: Cell) -> u64 {
+             let cells: [Cell; 2] = [Cell { count: 1 }, input];
+             sink(cells[1u64])
+         }",
+    );
+    let (machine, entry) = named_state(&program, "value", "entry");
+    let (call_index, operand) = targeted_call_argument(&program, machine, entry, "sink");
+    let (probe_machine, probe_entry) = named_state(&program, "probe", "entry");
+    let (_, leaf) = targeted_call_argument(&program, probe_machine, probe_entry, "sink");
+    assert!(
+        operand_entry_provenance(&program, machine, entry, call_index, operand, leaf),
+        "the literal element `input` still proves the projected read",
+    );
+    let probe = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == probe_machine)
+        .unwrap();
+    let state = program
+        .machine_states(probe)
+        .iter()
+        .find(|state| state.name.as_str() == "entry")
+        .unwrap();
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "cell")
+        .unwrap();
+    let projection =
+        formal_member_projection(&program, parameter.type_reference, &["count".into()]);
+    assert_eq!(
+        entry_operand_projected(&program, machine, entry, call_index, operand, &projection,),
+        Some(CrashPredicateExpression::Parameter(0)),
+        "the literal initializer supplies `input` as the element's entry operand",
     );
 }
