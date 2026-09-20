@@ -622,6 +622,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // leaf. Each entry body is empty, so checked semantics is the witness.
     "domains/module_domain_carrier_qualified_import",
     "domains/module_domain_narrow_import_spelling",
+    // Module-owned operator home: `units` owns the `u64::Distance` domain and
+    // the `+` home `u64::Distance::add` on domain-constrained parameters; a
+    // broad `use units;` exposes the carrier-qualified spelling, and the
+    // declarations follow through normalization, resolution, typing and
+    // checked semantics.
+    "modules/module_operator_home",
     "domains/explicit_domain_erasure",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
