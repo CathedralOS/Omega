@@ -34,6 +34,43 @@ fn runtime_ranked_accumulator_guarantee_exit_canary_runs() {
 }
 
 #[test]
+fn accumulator_guarantee_twins_reject_in_checked_semantics() {
+    // The twins share the checked-only pass canary's conserved
+    // `acc + remaining` claim but break one obligation each: the wrong-step
+    // twin forwards `acc` unchanged (preservation fails), the unestablished
+    // twin asks for `+ 1` the loop never establishes, and the unbounded twin
+    // drops the declared entry ranges that certify the contract's arithmetic.
+    // The first two keep the identical `Nat::Descending` cycle certificate, so
+    // the rejection is the functional claim's and not the termination
+    // answer's.
+    for &name in [
+        fixture_roster::PROOFS_ACCUMULATOR_GUARANTEE_WRONG_STEP_TWIN,
+        fixture_roster::PROOFS_ACCUMULATOR_GUARANTEE_UNESTABLISHED_TWIN,
+        fixture_roster::PROOFS_ACCUMULATOR_GUARANTEE_UNBOUNDED_FORMALS,
+    ]
+    .iter()
+    {
+        let canary = fail_canary(name);
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .expect("accumulator twin should carry expected.txt");
+        let diagnostics = compile_native_canary_without_output(&canary)
+            .expect_err("a broken accumulation claim must reject before native emission");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.trim()),
+            "{} missing expected fragment {:?}:\n{}",
+            canary.display(),
+            expected.trim(),
+            combined
+        );
+    }
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     // COLLECT-ALL, not first-panic: one regressed member must not exempt the
     // rest of the fail corpus from its check (the serial-umbrella masking

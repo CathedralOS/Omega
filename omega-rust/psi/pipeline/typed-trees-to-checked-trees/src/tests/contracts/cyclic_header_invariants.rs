@@ -23,8 +23,8 @@ ensures {guarantee}
     )
 }
 
-const ORIGIN_VETO: &str = "cannot prove ensures contract for exit from descend at statement 1: \
-                           result <= previous; no exact incoming reference origin for previous";
+const ENTAIL_VETO: &str = "machine `descend` cannot prove ensures contract proof fact \
+                           `result <= previous` on the transition arm guarded by `n > 0 == true`";
 
 #[test]
 fn transported_guarantee_admits_the_free_loop_form() {
@@ -51,10 +51,10 @@ fn unranked_spelling_of_the_same_loop_is_admitted_on_the_same_invariant() {
 }
 
 #[test]
-fn wrong_accumulator_step_keeps_the_origin_diagnostic() {
+fn wrong_accumulator_step_keeps_its_entailment_veto() {
     // The constant step satisfies the re-established `requires` and the
-    // ranking, but `1000 <= previous@invocation` is not preserved: nothing is
-    // admitted and today's diagnostic stays exactly as it was.
+    // ranking, but `result <= previous` is not preserved by `previous :=
+    // 1000`: the entailment audit refuses it on the backedge arm.
     let diagnostics = lower_typed_trees(parse_typed_trees(&countdown(
         "n <= previous && previous <= 1000",
         "result <= previous",
@@ -64,7 +64,7 @@ fn wrong_accumulator_step_keeps_the_origin_diagnostic() {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message == ORIGIN_VETO),
+            .any(|diagnostic| diagnostic.message == ENTAIL_VETO),
         "{diagnostics:#?}"
     );
 }
@@ -81,8 +81,8 @@ fn guarantee_the_invocation_does_not_establish_is_refused() {
     .expect_err("an unestablished conjunct must not be admitted");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic.message
-            == "cannot prove ensures contract for exit from descend at statement 1: \
-                result <= n; no exact incoming reference origin for n"),
+            == "machine `descend` cannot prove ensures contract proof fact \
+                `result <= n` on the transition arm guarded by `n > 0 == false`"),
         "{diagnostics:#?}"
     );
 }
@@ -99,9 +99,77 @@ fn a_false_conjunct_discards_the_whole_strengthening() {
     .expect_err("a conjunction with a false member must not be admitted");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic.message
-            == "cannot prove ensures contract for exit from descend at statement 1: \
-                result <= previous && result >= n; \
-                no exact incoming reference origin for n, previous"),
+            == "machine `descend` cannot prove ensures contract proof fact \
+                `result <= previous && result >= n` on the transition arm \
+                guarded by `n > 0 == true`"),
+        "{diagnostics:#?}"
+    );
+}
+
+/// The conserved-sum form over residue binders: `acc + remaining` is the
+/// same wrapped value at every header arrival, so `result == acc +
+/// remaining` transports to a conjunct the integer engine certifies and the
+/// residue ring inherits.
+fn climbing(guarantee: &str, backedge: &str) -> String {
+    format!(
+        r#"
+machine climb(remaining: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
+terminates by remaining -> Nat::Descending;
+ensures {guarantee}
+{{
+    transition remaining > 0 {{
+        true -> climb({backedge})
+        false -> (acc + remaining)
+    }}
+}}
+"#
+    )
+}
+
+#[test]
+fn wrapping_accumulator_sum_is_admitted_as_a_ring_identity() {
+    lower_typed_trees(parse_typed_trees(&climbing(
+        "result == acc + remaining",
+        "remaining - 1, acc + 1",
+    )))
+    .unwrap_or_else(|diagnostics| {
+        panic!("the conserved conjunct discharges the exit guarantee: {diagnostics:#?}")
+    });
+}
+
+#[test]
+fn wrapping_accumulator_wrong_step_is_disproved_by_constant_arithmetic() {
+    // Forwarding `acc` unchanged breaks the conserved conjunct: the induction
+    // hypothesis restated at `climb(remaining - 1, acc)` is `result == acc +
+    // remaining - 1`, which the arm's arithmetic refutes outright.
+    let diagnostics = lower_typed_trees(parse_typed_trees(&climbing(
+        "result == acc + remaining",
+        "remaining - 1, acc",
+    )))
+    .expect_err("a wrong accumulator step must not be admitted");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message
+            == "machine `climb` ensures contract proof fact `result == acc + remaining` \
+                is disproved by constant arithmetic on the transition arm \
+                guarded by `remaining > 0 == true`"),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn residue_order_claims_stay_outside_the_language() {
+    // `result >= acc + remaining` is true of the same loop, but an order on a
+    // wrapped value is not an integer identity and never descends to the
+    // residue ring: the proposition is not admitted at all.
+    let diagnostics = lower_typed_trees(parse_typed_trees(&climbing(
+        "result >= acc + remaining",
+        "remaining - 1, acc + 1",
+    )))
+    .expect_err("an order claim over residue binders must not be admitted");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message
+            == "cannot prove ensures contract for exit from climb at statement 1: \
+                result >= acc + remaining; no exact incoming reference origin for remaining, acc"),
         "{diagnostics:#?}"
     );
 }

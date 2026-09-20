@@ -30,30 +30,63 @@ fn positive(
     nonnegative: bool,
     matches: impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
-    guards.iter().any(|guard| {
-        if !super::has_builtin_meaning(program, state, guard.expression) {
-            return false;
-        }
-        let Some((left, operator, right)) = comparison(program, *guard) else {
-            return false;
-        };
-        let (operator, bound) = if matches(left) {
-            (operator, right)
-        } else if matches(right) {
-            (reverse(operator), left)
-        } else {
-            return false;
-        };
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(bound) else {
-            return false;
-        };
-        match operator {
-            BinaryOperator::Greater => literal.value_i64() == Some(0),
-            BinaryOperator::NotEqual => nonnegative && literal.value_i64() == Some(0),
-            BinaryOperator::GreaterOrEqual => literal.value_i64() == Some(1),
-            _ => false,
-        }
-    })
+    guards
+        .iter()
+        .any(|guard| positive_guard(program, state, guard, nonnegative, &matches))
+}
+
+/// One guard fact read for a positive-parameter test. A `when` conjunction
+/// that holds supplies each conjunct as a fact, so a guard spelled
+/// `remaining > 0 && acc < 1000` carries the same positivity as `remaining >
+/// 0` alone.
+fn positive_guard(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    guard: &patterns::GuardFact,
+    nonnegative: bool,
+    matches: &impl Fn(ExpressionHandle) -> bool,
+) -> bool {
+    if !super::has_builtin_meaning(program, state, guard.expression) {
+        return false;
+    }
+    let Some((left, operator, right)) = comparison(program, *guard) else {
+        return false;
+    };
+    // `comparison` unwraps the Boolean equality a dispatch wraps its guard in;
+    // an `And` it surfaces therefore already holds, and both conjuncts are
+    // facts. A FAILED conjunction stays inside the same `And` operator's
+    // operand pair only when the fact can decompose, which it cannot, so
+    // `comparison` returns `None` for it and no conjunct is read.
+    if operator == BinaryOperator::And {
+        return [left, right].iter().any(|&operand| {
+            positive_guard(
+                program,
+                state,
+                &patterns::GuardFact {
+                    expression: operand,
+                    holds: true,
+                },
+                nonnegative,
+                matches,
+            )
+        });
+    }
+    let (operator, bound) = if matches(left) {
+        (operator, right)
+    } else if matches(right) {
+        (reverse(operator), left)
+    } else {
+        return false;
+    };
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(bound) else {
+        return false;
+    };
+    match operator {
+        BinaryOperator::Greater => literal.value_i64() == Some(0),
+        BinaryOperator::NotEqual => nonnegative && literal.value_i64() == Some(0),
+        BinaryOperator::GreaterOrEqual => literal.value_i64() == Some(1),
+        _ => false,
+    }
 }
 
 pub(super) fn guard_is_positive_parameter(

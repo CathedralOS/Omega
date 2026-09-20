@@ -1,0 +1,12 @@
+// Twin of the deployable pass canary: the same build root, so the rejection
+// is the checker's and not a missing dependency or entry.
+
+machine build(builder: &mut Build) {
+    builder.application("accumulator-guarantee-unbounded-formals");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

@@ -2154,33 +2154,65 @@ Owners include
   (`checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`),
   executes natively, and its wrong-step twin rejects
   (`pass/proofs/runtime_ranked_accumulator_guarantee_exit`,
-  `fail/proofs/ranked_accumulator_guarantee_wrong_step_twin`). No arithmetic
-  accumulation claim reaches a generated loop:
+  `fail/proofs/ranked_accumulator_guarantee_wrong_step_twin`). The free-loop
+  restatement of an arithmetic accumulation claim now passes checked
+  semantics end to end: a free `climb(remaining, acc)` over
+  `u64[0..=1000]` formals with `ensures result == acc + remaining` and
+  `terminates by remaining -> Nat::Descending` checks, because the ranking
+  reads positivity through a held `when` conjunction (`remaining > 0 &&
+  acc < 1000` supplies `remaining > 0`), the entailment induction reads a
+  tail call naming the machine as a self-re-entry — resolution binds the
+  machine symbol as the canonical coordinate for a free machine's own
+  entry, while the gate compared only the entry state's symbol — and the
+  header transport proposes the conserved `acc + remaining` conjunct that
+  discharges the exit. The declared entry ranges are the arrival
+  certificates: they make the contract's `acc + remaining` provably in
+  range and, once the `acc >= 1000` early-return arm refutes, give the
+  backedge's `acc + 1` a dominating bound. Its wrong-step twin
+  `fail/proofs/accumulator_guarantee_wrong_step_twin` forwards `acc`
+  unchanged and fails the preserved-sum claim with no provable arrival, the
+  unestablished twin `accumulator_guarantee_unestablished_twin` is
+  disproved by constant arithmetic on the transition arm, the unbounded
+  twin `accumulator_guarantee_unbounded_formals` drops the declared ranges
+  and rejects on the exact-arithmetic obligation, and the unchanged
+  `Nat::Descending` certificate still answers the cycle question. The
+  header transport additionally admits residue-domain (`u64 in Wrapping`)
+  binders under `==` — an integer identity descends to Z/2^w — while
+  residue order and disequality claims stay outside the proposition
+  language; the residue reading is pinned by
+  `src/tests/contracts/cyclic_header_invariants.rs`. The authored fixtures
   `proofs/proof_inductive_gauss_sum` and `proofs/proof_inductive_climbing_sum`
-  remain in `CHECKED_ONLY_PASS_CANARIES`, and their step-false twins refute the
-  wrong update in Psi validation only.
+  remain in `CHECKED_ONLY_PASS_CANARIES`, and their step-false twins refute
+  the wrong update in Psi validation only.
 
   Remaining work:
 
-  - Ring evidence at the Terminal verifier. The fixtures claim
-    `result * 2 == acc * 2 + n * (n + 1)` over `u64 in Wrapping` and an `embed`
-    sum over a two-subject `Nat::BoundedDistance` rank. The kernel derives the
-    order `rank <= previous`; it cannot derive `sum + rank = initial`.
-    `verify_normalization` (`proof-admission/src/admission/normalization.rs`)
-    has no Terminal consumer; routing quotient and ring-law evidence through it
-    is shared with **PCC-CANONICAL-SEMANTIC-LEDGER**.
-  - A generated loop that carries the claim. Both fixtures are `&mut self`
-    machines with no scalar graph; they stop in the attached Unit closure at
-    `call statement shape: call count without a statement sequence`
-    (`typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`).
-    Either the attached value-returning cyclic route lands through
-    **STATE-LOCAL-VALUE-FRONTIER**'s ordinary evaluation, or the sums are
-    restated as free loops.
-  - Header-invariant proposal beyond its current reach: immutable exact
-    fixed-integer parameters, one state, the returned value only. A
-    loop-carried value in a second state, a `self` transition that changes
-    storage, and a Wrapping accumulator are not proposed, so a free-loop
-    restatement of the Wrapping sums does not prove yet either.
+  - Open-term integer equality at the Terminal kernel. The checked claim
+    above does not yet run: the conserved-sum header invariant's backedge
+    arrival is `Equal((acc + 1) + (remaining - 1), acc + remaining)` as
+    Terminal value terms, and no `ProofRule`/`PrimitiveJudgment` discharges
+    a ring identity over open values — `scalar_block_invariants` drops the
+    unprovable proposal, then the `ContractEnsures` obligation has no
+    transport (`OperationProofUnavailable`). The producers and the judgment
+    check live in `proof-admission` and `terminal-psi`, fenced this wave by
+    **PROOF-KERNEL-CORE** and **WRITE-ONLY-BORROW**. The same judgment would
+    serve the fixtures' `sum + rank = initial` claims; routing quotient and
+    ring-law evidence through `verify_normalization`
+    (`proof-admission/src/admission/normalization.rs`) stays shared with
+    **PCC-CANONICAL-SEMANTIC-LEDGER**.
+  - A generated loop that carries the claim on the attached route. Both
+    fixtures are `&mut self` machines with no scalar graph; they stop in the
+    attached Unit closure at `call statement shape: call count without a
+    statement sequence`
+    (`typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`),
+    so the attached value-returning cyclic route still waits on
+    **STATE-LOCAL-VALUE-FRONTIER**'s ordinary evaluation. The free-loop
+    restatement checks above; its native run awaits the kernel judgment.
+  - Header-invariant proposal beyond its widened reach: immutable
+    fixed-integer parameters in the Exact or Wrapping domain under `==`,
+    one state, the returned value. A loop-carried value in a second state,
+    a `self` transition that changes storage, and residue order or
+    disequality claims are still not proposed.
 
   Acceptance: an arithmetic accumulation claim over a generated loop (the two
   fixtures, or a free-loop restatement of their sums) executes natively, and

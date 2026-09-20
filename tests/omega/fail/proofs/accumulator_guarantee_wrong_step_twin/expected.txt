@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from climb at statement 1: result == acc + remaining; no exact incoming reference origin for remaining
