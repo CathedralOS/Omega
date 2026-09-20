@@ -145,7 +145,8 @@ pub use proof_contracts::properties::{
 };
 pub use proof_contracts::proposition_entailment::select_subjectless_evidence_conformance;
 pub use proof_contracts::quotients::{
-    CheckedTerminationOracle, NonExecutableQuotientCorrespondenceBatch, ValidatedQuotientFormation,
+    CheckedTerminationOracle, NonExecutableQuotientCorrespondenceBatch, QuotientRequestAdmission,
+    ValidatedQuotientFormation, admit_checked_quotient_requests,
     extract_non_executable_quotient_correspondences,
     extract_non_executable_quotient_correspondences_with_termination, validate_quotient_formations,
 };

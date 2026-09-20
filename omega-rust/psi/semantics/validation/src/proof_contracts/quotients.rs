@@ -222,12 +222,89 @@ pub fn extract_non_executable_quotient_correspondences_with_termination(
         })
 }
 
+/// Where a program's sealed `Quotient::define`/`Quotient::lift` requests are
+/// judged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotientRequestAdmission {
+    /// Ordinary validation judges every request against the typed machine
+    /// summaries it has. No checked termination guarantee exists yet, so on
+    /// the compiler route every request rejects at the termination fence.
+    AtValidation,
+    /// Validation checks quotient formations only and leaves every request to
+    /// [`admit_checked_quotient_requests`], which the checked stage must call
+    /// once its termination facts exist. Selecting this without that call
+    /// would admit requests nothing judged; the compiler route pairs them.
+    AfterCheckedFacts,
+}
+
 pub(crate) fn validate_quotients(
     program: &TypedTrees,
     proof_only: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    reject_quotient_operation_requests(program, diagnostics);
+    validate_quotients_with_admission(
+        program,
+        proof_only,
+        QuotientRequestAdmission::AtValidation,
+        diagnostics,
+    );
+}
+
+pub(crate) fn validate_quotients_with_admission(
+    program: &TypedTrees,
+    proof_only: &ProofOnlyClassification,
+    admission: QuotientRequestAdmission,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match admission {
+        QuotientRequestAdmission::AtValidation => {
+            reject_quotient_operation_requests(program, program, diagnostics);
+        }
+        QuotientRequestAdmission::AfterCheckedFacts => {}
+    }
 
     collect_validated_quotient_formations(program, proof_only, diagnostics);
+}
+
+/// Judge the program's sealed quotient requests against checked termination.
+///
+/// This is the [`QuotientRequestAdmission::AfterCheckedFacts`] half: the
+/// checked stage calls it once its termination facts exist, answering
+/// `termination` from them. A program without requests admits trivially. A
+/// program whose whole request batch the proof-only bridge extracts admits;
+/// the batch is all-or-nothing, so any other request keeps every request's
+/// rejection diagnostic, rendered against the same checked termination.
+/// Admission is proof-only: the extracted rows reach Terminal only through
+/// the producer's own installer, and a nonempty correspondence table is still
+/// refused by Terminal execution.
+pub fn admit_checked_quotient_requests(
+    program: &TypedTrees,
+    termination: &dyn CheckedTerminationOracle,
+) -> Result<(), Vec<Diagnostic>> {
+    if !program
+        .expression_table
+        .iter_expressions()
+        .any(|(_, expression)| {
+            matches!(
+                expression,
+                typed_trees::expression::ExpressionNode::Call(call)
+                    if call.quotient_operation.is_some()
+            )
+        })
+    {
+        return Ok(());
+    }
+    if matches!(terminal_bridge::extract(program, termination), Ok(rows) if !rows.is_empty()) {
+        return Ok(());
+    }
+    let mut diagnostics = Vec::new();
+    reject_quotient_operation_requests(program, termination, &mut diagnostics);
+    if diagnostics.is_empty() {
+        // The bridge and the rejection walk judge the same plans; a batch the
+        // bridge refused must name its reason rather than pass silently.
+        diagnostics.push(Diagnostic::error(
+            "quotient operation requests were not admitted by the proof-only bridge".to_owned(),
+        ));
+    }
+    Err(diagnostics)
 }

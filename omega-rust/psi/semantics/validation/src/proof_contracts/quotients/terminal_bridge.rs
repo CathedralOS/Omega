@@ -95,7 +95,7 @@ fn extract_one(
         .quotient_operation
         .as_ref()
         .ok_or_else(|| "the retained call lost its quotient request".to_owned())?;
-    let plan = super::relation_plan::derive_direct_terminal_plan_with_termination(
+    let plan = super::relation_plan::derive_direct_terminal_plan(
         program,
         termination,
         machine,

@@ -546,9 +546,15 @@ fn direct_plan_composes_selected_transport_without_automatic_implication_rows() 
     ]
     .into_boxed_slice();
 
-    let plan =
-        derive_direct_terminal_plan(&program, &public_machine, &public_state, &call, &request)
-            .expect("the exact selected transport should complete checked relation planning");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &public_machine,
+        &public_state,
+        &call,
+        &request,
+    )
+    .expect("the exact selected transport should complete checked relation planning");
     assert!(
         plan.transport_schema_verification
             .as_ref()

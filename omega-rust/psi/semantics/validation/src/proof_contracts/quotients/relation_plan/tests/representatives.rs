@@ -51,6 +51,7 @@ fn direct_plan_rejects_untyped_adapted_argument() {
     assert_eq!(
         derive_direct_terminal_plan(
             &program,
+            &program,
             &Machine::default(),
             &state,
             &call,
@@ -75,6 +76,7 @@ fn direct_plan_rejects_nonquotient_result() {
 
     assert_eq!(
         derive_direct_terminal_plan(
+            &program,
             &program,
             &Machine::default(),
             &state,
@@ -124,6 +126,7 @@ fn direct_plan_rejects_open_relation_application_without_operation_telescope() {
 
     assert_eq!(
         derive_direct_terminal_plan(
+            &program,
             &program,
             &Machine::default(),
             &state,

@@ -428,19 +428,10 @@ impl fmt::Display for RelationPlanError {
     }
 }
 
-/// [`derive_direct_terminal_plan_with_termination`] reading termination
-/// eligibility from the typed machine summaries: what ordinary validation has.
+/// Termination eligibility is answered by `termination`, not read from the
+/// program: ordinary validation passes the program itself (its typed
+/// summaries), the checked-route admission passes the checked facts.
 pub(super) fn derive_direct_terminal_plan(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    call: &TableCallExpression,
-    request: &QuotientOperationRequest,
-) -> Result<DirectTerminalRelationPlan, RelationPlanError> {
-    derive_direct_terminal_plan_with_termination(program, program, machine, state, call, request)
-}
-
-pub(super) fn derive_direct_terminal_plan_with_termination(
     program: &TypedTrees,
     termination: &dyn super::CheckedTerminationOracle,
     machine: &Machine,

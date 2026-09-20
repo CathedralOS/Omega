@@ -169,7 +169,7 @@ fn direct_plan_retains_exact_input_and_result_quotient_identities() {
         representative_carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &machine, &state, &call, &request)
+    let plan = derive_direct_terminal_plan(&program, &program, &machine, &state, &call, &request)
         .expect("direct named operands and quotient result derive an exact plan");
 
     assert_eq!(plan.input_relations.len(), 2);
