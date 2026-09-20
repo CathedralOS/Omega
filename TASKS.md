@@ -9675,6 +9675,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   type is named outside the two lemmas modules: no check site produces a
   quantified fact and no entailment surface consults one, so the
   no-independent-slice verdict holds.
+  Re-verified at `2e5d4a732471` on Linux x86-64: both lemmas carriers still
+  landed (`semantics/proof/src/lemmas.rs`, `checked_trees/proof/lemmas.rs`),
+  still no quantified-fact producer or entailment consumer, and every
+  upstream surface remains live-fenced — `specification_calls`/
+  `call_requirements` under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION (~04:00Z)
+  and PROOF-SUBJECT-CALL-SELECTION (~05:39Z), `arithmetic_judgment` under
+  the SIGNED-CALL-PREMISES family (~22:38Z).
 - **PROOF-SAMPLES-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROOF-SEARCH-COST-MEASUREMENT** — mined candidate; verify scope then implement.
 - **PROOF-SEARCH-DERIVATION-CACHE.** Resolved — the derivation recheck
