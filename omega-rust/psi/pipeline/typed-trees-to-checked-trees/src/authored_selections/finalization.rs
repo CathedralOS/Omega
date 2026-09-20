@@ -368,7 +368,12 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
         &mut inferred_conformances,
     )?;
     collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
-    collect_checked_proof_view_call_selections(program, &mut resolutions)?;
+    let mut unoccurred_view_calls = Vec::new();
+    collect_checked_proof_view_call_selections(
+        program,
+        &mut resolutions,
+        &mut unoccurred_view_calls,
+    )?;
 
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
@@ -381,6 +386,58 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
             }
         };
         result.map_err(|error| finalization_diagnostic(resolution, error))?;
+    }
+    // A contract clause may spell a bare uninterpreted view atom
+    // (`Bag(items)`); the resolver deliberately records no Call occurrence
+    // for it because it names no declaration. Once checking admits the atom
+    // as a proof view, the checked ledger still owes the spelling explicit
+    // compiler-owned custody: mint one finalized ProofView row per exact call
+    // site and attach it as the expression's occurrence.
+    let mut minted_view_calls: Vec<(
+        source::SourceSpan,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        AuthoredDeclarationSelectionOccurrenceId,
+    )> = Vec::new();
+    for (source_span, exposure, expression) in unoccurred_view_calls {
+        let occurrence = match minted_view_calls
+            .iter()
+            .find(|(seen_span, seen_exposure, _)| {
+                *seen_span == source_span && *seen_exposure == exposure
+            }) {
+            Some((_, _, occurrence)) => *occurrence,
+            None => {
+                let occurrence = selections
+                    .record_late_bound(
+                        source_span,
+                        exposure,
+                        AuthoredDeclarationSelectionKind::Call,
+                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "failed to retain proof-view call selection: {error:?}"
+                        ))
+                        .with_source_span(source_span)
+                    })?;
+                selections
+                    .finalize_intrinsic(
+                        occurrence,
+                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                        AuthoredDeclarationSelectionIntrinsic::ProofView,
+                    )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "failed to finalize proof-view call selection: {error:?}"
+                        ))
+                        .with_source_span(source_span)
+                    })?;
+                minted_view_calls.push((source_span, exposure, occurrence));
+                occurrence
+            }
+        };
+        program
+            .expression_table
+            .attach_authored_selection_occurrences(expression, [occurrence]);
     }
     for (source_span, exposure, selected_symbol) in inferred_conformances {
         let already_retained = selections.iter().any(|selection| {
