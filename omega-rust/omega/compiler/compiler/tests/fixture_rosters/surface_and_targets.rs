@@ -24,6 +24,8 @@ pub const IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED: &str =
     "modules/imported_name_collides_with_local_data_rejected";
 pub const RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED: &str =
     "calls/recursive_argument_imported_name_collision_rejected";
+pub const REPEATED_EXACT_DECLARATION_SELECTION_COMPILE: &str =
+    "modules/repeated_exact_declaration_selection_compile";
 
 pub const PASS_CANARIES: &[&str] = &[
     STATIC_MACHINE_PARAMETER_CONFIG_COMPILE,
@@ -36,6 +38,7 @@ pub const PASS_CANARIES: &[&str] = &[
     RUNTIME_SAT_MIN_IDIOM_EXIT,
     RUNTIME_WIRE_UTF8_INVALID_REFUSED_EXIT,
     EXTERNAL_LEAF_SYSCALL_COMPILE,
+    REPEATED_EXACT_DECLARATION_SELECTION_COMPILE,
 ];
 
 pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
