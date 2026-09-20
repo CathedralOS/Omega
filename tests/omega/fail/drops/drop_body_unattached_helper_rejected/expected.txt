@@ -1,0 +1,1 @@
+non-empty `drop` body outside the executable cleanup slice
