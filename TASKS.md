@@ -6754,7 +6754,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   clause for coordinator retirement: D-OCREQ-ENTRY-BINDING and
   D-REQUEST-ADMISSION-ROUTE.
 - **D-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
-- **D-REQUEST-ADMISSION-ROUTE** — mined candidate; verify scope then implement.
+- **D-REQUEST-ADMISSION-ROUTE.** Resolved — the request admission route is
+  the sealed OCREQ V1 boundary implemented and bound on `origin/main`:
+  `tests/bootstrap/omega-request/main.epsilon` is D's canonical program
+  boundary (one sealed request on stdin → exactly one OCOUT V1 outcome
+  frame, outcome tag as exit code), running the implemented phases —
+  envelope identity and declared extents (0/1), inner field/tag structure
+  pass (2/6), `malformed_request` anchored at the first bad byte,
+  `request_staging_bytes` resource refusal past the 65536 staging bound —
+  and stopping at the `coverage_request_semantics` provision rather than
+  faking admission it cannot defend. Bound at `fe4a90641b` as
+  `OMEGA_REQUEST_ENTRY_*` pins + `require_omega_request_entry_identity`;
+  the ProgramEntry contract is bound to the route at `ab7f8c651c`
+  (OMEGA-D-REAL-ENTRY-ROUTE). Verified at `28a3cc7fea`
+  on linux x86-64: `sh tests/bootstrap/omega-identity.sh` green (corrupted
+  and truncated request entries refused). Remaining legs stay with their
+  own rows: the semantic admission phases (package-key recomputation,
+  canonical ordering, graph, snapshot, commitment) are the spec's open
+  `compiler_request.md` surface under the OMEGA-D-REQUEST-* siblings, and
+  the end-to-end interpreted gate `tests/bootstrap/omega-request/run.sh`
+  is host-gated to macOS arm64 / Windows x64.
 - **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
 - **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER** — mined candidate; verify scope then implement.
