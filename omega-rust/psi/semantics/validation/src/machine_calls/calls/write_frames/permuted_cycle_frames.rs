@@ -11,7 +11,9 @@ use crate::machine_calls::calls::write_frames::alias_origins::{
 };
 use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
 use crate::machine_calls::calls::write_frames::boundary_calls::known_boundary_call_written_paths_for_parts;
-use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
+use crate::machine_calls::calls::write_frames::caller_aliases::{
+    CallOriginContext, CallerWriteSite,
+};
 use crate::machine_calls::calls::write_frames::demand::{
     collect_expression_call_written_paths, statement_value_expression_roots,
     syntactic_call_written_paths,
@@ -20,7 +22,9 @@ use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts_with_origins;
 use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
-use crate::machine_calls::calls::write_frames::path_instantiation::instantiate_written_path;
+use crate::machine_calls::calls::write_frames::path_instantiation::{
+    instantiate_written_path, instantiate_written_path_with_origins,
+};
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path, split_place_root,
 };
@@ -630,6 +634,8 @@ pub(crate) fn summarize_transition_target_written_paths(
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     source_locals: &[String],
     require_complete: bool,
+    origins: &CallOriginContext<'_>,
+    machine_symbols: &MachineSymbols<'_>,
 ) -> Option<Vec<String>> {
     if !target.is_valid() {
         return Some(Vec::new());
@@ -680,18 +686,42 @@ pub(crate) fn summarize_transition_target_written_paths(
             inference.active_states.pop();
             let target_writes = target_writes?;
             let parameters = program.state_parameters(target_state);
+            // Named-state transfer substitutes the same finite candidate sets
+            // call frames already carry: an actual bound to a divergent
+            // referent set instantiates each proven route into the source
+            // namespace rather than sinking the whole frame. An unproven
+            // divergent actual still fails closed.
+            let argument_types = parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| parameter.type_reference)
+                .collect::<Vec<_>>();
+            let argument_origins = origins.argument_origins(
+                program,
+                machine,
+                machine_symbols,
+                symbols,
+                inference,
+                arguments,
+                &argument_types,
+            )?;
             let mut instantiated = Vec::new();
             for relative in target_writes {
-                for path in instantiate_written_path(
+                for path in instantiate_written_path_with_origins(
                     program,
                     machine,
                     &relative,
-                    Some("self"),
+                    Some(&FramePlaceOrigin {
+                        path: "self".to_owned(),
+                        precision: FramePathPrecision::Exact,
+                        source: Default::default(),
+                    }),
                     parameters,
                     arguments,
                     source_locals,
                     symbols,
                     inference,
+                    Some(&argument_origins),
                 )? {
                     if !instantiated.contains(&path) {
                         instantiated.push(path);

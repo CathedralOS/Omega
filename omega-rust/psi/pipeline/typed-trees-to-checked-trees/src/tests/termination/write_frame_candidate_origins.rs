@@ -340,7 +340,7 @@ fn unproven_candidate_routes_stay_opaque() {
 }
 
 #[test]
-fn divergent_named_state_transfer_cannot_drop_candidate_writes() {
+fn divergent_named_state_transfer_unions_candidate_writes() {
     let program = probe_program(
         "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag);
         transition { _ -> next(alias) }
@@ -352,10 +352,13 @@ fn divergent_named_state_transfer_cannot_drop_candidate_writes() {
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("caller");
     let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
-    assert!(
-        !resolver
-            .inferred_state_write_frame(machine, &program.machine_states(machine)[0])
-            .is_complete()
+    assert_eq!(
+        visible_paths(
+            resolver
+                .inferred_state_write_frame(machine, &program.machine_states(machine)[0])
+                .into_complete_paths()
+        ),
+        Some(vec!["self.other".to_string(), "self.value".to_string()]),
     );
 }
 
