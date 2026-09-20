@@ -7293,7 +7293,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS** — mined candidate; verify scope then implement.
-- **TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
+- **TARGET-BATCH-MANIFEST** — mined candidate; scope verified, no slice — the stub re-mines `wiki/spec/build/configuration.md`'s optional batch-manifest clause ("An optional batch manifest binds the explicit set and child commitments/outcomes, not completeness of a support/test/deployment matrix"). The batched semantics already exist: `compiler/README.md` runs distinct `TargetCompileConfiguration::with_build_snapshot` requests through one prepared continuation, collects one ordered outcome per target without fail-fast, and deliberately grants no batch manifest — the manifest is optional spec machinery no board deliverable requires, and adding one would invent an authority the spec says binds nothing extra. Sibling stubs on the same clause: COMPILER-BATCH-MANIFEST, MULTI-TARGET-BATCH-MANIFEST.
 - **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION** — mined candidate; verify scope then implement.
 - **TASK-RUNTIME-NATIVE-SUPPORT** — mined candidate; verify scope then implement.
 - **TERMINAL-SOURCE-CUSTODY-GATE-ORDER** — mined candidate; verify scope then implement.
