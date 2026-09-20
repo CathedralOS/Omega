@@ -7302,7 +7302,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `native_filesystem_canaries` suite is `#![cfg(target_os = "macos")]` and
   asserts via `compile_exact_macos_entry` + real `/tmp` writes, so the
   PASS cannot be witnessed on a linux_x86_64 host (a compile-only leg is
-  already covered by the pass-corpus compile roster). Prerequisite: a
+  already covered by the pass-corpus compile roster). Re-verified at
+  `27deadf4122`: the suite's `#![cfg(target_os = "macos")]` gate is
+  still in place and all four `ProgramEntry` bindings persist in the
+  fixture's `build.omg`, so the only open deliverable remains the
+  macOS witness. Prerequisite: a
   seeded macOS arm64 host (SEED-HOST-CHAIN-LEGS' audited list); then run
   `cargo nextest run -p compiler --test canary_suite -E
   'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
