@@ -5835,7 +5835,19 @@ Language/semantic gaps:
 `ff596a06e6`; re-verified 3/3 zero_length canaries (admission, use-fence
 rejection, native-route `InvalidStructuralArrayLength` pin) green at
 `50cd9a2769`.
-- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
+- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Resolved — the umbrella
+  row for the cross-package dynamic-evidence loan-origin cluster closed
+  by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`). The
+  recorded failure
+  `cross_package_visibility::public_dynamic_return_may_carry_private_
+  producer_selected_evidence` ("state `code` requires an exact retained
+  loan origin for its shared receiver") passes after the
+  retained-lineage/borrow-evidence family landed; re-verified on this
+  host: all 21 `cross_package_visibility` tests pass at `dcfb595098`
+  (linux x86-64) with zero loan-origin diagnostics. No independent
+  slice remains. Sibling stubs on the same surface:
+  PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN (resolved),
+  PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN.
 
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
 - **STRUCTURAL-UNIT-LOWERING.** Scope verified on `a4ffd1aff8` — structural-unit
