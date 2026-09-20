@@ -8,6 +8,7 @@ mod borrowed_arrays;
 mod borrowed_records;
 mod call_results;
 mod closed_generic_records;
+mod byte_view_writes;
 mod computations;
 
 #[test]
