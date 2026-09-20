@@ -8385,7 +8385,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/epsilon` acceptance gates (claimed by DELTA-COMPILER until
   21:48Z).
 - **OMEGA-D-ENTRY-ADAPTER-RETIREMENT** — mined candidate; verify scope then implement.
-- **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; scope verified, resolved —
+  landed at `ab7f8c651c`: the executable fixture's selected machine renamed
+  to `main` (the name `alpha_bootstrap::ProgramEntry` binds in
+  `source/omega/build.omg`), entry selection now comes from the target's
+  contract rather than an adapter-supplied `answer` spelling, and the OCREQ
+  v1 request route is the omega-executable gate's default
+  (`tests/bootstrap/omega-executable/program.omg` runs `machine main`).
+  Remaining clause legs are the sibling rows': trampoline elimination is
+  OMEGA-D-ENTRY-ADAPTER-RETIREMENT's and request semantic phases are the
+  OMEGA-D-REQUEST-* family's.
 - **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-AND-ENTRY-ROUTE.** Scope verified 2026-09-21: the mined
   stub re-covers the request-side + entry composition the OMEGA-D clause
