@@ -157,7 +157,8 @@ pub(crate) fn is_branch_free_structural_integer_expression(
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerExactCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             is_branch_free_structural_integer_expression(
                 operand,
                 scalar_parameters,

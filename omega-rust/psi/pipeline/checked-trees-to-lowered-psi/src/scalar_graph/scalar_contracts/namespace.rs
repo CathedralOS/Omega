@@ -49,6 +49,9 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         CheckedScalarExpression::IntegerTrappingCast { .. } => Err(LoweringError::Unsupported(
             "trapping conversion is not total scalar contract arithmetic",
         )),
+        CheckedScalarExpression::IntegerSaturatingCast { .. } => Err(LoweringError::Unsupported(
+            "saturating conversion is not supported scalar contract arithmetic",
+        )),
         CheckedScalarExpression::Local { .. } | CheckedScalarExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(
                 "scalar contract operand contains body-local or mutable storage",

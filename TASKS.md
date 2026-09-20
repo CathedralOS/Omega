@@ -2013,6 +2013,26 @@ Owners include
     `CheckedScalarComputationKind::BooleanToInteger` owns the authored cast
     occurrence and its evaluated operand and lowers through the ordinary
     conditional selection of destination-typed 0 and 1.
+  - Saturating conversion for unsigned narrowing pairs landed this leg
+    (z73): `CheckedScalarExpression::IntegerSaturatingCast` is the checked
+    form, and `prepare_expression.rs` lowers it branch-free — the clamp
+    `min(value, target_max)` is the ordinary arithmetic spelling
+    `value - (value sat_sub target_max)` at the source width, wrapped in
+    `value mod 2^target_bits` so the emitted `IntegerExactCast` carries its
+    own range bound. Signed carriers have no such spelling (a signed
+    `sat_sub` clamps at ±2^N, not 0), so signed or mixed-sign saturating
+    pairs keep the same `construct_integer_cast` check-stage refusal,
+    pinned by the i16→i8 control in
+    `integer_policy_realization.rs::a_saturating_conversion_composes_on_unsigned_narrowing`.
+    The six unsigned `narrow_*_saturating` machines in
+    `numeric_conversion.omg` now carry the cast spelling; the signed
+    machines keep their explicit transition clamps. Canary attribution at
+    `ff2f489bbf`: the six `core/numeric_*` canaries were already red for
+    independent reasons (four Trapping-boundary refusals, a unit-graph
+    `unreachable states` in `numeric_conversion_surface`, and an
+    unconsumed-nested-call omission in
+    `numeric_cross_signed_conversion_surface`) — verified identical with
+    and without this leg's edits.
 
   Acceptance: the six `core/numeric_*` pass canaries and every
   `source/library/core/numeric_conversion.omg` machine ending in a Trapping
