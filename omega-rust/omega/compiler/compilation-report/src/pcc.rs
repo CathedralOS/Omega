@@ -9,10 +9,13 @@
 //! seals — so the section's claims about coverage are verified, not trusted,
 //! and each thunk's realized instruction sequence (and on Mach-O the exact
 //! binding slot its decoded pointer loads) is verified, not trusted either.
+//! The container's own declared entry point is custody of the same kind: the
+//! loader-visible entry address is re-derived from the committed bytes and
+//! must land on the start of a placed region the inventory committed.
 //! Producer custody digests, even when self-consistent, still prove nothing
 //! about the behavior of compiler-function regions, so the behavioral legs
-//! (instruction rows against the closed target semantics, entries, incoming
-//! edges, premise availability and lowering correspondence) keep the verdict
+//! (instruction rows against the closed target semantics, edges between
+//! rows, premise availability and lowering correspondence) keep the verdict
 //! at `Incomplete` until their standalone checking exists.
 
 mod native_evidence;
@@ -137,9 +140,10 @@ pub fn build_native_proof_sidecar(
 /// declared extents plus the closed realization of its import thunks — and
 /// the binding slots their decoded pointers load, committed in the
 /// initialized-data inventory on aarch64 Mach-O and in the `.rdata`
-/// import-data inventory on x86-64 Coff: the
-/// behavioral remainder (instruction rows inside compiler regions, entries,
-/// incoming edges, premise availability, lowering correspondence) stays
+/// import-data inventory on x86-64 Coff — plus the container-declared entry
+/// landing on a placed region boundary: the
+/// behavioral remainder (instruction rows inside compiler regions, the edges
+/// between rows, premise availability, lowering correspondence) stays
 /// `Incomplete` until standalone native semantics and preservation checking
 /// exists.
 pub fn verify_native_proof_sidecar(
