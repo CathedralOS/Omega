@@ -7735,7 +7735,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mine stubs of the same bullet still open:
   CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING, CHAIN-MANIFEST-GATE-PREFIX-BINDING,
   GATE-LOCAL-DRIVER-PREFIX-BINDING.
-- **CHAIN-MANIFEST-GATE-PREFIX-BINDING** — mined candidate; verify scope then implement.
+- **CHAIN-MANIFEST-GATE-PREFIX-BINDING.** Resolved — re-mine of the
+  TASKS_BOOTSTRAP.md gate-local-prefix bullet already struck after
+  `e1fba5f523` ("bootstrap: bind Epsilon slice driver and reconstructed
+  receipt identity"), adjudicated on resolved siblings
+  CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING and
+  CHAIN-MANIFEST-GATE-LOCAL-PREFIXES (this section), which name this stub
+  explicitly. Re-verified live at `bbcff399ed` on linux x86-64:
+  `e1fba5f523` is an ancestor of HEAD and the
+  `EPSILON_EXECUTION_DRIVER_SIZE=2565` / `SHA256` pins plus
+  `require_epsilon_execution_driver_identity` remain in
+  `tools/bootstrap/epsilon/evaluator_env.sh` gating every cross-rung
+  consumer. No slice remains on this surface; open manifest legs stay in
+  their own rows (OMEGA-C `omega0`/`omega` tapes; per-edge certificates
+  and admission records).
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
   main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):
