@@ -1509,6 +1509,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
     "modules/boundary_signature_selects_private_data",
+    "operators/cross_introducer_duplicate_binding",
     "operators/domain_operator_alpha_equivalent_generic_duplicate",
     "operators/domain_operator_duplicate",
     "operators/domain_operator_reordered_generic_duplicate",
