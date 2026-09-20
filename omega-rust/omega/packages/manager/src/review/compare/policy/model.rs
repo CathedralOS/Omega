@@ -1,7 +1,7 @@
 use super::PackagePolicySourceReplacement;
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::DependencyPurpose;
-use crate::lock::PackageAcceptanceRow;
+use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
 use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::compare::model::ReviewOnlyRootRoleChange;
 use package_evidence::record::PackagePolicyRowKind;
@@ -26,6 +26,8 @@ impl PackagePolicyChangeFingerprint {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRowChange {
+    pub(super) baseline_context: Option<PackageCheckedContext>,
+    pub(super) candidate_context: Option<PackageCheckedContext>,
     pub(super) baseline: Option<PackageAcceptanceRow>,
     pub(super) candidate: Option<PackageAcceptanceRow>,
     pub(super) change: PackagePolicyChangeKind,
@@ -34,6 +36,12 @@ pub struct PackagePolicyRowChange {
     pub(super) fingerprint: PackagePolicyChangeFingerprint,
 }
 impl PackagePolicyRowChange {
+    pub const fn baseline_context(&self) -> Option<PackageCheckedContext> {
+        self.baseline_context
+    }
+    pub const fn candidate_context(&self) -> Option<PackageCheckedContext> {
+        self.candidate_context
+    }
     fn row(&self) -> &PackageAcceptanceRow {
         self.candidate
             .as_ref()
@@ -119,11 +127,11 @@ pub struct PackagePolicyPackageChange {
     /// product-authority rows; accepting the rows does not accept host reach.
     pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
     /// The occurrences the accepted baseline consented to, joined from the
-    /// source-graph roster; absent when the package has no baseline.
-    pub(super) baseline_occurrence_purposes: Option<Vec<DependencyPurpose>>,
+    /// source-graph roster; empty when the package has no baseline.
+    pub(super) baseline_occurrence_contexts: Vec<PackageCheckedContext>,
     /// The occurrences the candidate review answers for, joined from the
-    /// candidate roster; absent when the package left the closure.
-    pub(super) candidate_occurrence_purposes: Option<Vec<DependencyPurpose>>,
+    /// candidate roster; empty when the package left the closure.
+    pub(super) candidate_occurrence_contexts: Vec<PackageCheckedContext>,
     pub(super) source_changed: bool,
     pub(super) source_association_changed: bool,
     pub(super) audit_recommended: bool,
@@ -159,21 +167,17 @@ impl PackagePolicyPackageChange {
     pub fn restricted_build_requests(&self) -> &[build_evaluation::RestrictedBuildRequest] {
         &self.restricted_build_requests
     }
-    /// Purposes this package's recorded baseline authorized. `None` means the
-    /// package is new to the closure rather than purposeless.
-    pub fn baseline_occurrence_purposes(&self) -> Option<&[DependencyPurpose]> {
-        self.baseline_occurrence_purposes.as_deref()
+    /// Exact retained checked occurrences; empty when the package has no baseline.
+    pub fn baseline_occurrence_contexts(&self) -> &[PackageCheckedContext] {
+        &self.baseline_occurrence_contexts
     }
-    /// Purposes the candidate review covers for this package.
-    pub fn candidate_occurrence_purposes(&self) -> Option<&[DependencyPurpose]> {
-        self.candidate_occurrence_purposes.as_deref()
+    /// Exact candidate checked occurrences; empty when the package left the closure.
+    pub fn candidate_occurrence_contexts(&self) -> &[PackageCheckedContext] {
+        &self.candidate_occurrence_contexts
     }
-    /// The package's authorized occurrence set changed between baseline and
-    /// candidate — for example a shared custody gaining or losing a build
-    /// occurrence. Unchanged risk rows need fresh consent for a different
-    /// purpose; empty benign policy still needs no decision.
-    pub fn occurrence_purposes_changed(&self) -> bool {
-        self.baseline_occurrence_purposes != self.candidate_occurrence_purposes
+    /// Context changes remain audit-visible even when benign policy has no rows.
+    pub fn occurrence_contexts_changed(&self) -> bool {
+        self.baseline_occurrence_contexts != self.candidate_occurrence_contexts
     }
     pub const fn audit_recommended(&self) -> bool {
         self.audit_recommended

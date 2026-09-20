@@ -1,117 +1,62 @@
 use super::{
-    HistoricalPackagePolicyDecisions, PackageLockError as Error, PackageLockRecoveryLimits,
-    PackageOccurrenceRoster,
+    HistoricalPackagePolicyDecisions, PackageCheckedContext, PackageLockError as Error,
+    PackageLockRecoveryLimits, PackageOccurrenceRoster, PackagePolicyOccurrence,
 };
-use crate::declarations::PackageKey;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
-/// Source pins, exact acceptance obligations, and historical project choices for
-/// one exact target. This inert record is not fresh publication authorization.
+/// Source pins and independently retained consent for every checked occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageLockTarget {
     pub(super) source: CanonicalSourceClosureSubject,
-    /// The authorized occurrence purposes of `source.packages()[i]`; baseline
-    /// `i` consents to exactly these occurrences. This is the recorded join of
-    /// each acceptance to the source graph's occurrence roster.
-    pub(super) occurrence_purposes: Vec<Vec<DependencyPurpose>>,
-    pub(super) baselines: Vec<super::PackagePolicyAcceptance>,
+    pub(super) occurrences: Vec<PackagePolicyOccurrence>,
     pub(super) decisions: HistoricalPackagePolicyDecisions,
 }
 
 impl PackageLockTarget {
-    /// Compose already constructed source and policy values without compiler,
-    /// proof, or native replay. Baselines must follow exact source-package order.
-    /// Every concrete policy owner must belong to the transitive source graph.
-    pub fn from_parts(
+    /// Validate full policy associations before projecting compact historical intent.
+    pub fn from_policies(
         source: CanonicalSourceClosureSubject,
-        baselines: Vec<PackagePolicyBaseline>,
+        policies: &[(PackageCheckedContext, &PackagePolicyBaseline)],
         decisions: HistoricalPackagePolicyDecisions,
     ) -> Result<Self, Error> {
-        // Validate incoming full policy before discarding reconstruction-only
-        // associations. Compact rows are consent, never recovered compiler IR.
-        if baselines.len() != source.packages().len() {
-            return Err(Error::BaselineCoverage);
-        }
+        let occurrences = policies
+            .iter()
+            .map(|(context, policy)| PackagePolicyOccurrence::from_policy(policy, *context))
+            .collect::<Result<Vec<_>, _>>()?;
+        let value = Self::from_occurrences(source, occurrences, decisions)?;
         let limits = PackageLockRecoveryLimits::default();
         super::validation::policy_source_membership(
-            &source,
-            &baselines,
+            &value.source,
+            policies,
             limits.maximum_owned_bytes,
             limits.maximum_identity_nodes,
         )?;
-        let baselines = baselines
-            .iter()
-            .map(super::PackagePolicyAcceptance::from_policy)
-            .collect::<Result<_, _>>()?;
-        Self::from_acceptances(source, baselines, decisions)
+        Ok(value)
     }
 
-    /// Compose retained consent without reconstructing or cloning old compiler policy.
-    pub fn from_acceptances(
+    /// Compose inert compact consent; no compiler facts are recovered from it.
+    pub fn from_occurrences(
         source: CanonicalSourceClosureSubject,
-        baselines: Vec<super::PackagePolicyAcceptance>,
-        decisions: HistoricalPackagePolicyDecisions,
-    ) -> Result<Self, Error> {
-        let occurrence_purposes = Self::derived_occurrence_purposes(&source)?;
-        Self::from_recorded_parts(source, occurrence_purposes, baselines, decisions)
-    }
-
-    /// Compose a target whose occurrence coverage was recovered from text;
-    /// validation still requires the recorded coverage to equal the roster the
-    /// source graph derives.
-    pub(super) fn from_recorded_parts(
-        source: CanonicalSourceClosureSubject,
-        occurrence_purposes: Vec<Vec<DependencyPurpose>>,
-        baselines: Vec<super::PackagePolicyAcceptance>,
+        occurrences: Vec<PackagePolicyOccurrence>,
         decisions: HistoricalPackagePolicyDecisions,
     ) -> Result<Self, Error> {
         let value = Self {
             source,
-            occurrence_purposes,
-            baselines,
+            occurrences,
             decisions,
         };
         value.validate()?;
         Ok(value)
     }
 
-    /// Every package's authorized occurrence purposes, in `source.packages()`
-    /// order. Baseline `i` answers exactly these occurrences.
-    pub fn occurrence_purposes(&self) -> &[Vec<DependencyPurpose>] {
-        &self.occurrence_purposes
-    }
-
-    /// The purposes one package occurs under in this target's closure.
-    pub fn occurrence_purposes_for(&self, package: &PackageKey) -> Option<&[DependencyPurpose]> {
-        self.source
-            .packages()
-            .binary_search_by(|source| source.key().cmp(package))
-            .ok()
-            .map(|index| self.occurrence_purposes[index].as_slice())
-    }
-
-    pub(super) fn derived_occurrence_purposes(
-        source: &CanonicalSourceClosureSubject,
-    ) -> Result<Vec<Vec<DependencyPurpose>>, Error> {
-        Ok(PackageOccurrenceRoster::derive(source)
-            .map_err(|error| match error {
-                super::PackageOccurrenceRosterError::AllocationFailed => Error::AllocationFailed,
-                _ => Error::OccurrenceCoverage,
-            })?
-            .coverages()
-            .iter()
-            .map(|coverage| coverage.purposes().to_vec())
-            .collect())
-    }
-
     pub fn source(&self) -> &CanonicalSourceClosureSubject {
         &self.source
     }
-    pub fn baselines(&self) -> &[super::PackagePolicyAcceptance] {
-        &self.baselines
+    pub fn occurrences(&self) -> &[PackagePolicyOccurrence] {
+        &self.occurrences
     }
     pub fn decisions(&self) -> &HistoricalPackagePolicyDecisions {
         &self.decisions
@@ -120,28 +65,40 @@ impl PackageLockTarget {
         self.source.target_profile()
     }
 
-    // Cheap joins only. The public constructor and budgeted text reader also
-    // establish complete policy membership before exposing an immutable target.
+    /// All occurrence records have been checked to agree on this explicit profile.
+    pub fn execution_profile(&self) -> Option<TargetProfile> {
+        self.occurrences
+            .first()
+            .and_then(|occurrence| occurrence.context().build_execution_profile())
+    }
+
     pub(super) fn validate(&self) -> Result<(), Error> {
-        let derived = Self::derived_occurrence_purposes(&self.source)?;
-        if self.occurrence_purposes != derived {
+        let roster =
+            PackageOccurrenceRoster::derive(&self.source).map_err(|error| match error {
+                super::PackageOccurrenceRosterError::AllocationFailed => Error::AllocationFailed,
+                _ => Error::OccurrenceCoverage,
+            })?;
+        if self.occurrences.len() != roster.occurrence_count() {
             return Err(Error::OccurrenceCoverage);
         }
-        if self.baselines.len() != self.source.packages().len()
-            || self
-                .baselines
-                .iter()
-                .zip(self.source.packages())
-                .any(|(baseline, source)| baseline.package() != source.key().identity())
-        {
-            return Err(Error::BaselineCoverage);
-        }
-        if self
-            .baselines
-            .iter()
-            .any(|baseline| baseline.target() != self.target())
-        {
-            return Err(Error::TargetMismatch);
+        let mut occurrences = self.occurrences.iter();
+        for coverage in roster.coverages() {
+            for purpose in coverage.purposes() {
+                let occurrence = occurrences.next().ok_or(Error::OccurrenceCoverage)?;
+                let context = occurrence.context();
+                if occurrence.acceptance().package() != coverage.package().identity()
+                    || context.purpose() != *purpose
+                {
+                    return Err(Error::OccurrenceCoverage);
+                }
+                occurrence.validate()?;
+                if context.build_execution_profile() != self.execution_profile() {
+                    return Err(Error::ExecutionProfileMismatch);
+                }
+                if *purpose == DependencyPurpose::Product && context.target() != self.target() {
+                    return Err(Error::TargetMismatch);
+                }
+            }
         }
         if self.decisions.source_subject() != self.source.fingerprint() {
             return Err(Error::DecisionSourceMismatch);
@@ -222,7 +179,7 @@ impl PackageLock {
                 let projection = target
                     .source
                     .package_dependency_projection(package.key())
-                    .ok_or(Error::BaselineCoverage)?;
+                    .ok_or(Error::SourceCoverage)?;
                 requests = requests
                     .checked_add(projection.authored_request_count())
                     .ok_or(Error::CountLimitExceeded)?;

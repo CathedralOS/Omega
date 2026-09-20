@@ -100,7 +100,10 @@ fn missing_lock_update_requires_fresh_exact_authority_decisions_before_publicati
     let published = fixture.lock();
     let published_target = published.target(TARGET).unwrap();
     assert_eq!(published_target.source(), previous_target.source());
-    assert_eq!(published_target.baselines(), previous_target.baselines());
+    assert_eq!(
+        published_target.occurrences(),
+        previous_target.occurrences()
+    );
     assert!(
         published_target
             .decisions()

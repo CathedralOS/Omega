@@ -41,17 +41,14 @@ pub fn accepted_policy(
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .expect("capture accepted source subject");
-    let baselines = source
-        .packages()
-        .iter()
-        .map(|package| {
-            reviews
-                .review(package.key())
-                .expect("accepted package review")
-                .policy()
-                .clone()
-        })
-        .collect();
+    let mut policies = Vec::new();
+    for package in source.packages() {
+        for purpose in package_manager::declarations::DependencyPurpose::ALL {
+            if let Some(review) = reviews.review_occurrence(package.key(), purpose) {
+                policies.push((review.checked_context(), review.policy()));
+            }
+        }
+    }
     let history = HistoricalPackagePolicyDecisions::capture_policy(
         &source,
         &changes,
@@ -59,5 +56,5 @@ pub fn accepted_policy(
         HistoricalPackagePolicyLimits::default(),
     )
     .expect("retain explicit project choices");
-    PackageLockTarget::from_parts(source, baselines, history).expect("accepted project policy")
+    PackageLockTarget::from_policies(source, &policies, history).expect("accepted project policy")
 }

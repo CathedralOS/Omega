@@ -111,8 +111,8 @@ fn pure_initial_install_and_unchanged_update_reload_exact_pins_and_compile_again
         accepted.target(TARGET).unwrap().source()
     );
     assert_eq!(
-        current.target(TARGET).unwrap().baselines(),
-        accepted.target(TARGET).unwrap().baselines()
+        current.target(TARGET).unwrap().occurrences(),
+        accepted.target(TARGET).unwrap().occurrences()
     );
     let recovered = resolve_external_local_project_closure(
         fs::canonicalize(tree.path("sources/root")).unwrap(),

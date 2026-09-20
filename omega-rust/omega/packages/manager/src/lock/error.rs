@@ -1,8 +1,6 @@
 use super::HistoricalPackagePolicyError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
-use package_evidence::encoding::{
-    PackagePolicyMembershipError, PackagePolicyRecoveryError, PackageReviewEncodingError,
-};
+use package_evidence::encoding::{PackagePolicyMembershipError, PackageReviewEncodingError};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,12 +14,12 @@ pub enum PackageLockError {
     EmptyTargets,
     TargetOrder,
     TargetMismatch,
+    ExecutionProfileMismatch,
     SourceGraphMismatch,
-    BaselineCoverage,
+    SourceCoverage,
     OccurrenceCoverage,
     DecisionSourceMismatch,
     Source(CanonicalSourceClosureSubjectError),
-    Policy(PackagePolicyRecoveryError),
     Decisions(HistoricalPackagePolicyError),
     Encoding(PackageReviewEncodingError),
     PolicySourceMembership(PackagePolicyMembershipError),
@@ -39,15 +37,15 @@ impl fmt::Display for PackageLockError {
             Self::CountLimitExceeded => "package lock exceeds an aggregate record-count limit",
             Self::EmptyTargets => "package lock has no checked-target section",
             Self::TargetOrder => "package lock target sections are repeated or not canonically ordered",
-            Self::TargetMismatch => "package lock baseline belongs to a different checked target",
+            Self::TargetMismatch => "package lock occurrence belongs to a different checked target",
+            Self::ExecutionProfileMismatch => "package lock occurrences disagree about the explicit build execution profile",
             Self::SourceGraphMismatch => "package lock target sections disagree about the immutable source graph",
-            Self::BaselineCoverage => "package lock requires one ordered baseline for every source package",
+            Self::SourceCoverage => "package lock is missing a source package dependency projection",
             Self::OccurrenceCoverage => "package lock occurrence coverage disagrees with the source graph",
             Self::DecisionSourceMismatch => "package lock decisions belong to a different source graph or target",
             Self::BoundaryApplicationMismatch => "package lock boundary demand has no matching operator telescope in its owning baseline",
             Self::PolicySourceMembership(error) => return error.fmt(formatter),
             Self::Source(error) => return error.fmt(formatter),
-            Self::Policy(error) => return error.fmt(formatter),
             Self::Decisions(error) => return error.fmt(formatter),
             Self::Encoding(error) => return error.fmt(formatter),
         })

@@ -49,10 +49,15 @@ fn benign_api_growth_does_not_grow_retained_consent_or_require_approval() {
     assert!(package.rows().is_empty());
     let current_lock = lock_from_reviews(&current_sources, &current_reviews);
     assert_eq!(
-        original_lock.targets()[0].baselines(),
-        current_lock.targets()[0].baselines()
+        original_lock.targets()[0].occurrences(),
+        current_lock.targets()[0].occurrences()
     );
-    assert!(current_lock.targets()[0].baselines()[0].rows().is_empty());
+    assert!(
+        current_lock.targets()[0].occurrences()[0]
+            .acceptance()
+            .rows()
+            .is_empty()
+    );
     let lock_text = current_lock.canonical_text().unwrap();
     assert!(!lock_text.contains("VALUE_127"));
     assert!(!lock_text.contains("identity"));

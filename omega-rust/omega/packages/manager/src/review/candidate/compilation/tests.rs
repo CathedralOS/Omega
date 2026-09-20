@@ -63,9 +63,15 @@ fn policy_comparison_rejects_a_review_issued_for_another_purpose() {
         HistoricalPackagePolicyLimits::default(),
     )
     .unwrap();
-    let accepted =
-        PackageLockTarget::from_parts(source, vec![reviews.reviews[0].policy().clone()], history)
-            .unwrap();
+    let accepted = PackageLockTarget::from_policies(
+        source,
+        &[(
+            reviews.reviews[0].checked_context(),
+            reviews.reviews[0].policy(),
+        )],
+        history,
+    )
+    .unwrap();
     assert!(
         compare_locked_package_policies(&accepted, &reviews)
             .unwrap()

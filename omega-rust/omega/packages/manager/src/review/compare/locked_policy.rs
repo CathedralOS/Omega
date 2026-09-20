@@ -15,6 +15,7 @@ pub enum LockedPolicyComparisonError {
     PackageIdentityMismatch { package: PackageKey },
     TargetMismatch { package: PackageKey },
     PurposeMismatch { package: PackageKey },
+    ExecutionProfileMismatch { package: PackageKey },
     AllocationFailed,
     Acceptance(crate::lock::PackageLockError),
 }
@@ -42,6 +43,10 @@ impl fmt::Display for LockedPolicyComparisonError {
                 package,
                 "was reviewed for a different build/product purpose",
             ),
+            Self::ExecutionProfileMismatch { package } => (
+                package,
+                "was reviewed for a different build execution profile",
+            ),
             Self::AllocationFailed => {
                 return formatter
                     .write_str("cannot allocate bounded locked-policy comparison storage");
@@ -58,35 +63,65 @@ impl std::error::Error for LockedPolicyComparisonError {}
 /// Reviews have no public constructor: the candidate owner joins their source,
 /// checked projection, and complete normalized policy in one final compiler
 /// pass. This helper checks that issued set against the exact retained package,
-/// resolution, target, and purpose before comparing typed policy meaning. The lock's
-/// private construction already guarantees complete, source-ordered baselines.
+/// resolution and checked context before comparing retained policy meaning. The
+/// lock's private construction guarantees complete, source/purpose-ordered
+/// occurrences; neither role borrows the other role's acceptance.
 ///
-/// Scratch and output slots are bounded by that retained package count. No
-/// policy is cloned or re-encoded. Neither equality nor a changed-key result
+/// Scratch slots are bounded by the retained occurrence count, output slots by
+/// package count. Fresh policies project only the retained risk rows. Neither
+/// equality nor a changed-key result
 /// approves admissions, replays historical decisions, or issues fresh evidence.
 pub fn compare_locked_package_policies(
     accepted: &PackageLockTarget,
     reviews: &CompilerIssuedPackageReviewSet,
 ) -> Result<Vec<PackageKey>, LockedPolicyComparisonError> {
     let sources = accepted.source().packages();
-    let mut reviews_by_source = Vec::<Option<&CompilerIssuedPackageReview>>::new();
-    reviews_by_source
-        .try_reserve_exact(sources.len())
+    let mut joined = Vec::new();
+    joined
+        .try_reserve_exact(accepted.occurrences().len())
         .map_err(|_| LockedPolicyComparisonError::AllocationFailed)?;
-    reviews_by_source.resize(sources.len(), None);
+    let mut occurrences = accepted.occurrences().iter().peekable();
+    for source in sources {
+        while occurrences
+            .peek()
+            .is_some_and(|occurrence| occurrence.acceptance().package() == source.key().identity())
+        {
+            joined.push((
+                source,
+                occurrences.next().expect("peeked occurrence"),
+                None::<&CompilerIssuedPackageReview>,
+            ));
+        }
+    }
 
     for review in reviews.reviews() {
-        let index = sources
-            .binary_search_by(|source| source.key().cmp(review.key()))
-            .map_err(|_| LockedPolicyComparisonError::UnexpectedReview {
-                package: review.key().clone(),
+        let context = review.checked_context();
+        let index = joined
+            .binary_search_by(|(source, occurrence, _)| {
+                (source.key(), occurrence.context().purpose())
+                    .cmp(&(review.key(), context.purpose()))
+            })
+            .map_err(|_| {
+                if sources
+                    .binary_search_by(|source| source.key().cmp(review.key()))
+                    .is_ok()
+                {
+                    LockedPolicyComparisonError::PurposeMismatch {
+                        package: review.key().clone(),
+                    }
+                } else {
+                    LockedPolicyComparisonError::UnexpectedReview {
+                        package: review.key().clone(),
+                    }
+                }
             })?;
-        if reviews_by_source[index].is_some() {
+        let (source, occurrence, issued) = &mut joined[index];
+        if issued.is_some() {
             return Err(LockedPolicyComparisonError::DuplicateReview {
                 package: review.key().clone(),
             });
         }
-        if review.resolution() != sources[index].resolution() {
+        if review.resolution() != source.resolution() {
             return Err(LockedPolicyComparisonError::ResolutionMismatch {
                 package: review.key().clone(),
             });
@@ -98,38 +133,33 @@ pub fn compare_locked_package_policies(
                 package: review.key().clone(),
             });
         }
-        if review.projection().target() != accepted.target()
-            || review.policy().target() != accepted.target()
+        if context.target() != occurrence.context().target()
+            || review.projection().target() != context.target()
+            || review.policy().target() != context.target()
         {
             return Err(LockedPolicyComparisonError::TargetMismatch {
                 package: review.key().clone(),
             });
         }
-        if accepted.occurrence_purposes()[index].as_slice()
-            != [review.generated_source_bundle().purpose()]
-        {
-            return Err(LockedPolicyComparisonError::PurposeMismatch {
+        if context.build_execution_profile() != occurrence.context().build_execution_profile() {
+            return Err(LockedPolicyComparisonError::ExecutionProfileMismatch {
                 package: review.key().clone(),
             });
         }
-        reviews_by_source[index] = Some(review);
+        *issued = Some(review);
     }
 
     let mut changed = Vec::new();
     changed
         .try_reserve_exact(sources.len())
         .map_err(|_| LockedPolicyComparisonError::AllocationFailed)?;
-    for ((source, baseline), review) in sources
-        .iter()
-        .zip(accepted.baselines())
-        .zip(reviews_by_source)
-    {
+    for (source, occurrence, review) in joined {
         let review = review.ok_or_else(|| LockedPolicyComparisonError::MissingReview {
             package: source.key().clone(),
         })?;
         let fresh = crate::lock::PackagePolicyAcceptance::from_policy(review.policy())
             .map_err(LockedPolicyComparisonError::Acceptance)?;
-        if baseline != &fresh {
+        if occurrence.acceptance() != &fresh && changed.last() != Some(source.key()) {
             changed.push(source.key().clone());
         }
     }

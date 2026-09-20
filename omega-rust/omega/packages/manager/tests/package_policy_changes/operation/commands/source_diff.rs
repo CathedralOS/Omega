@@ -99,8 +99,8 @@ fn changed_local_source_recovers_cached_baseline_and_keeps_policy_comparison() {
     );
     assert!(source_document(&tree).contains("changed-implementation"));
     assert_eq!(
-        lock(&tree).target(TARGET).unwrap().baselines(),
-        accepted.target(TARGET).unwrap().baselines()
+        lock(&tree).target(TARGET).unwrap().occurrences(),
+        accepted.target(TARGET).unwrap().occurrences()
     );
 }
 
@@ -174,8 +174,8 @@ fn missing_old_local_cache_keeps_policy_and_standalone_candidate_output() {
             .contains("Capability comparison uses accepted lock policy")
     );
     assert_eq!(
-        lock(&tree).target(TARGET).unwrap().baselines(),
-        accepted.target(TARGET).unwrap().baselines()
+        lock(&tree).target(TARGET).unwrap().occurrences(),
+        accepted.target(TARGET).unwrap().occurrences()
     );
     let source = source_document(&tree);
     let dependency = source.split("package command-dependency\n").nth(1).unwrap();
@@ -234,8 +234,8 @@ fn corrupt_old_local_cache_keeps_policy_without_presenting_unverified_source() {
             .contains("Capability comparison uses accepted lock policy")
     );
     assert_eq!(
-        lock(&tree).target(TARGET).unwrap().baselines(),
-        accepted.target(TARGET).unwrap().baselines()
+        lock(&tree).target(TARGET).unwrap().occurrences(),
+        accepted.target(TARGET).unwrap().occurrences()
     );
     let source = source_document(&tree);
     let dependency = source.split("package command-dependency\n").nth(1).unwrap();

@@ -59,7 +59,7 @@ fn published_proposal_preserves_source_and_acceptance_for_review_and_locked_chec
     );
     let proposed = propose(&reviewed);
     assert_eq!(proposed.source(), accepted.source());
-    assert_eq!(proposed.baselines(), accepted.baselines());
+    assert_eq!(proposed.occurrences(), accepted.occurrences());
 
     let snapshot = reviewed.source_closure().source_root(root).unwrap();
     assert!(!snapshot.join("omega.lock").exists());
@@ -97,7 +97,7 @@ fn published_proposal_preserves_source_and_acceptance_for_review_and_locked_chec
     let nested_edit = review(&tree, "nested-edit", Some(accepted));
     let proposed = propose(&nested_edit);
     assert_ne!(proposed.source(), accepted.source());
-    assert_eq!(proposed.baselines(), accepted.baselines());
+    assert_eq!(proposed.occurrences(), accepted.occurrences());
     assert!(nested_edit.changes().packages()[0].source_changed());
     assert_eq!(
         fs::read_to_string(tree.path("sources/root/omega.lock")).unwrap(),
@@ -119,7 +119,7 @@ fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     let lock = publish(&tree, propose(&initial));
     let accepted = lock.target(TARGET).unwrap();
     let root = initial.source_closure().graph().root();
-    let mut baselines = vec![initial.reviews().review(root).unwrap().policy().clone()];
+    let mut baselines = [initial.reviews().review(root).unwrap().policy().clone()];
     assert_eq!(baselines.len(), 1);
     let text = baselines[0].canonical_text().unwrap();
     assert!(text.contains("trusted_zero"));
@@ -131,9 +131,13 @@ fn published_inert_baseline_edits_preserve_source_but_remain_policy_changes() {
     .unwrap();
     let edited = publish(
         &tree,
-        PackageLockTarget::from_parts(
+        PackageLockTarget::from_policies(
             accepted.source().clone(),
-            baselines,
+            &baselines
+                .iter()
+                .zip(accepted.occurrences())
+                .map(|(policy, occurrence)| (occurrence.context(), policy))
+                .collect::<Vec<_>>(),
             accepted.decisions().clone(),
         )
         .unwrap(),

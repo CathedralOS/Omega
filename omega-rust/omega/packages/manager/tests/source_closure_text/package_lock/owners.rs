@@ -93,6 +93,11 @@ fn lock_rejects_absent_owners_inside_canonical_types_and_callable_coordinates() 
         .iter()
         .map(|package| reviews.review(package.key()).unwrap().policy().clone())
         .collect();
+    let contexts = source
+        .packages()
+        .iter()
+        .map(|package| reviews.review(package.key()).unwrap().checked_context())
+        .collect::<Vec<_>>();
     let middle = source
         .packages()
         .iter()
@@ -134,28 +139,19 @@ fn lock_rejects_absent_owners_inside_canonical_types_and_callable_coordinates() 
     )
     .unwrap();
     let lock = PackageLock::from_targets(vec![
-        PackageLockTarget::from_parts(source.clone(), baselines.clone(), decisions.clone())
-            .unwrap(),
+        PackageLockTarget::from_policies(
+            source.clone(),
+            &contexts.iter().copied().zip(&baselines).collect::<Vec<_>>(),
+            decisions.clone(),
+        )
+        .unwrap(),
     ])
     .unwrap();
-    let mut lock_text = lock
+    let lock_text = lock
         .canonical_text()
         .unwrap()
-        .replacen("omega_lock 2\n", "omega_lock 1\n", 1)
-        .replace("acceptances ", "baselines ");
-    for (full, compact) in baselines.iter().zip(lock.targets()[0].baselines()) {
-        let original = compact.canonical_text().unwrap();
-        let legacy = full.canonical_text().unwrap();
-        lock_text = lock_text.replacen(
-            &format!("acceptance {}\n{original}", original.len()),
-            &format!("baseline {}\n{legacy}", legacy.len()),
-            1,
-        );
-    }
-    assert_eq!(
-        PackageLock::recover_text(&lock_text, PackageLockRecoveryLimits::default()).unwrap(),
-        lock
-    );
+        .replacen("omega_lock 3\n", "omega_lock 1\n", 1);
+    assert!(PackageLock::recover_text(&lock_text, PackageLockRecoveryLimits::default()).is_err());
 
     let original_policy = baselines[middle].canonical_text().unwrap();
     for identity in [type_identity, callable_identity] {
@@ -199,15 +195,11 @@ fn lock_rejects_absent_owners_inside_canonical_types_and_callable_coordinates() 
         let mut altered = baselines.clone();
         altered[middle] = candidate;
         assert!(matches!(
-            PackageLockTarget::from_parts(source.clone(), altered, decisions.clone()),
-            Err(PackageLockError::PolicySourceMembership(_))
-        ));
-        let old_section = format!("baseline {}\n{original_policy}", original_policy.len());
-        let new_section = format!("baseline {}\n{candidate_text}", candidate_text.len());
-        assert_eq!(lock_text.matches(&old_section).count(), 1);
-        let altered_lock = lock_text.replacen(&old_section, &new_section, 1);
-        assert!(matches!(
-            PackageLock::recover_text(&altered_lock, PackageLockRecoveryLimits::default()),
+            PackageLockTarget::from_policies(
+                source.clone(),
+                &contexts.iter().copied().zip(&altered).collect::<Vec<_>>(),
+                decisions.clone()
+            ),
             Err(PackageLockError::PolicySourceMembership(_))
         ));
     }

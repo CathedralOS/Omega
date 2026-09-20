@@ -121,7 +121,7 @@ fn pinned_ssh_transitive_private_helper_change_updates_fresh_audit_without_conse
     let target = updated.target(TARGET).unwrap();
     let fresh = fixture.fresh_reviews(TARGET);
     let policy = fresh.review(leaf.key()).unwrap().policy();
-    assert_eq!(target.baselines(), old_target.baselines());
+    assert_eq!(target.occurrences(), old_target.occurrences());
     let callable = policy
         .callables()
         .callables()
@@ -149,15 +149,17 @@ fn pinned_ssh_transitive_private_helper_change_updates_fresh_audit_without_conse
     assert!(callable.reachable_capability_flows().is_empty());
     assert_ne!(old_policy, policy);
     for previous in old_target
-        .baselines()
+        .occurrences()
         .iter()
-        .filter(|policy| policy.package() != leaf.key().identity())
+        .filter(|occurrence| occurrence.acceptance().package() != leaf.key().identity())
     {
         assert_eq!(
             target
-                .baselines()
+                .occurrences()
                 .iter()
-                .find(|policy| policy.package() == previous.package()),
+                .find(|occurrence| occurrence.acceptance().package()
+                    == previous.acceptance().package()
+                    && occurrence.context() == previous.context()),
             Some(previous),
             "ancestors must not inherit the leaf's own public API policy"
         );

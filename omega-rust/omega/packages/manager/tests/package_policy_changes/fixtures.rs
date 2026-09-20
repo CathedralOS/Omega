@@ -53,13 +53,16 @@ pub(super) fn lock_from_reviews(
         HistoricalPackagePolicyLimits::default(),
     )
     .unwrap();
-    let baselines = source
-        .packages()
-        .iter()
-        .map(|package| reviews.review(package.key()).unwrap().policy().clone())
-        .collect();
+    let mut policies = Vec::new();
+    for package in source.packages() {
+        for purpose in package_manager::declarations::DependencyPurpose::ALL {
+            if let Some(review) = reviews.review_occurrence(package.key(), purpose) {
+                policies.push((review.checked_context(), review.policy()));
+            }
+        }
+    }
     let lock = PackageLock::from_targets(vec![
-        PackageLockTarget::from_parts(source, baselines, decisions).unwrap(),
+        PackageLockTarget::from_policies(source, &policies, decisions).unwrap(),
     ])
     .unwrap();
     PackageLock::recover_text(

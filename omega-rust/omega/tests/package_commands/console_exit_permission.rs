@@ -157,9 +157,9 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
     let lock = fixture.lock();
     let target = lock.target(TARGET).expect("reviewed target");
     let permission_rows = target
-        .baselines()
+        .occurrences()
         .iter()
-        .flat_map(|baseline| baseline.rows())
+        .flat_map(|occurrence| occurrence.acceptance().rows())
         .filter(|row| row.kind().as_str() == "terminal_permission")
         .map(|row| row.canonical_text())
         .collect::<Vec<_>>();

@@ -407,14 +407,18 @@ fn edited_lock_and_changed_policy_with_the_same_source_pin_reject_stale_review()
         PackagePolicyTextRecoveryLimits::default(),
     )
     .unwrap();
-    let edited = PackageLockTarget::from_parts(
+    let edited = PackageLockTarget::from_policies(
         accepted.source().clone(),
-        baselines,
+        &baselines
+            .iter()
+            .zip(accepted.occurrences())
+            .map(|(policy, occurrence)| (occurrence.context(), policy))
+            .collect::<Vec<_>>(),
         accepted.decisions().clone(),
     )
     .unwrap();
     assert_eq!(edited.source(), accepted.source());
-    assert_ne!(edited.baselines(), accepted.baselines());
+    assert_ne!(edited.occurrences(), accepted.occurrences());
     let (_, edited_text) = write_lock(&tree, vec![edited]);
     for supplied in [&accepted_text, &edited_text] {
         assert!(matches!(

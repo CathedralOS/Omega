@@ -110,10 +110,14 @@ fn locked_checking_rebuilds_generated_bundles_and_preserves_full_current_reviews
     for review in [producer, consumer] {
         let accepted = checked
             .accepted()
-            .baselines()
+            .occurrences()
             .iter()
-            .find(|policy| policy.package() == review.key().identity())
-            .unwrap();
+            .find(|occurrence| {
+                occurrence.acceptance().package() == review.key().identity()
+                    && occurrence.context() == review.checked_context()
+            })
+            .unwrap()
+            .acceptance();
         let projected =
             package_manager::lock::PackagePolicyAcceptance::from_policy(review.policy()).unwrap();
         assert_eq!(&projected, accepted);

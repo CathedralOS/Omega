@@ -41,13 +41,13 @@ pub fn compare_package_policy_changes(
     limits: PackagePolicyChangeLimits,
 ) -> Result<PackagePolicyChangeSet, PackagePolicyChangeError> {
     let mut budget = Budget::new(limits);
-    let reviews = projection::candidate(candidate, candidate_sources, &mut budget)?;
     if accepted.is_some_and(|old| old.target() != candidate_sources.target_profile()) {
         return Err(PackagePolicyChangeError::TargetMismatch);
     }
     let source =
         CanonicalSourceClosureSubject::from_resolved(candidate_sources, budget.subject_limits())
             .map_err(PackagePolicyChangeError::SourceSubject)?;
+    let reviews = projection::candidate(candidate, candidate_sources, &source, &mut budget)?;
     budget.context(source.canonical_bytes().len())?;
     if let Some(old) = accepted {
         budget.context(old.source().canonical_bytes().len())?;

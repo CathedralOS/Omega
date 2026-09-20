@@ -8,9 +8,9 @@ pub(super) fn assert_aggregate_acceptance_boundary(lock: &PackageLock, text: &st
         .iter()
         .map(|target| {
             target
-                .baselines()
+                .occurrences()
                 .iter()
-                .map(|baseline| baseline.rows().len())
+                .map(|occurrence| occurrence.acceptance().rows().len())
                 .sum::<usize>()
         })
         .collect::<Vec<_>>();

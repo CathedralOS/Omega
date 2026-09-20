@@ -26,7 +26,10 @@ fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
         let baselines = source
             .packages()
             .iter()
-            .map(|source| reviews.review(source.key()).unwrap().policy().clone())
+            .map(|source| {
+                let review = reviews.review(source.key()).unwrap();
+                (review.checked_context(), review.policy())
+            })
             .collect::<Vec<_>>();
         assert_eq!(baselines.len(), 4);
         let decisions = HistoricalPackagePolicyDecisions::recover_text(
@@ -44,17 +47,17 @@ fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
         let mut reordered = baselines.clone();
         reordered.swap(0, 1);
         let mut foreign = baselines.clone();
-        foreign[0] = baselines[1].clone();
+        foreign[0] = baselines[1];
         let mut additional = baselines.clone();
-        additional.push(baselines[0].clone());
+        additional.push(baselines[0]);
         for incomplete in [missing, reordered, foreign, additional] {
             assert_eq!(
-                PackageLockTarget::from_parts(source.clone(), incomplete, decisions.clone()),
-                Err(PackageLockError::BaselineCoverage),
+                PackageLockTarget::from_policies(source.clone(), &incomplete, decisions.clone()),
+                Err(PackageLockError::OccurrenceCoverage),
             );
         }
         let lock = PackageLock::from_targets(vec![
-            PackageLockTarget::from_parts(source, baselines, decisions).unwrap(),
+            PackageLockTarget::from_policies(source, &baselines, decisions).unwrap(),
         ])
         .unwrap();
         let text = lock.canonical_text().unwrap();
@@ -72,10 +75,10 @@ fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
     let target = recovered.target(TargetProfile::WindowsX64).unwrap();
     assert_eq!(target.source().packages().len(), 4);
     assert_eq!(target.source().dependency_requests().len(), 4);
-    assert_eq!(target.baselines().len(), 4);
-    for (source, baseline) in target.source().packages().iter().zip(target.baselines()) {
-        assert_eq!(baseline.package(), source.key().identity());
-        assert_eq!(baseline.target(), TargetProfile::WindowsX64);
+    assert_eq!(target.occurrences().len(), 4);
+    for (source, baseline) in target.source().packages().iter().zip(target.occurrences()) {
+        assert_eq!(baseline.acceptance().package(), source.key().identity());
+        assert_eq!(baseline.context().target(), TargetProfile::WindowsX64);
     }
     let empty_policy_limits = PackageLockRecoveryLimits {
         maximum_policy_elements: 0,

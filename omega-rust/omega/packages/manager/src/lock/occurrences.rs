@@ -11,6 +11,38 @@ use crate::declarations::PackageKey;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use std::fmt;
+use target::TargetProfile;
+
+/// Explicit checked context metadata; retaining it grants no compilation authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PackageCheckedContext {
+    purpose: DependencyPurpose,
+    target: TargetProfile,
+    build_execution_profile: Option<TargetProfile>,
+}
+
+impl PackageCheckedContext {
+    pub const fn new(
+        purpose: DependencyPurpose,
+        target: TargetProfile,
+        build_execution_profile: Option<TargetProfile>,
+    ) -> Self {
+        Self {
+            purpose,
+            target,
+            build_execution_profile,
+        }
+    }
+    pub const fn purpose(self) -> DependencyPurpose {
+        self.purpose
+    }
+    pub const fn target(self) -> TargetProfile {
+        self.target
+    }
+    pub const fn build_execution_profile(self) -> Option<TargetProfile> {
+        self.build_execution_profile
+    }
+}
 
 /// One package's authorized occurrences: the exact purposes it serves for the
 /// enclosing closure's target.
@@ -168,8 +200,8 @@ pub(crate) fn purpose_mask_bit(purpose: DependencyPurpose) -> u8 {
 mod tests {
     use super::{DependencyPurpose, PackageOccurrenceRoster};
     use crate::lock::{
-        HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock,
-        PackageLockRecoveryLimits, PackageLockTarget,
+        HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageCheckedContext,
+        PackageLock, PackageLockError, PackageLockRecoveryLimits, PackageLockTarget,
     };
     use crate::resolution::graph::{
         CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
@@ -317,6 +349,80 @@ mod tests {
     }
 
     #[test]
+    fn dual_purpose_acceptances_keep_independent_targets_and_exact_coverage() {
+        let fixture = Fixture::new();
+        fixture.package(
+            "root",
+            concat!(
+                "builder.depend_as(\"product\", Source::Path { location: \"../shared\" });",
+                "builder.build_depend_as(\"build\", Source::Path { location: \"../shared\" });",
+            ),
+        );
+        fixture.package("shared", "");
+        let source = fixture.subject();
+        let execution = TargetProfile::ALL
+            .into_iter()
+            .find(|profile| *profile != source.target_profile())
+            .unwrap();
+        let history = HistoricalPackagePolicyDecisions::recover_text(
+            &format!("omega-policy-decisions 2\nsource {}\nbaseline none\ncomparison {}\ndecisions 0\nend\n",
+                source.fingerprint().to_hex(), "00".repeat(32)),
+            &source, HistoricalPackagePolicyLimits::default(),
+        ).unwrap();
+        // These are inert compact records, not claims that the producer supports
+        // dual-role compilation. Recovery must preserve their independent joins.
+        let roster = PackageOccurrenceRoster::derive(&source).unwrap();
+        let product_target = source.target_profile();
+        let occurrences = roster
+            .coverages()
+            .iter()
+            .flat_map(|coverage| {
+                coverage.purposes().iter().map(move |purpose| {
+                    let target = if *purpose == DependencyPurpose::Build {
+                        execution
+                    } else {
+                        product_target
+                    };
+                    crate::lock::PackagePolicyOccurrence {
+                        context: PackageCheckedContext::new(*purpose, target, Some(execution)),
+                        acceptance: crate::lock::PackagePolicyAcceptance {
+                            package: coverage.package().identity(),
+                            target,
+                            rows: Vec::new(),
+                        },
+                    }
+                })
+            })
+            .collect();
+        let target = PackageLockTarget::from_occurrences(source, occurrences, history).unwrap();
+        assert_eq!(target.occurrences().len(), 3);
+        let lock = PackageLock::from_targets(vec![target.clone()]).unwrap();
+        let text = lock.canonical_text().unwrap();
+        assert_eq!(
+            PackageLock::recover_text(&text, PackageLockRecoveryLimits::default()).unwrap(),
+            lock
+        );
+        let mut omitted = target.clone();
+        omitted.occurrences.pop();
+        assert_eq!(
+            omitted.validate(),
+            Err(PackageLockError::OccurrenceCoverage)
+        );
+        let mut relabeled = target.clone();
+        let build = relabeled.occurrences.last_mut().unwrap();
+        build.context =
+            PackageCheckedContext::new(DependencyPurpose::Build, target.target(), Some(execution));
+        build.acceptance.target = target.target();
+        assert_eq!(relabeled.validate(), Err(PackageLockError::TargetMismatch));
+        let mut reordered = target;
+        reordered.occurrences.swap(1, 2);
+        assert_eq!(
+            reordered.validate(),
+            Err(PackageLockError::OccurrenceCoverage)
+        );
+    }
+
+    #[test]
     fn occurrence_ledger_roundtrips_and_rejects_tampered_or_legacy_shape() {
         let fixture = Fixture::new();
         fixture.package(
@@ -374,17 +480,14 @@ mod tests {
         let resolution =
             resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &choices)
                 .unwrap();
-        let baselines = subject
+        let policies = subject
             .packages()
             .iter()
             .map(|package| {
-                reviews
-                    .review(package.key())
-                    .expect("reviewed package")
-                    .policy()
-                    .clone()
+                let review = reviews.review(package.key()).expect("reviewed package");
+                (review.checked_context(), review.policy())
             })
-            .collect();
+            .collect::<Vec<_>>();
         let history = HistoricalPackagePolicyDecisions::capture_policy(
             &subject,
             &changes,
@@ -392,38 +495,57 @@ mod tests {
             HistoricalPackagePolicyLimits::default(),
         )
         .unwrap();
-        let target = PackageLockTarget::from_parts(subject.clone(), baselines, history).unwrap();
+        let target = PackageLockTarget::from_policies(subject.clone(), &policies, history).unwrap();
+        assert_eq!(target.execution_profile(), Some(profile));
+        let tool = target
+            .occurrences()
+            .iter()
+            .find(|occurrence| occurrence.context().purpose() == DependencyPurpose::Build)
+            .unwrap();
+        assert_eq!(tool.context().target(), profile);
+
+        let mut missing = target.clone();
+        missing.occurrences.pop();
         assert_eq!(
-            target.occurrence_purposes_for(
-                &target
-                    .source()
-                    .packages()
-                    .iter()
-                    .find(|package| package.key().name().as_str() == "tool")
-                    .unwrap()
-                    .key()
-                    .clone()
-            ),
-            Some(&[DependencyPurpose::Build][..])
+            missing.validate(),
+            Err(PackageLockError::OccurrenceCoverage)
+        );
+        let mut duplicate = target.clone();
+        duplicate.occurrences.push(tool.clone());
+        assert_eq!(
+            duplicate.validate(),
+            Err(PackageLockError::OccurrenceCoverage)
+        );
+        let mut wrong_profile = target.clone();
+        wrong_profile.occurrences[0].context =
+            PackageCheckedContext::new(DependencyPurpose::Product, profile, None);
+        assert_eq!(
+            wrong_profile.validate(),
+            Err(PackageLockError::ExecutionProfileMismatch)
+        );
+        let mut missing_build_profile = tool.clone();
+        missing_build_profile.context =
+            PackageCheckedContext::new(DependencyPurpose::Build, profile, None);
+        assert_eq!(
+            missing_build_profile.validate(),
+            Err(PackageLockError::TargetMismatch)
         );
         let lock = PackageLock::from_targets(vec![target.clone()]).unwrap();
         let text = lock.canonical_text().unwrap();
-        assert!(text.contains("occurrences 2\noccurrence 0 product\noccurrence 1 build\n"));
+        assert!(text.contains("occurrences 2\noccurrence 0 product "));
+        assert!(text.contains("occurrence 1 build "));
         let recovered = PackageLock::recover_text(&text, PackageLockRecoveryLimits::default())
             .expect("recover recorded occurrence coverage");
         assert_eq!(recovered.targets()[0], target);
 
-        // Locks written before the ledger assign the derived roster.
-        let ledger_start = text.find("occurrences ").unwrap();
-        let ledger_end = text[ledger_start..].find("acceptances ").unwrap() + ledger_start;
-        let legacy = format!("{}{}", &text[..ledger_start], &text[ledger_end..]);
-        let legacy_recovered =
-            PackageLock::recover_text(&legacy, PackageLockRecoveryLimits::default())
-                .expect("pre-ledger lock keeps implicit complete coverage");
-        assert_eq!(legacy_recovered.targets()[0], target);
-
-        let mut missing_row = text.replacen("occurrences 2\n", "occurrences 1\n", 1);
-        missing_row = missing_row.replacen("occurrence 1 build\n", "", 1);
+        for old_version in [1, 2] {
+            let legacy = text.replacen("omega_lock 3", &format!("omega_lock {old_version}"), 1);
+            assert_eq!(
+                PackageLock::recover_text(&legacy, PackageLockRecoveryLimits::default()),
+                Err(PackageLockError::UnsupportedVersion)
+            );
+        }
+        let missing_row = text.replacen("occurrences 2\n", "occurrences 1\n", 1);
         for tampered in [
             text.replacen("occurrence 1 build", "occurrence 1 product", 1),
             text.replacen("occurrence 1 build", "occurrence 0 build", 1),

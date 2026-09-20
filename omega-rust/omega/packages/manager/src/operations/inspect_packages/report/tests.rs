@@ -27,7 +27,7 @@ const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[test]
-fn legacy_snapshot_recovers_as_compact_consent_without_changing_pins_or_choices() {
+fn legacy_snapshot_rejects_without_inventing_checked_occurrence_context() {
     use crate::lock::{PackageLock, PackageLockRecoveryLimits};
     let project = Project::new();
     project.package(
@@ -68,11 +68,10 @@ fn legacy_snapshot_recovers_as_compact_consent_without_changing_pins_or_choices(
         decisions
     )
     .unwrap();
-    let recovered =
-        PackageLock::recover_text(&legacy, PackageLockRecoveryLimits::default()).unwrap();
-    assert_eq!(recovered.target(TARGET), Some(&expected));
+    assert!(PackageLock::recover_text(&legacy, PackageLockRecoveryLimits::default()).is_err());
+    let recovered = PackageLock::from_targets(vec![expected]).unwrap();
     let compact = recovered.canonical_text().unwrap();
-    assert!(compact.starts_with("omega_lock 2\n"));
+    assert!(compact.starts_with("omega_lock 3\n"));
     assert!(!compact.contains("field public_api {"));
     assert!(compact.contains("trusted_zero"));
     assert!(compact.contains(&source_text));
@@ -217,12 +216,15 @@ fn lock(
         HistoricalPackagePolicyLimits::default(),
     )
     .unwrap();
-    let baselines = source
-        .packages()
-        .iter()
-        .map(|package| reviews.review(package.key()).unwrap().policy().clone())
-        .collect();
-    PackageLockTarget::from_parts(source.clone(), baselines, decisions).unwrap()
+    let mut policies = Vec::new();
+    for package in source.packages() {
+        for purpose in crate::declarations::DependencyPurpose::ALL {
+            if let Some(review) = reviews.review_occurrence(package.key(), purpose) {
+                policies.push((review.checked_context(), review.policy()));
+            }
+        }
+    }
+    PackageLockTarget::from_policies(source.clone(), &policies, decisions).unwrap()
 }
 
 fn indented_policy(policy: &PackagePolicyBaseline) -> String {
@@ -383,6 +385,62 @@ fn equal_policy_is_shown_once_and_unavailable_keeps_accepted_meaning() {
 }
 
 #[test]
+fn benign_execution_context_change_is_visible_without_new_consent() {
+    use crate::lock::PackageCheckedContext;
+
+    let project = Project::new();
+    project.package("root", "inspection", "", "pub const VALUE: u64 = 7;\n");
+    let (source, reviews, _) = project.candidate("initial-context", None);
+    let initial = lock(&source, &reviews);
+    let review = &reviews.reviews()[0];
+    let context = review.checked_context();
+    let previous_execution = TargetProfile::ALL
+        .into_iter()
+        .find(|profile| Some(*profile) != context.build_execution_profile())
+        .unwrap();
+    let accepted = PackageLockTarget::from_policies(
+        source,
+        &[(
+            PackageCheckedContext::new(
+                context.purpose(),
+                context.target(),
+                Some(previous_execution),
+            ),
+            review.policy(),
+        )],
+        initial.decisions().clone(),
+    )
+    .unwrap();
+    let (source, reviews, changes) = project.candidate("changed-context", Some(&accepted));
+    assert!(!changes.requires_decision());
+    assert!(changes.audit_recommended());
+    let text = render(
+        TARGET,
+        Some(&accepted),
+        Some((&source, &reviews, &changes)),
+        None,
+        MAXIMUM_BYTES,
+    )
+    .unwrap();
+    assert!(text.contains("requires-review false\n"));
+    assert!(text.contains("audit-recommended true\n"));
+    assert!(!text.contains("equal-to-fresh"));
+    assert!(text.contains(&format!(
+        "accepted occurrence product target {} execution {}",
+        TARGET.target_name(),
+        previous_execution.target_name()
+    )));
+    let fresh_context = format!(
+        "fresh occurrence product target {} execution {}",
+        TARGET.target_name(),
+        context
+            .build_execution_profile()
+            .map_or("none", |profile| profile.target_name())
+    );
+    assert!(text.contains(&fresh_context));
+}
+
+#[test]
 fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_approval() {
     let project = Project::new();
     let dependencies = concat!(
@@ -422,8 +480,9 @@ fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_ap
     .unwrap();
     let root = source.root().selected().key();
     let old = baseline
-        .baselines()
+        .occurrences()
         .iter()
+        .map(|occurrence| occurrence.acceptance())
         .find(|policy| policy.package() == root.identity())
         .unwrap();
     assert_eq!(

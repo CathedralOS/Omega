@@ -6,7 +6,7 @@
 //! or turn recorded choices into authorization for a changed candidate.
 
 mod acceptance;
-pub use acceptance::{PackageAcceptanceRow, PackagePolicyAcceptance};
+pub use acceptance::{PackageAcceptanceRow, PackagePolicyAcceptance, PackagePolicyOccurrence};
 mod decisions;
 mod error;
 mod limits;
@@ -19,9 +19,10 @@ pub use error::PackageLockError;
 pub use limits::PackageLockRecoveryLimits;
 pub use model::{PackageLock, PackageLockTarget};
 pub use occurrences::{
-    PackageOccurrenceRoster, PackageOccurrenceRosterError, PackagePurposeCoverage,
+    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
+    PackagePurposeCoverage,
 };
-pub const PACKAGE_LOCK_VERSION: u16 = 2;
+pub const PACKAGE_LOCK_VERSION: u16 = 3;
 
 pub use decisions::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,

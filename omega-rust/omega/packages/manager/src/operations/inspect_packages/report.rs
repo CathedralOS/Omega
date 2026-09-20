@@ -40,12 +40,29 @@ pub(super) fn render(
             || changes.candidate_source_subject() != source.fingerprint()
             || changes.baseline_source_subject()
                 != accepted.map(|accepted| accepted.source().fingerprint())
-            || reviews.reviews().len() != source.packages().len()
+            || reviews.reviews().len()
+                != changes
+                    .packages()
+                    .iter()
+                    .map(|package| package.candidate_occurrence_contexts().len())
+                    .sum::<usize>()
             || source.packages().iter().any(|package| {
-                reviews.review(package.key()).is_none_or(|review| {
-                    review.resolution() != package.resolution()
-                        || review.policy().package() != package.key().identity()
-                        || review.policy().target() != target
+                let contexts = changes
+                    .packages()
+                    .iter()
+                    .find(|change| change.key() == package.key())
+                    .map(|change| change.candidate_occurrence_contexts());
+                contexts.is_none_or(|contexts| {
+                    contexts.iter().any(|context| {
+                        reviews
+                            .review_occurrence(package.key(), context.purpose())
+                            .is_none_or(|review| {
+                                review.checked_context() != *context
+                                    || review.resolution() != package.resolution()
+                                    || review.policy().package() != package.key().identity()
+                                    || review.policy().target() != context.target()
+                            })
+                    })
                 })
             }))
     {
@@ -98,12 +115,8 @@ fn contents(
             "\naccepted lock: historical project record; not proof or fresh compiler findings"
         )?;
         graph(output, "accepted", accepted.source())?;
-        for (package, baseline) in accepted
-            .source()
-            .packages()
-            .iter()
-            .zip(accepted.baselines())
-        {
+        let mut occurrences = accepted.occurrences().iter().peekable();
+        for package in accepted.source().packages() {
             package_key(output, "\naccepted package", package.key())?;
             if let Some((_, _, changes)) = fresh {
                 let Some(change) = changes
@@ -116,27 +129,37 @@ fn contents(
                 };
                 path(output, "accepted dependency-path", change.baseline_path())?;
             }
-            if fresh.is_some_and(|(_, _, changes)| {
+            let unchanged = fresh.is_some_and(|(_, _, changes)| {
                 changes
                     .packages()
                     .iter()
                     .find(|change| change.key() == package.key())
-                    .is_some_and(|change| change.rows().is_empty())
+                    .is_some_and(|change| {
+                        change.rows().is_empty() && !change.occurrence_contexts_changed()
+                    })
+            });
+            while occurrences.peek().is_some_and(|occurrence| {
+                occurrence.acceptance().package() == package.key().identity()
             }) {
-                writeln!(
-                    output,
-                    "accepted-policy equal-to-fresh (shown with fresh findings)"
-                )?;
-            } else {
-                writeln!(
-                    output,
-                    "accepted-policy: {} explicit acceptance rows; no historical API snapshot",
-                    baseline.rows().len()
-                )?;
-                for row in baseline.rows() {
-                    writeln!(output, "  {} (historical meaning)", row.kind().as_str())?;
-                    for line in row.canonical_text().lines() {
-                        writeln!(output, "    {line}")?;
+                let occurrence = occurrences.next().expect("peeked accepted occurrence");
+                let baseline = occurrence.acceptance();
+                checked_context(output, "accepted", occurrence.context())?;
+                if unchanged {
+                    writeln!(
+                        output,
+                        "accepted-policy equal-to-fresh (shown with fresh findings)"
+                    )?;
+                } else {
+                    writeln!(
+                        output,
+                        "accepted-policy: {} explicit acceptance rows; no historical API snapshot",
+                        baseline.rows().len()
+                    )?;
+                    for row in baseline.rows() {
+                        writeln!(output, "  {} (historical meaning)", row.kind().as_str())?;
+                        for line in row.canonical_text().lines() {
+                            writeln!(output, "    {line}")?;
+                        }
                     }
                 }
             }
@@ -162,14 +185,30 @@ fn contents(
         path(output, "fresh dependency-path", change.candidate_path())?;
         writeln!(output, "source-changed {}", change.source_changed())?;
         writeln!(output, "audit-recommended {}", change.audit_recommended())?;
-        let Some(review) = reviews.review(package.key()) else {
-            return output.fail("package inspection is missing fresh compiler policy");
-        };
-        policy::render(output, "fresh-policy", review.policy(), source, verbose)?;
-        policy::observations(output, review.projection(), source)?;
-        build_snapshot(output, review.build_observation_summary(), verbose)?;
+        for review in reviews.reviews_for(package.key()) {
+            checked_context(output, "fresh", review.checked_context())?;
+            policy::render(output, "fresh-policy", review.policy(), source, verbose)?;
+            policy::observations(output, review.projection(), source)?;
+            build_snapshot(output, review.build_observation_summary(), verbose)?;
+        }
     }
     Ok(())
+}
+
+fn checked_context(
+    output: &mut Output,
+    prefix: &str,
+    context: crate::lock::PackageCheckedContext,
+) -> fmt::Result {
+    writeln!(
+        output,
+        "{prefix} occurrence {} target {} execution {}",
+        context.purpose().name(),
+        context.target().target_name(),
+        context
+            .build_execution_profile()
+            .map_or("none", |profile| profile.target_name())
+    )
 }
 
 /// The build occurrence's captured-source binding and settled outputs: how

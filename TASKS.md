@@ -523,15 +523,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   canonical consumption/review projections dedupe the identical fact rows a
   second instance re-derives.
 
-  - Replace package-only review and acceptance slots with exact checked
-    activation purpose/profile/target occurrences, starting with production in
-    `review/candidate/compilation/package_pass.rs` and subjects in
-    `review/decision`. Reuse `PackageOccurrenceRoster`, already derived from
-    the source graph and carried through comparison, reconstruction, and lock
-    recovery. Single-purpose role changes already require fresh risk decisions;
-    extend that comparison to independently reviewed coexisting occurrences.
-    Join every review and acceptance to that roster, update the
-    downstream payloads, and version affected encodings. Keep acquisition package-keyed;
+  - Finish per-occurrence production in
+    `review/candidate/compilation/package_pass.rs`, then reconstruction and
+    admission in `review/reconstruction` and `review/decision`. The lock and
+    comparison now retain independent `PackageCheckedContext` records (purpose,
+    checked target, execution profile), with exact source-roster coverage; no
+    package-only acceptance slot remains. The producer and reconstructed ledger
+    still need separate outputs for coexisting purposes, rather than one policy
+    annotated with a purpose set. Reuse `PackageOccurrenceRoster`, join every
+    issued review and evidence subject to its exact occurrence, and version
+    affected evidence encodings. Keep acquisition package-keyed;
     do not union policy or copy package-only consent into both roles.
     The compiler handoff already retains distinct generated bundles, even at
     the same package-relative path, and rejects purpose/profile substitution.
@@ -540,9 +541,9 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     publish different APIs from the same source package. Carry that capability
     through real acquisition, CLI update/review/resume, and locked `--check`.
     `review/candidate/compilation/package_pass.rs` rejects dual-purpose and
-    cross-profile review graphs before builds execute until acceptance can
-    represent them, including non-nested graphs. Lift that fence only with
-    occurrence-bound consumers. Non-root build edges still belong to separate
+    cross-profile review graphs before builds execute, including non-nested
+    graphs. Lift that fence only once production, reconstruction, and admission
+    preserve the occurrence-bound lock/comparison contract. Non-root build edges still belong to separate
     activations, not the consumer's import graph. The existing Windows nested
     CLI test also needs its review/resume step:
     `a_build_helper_runs_its_own_build_dependency_before_the_consumer` reaches

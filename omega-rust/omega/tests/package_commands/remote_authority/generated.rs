@@ -36,8 +36,9 @@ fn pinned_ssh_pure_to_generated_authority_update_requires_review() {
     let baseline = fixture.lock();
     let old_target = baseline.target(TARGET).unwrap();
     assert_eq!(old_target.source().packages().len(), 2);
-    assert!(old_target.baselines().iter().all(|policy| {
+    assert!(old_target.occurrences().iter().all(|policy| {
         policy
+            .acceptance()
             .rows()
             .iter()
             .all(|row| row.kind().as_str() != "dangerous_capability")

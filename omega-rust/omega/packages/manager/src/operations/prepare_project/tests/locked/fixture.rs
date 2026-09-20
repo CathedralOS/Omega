@@ -86,11 +86,14 @@ impl Project {
             CanonicalSourceClosureSubjectLimits::default(),
         )
         .unwrap();
-        let baselines = subject
-            .packages()
-            .iter()
-            .map(|package| reviews.review(package.key()).unwrap().policy().clone())
-            .collect();
+        let mut policies = Vec::new();
+        for package in subject.packages() {
+            for purpose in crate::declarations::DependencyPurpose::ALL {
+                if let Some(review) = reviews.review_occurrence(package.key(), purpose) {
+                    policies.push((review.checked_context(), review.policy()));
+                }
+            }
+        }
         let decisions = HistoricalPackagePolicyDecisions::recover_text(
             &format!(
                 "omega-policy-decisions 1\nsource {}\ndecisions 0\nend\n",
@@ -101,7 +104,7 @@ impl Project {
         )
         .unwrap();
         let lock = PackageLock::from_targets(vec![
-            PackageLockTarget::from_parts(subject, baselines, decisions).unwrap(),
+            PackageLockTarget::from_policies(subject, &policies, decisions).unwrap(),
         ])
         .unwrap();
         fs::write(
