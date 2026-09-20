@@ -1058,8 +1058,32 @@ Owners include
   or replayed acknowledgement cannot resolve another attempt.
 
   `BOUNDARY-ISSUANCE` owns the general issuance review, not this ledger's
-  concrete repair. Remaining before acceptance: the authored Cathedral
-  route itself — no source-level startup program exists yet.
+  concrete repair. The authored Cathedral route now exists:
+  `tests/omega/pass/memory/secondary_processor_canary/` authors the
+  `StartupEnvelope` linear boundary data, its `Pending` domain established
+  by `SecondaryProcessorEntry::enter`, the `confirm` requirement gated on
+  `Pending`, two provider roots whose `Calling` policies grant distinct
+  dedicated stack classes, and a roster machine declaring both slots' stack
+  and state geometry plus the startup trampoline bytes, alignment, and
+  low-memory limit. `compiler/tests/secondary_processor_startup.rs`
+  evaluates that authored source, selects each provider plan, resolves its
+  `enter` reach to `MachineControl`, replays the validated boundary plan,
+  installs the authored trampoline bytes through the artifact → extent grant
+  → claim → materialize → freeze → validate → install ladder, binds the
+  authored profile to the installed code (`InstalledSecondaryProcessor
+  Trampoline` startup vector is the claimed base over the authored
+  alignment), and drives the ledger: reach the installed entry with
+  `binds_exact_materialized_entry_bytes` proving the placed bytes are the
+  authored ones; definite nondispatch withdraws while elapsed time does
+  not; dispatch-unconfirmed settles only on a two-premise receipt naming
+  the outstanding carrier; a late confirmed arrival still starts; receipts
+  replayed across re-admission or minted for another processor refuse;
+  overlapping state or shared stack class refuse admission; started
+  accounts retire only on a quiescence receipt bound to the started
+  record. Remaining before full acceptance: native emission of the
+  trampoline and entry/exit stub bodies (the installed bytes are authored
+  data, not emitted code), real receipt ingress under BOUNDARY-ISSUANCE,
+  and the Windows/macOS/QEMU legs which are host-unavailable here.
 
   Reuse installed-code, per-processor stack/state and retirement joins. Bind the
   provider-declared profile to its selected contract; low-memory/vector geometry

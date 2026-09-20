@@ -1,0 +1,301 @@
+// SECONDARY-PROCESSOR-CANARY: Cathedral's authored route for the
+// secondary-processor startup contract, the package side of the ledger
+// in `platform_bringup::secondary_processor`.
+//
+// A secondary processor (AP on x86) starts by vector, not by resume:
+// the supervisor releases an installed startup entry whose address is
+// the processor's own first fetch, and the processor arrives inside
+// that entry carrying nothing but the contract handed to it here. The
+// authored contract is the startup acknowledgement envelope: dispatch
+// establishes `StartupEnvelope` in `Pending`, the arriving processor
+// resolves its acknowledgement requirement by calling
+// `StartupEnvelope::confirm`, and reaching `confirm` is the only
+// arrival witness the supervisor's ledger accepts. Sending the request
+// or constructing an envelope is not arrival; a settlement answer must
+// attest both that the outstanding carrier can no longer dispatch and
+// that nothing executes on the account's dedicated stack or private
+// state before custody returns.
+//
+// The carrier is a physical value representation authored by this
+// package: the secondary processor hands its acknowledgement back
+// through the exact installed envelope the supervisor's ledger already
+// owns, carrying the processor occurrence, the outstanding invocation,
+// the installed startup vector, and the acknowledgement word the
+// supervisor is testing.
+//
+// Two rooted entry traits carry the two authored secondary processors.
+// Each roots a distinct `Calling` policy so each processor's arrivals
+// are accounted onto a dedicated critical-stack class the ledger
+// matches to the account at admission; a shared policy could not split
+// the two accounts' resource classes.
+
+use omega::language::core::assembly;
+use omega::language::core::representation;
+use omega::language::std::calling;
+
+// ---------------------------------------------------------------------------
+// The startup acknowledgement contract
+// ---------------------------------------------------------------------------
+
+// The startup acknowledgement envelope. Startup is linear: every
+// established envelope must resolve the acknowledgement requirement or
+// be settled by the supervisor, so an attempt is never silently
+// dropped once dispatched.
+pub boundary data StartupEnvelope [linear];
+
+// The dispatched startup attempt: established by a provider's `enter`,
+// extinguished by `confirm`. The ledger rejects requests and freshly
+// minted envelopes; only this domain's inhabitants count as an
+// outstanding startup attempt.
+pub domain StartupEnvelope::Pending
+established by SecondaryProcessorEntry::enter;
+
+// The bounded entry a provider hands to the secondary processor. The
+// service column caps the entry's machine reach: the arriving
+// processor may use `MachineControl` to complete the acknowledgement
+// and raise itself, nothing broader. Implementation policies carry the
+// regime and the dedicated stack class; the contract itself is
+// stack-mechanism silent.
+pub boundary trait SecondaryProcessorEntry {
+    machine enter(envelope: StartupEnvelope in Pending)
+    reaches <= MachineControl;
+}
+
+// The acknowledgement edge the arriving processor executes to complete
+// startup. Any selected implementation may satisfy it; the ledger the
+// compiler drives in the test mints the witness only when this
+// requirement resolves.
+pub boundary requirement StartupEnvelope::confirm(self)
+reaches MachineControl
+requires
+    self in StartupEnvelope::Pending;
+
+// ---------------------------------------------------------------------------
+// The physical carrier
+// ---------------------------------------------------------------------------
+
+// The wire record the arriving processor hands back: processor
+// occurrence, the outstanding invocation it is answering, the
+// installed startup vector it arrived at, and the acknowledgement
+// word. This is the exact shape `plan` matches at the signature.
+pub data StartupEnvelopeCarrier {
+    processor: u64;
+    invocation: u64;
+    startup_vector: u64;
+    acknowledgement: u64;
+}
+
+// The processor-visible representation of the acknowledgement
+// envelope. Callers never construct one; the boundary materializes the
+// carrier for the dispatch's established envelope.
+pub StartupEnvelopeCarrierRepresentation:
+    StartupEnvelopeCarrier satisfies OpaqueRepresentation<StartupEnvelope>;
+
+// ---------------------------------------------------------------------------
+// First secondary processor: policy, root, provider
+// ---------------------------------------------------------------------------
+
+// The calling policy for the first secondary processor's startup entry:
+// the envelope arrives on the stack inside the installed regime, the
+// entry runs under a flat call/return, and the processor's arrivals are
+// accounted onto dedicated critical-stack class 13. The class is a
+// compile-time constant of this policy; the roster declares the same
+// class so the ledger joins account and boundary.
+pub data FirstSecondaryProcessorStackPolicy {
+}
+
+pub FirstSecondaryProcessorStackCalling:
+    FirstSecondaryProcessorStackPolicy satisfies CallingPolicy;
+
+machine FirstSecondaryProcessorStackPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> accept(signature, signature.parameters[0])
+        _ -> reject()
+    }
+
+    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> size(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].byte_size == 32 {
+            true -> alignment(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].alignment == 8 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[root].byte_size,
+            alignment: 8
+        };
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        // The arriving processor holds no interrupted context: nothing
+        // was executing on the AP to save, and a completed startup does
+        // not restore a suspended body. The plan's transitive footprint
+        // is the register file the entry code uses before it raises.
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::Dedicated { class: 13 };
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "secondary processor entries take exactly one envelope",
+            },
+        }
+    }
+}
+
+// The first secondary processor's startup root: the authored contract
+// plus the dedicated stack policy. `plan` supplies the only plan for
+// this trait; realization binds the contract's service demand.
+pub boundary trait FirstSecondaryProcessorRoot:
+    SecondaryProcessorEntry
+    + Calling<FirstSecondaryProcessorStackPolicy>
+{
+}
+
+// The provider realizing the first root. `enter` is the processor's
+// installed startup entry: it resolves the handed envelope's
+// acknowledgement requirement — the startup handshake the ledger
+// tests.
+pub data FirstSecondaryProcessor {
+}
+
+pub FirstSecondaryProcessorConformance:
+    FirstSecondaryProcessor satisfies FirstSecondaryProcessorRoot;
+
+machine FirstSecondaryProcessor::enter(
+    envelope: StartupEnvelope in Pending
+) satisfies SecondaryProcessorEntry::enter
+reaches MachineControl
+{
+    envelope.confirm();
+}
+
+// ---------------------------------------------------------------------------
+// Second secondary processor: policy, root, provider
+// ---------------------------------------------------------------------------
+
+// The second processor's policy, identical shape to the first except
+// its arrivals account onto dedicated critical-stack class 14. Keeping
+// the two policies distinct values keeps the two accounts' resource
+// classes nonoverlapping at admission.
+pub data SecondSecondaryProcessorStackPolicy {
+}
+
+pub SecondSecondaryProcessorStackCalling:
+    SecondSecondaryProcessorStackPolicy satisfies CallingPolicy;
+
+machine SecondSecondaryProcessorStackPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> accept(signature, signature.parameters[0])
+        _ -> reject()
+    }
+
+    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> size(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].byte_size == 32 {
+            true -> alignment(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].alignment == 8 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[root].byte_size,
+            alignment: 8
+        };
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::Dedicated { class: 14 };
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "secondary processor entries take exactly one envelope",
+            },
+        }
+    }
+}
+
+pub boundary trait SecondSecondaryProcessorRoot:
+    SecondaryProcessorEntry
+    + Calling<SecondSecondaryProcessorStackPolicy>
+{
+}
+
+pub data SecondSecondaryProcessor {
+}
+
+pub SecondSecondaryProcessorConformance:
+    SecondSecondaryProcessor satisfies SecondSecondaryProcessorRoot;
+
+machine SecondSecondaryProcessor::enter(
+    envelope: StartupEnvelope in Pending
+) satisfies SecondaryProcessorEntry::enter
+reaches MachineControl
+{
+    envelope.confirm();
+}

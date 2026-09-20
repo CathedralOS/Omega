@@ -1,0 +1,23 @@
+// SECONDARY-PROCESSOR-CANARY: package root. The secondary-processor
+// startup route is exercised by a compiler test through the checked
+// compile — provider selection, boundary realization, the ledger's
+// admission, dispatch, acknowledgement, settlement, and retirement —
+// not through `Main::main`. `Main::retain` keeps the authored contract
+// and roster in the checked surface for that inspection.
+
+use cathedral::processor_startup;
+use cathedral::roster;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
+
+machine Main::retain(
+    &mut self,
+    startup: SecondaryProcessorStartup,
+    envelope: StartupEnvelopeCarrier
+) -> SecondaryProcessorStartup {
+    startup
+}

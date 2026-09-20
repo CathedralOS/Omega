@@ -1,0 +1,86 @@
+// SECONDARY-PROCESSOR-CANARY: Cathedral's authored secondary-processor
+// roster and startup geometry, the package side of the ledger's
+// profile and account inputs.
+//
+// `secondary_processor.omg` authors the startup contract itself; this
+// module authors the DECLARED roster the contract runs over: which
+// secondary processors the machine carries, the dedicated
+// critical-stack class each one's arrivals account onto, the private
+// stack demand each entry may use, and the private state extent each
+// account holds; plus the provider-declared startup geometry — the
+// installed trampoline's content, its alignment, and the bound of the
+// low-memory region the startup vector must land inside.
+//
+// `declare` is evaluated at build time, so the roster is ordinary
+// authored source, not compiler-held fixture: the compiler test
+// evaluates it and drives each slot through the boundary realization,
+// the account admission, dispatch, acknowledgement, and retirement.
+
+// One declared secondary-processor slot: the dedicated critical-stack
+// class its arrivals account onto (the class the matching root policy
+// plans), the private stack bytes and alignment the supervisor must
+// provision for its entry, and the private state extent bytes its
+// account holds for the life of the admitted attempt.
+pub data SecondaryProcessorSlot {
+    stack_class: u64;
+    stack_bytes: u64;
+    stack_alignment: u64;
+    state_bytes: u64;
+}
+
+// The package's complete startup declaration: the secondary-processor
+// roster beside the profile constants the provider's installed
+// trampoline binds — the trampoline content itself (the authored bytes
+// the supervisor installs at the startup vector), its required
+// alignment, and the exclusive bound of the low-memory startup region.
+pub data SecondaryProcessorStartup {
+    processors: [SecondaryProcessorSlot; 2];
+    trampoline_bytes: [u8; 16];
+    startup_alignment: u64;
+    low_memory_limit: u64;
+}
+
+pub machine SecondaryProcessorStartup::declare() -> SecondaryProcessorStartup {
+    let mut slots: [SecondaryProcessorSlot; 2];
+    // The two authored processors arrive through the two rooted entries
+    // on dedicated stack classes 13 and 14. Their private extents are
+    // the ledger's nonoverlapping resource custody for each account.
+    slots[0] = SecondaryProcessorSlot {
+        stack_class: 13, stack_bytes: 2048, stack_alignment: 256,
+        state_bytes: 4096,
+    };
+    slots[1] = SecondaryProcessorSlot {
+        stack_class: 14, stack_bytes: 2048, stack_alignment: 256,
+        state_bytes: 4096,
+    };
+    let mut trampoline: [u8; 16];
+    // The authored startup trampoline's content: the bytes the
+    // supervisor installs at the startup vector — the first fetch the
+    // arriving processor takes. The ledger's acceptance is custody,
+    // not instruction decoding; the test asserts these exact authored
+    // bytes are visible at the installed entry offset.
+    trampoline[0] = 250;
+    trampoline[1] = 244;
+    trampoline[2] = 0;
+    trampoline[3] = 0;
+    trampoline[4] = 251;
+    trampoline[5] = 244;
+    trampoline[6] = 0;
+    trampoline[7] = 0;
+    trampoline[8] = 235;
+    trampoline[9] = 254;
+    trampoline[10] = 0;
+    trampoline[11] = 0;
+    trampoline[12] = 195;
+    trampoline[13] = 0;
+    trampoline[14] = 0;
+    trampoline[15] = 0;
+    // The startup region: page-aligned trampoline under the megabyte
+    // bound the supervisor's low-memory window reserves.
+    SecondaryProcessorStartup {
+        processors: slots,
+        trampoline_bytes: trampoline,
+        startup_alignment: 4096,
+        low_memory_limit: 1048576,
+    }
+}
