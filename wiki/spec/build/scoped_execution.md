@@ -397,6 +397,15 @@ inputs explicitly assigned to their occurrence, not all inputs of the consumer.
 This first slice has no build-time request that pauses to solicit arbitrary new
 host access. A missing input is an explicit failure and a changed invocation.
 
+The compiler-owned source interface exposes the roster as `Build.inputs`.
+`BuildInputs::get(&self, name: &[u8]) -> BuildSource` selects one captured slot;
+a missing slot fails the activation explicitly. The returned `BuildSource`
+uses the same read-only logical-path protocol as the package source facet,
+with its own root and inventory. Constructing `BuildInputs {}` supplies no
+runtime slot custody. Hosts supply activation-local slots with
+`BuildSnapshotRequest::with_inputs` and dependency assignments with
+`with_dependency_inputs`; neither API captures or reopens a host path.
+
 Per-dependency input assignments are part of the pre-execution invocation and
 its prerequisite graph, keyed by exact package/purpose/target occurrence. The
 consumer's running build cannot grant new inputs retroactively to a dependency
@@ -404,6 +413,13 @@ whose build has already completed. To use newly computed inputs, invoke an
 ordinary generator helper in the current build with those values, or arrange
 a separate later build using an explicitly completed artifact. There is no
 implicit graph mutation or recursive build API in this contract.
+
+An edge assignment applies to each checked context that edge serves within the
+selected target invocation. Incoming assignments to one shared scheduling node
+must agree as complete maps, including an edge with no assigned inputs.
+Conflicting assignments reject before any affected build executes; taking their union would widen an edge's
+inputs. Equal assignments reuse the existing package/purpose/profile identity,
+without creating a new package instance for an import alias.
 
 For first implementation, cache keys conservatively include the entire admitted
 input inventory and metadata profile, both dependency-purpose closures, executor

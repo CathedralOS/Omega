@@ -108,8 +108,8 @@ pub use evidence::observations::{
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
     BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildObservationSummary,
-    BuildRequiredOutputSettlement,
+    BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildNamedInputInventory,
+    BuildObservationSummary, BuildRequiredOutputSettlement,
 };
 pub use execution::execute_admitted_build_program;
 pub use provider_settlement::{

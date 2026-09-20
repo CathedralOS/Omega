@@ -99,6 +99,7 @@ fn execute_admitted_build_occurrence(
     let filesystem_operation_attempts =
         observation_projection::project_filesystem_operation_attempts(
             measured.observations(),
+            &filesystem_scope,
             &machine_name,
         )?;
     let included_source_handoffs = observation_projection::project_included_source_handoffs(
@@ -195,6 +196,7 @@ fn execute_admitted_build_occurrence(
                 .canonical_source_metadata_identity(),
             activation: filesystem_scope.activation(selected_target_profile),
             captured_source_inventory: filesystem_scope.captured_source_inventory(),
+            named_input_inventories: filesystem_scope.named_input_inventories(),
             included_source_handoffs,
             required_output_settlements,
             staged_output_tree,

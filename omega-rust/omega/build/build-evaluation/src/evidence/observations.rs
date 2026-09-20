@@ -84,7 +84,7 @@ impl BuildEvaluationUsage {
     }
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 80;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 81;
 
 /// Provider used for an observed filesystem operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -199,6 +199,8 @@ impl BuildFilesystemGrantRefusal {
 pub enum BuildFilesystemRoot {
     Source,
     Output,
+    /// Compiler-issued root joined to the observation's named inventory.
+    NamedInput(u32),
 }
 
 /// One path operand or descriptor-derived path that passed the scoped grant
@@ -471,6 +473,27 @@ impl BuildCapturedSourceInventory {
     }
 }
 
+/// A named immutable input bound to the exact read root used by this build.
+/// Names and unread inventory members participate in observation identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildNamedInputInventory {
+    pub(crate) name: Vec<u8>,
+    pub(crate) root_identity: u32,
+    pub(crate) inventory: BuildCapturedSourceInventory,
+}
+
+impl BuildNamedInputInventory {
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+    pub const fn root_identity(&self) -> u32 {
+        self.root_identity
+    }
+    pub const fn inventory(&self) -> BuildCapturedSourceInventory {
+        self.inventory
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
     pub(crate) schema_version: u32,
@@ -480,6 +503,7 @@ pub struct BuildObservationSummary {
     pub(crate) canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
     pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
+    pub(crate) named_input_inventories: Vec<BuildNamedInputInventory>,
     pub(crate) included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
     /// Terminal settlement rows for the compiler-owned required-output
     /// obligations issued through `BuildOutput::require`, in issue order.
@@ -561,6 +585,11 @@ impl BuildObservationSummary {
     /// Execution reads its private materialization.
     pub const fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_inventory
+    }
+
+    /// Canonical slot order binds names, roots, complete metadata, and bytes.
+    pub fn named_input_inventories(&self) -> &[BuildNamedInputInventory] {
+        &self.named_input_inventories
     }
 
     pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {

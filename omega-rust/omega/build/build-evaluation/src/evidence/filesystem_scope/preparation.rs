@@ -4,7 +4,6 @@ use crate::BuildMachineFilesystemScope;
 use build_time_evaluation::BuildMachineFilesystemSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -88,8 +87,7 @@ pub fn prepare_filesystem_scope(
         // occurrences before any filesystem work: an input keyed to an edge
         // the reconciled graph does not contain is extra and rejects rather
         // than attaching to the nearest edge.
-        let mut dependency_inputs = BTreeMap::new();
-        for (occurrence, slots) in build_snapshot.dependency_inputs() {
+        for (occurrence, _) in build_snapshot.dependency_inputs() {
             let admitted =
                 package_inputs.is_some_and(|inputs| inputs.has_dependency_occurrence(occurrence));
             if !admitted {
@@ -101,7 +99,11 @@ pub fn prepare_filesystem_scope(
                     occurrence.target(),
                 ))]);
             }
-            dependency_inputs.insert(occurrence.clone(), slots.clone());
+        }
+        if build_snapshot.dependency_inputs().next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "named dependency inputs must be routed by package-closure preparation before build activation",
+            )]);
         }
         // Review supplies a session sponsor; ordinary compilation does not.
         // Both must use the same captured-output custody. Provision only a
@@ -204,7 +206,7 @@ pub fn prepare_filesystem_scope(
             build_machine_filesystem_scope
                 .with_captured_source_input(captured_input, snapshot_dir)?
         }
-        .with_dependency_inputs(dependency_inputs)
+        .with_named_inputs(build_snapshot.inputs())
         .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     Ok(build_machine_filesystem_scope)

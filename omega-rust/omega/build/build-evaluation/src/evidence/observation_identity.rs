@@ -86,6 +86,25 @@ impl BuildObservationSummary {
                 );
             }
         }
+        digest.update((self.named_input_inventories().len() as u64).to_le_bytes());
+        for input in self.named_input_inventories() {
+            hash_bytes(&mut digest, input.name());
+            digest.update(input.root_identity().to_le_bytes());
+            let inventory = input.inventory();
+            digest.update(inventory.entry_count().to_le_bytes());
+            digest.update(inventory.file_bytes().to_le_bytes());
+            digest.update(
+                inventory
+                    .source_metadata_identity()
+                    .policy_version()
+                    .to_le_bytes(),
+            );
+            digest.update(
+                inventory
+                    .source_metadata_identity()
+                    .source_content_commitment(),
+            );
+        }
         digest.update(
             u64::try_from(self.included_source_handoffs().len())
                 .expect("included-source handoff count fits u64")
@@ -142,6 +161,9 @@ impl BuildObservationSummary {
                 digest.update([path.operand_ordinal()]);
                 digest.update([grant_access_tag(path.access())]);
                 digest.update([filesystem_root_tag(path.root())]);
+                if let BuildFilesystemRoot::NamedInput(identity) = path.root() {
+                    digest.update(identity.to_le_bytes());
+                }
                 hash_bytes(&mut digest, path.relative_path());
             }
             digest.update(
@@ -231,6 +253,7 @@ const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
     match root {
         BuildFilesystemRoot::Source => 0,
         BuildFilesystemRoot::Output => 1,
+        BuildFilesystemRoot::NamedInput(_) => 2,
     }
 }
 
@@ -277,6 +300,7 @@ mod tests {
             canonical_source_metadata_identity: None,
             activation: BuildActivation::default(),
             captured_source_inventory: None,
+            named_input_inventories: Vec::new(),
             included_source_handoffs: Vec::new(),
             required_output_settlements: Vec::new(),
             staged_output_tree: None,
@@ -294,11 +318,11 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0x46, 0xfc, 0x54, 0x4d, 0xf3, 0xfd, 0x60, 0x8e, 0x83, 0x5e, 0x4f, 0xe3, 0xe2, 0x1f,
-                0x38, 0x9d, 0x38, 0xa9, 0xdf, 0x65, 0x53, 0x40, 0x0f, 0x49, 0x58, 0xbf, 0xe6, 0x47,
-                0x97, 0x4b, 0xec, 0x8b,
+                0xa0, 0x8e, 0x28, 0xf4, 0xed, 0x09, 0x79, 0xe6, 0xc8, 0xe6, 0xb5, 0xa7, 0x7f, 0xa3,
+                0x33, 0x67, 0x72, 0xdc, 0xac, 0xe0, 0xcf, 0x70, 0x95, 0xd1, 0xb2, 0xc8, 0xa6, 0xf4,
+                0x44, 0xa6, 0x18, 0xa0,
             ],
-            "single-execution observation schema 80 with operation schema 20 has stable canonical bytes",
+            "single-execution observation schema 81 with operation schema 20 has stable canonical bytes",
         );
     }
 
@@ -356,5 +380,36 @@ mod tests {
         let mut changed = empty_summary();
         changed.build_log = b"compiler-owned build log\n".to_vec();
         assert_ne!(baseline, changed.identity());
+    }
+    #[test]
+    fn named_input_identity_includes_unread_inventory_and_exact_slot_binding() {
+        let mut summary = empty_summary();
+        summary
+            .named_input_inventories
+            .push(crate::BuildNamedInputInventory {
+                name: b"template".to_vec(),
+                root_identity: 3,
+                inventory: BuildCapturedSourceInventory {
+                    entry_count: 2,
+                    file_bytes: 7,
+                    source_metadata_identity: crate::BuildCanonicalSourceMetadataIdentity::new(
+                        1, [1; 32],
+                    ),
+                },
+            });
+        assert!(summary.filesystem_operation_attempts.is_empty());
+        let identity = summary.identity();
+        assert_ne!(identity, empty_summary().identity());
+        let mut renamed = summary.clone();
+        renamed.named_input_inventories[0].name = b"settings".to_vec();
+        assert_ne!(identity, renamed.identity());
+        let mut rerooted = summary.clone();
+        rerooted.named_input_inventories[0].root_identity = 4;
+        assert_ne!(identity, rerooted.identity());
+        summary.named_input_inventories[0]
+            .inventory
+            .source_metadata_identity =
+            crate::BuildCanonicalSourceMetadataIdentity::new(1, [2; 32]);
+        assert_ne!(identity, summary.identity());
     }
 }

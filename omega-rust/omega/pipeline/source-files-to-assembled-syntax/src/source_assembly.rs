@@ -612,6 +612,10 @@ pub data BuildPath [copy] {
 }
 pub data BuildSource {
 }
+// Caller-captured immutable slots. Only the admitted Build value carries the
+// runtime slot roster; constructing this empty shape grants no input access.
+pub data BuildInputs {
+}
 pub data BuildOutput {
 }
 pub data BuildLog {
@@ -684,6 +688,7 @@ pub data Build {
     optimizations: Optimizations;
     pcc: Pcc;
     source: BuildSource;
+    inputs: BuildInputs;
     output: BuildOutput;
     log: BuildLog;
     product: BuildProduct;
@@ -734,6 +739,10 @@ pub machine Build::accept_component_assumption(&mut self, digest: &[u8]) {
 }
 pub machine BuildSource::resolve(&self, relative: &[u8]) -> BuildPath {
     BuildPath {}
+}
+// Missing slots fail the activation; the declared body is never executed.
+pub machine BuildInputs::get(&self, name: &[u8]) -> BuildSource {
+    BuildSource {}
 }
 pub machine BuildOutput::resolve(&self, relative: &[u8]) -> BuildPath {
     BuildPath {}
