@@ -10237,7 +10237,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ORPHAN-STAGE-OUTPUT-AUDIT (22:30Z). Claim on the catalog surface
   returned exit 2.
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
-- **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`:
+- **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`,
+  re-verified at `12ecbe98f8` (owner files `match_dispatch.rs` +
+  `result_type.rs` present; 8 `expressions/match_*` canaries on disk):
   this mined stub re-covers open work already owned by
   **MATCH-SELECTIVE-LOWERING** (live claim through 2026-09-20T22:31Z on the
   `expression_types` owners below). Its
