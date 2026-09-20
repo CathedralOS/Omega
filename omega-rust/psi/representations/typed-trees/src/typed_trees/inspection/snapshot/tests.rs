@@ -36,6 +36,58 @@ fn snapshots_public_data_visibility() {
 }
 
 #[test]
+fn snapshots_measure_root_and_full_table_census() {
+    let mut program = TypedTrees::default();
+    program.push_const_declaration(crate::constant::ConstDeclaration {
+        is_public: true,
+        ..crate::constant::ConstDeclaration::default()
+    });
+    let mut measure = crate::measure::MeasureDefinition {
+        symbol: symbols::SymbolHandle::from_arena_index(51),
+        lexicographic: true,
+        ..crate::measure::MeasureDefinition::default()
+    };
+    program.push_measure_path_member(&mut measure, Identifier::generated("Card"));
+    program.push_measure_path_member(&mut measure, Identifier::generated("PowerOrder"));
+    program.push_measure(measure);
+    let mut definition = crate::mathematical::MathematicalDefinition {
+        name: Identifier::generated("theorem"),
+        is_public: true,
+        ..crate::mathematical::MathematicalDefinition::default()
+    };
+    let result = program.insert_mathematical_type(crate::mathematical::MathematicalType::default());
+    definition.result = result;
+    program.push_mathematical_parameter(
+        &mut definition,
+        crate::mathematical::MathematicalParameter {
+            name: Identifier::generated("x"),
+            ty: result,
+            ..crate::mathematical::MathematicalParameter::default()
+        },
+    );
+    program.push_mathematical_definition(definition);
+
+    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+
+    let [measure] = snapshot.roots.measures.as_slice() else {
+        panic!("one measure snapshot")
+    };
+    assert!(measure.has_symbol);
+    assert_eq!(measure.name, ["Card", "PowerOrder"]);
+    assert!(measure.lexicographic);
+    assert!(measure.parameter.is_none());
+    assert!(measure.body.is_empty());
+    assert_eq!(snapshot.tables.authored_declaration_selection_count, 0);
+    assert_eq!(snapshot.tables.const_declaration_count, 1);
+    assert_eq!(snapshot.tables.measure_count, 1);
+    assert_eq!(snapshot.tables.measure_path_member_count, 2);
+    assert_eq!(snapshot.tables.mathematical_definition_count, 1);
+    assert_eq!(snapshot.tables.mathematical_parameter_count, 1);
+    assert_eq!(snapshot.tables.mathematical_type_count, 1);
+    assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
 fn snapshots_normalized_domain_semantic_roles() {
     let mut program = TypedTrees::default();
     let trait_definition = symbols::SymbolHandle::from_arena_index(25);
