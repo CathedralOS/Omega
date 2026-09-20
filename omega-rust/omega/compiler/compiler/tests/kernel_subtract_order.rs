@@ -128,9 +128,10 @@ fn source_rank_decrease_has_checked_subtraction_evidence() {
             // fixed subtraction/order laws. Three numeral definitions are
             // checked bodies rather than assumptions. No rule-instance
             // conclusion is admitted.
+            // Primitive Two supplies Boolean vocabulary without assumptions.
             assert_eq!(
                 closure,
-                (0..51)
+                (0..48)
                     .filter(|position| ![5, 7, 8].contains(position))
                     .collect::<BTreeSet<_>>()
             );
@@ -196,12 +197,12 @@ fn source_non_decreasing_rank_rejects() {
 
 #[test]
 fn source_subtraction_operation_has_a_derived_nonnegative_bound() {
-    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_order", 36);
+    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_order", 33);
 }
 
 #[test]
 fn source_subtraction_bound_composes_with_a_larger_guard_and_decrement() {
-    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_bound", 23);
+    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_bound", 20);
 }
 
 fn check_source_subtraction_bound(relative: &str, declarations: u32) {

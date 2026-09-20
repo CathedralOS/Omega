@@ -25,7 +25,10 @@
 //!
 //! - `Truth` denotes `Id Two zero zero` and `Falsehood` denotes
 //!   `Id Two zero one`.
-//! - Non-integer `Equal(l, r)` denotes `Id S l' r'` over the
+//! - Boolean values denote `Two`; literals, negation and Boolean equality
+//!   use its constructors and case eliminator. Proposition equality is
+//!   `Id Two`, not the Boolean-valued comparison operation.
+//! - Other non-integer `Equal(l, r)` denotes `Id S l' r'` over the
 //!   proposition's scalar carrier `S`, with operands constant at `S`.
 //! - `Equal` and the `LessThan`/`LessOrEqual` relations over fixed
 //!   non-address integers — including compound scalar operands — denote
@@ -108,8 +111,15 @@
 //! checked numeral-operation equation `add n r = e`, interned once per
 //! evaluated operand triple — an exact interned assumption in place of
 //! the whole-rule implication.
-//! Other witness-bearing bound rules, multiple-equation
-//! or nested transports and denotation-conversion instances outside the
+//! Value-equation transport expands both statements through their closed
+//! value definitions and uses J in the exact replacement contexts. This
+//! composes multiple equations, Boolean operations, exact addition/subtraction
+//! and connective binders. A normalized Truth premise establishes a reflexive
+//! expanded result by refl. Opaque operations, additional Boolean identities,
+//! and reversed identities nested inside connectives can still require
+//! rule-instance evidence; a bounded construction allowance also declines to
+//! that explicit route rather than rejecting an otherwise supported proof.
+//! Other witness-bearing bound rules and denotation-conversion instances outside the
 //! supported `Int` vocabulary denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
 //! applied to the denoted premise evidence (ambient axiom and
@@ -155,6 +165,8 @@ const MAX_ELABORATION_NODES: u64 = 1 << 16;
 
 mod addition;
 mod binary_numerals;
+mod booleans;
+mod equality_transport;
 mod subtraction;
 
 /// One bounded certificate elaborated into the common mathematical core.
@@ -651,6 +663,7 @@ struct Denotation {
     two: TermHandle,
     two_zero: TermHandle,
     two_one: TermHandle,
+    boolean_equality: TermHandle,
     declarations: Vec<Declaration>,
     /// Canonical atomic proposition → assumption position. The key is
     /// the proposition's lifted mathematical form when the fixed-width
@@ -721,6 +734,7 @@ impl Denotation {
             two,
             two_zero,
             two_one,
+            boolean_equality: TermHandle::invalid(),
             declarations: Vec::new(),
             atoms: BTreeMap::new(),
             carriers: BTreeMap::new(),
@@ -777,6 +791,9 @@ impl Denotation {
 
     /// The `Type 0` assumption constant a scalar carrier denotes.
     fn carrier(&mut self, scalar_type: ScalarType) -> Result<TermHandle, BoundedDenotationError> {
+        if scalar_type == ScalarType::Boolean {
+            return Ok(self.two);
+        }
         if let Some(&position) = self.carriers.get(&scalar_type) {
             return Ok(self.constant(position));
         }
@@ -787,11 +804,14 @@ impl Denotation {
         Ok(self.constant(position))
     }
 
-    /// The assumption constant a scalar term denotes. A closed integer
+    /// Selected Boolean computation or an opaque scalar constant. A closed integer
     /// term is interned by its evaluated literal — the denotation is by
     /// value, so `2 + 0` and `2` name one constant and a decided
     /// `Equal(2 + 0, 2)` is `refl`-provable rather than admitted.
     fn scalar_term(&mut self, term: &ScalarTerm) -> Result<TermHandle, BoundedDenotationError> {
+        if let Some(boolean) = self.boolean_term(term)? {
+            return Ok(boolean);
+        }
         let key = match term.integer_value() {
             Some((integer_type, value)) => {
                 ScalarTerm::integer(integer_type, value).unwrap_or_else(|_| term.clone())
@@ -1507,99 +1527,6 @@ impl Denotation {
         .map(Some)
     }
 
-    /// `ValueEqualityTransport` through the integer vocabulary: a single
-    /// proved equation `s ≡ t` moving one `Int` endpoint cites the same
-    /// substitution laws `IntegerOrderSubstitution` uses — an `IntLt`/
-    /// `IntLe` premise matches the roster directly, and an `Id Int`
-    /// premise transports by `J`-composed symmetry and transitivity.
-    /// Every other shape (several equations, a non-integer carrier,
-    /// transport inside a conjunction or bound) keeps the per-instance
-    /// axiom — the roster only spans whole `Int` relations.
-    fn transport_evidence(
-        &mut self,
-        premise_ty: TermHandle,
-        premise_evidence: TermHandle,
-        equality_ty: TermHandle,
-        equality_evidence: TermHandle,
-        goal_ty: TermHandle,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        match (
-            self.integer_relation(premise_ty),
-            self.integer_relation(goal_ty),
-        ) {
-            (
-                Some(IntegerRelation::Equality { .. }),
-                Some(IntegerRelation::Equality {
-                    left: goal_left,
-                    right: goal_right,
-                }),
-            ) => {
-                let Some(IntegerRelation::Equality { left: a, right: b }) =
-                    self.integer_relation(premise_ty)
-                else {
-                    unreachable!("matched above");
-                };
-                let Some(IntegerRelation::Equality { left: s, right: t }) =
-                    self.integer_relation(equality_ty)
-                else {
-                    return Ok(None);
-                };
-                let integer = self.integer_constant()?;
-                // Left endpoint moved `a → goal_left`, or right moved
-                // `b → goal_right`; the equation reads the move in
-                // either direction and `sym` reorients as needed.
-                if self.arena.structurally_equal(b, goal_right) {
-                    let Some(directed) =
-                        self.directed_equality(s, t, a, goal_left, equality_evidence)
-                    else {
-                        return Ok(None);
-                    };
-                    // `Id gl a` then `Id a b` compose to `Id gl b`.
-                    let flipped = self.symmetry(integer, a, goal_left, directed);
-                    Ok(Some(self.transitivity(
-                        integer,
-                        goal_left,
-                        a,
-                        b,
-                        flipped,
-                        premise_evidence,
-                    )))
-                } else if self.arena.structurally_equal(a, goal_left) {
-                    let Some(directed) =
-                        self.directed_equality(s, t, b, goal_right, equality_evidence)
-                    else {
-                        return Ok(None);
-                    };
-                    Ok(Some(self.transitivity(
-                        integer,
-                        a,
-                        b,
-                        goal_right,
-                        premise_evidence,
-                        directed,
-                    )))
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => {
-                for endpoint in [0usize, 1usize] {
-                    if let Some(term) = self.order_substitution_evidence(
-                        premise_ty,
-                        premise_evidence,
-                        equality_ty,
-                        equality_evidence,
-                        endpoint,
-                        goal_ty,
-                    )? {
-                        return Ok(Some(term));
-                    }
-                }
-                Ok(None)
-            }
-        }
-    }
-
     /// The equation evidence oriented as `Id Int old new`, or `None`
     /// when its denoted endpoints are not `{old, new}` in either order.
     fn directed_equality(
@@ -2256,19 +2183,14 @@ impl<'a> Elaboration<'a> {
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
                 self.rules.insert(AcceptedProofRule::ValueEqualityTransport);
-                if equalities.len() == 1 {
-                    let premise_ty = self.denotation.denote(&premise.conclusion)?;
-                    let equality_ty = self.denotation.denote(&equalities[0].conclusion)?;
-                    let goal_ty = self.denotation.denote(&proof.conclusion)?;
-                    if let Some(term) = self.denotation.transport_evidence(
-                        premise_ty,
-                        evidence[0],
-                        equality_ty,
-                        evidence[1],
-                        goal_ty,
-                    )? {
-                        return Ok(term);
-                    }
+                if let Some(term) = self.denotation.compositional_transport(
+                    &premise.conclusion,
+                    evidence[0],
+                    equalities,
+                    &evidence[1..],
+                    &proof.conclusion,
+                )? {
+                    return Ok(term);
                 }
                 self.rule_instance(
                     AcceptedProofRule::ValueEqualityTransport,
@@ -3257,11 +3179,10 @@ mod tests {
         ));
     }
 
-    /// The conversion rules — predicate denotation and value-equality
-    /// transport — denote named rule-instance decisions whose premises
-    /// are the cited child and each proved equation.
+    /// Identical denotations reuse evidence; changing a value endpoint
+    /// transports it by J without assuming an order-substitution law.
     #[test]
-    fn conversion_rules_become_named_rule_instances() {
+    fn conversion_and_value_transport_use_existing_evidence_and_identity_elimination() {
         let (x_id, x) = value(1);
         let (y_id, y) = value(2);
         let (z_id, z) = value(3);
@@ -3302,8 +3223,7 @@ mod tests {
         );
 
         // `ValueEqualityTransport`: `x <= y` under the proved `x == z`
-        // transports to `z <= y` — a single integer-order move cites
-        // the same substitution law the order rule uses.
+        // transports to `z <= y` using the supplied equation itself.
         let premise = Proposition::LessOrEqual(
             ScalarTerm::value(x_id, unsigned64_type()),
             ScalarTerm::value(y_id, unsigned64_type()),
@@ -3331,17 +3251,13 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("value equality transport verifies as a roster citation");
-        // `le_subst_left m_x m_z m_y eq p` — the roster law applied to
-        // the three endpoints, the equation evidence, and the premise.
-        let mut head = denoted.certificate.term;
-        for _ in 0..5 {
-            let Term::Apply { function, .. } = denoted.arena.get(head) else {
-                panic!("transport cites the substitution law applied to endpoints and evidence");
-            };
-            head = function;
-        }
-        assert!(matches!(denoted.arena.get(head), Term::Constant { .. }));
+        .expect("value equality transport verifies through J");
+        assert!(matches!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::IdElim { .. }
+        ));
+        // Int, its three values and IntLe; no substitution-law assumption.
+        assert_eq!(denoted.certificate.signature.len(), 5);
         assert_eq!(
             denoted.rules,
             vec![
@@ -4135,12 +4051,10 @@ mod tests {
         ));
     }
 
-    /// A rule-instance axiom with a content premise states the exact
-    /// `Id C` domain: a value-equality transport that cannot rewrite the
-    /// content equation keeps it as an interned `Π` premise, auditable
-    /// rather than atom-shaped.
+    /// Unchanged content evidence is already the requested proof. Its
+    /// original context remains in the closure even when transport is empty.
     #[test]
-    fn rule_instances_carry_content_identities_exactly() {
+    fn unchanged_content_transport_reuses_evidence_and_retains_its_context() {
         let root = content_root();
         let algebra = content_algebra();
         let premise = conservation(&algebra, &content_term(root, "a"), &content_term(root, "b"));
@@ -4179,33 +4093,22 @@ mod tests {
             &proof,
             &mut budget(),
         )
-        .expect("the transport instance verifies");
-        // `{C, a', b', Int, m_x, m_z, axiom}`: the axiom's statement is
-        // `Π(_ : Id C a' b'). Π(_ : Id Int m_x m_z). Id C a' b'` — the
-        // content identity appears exactly, not as an opaque atom.
-        assert_eq!(denoted.certificate.signature.len(), 7);
-        let mut head = denoted.certificate.term;
-        for _ in 0..2 {
-            let Term::Apply { function, .. } = denoted.arena.get(head) else {
-                panic!("a rule instance applies the axiom to each premise");
-            };
-            head = function;
-        }
-        let Term::Constant {
-            declaration: axiom_position,
-            ..
-        } = denoted.arena.get(head)
-        else {
-            panic!("the head is the axiom constant");
-        };
-        let Term::Pi { domain, .. } = denoted
-            .arena
-            .get(denoted.certificate.signature[axiom_position as usize].ty)
-        else {
-            panic!("the axiom's statement is a Π over its premises");
-        };
+        .expect("the original content evidence verifies");
+        // C, a', b', Int, m_x and m_z remain; no new rule axiom.
+        assert_eq!(denoted.certificate.signature.len(), 6);
+        assert_eq!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Variable(1)
+        );
+        assert_eq!(
+            certificate_assumption_closure(&denoted.arena, &denoted.certificate),
+            (0..6).collect()
+        );
         assert!(
-            matches!(denoted.arena.get(domain), Term::Id { .. }),
+            matches!(
+                denoted.arena.get(denoted.certificate.context[0]),
+                Term::Id { .. }
+            ),
             "the first premise is the content identity",
         );
         assert_eq!(
