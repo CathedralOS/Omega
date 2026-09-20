@@ -54,7 +54,7 @@ fn compiler_baseline_request_retains_the_selection_and_canonical_budget() {
     );
     assert_eq!(
         request.budget_per_pass(),
-        OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 10_000).unwrap()
+        OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 100_000).unwrap()
     );
 
     let (semantic, proof) = artifact();
