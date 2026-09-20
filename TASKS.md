@@ -919,7 +919,16 @@ Owners include
     field catalogs with target-package declarations, evaluated layout policies,
     constants and integrity checks. Migrate `backend/plans/program-entry-plan`
     and `external-roots/src/platform_bringup/uefi_bootstrap/` consumers, then
-    delete the duplicate production catalogs.
+    delete the duplicate production catalogs. Loaded Image landed: the
+    `EfiLoadedImage` schema and evaluated `EfiLoadedImageLayout::plan` policy
+    in `targets/uefi_x86_64/tables.omg` own the 96-byte geometry;
+    `target::uefi_loaded_image` replays each evaluated `LayoutPlanReport`
+    against recorded schema/plan/native-layout commitments
+    (`replayed_uefi_x64_loaded_image_native_layout`), the bounded HandleProtocol
+    executor and occurrence validation consume that replay, and
+    `canary_suite/entry_and_abi/uefi_loaded_image_layout.rs` binds the authored
+    policy's live evaluation to the retained layout. System Table and Boot
+    Services catalogs remain duplicate production definitions.
   - Replace `program_entry_physical/exact_uefi.rs`'s duplicated physical-policy
     recipe with source-derived plan/evidence replay. Preserve exact accepted
     package/contract identity and arrival assumptions; a source digest does not

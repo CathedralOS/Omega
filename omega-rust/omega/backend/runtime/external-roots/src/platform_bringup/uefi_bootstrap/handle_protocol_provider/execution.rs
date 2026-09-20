@@ -10,8 +10,8 @@ use std::ffi::c_void;
 
 use program_entry_plan::UefiHandleProtocolStatus;
 use target::{
-    TargetProfile, UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiProtocolGuid,
-    plan_uefi_loaded_image_native_layout, validate_uefi_loaded_image_occurrence,
+    UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiProtocolGuid, exact_uefi_x64_loaded_image_native_layout,
+    validate_uefi_loaded_image_occurrence,
 };
 
 use super::{BoundUefiHandleProtocolInvocation, LifecycleScopedUefiLoadedImageCorrespondence};
@@ -295,18 +295,7 @@ pub fn admit_uefi_loaded_image_handle_protocol_execution<'system_table, 'boot_se
             "UEFI HandleProtocol success returned a null Loaded Image interface",
         );
     }
-    let layout = match plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64) {
-        Ok(layout) => layout,
-        Err(error) => {
-            return reject(
-                execution,
-                format!(
-                    "UEFI Loaded Image target layout rejected: {}",
-                    error.diagnostic()
-                ),
-            );
-        }
-    };
+    let layout = exact_uefi_x64_loaded_image_native_layout();
     if !(execution.interface_output as usize).is_multiple_of(layout.alignment() as usize) {
         return reject(
             execution,

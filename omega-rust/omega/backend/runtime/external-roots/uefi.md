@@ -41,12 +41,20 @@ forward-compatible suffixes remain valid. Revision is retained for later
 capability policy. Neither layout nor integrity projects a service pointer;
 phase and occurrence provenance are separate prerequisites.
 
-Boot Services and Loaded Image have analogous Rust field catalogs. These are
-not evaluated Omega layout policies: `EfiSystemTable` is still an opaque source
-declaration. The physical calling policy is authored in `entry.omg`, but
-`program_entry_physical/exact_uefi.rs` also reconstructs its fixed plan in Rust.
-Replace firmware definitions and duplicate policy recipes with checked
-source-derived plans, preserving independent source/plan/realization checking.
+Loaded Image geometry is now authored once in
+`source/library/std/targets/uefi_x86_64/tables.omg`: the `EfiLoadedImage`
+carrier record and the evaluated `EfiLoadedImageLayout::plan` policy own the
+96-byte layout, and `target::uefi_loaded_image` replays the evaluated
+`LayoutPlanReport` through recorded schema/plan/layout commitments instead of
+keeping a duplicate production catalog. The residual literal recipe survives
+only as `exact_uefi_x64_loaded_image_native_layout` fixture materialization,
+which self-checks through the same replay. System Table and Boot Services
+still have analogous Rust field catalogs — `EfiSystemTable` remains an opaque
+source declaration, and the physical calling policy is authored in `entry.omg`
+while `program_entry_physical/exact_uefi.rs` also reconstructs its fixed plan
+in Rust. Replace the remaining firmware definitions and duplicate policy
+recipes with checked source-derived plans, preserving independent
+source/plan/realization checking.
 
 The bounded HandleProtocol executor consumes a retained service/handle/GUID/
 output-slot carrier under the UEFI ABI. Its non-clone receipt seals actual status
