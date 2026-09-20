@@ -741,6 +741,118 @@ fn runtime_bound_stale_call_guard_rejects_publication() {
     );
 }
 
+const EQUAL_RUNTIME_INDEX_MACHINES: &str = r#"
+machine indexed<Bound: u8>() -> u8[0..=Bound] { Bound }
+
+machine equal_index(left: u8, right: u8) -> u8 {
+    transition left == right {
+        true -> allowed(left, right)
+        false -> 0
+    }
+    state allowed(left: u8, right: u8) {
+        let captured: u8[0..=right] = indexed<left>();
+        captured
+    }
+}
+
+machine not_different_index(left: u8, right: u8) -> u8 {
+    transition left != right {
+        true -> 0
+        false -> allowed(left, right)
+    }
+    state allowed(left: u8, right: u8) {
+        let captured: u8[0..=right] = indexed<left>();
+        captured
+    }
+}
+"#;
+
+#[test]
+fn equal_runtime_indices_preserve_the_guarded_result_subject() {
+    let source = [
+        r#"
+use omega::language::core::external_binding;
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+data Main {}
+"#,
+        EQUAL_RUNTIME_INDEX_MACHINES,
+        r#"
+machine Main::main(&mut self) reaches Trace {
+    Trace::record(equal_index(3, 3) as u64);
+    Trace::record(equal_index(3, 7) as u64);
+    Trace::record(equal_index(8, 8) as u64);
+    Trace::record(not_different_index(3, 3) as u64);
+    Trace::record(not_different_index(3, 7) as u64);
+    Trace::record(not_different_index(8, 8) as u64);
+}
+"#,
+    ]
+    .concat();
+    let published = publish("equal-runtime-indices", &source);
+    let entries = calls(&published.module, published.module.entry);
+    assert_eq!(entries.len(), 6);
+    assert!(entries[..3].iter().all(|call| call.0 == entries[0].0));
+    assert!(entries[3..].iter().all(|call| call.0 == entries[3].0));
+    let equal_calls = calls(&published.module, entries[0].0);
+    let not_different_calls = calls(&published.module, entries[3].0);
+    assert_eq!(equal_calls.len(), 1);
+    assert_eq!(not_different_calls.len(), 1);
+    assert_eq!(
+        equal_calls[0].0, not_different_calls[0].0,
+        "both guard routes reuse one runtime-indexed body"
+    );
+    assert_eq!(
+        equal_calls[0].1.len(),
+        1,
+        "the exact bound is an ordinary argument"
+    );
+    replay(
+        &published,
+        &[3, 0, 8, 3, 0, 8],
+        "equal runtime subjects transport the same result bound under either equality polarity",
+        &[],
+    );
+}
+
+#[test]
+fn equal_runtime_indices_reject_absent_or_invalidated_relationships() {
+    for (name, machines) in [
+        (
+            "missing-equality",
+            EQUAL_RUNTIME_INDEX_MACHINES.replace("left == right", "true"),
+        ),
+        (
+            "different-subjects",
+            EQUAL_RUNTIME_INDEX_MACHINES.replace("left == right", "left != right"),
+        ),
+        (
+            "rewritten-receiving-bound",
+            EQUAL_RUNTIME_INDEX_MACHINES.replace(
+                "state allowed(left: u8, right: u8) {",
+                "state allowed(left: u8, mut right: u8) { right = 0;",
+            ),
+        ),
+        (
+            "rewritten-source-bound",
+            EQUAL_RUNTIME_INDEX_MACHINES.replace(
+                "state allowed(left: u8, right: u8) {",
+                "state allowed(mut left: u8, right: u8) { left = 255;",
+            ),
+        ),
+    ] {
+        let source = machines
+            + "\ndata Main {}\nmachine Main::main(&mut self) { let result: u8 = equal_index(3, 3); }";
+        let Err(diagnostic) = check_source(name, &source) else {
+            panic!("{name} must not transport an indexed result");
+        };
+        assert!(
+            diagnostic.contains("not provably within its declared symbolic const range"),
+            "{name}: {diagnostic}"
+        );
+    }
+}
+
 /// Collect every in-module receiver call across all of a machine's blocks as
 /// `(callee, scalar argument count, structural argument count, obligation
 /// count)` rows in authored order. `Main::` receiver methods lower to the
@@ -1437,10 +1549,12 @@ mod native {
             .join("source/library/std")
             .to_string_lossy()
             .replace('\\', "/");
+        // Product operands resolve in the Build occurrence's package scope;
+        // importing Console in main.omg does not grant it a package-local name.
         fs::write(
             fixture.0.join("build.omg"),
             format!(
-                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime-value-generics-{name}\");\n    builder.depend(Source::Path {{ location: \"{standard_library}\" }});\n    builder.select_provider<Console, ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
+                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime-value-generics-{name}\");\n    builder.depend(Source::Path {{ location: \"{standard_library}\" }});\n    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
             ),
         )
         .unwrap();
@@ -1655,6 +1769,26 @@ machine Main::main(&mut self) reaches Console {
         ]
         .concat();
         run_native("guarded-result-bound", &source, 11);
+    }
+
+    #[test]
+    fn equal_runtime_indices_preserve_the_guarded_result_subject_natively() {
+        let source = [r#"
+use omega_language_std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; }
+"#, super::EQUAL_RUNTIME_INDEX_MACHINES, r#"
+machine Main::main(&mut self) reaches Console {
+    let first: i32 in Wrapping = equal_index(3, 3) as i32 in Wrapping;
+    let denied: i32 in Wrapping = equal_index(3, 7) as i32 in Wrapping;
+    let second: i32 in Wrapping = equal_index(8, 8) as i32 in Wrapping;
+    let reversed_first: i32 in Wrapping = not_different_index(3, 3) as i32 in Wrapping;
+    let reversed_denied: i32 in Wrapping = not_different_index(3, 7) as i32 in Wrapping;
+    let reversed_second: i32 in Wrapping = not_different_index(8, 8) as i32 in Wrapping;
+    self.console.exit_process((first + denied + second + reversed_first + reversed_denied + reversed_second) as i32);
+}
+"#].concat();
+        run_native("equal-runtime-indices", &source, 22);
     }
 
     /// The captured subject flows through a literal-indexed scalar field on

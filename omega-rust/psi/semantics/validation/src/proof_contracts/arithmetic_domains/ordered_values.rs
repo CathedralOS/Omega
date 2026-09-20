@@ -452,18 +452,21 @@ pub(super) fn record(
     comparison: &typed_trees::expression::TableBinaryExpression,
     positive: bool,
 ) {
-    let (left, right, strict) = match (comparison.operator, positive) {
+    let (left, right, strict, equal) = match (comparison.operator, positive) {
         (BinaryOperator::GreaterOrEqual, true) | (BinaryOperator::Less, false) => {
-            (comparison.left, comparison.right, false)
+            (comparison.left, comparison.right, false, false)
         }
         (BinaryOperator::Greater, true) | (BinaryOperator::LessOrEqual, false) => {
-            (comparison.left, comparison.right, true)
+            (comparison.left, comparison.right, true, false)
         }
         (BinaryOperator::LessOrEqual, true) | (BinaryOperator::Greater, false) => {
-            (comparison.right, comparison.left, false)
+            (comparison.right, comparison.left, false, false)
         }
         (BinaryOperator::Less, true) | (BinaryOperator::GreaterOrEqual, false) => {
-            (comparison.right, comparison.left, true)
+            (comparison.right, comparison.left, true, false)
+        }
+        (BinaryOperator::Equal, true) | (BinaryOperator::NotEqual, false) => {
+            (comparison.left, comparison.right, false, true)
         }
         _ => return,
     };
@@ -491,8 +494,20 @@ pub(super) fn record(
         right,
         floor: i64::from(strict),
     };
-    if !environment.ordered_values.contains(&relation) {
-        environment.ordered_values.push(relation);
+    // Builtin integer equality contributes both non-strict orders. Keep them
+    // in the same relation store as guards, rather than unifying symbol atoms:
+    // a write to either operand must retire the equality before a later use.
+    // The guard owner checks selected operator meaning before calling here;
+    // bounded_integer above excludes float equality and its NaN semantics.
+    let reverse = equal.then(|| Relation {
+        left: relation.right.clone(),
+        right: relation.left.clone(),
+        floor: 0,
+    });
+    for relation in std::iter::once(relation).chain(reverse) {
+        if !environment.ordered_values.contains(&relation) {
+            environment.ordered_values.push(relation);
+        }
     }
 }
 

@@ -3618,12 +3618,15 @@ Owners include
     compatibility and requires-fact instantiation, so
     `machine outer<N: u32>(v: i64 in Coordinate<N>) { relay<N>(v) }` now
     checks while `relay<M>(v)` still rejects.
-    Ordered scalar guards now establish result and local qualifications through
-    the existing write-invalidated arithmetic environment, with independent
+    Ordered and equality scalar guards establish result and local qualifications
+    through the existing write-invalidated arithmetic environment, with independent
     Terminal replay and macOS ARM64 native execution in
     `runtime_value_generics::runtime_bound_result_qualification_follows_the_dominating_guard`.
-    Remaining: equality-only subject relationships and guard-derived parameter
-    qualifications. A stale guard followed by `limit = 0` before
+    `equal_runtime_indices_preserve_the_guarded_result_subject` also checks
+    transport between distinct bound subjects under true `==` and false `!=`,
+    with a shared dynamic body; writes to either subject retire the equality.
+    Remaining: guard-derived parameter qualifications. A stale guard followed
+    by `limit = 0` before
     `bounded_result<limit>(value)` still passes `Check`, but artifact production
     rejects with `OperationProofUnavailable`; move that rejection to the
     exact call's source contract check without weakening the artifact gate.
