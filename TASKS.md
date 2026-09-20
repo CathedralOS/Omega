@@ -8561,8 +8561,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that partition, not an independent slice. Implementing surfaces sit
   under live sibling claims at verification time (`rewrites/mod.rs` +
   `module_catalog.rs` under ORPHAN-REWRITE-MODULES-CATALOG until
-  22:38Z; pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS until
-  23:57Z). Sibling cluster rows:
+  02:26Z; pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS until
+  23:57Z). Re-verified at `797e99ead7`: the `Orphaned` route rows are
+  still present in `module_catalog.rs` and both claims remain live.
+  Sibling cluster rows:
   SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
