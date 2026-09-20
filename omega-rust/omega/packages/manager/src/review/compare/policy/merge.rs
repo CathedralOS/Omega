@@ -10,12 +10,13 @@ pub(super) fn rows(
     baseline: Vec<PackageAcceptanceRow>,
     candidate: Vec<PackageAcceptanceRow>,
     existing_package: bool,
+    occurrence_changed: bool,
     budget: &mut Budget,
 ) -> Result<Vec<PackagePolicyRowChange>, Error> {
     let mut count = 0usize;
     let mut bytes = 0usize;
     walk(&baseline, &candidate, |old, new| {
-        if old == new {
+        if old == new && !occurrence_changed {
             return Ok(());
         }
         count = count.checked_add(1).ok_or(Error::AllocationFailed)?;
@@ -37,7 +38,10 @@ pub(super) fn rows(
         let order = compare(old.peek(), new.peek());
         let previous = if order.is_gt() { None } else { old.next() };
         let current = if order.is_lt() { None } else { new.next() };
-        if previous == current {
+        // Row text describes permission/assumption meaning, not where that
+        // meaning was accepted. Keep both sides visible when a purpose change
+        // requires fresh consent even though their text is identical.
+        if previous == current && !occurrence_changed {
             continue;
         }
         let change = match (&previous, &current) {

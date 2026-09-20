@@ -523,8 +523,9 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     `review/candidate/compilation/package_pass.rs` and subjects in
     `review/decision`. Reuse `PackageOccurrenceRoster`, already derived from
     the source graph and carried through comparison, reconstruction, and lock
-    recovery. Its purpose-set audit does not yet bind a decision to one
-    occurrence. Join every review and acceptance to that roster, update the
+    recovery. Single-purpose role changes already require fresh risk decisions;
+    extend that comparison to independently reviewed coexisting occurrences.
+    Join every review and acceptance to that roster, update the
     downstream payloads, and version affected encodings. Keep acquisition package-keyed;
     do not union policy or copy package-only consent into both roles.
     The compiler handoff already retains distinct generated bundles, even at

@@ -19,6 +19,93 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn policy_comparison_rejects_a_review_issued_for_another_purpose() {
+    use crate::lock::{
+        HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
+    };
+    use crate::resolution::graph::{
+        CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
+    };
+    use crate::review::{
+        LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeLimits,
+        compare_locked_package_policies, compare_package_policy_changes,
+        resolve_package_policy_decisions,
+    };
+
+    let fixture = SourcePreparationFixture::new();
+    let closure = fixture.closure();
+    let exact = closure.for_exact_target(target::TargetProfile::LinuxX64);
+    let reviews = compile_resolved_package_reviews(
+        &exact,
+        &fixture.0.join("review"),
+        SemanticBindingReview::Discover,
+    )
+    .unwrap();
+    let source = CanonicalSourceClosureSubject::from_resolved(
+        &exact,
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .unwrap();
+    let changes = compare_package_policy_changes(
+        None,
+        &reviews,
+        &exact,
+        PackagePolicyChangeLimits::default(),
+    )
+    .unwrap();
+    assert!(!changes.requires_decision());
+    let decisions =
+        resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &[]).unwrap();
+    let history = HistoricalPackagePolicyDecisions::capture_policy(
+        &source,
+        &changes,
+        &decisions,
+        HistoricalPackagePolicyLimits::default(),
+    )
+    .unwrap();
+    let accepted =
+        PackageLockTarget::from_parts(source, vec![reviews.reviews[0].policy().clone()], history)
+            .unwrap();
+    assert!(
+        compare_locked_package_policies(&accepted, &reviews)
+            .unwrap()
+            .is_empty()
+    );
+
+    // Fault injection: keep package, resolution, target, policy and source
+    // commitment unchanged, but substitute the checked activation purpose.
+    let mut substituted = reviews.clone();
+    let review = &mut substituted.reviews[0];
+    let bundle = review.generated_source_bundle();
+    review.generated_source_bundle =
+        package_compilation::PackageGeneratedSourceBundle::from_checked(
+            bundle.package(),
+            crate::declarations::DependencyPurpose::Build,
+            bundle.target(),
+            bundle.build_execution_profile(),
+            bundle.dependency_closure().clone(),
+            bundle.source_consumption_commitment(),
+            bundle.sources().to_vec(),
+        );
+    assert!(matches!(
+        compare_package_policy_changes(
+            Some(&accepted),
+            &substituted,
+            &exact,
+            PackagePolicyChangeLimits::default()
+        ),
+        Err(PackagePolicyChangeError::CandidateReview {
+            reason: "checked review purpose differs from its source occurrence",
+            ..
+        })
+    ));
+    assert!(matches!(
+        compare_locked_package_policies(&accepted, &substituted),
+        Err(LockedPolicyComparisonError::PurposeMismatch { .. })
+    ));
+}
+
+#[test]
 fn production_rejects_package_role_before_either_binding_mode_creates_a_session() {
     let fixture = SourcePreparationFixture::new();
     let closure = fixture.closure();

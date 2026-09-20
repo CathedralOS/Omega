@@ -170,8 +170,8 @@ impl PackagePolicyPackageChange {
     }
     /// The package's authorized occurrence set changed between baseline and
     /// candidate — for example a shared custody gaining or losing a build
-    /// occurrence. Purpose changes recommend audit; per-occurrence decision
-    /// subjects remain follow-up work.
+    /// occurrence. Unchanged risk rows need fresh consent for a different
+    /// purpose; empty benign policy still needs no decision.
     pub fn occurrence_purposes_changed(&self) -> bool {
         self.baseline_occurrence_purposes != self.candidate_occurrence_purposes
     }

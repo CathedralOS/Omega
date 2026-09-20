@@ -483,6 +483,10 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
     );
     assert!(dep_change.occurrence_purposes_changed());
     assert!(
+        !dep_change.requires_decision(),
+        "benign policy does not become a blocking finding when its purpose changes"
+    );
+    assert!(
         dep_change.audit_recommended(),
         "gaining a build occurrence recommends audit"
     );

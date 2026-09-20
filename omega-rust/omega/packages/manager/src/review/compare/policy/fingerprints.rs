@@ -21,7 +21,8 @@ pub(super) fn context(
 ) -> Sha256 {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-COMPARISON-CONTEXT\0");
-    hash.update(2_u16.to_le_bytes());
+    // Version 3 scopes unchanged-row reuse to the accepted occurrence.
+    hash.update(3_u16.to_le_bytes());
     hash.update(PACKAGE_POLICY_ROW_VERSION.to_le_bytes());
     hash.update([u8::from(accepted.is_some())]);
     if let Some(accepted) = accepted {
