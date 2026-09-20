@@ -1401,7 +1401,12 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
             "exit replay uses record producer {forbidden}"
         );
     }
-    for (file, expected_count) in [("stage.rs", 3), ("layout_optimization.rs", 2)] {
+    // `stage.rs` dropped to two validating entrances at 361d6a1294, which pruned
+    // the dead `stage_whole_function_exit_contract` /
+    // `validate_whole_function_exit_contract` compatibility wrappers and their
+    // `lib.rs` exports. The third call lived in one of those wrappers, so no live
+    // stage path lost its validation — the count is the pin, not the invariant.
+    for (file, expected_count) in [("stage.rs", 2), ("layout_optimization.rs", 2)] {
         let entrance = std::fs::read_to_string(owner.join(file)).unwrap();
         assert_eq!(
             entrance.matches("validation::validate(").count(),
