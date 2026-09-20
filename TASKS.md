@@ -6836,21 +6836,41 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `run.sh --mutations` verdict leg asserting the checker's actual
   rejections runs only on evaluator-seed hosts (macOS arm64, Windows x64).
 - **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; scope verified, folds into the owned cluster. Re-mines the certificate-production surface already verified on sibling row BETA-ENCODING-SELECTED-CHAIN-PRODUCTION (annotated immediately below, listing this stub by name among its re-mine names): "native container acceptance" is the same ACCEPTANCE.md acceptance — running `tests/gamma/beta-encoding-check` on a native evaluator-seed host under the exact profile — not an independent work item. Production stays upstream-blocked per PROFILE.md (the selected checker cannot admit the request; the coupled provisions wait on the Alpha extent-supply leg, admission settled by owner decision `beta-encoding-certificate-admission`), and the host legs require macOS arm64 or Windows x64, unavailable on Linux x86-64 by landed design. Every implementing surface is under live claims this wave (`tests/gamma/beta-encoding-check` + `bootstrap/proofs/beta_encoding/ACCEPTANCE.md` by GAMMA-CERT-FULL-CHECK, exp 00:00Z; the container/manifest trees by CHAIN-MANIFEST and ALPHA-SEED-CONTAINER-NATIVE-VALIDATION). No independent slice exists.
-- **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
-  Verified scope: re-mines BETA-ENCODING-CERTIFICATE-PRODUCTION's surface —
-  "production through the selected chain" is ACCEPTANCE.md's phrase for the
-  certificate producer route (no host semantic script). That production is
-  blocked upstream, not implementable in this lane: PROFILE.md records the
-  selected checker cannot admit the request — the ledger selects the
-  coupled provisions (136,314,880-byte request extent, 137,363,456-byte
-  evaluator frame, 67,108,864-unit work counter, 3,387,293,850-pair arena)
-  "pending the Alpha extent-supply leg that realizes them", and owner
-  decision `beta-encoding-certificate-admission` settles admission.
-  The remaining shortfall is structural per bootstrap_cost_review.md.
-  Sibling re-mine names on this surface: BETA-ENCODING-CERTIFICATE-CHECK,
-  -CERTIFICATE-PRODUCTION, -DEFINITION-PACKAGE (BETA-ENCODER-DEFINITION-
-  PACKAGE landed at 6e8dd6fa33), -NATIVE-CONTAINER-ACCEPTANCE;
-  BETA-ENCODING-MUTATION-REJECTION is the active controls row.
+- **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION.** Mined candidate; scope
+  verified, resolved — this stub is the canonical row the sibling
+  annotations cite: "already resolved — the selected checker cannot
+  admit the request" (BETA-ENCODING-CERTIFICATE-CHECK, verified
+  `7ec604d7ef`; BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE immediately
+  above). Verified scope: re-mines BETA-ENCODING-CERTIFICATE-
+  PRODUCTION's surface — "production through the selected chain" is
+  ACCEPTANCE.md's phrase for the certificate producer route (no host
+  semantic script). That production is blocked upstream, not
+  implementable in this lane: `bootstrap/proofs/beta_encoding/
+  PROFILE.md:173-183` records the selected checker cannot admit the
+  request — the ledger selects the coupled provisions (136,314,880-byte
+  request extent, 137,363,456-byte evaluator frame, 67,108,864-unit
+  work counter, 3,387,293,850-pair arena) "pending the Alpha
+  extent-supply leg that realizes them", and owner decision
+  `beta-encoding-certificate-admission` settles admission. Host legs
+  are gated by design — `require_seed_execution_host` in
+  `tools/bootstrap/alpha/seed_env.sh` refuses with "requires macOS arm64
+  or Windows x64" on linux_x86_64; the `--mutations` verdict leg and
+  seed-host runs stay host-gated. The checker's rejection controls
+  already landed under BETA-ENCODING-MUTATION-REJECTION
+  (`tests/gamma/beta-encoding-theory/mutations.py`, 18 mutated requests,
+  `--mutations-self-test` green). Re-verified at `bde84d1765a`:
+  implementing surfaces stay fenced this wave —
+  `bootstrap/proofs/beta_encoding` + `bootstrap/proofs/checker` + the
+  `tests/gamma` trees + `tools/bootstrap/proofs` by
+  BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE (z153, 01:54Z) and the
+  chain-admission binding surface by CHAIN-CERTIFICATE-ADMISSION-
+  BINDING (05:30Z). The remaining shortfall is structural per
+  bootstrap_cost_review.md. Sibling re-mine names on this surface:
+  BETA-ENCODING-CERTIFICATE-CHECK, -CERTIFICATE-PRODUCTION,
+  -DEFINITION-PACKAGE (BETA-ENCODER-DEFINITION-PACKAGE landed at
+  `6e8dd6fa33`), -NATIVE-CONTAINER-ACCEPTANCE,
+  GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE; BETA-ENCODING-MUTATION-
+  REJECTION is the active controls row.
 - **BETA-NATIVE-SELF-RECONSTRUCTION.** Mined candidate — resolved: the name
   re-mines the Beta self-reconstruction leg of the Alpha→Beta edge, listed in
   TASKS_BOOTSTRAP.md's OFFLINE-REBUILD frontier among the legs "still
