@@ -5082,13 +5082,36 @@ Owners include
     (`execution/unit/returns/guarded_call_returns.rs`), `call_result_place`
     (`checks/termination/progress/origins.rs`) and
     `retain_call_expression_machines` (`product_pruning/dependencies.rs`).
-    Next: the parked branch `work/quotient-validation-admit` makes
-    validation admit exactly the extractable batch (typed summaries only);
-    for the compiler route the admission must run where checked termination
-    exists — after `build_check_facts` in `lower_typed_trees`, answering the
-    oracle from `facts.termination` — and then the admitted request needs a
-    checked value plan (a proof-only result binding of the representative
-    call) through those exits.
+    The checked-route admission exists in validation:
+    `admit_checked_quotient_requests(program, &oracle)` admits a program
+    without requests or a batch the bridge extracts whole, and otherwise
+    returns the existing per-request diagnostics rendered against the
+    oracle's termination; `QuotientRequestAdmission::AfterCheckedFacts`
+    (`validate_quotients_with_admission`) lets validation defer the request
+    rejection to it. Not wired: `lower_typed_trees` must call the admission
+    right after `build_check_facts` (answering from `facts.termination`) and
+    `validate_typed_program` must select `AfterCheckedFacts`
+    (`typed-trees-to-checked-trees/src/checking.rs`,
+    `checking/program_validation.rs`, validation `program_validation.rs`,
+    held by PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION). With that wiring applied
+    locally, `omega --check` on a standalone scratch direct `define`
+    discharges the termination fence and stops at the bridge's hermetic
+    identity rule ("declaration `EquivalenceClass` has non-hermetic source
+    origin `User`", `normalized_hermetic_symbol_identity`: a standalone
+    source has no `package:` provenance); the same program as a managed
+    project (`build.omg` binding `Main::main`) is admitted, `lower_typed_trees`
+    succeeds, and the first checked-stage refusal is
+    `finalize_checked_authored_selections`
+    (`typed-trees-to-checked-trees/src/authored_selections/finalization.rs`,
+    "authored Call declaration selection occurrence N remained unresolved
+    after successful checking (CheckedCall)") because the request call has no
+    resolved target or checked call fact (`call_targets.rs::checked_call_target`
+    returns invalid); the value-path exits listed above drop the request
+    silently before that. After that the admitted request needs a checked
+    value plan (a proof-only result binding of the representative call)
+    through those exits and an authored-selection resolution for the sealed
+    request call. The parked branch `work/quotient-validation-admit`
+    (typed-summary admission at validation) is superseded by this route.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
