@@ -9812,7 +9812,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
   UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. "Coordinator residue" names the same
   caller-absence residue already cataloged — no independent slice exists.
-  Re-verified at `a8a01eb9dc`: both module entrances still have no caller
+  Re-verified at `5b3caaf337c`: both module entrances still have no caller
   outside their own mod.rs/tests.rs (lib.rs re-export only),
   PIPELINE-OWNER-CONSOLIDATION stays open (TASKS_OPTIMIZER.md:26), and the
   object dir remains under PIPELINE-WRAPPER-OBJECT-ORPHAN's live claim
