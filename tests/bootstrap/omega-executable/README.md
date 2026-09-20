@@ -6,6 +6,20 @@ its existing parser and Alpha tape encoder. The input is
 machine returns a byte; the diagnostic entry adapter calls that machine and
 halts Alpha with its return value. The expected result is [42](expected.txt).
 
+`--ocreq` selects the real request route: [main_ocreq.epsilon](main_ocreq.epsilon)
+frames nothing itself — the gate frames the canonical OCREQ V1 request (one
+application package snapshotting the source as a single `.omg` regular file,
+empty edges, `alpha_bootstrap_tape` product on the `alpha_bootstrap` profile,
+bound SHA-256 subject commitment), and the adapter runs D's own
+`OmegaRequestStructure::check` shape passes, extracts the root package's single
+`.omg` member, compiles it, and publishes the unwrapped artifact on `Complete`
+or exactly one OCOUT V1 frame on failure. The admitted slice is
+`alpha_bootstrap_tape` plus a single-source application root; shape-valid
+requests outside it refuse `malformed_request` at the first out-of-slice
+coordinate. The diagnostic adapter remains the `run.sh` entry while the new
+route awaits its canonical binding; on a seed host the route is exercised as
+`python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --ocreq`.
+
 From the repository root on macOS arm64, or Windows x64 with Git Bash:
 
 ```sh
@@ -162,5 +176,7 @@ It uses the existing private Epsilon execution observation format. It does not
 implement package resolution, Build evaluation, ProgramEntry selection, general
 Omega checking, or a compiler-refinement proof. The scalar invocation adapter
 is explicit test machinery, not a claim to implement the target's final entry
-contract. Retire it when the real sealed request and target entry route cover
-the same source, selection and failure controls.
+contract. `main_ocreq.epsilon` exercises the real OCREQ/OCOUT route for the
+`alpha_bootstrap_tape` slice; it stays a gate-local entry (bound by the
+sibling OCREQ entry-binding work, not this record) until the canonical
+request entry replaces the diagnostic adapter outright.

@@ -6322,7 +6322,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-COMPILER-REQUEST-TABLES** — mined candidate; verify scope then implement.
 - **OMEGA-D-ENTRY-ADAPTER** — mined candidate; verify scope then implement.
 - **OMEGA-D-ENTRY-ADAPTER-RETIREMENT** — mined candidate; verify scope then implement.
-- **OMEGA-D-ENTRY-ADAPTER-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-AND-ENTRY-ROUTE** — mined candidate; verify scope then implement.
