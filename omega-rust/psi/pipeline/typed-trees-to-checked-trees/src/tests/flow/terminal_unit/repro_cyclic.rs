@@ -1,9 +1,9 @@
 //! Temporary reproduction for the print_squares cyclic Unit plan gap.
-use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
 fn assert_has_plan(source: &str, label: &str) {
-    let checked = checked(source);
+    let checked = checked_with_service(source);
     let plans = &checked.facts.flow.terminal_unit_effects;
     let main = machine_named(&checked, "Main::main");
     let ordinary = plans.for_machine(main).is_some();
@@ -15,7 +15,7 @@ fn assert_has_plan(source: &str, label: &str) {
 }
 
 const CONSOLE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
         machine write_line(text: &[u8]) reaches Console;
     }
@@ -28,7 +28,7 @@ fn b0_scalar_guard_projected_call() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         self.k = 0;
         transition { _ -> loop_state() }
@@ -56,7 +56,7 @@ fn b1_scalar_writes_unconditional() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         self.k = 0;
         transition { _ -> step() }
@@ -82,7 +82,7 @@ fn b2_field_guard_no_writes() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         transition self.k < 9 { true -> finish() _ -> finish() }
         state finish(&mut self) {
@@ -102,7 +102,7 @@ fn b3_entry_scalar_write() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         self.k = 0;
         transition { _ -> finish() }
@@ -151,7 +151,7 @@ fn b5_parameter_guard_projected_call() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; }
+    data Main { console: Service<Console>; }
     machine Main::main(&mut self) reaches Console {
         transition { _ -> loop_state(0) }
         state loop_state(&mut self, k: u32) {
@@ -177,7 +177,7 @@ fn b7_constant_write_step() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         self.k = 0;
         transition { _ -> loop_state() }
@@ -206,7 +206,7 @@ fn b8_field_read_entry_projected() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         self.k = self.k + 1;
         transition { _ -> finish() }
@@ -227,7 +227,7 @@ fn b6_scalar_ops_dag_projected_call() {
         &format!(
             "{CONSOLE}{}",
             r#"
-    data Main { console: Console; k: u32 in Wrapping; }
+    data Main { console: Service<Console>; k: u32 in Wrapping; }
     machine Main::main(&mut self) reaches Console {
         self.k = 0;
         transition { _ -> step() }

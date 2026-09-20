@@ -1,6 +1,7 @@
 //! Two conditional frontiers and three exact effect leaves.
 use super::CheckedUnitEffectOperationPlan;
 use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
 fn conditional_successors(
@@ -241,13 +242,13 @@ fn composes_a_parameterless_boundary_call_before_a_conditional() {
 
 #[test]
 fn composes_a_provider_boundary_prefix_with_implicit_self_edges() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Console {
+        pub boundary trait Console {
             machine tick() reaches Console;
             machine exit(code: i32) reaches Console;
         }
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self, first: bool, second: bool) reaches Console {
             self.console.tick();
             transition first { true -> dispatch(second) _ -> no() }

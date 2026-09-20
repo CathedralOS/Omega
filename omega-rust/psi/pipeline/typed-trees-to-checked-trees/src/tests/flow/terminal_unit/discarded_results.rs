@@ -1,11 +1,12 @@
 //! Explicit result disposal must not turn a value-returning boundary into Unit.
 use super::CheckedUnitEffectOperationPlan;
 use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
 const SOURCE: &str = r#"
-data ReadResult { case Empty; case Bytes(count: u64); }
-boundary trait Host {
+pub data ReadResult { case Empty; case Bytes(count: u64); }
+pub boundary trait Host {
     machine read(buffer: &mut [u8]) -> ReadResult;
     machine mark(value: u64);
 }
@@ -49,10 +50,10 @@ fn discarded_boundary_result_retains_result_and_authored_effect_order() {
 
 #[test]
 fn discarded_boundary_result_accepts_a_projected_fixed_buffer() {
-    let source = SOURCE.replace("machine run(buffer: &mut [u8]) reaches Host {", "data Root { host: Host; buffer: [u8; 256]; }\nmachine Root::run(&mut self) reaches Host {")
+    let source = SOURCE.replace("machine run(buffer: &mut [u8]) reaches Host {", "data Root { host: Service<Host>; buffer: [u8; 256]; }\nmachine Root::run(&mut self) reaches Host {")
         .replace("Host::mark(", "self.host.mark(")
         .replace("Host::read(buffer)", "self.host.read(&mut self.buffer)");
-    let checked = checked(&source);
+    let checked = checked_with_service(&source);
     let root = machine_named(&checked, "run");
     assert!(
         checked
@@ -76,10 +77,10 @@ fn discarded_blocking_boundary_result_keeps_the_entry_unit_plan() {
             "machine read(buffer: &mut [u8]) -> ReadResult;",
             "machine read(buffer: &mut [u8]) -> ReadResult blocks;",
         )
-        .replace("machine run(buffer: &mut [u8]) reaches Host {", "data Root { host: Host; buffer: [u8; 256]; }\nmachine Root::run(&mut self) reaches Host {")
+        .replace("machine run(buffer: &mut [u8]) reaches Host {", "data Root { host: Service<Host>; buffer: [u8; 256]; }\nmachine Root::run(&mut self) reaches Host {")
         .replace("Host::mark(", "self.host.mark(")
         .replace("_ = Host::read(buffer);", "_ = block self.host.read(&mut self.buffer);");
-    let checked = checked(&source);
+    let checked = checked_with_service(&source);
     let root = machine_named(&checked, "run");
     let plan = checked
         .facts

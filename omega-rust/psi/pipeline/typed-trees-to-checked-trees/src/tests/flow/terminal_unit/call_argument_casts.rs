@@ -7,7 +7,7 @@
 //! and validation only retained exact-cast evidence for expression, local,
 //! assignment and transition statements, so the Unit call builder found
 //! neither a computation root nor a bound row and omitted the machine.
-use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
 fn entry_source(entry: &str, parameter: &str, call: &str) -> String {
@@ -22,7 +22,7 @@ pub machine Lexer::append_source_byte(&mut self, byte: u8) {{
     self.last = byte;
     self.retained = true;
 }}
-pub data Root {{ host: Host; lexer: Lexer; read: ByteRead; raw: i32; last: u8; }}
+pub data Root {{ host: Service<Host>; lexer: Lexer; read: ByteRead; raw: i32; last: u8; }}
 pub machine Root::append_direct(&mut self, byte: u8) {{
     self.last = byte;
 }}
@@ -44,7 +44,7 @@ machine Root::run(&mut self) reaches Host {{
 fn composed_plan_exists(
     source: &str,
 ) -> (bool, Option<checked_trees::CheckedUnitPlanOmissionStage>) {
-    let checked = checked(source);
+    let checked = checked_with_service(source);
     let root = machine_named(&checked, "run");
     let plans = &checked.facts.flow.terminal_unit_effects;
     (
@@ -104,10 +104,7 @@ fn exact_cast_argument_without_positive_evidence_rejects_during_checking() {
         "value: i32",
         "self.lexer.append_source_byte(value as u8)",
     );
-    let tokens = super::Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = super::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = super::resolve(super::ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = super::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::tests::parse_typed_trees_with_core_service(&source);
     let diagnostics = crate::lower_typed_trees(typed)
         .expect_err("unproven narrowing is a checking error, not a Unit omission");
     assert!(

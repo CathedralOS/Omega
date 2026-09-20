@@ -5,7 +5,7 @@
 //! already spells that as `FixedArray` over `Sum`/`Mixed`, so the Unit type
 //! builder admits it beside the copy-record and primitive element rules.
 use super::CheckedUnitStructuralTypeShape;
-use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
 fn entry_with_part(part: &str) -> String {
@@ -15,7 +15,7 @@ pub boundary trait Host {{
     machine exit(code: i32);
 }}
 {part}
-pub data Root {{ host: Host; part: Part; }}
+pub data Root {{ host: Service<Host>; part: Part; }}
 machine Root::run(&mut self) reaches Host {{
     transition {{ _ -> done() }}
     state done(&mut self) {{ self.host.exit(0); }}
@@ -26,7 +26,7 @@ machine Root::run(&mut self) reaches Host {{
 
 /// The receiver plans as one composed Unit machine with no omission row.
 fn composed_plan_count(part: &str) -> (usize, Option<checked_trees::CheckedUnitPlanOmissionStage>) {
-    let checked = checked(&entry_with_part(part));
+    let checked = checked_with_service(&entry_with_part(part));
     let root = machine_named(&checked, "run");
     let plans = &checked.facts.flow.terminal_unit_effects;
     (
@@ -81,7 +81,7 @@ fn material_receiver_shapes_plan_as_composed_unit_machines() {
 
 #[test]
 fn fixed_array_of_a_copy_sum_is_shaped_beneath_the_receiver() {
-    let checked = checked(&entry_with_part(
+    let checked = checked_with_service(&entry_with_part(
         "pub data Kind [copy] { case A; case B(value: u64 in Trapping); }\npub data Part { kinds: [Kind; 16] in Trapping; }",
     ));
     let types = &checked.facts.flow.terminal_unit_effects.structural_types;

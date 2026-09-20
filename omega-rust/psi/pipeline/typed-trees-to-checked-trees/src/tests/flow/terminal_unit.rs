@@ -56,6 +56,18 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+/// Same prelude as `checked`, with the toolchain `core/service.omg` resident
+/// so fixtures can hold `Service<R>` carriers, plus the settled fused-service
+/// erasure authorizations `bind_fixture_fused_service_erasures` supplies.
+/// Boundary traits closed over by a `Service<R>` field must be declared `pub`
+/// in the fixture.
+fn checked_with_service(source: &str) -> checked_trees::CheckedTrees {
+    let source = format!("boundary trait PortIo {{}}\n{source}");
+    let mut typed = crate::tests::parse_typed_trees_with_core_service(&source);
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+    lower_typed_trees(typed).expect("check")
+}
+
 fn contextual_cleanup_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

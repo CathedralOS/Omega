@@ -1,3 +1,4 @@
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::{
     CheckedBoundaryMachineResultPlan, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
@@ -9,13 +10,13 @@ use checked_trees::{
 
 #[test]
 fn provider_attachment_retains_ordinary_state_local_construction() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Output { machine write(value: u64) reaches Output; }
+        pub boundary trait Output { machine write(value: u64) reaches Output; }
         data Region { value: u64; }
         machine Region::new(value: u64) -> Region { Region { value: value } }
         machine Region::get(&self) -> u64 { self.value }
-        data Main { output: Output; }
+        data Main { output: Service<Output>; }
         machine Main::main(&mut self, input: u64) reaches Output {
             let region: Region = Region::new(input);
             let observed: u64 = region.get();
@@ -47,9 +48,9 @@ fn provider_attachment_retains_ordinary_state_local_construction() {
 
 #[test]
 fn provider_control_retains_copy_case_constructor_call_closure() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Output { machine write(value: u64) reaches Output; }
+        pub boundary trait Output { machine write(value: u64) reaches Output; }
         data MemoryAlignment [copy] {
             case Alignment1;
             case Alignment2;
@@ -76,7 +77,7 @@ fn provider_control_retains_copy_case_constructor_call_closure() {
                 MemoryAlignment::Alignment8 -> (8)
             }
         }
-        data Main { output: Output; }
+        data Main { output: Service<Output>; }
         machine Main::main(&mut self) reaches Output {
             let default_alignment: MemoryAlignment = MemoryAlignment::default();
             let fallback_alignment: MemoryAlignment = MemoryAlignment::from(3);
@@ -548,18 +549,18 @@ fn retains_owned_structural_result_for_static_bodyless_boundary() {
 
 #[test]
 fn retains_owned_structural_result_for_attached_bodyless_boundary() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        data ByteRead {
+        pub data ByteRead {
             case Eof;
             case Byte(value: i32 [0..=255]);
         }
 
-        boundary trait Console {
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
         }
 
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
         }
@@ -623,20 +624,20 @@ fn closed_sum_dispatch_allows_unused_scalar_payload_bindings() {
 
 #[test]
 fn retains_closed_sum_inspection_after_structural_boundary_result() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        data ByteRead {
+        pub data ByteRead {
             case Eof;
             case Byte(value: i32 [0..=255]);
         }
 
-        boundary trait Console {
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
             machine write_byte(value: i32) reaches Console;
             machine exit_process(return_code: i32) reaches Console;
         }
 
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
@@ -818,14 +819,14 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
 
 #[test]
 fn retains_arm_local_boundary_result_discard_on_each_closed_sum_return() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        data ByteRead { case Eof; case Byte(value: i32); }
-        boundary trait Console {
+        pub data ByteRead { case Eof; case Byte(value: i32); }
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
             machine write_byte(value: i32) reaches Console;
         }
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let first: ByteRead = self.console.read_byte();
             transition first {
@@ -883,16 +884,16 @@ fn retains_arm_local_boundary_result_discard_on_each_closed_sum_return() {
 
 #[test]
 fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirements() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Console {
+        pub boundary trait Console {
             machine write_line(text: &[u8])
             reaches Console;
             machine exit_process(return_code: i32)
             reaches Console;
         }
 
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self)
         reaches Console
         {
@@ -925,7 +926,7 @@ fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirem
         [field]
             if field.identity == "console"
                 && matches!(field.field_type,
-                    CheckedUnitStructuralFieldType::ProviderBacked { .. })
+                    CheckedUnitStructuralFieldType::FusedServiceBacked { .. })
     ));
 }
 
@@ -969,14 +970,14 @@ fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
 
 #[test]
 fn composes_closed_guard_with_one_provider_backed_attachment() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Console {
+        pub boundary trait Console {
             machine exit_process(return_code: i32)
             reaches Console;
         }
         const PAGE_SIZE: u32 = 64;
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self)
         reaches Console
         {
@@ -1169,21 +1170,21 @@ fn retains_multiple_calls_in_a_composed_leaf_beside_a_boundary_leaf() {
 fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
     for source in [
         r#"
-        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Console; backup: Console; }
+        pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Service<Console>; backup: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             self.console.exit_process(0);
         }
         "#,
         r#"
-        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Console; }
+        pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             Console::exit_process(0);
         }
         "#,
     ] {
-        let checked = checked(source);
+        let checked = checked_with_service(source);
         assert!(
             checked
                 .facts
@@ -1198,10 +1199,10 @@ fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
 
 #[test]
 fn unused_provider_attachment_has_an_empty_requirement_set() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Console; }
+        pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) {}
     "#,
     );

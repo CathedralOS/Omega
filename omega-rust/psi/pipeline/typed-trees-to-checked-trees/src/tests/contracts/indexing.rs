@@ -8,7 +8,7 @@ use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
 use crate::semantic::build_semantic_facts;
-use crate::tests::contracts::parse_typed_trees;
+use crate::tests::contracts::{parse_typed_trees, parse_typed_trees_with_service};
 
 #[test]
 fn same_named_array_fields_use_the_receivers_length() {
@@ -761,33 +761,33 @@ fn boundary_out_param_ensures_discharges_index_bounds() {
     // R4 witness mint, checker tier: `fw.get_size(&mut self.n)` with
     // `ensures size <= 8` proves `self.buf[self.n]` against length 12.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
-        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        data Main { fw: Service<Firmware>; buf: [u8; 12]; n: u32; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.buf[self.n] = 7;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("the ensures witness should discharge the index bound");
 }
 
 #[test]
 fn boundary_out_param_without_ensures_keeps_index_refusal() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32);
         }
-        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        data Main { fw: Service<Firmware>; buf: [u8; 12]; n: u32; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.buf[self.n] = 7;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("without the ensures the index must stay unproven");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -802,17 +802,17 @@ fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
     // `ensures size <= 12` admits index 12 into a length-12 buffer -- the
     // witness must not over-prove.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 12;
         }
-        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        data Main { fw: Service<Firmware>; buf: [u8; 12]; n: u32; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.buf[self.n] = 7;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("a bound admitting the length itself must stay unproven");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -828,11 +828,11 @@ fn boundary_ensures_transport_through_transition_arguments() {
     // carries its bound into the target state's PARAM -- the own_machine
     // shape (map_size flows into the walk state).
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
-        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        data Main { fw: Service<Firmware>; buf: [u8; 12]; n: u32; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             transition { _ -> walk(self.n) }
@@ -841,7 +841,7 @@ fn boundary_ensures_transport_through_transition_arguments() {
             }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("the transported ensures bound should discharge the param index");
 }
 
@@ -851,11 +851,11 @@ fn boundary_ensures_transport_poisoned_by_unbounded_edge() {
     // poison the merged bound -- the meet is max-over-edges, one unbounded
     // edge kills the fact.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
-        data Main { fw: Firmware; buf: [u8; 12]; n: u32; wild: u32; }
+        data Main { fw: Service<Firmware>; buf: [u8; 12]; n: u32; wild: u32; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             transition self.wild == 0 {
@@ -867,7 +867,7 @@ fn boundary_ensures_transport_poisoned_by_unbounded_edge() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("an unbounded sibling edge must poison the transported bound");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -882,11 +882,11 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
     // Writing the place between the call and the transition stales the
     // bound; the transported fact must die with it.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
-        data Main { fw: Firmware; buf: [u8; 12]; n: u32; wild: u32; }
+        data Main { fw: Service<Firmware>; buf: [u8; 12]; n: u32; wild: u32; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.n = self.wild;
@@ -896,7 +896,7 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("the rebound place must lose the transported bound");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -911,17 +911,17 @@ fn boundary_ensures_witness_discharges_bounded_assignment() {
     // R4 containment: `ensures size <= 8` refolds `self.n + 1` into
     // [1, 9], fitting the [0..=9] target with no guard.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
-        data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
+        data Main { fw: Service<Firmware>; n: u32; m: u32 [0..=9]; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.m = self.n + 1;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("the ensures witness should discharge the bounded assignment");
 }
 
@@ -929,17 +929,17 @@ fn boundary_ensures_witness_discharges_bounded_assignment() {
 fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
     // `self.n + 2` reaches 10 > 9 -- the witness must not over-prove.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
-        data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
+        data Main { fw: Service<Firmware>; n: u32; m: u32 [0..=9]; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.m = self.n + 2;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("a fold past the target must refuse");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -954,19 +954,19 @@ fn boundary_ensures_witness_survives_unrelated_later_call() {
     // The later resolved boundary call can mutate its receiver (`self.fw`),
     // but its may-write frame is disjoint from `self.n`, so the witness lives.
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
             machine poke();
         }
-        data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
+        data Main { fw: Service<Firmware>; n: u32; m: u32 [0..=9]; }
         machine Main::main(&mut self) reaches Firmware {
             self.fw.get_size(&mut self.n);
             self.fw.poke();
             self.m = self.n + 1;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("a disjoint resolved boundary call must preserve the witness");
 }
 

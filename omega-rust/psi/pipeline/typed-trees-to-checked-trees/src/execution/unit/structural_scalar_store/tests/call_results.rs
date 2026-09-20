@@ -9,16 +9,8 @@ use checked_trees::{
 };
 
 fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = crate::tests::parse_typed_trees_with_core_service(source);
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     let checked = crate::lower_typed_trees(typed).expect("check");
     let machine = checked
         .typed
@@ -37,7 +29,7 @@ fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
 }
 
 const HOST: &str = r#"
-    boundary trait Host {
+    pub boundary trait Host {
         machine close(fd: i32) -> i32 reaches Host;
         machine flush(fd: i32) -> i64 reaches Host;
     }
@@ -48,7 +40,7 @@ fn a_field_store_reads_the_scalar_call_result_its_own_statement_produced() {
     let plan = plan(&format!(
         r#"
         {HOST}
-        data Main {{ fs: Host; fd_in: i32; rc: i32; }}
+        data Main {{ fs: Service<Host>; fd_in: i32; rc: i32; }}
         machine Main::main(&mut self) reaches Host {{
             self.fd_in = 5;
             self.rc = self.fs.close(self.fd_in);
@@ -84,7 +76,7 @@ fn consecutive_call_result_stores_keep_dense_scalar_positions() {
     let plan = plan(&format!(
         r#"
         {HOST}
-        data Main {{ fs: Host; fd_in: i32; rc: i32; written: i64; }}
+        data Main {{ fs: Service<Host>; fd_in: i32; rc: i32; written: i64; }}
         machine Main::main(&mut self) reaches Host {{
             self.rc = self.fs.close(self.fd_in);
             self.written = self.fs.flush(self.fd_in);
@@ -131,7 +123,7 @@ fn a_call_result_field_store_rejects_a_domain_constrained_field() {
         r#"
         domain i32::Degrees;
         {HOST}
-        data Main {{ fs: Host; fd_in: i32; rc: i32 in Degrees; }}
+        data Main {{ fs: Service<Host>; fd_in: i32; rc: i32 in Degrees; }}
         machine Main::main(&mut self) reaches Host {{
             self.rc = self.fs.close(self.fd_in);
         }}

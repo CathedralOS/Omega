@@ -4,6 +4,7 @@ use super::{
     PrimitiveType,
 };
 use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 
@@ -273,16 +274,16 @@ fn composed_boundary_operands_reject_missing_duplicate_and_stale_custody() {
 
 #[test]
 fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
         machine identity(value: i32) -> i32 { value }
-        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
-        boundary trait Console {
+        pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
             machine write_byte(value: i32) reaches Console;
             machine exit_process(value: i32) reaches Console;
         }
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
