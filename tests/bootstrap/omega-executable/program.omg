@@ -2,7 +2,7 @@ machine helper() -> u8 {
     6 * 7
 }
 
-machine answer() -> u8 {
+machine main() -> u8 {
     transition {
         _ -> finish()
     }
