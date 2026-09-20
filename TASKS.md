@@ -7751,7 +7751,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-EXECUTION** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-RUNS.** Mined candidate — sibling stub naming the
+  recorded RC-NATIVE-MATRIX surface (canonical row item:
+  RC-NATIVE-MATRIX-LINUX-X86-64). Fresh linux x86-64 host run recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision `6ef64f6dd6`):
+  the 38-leg witness set stays 24 pass / 14 fail — all 14 sysv legs still
+  refuse at product admission on the param-carrying-entry root-slot
+  residual (ENTRY-CONTENT-ROOTS). New evidence at this revision: the gate
+  command itself (`nextest -p omega-native-differential-test
+  --all-targets`) no longer compiles — `pipeline_ownership` carries four
+  `optimized_target()`→`optimized_target_owner()` handle-drift errors from
+  `83766d57bf6` plus a missing `LegalizedScalarTerminator::Crash` arm from
+  `bf8769cce13`; that file family is under the live
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS claim, so the breakage is recorded, not
+  repaired. Context samples also moved: `aarch64_entry_abi` 0/11 now fails
+  at checking (unrespelled fixtures: exact-arithmetic overflow +
+  borrowed-storage transfer), and `program_entries_and_image_validation`
+  is 9/5 across four distinct residuals including the ProgramEntry
+  attachment-identity rejoin. Sibling stubs naming the same recorded
+  surface: RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
+  -HOSTS.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
