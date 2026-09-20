@@ -1,6 +1,103 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
 
+#[test]
+fn floating_table_review_preserves_nested_bits_without_admitting_static_indices() {
+    let package = TempPackage::new();
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+    );
+    package.write("main.omg", "use settings;");
+    let project_table = |zero: &str| {
+        let declaration_source = format!(
+            "module settings;
+                 pub data Cell [copy] {{ value: f32; }}
+                 pub const TABLE: [Cell; 2] = [
+                     Cell {{ value: 1.5f32 }}, Cell {{ value: {zero} }}
+                 ];"
+        );
+        package.write("settings.omg", &declaration_source);
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("macos_arm64"))
+        })
+        .expect("floating record table checks in a managed package");
+        let review = project_checked_package_review(&checked).expect("floating table review");
+        let [constant] = review.public_consts() else {
+            panic!("one public floating table");
+        };
+        assert_eq!(constant.identity().path(), "settings::TABLE");
+        assert_eq!(
+            constant.identity().owner(),
+            PackageReviewNominalOwner::Package(package_identity())
+        );
+        let value = language_semantics::const_value::CanonicalConstValue::new(
+            "",
+            constant.canonical_value_encoding(),
+            "",
+        );
+        use language_semantics::const_value::DecodedCanonicalConstValue;
+        let Some(DecodedCanonicalConstValue::Array { values, .. }) =
+            value.identity().decode_declaration_encoding()
+        else {
+            panic!("array declaration receipt");
+        };
+        assert_eq!(values.len(), 2);
+        for (record, expected_bits) in values.iter().zip([
+            0x3fc00000,
+            if zero.starts_with('-') { 0x80000000 } else { 0 },
+        ]) {
+            let DecodedCanonicalConstValue::Record { fields, .. } = record else {
+                panic!("record element");
+            };
+            assert_eq!(
+                fields,
+                &[(
+                    "value".to_owned(),
+                    DecodedCanonicalConstValue::Float {
+                        format: numerics::literals::FloatFormat::F32,
+                        bits: expected_bits,
+                    },
+                )]
+            );
+        }
+        assert!(value.decode_encoding().is_none(), "not a structural index");
+        let row = review
+            .canonical_rows()
+            .unwrap()
+            .into_iter()
+            .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst)
+            .expect("public table row");
+        let initializer = row
+            .source()
+            .authored_locations()
+            .unwrap()
+            .iter()
+            .find(|location| location.role() == PackageReviewSourceLocationRole::ConstInitializer)
+            .expect("array initializer source");
+        assert_eq!(initializer.relative_path(), "settings.omg");
+        let start = declaration_source.find("= [").unwrap() + 2;
+        let end = declaration_source.rfind(']').unwrap() + 1;
+        assert_eq!(initializer.start_byte(), start as u64);
+        assert_eq!(initializer.end_byte(), end as u64);
+        row
+    };
+    let negative_zero = project_table("-0.0f32");
+    let positive_zero = project_table("0.0f32");
+    assert_eq!(negative_zero.key_bytes(), positive_zero.key_bytes());
+    assert_ne!(
+        negative_zero.canonical_bytes(),
+        positive_zero.canonical_bytes()
+    );
+    for row in [negative_zero, positive_zero] {
+        let encoded = encode_package_review_canonical_row(&row).unwrap();
+        let recovered = decode_package_review_canonical_row(&encoded).unwrap();
+        assert_eq!(recovered.key_bytes(), row.key_bytes());
+        assert_eq!(recovered.canonical_bytes(), row.canonical_bytes());
+    }
+}
+
 fn project(package: &TempPackage, combat_damage: u64) -> CheckedPackageReviewProjection {
     package.write(
         "build.omg",

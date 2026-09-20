@@ -1123,6 +1123,36 @@ fn struct_literal_retains_its_complete_authored_source_span() {
 }
 
 #[test]
+fn array_literal_retains_its_complete_authored_source_span() {
+    for initializer in ["[]", "[1, 2]", "[[1], [2]]", "utf16\"hello\""] {
+        let source = format!("const VALUES: [u16; 2] = {initializer};");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let source_id = source::SourceId(23);
+        let parsed = crate::parser::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let declaration = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Const(declaration) => Some(declaration),
+                _ => None,
+            })
+            .expect("array const declaration");
+        assert!(matches!(
+            parsed.expressions.expression(declaration.value),
+            ExpressionNode::ArrayLiteral(_)
+        ));
+        let start = source.find(initializer).unwrap();
+        assert_eq!(
+            parsed.expressions.source_span(declaration.value),
+            source::SourceSpan::new(
+                source_id,
+                source::Span::new(start, start + initializer.len())
+            ),
+            "{initializer}"
+        );
+    }
+}
+
+#[test]
 fn parses_public_and_private_named_conformances() {
     let source = r#"
         trait Shape {}

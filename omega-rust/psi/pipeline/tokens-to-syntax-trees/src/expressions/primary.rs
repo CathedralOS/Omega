@@ -176,6 +176,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     // prefix is contextual: a bare identifier followed by a string literal is
     // never otherwise valid, so `utf16` stays usable as an ordinary name.
     if input.at_contextual("utf16") && input.at_contextual_then_string("utf16") {
+        let start = input;
         let input = input.take_contextual("utf16")?;
         let (value, input) = input.take_string()?;
         let units: Vec<_> = value
@@ -187,12 +188,13 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             })
             .collect();
         let units = syntax_trees.expressions.insert_expression_handles(units);
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::ArrayLiteral(units)),
-            input,
-        ));
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::ArrayLiteral(units));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, start.source_span_until(input));
+        return Ok((expression, input));
     }
 
     if input
@@ -229,6 +231,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                 .set_source_span(expression, start.source_span_until(input));
             return Ok((expression, input));
         }
+        let start = input;
         let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
         let mut values = Vec::new();
 
@@ -250,12 +253,16 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
         let values = syntax_trees.expressions.insert_expression_handles(values);
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::ArrayLiteral(values)),
-            input,
-        ));
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::ArrayLiteral(values));
+        // A constant initializer retains this exact occurrence for later
+        // diagnostics and package review, including empty arrays with no child
+        // from which a source location could be recovered.
+        syntax_trees
+            .expressions
+            .set_source_span(expression, start.source_span_until(input));
+        return Ok((expression, input));
     }
 
     // TASK RUNTIME TR1: the synchronous `spawn` fiction is retired. Keep
