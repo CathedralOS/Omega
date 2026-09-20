@@ -6704,7 +6704,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
-- **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
+- **ASM-PRIVILEGED-SERVICE-ADMISSION.** Mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
   `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
