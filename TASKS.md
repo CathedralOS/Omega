@@ -10076,12 +10076,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **UNSEQUENCED-SPILL-DISPOSITION.** Mined candidate; scope verified at
   a4ffd1aff8 — fifth mined stub for the same directory; the full verified
   scope, family inventory, dependency chain and fence map are recorded on
-  sibling row UNSEQUENCED-SPILL-STAGES-DISPOSITION (this file, ~line
-  9184). Folds into that item; no independent slice. At verification time
+  sibling row UNSEQUENCED-SPILL-STAGES-DISPOSITION (this file, same
+  UNSEQUENCED-SPILL-* cluster). Folds into that item; no independent slice. At verification time
   the whole territory is still fenced: `selected-instructions-to-register-homes`
   wholesale (POC-SPILL-FAMILY-SEQUENCING, 22:30Z),
   `optimizer_source_organization` (ORPHAN-STAGE-OUTPUT-AUDIT, 22:30Z),
   `pipeline_ownership` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z).
+  Re-verified at `0f5ae41e7d` (z181): fences unchanged —
+  POC-SPILL-FAMILY-SEQUENCING still holds the wholesale
+  `selected-instructions-to-register-homes` dir; claim returned exit 2.
 - **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE** — mined candidate; verify scope then implement.
