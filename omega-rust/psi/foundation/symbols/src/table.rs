@@ -822,6 +822,18 @@ impl SymbolTable {
         }) {
             return true;
         }
+        // A package boundary is a resolution-scope boundary: declarations
+        // in distinct packages collide only where an authored import edge
+        // exposes the name into the other file's scope, since imports do
+        // not shadow authored declarations.
+        if let Some(sources) = self.sources.as_deref()
+            && sources.file_at(left_span).is_some()
+            && sources.file_at(right_span).is_some()
+            && !sources.same_package(left_span, right_span)
+        {
+            return !(self.import_exposes_symbol(left_span.source_id, right)
+                || self.import_exposes_symbol(right_span.source_id, left));
+        }
         if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
             return true;
         }
