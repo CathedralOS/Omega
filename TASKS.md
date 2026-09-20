@@ -3915,6 +3915,16 @@ Owners include
   index a `[u8; 8]` receiver field with a literal, which involves no
   value-indexed type.
 
+  Claim evidence (Zergling-181, `e12b9e8e06`): the first bullet's named
+  owning file `checks/contracts/calls.rs` is fenced by
+  PROOF-CERTIFICATION-BRIDGE until ~2026-09-21T00:51Z. Bullet 2's parse
+  surface already admits `Value` binders (`GenericParameterSyntax::
+  DataDeclaration`); its remaining construction-time obligation and
+  erased-versus-executable index leg intersects `execution/unit` surfaces
+  nominally claimed by PLACED-ACCESS-NATIVE-OPS. Bullet 3 waits on
+  MODULE-NAMESPACE-RESOLUTION; bullet 4 waits on STATE-LOCAL-VALUE-FRONTIER
+  and ENTRY-CONTENT-ROOTS, and its native leg needs a macOS ARM64 host.
+
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
