@@ -77,22 +77,22 @@ reaches Console {
     transition { _ -> scan(out_line, 0) }
     state scan(out_line: &mut [u8], position: u64) -> LineReadResult {
         transition position < out_line.len {
-            true -> read(out_line, position)
+            true -> read(out_line, position, position + 1)
             false -> full(position)
         }
     }
-    state read(out_line: &mut [u8], position: u64) -> LineReadResult {
+    state read(out_line: &mut [u8], position: u64, next: u64) -> LineReadResult {
         let observed: ByteRead = block ConsoleNativeProvider::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> store(out_line, position, value)
+            ByteRead::Byte { value } -> store(out_line, position, next, value)
             ByteRead::Eof -> end(position)
         }
     }
-    state store(out_line: &mut [u8], position: u64, value: i32 [0..=255]) -> LineReadResult {
+    state store(out_line: &mut [u8], position: u64, next: u64, value: i32 [0..=255]) -> LineReadResult {
         out_line[position] = value as u8;
         transition value == 10 {
-            true -> complete(position + 1)
-            false -> scan(out_line, position + 1)
+            true -> complete(next)
+            false -> scan(out_line, next)
         }
     }
     state full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
