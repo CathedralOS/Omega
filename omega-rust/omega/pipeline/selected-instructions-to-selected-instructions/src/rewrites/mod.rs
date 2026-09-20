@@ -38,6 +38,8 @@ mod load_forwarding;
 mod local_relocation;
 mod local_schedule;
 mod member_run_interchange;
+#[cfg(test)]
+mod module_catalog;
 mod place_storage;
 mod predecessor_relocation;
 mod predecessor_run_relocation;

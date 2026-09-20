@@ -6340,7 +6340,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OPTIMIZED-WRAPPER-OBJECT-RELOCATION** — mined candidate; verify scope then implement.
 - **OPTIMIZER-RULE-AXIS-GATE** — mined candidate; verify scope then implement.
 - **ORPHAN-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
-- **ORPHAN-REWRITE-MODULES-CATALOG** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
