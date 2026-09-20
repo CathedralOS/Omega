@@ -21,6 +21,19 @@
 //! claim is checked against the loop, never inherited from a termination
 //! certificate, and a failed arrival discards every proposal so the existing
 //! diagnostic stays exactly as it was. Search is incomplete by design.
+//!
+//! The binders are the state's immutable fixed-integer parameters in either
+//! readable arithmetic domain. `Exact` terms read as mathematical integers
+//! directly. A `Wrapping` binder reads as its residue representative: the
+//! engine argues in integers, and an integer identity descends to Z/2^w, so
+//! a residue binder may appear in an equality goal. An order or disequality
+//! on a wrapped value does not descend, so propositions name residue terms
+//! only under `==`. Facts fed to the engine must additionally read the
+//! program exactly: `x < y` on wrapped atoms compares the residues, while
+//! `x + y == z` would claim an integer equality stronger than the wrapped
+//! congruence the program established — so a hypothesis names residue terms
+//! only between bare binders and literals. `Saturating` and `Trapping`
+//! stay outside the language.
 
 use arena::Handle;
 use checked_trees::{CheckFacts, ContractProofFactKind, FlowExitFact, FlowStateFact};
@@ -123,6 +136,7 @@ struct Backedge {
 struct RosterParameter {
     symbol: SymbolHandle,
     type_reference: TypeReferenceHandle,
+    domain: ArithmeticDomain,
     unsigned: bool,
 }
 
@@ -132,12 +146,13 @@ struct Header<'program, 'facts> {
     machine: &'program Machine,
     root: &'program State,
     state_flow: &'facts FlowStateFact,
-    /// Immutable exact fixed-integer parameters, the only binders a
-    /// proposition may name. Anything else stays outside the language.
+    /// Immutable fixed-integer parameters, the only binders a proposition
+    /// may name, with the arithmetic domain each one evaluates in. Anything
+    /// else stays outside the language.
     roster: Vec<RosterParameter>,
-    /// Present when the returned value is an exact fixed integer the
-    /// synthetic `result` may denote.
-    result_type: Option<TypeReferenceHandle>,
+    /// Present when the returned value is a fixed integer the synthetic
+    /// `result` may denote, with its domain.
+    result: Option<(TypeReferenceHandle, ArithmeticDomain)>,
     requires: Vec<ExpressionHandle>,
 }
 
@@ -164,17 +179,22 @@ impl<'program, 'facts> Header<'program, 'facts> {
             .iter()
             .filter(|parameter| !parameter.is_mutable && !parameter.is_self && !parameter.is_const)
             .filter_map(|parameter| {
-                let primitive = exact_fixed_integer(program, parameter.type_reference)?;
+                let (primitive, domain) = fixed_integer(program, parameter.type_reference)?;
                 Some(RosterParameter {
                     symbol: parameter.symbol,
                     type_reference: parameter.type_reference,
+                    domain,
                     unsigned: is_unsigned(primitive),
                 })
             })
             .collect();
-        let result_type = (root.return_type.is_valid()
-            && exact_fixed_integer(program, root.return_type).is_some())
-        .then_some(root.return_type);
+        let result = root
+            .return_type
+            .is_valid()
+            .then_some(root.return_type)
+            .and_then(|type_reference| {
+                fixed_integer(program, type_reference).map(|(_, domain)| (type_reference, domain))
+            });
         let requires = program
             .machine_contracts(machine)
             .iter()
@@ -194,7 +214,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             root,
             state_flow,
             roster,
-            result_type,
+            result,
             requires,
         })
     }
@@ -215,7 +235,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         let requires = |roster: &dyn Fn() -> Vec<ScopedArithmeticBinding>| {
             self.requires
                 .iter()
-                .filter(|expression| self.proposition_is_admitted(**expression))
+                .filter(|expression| self.hypothesis_is_admitted(**expression))
                 .map(|expression| self.hypothesis(*expression, roster(), true))
                 .collect::<Vec<_>>()
         };
@@ -418,7 +438,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             _ => return None,
         };
         let (expression, holds) = self.folded_polarity(expression, holds);
-        self.proposition_is_admitted(expression)
+        self.hypothesis_is_admitted(expression)
             .then_some((expression, holds))
     }
 
@@ -526,8 +546,26 @@ impl<'program, 'facts> Header<'program, 'facts> {
         }
     }
 
-    /// Conjunctions of builtin integer comparisons over admitted terms.
+    /// Conjunctions of builtin integer comparisons over admitted terms —
+    /// the guarantees this check proposes and discharges. A residue-domain
+    /// term may appear only under `==`: the engine argues in mathematical
+    /// integers, an integer identity descends to Z/2^w, but an order or a
+    /// disequality on a wrapped value does not.
     fn proposition_is_admitted(&self, expression: ExpressionHandle) -> bool {
+        self.comparison_is_admitted(expression, false)
+    }
+
+    /// A program-true fact the encoding may feed the engine. A residue
+    /// binder compares faithfully only through its own representative: every
+    /// side of a residue-domain comparison must be a bare binder or literal,
+    /// since `x < y` on wrapped atoms reads the residues exactly while
+    /// `x + y == z` would claim an integer equality stronger than the wrapped
+    /// congruence the program established.
+    fn hypothesis_is_admitted(&self, expression: ExpressionHandle) -> bool {
+        self.comparison_is_admitted(expression, true)
+    }
+
+    fn comparison_is_admitted(&self, expression: ExpressionHandle, leaf_only: bool) -> bool {
         if !self
             .program
             .expression_table
@@ -536,7 +574,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             return false;
         }
         match self.program.expression_table.expression(expression) {
-            ExpressionNode::Borrow(borrow) => self.proposition_is_admitted(borrow.target),
+            ExpressionNode::Borrow(borrow) => self.comparison_is_admitted(borrow.target, leaf_only),
             ExpressionNode::Binary(binary) => {
                 let spelling = match binary.operator {
                     BinaryOperator::And => {
@@ -544,8 +582,8 @@ impl<'program, 'facts> Header<'program, 'facts> {
                             self.program,
                             &self.facts.operators,
                             expression,
-                        ) && self.proposition_is_admitted(binary.left)
-                            && self.proposition_is_admitted(binary.right);
+                        ) && self.comparison_is_admitted(binary.left, leaf_only)
+                            && self.comparison_is_admitted(binary.right, leaf_only);
                     }
                     BinaryOperator::Equal => OperatorSpelling::Equal,
                     BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
@@ -561,7 +599,31 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 ) else {
                     return false;
                 };
-                self.builtin_meaning(expression, spelling, left, right)
+                if !self.builtin_meaning(expression, spelling, left.binder_type, right.binder_type)
+                {
+                    return false;
+                }
+                if left.domain == ArithmeticDomain::Exact && right.domain == ArithmeticDomain::Exact
+                {
+                    return true;
+                }
+                if leaf_only {
+                    self.is_leaf_term(binary.left) && self.is_leaf_term(binary.right)
+                } else {
+                    binary.operator == BinaryOperator::Equal
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// A bare binder or literal: its value is its own residue
+    /// representative, so a comparison on it reads the program fact exactly.
+    fn is_leaf_term(&self, expression: ExpressionHandle) -> bool {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => self.is_leaf_term(borrow.target),
+            ExpressionNode::Name(_) | ExpressionNode::Integer(_) => {
+                self.term_reference(expression).is_some()
             }
             _ => false,
         }
@@ -571,10 +633,11 @@ impl<'program, 'facts> Header<'program, 'facts> {
         self.term_reference(expression).is_some()
     }
 
-    /// `Some` for a term the rosters can read; the inner reference is the
-    /// retained binder type of a direct parameter or result, and `None` for
-    /// a literal or a compound whose builtin result carries no source type.
-    fn term_reference(&self, expression: ExpressionHandle) -> Option<Option<TypeReferenceHandle>> {
+    /// `Some` for a term the rosters can read: the retained binder type of a
+    /// direct parameter or result (`None` for a literal or a compound whose
+    /// builtin result carries no source type), and the arithmetic domain the
+    /// term evaluates in — `Wrapping` when any leaf is residue arithmetic.
+    fn term_reference(&self, expression: ExpressionHandle) -> Option<TermReference> {
         if !self
             .program
             .expression_table
@@ -585,7 +648,10 @@ impl<'program, 'facts> Header<'program, 'facts> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 if is_result_reference(self.program, self.machine, expression) {
-                    return self.result_type.map(Some);
+                    return self.result.map(|(type_reference, domain)| TermReference {
+                        binder_type: Some(type_reference),
+                        domain,
+                    });
                 }
                 if !path.symbol.is_valid()
                     || path.head_symbol != path.symbol
@@ -601,12 +667,23 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 self.roster
                     .iter()
                     .find(|parameter| parameter.symbol == path.symbol)
-                    .map(|parameter| Some(parameter.type_reference))
+                    .map(|parameter| TermReference {
+                        binder_type: Some(parameter.type_reference),
+                        domain: parameter.domain,
+                    })
             }
             ExpressionNode::Integer(literal) => literal
                 .landing()
-                .is_none_or(|landing| landing.domain == ArithmeticDomain::Exact)
-                .then_some(None),
+                .is_none_or(|landing| {
+                    matches!(
+                        landing.domain,
+                        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping
+                    )
+                })
+                .then_some(TermReference {
+                    binder_type: None,
+                    domain: ArithmeticDomain::Exact,
+                }),
             ExpressionNode::Borrow(borrow) => self.term_reference(borrow.target),
             ExpressionNode::Binary(binary) => {
                 let spelling = match binary.operator {
@@ -617,8 +694,17 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 };
                 let left = self.term_reference(binary.left)?;
                 let right = self.term_reference(binary.right)?;
-                self.builtin_meaning(expression, spelling, left, right)
-                    .then_some(None)
+                self.builtin_meaning(expression, spelling, left.binder_type, right.binder_type)
+                    .then_some(TermReference {
+                        binder_type: None,
+                        domain: if left.domain == ArithmeticDomain::Wrapping
+                            || right.domain == ArithmeticDomain::Wrapping
+                        {
+                            ArithmeticDomain::Wrapping
+                        } else {
+                            ArithmeticDomain::Exact
+                        },
+                    })
             }
             _ => None,
         }
@@ -644,12 +730,23 @@ impl<'program, 'facts> Header<'program, 'facts> {
     }
 }
 
-fn exact_fixed_integer(
+/// One admitted term: its binder type (`None` for a literal or compound)
+/// and the domain its evaluation follows.
+struct TermReference {
+    binder_type: Option<TypeReferenceHandle>,
+    domain: ArithmeticDomain,
+}
+
+/// A fixed-width integer in a domain the strict arithmetic reading can
+/// carry: `Exact` terms are mathematical integers, and a `Wrapping` term
+/// reads as its residue representative. `Saturating` and `Trapping` stay
+/// outside the language.
+fn fixed_integer(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<PrimitiveType> {
+) -> Option<(PrimitiveType, ArithmeticDomain)> {
     let primitive = program.primitive_type_reference(type_reference)?;
-    (matches!(
+    if !matches!(
         primitive,
         PrimitiveType::I8
             | PrimitiveType::I16
@@ -659,8 +756,12 @@ fn exact_fixed_integer(
             | PrimitiveType::U16
             | PrimitiveType::U32
             | PrimitiveType::U64
-    ) && program.arithmetic_domain_for_type_reference(type_reference) == ArithmeticDomain::Exact)
-        .then_some(primitive)
+    ) {
+        return None;
+    }
+    let domain = program.arithmetic_domain_for_type_reference(type_reference);
+    matches!(domain, ArithmeticDomain::Exact | ArithmeticDomain::Wrapping)
+        .then_some((primitive, domain))
 }
 
 fn is_unsigned(primitive: PrimitiveType) -> bool {
