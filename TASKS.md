@@ -9702,7 +9702,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-PARITY-GAPS** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
+  `10d93dd448`, covered — re-mines the residual list of owning parent
+  **SQUALR-GEOMETRY-PARITY** (TASKS.md:6235), which now carries two audits:
+  the z105 verified-scope audit (12/12 geometry checks PASS on macOS ARM64
+  at app `4b1f7a6` / std `87d8b227`; every enumerated gap maps to a sibling
+  row — debug assertions → SQUALR-DEBUG-ASSERTION-PARITY/-ASSERTIONS,
+  clone/serialization → SQUALR-CLONE-SERIALIZATION, region alignment →
+  SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators →
+  SQUALR-NAMED-TRAIT-OPERATORS) and a z194 re-witness recording a new
+  regression: the tracked `squalr-tests/omega.lock` is rejected at HEAD and
+  the git-pinned std `87d8b227` fails `omega update` post-`32f5182254`, so
+  both recorded re-entry paths are red until the submodule's std pin and
+  lock advance — an edit inside `samples/apps/squalr`, wholesale-fenced
+  (GEOMETRY-ALIGNMENT-REGIONS 01:18Z, SQUALR-TARGETS-AND-THROUGHPUT). The
+  only independent residual is the Windows validation leg, which is
+  host-gated per SQUALR-GEOMETRY-WINDOWS-VALIDATION's audit. No
+  linux_x86_64 slice outside a claimed fence exists. Sibling re-mine
+  stubs: SQUALR-GEOMETRY-PARITY-GAPS, SQUALR-GEOMETRY-PARITY-RESIDUE.
 - **SQUALR-GEOMETRY-PARITY-RESIDUE** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-NATIVE** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; verify scope then implement.
