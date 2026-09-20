@@ -82,13 +82,14 @@ pub(crate) fn validate_transition_target_node(
     };
 
     let arguments = program.statement_table.expression_handles(*arguments);
-    crate::proof_contracts::contract_entailment::validate_const_range_call(
+    crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
         program,
         current_machine,
         current_state,
         path.symbol,
         &[],
         arguments,
+        Some(value_env),
         diagnostics,
     );
 

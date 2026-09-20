@@ -747,6 +747,47 @@ fn runtime_bound_stale_call_guard_rejects_publication() {
     );
 }
 
+/// A dominating ordered guard is a caller-scope premise: the callee's
+/// declared binder range discharges against it at a statement call, and
+/// overwriting the bound subject retires the premise so the same spelling
+/// still rejects.
+#[test]
+fn runtime_bound_parameter_qualification_follows_the_dominating_guard() {
+    const PARAMETER_BOUND_MACHINES: &str = r#"
+machine sink<Limit: u8>(v: u8[0..=Limit]) {
+}
+
+machine guarded_param(value: u8, limit: u8) -> u8 {
+    transition value <= limit {
+        true -> allowed(value, limit)
+        false -> 0
+    }
+    state allowed(value: u8, limit: u8) {
+        sink<limit>(value);
+        value
+    }
+}
+"#;
+    let tail =
+        "\ndata Main {}\nmachine Main::main(&mut self) { let result: u8 = guarded_param(3, 7); }";
+    check_source(
+        "guarded-parameter-bound",
+        &format!("{PARAMETER_BOUND_MACHINES}{tail}"),
+    )
+    .expect("the dominating guard discharges the call's declared binder range");
+
+    let stale = PARAMETER_BOUND_MACHINES.replace(
+        "state allowed(value: u8, limit: u8) {",
+        "state allowed(value: u8, mut limit: u8) { limit = 0;",
+    );
+    let diagnostic = check_source("stale-parameter-bound", &format!("{stale}{tail}"))
+        .expect_err("a rebound bound subject must retire the guard premise");
+    assert!(
+        diagnostic.contains("cannot prove the declared symbolic const parameter ranges"),
+        "{diagnostic}"
+    );
+}
+
 const EQUAL_RUNTIME_INDEX_MACHINES: &str = r#"
 machine indexed<Bound: u8>() -> u8[0..=Bound] { Bound }
 
