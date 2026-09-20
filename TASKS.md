@@ -6477,7 +6477,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   runtime leg needs QEMU/UEFI hardware, gated on UEFI-PHYSICAL-SEMANTIC-ENTRY
   + UEFI-OS-HANDOFF. Sibling re-mines: BENCHMARK-HOST-ROW-MATRIX,
   BENCHMARK-CROSS-TARGET-COMPILE-{LEGS,ROWS}, BENCHMARK-ROW-RESUMPTION.
-- **BENCHMARK-WINDOWS-PEAK-MEMORY** — mined candidate; verify scope then implement.
+- **BENCHMARK-WINDOWS-PEAK-MEMORY.** Scope verified — the windows_x86_64
+  peak-memory leg of the benchmarks matrix. The measurement machinery is
+  already landed in `tools/benchmark/benchmark.py`: spawned children are
+  assigned to a fresh Windows Job Object and `peak_memory_bytes` is read
+  from the exited job's peak working set (`_windows_job_assign` /
+  `_windows_job_peak_bytes`), matching per-leg `os.wait4` RSS on POSIX.
+  `python3 tools/tests/test_benchmark.py` is 21/21 green on linux x86-64
+  at `1a772e4ae1`. The only remaining leg is a host run —
+  `benchmark.py measure --target windows_x86_64` on a Windows x86-64 host
+  to record the committed `records/<subject>__windows_x86_64__*.json`
+  rows; no execution host exists on this Linux box, so the row is a host
+  leg, not a code slice.
 - **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
 - **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-CERTIFICATE-CHECK** — verified 7ec604d7ef: re-mines the
