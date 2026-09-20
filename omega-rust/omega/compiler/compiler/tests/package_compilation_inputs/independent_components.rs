@@ -13,7 +13,8 @@
 
 use super::{TempTree, identity};
 use compiler::{
-    CheckedCompileRequest, compile_to_checked, published_independent_component_description,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    compile_to_checked, published_independent_component_description,
 };
 use package_compilation::{
     BuildDeclarationKind, IndependentComponentDescription, PackageCompilationInputs,
@@ -354,6 +355,25 @@ impl IndependentFixture {
             ..CheckedCompileRequest::new(&self.root.join("main.omg"), Some(self.target_name))
         })
     }
+
+    /// Drive the consuming root through the real compile entrance to the
+    /// requested product, not stopping at the checked boundary.
+    fn produce_root(
+        &self,
+        inputs: PackageCompilationInputs,
+        product: RequestedCompileProduct,
+    ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+        compile(
+            CompileRequest::new(CompileOptions {
+                root_path: self.root.join("main.omg"),
+                build_dir: Some(self._tree.0.join(format!("{product:?}-output"))),
+                target_name: Some(self.target_name.to_owned()),
+            })
+            .with_package_inputs(inputs)
+            .with_requested_product(product),
+        )
+        .and_then(compiler::CompileOutcomes::into_single_report)
+    }
 }
 
 /// A mechanism-bearing component: beside the sealed `Pick` requirement its
@@ -362,6 +382,7 @@ impl IndependentFixture {
 /// derived `port_mechanism_assumption` digest, so the published description
 /// carries an inseparable assumption roster.
 const MECHANISM_COMPONENT_SOURCE: &str = r#"use omega::language::core::assembly;
+use omega::language::core::service;
 
 pub boundary trait Pick {
     machine mark(value: i32);
@@ -383,7 +404,7 @@ reaches PortIo
     }
 }
 
-pub data ComponentEntry { pick: Pick; }
+pub data ComponentEntry { pick: Service<Pick>; }
 pub machine ComponentEntry::main(&mut self)
 reaches Pick + PortIo
 invokes Pick;
@@ -415,6 +436,49 @@ fn independent_selection_settles_on_the_dependency_component_description() {
     fixture
         .compile_root(inputs)
         .expect("an independent selection over a described dependency component settles");
+}
+
+#[test]
+fn a_settled_independent_edge_rejects_terminal_product_emission() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let inputs = fixture.attach(vec![fixture.published()]);
+    fixture
+        .compile_root(inputs.clone())
+        .expect("the same edge still settles at the checked boundary");
+    let diagnostics = fixture
+        .produce_root(inputs, RequestedCompileProduct::TerminalArtifact)
+        .expect_err("a settled independent edge has no product substrate to emit");
+    rejects_with(
+        &diagnostics,
+        &[
+            "settled with an independent composition edge",
+            "refusing to emit a fused artifact",
+        ],
+    );
+}
+
+#[test]
+fn a_settled_independent_edge_rejects_native_product_emission() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let diagnostics = fixture
+        .produce_root(
+            fixture.attach(vec![fixture.published()]),
+            RequestedCompileProduct::NativeArtifact,
+        )
+        .expect_err("the direct native route realizes the same silent fused edge");
+    rejects_with(
+        &diagnostics,
+        &[
+            "settled with an independent composition edge",
+            "refusing to emit a fused artifact",
+        ],
+    );
 }
 
 #[test]

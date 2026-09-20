@@ -13,6 +13,7 @@ use assembled_syntax_to_checked_compilation::{CheckedCompilation, OptimizationRo
 use diagnostics::Diagnostic;
 
 pub(crate) mod behavior_exclusions;
+pub(crate) mod composition_modes;
 pub(crate) mod verification;
 
 /// Produce the retained Terminal product and its ordinary compiler report.
@@ -87,6 +88,9 @@ fn produce_retained_terminal_artifact(
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::RetainedTerminalArtifact, Vec<Diagnostic>> {
+    // A settled `Independent` edge has no product carrier: the composition
+    // fence rejects before any fused artifact can be produced or admitted.
+    composition_modes::verify_selected_compositions_are_realized(checked)?;
     let callback_placements = checked.callback_placements().to_vec();
     // The selected entry rejoins Terminal production by its exact checked
     // machine symbol: the build product operand's lexical package choice must
@@ -213,9 +217,11 @@ pub fn produce_program_entry_terminal_artifact(
     program_entry: &build_evaluation::SelectedCompilerProgramEntry,
     optimization_selections: &optimization_core::OptimizationSelections,
 ) -> Result<ProgramEntryTerminalArtifact, Vec<Diagnostic>> {
-    // Same admission requirement as the retained product: the authored
-    // exclusions are verified against the unoptimized composition before the
-    // direct native route's artifact is produced.
+    // Same admission requirement as the retained product: a settled
+    // `Independent` edge has no product carrier, and the authored exclusions
+    // are verified against the unoptimized composition before the direct
+    // native route's artifact is produced.
+    composition_modes::verify_selected_compositions_are_realized(checked)?;
     behavior_exclusions::verify_entry_behavior_exclusions(
         checked,
         program_entry.source_signature().machine_symbol(),
