@@ -9334,7 +9334,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   optimizer rows. No independent unclaimed slice exists under this
   name.
 - **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6 — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/{control,state_graph}+composed_control (GENERAL-CYCLIC-EXECUTION, exp 19:37Z), receiver_calls (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice remains here.
-- **RC-BUILD-AND-PACKAGES** — mined candidate; verify scope then implement.
+- **RC-BUILD-AND-PACKAGES** — mined candidate; scope verified at `f1675418b1`,
+  gate row recorded at
+  [wiki/drafts/rc_build_and_packages_linux_x86_64.md](wiki/drafts/rc_build_and_packages_linux_x86_64.md).
+  The gate is **red** on linux x86-64: the 7-crate package/build nextest block
+  fails 109 tests (package-evidence policy digest/identity drift dominant),
+  doc tests pass, and the 6-target compiler block fails 11
+  (x86_feature_admission FMA rows + package entry-selection drift). The row
+  stays open; repair legs belong to the feature owners.
 - **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
 - **RC-CLOSURE-EVIDENCE-RETENTION.** Scope verified at `797e99ead7` —
   mined candidate naming the post-closure directive in
