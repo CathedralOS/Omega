@@ -6403,7 +6403,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   binding walk collects every malformed row's diagnostic in order.
 - **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
 - **EXECUTABLE-PUBLICATION-JOIN** — mined candidate; verify scope then implement.
-- **EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; verify scope then implement.
+- **EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
 - **EXECUTABLE-PUBLICATION-STAGE** — mined candidate; verify scope then implement.
 - **EXECUTABLE-PUBLICATION-STEP** — mined candidate; verify scope then implement.
 - **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
