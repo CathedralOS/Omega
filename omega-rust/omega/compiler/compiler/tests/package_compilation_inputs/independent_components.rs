@@ -1241,3 +1241,175 @@ fn an_entry_row_bound_to_an_unlisted_assumption_rejects() {
         &["failed independent verification", "absent from the roster"],
     );
 }
+
+#[test]
+fn a_forged_import_slot_names_no_unsealed_requirement() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description.imports.push(component_description::ImportSlot {
+            slot: 4096,
+            requirement_identity: "boundary:forged::Demand".to_owned(),
+            contract_identity: [0x33; 32],
+        });
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("an import slot must name an unsealed boundary requirement");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "names no unsealed requirement",
+        ],
+    );
+}
+
+#[test]
+fn an_outgoing_row_sealed_to_a_foreign_provider_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        let row = description
+            .outgoing
+            .iter_mut()
+            .find(|row| {
+                matches!(
+                    row.evidence,
+                    component_description::OutgoingEvidence::ProviderSealed(_)
+                )
+            })
+            .expect("the sealed boundary requirement carries provider evidence");
+        row.evidence = component_description::OutgoingEvidence::ProviderSealed([0xAB; 32]);
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a seal digest outside the retained provider roster cannot verify");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "is sealed to a provider outside the roster",
+        ],
+    );
+}
+
+#[test]
+fn a_description_omitting_a_provider_obligation_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        let before = description.obligations.len();
+        description.obligations.retain(|obligation| {
+            obligation.kind != component_description::ObligationKind::ProviderOccurrence
+        });
+        assert!(
+            description.obligations.len() < before,
+            "the published description carries a provider-occurrence obligation"
+        );
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a retained provider demands its occurrence obligation");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "installation obligation",
+            "is missing",
+        ],
+    );
+}
+
+#[test]
+fn a_requirement_sealed_by_two_provider_digests_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        let mut provider = description
+            .providers
+            .first()
+            .expect("the published description retains a provider")
+            .clone();
+        provider.report_identity += 1;
+        provider.plan_digest[0] ^= 0xFF;
+        description.providers.push(provider);
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("one requirement cannot be sealed by two provider digests");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "provider closure is inconsistent",
+        ],
+    );
+}
+
+#[test]
+fn a_custody_row_claiming_an_absent_fact_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description
+            .custody
+            .push(component_description::CustodyConstraint {
+                kind: component_description::CustodyKind::PlacedViewInput,
+                identity: "custody:forged::View".to_owned(),
+                evidence: component_description::CustodyEvidence::ModuleDerived,
+            });
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a custody row cannot claim facts the artifact lacks");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "claims a fact the artifact lacks",
+        ],
+    );
+}
+
+#[test]
+fn a_service_bound_the_artifact_does_not_retain_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description
+            .service_bounds
+            .push(component_description::InstallationServiceBound {
+                requirement_identity: "bound:forged::Reach".to_owned(),
+                bound: vec![semantic_vocabulary::ServiceId::new(0xFFFF).unwrap()],
+            });
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a service bound must replay a retained installation-bound row");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "names a bound the artifact does not retain",
+        ],
+    );
+}

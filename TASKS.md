@@ -5310,7 +5310,13 @@ Owners include
   preceding artifact closure, a forged export row, an omitted module-derived
   entry or export, a declared assumption the consumer never authored, and an
   entry row bound to an assumption absent from the roster each reject inside
-  settlement's independent-verification wrapper.
+  settlement's independent-verification wrapper. The deeper rosters are
+  pinned the same way: a forged import slot names no unsealed requirement,
+  an outgoing row sealed to a foreign provider digest, an omitted
+  provider-occurrence obligation, one requirement claimed by two provider
+  digests, a custody row claiming a fact the artifact lacks, and an
+  installation-bound service bound the artifact does not retain each reject
+  inside the same wrapper.
   Still, a settled `Independent` edge carries no symbolic import or
   installation obligation into the product past that emission fence.
 
