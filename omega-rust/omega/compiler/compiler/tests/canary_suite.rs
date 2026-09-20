@@ -944,6 +944,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "filesystem/native_buffer_copy",
     "filesystem/native_canonicalize",
     "filesystem/native_chown",
+    // `self.rc = self.fs.close(self.fd_in)` left this family's checked roster
+    // while its store had no admitted source and then no admitted lowering
+    // custody; both arms are closed, so it rejoins the family. Like its
+    // siblings, native realization stays gated on the entry-side
+    // FilesystemHost fused-provider selection.
+    "filesystem/native_close",
     "filesystem/native_crud",
     "filesystem/native_dirs",
     "filesystem/native_enum_result",
