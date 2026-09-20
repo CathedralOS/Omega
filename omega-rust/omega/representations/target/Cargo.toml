@@ -10,4 +10,5 @@ path = "src/lib.rs"
 
 [dependencies]
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
 sha2 = "0.10.9"

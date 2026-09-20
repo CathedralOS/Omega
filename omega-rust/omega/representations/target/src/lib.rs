@@ -42,9 +42,11 @@ pub use uefi_loaded_image::occurrence::{
     ValidatedUefiLoadedImageGeometry, validate_uefi_loaded_image_occurrence,
 };
 pub use uefi_loaded_image::{
-    UefiLoadedImageNativeField, UefiLoadedImageNativeFieldKind, UefiLoadedImageNativeFieldLayout,
-    UefiLoadedImageNativeLayoutError, ValidatedUefiLoadedImageNativeLayout,
-    plan_uefi_loaded_image_native_layout,
+    UEFI_X64_LOADED_IMAGE_LAYOUT_PLAN_COMMITMENT, UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT,
+    UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT, UefiLoadedImageNativeField,
+    UefiLoadedImageNativeFieldKind, UefiLoadedImageNativeFieldLayout,
+    ValidatedUefiLoadedImageNativeLayout, exact_uefi_x64_loaded_image_layout_plan_report,
+    exact_uefi_x64_loaded_image_native_layout, replayed_uefi_x64_loaded_image_native_layout,
 };
 pub use uefi_system_table::occurrence::{
     UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableOccurrenceValidationError,

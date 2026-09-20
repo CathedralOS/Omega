@@ -1,10 +1,19 @@
 //! Target-owned native layout of the UEFI x86-64 Loaded Image protocol.
 //!
 //! UEFI fixes this protocol as a revision followed by pointer-sized handles,
-//! pointers, image geometry, memory-type values, and the unload callback. This
-//! module retains the complete 96-byte x86-64 layout as descriptive evidence.
-//! It grants no permission to dereference a protocol occurrence or treat its
-//! image geometry as an `Extent`.
+//! pointers, image geometry, memory-type values, and the unload callback. The
+//! schema and its byte positions are authored once in the selected target
+//! package (`source/library/std/targets/uefi_x86_64/tables.omg`) as the
+//! `EfiLoadedImage` carrier record plus the evaluated `EfiLoadedImageLayout`
+//! layout policy; this module retains the complete validated 96-byte x86-64
+//! layout as descriptive evidence replayed from that evaluated plan.
+//! `replayed_uefi_x64_loaded_image_native_layout` binds one retained
+//! `LayoutPlanReport` to the recorded source-minted commitments, and
+//! `exact_uefi_x64_loaded_image_native_layout` is the fixture materialization
+//! for contexts below the build layer -- it routes through the same replay so
+//! the residual literal recipe self-checks rather than standing alone. This
+//! module grants no permission to dereference a protocol occurrence or treat
+//! its image geometry as an `Extent`.
 //!
 //! [UEFI Loaded Image protocol]: https://uefi.org/specs/UEFI/2.11/09_Protocols_EFI_Loaded_Image.html
 
@@ -15,12 +24,84 @@ use crate::{
     ProgramEntrySlotDeclaration, TargetProfile,
 };
 use diagnostics::Diagnostic;
+use layout_plans::{
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    normalized_layout_plan_report_fingerprint,
+};
 
 const FIELD_COUNT: usize = 15;
+const SEMANTIC_FIELD_COUNT: usize = 13;
 const PROTOCOL_SIZE: u32 = 96;
 const PROTOCOL_ALIGNMENT: u32 = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// Compact FNV coordinate for the `EfiLoadedImage` schema the compiler
+/// materializes from `std/targets/uefi_x86_64/tables.omg`, recorded from the
+/// evaluated plan. This is evidence: a live evaluation whose schema drifts
+/// from this coordinate fails replay instead of silently rebinding.
+pub const UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT: u64 = 0x4ae5_84e2_dcce_000b;
+
+/// Compact commitment to the validated `LayoutPlanReport` the authored
+/// `EfiLoadedImageLayout::plan` policy produces for the bundled UEFI x86-64
+/// target package. Recorded from source evaluation and kept honest by the
+/// compiler replay test in `canary_suite/entry_and_abi/uefi_loaded_image_layout.rs`;
+/// a report carrying any other schema, member, or placement rejects here.
+pub const UEFI_X64_LOADED_IMAGE_LAYOUT_PLAN_COMMITMENT: u64 = 0x59b7_7325_968e_1604;
+
+/// Compact commitment to the validated native field layout the evaluated plan
+/// derives (`layout_report_fingerprint` over the complete row catalog). The
+/// replayed rows must hash to this identity, so the retained field vocabulary
+/// cannot drift silently from the authored plan.
+pub const UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT: u64 = 0xc665_f34f_1cec_bf43;
+
+/// Byte offsets the authored policy assigns to each `EfiLoadedImage` member in
+/// declaration order. This residual literal recipe exists only for fixture
+/// materialization below the build layer; every validated layout is produced
+/// by replaying it through the commitments above.
+const EXACT_SEMANTIC_OFFSETS: [u64; SEMANTIC_FIELD_COUNT] =
+    [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 84, 88];
+
+/// The semantic vocabulary each authored `EfiLoadedImage` member carries:
+/// name, field identity, carrier width, and kind. Names and kinds are the
+/// protocol's semantics; byte positions come from the evaluated plan, and the
+/// two ABI padding rows (`RevisionPadding`, `LoadOptionsSizePadding`) are the
+/// plan's implicit gaps given their physical names.
+const SEMANTIC_FIELDS: [(
+    &str,
+    UefiLoadedImageNativeField,
+    u32,
+    UefiLoadedImageNativeFieldKind,
+); SEMANTIC_FIELD_COUNT] = [
+    ("revision", Field::Revision, 4, Kind::UnsignedInteger),
+    ("parent_handle", Field::ParentHandle, 8, Kind::Pointer),
+    ("system_table", Field::SystemTable, 8, Kind::Pointer),
+    ("device_handle", Field::DeviceHandle, 8, Kind::Pointer),
+    ("file_path", Field::FilePath, 8, Kind::Pointer),
+    ("reserved", Field::Reserved, 8, Kind::Pointer),
+    (
+        "load_options_size",
+        Field::LoadOptionsSize,
+        4,
+        Kind::UnsignedInteger,
+    ),
+    ("load_options", Field::LoadOptions, 8, Kind::Pointer),
+    ("image_base", Field::ImageBase, 8, Kind::Pointer),
+    ("image_size", Field::ImageSize, 8, Kind::UnsignedInteger),
+    (
+        "image_code_type",
+        Field::ImageCodeType,
+        4,
+        Kind::UnsignedInteger,
+    ),
+    (
+        "image_data_type",
+        Field::ImageDataType,
+        4,
+        Kind::UnsignedInteger,
+    ),
+    ("unload", Field::Unload, 8, Kind::FunctionPointer),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
@@ -123,56 +204,112 @@ impl ValidatedUefiLoadedImageNativeLayout {
     }
 }
 
-#[derive(Debug)]
-#[must_use = "UEFI Loaded Image layout rejection retains the requested profile"]
-pub struct UefiLoadedImageNativeLayoutError {
-    profile: TargetProfile,
-    diagnostic: Diagnostic,
-}
-
-impl UefiLoadedImageNativeLayoutError {
-    pub const fn profile(&self) -> TargetProfile {
-        self.profile
-    }
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-    pub fn into_parts(self) -> (TargetProfile, Diagnostic) {
-        (self.profile, self.diagnostic)
-    }
-}
-
-impl std::fmt::Display for UefiLoadedImageNativeLayoutError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
-
-impl std::error::Error for UefiLoadedImageNativeLayoutError {}
-
-pub fn plan_uefi_loaded_image_native_layout(
-    profile: TargetProfile,
-) -> Result<ValidatedUefiLoadedImageNativeLayout, Box<UefiLoadedImageNativeLayoutError>> {
+/// Replay one evaluated `EfiLoadedImageLayout::plan` report into the validated
+/// native layout. The report must carry the recorded source-minted schema and
+/// plan commitments; a foreign report, a drifted plan, or rows that no longer
+/// cover the 96-byte aggregate reject. The two ABI padding rows are the
+/// evaluated plan's implicit gaps under their physical names -- any other gap
+/// is foreign geometry and rejects.
+pub fn replayed_uefi_x64_loaded_image_native_layout(
+    report: &LayoutPlanReport,
+) -> Option<ValidatedUefiLoadedImageNativeLayout> {
+    let profile = TargetProfile::UefiX64;
     let entry_slot = profile.program_entry_slot();
-    if let Err(diagnostic) = validate_target_owner(profile, entry_slot) {
-        return Err(Box::new(UefiLoadedImageNativeLayoutError {
-            profile,
-            diagnostic,
-        }));
+    if normalized_layout_plan_report_fingerprint(report)
+        != UEFI_X64_LOADED_IMAGE_LAYOUT_PLAN_COMMITMENT
+        || report.schema_report_fingerprint != UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT
+        || validate_target_owner(profile, entry_slot).is_err()
+    {
+        return None;
     }
-    let fields = canonical_fields().to_vec();
-    if let Err(diagnostic) = validate_fields(&fields) {
-        return Err(Box::new(UefiLoadedImageNativeLayoutError {
-            profile,
-            diagnostic,
-        }));
+    let fields = fields_from_evaluated_plan(report)?;
+    if validate_fields(&fields).is_err() {
+        return None;
     }
-    Ok(ValidatedUefiLoadedImageNativeLayout {
+    let fingerprint = layout_report_fingerprint(entry_slot, &fields);
+    if fingerprint != UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT {
+        return None;
+    }
+    Some(ValidatedUefiLoadedImageNativeLayout {
         profile,
         entry_slot,
-        non_authoritative_layout_report_fingerprint: layout_report_fingerprint(entry_slot, &fields),
         fields,
+        non_authoritative_layout_report_fingerprint: fingerprint,
     })
+}
+
+/// Materialize the native layout for contract fixtures below the build layer,
+/// where checked-tree evaluation is unavailable. The report shape mirrors what
+/// `EfiLoadedImageLayout::plan` produces for `EfiLoadedImage` and is replayed
+/// through the same commitments, so it cannot drift silently from the authored
+/// policy.
+pub fn exact_uefi_x64_loaded_image_native_layout() -> ValidatedUefiLoadedImageNativeLayout {
+    replayed_uefi_x64_loaded_image_native_layout(&exact_uefi_x64_loaded_image_layout_plan_report())
+        .expect(
+            "the authored UEFI x64 Loaded Image layout must replay its source-minted commitments",
+        )
+}
+
+/// The report the authored policy produces, in `LayoutPlanReport` form. This
+/// is the one residual literal recipe; consumers must route it through
+/// `replayed_uefi_x64_loaded_image_native_layout`, never read it directly.
+pub fn exact_uefi_x64_loaded_image_layout_plan_report() -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT,
+        entries: SEMANTIC_FIELDS
+            .iter()
+            .zip(EXACT_SEMANTIC_OFFSETS)
+            .map(|(&(name, _, _, _), offset)| LayoutFieldEntryReport {
+                field: name.to_owned(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset },
+            })
+            .collect(),
+        offsets: Some(EXACT_SEMANTIC_OFFSETS.to_vec()),
+        size: Some(u64::from(PROTOCOL_SIZE)),
+        align: u64::from(PROTOCOL_ALIGNMENT),
+    }
+}
+
+fn fields_from_evaluated_plan(
+    report: &LayoutPlanReport,
+) -> Option<Vec<UefiLoadedImageNativeFieldLayout>> {
+    if report.entries.len() != SEMANTIC_FIELD_COUNT {
+        return None;
+    }
+    let mut fields = Vec::with_capacity(FIELD_COUNT);
+    let mut prior_end = 0_u32;
+    for (&(name, field, width, kind), entry) in SEMANTIC_FIELDS.iter().zip(report.entries.iter()) {
+        if entry.field != name {
+            return None;
+        }
+        let offset = match entry.placement {
+            LayoutPlacementReport::At { offset } => u32::try_from(offset).ok()?,
+            _ => return None,
+        };
+        if offset < prior_end || offset % width != 0 {
+            return None;
+        }
+        if offset > prior_end {
+            let gap = offset - prior_end;
+            let padding = match (prior_end, gap) {
+                (4, 4) => Field::RevisionPadding,
+                (52, 4) => Field::LoadOptionsSizePadding,
+                _ => return None,
+            };
+            fields.push(row(
+                padding,
+                fields.len() as u8,
+                prior_end,
+                gap,
+                gap,
+                Kind::Padding,
+            ));
+        }
+        fields.push(row(field, fields.len() as u8, offset, width, width, kind));
+        prior_end = offset.checked_add(width)?;
+    }
+    (prior_end == PROTOCOL_SIZE).then_some(fields)
 }
 
 fn validate_target_owner(
@@ -201,7 +338,7 @@ fn validate_target_owner(
 
 fn validate_fields(fields: &[UefiLoadedImageNativeFieldLayout]) -> Result<(), Diagnostic> {
     require(
-        fields == canonical_fields(),
+        fields.len() == FIELD_COUNT,
         "EFI_LOADED_IMAGE_PROTOCOL field catalog is missing, duplicated, reordered, or drifted",
     )?;
     let mut prior_end = 0_u32;
@@ -255,28 +392,6 @@ const fn row(
 
 use UefiLoadedImageNativeField as Field;
 use UefiLoadedImageNativeFieldKind as Kind;
-
-const CANONICAL_FIELDS: [UefiLoadedImageNativeFieldLayout; FIELD_COUNT] = [
-    row(Field::Revision, 0, 0, 4, 4, Kind::UnsignedInteger),
-    row(Field::RevisionPadding, 1, 4, 4, 4, Kind::Padding),
-    row(Field::ParentHandle, 2, 8, 8, 8, Kind::Pointer),
-    row(Field::SystemTable, 3, 16, 8, 8, Kind::Pointer),
-    row(Field::DeviceHandle, 4, 24, 8, 8, Kind::Pointer),
-    row(Field::FilePath, 5, 32, 8, 8, Kind::Pointer),
-    row(Field::Reserved, 6, 40, 8, 8, Kind::Pointer),
-    row(Field::LoadOptionsSize, 7, 48, 4, 4, Kind::UnsignedInteger),
-    row(Field::LoadOptionsSizePadding, 8, 52, 4, 4, Kind::Padding),
-    row(Field::LoadOptions, 9, 56, 8, 8, Kind::Pointer),
-    row(Field::ImageBase, 10, 64, 8, 8, Kind::Pointer),
-    row(Field::ImageSize, 11, 72, 8, 8, Kind::UnsignedInteger),
-    row(Field::ImageCodeType, 12, 80, 4, 4, Kind::UnsignedInteger),
-    row(Field::ImageDataType, 13, 84, 4, 4, Kind::UnsignedInteger),
-    row(Field::Unload, 14, 88, 8, 8, Kind::FunctionPointer),
-];
-
-const fn canonical_fields() -> &'static [UefiLoadedImageNativeFieldLayout; FIELD_COUNT] {
-    &CANONICAL_FIELDS
-}
 
 fn layout_report_fingerprint(
     entry_slot: ProgramEntrySlotDeclaration,
@@ -341,7 +456,7 @@ mod tests {
 
     #[test]
     fn exact_loaded_image_layout_retains_every_x64_field_and_padding_row() {
-        let layout = plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64).unwrap();
+        let layout = exact_uefi_x64_loaded_image_native_layout();
         assert_eq!(layout.field_count(), 15);
         assert_eq!(layout.byte_size(), 96);
         assert_eq!(layout.alignment(), 8);
@@ -349,23 +464,45 @@ mod tests {
         let image_size = layout.field_layout(Field::ImageSize).unwrap();
         assert_eq!((image_base.ordinal(), image_base.byte_offset()), (10, 64));
         assert_eq!((image_size.ordinal(), image_size.byte_offset()), (11, 72));
-        assert_ne!(layout.non_authoritative_layout_report_fingerprint(), 0);
+        assert_eq!(
+            layout.non_authoritative_layout_report_fingerprint(),
+            UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT
+        );
     }
 
     #[test]
-    fn non_uefi_profiles_and_layout_drift_reject() {
-        assert!(plan_uefi_loaded_image_native_layout(TargetProfile::WindowsX64).is_err());
-        let exact = plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64).unwrap();
-        assert!(exact.matches_exact_plan(
-            &plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64).unwrap()
-        ));
+    fn replayed_layout_matches_the_exact_materialization() {
+        let exact = exact_uefi_x64_loaded_image_native_layout();
+        let report = exact_uefi_x64_loaded_image_layout_plan_report();
+        let replayed = replayed_uefi_x64_loaded_image_native_layout(&report)
+            .expect("the authored plan report replays");
+        assert!(exact.matches_exact_plan(&replayed));
+    }
 
-        let mut reordered = canonical_fields().to_vec();
-        reordered.swap(10, 11);
-        assert!(validate_fields(&reordered).is_err());
+    #[test]
+    fn drifted_or_foreign_plan_reports_reject() {
+        let mut foreign_name = exact_uefi_x64_loaded_image_layout_plan_report();
+        foreign_name.entries[0].field = "image_base".to_owned();
+        assert!(replayed_uefi_x64_loaded_image_native_layout(&foreign_name).is_none());
 
-        let mut drifted = canonical_fields().to_vec();
-        drifted[10].byte_offset = 56;
-        assert!(validate_fields(&drifted).is_err());
+        let mut drifted = exact_uefi_x64_loaded_image_layout_plan_report();
+        drifted.entries[10].placement = LayoutPlacementReport::At { offset: 56 };
+        assert!(replayed_uefi_x64_loaded_image_native_layout(&drifted).is_none());
+
+        let mut stored_width = exact_uefi_x64_loaded_image_layout_plan_report();
+        stored_width.entries[6].placement = LayoutPlacementReport::IntegerAt {
+            offset: 48,
+            stored_width: 32,
+            interpretation: layout_plans::IntegerInterpretation::Unsigned,
+        };
+        assert!(replayed_uefi_x64_loaded_image_native_layout(&stored_width).is_none());
+
+        let mut wrong_size = exact_uefi_x64_loaded_image_layout_plan_report();
+        wrong_size.size = Some(104);
+        assert!(replayed_uefi_x64_loaded_image_native_layout(&wrong_size).is_none());
+
+        let mut wrong_schema = exact_uefi_x64_loaded_image_layout_plan_report();
+        wrong_schema.schema_report_fingerprint ^= 1;
+        assert!(replayed_uefi_x64_loaded_image_native_layout(&wrong_schema).is_none());
     }
 }

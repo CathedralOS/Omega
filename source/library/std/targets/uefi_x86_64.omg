@@ -3,3 +3,4 @@
 // OS-loader custody-transfer surface.
 use targets::uefi_x86_64::entry;
 use targets::uefi_x86_64::handoff;
+use targets::uefi_x86_64::tables;

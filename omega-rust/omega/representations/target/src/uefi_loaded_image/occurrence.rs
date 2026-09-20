@@ -8,9 +8,8 @@
 use std::num::NonZeroU64;
 
 use crate::{
-    TargetProfile, UefiLoadedImageNativeField, UefiLoadedImageNativeFieldKind,
-    UefiLoadedImageNativeFieldLayout, ValidatedUefiLoadedImageNativeLayout,
-    plan_uefi_loaded_image_native_layout,
+    UefiLoadedImageNativeField, UefiLoadedImageNativeFieldKind, UefiLoadedImageNativeFieldLayout,
+    ValidatedUefiLoadedImageNativeLayout, exact_uefi_x64_loaded_image_native_layout,
 };
 use diagnostics::Diagnostic;
 
@@ -87,10 +86,7 @@ pub fn validate_uefi_loaded_image_occurrence<'occurrence>(
     ValidatedUefiLoadedImageGeometry,
     Box<UefiLoadedImageOccurrenceValidationError<'occurrence>>,
 > {
-    let expected = match plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64) {
-        Ok(expected) => expected,
-        Err(error) => return reject(layout, supplied_bytes, error.into_parts().1),
-    };
+    let expected = exact_uefi_x64_loaded_image_native_layout();
     if !layout.matches_exact_plan(&expected) {
         return reject(
             layout,
@@ -236,7 +232,7 @@ mod tests {
     fn exact_layout_decodes_nonwrapping_loaded_image_geometry() {
         let bytes = bytes(0x10_0000, 0x20_000);
         let geometry = validate_uefi_loaded_image_occurrence(
-            plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64).unwrap(),
+            exact_uefi_x64_loaded_image_native_layout(),
             &bytes,
         )
         .unwrap();
@@ -262,7 +258,7 @@ mod tests {
         for bytes in cases {
             assert!(
                 validate_uefi_loaded_image_occurrence(
-                    plan_uefi_loaded_image_native_layout(TargetProfile::UefiX64).unwrap(),
+                    exact_uefi_x64_loaded_image_native_layout(),
                     &bytes,
                 )
                 .is_err()
