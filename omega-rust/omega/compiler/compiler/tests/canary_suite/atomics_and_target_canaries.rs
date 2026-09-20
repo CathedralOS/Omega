@@ -712,6 +712,22 @@ fn console_byte_field_target_rejected_canary_is_rejected() {
     let _ = fs::remove_dir_all(scratch);
 }
 
+// Scalar twin of the byte-op fence above, with the opposite disposition:
+// `self.rc = self.fs.close(self.fd)` stores a SCALAR boundary result straight
+// into a FIELD target. FUZZ-HOST-SCALAR-FIELD-STORE flagged --check admitting
+// it while the byte-op composite refused; the allowance is intended -- the
+// same shape is exercised by filesystem/native_canonicalize's
+// `self.n = self.fs.close(self.fd)` -- so pin it: checked semantics must keep
+// admitting the fixture. (Native realization of a FilesystemHost entry
+// service is gated by fused-provider selection off this host's route.)
+#[test]
+fn scalar_host_call_field_store_canary_checks() {
+    let canary = pass_canary(fixture_roster::SCALAR_HOST_CALL_FIELD_STORE);
+    check_canary(&canary).expect(
+        "scalar host-call result stored into a field must stay admitted by checked semantics",
+    );
+}
+
 // Dijkstra's Dutch flag partition: an enum-array three-pointer in-place
 // partition as a field-counter state machine -- indexed ENUM guard subject,
 // runtime-indexed enum-element swaps, and literal re-guard states dominating

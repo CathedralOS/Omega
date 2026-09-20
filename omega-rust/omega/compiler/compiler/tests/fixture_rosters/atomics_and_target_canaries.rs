@@ -19,6 +19,9 @@ pub const EFI_TWO_TABLE_FUNCTION_LEAVES: &str = "targets/efi_two_table_function_
 pub const EFI_OUT_PARAM_CALL: &str = "targets/efi_out_param_call";
 pub const CROSS_CONSOLE_BYTE_TARGETS: &str = "host/cross_console_byte_targets";
 pub const CONSOLE_BYTE_FIELD_TARGET_REJECTED: &str = "host/console_byte_field_target_rejected";
+/// Fuzz pin: scalar host-call results stored straight into a field target
+/// are allowed -- only composite byte-op results refuse field targets.
+pub const SCALAR_HOST_CALL_FIELD_STORE: &str = "filesystem/scalar_host_call_field_store";
 pub const RUNTIME_DUTCH_FLAG_PARTITION_EXIT: &str = "collections/runtime_dutch_flag_partition_exit";
 pub const IMMUTABLE_ARG_FOR_MUT_PARAM_REJECTED: &str = "calls/immutable_arg_for_mut_param_rejected";
 pub const FLOAT_WRAPPING_DOMAIN_REJECTED: &str = "arithmetic/float_wrapping_domain_rejected";
@@ -40,6 +43,7 @@ pub const PASS_CANARIES: &[&str] = &[
     EFI_TWO_TABLE_FUNCTION_LEAVES,
     EFI_OUT_PARAM_CALL,
     CROSS_CONSOLE_BYTE_TARGETS,
+    SCALAR_HOST_CALL_FIELD_STORE,
     RUNTIME_DUTCH_FLAG_PARTITION_EXIT,
 ];
 
