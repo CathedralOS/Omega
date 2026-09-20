@@ -160,6 +160,12 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::WrappingDivideI64
                 | MachineAlternativeFamily::BitwiseOrI64
                 | MachineAlternativeFamily::BitwiseNotI64
+                | MachineAlternativeFamily::WrappingShiftLeftI64
+                | MachineAlternativeFamily::WrappingShiftRightI64
+                | MachineAlternativeFamily::WrappingShiftRightU64
+                | MachineAlternativeFamily::ExactShiftLeftI64
+                | MachineAlternativeFamily::ExactShiftRightI64
+                | MachineAlternativeFamily::ExactShiftRightU64
                 | MachineAlternativeFamily::ExactSubtractI64
                 | MachineAlternativeFamily::ExactSubtractI64Immediate => {
                     if row.branch.is_some()

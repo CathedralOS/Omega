@@ -55,6 +55,10 @@ pub struct SelectedConstraintKeys {
     pub remainder_u64: RegisterConstraintKey,
     pub remainder_i64: RegisterConstraintKey,
     pub divide_i64: RegisterConstraintKey,
+    /// Two-source variable shift: value and count read, result defined. On
+    /// x86-64 the count is pinned to `rcx`; on AArch64 all three are
+    /// allocatable.
+    pub shift_i64: RegisterConstraintKey,
     pub saturating_add_clamped: RegisterConstraintKey,
     pub saturating_subtract_clamped: RegisterConstraintKey,
     pub saturating_divide_signed: RegisterConstraintKey,

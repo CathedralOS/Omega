@@ -236,6 +236,16 @@ pub const X86_64_REMAINDER_U64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 63,
 };
 
+/// Two-source variable-count shift (SHL/SHR/SAR): the value is allocatable,
+/// the count is pinned to RCX because the hardware reads CL, and the result
+/// is an early-clobber definition so it can never share the live count home.
+/// The realized form copies the value into the result before shifting it in
+/// place; RFLAGS is clobbered.
+pub const X86_64_SHIFT_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 64,
+};
+
 /// Exact `result = left - right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `XOR result, result` when both inputs
 /// share a view, `SUB` when the result is only the left input, `NEG; ADD` when
@@ -278,7 +288,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 73] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 74] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -398,6 +408,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 73] = [
     X86_64_MULTIPLY_I64,
     X86_64_DIVIDE_I64,
     X86_64_REMAINDER_U64,
+    X86_64_SHIFT_I64,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,

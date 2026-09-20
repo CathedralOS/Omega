@@ -260,6 +260,7 @@ fn selected_keys(
         remainder_u64: crate::register_model::AARCH64_REMAINDER_U64,
         remainder_i64: crate::register_model::AARCH64_REMAINDER_I64,
         divide_i64: crate::register_model::AARCH64_DIVIDE_I64,
+        shift_i64: crate::register_model::AARCH64_SHIFT_I64,
         saturating_add_clamped: crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
         saturating_subtract_clamped: crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
         saturating_divide_signed: crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
@@ -426,6 +427,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::WrappingSubtractI64
         | MachineSemanticKind::WrappingMultiplyI64
+        | MachineSemanticKind::WrappingShiftLeftI64
+        | MachineSemanticKind::WrappingShiftRightI64
+        | MachineSemanticKind::WrappingShiftRightU64
+        | MachineSemanticKind::ExactShiftLeftI64
+        | MachineSemanticKind::ExactShiftRightI64
+        | MachineSemanticKind::ExactShiftRightU64
         | MachineSemanticKind::ExactAddI64
         | MachineSemanticKind::ExactSubtractI64
         | MachineSemanticKind::ExactMultiplyI64 => (vec![0, 1], vec![2]),

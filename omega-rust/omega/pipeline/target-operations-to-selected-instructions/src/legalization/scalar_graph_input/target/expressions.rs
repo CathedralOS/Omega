@@ -171,6 +171,80 @@ impl Checker<'_> {
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
+            Expression::WrappingShiftLeft { psi_operation, count_type, value, count }
+            | Expression::WrappingShiftRight { psi_operation, count_type, value, count } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                    let (operation, result, expected_count_type, source_value, source_count) =
+                        match (&node.operation, expression) {
+                            (AbstractOperation::WrappingIntegerShiftLeft {
+                                psi_operation: operation,
+                                result,
+                                count_type: expected_count_type,
+                                value: source_value,
+                                count: source_count,
+                                ..
+                            }, Expression::WrappingShiftLeft { .. })
+                            | (AbstractOperation::WrappingIntegerShiftRight {
+                                psi_operation: operation,
+                                result,
+                                count_type: expected_count_type,
+                                value: source_value,
+                                count: source_count,
+                                ..
+                            }, Expression::WrappingShiftRight { .. }) => (
+                                operation,
+                                result,
+                                expected_count_type,
+                                source_value,
+                                source_count,
+                            ),
+                            _ => return false,
+                        };
+                    operation == psi_operation && *result == resolved
+                        && expected_count_type == count_type
+                        && self.integer_source(value, *source_value, aliases)
+                        && self.integer_source(count, *source_count, aliases)
+                })
+            }
+            Expression::ExactShiftLeft { psi_operation, obligation, count_type, value, count }
+            | Expression::ExactShiftRight { psi_operation, obligation, count_type, value, count } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                    let (operation, result, source_obligation, expected_count_type, source_value, source_count) =
+                        match (&node.operation, expression) {
+                            (AbstractOperation::ExactIntegerShiftLeft {
+                                psi_operation: operation,
+                                obligation: source_obligation,
+                                result,
+                                count_type: expected_count_type,
+                                value: source_value,
+                                count: source_count,
+                                ..
+                            }, Expression::ExactShiftLeft { .. })
+                            | (AbstractOperation::ExactIntegerShiftRight {
+                                psi_operation: operation,
+                                obligation: source_obligation,
+                                result,
+                                count_type: expected_count_type,
+                                value: source_value,
+                                count: source_count,
+                                ..
+                            }, Expression::ExactShiftRight { .. }) => (
+                                operation,
+                                result,
+                                source_obligation,
+                                expected_count_type,
+                                source_value,
+                                source_count,
+                            ),
+                            _ => return false,
+                        };
+                    operation == psi_operation && *result == resolved
+                        && source_obligation == obligation
+                        && expected_count_type == count_type
+                        && self.integer_source(value, *source_value, aliases)
+                        && self.integer_source(count, *source_count, aliases)
+                })
+            }
             Expression::SaturatingAdd { psi_operation, left, right } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::SaturatingIntegerAdd { psi_operation: operation, result, left: source_left, right: source_right, .. }

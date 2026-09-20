@@ -494,6 +494,40 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::WrappingShiftLeft { value, count } => {
+                    bytes.push(81);
+                    bytes.extend_from_slice(&value.get().to_le_bytes());
+                    bytes.extend_from_slice(&count.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::WrappingShiftRight { value, count } => {
+                    bytes.push(82);
+                    bytes.extend_from_slice(&value.get().to_le_bytes());
+                    bytes.extend_from_slice(&count.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::ExactShiftLeft {
+                    value,
+                    count,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(83);
+                    bytes.extend_from_slice(&value.get().to_le_bytes());
+                    bytes.extend_from_slice(&count.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
+                LegalizedScalarInstructionKind::ExactShiftRight {
+                    value,
+                    count,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(84);
+                    bytes.extend_from_slice(&value.get().to_le_bytes());
+                    bytes.extend_from_slice(&count.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,
                     left,

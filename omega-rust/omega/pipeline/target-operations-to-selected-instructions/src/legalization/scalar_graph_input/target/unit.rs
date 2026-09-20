@@ -393,6 +393,10 @@ pub(super) fn validate_operation(
             | AbstractOperation::WrappingIntegerSubtract { .. }
             | AbstractOperation::WrappingIntegerMultiply { .. }
             | AbstractOperation::WrappingIntegerDivide { .. }
+            | AbstractOperation::WrappingIntegerShiftLeft { .. }
+            | AbstractOperation::WrappingIntegerShiftRight { .. }
+            | AbstractOperation::ExactIntegerShiftLeft { .. }
+            | AbstractOperation::ExactIntegerShiftRight { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerDivide { .. }
             | AbstractOperation::ExactIntegerMultiply { .. }

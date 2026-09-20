@@ -799,6 +799,191 @@ pub(super) fn build_with_environment(
                             output
                         }
                     }
+                    LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
+                    | LegalizedScalarInstructionKind::WrappingShiftRight { value, count }
+                    | LegalizedScalarInstructionKind::ExactShiftLeft { value, count, .. }
+                    | LegalizedScalarInstructionKind::ExactShiftRight { value, count, .. } => {
+                        let (_, value_register, _, resolved_value_type) =
+                            builder.resolve(*value).ok_or_else(invalid)?;
+                        let (_, mut count_register, count_site, count_type) =
+                            builder.resolve(*count).ok_or_else(invalid)?;
+                        let ScalarType::Integer(value_integer) = scalar_type else {
+                            return Err(invalid());
+                        };
+                        let ScalarType::Integer(count_integer) = count_type else {
+                            return Err(invalid());
+                        };
+                        // The result carries the shifted value's type; the
+                        // count keeps its own integer type and only needs a
+                        // native fixed carrier.
+                        if resolved_value_type != scalar_type
+                            || value_integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+                            || !matches!(value_integer.bits(), 8 | 16 | 32 | 64)
+                            || count_integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+                            || !matches!(count_integer.bits(), 8 | 16 | 32 | 64)
+                        {
+                            return Err(invalid());
+                        }
+                        let exact = matches!(
+                            operation.kind,
+                            LegalizedScalarInstructionKind::ExactShiftLeft { .. }
+                                | LegalizedScalarInstructionKind::ExactShiftRight { .. }
+                        );
+                        // Both targets reduce the register count modulo 64.
+                        // A narrower value's wrapping semantics reduce modulo
+                        // its own width, so mask the count by `width - 1`
+                        // first. The exact count is proven inside [0, width),
+                        // which already satisfies the hardware reduction.
+                        if !exact && value_integer.bits() < 64 {
+                            let mask = builder.register(
+                                *count,
+                                count_site,
+                                ScalarType::Integer(
+                                    semantic_vocabulary::IntegerType::new(
+                                        IntegerSign::Unsigned,
+                                        64,
+                                    )
+                                    .map_err(|_| invalid())?,
+                                ),
+                            )?;
+                            builder.emit(
+                                SelectedInstructionKind::MaterializeI64 {
+                                    value: IntegerValue::Unsigned(u128::from(
+                                        value_integer.bits() - 1,
+                                    )),
+                                },
+                                constraints.keys.materialize_i64,
+                                &[mask],
+                                SelectedInstructionProvenance {
+                                    values: vec![*count],
+                                    ..Default::default()
+                                },
+                            )?;
+                            let masked = builder.register(*count, count_site, count_type)?;
+                            builder.emit(
+                                SelectedInstructionKind::BitwiseAndI64,
+                                constraints.keys.subtract_i64,
+                                &[count_register, mask, masked],
+                                SelectedInstructionProvenance {
+                                    values: vec![*count],
+                                    ..Default::default()
+                                },
+                            )?;
+                            count_register = masked;
+                        }
+                        let signed = value_integer.sign() == IntegerSign::Signed;
+                        let (kind, key) = match &operation.kind {
+                            LegalizedScalarInstructionKind::WrappingShiftLeft { .. } => (
+                                SelectedInstructionKind::WrappingShiftLeftI64,
+                                constraints.keys.shift_i64,
+                            ),
+                            LegalizedScalarInstructionKind::WrappingShiftRight { .. } => (
+                                if signed {
+                                    SelectedInstructionKind::WrappingShiftRightI64
+                                } else {
+                                    SelectedInstructionKind::WrappingShiftRightU64
+                                },
+                                constraints.keys.shift_i64,
+                            ),
+                            LegalizedScalarInstructionKind::ExactShiftLeft {
+                                obligation,
+                                accepted_fact,
+                                ..
+                            } => (
+                                SelectedInstructionKind::ExactShiftLeftI64 {
+                                    obligation: *obligation,
+                                    accepted_fact: *accepted_fact,
+                                },
+                                constraints.keys.shift_i64,
+                            ),
+                            LegalizedScalarInstructionKind::ExactShiftRight {
+                                obligation,
+                                accepted_fact,
+                                ..
+                            } => (
+                                if signed {
+                                    SelectedInstructionKind::ExactShiftRightI64 {
+                                        obligation: *obligation,
+                                        accepted_fact: *accepted_fact,
+                                    }
+                                } else {
+                                    SelectedInstructionKind::ExactShiftRightU64 {
+                                        obligation: *obligation,
+                                        accepted_fact: *accepted_fact,
+                                    }
+                                },
+                                constraints.keys.shift_i64,
+                            ),
+                            _ => unreachable!("shift dispatch"),
+                        };
+                        let raw =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let mut operands = vec![value_register, count_register, raw];
+                        if environment.target().architecture == target::Architecture::X86_64
+                            && count_register == value_register
+                        {
+                            // The realized form copies the value into the
+                            // early-clobber result before the shift reads CL.
+                            // A shared value/count register must reach RCX
+                            // through its own copy so the fixed-view and
+                            // early-clobber rules stay disjoint.
+                            count_register =
+                                builder.copy(count_register, *count, count_site, count_type)?;
+                            operands[1] = count_register;
+                        }
+                        builder.emit(
+                            kind,
+                            key,
+                            &operands,
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*value, *count, result.value],
+                                obligations: match &operation.kind {
+                                    LegalizedScalarInstructionKind::ExactShiftLeft {
+                                        obligation,
+                                        ..
+                                    }
+                                    | LegalizedScalarInstructionKind::ExactShiftRight {
+                                        obligation,
+                                        ..
+                                    } => vec![*obligation],
+                                    _ => vec![],
+                                },
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        // The i64 shift leaves out-of-carrier bits in a narrow
+                        // wrapping result; re-normalize it like the other
+                        // wrapping arithmetic rows. Exact results are proven
+                        // canonical by their retained obligation.
+                        let normalization = if exact {
+                            SelectedInstructionKind::CopyI64
+                        } else {
+                            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                scalar_type,
+                            )
+                        };
+                        if normalization == SelectedInstructionKind::CopyI64 {
+                            raw
+                        } else {
+                            let output = builder.register(
+                                result.value,
+                                result.definition_site,
+                                scalar_type,
+                            )?;
+                            builder.emit(
+                                normalization,
+                                constraints.keys.copy_i64,
+                                &[raw, output],
+                                SelectedInstructionProvenance {
+                                    values: vec![result.value],
+                                    ..Default::default()
+                                },
+                            )?;
+                            output
+                        }
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,

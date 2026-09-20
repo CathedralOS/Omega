@@ -15,15 +15,15 @@ use crate::register_model::{
     X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64,
     X86_64_REMAINDER_I64, X86_64_REMAINDER_U64, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
     X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
-    X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_STORE,
-    X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
-    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
-    x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
-    x86_64_microsoft_normalized_foreign_call_keys, x86_64_microsoft_register_call_keys,
-    x86_64_microsoft_register_unit_call_keys, x86_64_physical_register_model,
-    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
-    x86_64_system_v_normalized_foreign_call_keys, x86_64_system_v_register_call_keys,
-    x86_64_system_v_register_unit_call_keys,
+    X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64,
+    X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
+    X86_64_SYSTEM_V_RETURN_UNIT, x86_64_microsoft_aggregate_call_keys,
+    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_normalized_foreign_call_keys,
+    x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
+    x86_64_physical_register_model, x86_64_system_v_aggregate_call_keys,
+    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
+    x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
@@ -427,6 +427,26 @@ pub fn x86_64_register_constraint_catalog(
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // Variable shifts read the count through CL, so the count operand is
+    // pinned to RCX. The result is an early-clobber definition: it is written
+    // by the value copy before the shift reads CL, so it can share neither
+    // the live count home nor the value home it is initialized from.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_SHIFT_I64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            fixed(1, RegisterOperandAccess::Use, "rcx"),
+            {
+                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),

@@ -548,6 +548,12 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::BitwiseNotI64 => 94,
         MachineAlternativeFamily::SaveFloatingControl => 103,
         MachineAlternativeFamily::RestoreFloatingControl => 104,
+        MachineAlternativeFamily::WrappingShiftLeftI64 => 105,
+        MachineAlternativeFamily::WrappingShiftRightI64 => 106,
+        MachineAlternativeFamily::WrappingShiftRightU64 => 107,
+        MachineAlternativeFamily::ExactShiftLeftI64 => 108,
+        MachineAlternativeFamily::ExactShiftRightI64 => 109,
+        MachineAlternativeFamily::ExactShiftRightU64 => 110,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

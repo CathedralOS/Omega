@@ -121,6 +121,24 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::WrappingAdd { left, right }
                     | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
                     | LegalizedScalarInstructionKind::WrappingMultiply { left, right }
+                    | LegalizedScalarInstructionKind::WrappingShiftLeft {
+                        value: left,
+                        count: right,
+                    }
+                    | LegalizedScalarInstructionKind::WrappingShiftRight {
+                        value: left,
+                        count: right,
+                    }
+                    | LegalizedScalarInstructionKind::ExactShiftLeft {
+                        value: left,
+                        count: right,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::ExactShiftRight {
+                        value: left,
+                        count: right,
+                        ..
+                    }
                     | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                     | LegalizedScalarInstructionKind::BitwiseOr { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right }
@@ -381,6 +399,38 @@ pub enum LegalizedScalarInstructionKind {
     WrappingMultiply {
         left: ValueId,
         right: ValueId,
+    },
+    /// Left shift of the normalized `value` carrier by `count` reduced modulo
+    /// the value width. The count keeps its own integer type; its low bits
+    /// after reduction select the shift amount.
+    WrappingShiftLeft {
+        value: ValueId,
+        count: ValueId,
+    },
+    /// Right shift of the normalized `value` carrier by `count` reduced modulo
+    /// the value width: logical for unsigned value carriers, arithmetic for
+    /// signed ones. The count keeps its own integer type.
+    WrappingShiftRight {
+        value: ValueId,
+        count: ValueId,
+    },
+    /// Left shift of the normalized `value` carrier by an independently typed
+    /// `count` proven inside `[0, width)`; the representable-result obligation
+    /// is retained because an out-of-range count or result is not defined.
+    ExactShiftLeft {
+        value: ValueId,
+        count: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// Right shift of the normalized `value` carrier by an independently typed
+    /// `count` proven inside `[0, width)`; logical for unsigned value carriers,
+    /// arithmetic for signed ones. The in-range obligation stays attached.
+    ExactShiftRight {
+        value: ValueId,
+        count: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ExactBinary {
         operator: super::super::LegalizedExactIntegerOperator,

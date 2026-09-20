@@ -77,6 +77,7 @@ fn keys() -> SelectedConstraintKeys {
         remainder_u64: instruction(45),
         remainder_i64: instruction(38),
         divide_i64: instruction(46),
+        shift_i64: instruction(47),
         saturating_add_clamped: instruction(40),
         saturating_subtract_clamped: instruction(41),
         saturating_divide_signed: instruction(42),
@@ -323,6 +324,12 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
         (MachineSemanticKind::WrappingDivideI64, 92),
         (MachineSemanticKind::BitwiseOrI64, 93),
         (MachineSemanticKind::BitwiseNotI64, 94),
+        (MachineSemanticKind::WrappingShiftLeftI64, 105),
+        (MachineSemanticKind::WrappingShiftRightI64, 106),
+        (MachineSemanticKind::WrappingShiftRightU64, 107),
+        (MachineSemanticKind::ExactShiftLeftI64, 108),
+        (MachineSemanticKind::ExactShiftRightI64, 109),
+        (MachineSemanticKind::ExactShiftRightU64, 110),
     ] {
         assert_eq!(semantic_kind_tag(semantic), tag);
         assert_eq!(
@@ -356,6 +363,16 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
         keys.for_semantic(MachineSemanticKind::BitwiseNotI64),
         Some(keys.copy_i64)
     );
+    for semantic in [
+        MachineSemanticKind::WrappingShiftLeftI64,
+        MachineSemanticKind::WrappingShiftRightI64,
+        MachineSemanticKind::WrappingShiftRightU64,
+        MachineSemanticKind::ExactShiftLeftI64,
+        MachineSemanticKind::ExactShiftRightI64,
+        MachineSemanticKind::ExactShiftRightU64,
+    ] {
+        assert_eq!(keys.for_semantic(semantic), Some(keys.shift_i64));
+    }
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
     for mutation in 0..4 {

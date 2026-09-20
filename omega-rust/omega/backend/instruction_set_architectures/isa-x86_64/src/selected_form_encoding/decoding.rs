@@ -140,6 +140,18 @@ pub(crate) enum DecodedInstruction {
         source: u8,
         destination: u8,
     },
+    /// `shl destination, cl`: the D3 /4 variable-count left shift.
+    ShiftLeftByCl {
+        destination: u8,
+    },
+    /// `shr destination, cl`: the D3 /6 logical variable-count right shift.
+    ShiftRightLogicalByCl {
+        destination: u8,
+    },
+    /// `sar destination, cl`: the D3 /7 arithmetic variable-count right shift.
+    ShiftRightArithmeticByCl {
+        destination: u8,
+    },
     Negate {
         destination: u8,
     },
@@ -413,7 +425,7 @@ pub(crate) fn decode_one(
     }
     if matches!(
         opcode,
-        0x89 | 0x85 | 0x39 | 0x31 | 0x29 | 0x01 | 0x21 | 0x09 | 0x19 | 0xf7
+        0x89 | 0x85 | 0x39 | 0x31 | 0x29 | 0x01 | 0x21 | 0x09 | 0x19 | 0xf7 | 0xd3
     ) {
         if mode != 3 || bytes.len() < 3 {
             return Err(X86_64SelectedFormEncodingError::MalformedEncoding);
@@ -456,6 +468,9 @@ pub(crate) fn decode_one(
             0xf7 if reg == 6 && rex_x == 0 => DecodedInstruction::UnsignedDivide { divisor: rm },
             0xf7 if reg == 7 && rex_x == 0 => DecodedInstruction::SignedDivide { divisor: rm },
             0xf7 if (modrm >> 3) & 7 == 3 => DecodedInstruction::Negate { destination: rm },
+            0xd3 if reg == 4 => DecodedInstruction::ShiftLeftByCl { destination: rm },
+            0xd3 if reg == 6 => DecodedInstruction::ShiftRightLogicalByCl { destination: rm },
+            0xd3 if reg == 7 => DecodedInstruction::ShiftRightArithmeticByCl { destination: rm },
             _ => return Err(X86_64SelectedFormEncodingError::MalformedEncoding),
         };
         return Ok((decoded, 3));
@@ -876,6 +891,42 @@ pub(crate) fn validate_decoded(
             }
             _ => false,
         },
+        SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
+        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            // The count source must resolve to the pinned RCX view; the
+            // realization is the unconditional value copy into the result
+            // followed by the in-place variable-count shift.
+            let shift = match kind {
+                SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
+                    DecodedInstruction::ShiftLeftByCl {
+                        destination: registers[2],
+                    }
+                }
+                SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+                    DecodedInstruction::ShiftRightLogicalByCl {
+                        destination: registers[2],
+                    }
+                }
+                _ => DecodedInstruction::ShiftRightArithmeticByCl {
+                    destination: registers[2],
+                },
+            };
+            registers[1] == 1
+                && decoded
+                    == [
+                        DecodedInstruction::Move {
+                            source: registers[0],
+                            destination: registers[2],
+                        },
+                        shift,
+                    ]
+        }
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
@@ -1233,6 +1284,16 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::WrappingMultiplyI64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
+        // The single shift form reads the value and the pinned RCX count and
+        // writes the early-clobber result; SHx by CL writes RFLAGS.
+        SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
+        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            (vec![operands[0], operands[1]], vec![operands[2]], true)
+        }
         SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
         | SelectedInstructionKind::BitwiseXorI64 => {
@@ -1367,6 +1428,12 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingSubtractI64
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::WrappingMultiplyI64
+                | SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::WrappingShiftRightI64
+                | SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseOrI64
                 | SelectedInstructionKind::BitwiseXorI64 => vec![0, 1],
@@ -1394,6 +1461,12 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::WrappingMultiplyI64
+                | SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::WrappingShiftRightI64
+                | SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. }
                 | SelectedInstructionKind::WrappingSubtractI64 => vec![2],
                 SelectedInstructionKind::BitwiseAndI64
@@ -1423,6 +1496,12 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingSubtractI64
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::WrappingMultiplyI64
+                | SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::WrappingShiftRightI64
+                | SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseOrI64
                 | SelectedInstructionKind::BitwiseXorI64

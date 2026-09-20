@@ -191,6 +191,15 @@ pub const AARCH64_REMAINDER_U64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 63,
 };
 
+/// Flag-transparent three-address variable-count shift. The register forms
+/// `LSLV`, `LSRV`, and `ASRV` all share the shape `Xd = Xn shifted by the
+/// low six bits of Xm`, so the count needs no pinning or masking and every
+/// operand stays allocatable.
+pub const AARCH64_SHIFT_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 64,
+};
+
 /// Flag-transparent three-address exact i64 subtraction, matching the
 /// ordinary AArch64 `SUB` register form.
 pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -290,7 +299,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 90] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 91] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -469,6 +478,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 90] = [
     AARCH64_MULTIPLY_I64,
     AARCH64_DIVIDE_I64,
     AARCH64_REMAINDER_U64,
+    AARCH64_SHIFT_I64,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,

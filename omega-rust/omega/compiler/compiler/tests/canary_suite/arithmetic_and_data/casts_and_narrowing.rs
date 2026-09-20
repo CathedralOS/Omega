@@ -1,7 +1,7 @@
 use super::fixture_roster;
 use crate::{
-    Command, compile_rooted_canary_for_native_host, executable_name, fs, pass_canary,
-    unique_no_output_build_dir,
+    Command, compile_native_canary_without_output, compile_rooted_canary_for_native_host,
+    executable_name, fs, pass_canary, unique_no_output_build_dir,
 };
 
 #[test]
@@ -775,16 +775,16 @@ fn constant_trapping_shift_value_overflow_aborts() {
 fn wrapping_overwidth_shift_reaches_native_artifact_without_panicking() {
     // The regression was a constant-folder panic, so checked trees alone do
     // not exercise it. Keep the fixture's explicitly Wrapping left operand.
+    // NativeArtifact (not publish) keeps the retained artifact readable;
+    // publishing consumes it into the executable receipt.
     let canary = pass_canary(fixture_roster::SHIFT_AMOUNT_OVER_WIDTH_COMPILES);
-    let scratch = unique_no_output_build_dir();
-    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_native_canary_without_output(&canary)
         .expect("overwidth Wrapping shift should compile without a folder panic");
     compilation
         .retained_native_artifact()
         .expect("overwidth Wrapping shift should retain its native artifact")
         .validate()
         .expect("overwidth Wrapping shift artifact should replay");
-    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]

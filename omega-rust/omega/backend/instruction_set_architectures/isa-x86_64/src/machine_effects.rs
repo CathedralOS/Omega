@@ -282,6 +282,7 @@ fn selected_keys(
         remainder_u64: crate::register_model::X86_64_REMAINDER_U64,
         remainder_i64: crate::register_model::X86_64_REMAINDER_I64,
         divide_i64: crate::register_model::X86_64_DIVIDE_I64,
+        shift_i64: crate::register_model::X86_64_SHIFT_I64,
         saturating_add_clamped: crate::register_model::X86_64_SATURATING_ADD_CLAMPED,
         saturating_subtract_clamped: crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
         saturating_divide_signed: crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED,
@@ -425,6 +426,20 @@ fn declaration(
             MachineAlternativeApplicability::Always,
             MachineSizeKnowledge::ExactBytes(6),
         )],
+        // The early-clobber result never shares the pinned RCX count or the
+        // value it is initialized from, so `mov result, value; shX result, cl`
+        // is the only realization and applies to every allocation.
+        MachineSemanticKind::WrappingShiftLeftI64
+        | MachineSemanticKind::WrappingShiftRightI64
+        | MachineSemanticKind::WrappingShiftRightU64
+        | MachineSemanticKind::ExactShiftLeftI64
+        | MachineSemanticKind::ExactShiftRightI64
+        | MachineSemanticKind::ExactShiftRightU64 => vec![alternative(
+            semantic,
+            0,
+            MachineAlternativeApplicability::Always,
+            MachineSizeKnowledge::ExactBytes(6),
+        )],
         _ => vec![alternative(
             semantic,
             0,
@@ -545,6 +560,12 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => {
             (vec![0, 1], vec![2])
         }
+        MachineSemanticKind::WrappingShiftLeftI64
+        | MachineSemanticKind::WrappingShiftRightI64
+        | MachineSemanticKind::WrappingShiftRightU64
+        | MachineSemanticKind::ExactShiftLeftI64
+        | MachineSemanticKind::ExactShiftRightI64
+        | MachineSemanticKind::ExactShiftRightU64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
@@ -639,6 +660,12 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             | MachineSemanticKind::SaturatingSubtract(_)
             | MachineSemanticKind::ExactMultiplyI64
             | MachineSemanticKind::WrappingMultiplyI64
+            | MachineSemanticKind::WrappingShiftLeftI64
+            | MachineSemanticKind::WrappingShiftRightI64
+            | MachineSemanticKind::WrappingShiftRightU64
+            | MachineSemanticKind::ExactShiftLeftI64
+            | MachineSemanticKind::ExactShiftRightI64
+            | MachineSemanticKind::ExactShiftRightU64
             | MachineSemanticKind::ExactSubtractI64
             | MachineSemanticKind::WrappingSubtractI64 => (
                 vec![],
@@ -815,8 +842,14 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ExactSubtractI64
         | MachineSemanticKind::WrappingSubtractI64
         | MachineSemanticKind::ExactMultiplyI64
-        | MachineSemanticKind::WrappingMultiplyI64 => {
-            unreachable!("subtraction and multiplication declare alias-dependent alternatives")
+        | MachineSemanticKind::WrappingMultiplyI64
+        | MachineSemanticKind::WrappingShiftLeftI64
+        | MachineSemanticKind::WrappingShiftRightI64
+        | MachineSemanticKind::WrappingShiftRightU64
+        | MachineSemanticKind::ExactShiftLeftI64
+        | MachineSemanticKind::ExactShiftRightI64
+        | MachineSemanticKind::ExactShiftRightU64 => {
+            unreachable!("subtraction, multiplication, and shifts declare explicit alternatives")
         }
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate

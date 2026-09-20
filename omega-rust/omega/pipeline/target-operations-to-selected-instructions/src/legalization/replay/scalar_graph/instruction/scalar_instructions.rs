@@ -238,6 +238,135 @@ pub(super) fn validate_exact_binary(
     Ok(())
 }
 
+/// The shift replay checks the independently typed count next to the
+/// shifted value; the exact forms additionally replay the accepted in-range
+/// fact custody every proof-bearing operation keeps.
+pub(super) fn validate_shift(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), LegalizationError> {
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    let (
+        value,
+        count,
+        exact_custody,
+        psi_operation,
+        source_value,
+        source_count,
+        value_type,
+        count_type,
+    ) = match (&actual.kind, &node.operation) {
+        (
+            LegalizedScalarInstructionKind::WrappingShiftLeft { value, count },
+            AbstractOperation::WrappingIntegerShiftLeft {
+                psi_operation,
+                value_type,
+                count_type,
+                value: source_value,
+                count: source_count,
+                ..
+            },
+        )
+        | (
+            LegalizedScalarInstructionKind::WrappingShiftRight { value, count },
+            AbstractOperation::WrappingIntegerShiftRight {
+                psi_operation,
+                value_type,
+                count_type,
+                value: source_value,
+                count: source_count,
+                ..
+            },
+        ) => (
+            value,
+            count,
+            None,
+            psi_operation,
+            source_value,
+            source_count,
+            value_type,
+            count_type,
+        ),
+        (
+            LegalizedScalarInstructionKind::ExactShiftLeft {
+                value,
+                count,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::ExactIntegerShiftLeft {
+                psi_operation,
+                obligation: source_obligation,
+                value_type,
+                count_type,
+                value: source_value,
+                count: source_count,
+                ..
+            },
+        )
+        | (
+            LegalizedScalarInstructionKind::ExactShiftRight {
+                value,
+                count,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::ExactIntegerShiftRight {
+                psi_operation,
+                obligation: source_obligation,
+                value_type,
+                count_type,
+                value: source_value,
+                count: source_count,
+                ..
+            },
+        ) => (
+            value,
+            count,
+            Some((obligation, accepted_fact, source_obligation)),
+            psi_operation,
+            source_value,
+            source_count,
+            value_type,
+            count_type,
+        ),
+        _ => unreachable!("dispatched validate_shift"),
+    };
+    if scalar_graph_input::scalar_shape(ScalarType::Integer(*value_type)).is_none()
+        || scalar_graph_input::scalar_shape(ScalarType::Integer(*count_type)).is_none()
+        || value != source_value
+        || count != source_count
+        || scalar_graph_input::value_type(optimized, *value)
+            != Some(ScalarType::Integer(*value_type))
+        || scalar_graph_input::value_type(optimized, *count)
+            != Some(ScalarType::Integer(*count_type))
+    {
+        return Err(invalid);
+    }
+    if let Some((obligation, accepted_fact, source_obligation)) = exact_custody {
+        let fact = unit
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *source_obligation
+            })
+            .ok_or(Error::SourceCustodyMismatch)?;
+        if obligation != source_obligation
+            || *accepted_fact != fact.identity
+            || !optimized.facts.iter().any(|fact| matches!(fact,
+                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                if referenced == source_obligation && support == psi_operation))
+        {
+            return Err(invalid);
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_compare(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,

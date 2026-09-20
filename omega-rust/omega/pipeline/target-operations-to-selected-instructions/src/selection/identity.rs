@@ -190,6 +190,12 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 57,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
+        SelectedInstructionKind::WrappingShiftLeftI64 => 105,
+        SelectedInstructionKind::WrappingShiftRightI64 => 106,
+        SelectedInstructionKind::WrappingShiftRightU64 => 107,
+        SelectedInstructionKind::ExactShiftLeftI64 { .. } => 108,
+        SelectedInstructionKind::ExactShiftRightI64 { .. } => 109,
+        SelectedInstructionKind::ExactShiftRightU64 { .. } => 110,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
@@ -283,6 +289,18 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ExactMultiplyI64 {
             obligation,
             accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftLeftI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftRightI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftRightU64 {
+            obligation,
+            accepted_fact,
         } => {
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
@@ -328,6 +346,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::WrappingSubtractI64
         | SelectedInstructionKind::WrappingMultiplyI64
+        | SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
         | SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::CompareI64

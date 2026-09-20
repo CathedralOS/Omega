@@ -95,10 +95,16 @@ pub enum MachineSemanticKind {
     BitwiseNotI64,
     SaveFloatingControl,
     RestoreFloatingControl,
+    WrappingShiftLeftI64,
+    WrappingShiftRightI64,
+    WrappingShiftRightU64,
+    ExactShiftLeftI64,
+    ExactShiftRightI64,
+    ExactShiftRightU64,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 100] = [
+    pub const ALL: [Self; 106] = [
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -199,6 +205,12 @@ impl MachineSemanticKind {
         Self::BitwiseNotI64,
         Self::SaveFloatingControl,
         Self::RestoreFloatingControl,
+        Self::WrappingShiftLeftI64,
+        Self::WrappingShiftRightI64,
+        Self::WrappingShiftRightU64,
+        Self::ExactShiftLeftI64,
+        Self::ExactShiftRightI64,
+        Self::ExactShiftRightU64,
     ];
 }
 
@@ -276,6 +288,12 @@ pub enum MachineAlternativeFamily {
     BitwiseNotI64,
     SaveFloatingControl,
     RestoreFloatingControl,
+    WrappingShiftLeftI64,
+    WrappingShiftRightI64,
+    WrappingShiftRightU64,
+    ExactShiftLeftI64,
+    ExactShiftRightI64,
+    ExactShiftRightU64,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -362,6 +380,12 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::WrappingDivideI64 => Self::WrappingDivideI64,
             MachineSemanticKind::BitwiseOrI64 => Self::BitwiseOrI64,
             MachineSemanticKind::BitwiseNotI64 => Self::BitwiseNotI64,
+            MachineSemanticKind::WrappingShiftLeftI64 => Self::WrappingShiftLeftI64,
+            MachineSemanticKind::WrappingShiftRightI64 => Self::WrappingShiftRightI64,
+            MachineSemanticKind::WrappingShiftRightU64 => Self::WrappingShiftRightU64,
+            MachineSemanticKind::ExactShiftLeftI64 => Self::ExactShiftLeftI64,
+            MachineSemanticKind::ExactShiftRightI64 => Self::ExactShiftRightI64,
+            MachineSemanticKind::ExactShiftRightU64 => Self::ExactShiftRightU64,
         }
     }
 }

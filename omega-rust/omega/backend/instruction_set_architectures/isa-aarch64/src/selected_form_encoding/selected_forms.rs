@@ -173,6 +173,24 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactMultiplyI64 { .. } => {
             (MachineAlternativeFamily::ExactMultiplyI64, 3)
         }
+        SelectedInstructionKind::WrappingShiftLeftI64 => {
+            (MachineAlternativeFamily::WrappingShiftLeftI64, 3)
+        }
+        SelectedInstructionKind::WrappingShiftRightI64 => {
+            (MachineAlternativeFamily::WrappingShiftRightI64, 3)
+        }
+        SelectedInstructionKind::WrappingShiftRightU64 => {
+            (MachineAlternativeFamily::WrappingShiftRightU64, 3)
+        }
+        SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
+            (MachineAlternativeFamily::ExactShiftLeftI64, 3)
+        }
+        SelectedInstructionKind::ExactShiftRightI64 { .. } => {
+            (MachineAlternativeFamily::ExactShiftRightI64, 3)
+        }
+        SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            (MachineAlternativeFamily::ExactShiftRightU64, 3)
+        }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (MachineAlternativeFamily::ExactAddI64Immediate, 2)
         }
@@ -499,6 +517,28 @@ fn encode_unchecked(
                     | (u32::from(registers[0]) << 5)
                     | u32::from(registers[2]),
             );
+        }
+        SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
+        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            // The register-form shifts `LSLV`/`LSRV`/`ASRV Xd, Xn, Xm` read
+            // the low six count bits themselves, so the upstream modulo
+            // reduction needs no separate masking word here.
+            words.push(three_address(
+                match kind {
+                    SelectedInstructionKind::WrappingShiftLeftI64
+                    | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 0x9ac0_2000,
+                    SelectedInstructionKind::WrappingShiftRightU64
+                    | SelectedInstructionKind::ExactShiftRightU64 { .. } => 0x9ac0_2400,
+                    _ => 0x9ac0_2800,
+                },
+                registers[0],
+                registers[1],
+                registers[2],
+            ));
         }
         SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
             words.push(

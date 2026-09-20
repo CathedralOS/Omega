@@ -158,6 +158,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::BitwiseNotI64 => 94,
         SelectedInstructionKind::SaveFloatingControl { .. } => 103,
         SelectedInstructionKind::RestoreFloatingControl { .. } => 104,
+        SelectedInstructionKind::WrappingShiftLeftI64 => 105,
+        SelectedInstructionKind::WrappingShiftRightI64 => 106,
+        SelectedInstructionKind::WrappingShiftRightU64 => 107,
+        SelectedInstructionKind::ExactShiftLeftI64 { .. } => 108,
+        SelectedInstructionKind::ExactShiftRightI64 { .. } => 109,
+        SelectedInstructionKind::ExactShiftRightU64 { .. } => 110,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::LoadPacked { .. } => 46,
@@ -264,6 +270,18 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::ExactMultiplyI64 {
             obligation,
             accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftLeftI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftRightI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftRightU64 {
+            obligation,
+            accepted_fact,
         } => {
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
@@ -296,6 +314,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::WrappingSubtractI64
         | SelectedInstructionKind::WrappingMultiplyI64
+        | SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
         | SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::Float32ToBits

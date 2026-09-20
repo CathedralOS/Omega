@@ -376,6 +376,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ExactIntegerRemainder { .. }
                 | AbstractOperation::WrappingIntegerRemainder { .. }
                 | AbstractOperation::WrappingIntegerDivide { .. }
+                // Shifts replay their value/count snapshots; the exact forms
+                // keep the accepted in-range count evidence.
+                | AbstractOperation::WrappingIntegerShiftLeft { .. }
+                | AbstractOperation::WrappingIntegerShiftRight { .. }
+                | AbstractOperation::ExactIntegerShiftLeft { .. }
+                | AbstractOperation::ExactIntegerShiftRight { .. }
                 | AbstractOperation::SaturatingIntegerSubtract { .. }
                 | AbstractOperation::SaturatingIntegerAdd { .. }
                 | AbstractOperation::SaturatingIntegerDivide { .. }

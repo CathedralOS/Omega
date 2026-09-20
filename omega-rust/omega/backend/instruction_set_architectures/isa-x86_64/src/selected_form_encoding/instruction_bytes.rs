@@ -477,6 +477,30 @@ pub(crate) fn encode_unchecked(
                 _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
             }
         }
+        SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
+        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            // D3 /digit shifts r/m64 by CL: the count source must be the
+            // pinned RCX view (code 1), the result takes a copy of the value
+            // first because the shift form is in-place, and the digit picks
+            // SHL, SHR or SAR. The copy is unconditional so the form stays
+            // the declared six bytes.
+            if registers[1] != 1 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            let digit = match kind {
+                SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 4,
+                SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftRightU64 { .. } => 6,
+                _ => 7,
+            };
+            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
+            bytes.extend([rex(0, 0, registers[2]), 0xd3, modrm(3, digit, registers[2])]);
+        }
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => bytes.push(0xc3),

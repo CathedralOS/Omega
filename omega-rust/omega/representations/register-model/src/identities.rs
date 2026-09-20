@@ -222,6 +222,7 @@ pub fn target_register_environment_identity(
         selected_keys.remainder_u64,
         selected_keys.remainder_i64,
         selected_keys.divide_i64,
+        selected_keys.shift_i64,
         selected_keys.saturating_add_clamped,
         selected_keys.saturating_subtract_clamped,
         selected_keys.saturating_divide_signed,

@@ -508,6 +508,22 @@ pub(super) fn validate(
             AbstractOperation::BoundaryCall { .. },
         ) => normalized_foreign::validate(actual, node, optimized, native, plan, unit, operation)?,
         (
+            LegalizedScalarInstructionKind::WrappingShiftLeft { .. },
+            AbstractOperation::WrappingIntegerShiftLeft { .. },
+        )
+        | (
+            LegalizedScalarInstructionKind::WrappingShiftRight { .. },
+            AbstractOperation::WrappingIntegerShiftRight { .. },
+        )
+        | (
+            LegalizedScalarInstructionKind::ExactShiftLeft { .. },
+            AbstractOperation::ExactIntegerShiftLeft { .. },
+        )
+        | (
+            LegalizedScalarInstructionKind::ExactShiftRight { .. },
+            AbstractOperation::ExactIntegerShiftRight { .. },
+        ) => scalar_instructions::validate_shift(actual, node, optimized, unit)?,
+        (
             LegalizedScalarInstructionKind::WrappingRemainder { .. },
             AbstractOperation::WrappingIntegerRemainder { .. },
         ) => scalar_instructions::validate_wrapping_remainder(actual, node, optimized, unit)?,

@@ -132,6 +132,24 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::WrappingAdd { left, right }
         | Instruction::WrappingSubtract { left, right }
         | Instruction::WrappingMultiply { left, right }
+        | Instruction::WrappingShiftLeft {
+            value: left,
+            count: right,
+        }
+        | Instruction::WrappingShiftRight {
+            value: left,
+            count: right,
+        }
+        | Instruction::ExactShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | Instruction::ExactShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
         | Instruction::BitwiseAnd { left, right }
         | Instruction::BitwiseOr { left, right }
         | Instruction::BitwiseXor { left, right }

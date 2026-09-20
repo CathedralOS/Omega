@@ -293,6 +293,116 @@ pub(super) fn project_wrapping_integer_divide(
     })
 }
 
+/// Shifts keep an independently typed count next to the shifted value. The
+/// wrapping forms reduce the count modulo the value width natively; the
+/// exact forms retain the accepted in-range fact discharging the shift
+/// obligation, matching every other proof-bearing operation.
+pub(super) fn project_shift(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let (psi_operation, value_type, count_type, value, count) = match &node.operation {
+        AbstractOperation::WrappingIntegerShiftLeft {
+            psi_operation,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerShiftRight {
+            psi_operation,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftRight {
+            psi_operation,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => (*psi_operation, *value_type, *count_type, *value, *count),
+        _ => unreachable!("dispatched project_shift"),
+    };
+    if scalar_graph_input::scalar_shape(ScalarType::Integer(value_type)).is_none()
+        || scalar_graph_input::scalar_shape(ScalarType::Integer(count_type)).is_none()
+        || scalar_graph_input::value_type(optimized, value) != Some(ScalarType::Integer(value_type))
+        || scalar_graph_input::value_type(optimized, count) != Some(ScalarType::Integer(count_type))
+    {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(match &node.operation {
+        AbstractOperation::WrappingIntegerShiftLeft { .. } => {
+            LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
+        }
+        AbstractOperation::WrappingIntegerShiftRight { .. } => {
+            LegalizedScalarInstructionKind::WrappingShiftRight { value, count }
+        }
+        AbstractOperation::ExactIntegerShiftLeft { obligation, .. } => {
+            LegalizedScalarInstructionKind::ExactShiftLeft {
+                value,
+                count,
+                obligation: *obligation,
+                accepted_fact: {
+                    let fact = unit
+                        .accepted_obligation_facts
+                        .iter()
+                        .find(|fact| {
+                            fact.machine == optimized.machine
+                                && fact.operation == psi_operation
+                                && fact.obligation == *obligation
+                        })
+                        .ok_or(Error::SourceCustodyMismatch)?;
+                    if !optimized.facts.iter().any(|fact| matches!(fact,
+                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                            if referenced == obligation && *support == psi_operation)) {
+                        return Err(Error::SourceCustodyMismatch);
+                    }
+                    fact.identity
+                },
+            }
+        }
+        AbstractOperation::ExactIntegerShiftRight { obligation, .. } => {
+            LegalizedScalarInstructionKind::ExactShiftRight {
+                value,
+                count,
+                obligation: *obligation,
+                accepted_fact: {
+                    let fact = unit
+                        .accepted_obligation_facts
+                        .iter()
+                        .find(|fact| {
+                            fact.machine == optimized.machine
+                                && fact.operation == psi_operation
+                                && fact.obligation == *obligation
+                        })
+                        .ok_or(Error::SourceCustodyMismatch)?;
+                    if !optimized.facts.iter().any(|fact| matches!(fact,
+                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                            if referenced == obligation && *support == psi_operation)) {
+                        return Err(Error::SourceCustodyMismatch);
+                    }
+                    fact.identity
+                },
+            }
+        }
+        _ => unreachable!("dispatched project_shift"),
+    })
+}
+
 pub(super) fn project_exact_integer_add(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,

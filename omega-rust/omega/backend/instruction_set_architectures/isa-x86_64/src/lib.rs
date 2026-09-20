@@ -27,6 +27,7 @@ pub use register_model::X86_64_SATURATING_ADD_U64;
 pub use register_model::X86_64_SATURATING_DIVIDE_SIGNED;
 pub use register_model::X86_64_SATURATING_SUBTRACT_CLAMPED;
 pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
+pub use register_model::X86_64_SHIFT_I64;
 pub use register_model::{
     X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
     X86_64_HOSTED_READ_BYTE,

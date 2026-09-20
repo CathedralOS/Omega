@@ -226,6 +226,21 @@ fn decode_kind(
         104 => SelectedInstructionKind::RestoreFloatingControl {
             slot: decode_local_storage_slot(cursor)?,
         },
+        105 => SelectedInstructionKind::WrappingShiftLeftI64,
+        106 => SelectedInstructionKind::WrappingShiftRightI64,
+        107 => SelectedInstructionKind::WrappingShiftRightU64,
+        108 => SelectedInstructionKind::ExactShiftLeftI64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
+        109 => SelectedInstructionKind::ExactShiftRightI64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
+        110 => SelectedInstructionKind::ExactShiftRightU64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
         tag if saturating_kind(tag).is_some() => {
             let (operation, carrier) = saturating_kind(tag).unwrap();
             match operation {
@@ -470,6 +485,12 @@ fn decode_alternative_for_version(
         94 => MachineAlternativeFamily::BitwiseNotI64,
         103 => MachineAlternativeFamily::SaveFloatingControl,
         104 => MachineAlternativeFamily::RestoreFloatingControl,
+        105 => MachineAlternativeFamily::WrappingShiftLeftI64,
+        106 => MachineAlternativeFamily::WrappingShiftRightI64,
+        107 => MachineAlternativeFamily::WrappingShiftRightU64,
+        108 => MachineAlternativeFamily::ExactShiftLeftI64,
+        109 => MachineAlternativeFamily::ExactShiftRightI64,
+        110 => MachineAlternativeFamily::ExactShiftRightU64,
         tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
             (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
             (SaturatingOperation::Subtract, carrier) => {
