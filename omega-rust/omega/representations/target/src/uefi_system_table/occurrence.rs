@@ -342,12 +342,12 @@ fn crc32_ieee(bytes: impl IntoIterator<Item = u8>) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TargetProfile, plan_uefi_system_table_native_layout};
+    use crate::{TargetProfile, exact_uefi_x64_system_table_native_layout};
 
     const TEST_REVISION: u32 = (2 << 16) | 100;
 
     fn layout() -> ValidatedUefiSystemTableNativeLayout {
-        plan_uefi_system_table_native_layout(TargetProfile::UefiX64).unwrap()
+        exact_uefi_x64_system_table_native_layout()
     }
 
     fn geometry() -> HeaderGeometry {

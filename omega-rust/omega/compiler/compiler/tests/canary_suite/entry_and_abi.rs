@@ -22,8 +22,12 @@ mod program_entries_and_image_validation;
 mod runtime_canaries_and_efi_handoff;
 #[path = "entry_and_abi/sysv_entry_abi.rs"]
 mod sysv_entry_abi;
+#[path = "entry_and_abi/uefi_boot_services_layout.rs"]
+mod uefi_boot_services_layout;
 #[path = "entry_and_abi/uefi_loaded_image_layout.rs"]
 mod uefi_loaded_image_layout;
+#[path = "entry_and_abi/uefi_system_table_layout.rs"]
+mod uefi_system_table_layout;
 
 use crate::{Command, CompileReport, Path, fs};
 

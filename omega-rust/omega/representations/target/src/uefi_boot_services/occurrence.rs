@@ -248,10 +248,10 @@ fn crc32_with_zeroed_field(bytes: &[u8], crc32_offset: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TargetProfile, plan_uefi_boot_services_native_layout};
+    use crate::exact_uefi_x64_boot_services_native_layout;
 
     fn layout() -> ValidatedUefiBootServicesNativeLayout {
-        plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap()
+        exact_uefi_x64_boot_services_native_layout()
     }
     fn valid_occurrence(header_size: usize) -> Vec<u8> {
         let mut bytes = vec![0; header_size];
