@@ -18,7 +18,9 @@
 //! patch-then-drain replacement join, `uninstall.rs` the drain-or-quarantine
 //! join; `container.rs`, `container_bytes.rs`,
 //! `materializer.rs`, `post_handoff_writer.rs` and `replacement_quarantine.rs`
-//! carry the container, writer and quarantine.
+//! carry the container, writer and quarantine. `owned_image_provider.rs` is a
+//! provider that performs the install and patch operations over resident image
+//! buffers it owns, minting the receipts the transitions consume.
 
 mod artifacts;
 mod authority_digests;
@@ -28,6 +30,7 @@ mod container_bytes;
 mod entry_references;
 mod installation;
 mod materializer;
+mod owned_image_provider;
 mod post_handoff_writer;
 mod replacement;
 mod replacement_quarantine;
@@ -67,6 +70,7 @@ pub use installation::{
     InstallationRegistryAuthority, InstalledCode, InstalledCodeContext, WxEnforcement,
 };
 pub use materializer::*;
+pub use owned_image_provider::*;
 pub use post_handoff_writer::*;
 pub use replacement::{
     ReplacementAuthority, ReplacementError, ReplacementOutcome, ReplacementReceipt,

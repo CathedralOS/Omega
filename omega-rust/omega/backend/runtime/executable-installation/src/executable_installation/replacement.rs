@@ -30,10 +30,10 @@ use layout_plans::EntryStubId;
 /// fragment's admission.
 #[derive(Debug)]
 pub struct ReplacementAuthority {
-    superseded: InstalledCodeEvidence,
-    successor: InstalledCodeEvidence,
-    sites: BTreeMap<EntryStubId, AdmittedArtifact>,
-    required_facts: BTreeSet<ReplacementFactDigest>,
+    pub(crate) superseded: InstalledCodeEvidence,
+    pub(crate) successor: InstalledCodeEvidence,
+    pub(crate) sites: BTreeMap<EntryStubId, AdmittedArtifact>,
+    pub(crate) required_facts: BTreeSet<ReplacementFactDigest>,
 }
 
 impl ReplacementAuthority {
