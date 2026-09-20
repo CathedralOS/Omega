@@ -5765,6 +5765,32 @@ Language/semantic gaps:
 Omega-side / native:
 
 - **X86-FMA-PROVIDER-TRANSPORT.** x86 FMA provider transport (mined by 7 independent legs — highest-consensus gap).
+  Upstream custody leg restored (branch `zergling/z132-fma-provider-transport`):
+  `bind_checked_x86_scalar_fma_plan_associations` scanned only
+  `named_uses()`, so requirement-spelled `F32::/F64::fused_multiply_add`
+  calls — `CheckedNamedRequirementUseFact`s — produced zero associations and
+  the Terminal rejoin died upstream of the transport fence. Both fact lanes
+  now feed one demand view, matching the `SelectedIntrinsicUse` view
+  `selected_ieee_float_fma_unit_applications` already uses; the two recorded
+  transport tests again fail at the documented
+  `FMA provider transport is not implemented in the common instruction
+  pipeline` fence instead of upstream. Remaining legs: (a) no production arm
+  for `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` in
+  `target-operations-to-selected-instructions`
+  (`legalization/scalar_graph_input/target/unit.rs` ingest + `unit/ieee_float.rs`
+  selection); (b) s2s carry, s2rh XMM allocation, post-allocation machine plan,
+  machine-emission VFMADD + canonical MXCSR envelope + `x86_scalar_fma*`
+  object records; (c) remove the `object_emission.rs`, `program_entry.rs`, and
+  `optimization_stage.rs` fences once the transport proves out. Unrelated
+  upstream regression witnessed on base `40e9234d97`:
+  `derive_fused_program_entry_establishments` rejects `Service<R>`-fielded
+  ProgramEntry receivers ("rejoins 0 Terminal attachment identities"), blocking
+  `admitted_x86_fma_demand_retains_exact_plan_associations`,
+  `aarch64_fma_demand_is_not_an_x86_feature_association`, and the windows leg
+  of `exact_x86_fma_demand_fails_closed_without_feature_admission` — a
+  Service-carrier custody item, not this one; the linux leg of the last test
+  now emits its expected `requires explicit AVX+FMA3 admission` diagnostics
+  again under this fix.
 - **I32-REMAINDER-NATIVE-LEGALIZATION.** i32 remainder native legalization.
 - **INTEGER-DIVISION-ENTRY-SELECTION.** Integer division entry selection.
 - **FLOAT-FMA-NATIVE-TRANSPORT.** Float FMA native transport.
@@ -6490,8 +6516,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   floating match surface (tracked in
   `omega-rust/omega/compiler/compiler/float_realization.md`): crash-qualified
   equality and checked-adapter Match execution.
-- **FMA-PROVIDER-PIPELINE-TRANSPORT** — mined candidate; verify scope then implement.
-- **FMA-PROVIDER-TRANSPORT** — mined candidate; verify scope then implement.
+- **FMA-PROVIDER-PIPELINE-TRANSPORT** — mined candidate; merged alias of
+  X86-FMA-PROVIDER-TRANSPORT (verify-scope: the named tests confirmed the
+  frontier; see that row for landed legs and the remaining transport work).
+- **FMA-PROVIDER-TRANSPORT** — mined candidate; merged alias of
+  X86-FMA-PROVIDER-TRANSPORT (same: verified and in progress on that row).
 - **FRONTEND-DROP-CUSTODY-ORDER-REPIN** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
