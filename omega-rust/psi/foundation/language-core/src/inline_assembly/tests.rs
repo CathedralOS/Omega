@@ -383,8 +383,7 @@ fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
 
 #[test]
 fn cache_operation_contracts_pin_machine_owner_and_no_operands() {
-    let AsmCatalogEntry::Contract(contract) =
-        asm_catalog_entry("wbinvd").expect("wbinvd contract")
+    let AsmCatalogEntry::Contract(contract) = asm_catalog_entry("wbinvd").expect("wbinvd contract")
     else {
         panic!("wbinvd must be contracted");
     };
@@ -397,7 +396,10 @@ fn cache_operation_contracts_pin_machine_owner_and_no_operands() {
         contract.required_authority,
         AsmAuthorityRequirement::MachineOwner
     );
-    assert_eq!(contract.availability, AsmInstructionAvailability::UserChecked);
+    assert_eq!(
+        contract.availability,
+        AsmInstructionAvailability::UserChecked
+    );
     assert!(contract.operands.is_empty());
     assert!(contract.clobbers.is_empty());
 }
