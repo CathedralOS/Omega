@@ -371,6 +371,20 @@ fn snapshots_program_level_custody_and_full_state_census() {
             subjects: vec![subject],
             ..Default::default()
         });
+    program.pending_const_range_endpoints.insert(subject);
+    let mut domain = DomainDefinition {
+        name: Identifier::generated("Facts"),
+        ..DomainDefinition::default()
+    };
+    let fact = program.proof_facts.append_to_span(
+        &mut domain.facts,
+        crate::domain::ProofFact::Expression(subject),
+    );
+    program.set_proof_fact_source_span(
+        fact,
+        source::SourceSpan::new(source::SourceId(7), source::Span::new(2, 9)),
+    );
+    program.push_domain_definition(domain);
 
     let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
 
@@ -427,7 +441,23 @@ fn snapshots_program_level_custody_and_full_state_census() {
     assert_eq!(snapshot.tables.fused_service_erasure_count, 1);
     assert_eq!(snapshot.tables.ranking_expression_custody_count, 1);
     assert_eq!(snapshot.tables.expression_count, 1);
-    assert_eq!(snapshot.tables.pending_const_range_endpoint_count, 0);
+    assert_eq!(snapshot.pending_const_range_endpoints, [1]);
+    assert_eq!(snapshot.tables.pending_const_range_endpoint_count, 1);
+    assert_eq!(snapshot.tables.proof_fact_count, 1);
+    assert_eq!(snapshot.tables.proof_fact_source_span_count, 1);
+    assert_eq!(snapshot.tables.domain_definition_count, 1);
+    let [domain_snapshot] = snapshot.roots.domain_definitions.as_slice() else {
+        panic!("one domain definition")
+    };
+    let [super::ProofFactSnapshot::Expression { source_span, .. }] =
+        domain_snapshot.facts.as_slice()
+    else {
+        panic!("one expression proof fact")
+    };
+    let span = source_span.as_ref().expect("proof fact source span");
+    assert_eq!(span.source_id, 7);
+    assert_eq!(span.start, 2);
+    assert_eq!(span.end, 9);
     assert!(snapshot.to_json_pretty().is_ok());
 }
 
