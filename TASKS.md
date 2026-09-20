@@ -10082,7 +10082,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   resolves `ExpressionNode::Member` chains root-to-leaf through declared
   field types (`EndpointInput`), reads the leaf's store-enforced field
   bounds, and re-checks preservation on every self edge. Re-verified green
-  on linux x86-64 at `a4ffd1aff8`:
+  on linux x86-64 at `0f5ae41e7d` (same command, same 49/49; earlier stamp
+  `a4ffd1aff8`):
   `cargo nextest run -p typed-trees-to-checked-trees --lib -E
   'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
   field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
