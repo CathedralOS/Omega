@@ -131,6 +131,33 @@ fn evaluation_order_retains_effects_inside_a_computed_projection() {
 }
 
 #[test]
+fn service_receiver_observes_a_borrowed_argument_without_a_window() {
+    let source = "boundary trait Probe { machine take_descriptor(value: Inventory) -> i32; }
+        data Inventory { slots: i32; }
+        data Main<'s> { inventory: Inventory; probe: &'s mut Probe; observed: i32; }
+        machine Main::replace(&mut self) reaches Probe {
+            self.observed = self.probe.take_descriptor(self.inventory);
+        }";
+    check_source(source).expect(
+        "an opaque service seam marshals a caller-owned copy of a stable borrowed argument",
+    );
+}
+
+#[test]
+fn direct_provider_call_consumes_a_borrowed_argument() {
+    let source = "boundary trait Probe { machine take_descriptor(value: Inventory) -> i32; }
+        machine probe_binding() -> i32 { 0 }
+        machine take_descriptor(value: Inventory) -> i32
+            satisfies Probe::take_descriptor via probe_binding();
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; observed: i32; }
+        machine Main::replace(&mut self) reaches Probe {
+            self.observed = take_descriptor(self.inventory);
+        }";
+    assert_boundary_window_rejection(source);
+}
+
+#[test]
 fn evaluation_order_selected_index_uses_its_collection_operand() {
     check_source(
         "data Buffer { value: i32; }
