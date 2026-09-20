@@ -7582,7 +7582,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
-- **OMEGA-C** — mined candidate; verify scope then implement.
+- **OMEGA-C.** Verified `8a37f82686`: the canonical item is
+  `TASKS_BOOTSTRAP.md` P4's OMEGA-C — "the sole self-host edge": compile
+  the exact Omega-written closure rooted at `source/omega/{build.omg,
+  main.omg}` with D, then with `omega0`, requiring `D -> C/omega0 ->
+  C/omega` determinism, `omega` recompiling C under the same
+  source/target profile, and shared product suites. Its stated
+  precondition ("Once the product source and D are ready") is unmet — D
+  is still under construction (its acceptance, producing
+  `omega0_compiler_bytecode.tape` under interpreted D, has not occurred)
+  and every implementing surface is live-claimed: OMEGA-D over
+  `bootstrap/5_omega` + `source/omega` + `tests/bootstrap/omega-executable`
+  (exp 22:27Z), CHAIN-MANIFEST over `tools/bootstrap`/`tests/bootstrap`/
+  `bootstrap` (23:08Z), plus live sibling legs on the outcome and
+  alpha-tape members. No tape exists to advance and no implementing path
+  is free; the correct slice is this record. Ordered frontier once the
+  fences clear: OMEGA-D acceptance → D compiles the closure → omega0 tape
+  bound by CHAIN-MANIFEST → `omega0` self-host compile → `omega`
+  recompile equivalence. Sibling decompositions of the same gated rung:
+  OMEGA-C-SELF-HOST-EDGE (same resolution at `ac4e4eee9b`),
+  OMEGA-COMPILER-TAPE-BINDING, OMEGA-D*, OCREQ-REQUEST-{BINDING,
+  ENTRY-BINDING}.
 - **OMEGA-C-SELF-HOST-EDGE.** Verified `ac4e4eee9b`: the canonical item is
   `TASKS_BOOTSTRAP.md`'s OMEGA-C — "the sole self-host edge": compile the
   exact Omega-written closure at `source/omega/{build.omg,main.omg}` with D,
