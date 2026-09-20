@@ -10255,7 +10255,36 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
 - **UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **VERIFIER-EDGE-CLEANUP-PHASE-ORDER** — mined candidate; scope verified, resolved — alias of the terminal-verifier cleanup-order row already repaired on `origin/main`: edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid`. All 26 `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6`. EDGE-CLEANUP-ERROR-PRECEDENCE's landed annotation already names this stub among the row's aliases.
-- **WAIT-WAKE-SUBSTRATE** — mined candidate; verify scope then implement.
+- **WAIT-WAKE-SUBSTRATE.** Scope verified — authorization gate recorded.
+  The name mines chapter_18's "Waitable Contracts: Retained Substrate
+  Direction" (`wiki/language_guide/chapter_18_concurrency.md` §331: "a
+  useful shared substrate is a small word/value wait plus wake-one/wake-many
+  boundary ... an engineering direction, not permission to describe unlike
+  host mechanisms as equivalent") and the matching paragraph in
+  `wiki/spec/build/task_runtime.md` §library-and-foreign-providers, which
+  defers to this row's inter-activation vocabulary leg: sibling rows
+  WHOLE-COMPOSITION-EXTRACTION / WHOLE-COMPOSITION-INTERACTION-EXTRACTION
+  both record that `CompositionCrossActivationEdges` publishes
+  `NotRetained` because the settled plan vocabulary retains no
+  cross-activation wait/wake edges, and that whole-composition extraction
+  is spec-deferred "until a concrete protocol or safety-profile customer
+  needs it" (`wiki/spec/language/concurrency.md` §protocol-proofs: "This
+  extraction remains deferred, not implicit authority supplied by a
+  bounded search or a proposed graph format"). Verified live at
+  `797e99ead7a`: the task-plans ledger models park/settle/routing only
+  intra-activation (`canonical_suspension_crossings`); the README records
+  real park/resume of a native stack and observation at a checked-source
+  safe point as separate unjoined consumers. Activation of either leg
+  requires a concrete customer plus a target's real wait mechanism, and
+  the vocabulary surface `omega-rust/omega/representations/task-plans/src`
+  is wholesale-claimed this wave (SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT,
+  exp 02:38Z); `provider-planning`/`selected-dispatch` are held by
+  UEFI-OS-HANDOFF (exp 20:00Z) and `native-realization/providers` by
+  PLACED-ACCESS-NATIVE-OPS (exp 00:56Z). No implementation slice exists to
+  claim. Sibling gated rows on the same deferred surface:
+  CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION,
+  CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-EXTRACTION,
+  WHOLE-COMPOSITION-INTERACTION-EXTRACTION.
 - **WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred whole-composition surface as the resolved concurrency stubs (CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION) and the adjacent WHOLE-COMPOSITION-INTERACTION-EXTRACTION row: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." Verified live at 2e1db3ba3e: `task-plans/src/composition_model` already extracts the sealed intra-activation model (`compose_composition_model` + `replay_composition_model`), `CompositionCrossActivationEdges`/`CompositionPriorities` publish `NotRetained` because the settled plan vocabulary retains no inter-activation relations. Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines; the upstream inter-activation vocabulary belongs to the WAIT-WAKE-SUBSTRATE surface. No implementation slice exists to claim.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
 - **WINDOWS-ALPHA-CONFORMANCE-LEG** — mined candidate; verify scope then implement.
