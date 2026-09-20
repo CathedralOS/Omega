@@ -92,6 +92,12 @@ prerequisite to every lower-rung milestone.
   input `AB`; all bounds and reconstruction controls remain required too.
   macOS execution and PE byte audits do not substitute for this unavailable host result;
   [coverage limits](tests/alpha/README.md#bounds-conformance) remain explicit.
+  On hosts without an executable seed the conformance, seed-diamond, and
+  native-bounds gates now refuse explicitly (`requires macOS arm64 or
+  Windows x64`, exit 2) instead of reporting per-case seed failures; on
+  Linux x86-64 `python3 tests/alpha/bounds.py --reference` passes 72/72 and
+  the diamond's reference side returns `ABCDEF`/0 for input `AB`. The
+  Windows x64 run remains the only missing leg.
 
 ## P1 - Gamma checker and first complete encoding proof
 

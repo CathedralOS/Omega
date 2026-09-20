@@ -20,6 +20,11 @@ done
 unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
+  *) echo "alpha conformance: requires macOS arm64 or Windows x64" >&2
+     exit 2 ;;
+esac
 cd "$TEST_DIR"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
