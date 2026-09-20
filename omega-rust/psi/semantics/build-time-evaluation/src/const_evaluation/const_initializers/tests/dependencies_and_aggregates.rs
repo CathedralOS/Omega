@@ -208,13 +208,47 @@ fn bare_aliases_preserve_selected_declared_values() {
 }
 
 #[test]
-fn landed_float_leaves_cannot_be_reinterpreted_as_anonymous_scalar_operands() {
+fn landed_float_leaves_compose_at_their_own_format() {
+    let evaluated = evaluate(
+        "const A: f32 = 2.0;
+         const ALIAS: f32 = A;
+         const SUM: f32 = A + 1.0;
+         const PRODUCT: f32 = 1.5f32 * 2;
+         const FLAG: bool = 0.5f32 < 1;",
+    )
+    .expect("landed float operands evaluate at their landed format");
+    for (name, encoding) in [
+        ("ALIAS", "float:f32:40000000"),
+        ("SUM", "float:f32:40400000"),
+        ("PRODUCT", "float:f32:40400000"),
+    ] {
+        let receipt = constant(&evaluated, name)
+            .normalization
+            .as_ref()
+            .expect("evaluated declaration");
+        assert_eq!(receipt.canonical_result_encoding, encoding, "{name}");
+    }
+    let flag = constant(&evaluated, "FLAG");
+    assert_eq!(
+        evaluated.expressions.expression(flag.value),
+        &ExpressionNode::Boolean(true)
+    );
+}
+
+#[test]
+fn landed_float_leaves_keep_their_carrier_and_finite_identity() {
     for text in [
+        // A float result is not an integer and does not land at one.
         "const COUNT: u64 = 1.5f32 * 2;",
-        "const FLAG: bool = 0.5f32 < 1;",
+        // Landed formats do not implicitly change, not even f32 to f64.
+        "const COUNT: f64 = 1.5f32 + 0.25f32;",
+        // A landed integer cannot mix into a float operation unconverted.
+        "const MIXED: f32 = 1u64 + 0.5f32;",
+        // A computed NaN has no authored payload bits to carry as identity.
+        "const NAN: f32 = 0.0f32 / 0.0f32;",
     ] {
         let errors =
-            evaluate(text).expect_err("landed float operands remain outside the scalar evaluator");
+            evaluate(text).expect_err("landed float values keep carrier and determined bits");
         assert!(!errors.is_empty(), "{text}");
     }
 }
