@@ -474,8 +474,7 @@ fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<Scalar
 #[cfg(test)]
 mod tests {
     use super::{
-        CheckedTrees, LoweredPsi, LoweringError, OperationKind,
-        retain_operation_crash_contracts,
+        CheckedTrees, LoweredPsi, LoweringError, OperationKind, retain_operation_crash_contracts,
     };
 
     /// A crash-qualified positional `==` use beside an ordinary machine call:
