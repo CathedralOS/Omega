@@ -925,16 +925,20 @@ fn hosted_console_exit_catalog_settlement_emits_and_executes_native_image() {
 }
 
 #[test]
-fn checked_physical_terminal_role_remains_explicit() {
+fn checked_physical_root_use_rejects_without_provider_custody() {
+    // Direct-root checked physical operations carry no selected provider
+    // requirement, so the terminal-authority closure review must fail closed
+    // before any role-specific evidence exists. Privileged port effects settle
+    // only beneath an installed selected checked adapter.
     let port_canary = pass_canary(fixture_roster::ASM_PORT_OUT_FINAL_VALIDATION);
     let port_diagnostics =
         compile_rooted_backend_canary_without_output_for_target(&port_canary, "linux_x86_64")
-            .expect_err("checked physical operations await their explicit D45 terminal role");
+            .expect_err("direct-root port writes reject without provider custody");
     assert!(
         port_diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("checked physical terminal operation unsupported")),
-        "the bounded current-role review must fail closed on checked physical leaves: {port_diagnostics:#?}",
+            .contains("no selected provider requirement custody")),
+        "the bounded custody review must fail closed on direct-root checked physical leaves: {port_diagnostics:#?}",
     );
 }
 
