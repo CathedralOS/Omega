@@ -138,11 +138,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   library and native-differential failures. Six staged records now exist —
   the complete Psi-phase selection vocabulary in
   [promotions/](omega-rust/omega/representations/optimization-core/promotions/),
-  one per rule — each recording that rule's coverage state. Only
-  ControlFlowCleanup and DeadPureScalarElimination carry a completed
-  `Rollback evidence` field (the every-target rejoin legs in
-  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`);
-  the other four name the selected-rule rejoin leg still missing. `Approved
+  one per rule — each recording that rule's coverage state. Every record now
+  carries a completed `Rollback evidence` field (the every-target rejoin legs
+  in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`
+  cover each selected rule under `--disable-optimization` rejoining the
+  byte-identical ordinary artifact on all four hosted targets). `Approved
   status`, owner approval, and measurement evidence stay `PENDING` on all
   six — the measurement leg waits on the native realization failure the
   BENCHMARKS item records (every `depend()`-ing subject rejects at the
