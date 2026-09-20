@@ -728,6 +728,16 @@ pub machine Build::artifact_only(&mut self) {
 // declaration that permits Trap cannot override it.
 pub machine Build::exclude_crash(&mut self, cause: CrashCause) {
 }
+// Independent-component assumption acceptance
+// (wiki/spec/build/component_publication.md): a verified component
+// description binds its environment-mediating mechanisms — an immediate
+// port-space write, a declared physical mechanism — by digest. The
+// consuming build accepts one exact digest per call, authored as the same
+// lowercase hex spelling verification diagnostics report. The declaration
+// is harvested statically with its authored span; the declared body is the
+// evaluator no-op.
+pub machine Build::accept_component_assumption(&mut self, digest: &[u8]) {
+}
 pub machine BuildSource::resolve(&self, relative: &[u8]) -> BuildPath {
     BuildPath {}
 }

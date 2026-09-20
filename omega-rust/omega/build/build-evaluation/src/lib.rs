@@ -68,6 +68,9 @@ pub use admission::behavior_exclusions::{
     authored_behavior_exclusion_set, authored_behavior_exclusion_set_in,
     establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
 };
+pub use admission::component_assumptions::{
+    AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,
+};
 pub use admission::configuration::{
     ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests,
 };

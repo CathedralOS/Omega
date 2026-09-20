@@ -1,6 +1,7 @@
 //! Concrete build intent and extraction from the evaluated Build value.
 
 use crate::admission::behavior_exclusions::AuthoredBehaviorExclusion;
+use crate::admission::component_assumptions::AuthoredComponentAssumptionAcceptance;
 use crate::{RootBinding, WireCompatibilityDemand, optimization};
 use build_time_evaluation::BuildTimeValue;
 use optimization_core::OptimizationSelections;
@@ -108,6 +109,14 @@ pub struct BuildConfig {
     /// These rows declare what the selected executable composition must not
     /// reach; the admission join itself consumes them later.
     pub behavior_exclusions: Vec<AuthoredBehaviorExclusion>,
+    /// Accepted component-assumption digests
+    /// (wiki/spec/build/component_publication.md): the authored
+    /// `builder.accept_component_assumption(...)` declarations harvested
+    /// statically from the root build machine's checked call scope. An
+    /// attached independent-component description that binds an inseparable
+    /// assumption verifies only when its exact digest appears here; the
+    /// roster carries no accepted digest until the build authors one.
+    pub accepted_component_assumptions: Vec<AuthoredComponentAssumptionAcceptance>,
 }
 
 /// The two independent optional proof-product selections retained from
@@ -155,6 +164,7 @@ impl Default for BuildConfig {
             root_bindings: Vec::new(),
             pcc: PccRequests::default(),
             behavior_exclusions: Vec::new(),
+            accepted_component_assumptions: Vec::new(),
         }
     }
 }
@@ -336,6 +346,7 @@ pub(crate) fn extract_build_config(
             root_bindings: Vec::new(),
             pcc,
             behavior_exclusions: Vec::new(),
+            accepted_component_assumptions: Vec::new(),
         },
         optimization_report,
     ))

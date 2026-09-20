@@ -588,6 +588,14 @@ impl CheckedCompilation {
         &self.execution.independent_component_descriptions
     }
 
+    /// The component-assumption digests the authoritative build machine
+    /// accepted for this compilation's attached independent-component
+    /// descriptions, or an empty set when no build accepted any. Replay
+    /// reads the same set the original settlement applied.
+    pub fn accepted_component_assumptions(&self) -> &std::collections::BTreeSet<[u8; 32]> {
+        &self.execution.accepted_component_assumptions
+    }
+
     /// Exact compiler-owned coordinates of checked implementation claims that
     /// ordinary validation deliberately left unjudged. Package review rejects
     /// any row until a later-discharge ledger exists.

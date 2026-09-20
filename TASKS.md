@@ -4834,22 +4834,29 @@ Owners include
   package-evidence replay re-verifies them under the build's admission profile
   instead of hitting the fence again. The retry's abandoned build evaluation
   is real sponsored consumption, reconciled through
-  `verify_build_session_accounting`'s discarded-usage roster. Still, no stage
-  after settlement reads the composition mode, so a settled `Independent`
-  edge carries no symbolic import, separate artifact or installation
-  obligation into the product.
+  `verify_build_session_accounting`'s discarded-usage roster. A component that
+  seals its requirement with its own checked adapter already publishes and
+  settles — the landed `pick-component` selects `PickProvider`, a checked
+  machine inside the same package, and `derive_component_inventory` retains
+  `Pick::mark` as a sealed `BoundaryCall`; the feared fused-lowering erasure
+  never materializes. Build vocabulary for mechanism acceptances now exists:
+  `builder.accept_component_assumption("<64 hex chars>")` is declared beside
+  `exclude_crash` in the build prelude, build-evaluation harvests the declared
+  digests statically from the root build machine's typed statements (the same
+  rule as `select_provider`), settlement passes the set into
+  `verify_independent_components` as the `accepted_assumptions` roster, and
+  the settled `CheckedExecution` retains it so the package-evidence replay
+  re-verifies under the same acceptances. A consumer that never accepted a
+  description's `port-mechanism` digest still rejects it unaccepted; a wrong
+  digest leaves it unaccepted and a malformed spelling rejects at the
+  consumer's own declaration
+  (`package_compilation_inputs/independent_components.rs` pins all three).
+  Still, no stage after settlement reads the composition mode, so a settled
+  `Independent` edge carries no symbolic import, separate artifact or
+  installation obligation into the product.
 
   Remaining work:
 
-  - Admit a component that selects its own checked adapter.
-    `derive_component_inventory` reads called requirements only from Terminal
-    `BoundaryCall`, fused lowering erases that call, and `verify_component`
-    then rejects the retained plan as a smuggled requirement. Today a
-    publishable component must seal its requirement with a surviving external
-    binding and carry the adapter beside it.
-  - Add build vocabulary for accepted assumption digests. Settlement passes an
-    empty `accepted_assumptions` set, so every mechanism-bearing component
-    rejects.
   - Supply the native facts. Compiler-published descriptions leave
     `stack_demand` and `realization_identity` absent because a Psi capsule has
     no native realization; the native producer `describe_component` sits in

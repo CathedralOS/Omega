@@ -143,6 +143,26 @@ fn write_component_package(
     sealing_provider: &str,
     source: &str,
 ) {
+    write_component_package_with(
+        directory,
+        package_name,
+        target_name,
+        requirement,
+        sealing_provider,
+        source,
+        "",
+    );
+}
+
+fn write_component_package_with(
+    directory: &Path,
+    package_name: &str,
+    target_name: &str,
+    requirement: &str,
+    sealing_provider: &str,
+    source: &str,
+    extra_build: &str,
+) {
     TempTree::write(directory.join("pick.omg"), source);
     TempTree::write(
         directory.join("build.omg"),
@@ -150,7 +170,7 @@ fn write_component_package(
             r#"machine build(builder: &mut Build) {{
     builder.package("{package_name}");
     builder.select_provider<{requirement}, {sealing_provider}>(CompositionMode::Fused);
-    builder.roots.bind({target_name}::ProgramEntry, ComponentEntry::main);
+{extra_build}    builder.roots.bind({target_name}::ProgramEntry, ComponentEntry::main);
 }}
 "#
         ),
@@ -188,6 +208,10 @@ fn published_component(
 }
 
 fn write_consuming_root(directory: &Path, target_name: &str) {
+    write_consuming_root_with(directory, target_name, "");
+}
+
+fn write_consuming_root_with(directory: &Path, target_name: &str, extra_build: &str) {
     TempTree::write(
         directory.join("main.omg"),
         "use dep::pick;\n\ndata Main { }\nmachine Main::main(&mut self) { }\n",
@@ -199,7 +223,7 @@ fn write_consuming_root(directory: &Path, target_name: &str) {
     builder.application("independent-consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
     builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
-    builder.roots.bind({target_name}::ProgramEntry, Main::main);
+{extra_build}    builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
 "#
         ),
@@ -226,7 +250,7 @@ impl IndependentFixture {
             "pick-component",
             target_name,
             "Pick",
-            "VtablePick",
+            "PickProvider",
             COMPONENT_SOURCE,
         );
         write_consuming_root(&root, target_name);
@@ -293,7 +317,19 @@ impl IndependentFixture {
     }
 
     fn rewrite_dependency(&self, source: &str) {
-        TempTree::write(self.dependency.join("pick.omg"), source);
+        self.rewrite_dependency_with(source, "");
+    }
+
+    fn rewrite_dependency_with(&self, source: &str, extra_build: &str) {
+        write_component_package_with(
+            &self.dependency,
+            "pick-component",
+            self.target_name,
+            "Pick",
+            "PickProvider",
+            source,
+            extra_build,
+        );
     }
 
     fn attach(
@@ -315,6 +351,43 @@ impl IndependentFixture {
         })
     }
 }
+
+/// A mechanism-bearing component: beside the sealed `Pick` requirement its
+/// entry performs an immediate port-space write through checked assembly.
+/// The write lowers to a `PortWrite` operation the description binds to a
+/// derived `port_mechanism_assumption` digest, so the published description
+/// carries an inseparable assumption roster.
+const MECHANISM_COMPONENT_SOURCE: &str = r#"use omega::language::core::assembly;
+
+pub boundary trait Pick {
+    machine mark(value: i32);
+}
+
+pub data VtablePick { mark: addr; }
+pub machine VtablePick::mark(value: i32)
+satisfies Pick::mark
+via Binding::VtableField(mark);
+
+pub data PickProvider { }
+pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
+
+pub machine signal_port()
+reaches PortIo
+{
+    asm where clobbers r10, r11, r15, rax, rdx {
+        out 0x3F8, 0x41
+    }
+}
+
+pub data ComponentEntry { pick: Pick; }
+pub machine ComponentEntry::main(&mut self)
+reaches Pick + PortIo
+invokes Pick;
+{
+    self.pick.mark(7);
+    signal_port();
+}
+"#;
 
 fn rejects_with(diagnostics: &[diagnostics::Diagnostic], fragments: &[&str]) {
     assert!(
@@ -442,4 +515,119 @@ fn a_stale_description_no_longer_realizes_the_selected_plan() {
             "refusing to treat the edge as fused",
         ],
     );
+}
+
+#[test]
+fn a_mechanism_bearing_component_rejects_without_authored_acceptance() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    fixture.rewrite_dependency_with(
+        MECHANISM_COMPONENT_SOURCE,
+        "    builder.freestanding = true;\n",
+    );
+    let published = fixture.published();
+    let description = component_description::decode_component_description(published.description())
+        .expect("the mechanism component publishes a decodable description");
+    assert!(
+        !description.assumptions.is_empty(),
+        "the port write binds an inseparable assumption digest"
+    );
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![published]))
+        .expect_err("the consuming build has no vocabulary to accept the mechanism assumption");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "is not accepted",
+            "cannot deploy that package as an independent component",
+        ],
+    );
+}
+
+fn assumption_spelling(digest: &[u8; 32]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[test]
+fn an_authored_acceptance_settles_the_mechanism_bearing_component() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    fixture.rewrite_dependency_with(
+        MECHANISM_COMPONENT_SOURCE,
+        "    builder.freestanding = true;\n",
+    );
+    let published = fixture.published();
+    let description = component_description::decode_component_description(published.description())
+        .expect("the mechanism component publishes a decodable description");
+    let [assumption] = *description.assumptions else {
+        panic!("the port write binds exactly one inseparable assumption digest");
+    };
+    write_consuming_root_with(
+        &fixture.root,
+        target_name,
+        &format!(
+            "    builder.freestanding = true;\n    builder.accept_component_assumption(\"{}\");\n",
+            assumption_spelling(&assumption)
+        ),
+    );
+    fixture
+        .compile_root(fixture.attach(vec![published]))
+        .expect("the authored acceptance admits the mechanism-bearing component");
+}
+
+#[test]
+fn a_different_accepted_digest_leaves_the_mechanism_unaccepted() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    fixture.rewrite_dependency_with(
+        MECHANISM_COMPONENT_SOURCE,
+        "    builder.freestanding = true;\n",
+    );
+    let published = fixture.published();
+    let description = component_description::decode_component_description(published.description())
+        .expect("the mechanism component publishes a decodable description");
+    let [assumption] = *description.assumptions else {
+        panic!("the port write binds exactly one inseparable assumption digest");
+    };
+    let mut other = assumption;
+    other[0] ^= 0xFF;
+    write_consuming_root_with(
+        &fixture.root,
+        target_name,
+        &format!(
+            "    builder.accept_component_assumption(\"{}\");\n",
+            assumption_spelling(&other)
+        ),
+    );
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![published]))
+        .expect_err("accepting a different digest never covers the component's assumption");
+    rejects_with(
+        &diagnostics,
+        &["failed independent verification", "is not accepted"],
+    );
+}
+
+#[test]
+fn a_malformed_acceptance_spelling_rejects_at_its_own_declaration() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    write_consuming_root_with(
+        &fixture.root,
+        target_name,
+        "    builder.accept_component_assumption(\"not-a-digest\");\n",
+    );
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![fixture.published()]))
+        .expect_err("a malformed digest spelling rejects at its authored declaration");
+    rejects_with(&diagnostics, &["64 hexadecimal characters"]);
 }

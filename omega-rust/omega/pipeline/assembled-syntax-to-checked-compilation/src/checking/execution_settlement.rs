@@ -61,6 +61,11 @@ pub(super) struct CheckedExecution {
     /// the same admission instead of rediscovering unattached inputs.
     pub(super) independent_component_descriptions:
         Vec<package_compilation::IndependentComponentDescription>,
+    /// The component-assumption digests the authoritative build machine
+    /// accepted through `builder.accept_component_assumption`. Retained
+    /// beside the admitted descriptions so a replay re-verifies them under
+    /// the same acceptance set the original settlement applied.
+    pub(super) accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]>,
 }
 
 pub(super) fn check_selected_execution(
@@ -124,6 +129,11 @@ pub(super) fn check_selected_execution(
             program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
         }),
     )?;
+    let accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]> = build_config
+        .accepted_component_assumptions
+        .iter()
+        .map(|acceptance| acceptance.digest)
+        .collect();
     let build_evaluation::CheckedProviderSelection {
         provider_plans,
         evaluated_via_bindings,
@@ -136,6 +146,7 @@ pub(super) fn check_selected_execution(
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,
+        &accepted_component_assumptions,
         &boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
     )?;
@@ -318,5 +329,6 @@ pub(super) fn check_selected_execution(
                     .collect()
             })
             .unwrap_or_default(),
+        accepted_component_assumptions,
     })
 }
