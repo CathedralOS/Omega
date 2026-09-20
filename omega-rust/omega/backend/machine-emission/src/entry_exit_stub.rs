@@ -150,7 +150,7 @@ pub enum X86_64DeriverStubEmissionError {
         found: usize,
     },
     /// A location form this emission does not stage yet: indirect copies,
-    /// non-GPR destinations, or stack pieces not a multiple of eight bytes.
+    /// non-GPR destinations, or a register piece wider than a GPR.
     UnsupportedParameterLocation { parameter: usize },
     /// A location's value byte range leaves the supplied operand.
     ParameterOperandOutOfRange { parameter: usize },
@@ -315,10 +315,14 @@ pub fn validate_x86_64_resolved_deriver_stub(
 // ---------------------------------------------------------------------------
 
 /// One staged operand write into the member call's outgoing stack-arg area.
+/// `byte_width` is the exact store instruction width: a declared piece that is
+/// not a multiple of eight bytes stages through 4/2/1-byte tail stores rather
+/// than widening the write past the location's declared end.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct StackOperand {
     outgoing_byte_offset: u32,
     word: u64,
+    byte_width: u8,
 }
 
 /// The byte-level shape the encoder commits to. The anchor layout means the
@@ -456,28 +460,38 @@ fn project_encoding_plan(
                     byte_size,
                     ..
                 } => {
-                    if byte_size % 8 != 0 {
-                        return Err(
-                            X86_64DeriverStubEmissionError::UnsupportedParameterLocation {
-                                parameter,
-                            },
-                        );
-                    }
-                    for chunk in 0..usize::from(byte_size / 8) {
+                    // A fragment is one or more exact-width stores: full words,
+                    // then a 4/2/1-byte tail decomposition when the declared
+                    // piece is not a multiple of eight bytes.
+                    let mut consumed = 0_u32;
+                    let mut remaining = u32::from(byte_size);
+                    while remaining > 0 {
+                        let width = if remaining >= 8 {
+                            8_u32
+                        } else if remaining >= 4 {
+                            4
+                        } else if remaining >= 2 {
+                            2
+                        } else {
+                            1
+                        };
                         let value_offset = u32::from(value_byte_offset)
-                            .checked_add(chunk as u32 * 8)
+                            .checked_add(consumed)
                             .and_then(|offset| u16::try_from(offset).ok())
                             .ok_or(X86_64DeriverStubEmissionError::ParameterOperandOutOfRange {
                                 parameter,
                             })?;
-                        let word = operand_word(operand, value_offset, 8, parameter)?;
+                        let word = operand_word(operand, value_offset, width as u16, parameter)?;
                         let outgoing_byte_offset = stack_byte_offset
-                            .checked_add(chunk as u32 * 8)
+                            .checked_add(consumed)
                             .ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
                         stack_operands.push(StackOperand {
                             outgoing_byte_offset,
                             word,
+                            byte_width: width as u8,
                         });
+                        consumed += width;
+                        remaining -= width;
                     }
                 }
                 ValueLocation::Indirect { .. } => {
@@ -491,7 +505,7 @@ fn project_encoding_plan(
 
     let argument_end = stack_operands
         .iter()
-        .map(|operand| u64::from(operand.outgoing_byte_offset) + 8)
+        .map(|operand| u64::from(operand.outgoing_byte_offset) + u64::from(operand.byte_width))
         .max()
         .unwrap_or(0);
     let stack_bytes = argument_end.next_multiple_of(8);
@@ -566,10 +580,14 @@ fn encode_stub(plan: &StubEncodingPlan) -> Result<EncodedStub, X86_64DeriverStub
     bytes.extend([0x48, 0x89, 0xe0]); // mov rax, rsp — capture the save-area top
     bytes.extend([0x48, 0x83, 0xe4, 0xf0]); // and rsp, -16
     append_sub_rsp(&mut bytes, plan.reserved_frame_bytes())?;
-    append_store_rsp(&mut bytes, plan.anchor_offset())?; // mov [rsp+S], rax
+    append_store_rsp(&mut bytes, plan.anchor_offset(), 8)?; // mov [rsp+S], rax
     for operand in &plan.stack_operands {
         append_movabs(&mut bytes, MachineRegister::X86Rax, operand.word);
-        append_store_rsp(&mut bytes, u64::from(operand.outgoing_byte_offset))?;
+        append_store_rsp(
+            &mut bytes,
+            u64::from(operand.outgoing_byte_offset),
+            operand.byte_width,
+        )?;
     }
     for (register, word) in &plan.register_operands {
         append_movabs(&mut bytes, *register, *word);
@@ -648,11 +666,24 @@ fn rsp_disp32_modrm(reg_field: u8, disp: u64) -> Option<[u8; 3]> {
     }
 }
 
-fn append_store_rsp(bytes: &mut Vec<u8>, disp: u64) -> Result<(), X86_64DeriverStubEmissionError> {
-    // mov [rsp+disp], rax — rex.w 89 /r, SIB-addressed rsp
+fn append_store_rsp(
+    bytes: &mut Vec<u8>,
+    disp: u64,
+    byte_width: u8,
+) -> Result<(), X86_64DeriverStubEmissionError> {
+    // mov [rsp+disp], rax/eax/ax/al — 89/88 /r, SIB-addressed rsp; rex.w for
+    // the qword form, operand-size prefix for the word form.
+    let prefix: &[u8] = match byte_width {
+        8 => &[0x48, 0x89],
+        4 => &[0x89],
+        2 => &[0x66, 0x89],
+        1 => &[0x88],
+        _ => return Err(X86_64DeriverStubEmissionError::MalformedEmission),
+    };
     let [modrm, sib, _] =
         rsp_disp32_modrm(0, disp).ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
-    bytes.extend([0x48, 0x89, modrm, sib]);
+    bytes.extend_from_slice(prefix);
+    bytes.extend([modrm, sib]);
     if disp == 0 {
         // disp0 form carries no displacement field
     } else if disp <= 127 {
@@ -705,7 +736,7 @@ struct DecodedStub {
     saved_registers: Vec<u8>,
     reserved_frame_bytes: u64,
     anchor_offset: u64,
-    stack_operands: Vec<(u32, u64)>,
+    stack_operands: Vec<(u32, u64, u8)>,
     register_operands: Vec<(u8, u64)>,
     member_call_field_offset: u64,
 }
@@ -724,7 +755,13 @@ fn decoded_expectation(plan: &StubEncodingPlan, encoded: &EncodedStub) -> Decode
         stack_operands: plan
             .stack_operands
             .iter()
-            .map(|operand| (operand.outgoing_byte_offset, operand.word))
+            .map(|operand| {
+                (
+                    operand.outgoing_byte_offset,
+                    operand.word,
+                    operand.byte_width,
+                )
+            })
             .collect(),
         register_operands: plan
             .register_operands
@@ -777,16 +814,29 @@ fn decode_stub(bytes: &[u8]) -> Result<DecodedStub, X86_64DeriverStubEmissionErr
         }
         let word = cursor.u64()?;
         let code = extension + (opcode - 0xb8);
-        if cursor.peek(&[0x48, 0x89]) {
-            cursor.expect(&[0x48, 0x89])?;
+        // A store opcode after the movabs marks a stack operand; its operand
+        // size is the staged piece width (qword, dword, word, or byte).
+        let store_width = if cursor.take(&[0x48, 0x89]) {
+            8
+        } else if cursor.take(&[0x66, 0x89]) {
+            2
+        } else if cursor.take(&[0x89]) {
+            4
+        } else if cursor.take(&[0x88]) {
+            1
+        } else {
+            0
+        };
+        if store_width == 0 {
+            register_operands.push((code, word));
+        } else {
             let offset = cursor.rsp_store()?;
             stack_operands.push((
                 u32::try_from(offset)
                     .map_err(|_| X86_64DeriverStubEmissionError::MalformedEmission)?,
                 word,
+                store_width,
             ));
-        } else {
-            register_operands.push((code, word));
         }
     }
     let call_offset = cursor.offset;
@@ -1155,6 +1205,84 @@ mod tests {
                 .windows(10)
                 .any(|w| { w[..2] == [0x48, 0xb8] && w[2..10] == 1u64.to_le_bytes() })
         );
+    }
+
+    /// A 23-byte integer parameter fragments to three stack pieces whose
+    /// last piece is seven bytes: the tail stages through dword, word and
+    /// byte stores at the exact declared offsets rather than rejecting.
+    fn tail_carrier_boundary() -> ValidatedBoundaryEntryPlan {
+        let signature = CallSignature {
+            parameters: vec![calling_conventions::ValueShape::integer(23, 8)],
+            result: None,
+        };
+        let ordinary =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+                .expect("ordinary boundary");
+        let mut call = ordinary.plan().call.clone();
+        call.ordinary_clobbers = gpr_clobbers();
+        call.entry_control = EntryControl::InterruptReturn;
+        let saved_state = MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ]);
+        validate_boundary_entry_plan(
+            BoundaryEntryPlan {
+                call,
+                state: StatePlan {
+                    initial_regime: MachineRegime::X86Long64,
+                    interrupted_state: interrupted_state(),
+                    saved_state,
+                    restored_state: saved_state,
+                    permitted_transitive_use: MachineStateSet::new([
+                        MachineState::GeneralRegisters,
+                        MachineState::Flags,
+                    ]),
+                    stack: EntryStack::Dedicated { class: 11 },
+                    preemption: Preemption::Masked,
+                },
+            },
+            &signature,
+        )
+        .expect("interrupt-return boundary")
+    }
+
+    #[test]
+    fn stack_parameter_tail_pieces_stage_narrow_stores() {
+        let boundary = tail_carrier_boundary();
+        let stub = stub(
+            0,
+            X86_64GateKind::Trap,
+            X86_64ArrivalMechanism::Exception,
+            &boundary,
+        );
+        let carrier: Vec<u8> = (0..23u8).collect();
+        let call = X86_64DeriverStubMemberCall {
+            member: MachineId::new(0x9a).expect("machine id"),
+            parameter_operands: vec![carrier],
+        };
+        let emission = emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call)
+            .expect("emission")
+            .emission()
+            .clone();
+        validate_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call, &emission)
+            .expect("replay");
+        // Five staged pieces: qword at 0, qword at 8, then the seven-byte
+        // tail as dword@16, word@20, byte@22 — each `movabs rax, imm`
+        // followed by its exact-width `[rsp+o]` store.
+        let bytes = &emission.bytes;
+        for pattern in [
+            &[0x89, 0x44, 0x24, 0x10][..],   // mov [rsp+16], eax
+            &[0x66, 0x89, 0x44, 0x24, 0x14], // mov [rsp+20], ax
+            &[0x88, 0x44, 0x24, 0x16][..],   // mov [rsp+22], al
+        ] {
+            assert!(
+                bytes.windows(pattern.len()).any(|w| w == pattern),
+                "missing staged store {pattern:02x?}"
+            );
+        }
+        assert_eq!(emission.footprint.reserved_frame_bytes, 32);
     }
 
     #[test]
