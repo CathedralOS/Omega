@@ -7268,7 +7268,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists here.
 - **RC-RELEASE-CLOSURE-RUN** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD** — mined candidate; verify scope then implement.
-- **RC-RELEASE-RECORD-AND-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-RELEASE-RECORD-AND-CLOSURE** — mined candidate.
+  Verified scope at `0977a4249e`: the release-record substrate already
+  exists — `tools/release/release_record.py` (landed `210ffe3c93`) owns
+  the eight-gate manifest verbatim from the completion contract, runs one
+  runner row per `--target`, writes `omega-release-record/1` JSON records
+  under `records/`, and `check` re-validates stored records so a
+  hand-edited record cannot read closed; `tools/tests/test_release_
+  record.py` keeps the manifest verbatim-equal to the contract and
+  re-validates committed records. The closure half is correctly open and
+  cannot close on this wave: the contract requires all eight gates green
+  on one clean commit plus recorded runs on all four required hosts
+  (linux_x86_64, linux_arm64/QEMU-named, macos_arm64, windows_x86_64);
+  the canary suite is red at HEAD (e.g. the selected-dispatch
+  ProgramEntry-establishment stop) and three of the four required hosts
+  are unavailable to this worker. `records/` carries no committed rows.
+  Sibling re-mines of this same clause: RC-RELEASE-RECORD,
+  RC-RELEASE-RECORD-RUN, RC-RELEASE-CLOSURE-RUN, and
+  RC-RELEASE-RECORD-SUBSTRATE (the substrate leg is the landed part).
 - **RC-RELEASE-RECORD-RUN** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD-SUBSTRATE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY** — mined candidate; verify scope then implement.
