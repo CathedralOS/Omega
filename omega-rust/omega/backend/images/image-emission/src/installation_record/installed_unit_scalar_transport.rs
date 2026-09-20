@@ -1,5 +1,9 @@
-//! Installation-shape validation for retained Boolean/integer ABI and attached-
-//! Unit scalar-call transport. Native byte replay remains object-owned.
+//! Installation-shape validation for retained scalar ABI and attached-Unit
+//! Boolean/integer transport. Native byte replay remains object-owned.
+
+#[cfg(test)]
+#[path = "installed_unit_scalar_transport/scalar_abi_tests.rs"]
+mod scalar_abi_tests;
 
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
@@ -233,6 +237,17 @@ pub(super) fn mixed_structural_home_is_canonical(
             )
 }
 
+// Ordinary scalar functions already publish floating ABI plans. Their shape
+// admission does not widen the integer-only attached-Unit home transport.
+fn scalar_abi_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShape> {
+    use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
+    match scalar {
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(ValueShape::float(4)),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(ValueShape::float(8)),
+        scalar => scalar_home_shape(scalar),
+    }
+}
+
 pub(super) fn installed_scalar_abi_is_canonical(
     abi: &target_operations::ScalarFunctionAbi,
     target: NativeTarget,
@@ -240,12 +255,12 @@ pub(super) fn installed_scalar_abi_is_canonical(
     let Some(parameter_shapes) = abi
         .parameters
         .iter()
-        .map(|parameter| scalar_home_shape(parameter.scalar_type))
+        .map(|parameter| scalar_abi_shape(parameter.scalar_type))
         .collect::<Option<Vec<_>>>()
     else {
         return false;
     };
-    let Some(result_shape) = scalar_home_shape(abi.result.scalar_type) else {
+    let Some(result_shape) = scalar_abi_shape(abi.result.scalar_type) else {
         return false;
     };
     let Ok(expected_plan) = evaluate_call_plan(

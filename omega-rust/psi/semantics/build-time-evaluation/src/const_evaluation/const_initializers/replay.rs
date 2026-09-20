@@ -212,7 +212,7 @@ pub(crate) fn validate(
                 )?;
                 validate_dependency_values(program, &dependencies, |expression, destination| {
                     calls
-                        .evaluate(expression, destination)
+                        .evaluate_scalar(expression, destination)
                         .map(|(value, _)| value)
                 })?;
                 Ok(())
@@ -390,9 +390,8 @@ fn validate_anonymous_float(
     };
     let dependency_roots =
         validate_dependency_values(probe, &dependencies, |expression, destination| {
-            evaluate_scalar(probe, machine, state, expression, destination, scalar_calls)?
-                .0
-                .into_index()
+            evaluate_scalar(probe, machine, state, expression, destination, scalar_calls)
+                .map(|(value, _)| value)
         })?;
     let (evaluated, _) =
         evaluate_scalar(probe, machine, state, original, destination, scalar_calls)?;
@@ -563,8 +562,10 @@ fn validate_dependency_values(
     mut evaluate: impl FnMut(
         ExpressionHandle,
         PrimitiveType,
-    )
-        -> Result<language_semantics::const_value::CanonicalConstValue, String>,
+    ) -> Result<
+        crate::const_evaluation::const_generic_expressions::value::ScalarValue,
+        String,
+    >,
 ) -> Result<Vec<ExpressionHandle>, String> {
     let mut authored_roots = Vec::new();
     for dependency in dependencies {
@@ -577,6 +578,46 @@ fn validate_dependency_values(
             .ok_or("constant dependency lost its exact declaration")?;
         if declarations.next().is_some() {
             return Err("constant dependency declaration is ambiguous".into());
+        }
+        // Floating declarations have determined runtime bits, not canonical
+        // generic-index atoms. Replay the original and its substituted use at
+        // the declared format before comparing their materialization encoding.
+        if let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) =
+            crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
+                program,
+                declaration.declared_type,
+            )
+        {
+            if !program
+                .expression_table
+                .expression_is_valid(declaration.authored_initializer)
+                || program
+                    .expression_table
+                    .source_span(declaration.authored_initializer)
+                    != declaration.initializer_source_span
+            {
+                return Err("constant dependency lost its exact authored initializer".into());
+            }
+            let expected = declaration
+                .canonical_value_encoding
+                .as_deref()
+                .ok_or("floating constant dependency lost its materialized bits")?;
+            for expression in [declaration.authored_initializer, dependency.expression] {
+                let value = evaluate(expression, destination)?;
+                if !matches!(
+                    value,
+                    crate::const_evaluation::const_generic_expressions::value::ScalarValue::Float { .. }
+                ) || value.encoding() != expected
+                {
+                    return Err(
+                        "floating constant dependency or its substituted use drifted".into(),
+                    );
+                }
+            }
+            if !authored_roots.contains(&declaration.authored_initializer) {
+                authored_roots.push(declaration.authored_initializer);
+            }
+            continue;
         }
         let expected = CanonicalConstIdentity {
             type_name: String::new(),
@@ -604,7 +645,8 @@ fn validate_dependency_values(
                 return Err("constant dependency lost its exact authored initializer".into());
             }
             if !authored_roots.contains(&declaration.authored_initializer) {
-                let authored = evaluate(declaration.authored_initializer, destination)?;
+                let authored =
+                    evaluate(declaration.authored_initializer, destination)?.into_index()?;
                 if authored.decode_encoding().as_ref() != Some(&expected) {
                     return Err(
                         "constant dependency authored computation drifted from its canonical value"
@@ -638,6 +680,7 @@ fn validate_dependency_values(
                     )
                     .ok_or("constant dependency lost its exact scalar destination")?;
                 evaluate(leaf.materialized, destination)?
+                    .into_index()?
                     .decode_encoding()
                     .ok_or("constant dependency has an invalid scalar value")?
             };

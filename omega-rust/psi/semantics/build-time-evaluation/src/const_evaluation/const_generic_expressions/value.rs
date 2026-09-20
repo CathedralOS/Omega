@@ -79,12 +79,22 @@ pub(crate) trait ConstantCalls {
         &self,
         expression: ExpressionHandle,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String>;
+
+    /// Declaration values may retain floating bits without becoming index atoms.
+    fn evaluate_scalar_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+        self.evaluate_call(expression)
+            .map(|(value, warnings)| (ScalarValue::Index(value), warnings))
+    }
 }
 
 #[derive(Clone, Copy)]
 enum Shape {
     Anonymous(ExpressionHandle),
     Boolean,
+    Float(FloatFormat),
     Integer(LandedIntegerType, typed_trees::types::TypeReferenceHandle),
 }
 
@@ -92,6 +102,7 @@ enum Shape {
 enum Value {
     Anonymous(ExpressionHandle),
     Boolean(bool),
+    Float(FloatFormat, u64),
     Landed(LandedIntegerType, IntegerValue),
 }
 
@@ -154,6 +165,7 @@ pub(crate) fn validate(
     .warnings)
 }
 
+#[cfg(test)]
 pub(crate) fn evaluate(
     program: &TypedTrees,
     machine: &Machine,
@@ -228,6 +240,9 @@ fn evaluate_scalar_in(
         )?,
         value => value,
     };
+    if let Value::Float(format, bits) = value {
+        return Ok((ScalarValue::Float { format, bits }, warnings));
+    }
     if let Value::Boolean(value) = value {
         return Ok((
             ScalarValue::Index(CanonicalConstValue::boolean(value)),
@@ -309,8 +324,16 @@ fn evaluate_expression(
                             .ok_or("constant call has no validated scalar carrier")?;
                         let (value, call_warnings) = calls
                             .ok_or("machine calls require constant invocation admission")?
-                            .evaluate_call(expression)?;
-                        values.push(call_value(&value, shape)?);
+                            .evaluate_scalar_call(expression)?;
+                        values.push(match value {
+                            ScalarValue::Index(value) => call_value(&value, shape)?,
+                            ScalarValue::Float { format, bits }
+                                if matches!(shape, Shape::Float(expected) if expected == format) =>
+                            {
+                                Value::Float(format, bits)
+                            }
+                            _ => return Err("constant call result differs from its validated scalar carrier".into()),
+                        });
                         for warning in call_warnings {
                             if !warnings.contains(&warning) {
                                 warnings.push(warning);
@@ -329,6 +352,18 @@ fn evaluate_expression(
                     ExpressionNode::Integer(_) => values.push(Value::Anonymous(expression)),
                     ExpressionNode::Float(literal) if literal.landing().is_none() => {
                         values.push(Value::Anonymous(expression));
+                    }
+                    ExpressionNode::Float(literal) => {
+                        let format = literal
+                            .landing()
+                            .ok_or("floating literal lost its format")?;
+                        values.push(Value::Float(
+                            format,
+                            match format {
+                                FloatFormat::F32 => u64::from(literal.f32_bits()),
+                                FloatFormat::F64 => literal.landed_f64().to_bits(),
+                            },
+                        ));
                     }
                     ExpressionNode::Unary(unary) => {
                         active.push(expression);
@@ -669,6 +704,13 @@ fn validate_shapes(
                 ExpressionNode::Float(literal) if literal.landing().is_none() => {
                     shapes.push(Shape::Anonymous(expression))
                 }
+                ExpressionNode::Float(literal) => {
+                    shapes.push(Shape::Float(
+                        literal
+                            .landing()
+                            .ok_or("floating literal lost its format")?,
+                    ));
+                }
                 ExpressionNode::Unary(unary) => {
                     active.push(expression);
                     pending.push((expression, true));
@@ -868,6 +910,7 @@ fn validate_shapes(
             return Err("range endpoint position requires an exact builtin integer carrier".into());
         }
         Shape::Boolean if calls.is_none() || destination == Some(PrimitiveType::Bool) => {}
+        Shape::Float(format) if destination == Some(float_primitive(format)) => {}
         Shape::Integer(carrier, _)
             if calls.is_none()
                 || destination
@@ -886,6 +929,8 @@ fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
     Ok(Shape::Integer(
         match primitive {
             PrimitiveType::Bool => return Ok(Shape::Boolean),
+            PrimitiveType::F32 => return Ok(Shape::Float(FloatFormat::F32)),
+            PrimitiveType::F64 => return Ok(Shape::Float(FloatFormat::F64)),
             PrimitiveType::I8 => LandedIntegerType::I8,
             PrimitiveType::I16 => LandedIntegerType::I16,
             PrimitiveType::I32 => LandedIntegerType::I32,
@@ -898,6 +943,13 @@ fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
         },
         typed_trees::types::TypeReferenceHandle::invalid(),
     ))
+}
+
+fn float_primitive(format: FloatFormat) -> PrimitiveType {
+    match format {
+        FloatFormat::F32 => PrimitiveType::F32,
+        FloatFormat::F64 => PrimitiveType::F64,
+    }
 }
 
 fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String> {
@@ -1180,7 +1232,7 @@ pub(crate) fn evaluate_integer_endpoint(
                 }),
             )
         }
-        Value::Boolean(_) => {
+        Value::Boolean(_) | Value::Float(_, _) => {
             return Err("range endpoint position requires an exact builtin integer carrier".into());
         }
     };

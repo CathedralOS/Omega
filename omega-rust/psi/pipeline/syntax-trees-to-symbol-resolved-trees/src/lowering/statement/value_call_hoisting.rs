@@ -285,13 +285,10 @@ pub(crate) fn is_scalar_computation_state(lowerer: &Lowerer) -> bool {
                 .symbol_resolved_trees
                 .child_type_reference(constrained.base_type);
         }
-        type_reference.primitive_type().is_some_and(|primitive| {
-            !matches!(
-                primitive,
-                symbol_resolved_trees::types::PrimitiveType::F32
-                    | symbol_resolved_trees::types::PrimitiveType::F64
-            )
-        })
+        // Floating values have the same expression/call boundary as integer
+        // scalars. Hoisting only those calls invents a local result in constant
+        // probes and loses the authored expression before typed evaluation.
+        type_reference.primitive_type().is_some()
     };
     lowerer.current_state_self_parameter.is_none()
         && lowerer

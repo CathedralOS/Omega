@@ -198,8 +198,8 @@ Declaration landing, body/index identity and skipped invalid-arm controls use
 
 ## Semantic admission boundary
 
-Computed integer/Boolean declarations run through
-[initializer evaluation](src/const_initializers.rs) before index normalization.
+Computed scalar declarations run through
+[initializer evaluation](src/const_evaluation/const_initializers.rs) before index normalization.
 A non-executing resolution pass selects dependencies without inventing values;
 ready dependency layers share the existing typed scalar evaluator. Anonymous
 rationals land once, while references preserve their declared carriers. Every
@@ -217,6 +217,10 @@ Its checked body/index, module and package controls are
 `cargo nextest run -p compiler --test module_machine_indices computed_declarations:: --no-fail-fast`.
 Ordinary closed integer/Boolean machine calls share the exact scalar evaluator,
 including arithmetic, selective Boolean/match expressions and aggregate leaves.
+Ordinary `f32`/`f64` helpers also evaluate in scalar declarations, including nested
+calls and Boolean-selected results. Floating arguments and results retain their
+declared format and exact bits, including signed zero. Anonymous arguments round
+once to the receiving format; floating values never become generic/index atoms.
 Their arguments retain declared carriers; skipped calls still undergo static
 argument and selection checks. Helper-body constant dependencies complete before
 execution, and ordinary checking plus the common build-time admission floor
@@ -228,6 +232,9 @@ The call customer is
 `cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_initializers/main.omg`;
 `cargo nextest run -p compiler --test module_machine_indices machine_initializers:: --no-fail-fast --no-tests fail`
 checks source-free Terminal execution and module/index identity.
+`cargo nextest run -p omega-native-differential-test --test scalar_case_results floating_constants --no-fail-fast --no-tests fail`
+checks source-free publication for the four hosted targets and exact floating
+return bits on the matching host, after removing the source files.
 An empty checked callee failure summary admits every argument with respect to
 crashes. Otherwise, a disposable ordinary call checks the exact materialized
 scalar arguments and must have a complete empty invocation summary before the
@@ -238,7 +245,9 @@ Boolean guards compose through private call summaries when their exact checked
 owner establishes builtin operator meaning. Authored or unknown meanings,
 unsupported arithmetic, and unknown entry origins stay conservative.
 Specialized generic/provider applications, aggregate-producing expressions,
-constrained/target-dependent and floating declarations remain unfinished.
+constrained/target-dependent declarations, selected floating operations and
+aggregate floating values remain unfinished. NaN results need an explicit
+representation context and reject on this helper path.
 This path does not establish native aggregate execution or NaN identity.
 
 Fixed-array length calls whose reachable closure needs an authored operator
@@ -269,11 +278,12 @@ Connect those arguments to exact selected execution before admitting them.
 The remaining const-generic normalization forms also need connected paths.
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
-is broader than the current implementation. [admission.rs](src/admission.rs)
+is broader than the current implementation. [admission.rs](src/machine_execution/admission.rs)
 owns the common reachable-closure floor; its
-[closure validator](src/admission/closure_validation.rs) currently rejects
-authored `requires` anywhere in the reachable machine/callable closure because
-pre-check evaluation has no discharged concrete-invocation proof context.
+[closure validator](src/machine_execution/admission/closure_validation.rs) rejects
+authored `requires` in a reachable machine/callable closure unless the caller
+supplies discharged concrete-invocation evidence. Ordinary initializer calls
+obtain that evidence from checked invocation summaries, not interpretation.
 It also rejects declared linear runtime carriers across attached/machine-owned
 data, parameters/results, and locals using structural multiplicity, and rejects
 recursive call cycles without admitted termination evidence. These are
