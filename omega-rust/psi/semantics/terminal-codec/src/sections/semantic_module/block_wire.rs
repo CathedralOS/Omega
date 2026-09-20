@@ -851,11 +851,13 @@ mod tests {
             0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
             &[1],
             2_u64.to_le_bytes().as_slice(),
             3_u64.to_le_bytes().as_slice(),
             1_u32.to_le_bytes().as_slice(),
             4_u64.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
             1_u32.to_le_bytes().as_slice(),
             5_u64.to_le_bytes().as_slice(),
@@ -904,7 +906,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        assert_eq!(bytes[20], 10);
+        assert_eq!(bytes[24], 10);
         let mut reader = Reader::new(&bytes);
         let decoded = decode_block(&mut reader).unwrap();
         assert_eq!(decoded, block);
@@ -919,7 +921,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &jump_block(Vec::new())).unwrap();
         let mut bytes = writer.finish();
-        bytes[20] = 10;
+        bytes[24] = 10;
         bytes.extend(0_u32.to_le_bytes());
         assert_eq!(
             decode_block(&mut Reader::new(&bytes)),
@@ -992,16 +994,16 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).expect("write-only primitive store block encodes");
         let bytes = writer.finish();
-        assert_eq!(bytes[28], 0, "absent static reach binder marker");
-        assert_eq!(bytes[29], 0, "Unit OperationResult wire tag");
-        assert_eq!(bytes[30], 43, "WriteOnlyPrimitiveStore wire tag");
+        assert_eq!(bytes[32], 0, "absent static reach binder marker");
+        assert_eq!(bytes[33], 0, "Unit OperationResult wire tag");
+        assert_eq!(bytes[34], 43, "WriteOnlyPrimitiveStore wire tag");
         assert_eq!(
-            &bytes[31..39],
+            &bytes[35..43],
             &id::<PlaceId>(3).get().to_le_bytes(),
             "destination is the first exact operation field",
         );
         assert_eq!(
-            &bytes[39..47],
+            &bytes[43..51],
             &id::<semantic_vocabulary::ValueId>(4).get().to_le_bytes(),
             "source value is the second exact operation field",
         );
@@ -1010,7 +1012,7 @@ mod tests {
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid = bytes;
-        invalid[30] = 255;
+        invalid[34] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid)),
             Err(CodecError::InvalidTag("OperationKind", 255)),
@@ -1044,15 +1046,15 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &store).expect("structural scalar-field store encodes");
         let bytes = writer.finish();
-        assert_eq!(bytes[30], 46, "StructuralScalarFieldStore wire tag");
-        assert_eq!(&bytes[31..39], &id::<PlaceId>(3).get().to_le_bytes());
-        assert_eq!(&bytes[39..43], &1_u32.to_le_bytes());
-        assert_eq!(bytes[43], 1, "Field structural-path segment wire tag");
+        assert_eq!(bytes[34], 46, "StructuralScalarFieldStore wire tag");
+        assert_eq!(&bytes[35..43], &id::<PlaceId>(3).get().to_le_bytes());
+        assert_eq!(&bytes[43..47], &1_u32.to_le_bytes());
+        assert_eq!(bytes[47], 1, "Field structural-path segment wire tag");
         assert_eq!(
-            &bytes[52..60],
+            &bytes[56..64],
             &id::<StructuralFieldId>(4).get().to_le_bytes()
         );
-        assert_eq!(&bytes[60..68], &id::<ValueId>(5).get().to_le_bytes());
+        assert_eq!(&bytes[64..72], &id::<ValueId>(5).get().to_le_bytes());
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(store.clone()));
 
         let mut bounded = store;
@@ -1066,16 +1068,16 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &bounded).expect("bounded store encodes");
         let bounded_bytes = writer.finish();
-        assert_eq!(bounded_bytes[30], 75, "bounded scalar store extension tag");
-        assert_eq!(&bounded_bytes[31..68], &bytes[31..68]);
+        assert_eq!(bounded_bytes[34], 75, "bounded scalar store extension tag");
+        assert_eq!(&bounded_bytes[35..72], &bytes[35..72]);
         assert_eq!(
-            &bounded_bytes[68..76],
+            &bounded_bytes[72..80],
             &id::<ObligationId>(7).get().to_le_bytes()
         );
         assert_eq!(decode_block(&mut Reader::new(&bounded_bytes)), Ok(bounded));
 
         let mut invalid_path = bytes;
-        invalid_path[43] = 255;
+        invalid_path[47] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_path)),
             Err(CodecError::InvalidTag("StructuralPathSegment", 255)),
@@ -1181,7 +1183,7 @@ mod tests {
             let bytes = writer.finish();
             // Results follow the absent static reach marker; scalar declarations
             // also include the eight-byte qualification-set ID.
-            let operation_tag_offset = if tag == 59 { 50 } else { 30 };
+            let operation_tag_offset = if tag == 59 { 54 } else { 34 };
             assert_eq!(bytes[operation_tag_offset], tag);
             let mut reader = Reader::new(&bytes);
             assert_eq!(decode_block(&mut reader), Ok(block));
@@ -1226,7 +1228,7 @@ mod tests {
         // marker, and typed result.
         for (operation, (tag, tag_offset, operand)) in operations
             .into_iter()
-            .zip([(61, 59, 11_u64), (62, 47, 23_u64)])
+            .zip([(61, 63, 11_u64), (62, 51, 23_u64)])
         {
             let block = Block {
                 erased_scalar_formals: Vec::new(),
@@ -1357,7 +1359,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        assert_eq!(bytes[30], 58);
+        assert_eq!(bytes[34], 58);
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
         assert_eq!(reader.remaining(), 0);
@@ -1708,25 +1710,25 @@ mod tests {
 
         // Block id + scalar/structural parameter counts + operation count +
         // operation id + absent static reach marker.
-        assert_eq!(bytes[28], 0, "absent static reach binder marker");
-        assert_eq!(bytes[29], 2, "structural OperationResult wire tag");
+        assert_eq!(bytes[32], 0, "absent static reach binder marker");
+        assert_eq!(bytes[33], 2, "structural OperationResult wire tag");
         // The fixture has no qualifications and one whole-root claim, so the
         // operation-kind tag follows its fixed-width result metadata here.
-        assert_eq!(bytes[71], 41, "CallStructural wire tag");
+        assert_eq!(bytes[75], 41, "CallStructural wire tag");
 
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid_result = bytes.clone();
-        invalid_result[29] = 3;
+        invalid_result[33] = 3;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_result)),
             Err(CodecError::InvalidTag("OperationResult", 3))
         );
 
         let mut invalid_call = bytes;
-        invalid_call[71] = 255;
+        invalid_call[75] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_call)),
             Err(CodecError::InvalidTag("OperationKind", 255))
@@ -1812,18 +1814,18 @@ mod tests {
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
         // Claim-free structural result metadata ends after its three empty rosters.
-        assert_eq!(bytes[59], 68);
+        assert_eq!(bytes[63], 68);
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
         for retired in [51, 67] {
             let mut changed = bytes.clone();
-            changed[59] = retired;
+            changed[63] = retired;
             assert_eq!(
                 decode_block(&mut Reader::new(&changed)),
                 Err(CodecError::InvalidTag("OperationKind", retired))
             );
         }
         let mut changed = bytes.clone();
-        changed[72] = 255;
+        changed[76] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&changed)),
             Err(CodecError::InvalidTag("RecordFieldValue", 255))
