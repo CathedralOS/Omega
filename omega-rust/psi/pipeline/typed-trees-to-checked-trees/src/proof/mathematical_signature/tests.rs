@@ -788,6 +788,73 @@ fn boolean_subjects_generalize_beyond_names() {
     );
 }
 
+/// A plain machine call in a mathematical body interns an opaque
+/// constant at the machine's declared result carrier — machines have
+/// no kernel declaration, so `next(x)` names its own `Int` assumption.
+#[test]
+fn machine_calls_intern_at_the_result_carrier() {
+    let source = "machine next(x: u64) -> u64 { x }\n\
+                  let f(x: u64): u64 = next(x);\n\
+                  let g(x: u64): u64 = next(next(x));";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("machine calls check");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, f's `next(x)`, `f`, g's `next(next(x))`, `g`.
+    assert_eq!(declarations.len(), 5);
+    assert_eq!(signature.authored(), &[2, 4]);
+    for opaque in [1usize, 3] {
+        assert!(declarations[opaque].is_assumption());
+        assert_eq!(
+            signature.term(declarations[opaque].ty),
+            Term::Constant {
+                declaration: 0,
+                levels: Vec::new()
+            }
+        );
+    }
+}
+
+/// A `bool`-returning machine call in `Strict` position denotes
+/// `check(x) = true` over its opaque subject constant.
+#[test]
+fn machine_call_results_form_boolean_subjects() {
+    let source = "machine check(x: u64) -> bool { true }\n\
+                  let ok(x: u64): core::Strict<0> = check(x);";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("machine subject checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `bool`, `true`, `check(x)`, `ok`.
+    assert_eq!(declarations.len(), 5);
+    assert_eq!(signature.authored(), &[4]);
+    let mut body = declarations[4].body.expect("ok body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { left, right, .. } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    // `check(x)` interns before the `true` literal on the right.
+    assert_eq!(
+        signature.term(left),
+        Term::Constant {
+            declaration: 2,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(
+        signature.term(right),
+        Term::Constant {
+            declaration: 3,
+            levels: Vec::new()
+        }
+    );
+}
+
 #[test]
 fn negated_equality_refuses() {
     let diagnostics = refuse("let different(x: u64, y: u64): core::Strict<0> = x != y;");
