@@ -7468,18 +7468,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CUSTODY-MATRIX-HARNESS-MIGRATION.** Mined candidate (split-of:CUSTODY-MUTATION-COVERAGE):
   convert the legacy handwritten one-field substitution matrices to the shared
   `custody_field_inventory!`/`run_one_field_substitution_matrix` harness in
-  `optimization-core`. The lead file,
+  `optimization-core`. Migrated so far, each keeping every authored leg
+  (label, mutation, expected verdict) and the test roster unchanged:
   `image-emission/tests/artifacts/installation_function_nested_custody.rs`
-  (18 matrices, 471 legs), is migrated: 22 declared inventories, two shared
-  checkers, all authored labels retained as variant names. Remaining
-  handwritten sets, by size: `compilation-report/src/pcc/native_evidence/custody_tests.rs`
-  (7 matrices, 3,183 lines), `component-publication/src/tests.rs` (9, 3,140),
+  (18 matrices, 471 legs, 22 inventories, two shared checkers),
+  `image-emission/tests/artifacts/installation_records.rs` (moved onto the
+  shared driver upstream at 7328a8bda9), and
+  `compilation-report/src/pcc/native_evidence/custody_tests.rs` (107 legs,
+  one inventory over the section wire; `EvidenceVerdict` spells malformed
+  versus replay-rejected). Remaining handwritten sets, by size:
+  `component-publication/src/tests.rs` (9 matrices, 3,140 lines),
   `executable-installation/src/executable_installation/tests.rs` (48, 2,614),
-  `image-emission/tests/artifacts/installation_records.rs` (11, 2,375),
   `packages/topology/tests/custody_substitution.rs` (4, 2,179), and the
-  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files. Each
-  migration keeps every authored leg (label, mutation, expected error) and
-  proves the test roster unchanged before and after.
+  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files; the
+  last group is a Psi crate, so it cannot take `optimization-core` (an Omega
+  representation) as a dev-dependency without crossing the firewall and
+  needs the harness relocated to a shared foundation crate first.
 - **CUSTODY-MUTATION-COVERAGE** — mined candidate; verify scope then implement.
 - **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT** — mined candidate; verify scope then implement.
   Verified scope at `0e8bb1bdad`: re-mines the OMEGA-D clause
