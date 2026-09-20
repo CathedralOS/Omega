@@ -6808,7 +6808,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RANKED-CALLEE-NATIVE-COMPOSITION** — mined candidate; verify scope then implement.
 - **RANKED-NATIVE-ADMISSION** — mined candidate; verify scope then implement.
 - **RANKED-PROJECTED-RECEIVER-COMPOSITION** — mined candidate; verify scope then implement.
-- **RC-BUILD-AND-PACKAGES** — mined candidate; verify scope then implement.
+- **RC-BUILD-AND-PACKAGES** — linux x86-64 row recorded at
+  `wiki/drafts/rc_build_and_packages_linux_x86_64.md` (revision e76d715c8e):
+  **red** — 1540 pass / 105 fail / 2 skip across the seven library crates,
+  328 pass / 22 fail across the six compiler test targets, doctests green.
+  All failures are the documented wave-9 fixture-migration residuals
+  (`Service<R>` closed-carrier respell, `select_provider` product-scope
+  operand spelling, vendored-std duplicate-declaration collision,
+  checked-occurrence settlement, canary declaration drift) owned by
+  ENTRY-CONTENT-ROOTS and the provider-settlement lanes. Re-run the row when
+  those families close. Sibling re-mine: RC-BUILD-AND-PACKAGES-GATE.
 - **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
 - **RC-CLOSURE-EVIDENCE-RETENTION** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS** — mined candidate; verify scope then implement.
