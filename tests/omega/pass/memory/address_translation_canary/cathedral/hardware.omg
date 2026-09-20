@@ -25,15 +25,22 @@ use omega::language::core::assembly;
 use cathedral::tables;
 
 pub boundary trait TranslationHardware {
-    // Store `entry` into `table`'s slot `slot`. The ranged slot is the
+    // Store `entry` into `table`'s slot `slot`, consuming and returning the
+    // table so its `storage` qualification replays through the call: a
+    // `&mut` borrow cannot carry the backing extent's `Granted` claim
+    // across a boundary crossing, and a boundary contract may only
+    // re-certify its `result`. The single consumed input and single
+    // qualified output admit the checker's identity-forwarding route, so
+    // no conservation equation is spelled here. The ranged slot is the
     // contract's static bound on a 512-entry table -- `level_index` returns
     // the same range, so the walk's result is the only slot spelling a
     // caller needs.
     machine store_entry(
-        table: &mut Table,
+        table: Table,
         slot: u64 [0..=511],
         entry: TableEntry
-    ) reaches MachineControl;
+    ) -> Table
+    reaches MachineControl;
 
     // Make `root` the active translation root for this hierarchy.
     machine activate_root(root: &Table) reaches MachineControl;

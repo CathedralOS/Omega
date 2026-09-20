@@ -105,18 +105,20 @@ data TranslationReleaseObligations {
 // source can make.
 boundary data MappingToken [linear];
 
-// The owned-route carrier: an unforgeable provider identity beside the
-// authored obligation sets the mapping binds. A consumer holding only the
-// carrier still discovers the exact fact sets its activation or release
-// receipt must establish. The geometry fields are the provider's recorded
-// evidence for the consumed ranges -- the surface a provider reads to
-// derive translation entries -- and carry no authority of their own.
-data Mapping [linear] {
+// The owned-route carrier: an unforgeable provider identity, the authored
+// obligation sets the mapping binds, and the two consumed ranges held as
+// visible `Extent in Granted` fields. A consumer holding only the carrier
+// still discovers the exact fact sets its activation or release receipt
+// must establish, and the held ranges' custody is what `activate` and
+// `unmap`'s conservation equations relate -- the provider's recorded
+// geometry is read through those fields' `base`/`length` projections.
+// The carrier is not `[linear]`: a linear record's interior is opaque to
+// the claim ledger, so the held extents' qualifications could never be
+// replayed at the release crossing.
+data Mapping {
     token: MappingToken;
-    source_base: addr;
-    source_length: u64;
-    destination_base: addr;
-    destination_length: u64;
+    source: Extent in Granted;
+    destination: Extent in Granted;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }
@@ -133,17 +135,16 @@ established by TranslationAuthority::activate;
 boundary data BorrowedMappingToken [linear];
 
 // The borrowed-source carrier: an unforgeable provider identity, the
-// visible shared loan of the lender's source, and the same authored
-// obligation surface the owned route carries. While this value lives the
-// loan stays active, which is what makes the lender's owned source
-// unavailable until teardown releases the carrier.
-data BorrowedMapping [linear] {
+// visible shared loan of the lender's source, the consumed destination
+// range, and the same authored obligation surface the owned route
+// carries. While this value lives the loan stays active, which is what
+// makes the lender's owned source unavailable until teardown releases
+// the carrier. Not `[linear]` for the same ledger-visibility reason as
+// `Mapping`.
+data BorrowedMapping {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
-    source_base: addr;
-    source_length: u64;
-    destination_base: addr;
-    destination_length: u64;
+    destination: Extent in Granted;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }
@@ -183,6 +184,16 @@ data Reclaimed {
     source: Extent in Granted;
 }
 
+// The Cathedral driver's result: the same reclaimed ranges plus the
+// hierarchy the provider returned. `CathedralPageTables` moves through
+// `install`/`remove` by value because a `&mut`-held table field cannot
+// cross the `store_entry` boundary while absent.
+data CathedralReclaimed {
+    destination: Extent in Granted;
+    source: Extent in Granted;
+    tables: CathedralPageTables;
+}
+
 boundary trait TranslationAuthority {
     // Structural validation only: consumes the caller-authored obligation
     // sets into the pending carrier, where a consumer reads the exact fact
@@ -197,20 +208,45 @@ boundary trait TranslationAuthority {
     requires
         source.length == destination.length
     ensures
-        result in Mapping::Pending;
+        result in Mapping::Pending,
+        separate(
+            Granted::content(&result.source),
+            Granted::content(&result.destination),
+        )
+        == separate(
+            Granted::content(old(&source)),
+            Granted::content(old(&destination)),
+        );
 
     // The provider receipt crossing: installed translations exist for the
     // exact pending mapping, and the carrier's authored install set is
     // what the receipt behind this edge must establish.
     machine activate(pending: Mapping in Pending) -> Mapping
     ensures
-        result in Mapping::Installed;
+        result in Mapping::Installed,
+        separate(
+            Granted::content(&result.source),
+            Granted::content(&result.destination),
+        )
+        == separate(
+            Granted::content(old(&pending.source)),
+            Granted::content(old(&pending.destination)),
+        );
 
     // Stale translations are released by the provider before this returns;
     // the carrier's authored release set is what that receipt must
     // establish, and the cross-core shootdown debt remains the caller's
     // to discharge.
-    machine unmap(active: Mapping in Installed) -> Unmapped;
+    machine unmap(active: Mapping in Installed) -> Unmapped
+    ensures
+        separate(
+            Granted::content(&result.destination),
+            Granted::content(&result.source),
+        )
+        == separate(
+            Granted::content(old(&active.source)),
+            Granted::content(old(&active.destination)),
+        );
 
     // Structural validation over a shared source loan: the pending carrier
     // holds the loan, the destination's custody, and the caller-authored
@@ -225,19 +261,26 @@ boundary trait TranslationAuthority {
     requires
         source.length == destination.length
     ensures
-        result in BorrowedMapping::Pending;
+        result in BorrowedMapping::Pending,
+        Granted::content(&result.destination)
+        == Granted::content(old(&destination));
 
     // The borrowed route's receipt crossing: installed translations exist
     // for the exact pending borrowed mapping.
     machine activate_borrowed(pending: BorrowedMapping in Pending)
         -> BorrowedMapping
     ensures
-        result in BorrowedMapping::Installed;
+        result in BorrowedMapping::Installed,
+        Granted::content(&result.destination)
+        == Granted::content(old(&pending.destination));
 
     // Releasing an installed borrowed mapping ends the source loan; the
     // shootdown debt remains the caller's to discharge.
     machine unmap_borrowed(active: BorrowedMapping in Installed)
-        -> UnmappedBorrowed;
+        -> UnmappedBorrowed
+    ensures
+        Granted::content(&result.destination)
+        == Granted::content(old(&active.destination));
 }
 
 boundary requirement Shootdown::discharge(self)
@@ -340,10 +383,10 @@ reaches TranslationAuthority + MachineControl
 machine cathedral_install_and_teardown(
     authority: &TranslationAuthority,
     hardware: &TranslationHardware,
-    tables: &mut CathedralPageTables,
+    tables: CathedralPageTables,
     source: Extent in Granted,
     destination: Extent in Granted
-) -> Reclaimed
+) -> CathedralReclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + TranslationHardware + MachineControl
@@ -362,15 +405,21 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     };
     let pending: Mapping in Pending =
         authority.map(source, destination, install, release);
-    tables.install(hardware, pending.source_base, pending.destination_base);
+    let installing: CathedralPageTables =
+        CathedralPageTables::install(tables, hardware, pending.source.base, pending.destination.base);
     let installed: Mapping in Installed = authority.activate(pending);
-    tables.remove(hardware, installed.destination_base);
+    let removed: CathedralPageTables =
+        CathedralPageTables::remove(installing, hardware, installed.destination.base);
     let unmapped: Unmapped = authority.unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
-    Reclaimed { destination: released_destination, source: released_source }
+    CathedralReclaimed {
+        destination: released_destination,
+        source: released_source,
+        tables: removed,
+    }
 }
 
 // The same provider flow at the second level of authority: a 2MiB leaf
@@ -381,10 +430,10 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
 machine cathedral_huge_install_and_teardown(
     authority: &TranslationAuthority,
     hardware: &TranslationHardware,
-    tables: &mut CathedralPageTables,
+    tables: CathedralPageTables,
     source: Extent in Granted,
     destination: Extent in Granted
-) -> Reclaimed
+) -> CathedralReclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + TranslationHardware + MachineControl
@@ -403,15 +452,21 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     };
     let pending: Mapping in Pending =
         authority.map(source, destination, install, release);
-    tables.install_huge(hardware, pending.source_base, pending.destination_base);
+    let installing: CathedralPageTables =
+        CathedralPageTables::install_huge(tables, hardware, pending.source.base, pending.destination.base);
     let installed: Mapping in Installed = authority.activate(pending);
-    tables.remove_huge(hardware, installed.destination_base);
+    let removed: CathedralPageTables =
+        CathedralPageTables::remove_huge(installing, hardware, installed.destination.base);
     let unmapped: Unmapped = authority.unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
-    Reclaimed { destination: released_destination, source: released_source }
+    CathedralReclaimed {
+        destination: released_destination,
+        source: released_source,
+        tables: removed,
+    }
 }
 
 data Main {
