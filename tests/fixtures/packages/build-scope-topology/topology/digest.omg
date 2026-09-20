@@ -1,0 +1,463 @@
+// SHA-256 over staged bytes — the plan's `request_commitment`, the export
+// endpoint contract digests, and the per-component completeness closure all
+// reduce to this one compression function (FIPS 180-4). Written against the
+// language's `u32 in Wrapping` surface: every addition wraps, rotates are
+// shift-or pairs, and `ch` avoids a bitwise-not by rewriting
+// `(e & f) ^ (~e & g)` as `g ^ (e & (f ^ g))`.
+//
+// Checker conventions: computed index expressions are staged into plain
+// `u64 in Wrapping` fields (index operands must be simple names), and every
+// index op sits in a parameterless state entered by a transition that
+// restates the bounds (`field < extent`). `bad` is set on guard violation so
+// callers can detect an impossible path. Callers stage input bytes into
+// `msg[..msg_n]`; the 32-byte digest lands in `out32`.
+
+module digest;
+
+pub data Sha256 {
+    bad: bool;
+    h: [u32 in Wrapping; 8];
+    w: [u32 in Wrapping; 64];
+    block: [u8; 64];
+    msg: [u8; 8192];
+    tail: [u8; 128];
+    out32: [u8; 32];
+    i: u64 in Wrapping;
+    j0: u64 in Wrapping;
+    j1: u64 in Wrapping;
+    j2: u64 in Wrapping;
+    j3: u64 in Wrapping;
+    e0: u64 in Wrapping;
+    e1: u64 in Wrapping;
+    e2: u64 in Wrapping;
+    e3: u64 in Wrapping;
+    o0: u64 in Wrapping;
+    o1: u64 in Wrapping;
+    o2: u64 in Wrapping;
+    o3: u64 in Wrapping;
+    q0: u64 in Wrapping;
+    q2: u64 in Wrapping;
+    w0: u64 in Wrapping;
+    p0: u64 in Wrapping;
+    base: u64 in Wrapping;
+    msg_n: u64 in Wrapping;
+    tail_n: u64 in Wrapping;
+    block_i: u64 in Wrapping;
+    bit_len: u64 in Wrapping;
+    a: u32 in Wrapping;
+    b: u32 in Wrapping;
+    c: u32 in Wrapping;
+    d: u32 in Wrapping;
+    e: u32 in Wrapping;
+    f: u32 in Wrapping;
+    g: u32 in Wrapping;
+    hh: u32 in Wrapping;
+}
+
+machine sha256_round_k(i: u64 in Wrapping) -> u32 in Wrapping {
+    transition i < 64 {
+        true -> ok(i)
+        _ -> bad()
+    }
+
+    state ok(i: u64 in Wrapping) -> u32 in Wrapping {
+        // First 32 bits of the fractional parts of the cube roots of the
+        // first 64 primes — the SHA-256 round constants.
+        let table: [u32 in Wrapping; 64] = [
+            1116352408, 1899447441, 3049323471, 3921009573,
+            961987163, 1508970993, 2453635748, 2870763221,
+            3624381080, 310598401, 607225278, 1426881987,
+            1925078388, 2162078206, 2614888103, 3248222580,
+            3835390401, 4022224774, 264347078, 604807628,
+            770255983, 1249150122, 1555081692, 1996064986,
+            2554220882, 2821834349, 2952996808, 3210313671,
+            3336571891, 3584528711, 113926993, 338241895,
+            666307205, 773529912, 1294757372, 1396182291,
+            1695183700, 1986661051, 2177026350, 2456956037,
+            2730485921, 2820302411, 3259730800, 3345764771,
+            3516065817, 3600352804, 4094571909, 275423344,
+            430227734, 506948616, 659060556, 883997877,
+            958139571, 1322822218, 1537002063, 1747873779,
+            1955562222, 2024104815, 2227730452, 2361852424,
+            2428436474, 2756734187, 3204031479, 3329325298
+        ];
+        table[i]
+    }
+    state bad() -> u32 in Wrapping {
+        0
+    }
+}
+
+machine Sha256::reset(&mut self) {
+    self.h[0] = 1779033703;
+    self.h[1] = 3144134277;
+    self.h[2] = 1013904242;
+    self.h[3] = 2773480762;
+    self.h[4] = 1359893119;
+    self.h[5] = 2600822924;
+    self.h[6] = 528734635;
+    self.h[7] = 1541459225;
+}
+
+// Fill `block` from `msg[base .. base+64]`; the chunk_check guard has already
+// established `base + 64 <= msg_n`.
+machine Sha256::stage_block(&mut self) {
+    self.i = 0;
+    transition { _ -> copy() }
+
+    state copy(&mut self) {
+        transition self.i < 64 {
+            true -> prep()
+            _ -> done()
+        }
+    }
+    state prep(&mut self) {
+        self.p0 = self.base + self.i;
+        self.q0 = self.i;
+        transition self.p0 < 8192 && self.q0 < 64 {
+            true -> apply()
+            _ -> stuck()
+        }
+    }
+    state apply(&mut self) {
+        self.block[self.q0] = self.msg[self.p0];
+        self.i = self.i + 1;
+        transition { _ -> copy() }
+    }
+    state done(&mut self) {
+    }
+    state stuck(&mut self) {
+        self.bad = true;
+    }
+}
+
+// Compress the staged `block`.
+machine Sha256::compress(&mut self) {
+    self.i = 0;
+    transition { _ -> load_w() }
+
+    state load_w(&mut self) {
+        transition self.i < 16 {
+            true -> prep_w()
+            _ -> extend()
+        }
+    }
+    state prep_w(&mut self) {
+        self.j0 = self.i * 4;
+        self.j1 = self.j0 + 1;
+        self.j2 = self.j1 + 1;
+        self.j3 = self.j2 + 1;
+        self.w0 = self.i;
+        transition self.j0 < 64 && self.j1 < 64 && self.j2 < 64 && self.j3 < 64 && self.w0 < 64 {
+            true -> apply_w()
+            _ -> stuck()
+        }
+    }
+    state apply_w(&mut self) {
+        self.w[self.w0] = ((self.block[self.j0] as u32 in Wrapping) << 24)
+            | ((self.block[self.j1] as u32 in Wrapping) << 16)
+            | ((self.block[self.j2] as u32 in Wrapping) << 8)
+            | (self.block[self.j3] as u32 in Wrapping);
+        self.i = self.i + 1;
+        transition { _ -> load_w() }
+    }
+    state extend(&mut self) {
+        self.i = 16;
+        transition { _ -> extend_loop() }
+    }
+    state extend_loop(&mut self) {
+        transition self.i >= 16 && self.i < 64 {
+            true -> prep_e()
+            _ -> rounds()
+        }
+    }
+    state prep_e(&mut self) {
+        self.e0 = self.i - 16;
+        self.e1 = self.i - 7;
+        self.e2 = self.i - 15;
+        self.e3 = self.i - 2;
+        self.w0 = self.i;
+        transition self.e0 < 64 && self.e1 < 64 && self.e2 < 64 && self.e3 < 64 && self.w0 < 64 {
+            true -> apply_e()
+            _ -> stuck()
+        }
+    }
+    state apply_e(&mut self) {
+        let x: u32 in Wrapping = self.w[self.e2];
+        let y: u32 in Wrapping = self.w[self.e3];
+        let s0: u32 in Wrapping = ((x >> 7) | (x << 25)) ^ ((x >> 18) | (x << 14)) ^ (x >> 3);
+        let s1: u32 in Wrapping = ((y >> 17) | (y << 15)) ^ ((y >> 19) | (y << 13)) ^ (y >> 10);
+        self.w[self.w0] = self.w[self.e0] + s0 + self.w[self.e1] + s1;
+        self.i = self.i + 1;
+        transition { _ -> extend_loop() }
+    }
+    state rounds(&mut self) {
+        self.a = self.h[0];
+        self.b = self.h[1];
+        self.c = self.h[2];
+        self.d = self.h[3];
+        self.e = self.h[4];
+        self.f = self.h[5];
+        self.g = self.h[6];
+        self.hh = self.h[7];
+        self.i = 0;
+        transition { _ -> round_loop() }
+    }
+    state round_loop(&mut self) {
+        transition self.i < 64 {
+            true -> prep_r()
+            _ -> absorb()
+        }
+    }
+    state prep_r(&mut self) {
+        self.w0 = self.i;
+        transition self.w0 < 64 {
+            true -> apply_r()
+            _ -> stuck()
+        }
+    }
+    state apply_r(&mut self) {
+        let s1: u32 in Wrapping = ((self.e >> 6) | (self.e << 26))
+            ^ ((self.e >> 11) | (self.e << 21)) ^ ((self.e >> 25) | (self.e << 7));
+        let ch: u32 in Wrapping = self.g ^ (self.e & (self.f ^ self.g));
+        let t1: u32 in Wrapping = self.hh + s1 + ch + sha256_round_k(self.w0) + self.w[self.w0];
+        let s0: u32 in Wrapping = ((self.a >> 2) | (self.a << 30))
+            ^ ((self.a >> 13) | (self.a << 19)) ^ ((self.a >> 22) | (self.a << 10));
+        let maj: u32 in Wrapping = (self.a & self.b) ^ (self.a & self.c) ^ (self.b & self.c);
+        let t2: u32 in Wrapping = s0 + maj;
+        self.hh = self.g;
+        self.g = self.f;
+        self.f = self.e;
+        self.e = self.d + t1;
+        self.d = self.c;
+        self.c = self.b;
+        self.b = self.a;
+        self.a = t1 + t2;
+        self.i = self.i + 1;
+        transition { _ -> round_loop() }
+    }
+    state absorb(&mut self) {
+        self.h[0] = self.h[0] + self.a;
+        self.h[1] = self.h[1] + self.b;
+        self.h[2] = self.h[2] + self.c;
+        self.h[3] = self.h[3] + self.d;
+        self.h[4] = self.h[4] + self.e;
+        self.h[5] = self.h[5] + self.f;
+        self.h[6] = self.h[6] + self.g;
+        self.h[7] = self.h[7] + self.hh;
+    }
+    state stuck(&mut self) {
+        self.bad = true;
+    }
+}
+
+// Digest the staged `msg[..msg_n]` into `out32`.
+machine Sha256::digest(&mut self) {
+    self.bad = false;
+    self.reset();
+    self.base = 0;
+    transition { _ -> chunk_check() }
+
+    state chunk_check(&mut self) {
+        transition self.base + 64 <= self.msg_n {
+            true -> run_chunk()
+            _ -> tail_begin()
+        }
+    }
+    state run_chunk(&mut self) {
+        self.stage_block();
+        self.compress();
+        self.base = self.base + 64;
+        transition { _ -> chunk_check() }
+    }
+    state tail_begin(&mut self) {
+        self.i = 0;
+        transition { _ -> tail_copy() }
+    }
+    state tail_copy(&mut self) {
+        transition self.base + self.i < self.msg_n && self.i < 64 {
+            true -> prep_t()
+            _ -> tail_gate()
+        }
+    }
+    state prep_t(&mut self) {
+        self.q2 = self.i;
+        self.p0 = self.base + self.i;
+        transition self.q2 < 128 && self.p0 < 8192 {
+            true -> apply_t()
+            _ -> stuck()
+        }
+    }
+    state apply_t(&mut self) {
+        self.tail[self.q2] = self.msg[self.p0];
+        self.i = self.i + 1;
+        transition { _ -> tail_copy() }
+    }
+    state tail_gate(&mut self) {
+        transition self.i <= 64 {
+            true -> tail_mark()
+            _ -> stuck()
+        }
+    }
+    state tail_mark(&mut self) {
+        self.tail_n = self.i;
+        self.q2 = self.i;
+        transition self.q2 < 128 {
+            true -> apply_mark()
+            _ -> stuck()
+        }
+    }
+    state apply_mark(&mut self) {
+        self.tail[self.q2] = 128;
+        self.i = self.i + 1;
+        transition { _ -> tail_zero() }
+    }
+    state tail_zero(&mut self) {
+        transition self.i < 128 {
+            true -> prep_z()
+            _ -> tail_len()
+        }
+    }
+    state prep_z(&mut self) {
+        self.q2 = self.i;
+        transition self.q2 < 128 {
+            true -> apply_z()
+            _ -> stuck()
+        }
+    }
+    state apply_z(&mut self) {
+        self.tail[self.q2] = 0;
+        self.i = self.i + 1;
+        transition { _ -> tail_zero() }
+    }
+    state tail_len(&mut self) {
+        self.bit_len = self.msg_n * 8;
+        transition self.tail_n < 56 {
+            true -> len_at_56()
+            _ -> len_at_120()
+        }
+    }
+    state len_at_56(&mut self) {
+        self.block_i = 56;
+        transition { _ -> write_len() }
+    }
+    state len_at_120(&mut self) {
+        self.block_i = 120;
+        transition { _ -> write_len() }
+    }
+    state write_len(&mut self) {
+        self.i = 0;
+        transition { _ -> write_len_loop() }
+    }
+    state write_len_loop(&mut self) {
+        transition self.i < 8 {
+            true -> prep_l()
+            _ -> tail_blocks()
+        }
+    }
+    state prep_l(&mut self) {
+        self.q0 = self.block_i + self.i;
+        self.q2 = (7 - self.i) * 8;
+        transition self.q0 < 128 && self.q2 <= 56 {
+            true -> apply_l()
+            _ -> stuck()
+        }
+    }
+    state apply_l(&mut self) {
+        self.tail[self.q0] = ((self.bit_len >> self.q2) as u8 in Wrapping) as u8;
+        self.i = self.i + 1;
+        transition { _ -> write_len_loop() }
+    }
+    state tail_blocks(&mut self) {
+        self.i = 0;
+        transition { _ -> stage_first() }
+    }
+    state stage_first(&mut self) {
+        transition self.i < 64 {
+            true -> prep_f()
+            _ -> run_first()
+        }
+    }
+    state prep_f(&mut self) {
+        self.q0 = self.i;
+        self.q2 = self.i;
+        transition self.q0 < 64 && self.q2 < 128 {
+            true -> apply_f()
+            _ -> stuck()
+        }
+    }
+    state apply_f(&mut self) {
+        self.block[self.q0] = self.tail[self.q2];
+        self.i = self.i + 1;
+        transition { _ -> stage_first() }
+    }
+    state run_first(&mut self) {
+        self.compress();
+        transition self.tail_n < 56 {
+            true -> done()
+            _ -> stage_second()
+        }
+    }
+    state stage_second(&mut self) {
+        self.i = 0;
+        transition { _ -> stage_second_loop() }
+    }
+    state stage_second_loop(&mut self) {
+        transition self.i < 64 {
+            true -> prep_s()
+            _ -> run_second()
+        }
+    }
+    state prep_s(&mut self) {
+        self.q0 = self.i;
+        self.q2 = 64 + self.i;
+        transition self.q0 < 64 && self.q2 < 128 {
+            true -> apply_s()
+            _ -> stuck()
+        }
+    }
+    state apply_s(&mut self) {
+        self.block[self.q0] = self.tail[self.q2];
+        self.i = self.i + 1;
+        transition { _ -> stage_second_loop() }
+    }
+    state run_second(&mut self) {
+        self.compress();
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+        self.i = 0;
+        transition { _ -> write_loop() }
+    }
+    state write_loop(&mut self) {
+        transition self.i < 8 {
+            true -> prep_o()
+            _ -> finish()
+        }
+    }
+    state prep_o(&mut self) {
+        self.o0 = self.i * 4;
+        self.o1 = self.o0 + 1;
+        self.o2 = self.o1 + 1;
+        self.o3 = self.o2 + 1;
+        self.w0 = self.i;
+        transition self.o0 < 32 && self.o1 < 32 && self.o2 < 32 && self.o3 < 32 && self.w0 < 8 {
+            true -> apply_o()
+            _ -> stuck()
+        }
+    }
+    state apply_o(&mut self) {
+        let word: u32 in Wrapping = self.h[self.w0];
+        self.out32[self.o0] = ((word >> 24) as u8 in Wrapping) as u8;
+        self.out32[self.o1] = ((word >> 16) as u8 in Wrapping) as u8;
+        self.out32[self.o2] = ((word >> 8) as u8 in Wrapping) as u8;
+        self.out32[self.o3] = (word as u8 in Wrapping) as u8;
+        self.i = self.i + 1;
+        transition { _ -> write_loop() }
+    }
+    state finish(&mut self) {
+    }
+    state stuck(&mut self) {
+        self.bad = true;
+    }
+}
