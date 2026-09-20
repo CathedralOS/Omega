@@ -6957,7 +6957,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PAIR-RULE-DESCRIPTOR-AXES** — mined candidate; verify scope then implement.
-- **PARTIAL-OWNERSHIP-CLEANUP-EXPANSION** — mined candidate; verify scope then implement.
+- **PARTIAL-OWNERSHIP-CLEANUP-EXPANSION.** Resolved — re-mine of **CML4**'s
+  named remaining work, not an independent item. The surface is partial
+  ownership cleanup per
+  [ownership.md](wiki/spec/terminal-psi/ownership.md#partial-ownership-and-residuals):
+  Terminal production already carries partial affine residuals on returns,
+  call continuations and Jumps for the bounded forms in the
+  terminal-production cleanup note; the unlanded legs are CML4's native
+  bullets — realize residual cleanup on return / Jump / conditional edges
+  (`lowering/function/mod.rs` rejects Jump `residual_affine_discards` with
+  `UnsupportedPartialAffineContinuation`; `plain_home_cleanup` in
+  `lowering/control_flow/terminator.rs` admits only whole-root
+  `DiscardRoot`), covering boundary call-result homes, projected copies,
+  computed scalar bindings, boundary-result projections, and cyclic
+  control without delaying cleanup until final return. Owners are CML4's
+  declared ones (Psi: `typed-trees-to-checked-trees/src/execution/
+  control_cleanup.rs` + `checked-trees-to-lowered-psi/src/unit/
+  unit_cleanup/`; Omega: `abstract-operations-to-target-operations/src/
+  lowering/` + the native-realization lowering legs above). CML4 held a
+  live claim on exactly those surfaces when this row was verified
+  (expires 2026-09-21T00:33Z).
 - **PASS-CANARY-UNIT-PLAN-CLASS** — mined candidate; verify scope then implement.
 - **PER-RULE-AXIS-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **PERSISTENT-CHECKED-SOURCE-CACHE** — mined candidate; verify scope then implement.
