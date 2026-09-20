@@ -3,17 +3,16 @@ use super::{
     PostAllocationOptimizationManifestDecodeError, PostAllocationSelectedTransformation,
     PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyIdentity,
-    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RegisterHomeIdentity,
-};
+use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
 use optimization_core::{
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
     SelectedLoweringOptimizationCompletionIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::{
+    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
+    PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+};
 use target::NativeTarget;
 
 type Mutation = fn(&mut PostAllocationOptimizationManifest);
@@ -21,7 +20,7 @@ type Mutation = fn(&mut PostAllocationOptimizationManifest);
 fn record() -> PostAllocationOptimizationManifest {
     let mut record = PostAllocationOptimizationManifest {
         identity: PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
-        stage: PostAllocationManifestStage::ValidatedRegisterHomes,
+        stage: PostAllocationManifestStage::RegisterHomes,
         pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
         target: NativeTarget::linux_x64(),
         selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),

@@ -5,14 +5,13 @@ use optimization_core::{
     SelectedLoweringOptimizationCompletionIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::{
+    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
+    PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyIdentity,
-    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RegisterHomeIdentity,
-};
+use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
 
 use super::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
@@ -45,7 +44,7 @@ impl PostAllocationOptimizationManifest {
         }
         let identity = PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let stage = match cursor.byte()? {
-            1 => PostAllocationManifestStage::ValidatedRegisterHomes,
+            1 => PostAllocationManifestStage::RegisterHomes,
             tag => {
                 return Err(PostAllocationOptimizationManifestDecodeError::UnknownStage(
                     tag,
@@ -151,7 +150,7 @@ impl PostAllocationOptimizationManifest {
 pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec<u8> {
     let mut canonical = Vec::new();
     canonical.push(match manifest.stage {
-        PostAllocationManifestStage::ValidatedRegisterHomes => 1,
+        PostAllocationManifestStage::RegisterHomes => 1,
     });
     canonical.extend_from_slice(&manifest.pre_physical.bytes());
     encode_target(&mut canonical, manifest.target);

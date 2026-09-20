@@ -55,7 +55,7 @@ pub use effects::{
     pre_allocation_machine_effect_identity, saturating_family_tag, validate_machine_effect_catalog,
 };
 pub use identity::{
-    FixedViewCopyIdentity, PressureRematerializationIdentity, SelectedBlockId,
+    FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
