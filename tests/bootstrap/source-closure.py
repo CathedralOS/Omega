@@ -65,7 +65,8 @@ class SourceClosure(unittest.TestCase):
 
     def test_prefix_order_and_failure_preservation(self):
         for header in HEADERS:
-            for case in ("valid", "missing", "control", "nonascii", "symlink", "stale_member"):
+            for case in ("valid", "missing", "control", "nonascii", "symlink",
+                         "stale_member", "wrong_suffix", "directory"):
                 with self.subTest(header=header, case=case), tempfile.TemporaryDirectory() as temporary:
                     directory = Path(temporary)
                     manifest, first, second, rows = self.fixture(directory, header)
@@ -80,6 +81,16 @@ class SourceClosure(unittest.TestCase):
                         prefix.rename(target)
                         prefix.symlink_to(target)
                     elif case == "stale_member": first.write_bytes(b"changed")
+                    elif case == "wrong_suffix":
+                        foreign = next(
+                            suffix for suffix in HEADERS.values()
+                            if suffix != HEADERS[header]
+                        )
+                        prefix = prefix.with_suffix(foreign)
+                        prefix.write_bytes(b"; wrong-language entry\n")
+                    elif case == "directory":
+                        prefix = directory / "entry_dir"
+                        prefix.mkdir()
                     output = directory / "output"
                     for existing in (False, True):
                         if existing:

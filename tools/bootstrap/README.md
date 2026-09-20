@@ -78,6 +78,11 @@ evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All
 use the same identity, length, digest, and canonical relative-path rows. The
 manifest parent owns the complete source-file inventory: missing, extra,
 wrong-language, stale, and symlinked members reject before output replacement.
+`--prefix ENTRY` prepends one entry file — a marked entry or gate-local
+diagnostic header that is not a manifested member — ahead of the packed
+members; it must be a regular file carrying the manifest's source suffix and
+rejects before output replacement on a wrong language, a symlink, a
+non-regular path, or forbidden bytes.
 Inventory traversal checks membership only; it never selects or orders inputs.
 
 `paths.sh` exports canonical selected-owner paths. Future compiler artifact
