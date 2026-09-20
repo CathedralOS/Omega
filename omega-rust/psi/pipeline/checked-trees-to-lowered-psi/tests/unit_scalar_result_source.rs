@@ -68,6 +68,24 @@ machine Main::main(destination: &write i32) {
 }
 "#;
 
+const RETURN_RESULT_SOURCE: &str = r#"
+data Scalar {}
+
+machine Scalar::identity(value: i32) -> i32
+requires value == value
+ensures result == value
+{
+    transition { _ -> value }
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> i32 {
+    let result: i32 = Scalar::identity(23);
+    result
+}
+"#;
+
 fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -634,5 +652,121 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
     assert_eq!(
         rejection_message(&local_use),
         "call scalar operand disagrees with its authored argument"
+    );
+}
+
+#[test]
+fn attached_unit_scalar_result_reaches_the_machine_return_in_terminal_psi() {
+    let checked = checked_from_source(RETURN_RESULT_SOURCE);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
+        .expect("call-produced scalar result returned directly should lower");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let producer = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, terminal_psi::OperationKind::Call { .. }))
+        .expect("ordinary scalar producer");
+    let terminal_psi::OperationResult::Scalar(result) = producer.result else {
+        panic!("ordinary scalar producer should publish a result")
+    };
+    let (return_block, returned) = entry
+        .blocks
+        .iter()
+        .find_map(|block| match block.terminator {
+            terminal_psi::Terminator::Return { value, .. } => Some((block.id, value)),
+            _ => None,
+        })
+        .expect("return block");
+    let [returned_parameter] = entry
+        .blocks
+        .iter()
+        .find(|block| block.id == return_block)
+        .expect("return block parameters")
+        .parameters
+        .as_slice()
+    else {
+        panic!("return block should bind exactly its returned scalar")
+    };
+    assert_eq!(returned, returned_parameter.id);
+    let carrying_edges = entry
+        .blocks
+        .iter()
+        .filter_map(|block| match block.terminator {
+            terminal_psi::Terminator::Jump {
+                target: target_block,
+                ref arguments,
+                ..
+            } if target_block == return_block => Some(arguments),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(carrying_edges.as_slice(), [&vec![result.id]]);
+}
+
+#[test]
+fn attached_unit_scalar_result_return_rejects_lost_argument_custody() {
+    let mut checked = checked_from_source(RETURN_RESULT_SOURCE);
+    // The call's retained actual is the one UnitCallArgument row beside its
+    // computation root: relabel it and the custody rejoin must refuse.
+    let main = main_symbol(&checked);
+    let state = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == main)
+        .expect("Main::main Unit plan")
+        .state;
+    let retained = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter_mut()
+        .find(|expression| {
+            expression.state == state
+                && expression.role
+                    == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: 0,
+                    }
+        })
+        .expect("unit call argument row");
+    retained.statement_ordinal = 1;
+    let binding_handles = checked
+        .facts
+        .values
+        .scalar_expressions
+        .source_bindings
+        .iter()
+        .filter(|(_, binding)| {
+            binding.state == state
+                && binding.role
+                    == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: 0,
+                    }
+        })
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    for handle in binding_handles {
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .source_bindings
+            .get_mut(handle)
+            .statement_ordinal = 1;
+    }
+    assert_eq!(
+        rejection_message(&checked),
+        "computed call operand lost its retained pure argument"
     );
 }
