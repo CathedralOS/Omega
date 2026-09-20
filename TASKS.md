@@ -7719,7 +7719,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   end-to-end compilation acceptance belongs to OMEGA-D. Sibling stub
   OMEGA-D-REQUEST-ROUTE-ENTRY mines the same landed binding — dedupe.
 - **OMEGA-ENTRY-MANIFEST-BINDINGS** — mined candidate; verify scope then implement.
-- **OMEGA-PARSER-GATE-WINDOWS** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
+  OMEGA-PARSER-GATE-WINDOWS-VALIDATION's Windows x64 leg of the
+  omega-parser bootstrap gate. The host-free surface is landed and
+  re-verified green on Linux x86-64 at `8a37f826865`:
+  `sh tests/bootstrap/omega-parser/run.sh --identity` binds every
+  identity plus the DCREQ request framing, customer assembly, and
+  expected fixture (622933-byte receipt request, 563736-byte customer).
+  The only remaining leg is Windows x64 seed execution —
+  `sh tests/bootstrap/omega-parser/run.sh` on a MINGW/MSYS x64 host;
+  no audited seed executes on this Linux box, so the row is a host leg,
+  not a code slice.
 - **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS-VALIDATION.** Windows x64 validation leg of the
   omega-parser bootstrap gate (sibling alias of OMEGA-PARSER-GATE-WINDOWS /
