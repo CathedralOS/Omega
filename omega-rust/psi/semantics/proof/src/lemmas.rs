@@ -185,42 +185,51 @@ impl ForAllInRangeFact {
 
     /// Whether `index` provably lies within `[start, end)`. Symbolic bounds are
     /// treated conservatively: an index is only proven in-range when it can be
-    /// compared against concrete literal bounds, or it is the literal `0` paired
-    /// with a non-vacuous lower bound of `0`.
+    /// compared against concrete literal bounds, or when it carries its own
+    /// in-bounds witness (`literal < length` discharges a `length` upper bound).
     fn contains_index(&self, index: ElementIndex) -> bool {
-        let ElementIndex::Literal(index) = index else {
+        let literal = match index {
             // A symbolic (in-bounds) index is covered only by a full-extent
-            // quantifier, whose range is exactly the collection's valid offsets.
-            return matches!(
-                (self.start, self.end),
-                (QuantifiedBound::Zero, QuantifiedBound::Length)
-            );
+            // quantifier, whose range is exactly the collection's valid
+            // offsets; a narrower range gives it no literal position.
+            ElementIndex::InBounds => {
+                return matches!(
+                    (self.start, self.end),
+                    (QuantifiedBound::Zero, QuantifiedBound::Length)
+                );
+            }
+            ElementIndex::Literal(offset) | ElementIndex::LiteralInBounds(offset) => offset,
         };
 
         let lower_ok = match self.start {
-            QuantifiedBound::Zero => index >= 0,
-            QuantifiedBound::Literal(start) => index >= start,
+            QuantifiedBound::Zero => literal >= 0,
+            QuantifiedBound::Literal(start) => literal >= start,
             QuantifiedBound::Length => false,
         };
         let upper_ok = match self.end {
             QuantifiedBound::Zero => false,
-            QuantifiedBound::Literal(end) => index < end,
-            // `0..length`: any non-negative literal offset is in range only when
-            // we also know it is a valid offset, which a bare literal does not
-            // tell us. Conservatively reject symbolic upper bounds for literals.
-            QuantifiedBound::Length => false,
+            QuantifiedBound::Literal(end) => literal < end,
+            // A `length` upper bound covers a literal only when the literal
+            // carries the `literal < length` witness a bare literal lacks.
+            QuantifiedBound::Length => matches!(index, ElementIndex::LiteralInBounds(_)),
         };
         lower_ok && upper_ok
     }
 
     /// Whether the quantified range is provably empty, in which case the fact
-    /// holds vacuously. Only literal bounds can be compared; symbolic bounds are
-    /// treated conservatively as possibly non-empty.
+    /// holds vacuously. Bounds that can be compared symbolically are compared;
+    /// a bound that cannot be ordered is treated as possibly non-empty.
     pub fn is_vacuous(&self) -> bool {
         match (self.start, self.end) {
+            // Nothing lies at or after the collection's own extent.
+            (QuantifiedBound::Length, _) => true,
+            // A zero-ended range is empty unless its start is a malformed
+            // negative literal.
+            (_, QuantifiedBound::Zero) => {
+                !matches!(self.start, QuantifiedBound::Literal(start) if start < 0)
+            }
             (QuantifiedBound::Literal(start), QuantifiedBound::Literal(end)) => start >= end,
-            (QuantifiedBound::Zero, QuantifiedBound::Literal(end)) => end == 0,
-            (QuantifiedBound::Zero, QuantifiedBound::Zero) => true,
+            (QuantifiedBound::Zero, QuantifiedBound::Literal(end)) => end <= 0,
             _ => false,
         }
     }
@@ -234,6 +243,11 @@ pub enum ElementIndex {
     /// A symbolic index already proven to be a valid in-bounds offset (for
     /// example via [`ProofLemma::IndexInBounds`]).
     InBounds,
+    /// A concrete literal offset already proven to be a valid in-bounds
+    /// offset — the literal was witnessed `literal < length` (for example via
+    /// [`ProofLemma::IndexInBounds`]), so a `length`-bounded quantifier covers
+    /// it where a bare [`ElementIndex::Literal`] cannot.
+    LiteralInBounds(i64),
 }
 
 /// A bound of a quantified index range.
@@ -389,9 +403,87 @@ mod tests {
         // Out of range below and at/above the exclusive end.
         assert!(!fact.proves_element("Positive", ElementIndex::Literal(0)));
         assert!(!fact.proves_element("Positive", ElementIndex::Literal(4)));
-        // A literal index is not discharged by a symbolic upper bound.
+        // A bare literal index is not discharged by a symbolic upper bound.
         let symbolic = ForAllInRangeFact::over_full_extent("Positive");
         assert!(!symbolic.proves_element("Positive", ElementIndex::Literal(2)));
+        // The same literal carrying its in-bounds witness is discharged.
+        assert!(symbolic.proves_element("Positive", ElementIndex::LiteralInBounds(2)));
+    }
+
+    #[test]
+    fn literal_in_bounds_discharges_length_bounded_ranges() {
+        // `Literal(s)..Length`: the witness supplies `literal < length`, so the
+        // literal only owes the lower bound.
+        let tail = ForAllInRangeFact::new(
+            "Checked",
+            QuantifiedBound::Literal(3),
+            QuantifiedBound::Length,
+        );
+        assert!(tail.proves_element("Checked", ElementIndex::LiteralInBounds(3)));
+        assert!(tail.proves_element("Checked", ElementIndex::LiteralInBounds(9)));
+        assert!(!tail.proves_element("Checked", ElementIndex::LiteralInBounds(2)));
+        // A bare literal still fails the symbolic upper bound.
+        assert!(!tail.proves_element("Checked", ElementIndex::Literal(9)));
+        // And a symbolic index without a literal position is not discharged by
+        // a narrower start than the full extent.
+        assert!(!tail.proves_element("Checked", ElementIndex::InBounds));
+
+        // `Zero..Literal(e)`: the witness is unused; the literal owes `i < e`.
+        let head = ForAllInRangeFact::new(
+            "Checked",
+            QuantifiedBound::Zero,
+            QuantifiedBound::Literal(5),
+        );
+        assert!(head.proves_element("Checked", ElementIndex::LiteralInBounds(4)));
+        assert!(!head.proves_element("Checked", ElementIndex::LiteralInBounds(5)));
+
+        // Literal-bounded ranges behave exactly as for `Literal`.
+        let middle = ForAllInRangeFact::new(
+            "Checked",
+            QuantifiedBound::Literal(2),
+            QuantifiedBound::Literal(9),
+        );
+        assert!(middle.proves_element("Checked", ElementIndex::LiteralInBounds(2)));
+        assert!(middle.proves_element("Checked", ElementIndex::LiteralInBounds(8)));
+        assert!(!middle.proves_element("Checked", ElementIndex::LiteralInBounds(9)));
+    }
+
+    #[test]
+    fn symbolic_vacuity_covers_extent_and_zero_bounds() {
+        // `length..` is empty: nothing lies at or after the extent.
+        assert!(
+            ForAllInRangeFact::new("P", QuantifiedBound::Length, QuantifiedBound::Length)
+                .is_vacuous()
+        );
+        assert!(
+            ForAllInRangeFact::new("P", QuantifiedBound::Length, QuantifiedBound::Literal(4))
+                .is_vacuous()
+        );
+        assert!(
+            ForAllInRangeFact::new("P", QuantifiedBound::Length, QuantifiedBound::Zero)
+                .is_vacuous()
+        );
+        // `..0` is empty for every provably non-negative start.
+        assert!(
+            ForAllInRangeFact::new("P", QuantifiedBound::Literal(3), QuantifiedBound::Zero)
+                .is_vacuous()
+        );
+        assert!(
+            ForAllInRangeFact::new("P", QuantifiedBound::Zero, QuantifiedBound::Zero).is_vacuous()
+        );
+        // `0..e` with `e <= 0` is empty; `0..length` stays unproven either way.
+        assert!(
+            ForAllInRangeFact::new("P", QuantifiedBound::Zero, QuantifiedBound::Literal(-1))
+                .is_vacuous()
+        );
+        assert!(
+            !ForAllInRangeFact::new("P", QuantifiedBound::Zero, QuantifiedBound::Length)
+                .is_vacuous()
+        );
+        assert!(
+            !ForAllInRangeFact::new("P", QuantifiedBound::Literal(0), QuantifiedBound::Length)
+                .is_vacuous()
+        );
     }
 
     #[test]
