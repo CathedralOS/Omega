@@ -8287,7 +8287,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION,
   SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
-- **OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION** — mined candidate; verify scope then implement.
+- **OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION** — mined candidate; scope verified,
+  resolved. Sibling re-mine of the
+  `native-realization/src/optimized_semantic_wrapper_{encoding,object}` orphan
+  surface — named on the resolved OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (:8086)
+  and POC-NATIVE-WRAPPER-RELOCATION (:8368) rows. No independent slice exists:
+  the keep/move/delete decision is a PIPELINE-OWNER-CONSOLIDATION bullet in
+  TASKS_OPTIMIZER.md, the codec move leg is deferred to
+  DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP, and the first real caller
+  of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
+  bullet of UEFI-PHYSICAL-SEMANTIC-ENTRY. Confirmed at `8ccd793fa8f`: both
+  public entrances are referenced only by lib.rs re-exports and the
+  architecture-test coordination markers — no caller outside their own modules
+  and tests.
 - **OPTIMIZED-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
   Verified scope: same orphan-owner surface as WRAPPER-OBJECT-OWNERSHIP's
   landed annotation (the `optimized_semantic_wrapper_{encoding,object}`
