@@ -52,6 +52,11 @@ From the repository root on macOS arm64, or Windows x64 with Git Bash:
 sh tests/bootstrap/omega-request/run.sh
 ```
 
+`run.sh --identity` is a host-free leg: it validates every bound identity and
+the expected observation, and assembles the customer and receipt-request byte
+streams on any Python-3 host (including Linux, or a Windows host before the
+multi-hour run). Only the evaluator executions need a seed host.
+
 The gate requires Python 3, the selected checked-in Alpha seed, and the
 existing shell tools; macOS also requires `codesign` for the materialized
 evaluator. Outputs live in ignored `build/omega-request/`.
