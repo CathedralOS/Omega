@@ -10169,7 +10169,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   trusted_surface on linux x86-64 including
   `recorded_digests_match_the_working_tree`.
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
-- **TRUSTED-SURFACE-DIGEST-RERECORD** — mined candidate; verify scope then implement.
+- **TRUSTED-SURFACE-DIGEST-RERECORD** — scope verified at `0f5ae41e7d`,
+  implemented on this row's branch: the ledger had renewed drift, so the
+  re-record operation ran for real. `e2974a6a800` split
+  `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
+  (uninterpreted per-operation function constants applied to denoted
+  operands — the `formation:mathematical-core` justification holds: no
+  arithmetic law was added, the operations stay opaque). Re-recorded the
+  parent digest (`3d15c6eb…`), registered the new site (`b2bcfe6f…`), and
+  added the file to the formation's site list. Witness:
+  `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
+  15/15 green on linux x86-64, `recorded_digests_match_the_working_tree`
+  passing. Sibling stubs TRUSTED-SURFACE-DIGEST-RE-RECORDING and
+  TRUSTED-SURFACE-DIGEST-REFRESH name the same maintenance op.
 - **TRUSTED-SURFACE-LEDGER-REFRESH** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main, same settled surface as TRUSTED-SURFACE-LEDGER-RERECORD (annotated sibling, this section): BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s `trusted_surface` suite re-verifies green (`cargo nextest run -p terminal-verifier --test suite trusted_surface`: 9/9, linux x86-64, including `recorded_digests_match_the_working_tree`; re-run at 54984323b2, re-run again at 5b839c31ab). The ledger self-audits — any future drift fails that test — so no standing refresh task remains on this row.
 - **TRUSTED-SURFACE-LEDGER-RERECORD** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main: BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s trusted_surface suite passes 15/15 on linux x86-64 including `recorded_digests_match_the_working_tree` (re-run at f1e9a3733d). The ledger self-audits: any future drift fails that test, so no standing re-record task remains.
 - **TV-BOUNDARY-SETTLEMENTS-REPLAY** — mined candidate; verify scope then implement.
