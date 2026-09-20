@@ -10326,7 +10326,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claim. Evidence README updated to match. Residual: none under this
   name — deeper scratch-buffer reuse across the whole capture belongs to
   the capture's own owners if ever needed.
-- **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
+- **REVIEW-RESEAL-ELIMINATION.** Mined candidate — resolved, covered:
+  scope verified at `2e5d4a7324`. The name names the consequence the
+  compiler README records — "review instantiation still uses mutable
+  clones as scratch. Such mutation does not reseal evidence, and
+  downstream reconstruction remains mandatory"
+  (`omega-rust/omega/compiler/compiler/README.md`). Re-seal elimination
+  was never a separable edit: the clone-local instantiation it presumes
+  lived in `review/evidence/src/capture/calling/application/signature/
+  instantiation.rs`, and eliminating the mandatory reconstruction is only
+  coherent once capture reads through borrows — exactly the slice sibling
+  **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH** owned and landed at
+  `19aff0a14a` (instantiation now borrow-projects table rows instead of
+  cloning, `44d328b776`; the evidence README was updated to match). No
+  `reseal` symbol exists in `review/evidence/{record,capture,ledger}`;
+  the ledger's `reconstruct_*` pass is the documented independent-local-
+  reconstruction trust feature of the evidence model, not scratch
+  residue to delete. This commit also refreshes the stale compiler-README
+  sentence to match the landed borrow-projection. No slice remains.
 - **REWRITE-CATALOG-ADMISSION.** Resolved at `9e3edc7be9` — scope
   verified, re-mines the admission leg of the resolved
   SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS
