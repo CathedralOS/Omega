@@ -49,12 +49,18 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
 }
 
 /// Check the proof plan and record what the check ran in `measurements` —
-/// the obligation mix, the certificate route's verdict per covered leg, and
-/// the kernel's receipt figures the accepted certificates carried.
+/// the obligation mix, the certificate route's verdict per covered leg, the
+/// emitted certificates' node counts, the run's wall-clock cost, and the
+/// kernel's receipt figures the accepted certificates carried.
+///
+/// `OMEGA_PROOF_MEASUREMENTS` prints the recorder's `key=value` line on
+/// stderr at the end of every run, whether the plan discharged or reported
+/// diagnostics — a measured rejection is still a measured run.
 pub fn check_proof_plan_with_measurements(
     proof_plan: &ProofPlan,
     measurements: &mut ProofPlanMeasurements,
 ) -> Result<(), Vec<Diagnostic>> {
+    let started = std::time::Instant::now();
     let mut diagnostics = Vec::new();
     let range_context = AssignmentRangeContext::new(proof_plan);
 
@@ -123,6 +129,10 @@ pub fn check_proof_plan_with_measurements(
             measurements.record_outcome(diagnostics.len() != diagnostics_before);
         }
     }
+
+    measurements.check_elapsed_microseconds =
+        u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
+    measurements.emit_if_requested();
 
     if diagnostics.is_empty() {
         Ok(())

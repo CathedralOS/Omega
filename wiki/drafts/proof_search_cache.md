@@ -43,3 +43,13 @@ derivations where available without imposing an unproved universal size bound.
 Measure hit rate, invalidation, total checking cost, and storage before selecting
 a persistence scheme. No compiler-authored source rewriting or new lockfile is
 required by this approach.
+
+The measurement prerequisite exists: every `check_proof_plan` run tallies a
+`ProofPlanMeasurements` record — obligation mix by class, discharged/diagnosed
+outcomes, certificate-route verdicts (the hit-rate inputs), emitted
+`ProofNode` tree sizes (storage), whole-run wall-clock microseconds (total
+checking cost), and the kernel's own `MathematicalJudgmentReceipt` figures.
+Setting `OMEGA_PROOF_MEASUREMENTS` prints one `key=value` line per run on
+stderr for any `omega --check` invocation. What is still unmeasurable is
+invalidation — it needs a store to invalidate — and a workload corpus with
+repeated obligations to give the hit rate a denominator that means anything.

@@ -4,11 +4,19 @@
 //! invalidation, total checking cost, and storage before any derivation
 //! store is chosen. `ProofPlanMeasurements` is the receiving-side record of
 //! that run: the obligation mix the checker loop dispatched, which route
-//! decided each certificate-covered leg, and the kernel's own receipt
+//! decided each certificate-covered leg, the size of every certificate the
+//! producer emitted, the run's wall-clock cost, and the kernel's own receipt
 //! figures aggregated across accepted certificates. Measurements describe
 //! cost; they never decide a verdict.
+//!
+//! Setting `OMEGA_PROOF_MEASUREMENTS` prints one `key=value` line per run on
+//! stderr — the same opt-in observation convention as `OMEGA_STRUCT_TRACE`
+//! and `OMEGA_ENTAILMENT_TRACE`, so an ordinary `omega --check` invocation
+//! supplies the figures a persistence study needs.
 
-use proof_admission::{AcceptedFact, AcceptedFactRoute, MathematicalCoreDecision};
+use proof_admission::{
+    AcceptedFact, AcceptedFactRoute, MathematicalCoreDecision, ProofNode, ProofRule,
+};
 
 use crate::checker::certificate::CertificateVerdict;
 use crate::obligations::ProofObligation;
@@ -55,6 +63,15 @@ pub struct ProofPlanMeasurements {
     pub kernel_assumption_closure: u64,
     pub kernel_context_depth: u64,
     pub kernel_arena_slots: u64,
+    /// `ProofNode` tree nodes summed across every emitted certificate —
+    /// certified or rejected. A persisted derivation store would carry
+    /// exactly this proof per obligation, so the count is the storage axis
+    /// the draft asks for, taken at emission before the verdict is known.
+    pub certificate_proof_nodes: u64,
+    /// Wall-clock microseconds the whole check loop ran. Set once by
+    /// `check_proof_plan_with_measurements` at the end of the run; the
+    /// total checking cost the hit rate must beat to justify a store.
+    pub check_elapsed_microseconds: u64,
 }
 
 impl ProofPlanMeasurements {
@@ -105,6 +122,56 @@ impl ProofPlanMeasurements {
         }
     }
 
+    /// Record one emitted certificate's proof size at emission time, before
+    /// the kernel verdict: a rejected certificate still cost the nodes a
+    /// store would have written.
+    pub(crate) fn record_emitted_certificate(&mut self, proof: &ProofNode) {
+        self.certificate_proof_nodes += proof_node_count(proof);
+    }
+
+    /// The run's figures as one `key=value` line in stable field order.
+    pub fn render(&self) -> String {
+        format!(
+            "obligations={} bounded_assignments={} bounded_call_arguments={} \
+             bounded_initializers={} bounded_state_returns={} \
+             bounded_transition_arguments={} decided_elsewhere={} discharged={} \
+             diagnosed={} certificate_certified={} certificate_rejected={} \
+             certificate_uncovered={} kernel_judgments={} kernel_refusals={} \
+             kernel_declarations={} kernel_assumption_closure={} \
+             kernel_context_depth={} kernel_arena_slots={} \
+             certificate_proof_nodes={} check_elapsed_microseconds={}",
+            self.obligations(),
+            self.bounded_assignments,
+            self.bounded_call_arguments,
+            self.bounded_initializers,
+            self.bounded_state_returns,
+            self.bounded_transition_arguments,
+            self.decided_elsewhere,
+            self.discharged,
+            self.diagnosed,
+            self.certificate_certified,
+            self.certificate_rejected,
+            self.certificate_uncovered,
+            self.kernel_judgments,
+            self.kernel_refusals,
+            self.kernel_declarations,
+            self.kernel_assumption_closure,
+            self.kernel_context_depth,
+            self.kernel_arena_slots,
+            self.certificate_proof_nodes,
+            self.check_elapsed_microseconds,
+        )
+    }
+
+    /// Print this recorder's figures on stderr when `OMEGA_PROOF_MEASUREMENTS`
+    /// is set. A caller accumulating several runs into one recorder sees the
+    /// cumulative tally at each run's end.
+    pub(crate) fn emit_if_requested(&self) {
+        if std::env::var_os("OMEGA_PROOF_MEASUREMENTS").is_some() {
+            eprintln!("proof_plan_measurements {}", self.render());
+        }
+    }
+
     /// Record the kernel's part of one accepted certificate. The receipt
     /// inside the accepted fact is the kernel's own account of the judgment;
     /// non-certificate routes carry no kernel figure.
@@ -123,6 +190,70 @@ impl ProofPlanMeasurements {
             MathematicalCoreDecision::Refused(_) => self.kernel_refusals += 1,
         }
     }
+}
+
+/// `ProofNode` tree size in nodes — the storage a persisted derivation
+/// occupies. Only rule fields carry nested proofs; propositions and the
+/// witness payloads are leaf data.
+fn proof_node_count(node: &ProofNode) -> u64 {
+    let children: u64 = match &node.rule {
+        ProofRule::ValueEqualityTransport {
+            premise,
+            equalities,
+        } => proof_node_count(premise) + equalities.iter().map(proof_node_count).sum::<u64>(),
+        ProofRule::PredicateDenotation { premise } => proof_node_count(premise),
+        ProofRule::Primitive(_)
+        | ProofRule::SemanticAxiom { .. }
+        | ProofRule::Assumption { .. }
+        | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => 0,
+        ProofRule::ConjunctionIntroduction(conjuncts) => {
+            conjuncts.iter().map(proof_node_count).sum()
+        }
+        ProofRule::ConjunctionElimination { conjunction, .. } => proof_node_count(conjunction),
+        ProofRule::DisjunctionIntroduction { disjunct, .. } => proof_node_count(disjunct),
+        ProofRule::DisjunctionElimination {
+            disjunction,
+            branches,
+        } => proof_node_count(disjunction) + branches.iter().map(proof_node_count).sum::<u64>(),
+        ProofRule::ImplicationIntroduction { body } => proof_node_count(body),
+        ProofRule::ImplicationElimination {
+            implication,
+            premise,
+        } => proof_node_count(implication) + proof_node_count(premise),
+        ProofRule::EqualityTransitivity {
+            left_equals_middle,
+            middle_equals_right,
+        } => proof_node_count(left_equals_middle) + proof_node_count(middle_equals_right),
+        ProofRule::EqualitySymmetry { equality } => proof_node_count(equality),
+        ProofRule::IntegerOrderWeakening { relation }
+        | ProofRule::IntegerOrderDiscreteness { relation } => proof_node_count(relation),
+        ProofRule::IntegerSubtractOrder {
+            difference,
+            positive,
+        } => proof_node_count(difference) + proof_node_count(positive),
+        ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } => {
+            proof_node_count(left_less_or_equal_middle)
+                + proof_node_count(middle_less_or_equal_right)
+        }
+        ProofRule::IntegerStrictOrderTransitivity {
+            left_to_middle,
+            middle_to_right,
+        } => proof_node_count(left_to_middle) + proof_node_count(middle_to_right),
+        ProofRule::IntegerOrderSubstitution {
+            relation, equality, ..
+        } => proof_node_count(relation) + proof_node_count(equality),
+        ProofRule::IntegerAffineBound { root_bound, .. } => proof_node_count(root_bound),
+        ProofRule::IntegerExactAddDefinitionBound {
+            left_bound,
+            right_bound,
+            ..
+        } => proof_node_count(left_bound) + proof_node_count(right_bound),
+        ProofRule::IntegerCastBound { root_bound, .. } => proof_node_count(root_bound),
+    };
+    1 + children
 }
 
 #[cfg(test)]
@@ -229,5 +360,48 @@ mod tests {
         });
         assert_eq!(measurements.kernel_judgments, 0);
         assert_eq!(measurements.kernel_refusals, 1);
+    }
+
+    #[test]
+    fn emitted_certificates_count_whole_proof_trees() {
+        let leaf = || ProofNode {
+            conclusion: sample_proposition(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+        };
+        let mut measurements = ProofPlanMeasurements::default();
+        measurements.record_emitted_certificate(&ProofNode {
+            conclusion: sample_proposition(),
+            rule: ProofRule::ConjunctionIntroduction(vec![leaf(), leaf()]),
+        });
+        assert_eq!(measurements.certificate_proof_nodes, 3);
+        measurements.record_emitted_certificate(&ProofNode {
+            conclusion: sample_proposition(),
+            rule: ProofRule::ImplicationElimination {
+                implication: Box::new(ProofNode {
+                    conclusion: sample_proposition(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                premise: Box::new(leaf()),
+            },
+        });
+        assert_eq!(measurements.certificate_proof_nodes, 6);
+    }
+
+    #[test]
+    fn render_lists_every_figure_on_one_line() {
+        let measurements = ProofPlanMeasurements {
+            discharged: 3,
+            diagnosed: 1,
+            certificate_proof_nodes: 7,
+            check_elapsed_microseconds: 42,
+            ..ProofPlanMeasurements::default()
+        };
+        let line = measurements.render();
+        assert!(line.contains("obligations=0"));
+        assert!(line.contains("discharged=3"));
+        assert!(line.contains("diagnosed=1"));
+        assert!(line.contains("certificate_proof_nodes=7"));
+        assert!(line.ends_with("check_elapsed_microseconds=42"));
+        assert!(!line.contains('\n'));
     }
 }

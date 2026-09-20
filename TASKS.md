@@ -5700,7 +5700,8 @@ Omega-side / native:
 
 Proof/evidence:
 
-- **PROOF-SEARCH-MEASUREMENT.** Proof-search cost measurement and instrumentation (consensus ×3).
+- **PROOF-SEARCH-MEASUREMENT.** Resolved — `check_proof_plan` already tallied obligation mix, certificate-route verdicts, and kernel receipts but discarded them; it now also records emitted-certificate `ProofNode` counts (the draft's storage axis) and whole-run wall-clock microseconds, and `OMEGA_PROOF_MEASUREMENTS` prints one `key=value` line per run for any `omega --check` (e.g. cli_mvp: 772 obligations, 22 certified / 20 uncovered, 148 nodes, 156975 us). Remaining unmeasurable axis is invalidation — needs a store to invalidate — tracked under PROOF-DERIVATION-STORE-INDEX / DERIVATION-RECHECK-CACHE.
+- **PROOF-DERIVATION-STORE-INDEX.** Semantic index for the derivation store/cache.
 - **PROOF-OBLIGATION-IDENTITY-KEY.** Semantic identity key for proof obligations.
 - **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged).
 - **INDUCTIVE-CARRIER-CERTIFICATE.** Inductive carrier certificate production.

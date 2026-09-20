@@ -134,6 +134,7 @@ pub(crate) fn bounded_integer_value_verdict(
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
+    measurements.record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
             measurements.record_accepted_fact(&fact);
@@ -162,6 +163,7 @@ pub(crate) fn state_return_integer_verdict(
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
+    measurements.record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
             measurements.record_accepted_fact(&fact);
@@ -276,6 +278,7 @@ pub(crate) fn guarded_transition_integer_verdict_measured(
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
+    measurements.record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
             measurements.record_accepted_fact(&fact);
