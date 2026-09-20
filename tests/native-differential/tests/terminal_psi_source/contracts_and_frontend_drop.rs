@@ -568,7 +568,7 @@ fn terminal_production_requires_typed_custody_but_not_debug_presentation() {
     assert_eq!(
         lower_machine(&without_typed_frontend, "terminal_constant")
             .expect_err("checked facts alone cannot supply authored occurrence custody"),
-        LoweringError::Unsupported("scalar source custody has no authored state")
+        LoweringError::Unsupported("direct Unit parameter plan has no exact typed machine")
     );
 
     let mut without_debug_presentation = checked.into_program();
