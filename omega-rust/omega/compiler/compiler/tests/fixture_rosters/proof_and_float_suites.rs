@@ -75,6 +75,7 @@ pub const DEPENDENT_DATA_WHERE_CALLEE_ESTABLISHES: &str = "dependent/data_where_
 pub const DEPENDENT_DATA_WHERE_MULTISTATE_CALLEE: &str = "dependent/data_where_multistate_callee";
 pub const DEPENDENT_DATA_WHERE_GATED_LITERAL_PROVES: &str =
     "dependent/data_where_gated_literal_proves";
+pub const DEPENDENT_EMBED_SELF_FIELD_VIEW: &str = "dependent/embed_self_field_view";
 pub const ARITHMETIC_ZII_RANGE_EXCLUDES_ZERO_REJECTED: &str =
     "arithmetic/zii_range_excludes_zero_rejected";
 pub const RANGE_ELEMENT_RANGE_ZERO_EXCLUDED: &str = "range/element_range_zero_excluded";
