@@ -6726,7 +6726,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
 - **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-COMPARISON-METRICS** — mined candidate; verify scope then implement.
-- **MATCHING-LOGIC-SLICE-COMPARISON** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-SLICE-COMPARISON.** Resolved — landed on `origin/main` (harness 3b774ca514, measurement 1d7fb4f5c7): `tools/matching-logic-slice-comparison/compare.py` implements the bounded comparison in `wiki/drafts/matching_logic.md` for the current route — receiver checker size (terminal-verifier + PCC codec + admission kernel), theory surface, translation axis (0 — native checking), the enforced `AcceptedProofRule::foundation` inventory, certificate size/`--check` wall time, and identical pinned positive/negative twin pairs (`pinned_cases.json`) with a nonzero exit on divergence. Rendered record: `wiki/drafts/matching_logic_slice_comparison.md` + `tools/matching-logic-slice-comparison/record.json`. The candidate column is intentionally `pending` on MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice`, live claim) and MATCHING-LOGIC-COMPARISON-METRICS (`tools/matching-logic-metrics`).
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
   (Zergling-181): the "typed-to-one-sorted encoding" bullet of the bounded
   comparison in `wiki/drafts/matching_logic.md`, drafted in
