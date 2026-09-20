@@ -791,24 +791,38 @@ an implementation shortcut.
 
   Reuse `packages/topology/src/topology_installation.rs` and its subordinate
   mediation, frame and pipe modules. The reference has single-use authorization,
-  activation/cleanup/replacement sequencing and real pipe creation. Its
-  `a_full_installation_flows_over_real_private_pipes` test still uses
-  `SimSupervisor`; it is not three-process confinement. Supply actual executable
-  admission and the OS-backed supervisor, bind physical holders rather than
-  trusting caller-supplied instance numbers, and add operation/payload schema
-  checks beyond the existing bounded frame envelope.
+  activation/cleanup/replacement sequencing and real pipe creation.
 
-  Acceptance: three checked processes receive exactly their assigned endpoints,
-  with all imports covered and general inheritance disabled before entry opens.
-  One request/response pair per binding, one outstanding request, no delegation,
-  discovery or retry to another peer. Attempt an ungranted invocation and a
-  substituted mapping; both must refuse. Invalid frames/EOF/peer failure close
-  the binding. Preparation failure returns or cleans custody; partial activation
-  retains supervision until quiescence or explicit cleanup failure, never a
-  success receipt. Replacement validates current authorization before stopping
-  the old generation and quiesces it before starting the new one. Report actual
-  Windows/macOS runs and unavailable legs, with exact loader/OS assumptions;
-  ordinary process spawn, graph tests and in-process pipe I/O are insufficient.
+  Unix leg landed (`00eb18ca51`+`1ed6bd1c9c`+`9d917b228d`, linux-x86_64,
+  `cargo nextest run -p topology-plan`): `topology_installation` now binds
+  physical holders — each member's kernel-attested pipe token (inode and
+  direction) — instead of caller-supplied instance numbers; each bound
+  contract must register an operation/payload schema
+  (`topology_installation/operation_schema.rs`), and a schema violation or
+  undecodable frame closes its binding. `LocalProcessSupervisor`
+  (`topology_installation/local_supervisor.rs`) admits member images by
+  sha256 content and spawns them through `bounded-process`'s
+  retained-descriptor handoff — general inheritance stays disabled and each
+  member's attested descriptor table is exactly its assignment before entry
+  opens. `a_three_process_installation_mediated_over_real_private_channels`
+  in `tests/installation.rs` runs the payment customer as three checked
+  processes: one granted request/response pair per binding, an ungranted
+  endpoint and a substituted mapping refuse, peer failure EOFs the channel,
+  and quiescence reaps the roster including the killed member. The sibling
+  spawned-supervisor leg (`tests/process_confinement.rs`) rides the same
+  token gate and schema registration.
+
+  Remaining legs: Windows and macOS providers are unavailable on this host
+  and are unrun — not passing. The unix provider assumes `std::io::pipe`
+  anonymous channels (both ends share one inode; direction is probed by a
+  zero-length write returning EBADF on read ends), `fcntl(F_SETFD)`
+  descriptor retention across `pre_exec`/`exec`, and a re-executed test
+  image as the member entry. macOS inherits the same `fcntl`/`fstat` token
+  scheme but needs a signed or adhoc member image; Windows needs
+  named/anonymous pipe handles behind a handle-inheritance boundary (the
+  `StdPipeEnd` token arm exists; `pre_exec` does not — ends must be passed
+  as explicit inheritable handles). Executable admission, schema checks,
+  and the refusal/close law are platform-neutral and landed.
 
 ## Process-exit contract
 
