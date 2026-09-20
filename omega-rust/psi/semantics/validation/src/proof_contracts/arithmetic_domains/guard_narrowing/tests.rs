@@ -62,6 +62,89 @@ fn a_receiver_requires_bound_proves_the_entry_self_increment() {
 }
 
 #[test]
+fn a_strict_place_ceiling_proves_the_increment_for_narrower_carriers() {
+    // ch12's `Counter::bump` relation: `requires self.count < self.cap`
+    // records `cap >= count + 1`, and `cap`'s own declared carrier bounds the
+    // result by its representable high -- the composed ceiling discharge the
+    // u64 lane admits through literal ceilings extends to every fixed-width
+    // integer. A non-strict bound leaves no gap, a bound that does not name
+    // the incremented operand proves nothing, and a ceiling whose carrier is
+    // wider than the result cannot bound it.
+    for (source, accepted) in [
+        (
+            "data Counter { count: u32; cap: u32; }
+             machine Counter::bump(&mut self)
+                 requires self.count < self.cap
+             { self.count += 1; }",
+            true,
+        ),
+        (
+            "data Counter { count: u32; cap: u32 [0..=100]; }
+             machine Counter::bump(&mut self)
+                 requires self.count < self.cap
+             { self.count += 1; }",
+            true,
+        ),
+        (
+            "data Counter { count: u8; cap: u8; }
+             machine Counter::bump(&mut self)
+                 requires self.count < self.cap
+             { self.count += 1; }",
+            true,
+        ),
+        // `count < cap` is only a gap of 1; `count + 2` could still overflow.
+        (
+            "data Counter { count: u32; cap: u32; }
+             machine Counter::bump(&mut self)
+                 requires self.count < self.cap
+             { self.count += 2; }",
+            false,
+        ),
+        // A two-hop chain `count < mid < cap` composes gap 2 through places.
+        (
+            "data Counter { count: u32; mid: u32; cap: u32; }
+             machine Counter::bump(&mut self)
+                 requires
+                     self.count < self.mid
+                     self.mid < self.cap
+             { self.count += 2; }",
+            true,
+        ),
+        (
+            "data Counter { count: u32; cap: u32; }
+             machine Counter::bump(&mut self)
+                 requires self.count <= self.cap
+             { self.count += 1; }",
+            false,
+        ),
+        (
+            "data Counter { count: u32; cap: u32; }
+             machine Counter::bump(&mut self)
+                 requires self.cap < self.count
+             { self.count += 1; }",
+            false,
+        ),
+        (
+            "data Counter { count: u32; cap: u32; }
+             machine Counter::bump(&mut self)
+             { self.count += 1; }",
+            false,
+        ),
+        (
+            "data Counter { count: u32; cap: u64; }
+             machine Counter::bump(&mut self)
+                 requires self.count < self.cap
+             { self.count += 1; }",
+            false,
+        ),
+    ] {
+        let program = arrival_program(source);
+        let result = crate::validate_program(&program);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+    }
+}
+
+#[test]
 fn a_live_unsigned_ceiling_proves_joint_addition_fits_its_carrier() {
     let source = "machine sum(left: u64, right: u64, capacity: u64) -> u64
         requires right <= capacity;

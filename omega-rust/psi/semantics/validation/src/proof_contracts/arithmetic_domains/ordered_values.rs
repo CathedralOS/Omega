@@ -8,9 +8,11 @@ use super::{
     place_path,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
-use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    literal_interval, primitive_range,
+};
 use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
-use crate::value_custody::places::collection_length_receiver;
+use crate::value_custody::places::{collection_length_receiver, declared_member_path_type};
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
@@ -561,9 +563,15 @@ pub(super) fn subtract_floor(
 }
 
 /// A live bound `ceiling - value >= distance` proves that an unsigned
-/// increment no larger than distance stays below that integer ceiling. Every
-/// admitted fixed-width integer ceiling is at most u64::MAX. The relation's
-/// exact operand identity and ordinary write invalidation remain authoritative.
+/// increment no larger than distance stays below that integer ceiling.
+/// `ceiling` is the result carrier's representable high (`None` at u64 scale,
+/// where every admitted fixed-width ceiling already qualifies). A narrower
+/// result admits a composed ceiling operand only when that operand's own
+/// carrier is provably bounded inside it: `count < cap` records
+/// `cap >= count + 1`, and `cap`'s declared u32 carrier bounds the result by
+/// u32::MAX -- the same transitivity an anonymous literal ceiling always had.
+/// The relation's exact operand identity and ordinary write invalidation
+/// remain authoritative.
 pub(super) fn unsigned_increase_fits(
     program: &TypedTrees,
     machine: &Machine,
@@ -571,6 +579,7 @@ pub(super) fn unsigned_increase_fits(
     environment: &ValueEnv,
     value: ExpressionHandle,
     increase: Interval,
+    ceiling: Option<i64>,
 ) -> bool {
     let (Some(state), Some(low), Some(high)) = (state, increase.low, increase.high) else {
         return false;
@@ -581,7 +590,57 @@ pub(super) fn unsigned_increase_fits(
     let Some(value) = operand(program, machine, state, value) else {
         return false;
     };
-    composed_ceiling_gap(&environment.ordered_values, &value, high)
+    composed_ceiling_gap(&environment.ordered_values, &value, high, |operand| {
+        operand_carrier_within_ceiling(program, machine, state, operand, ceiling)
+    })
+}
+
+/// The upper bound an operand's own carrier already enforces. A literal is
+/// its own bound; a place is bounded by its declared carrier's primitive
+/// range; a binary operand carries its declared primitive; a collection
+/// length is usize-bounded (unbounded at i64 resolution). `None` leaves a
+/// call result's bound unknown -- its contract evidence lives elsewhere.
+fn operand_carrier_bound(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    operand: &Operand,
+) -> Option<Option<i64>> {
+    match operand {
+        Operand::Integer(literal, _) => Some(literal_interval(literal).high),
+        Operand::Place { path, .. } => {
+            let members = path.split('.').map(str::to_owned).collect::<Vec<_>>();
+            let type_reference =
+                declared_member_path_type(program, machine, Some(state), &members)?;
+            let primitive = program.primitive_type_reference(type_reference)?;
+            Some(primitive_range(primitive).and_then(|range| range.high))
+        }
+        Operand::Binary { primitive, .. } => {
+            Some(primitive_range(*primitive).and_then(|range| range.high))
+        }
+        Operand::CollectionLength(_) => Some(None),
+        Operand::Call { .. } => None,
+    }
+}
+
+/// Whether a composed ceiling operand bounds the value inside `ceiling`, the
+/// result carrier's representable high. A u64-scale ceiling (`None`) accepts
+/// every carrier because no admitted integer carrier exceeds it; a narrower
+/// ceiling admits only an operand whose carrier bound fits inside it.
+fn operand_carrier_within_ceiling(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    operand: &Operand,
+    ceiling: Option<i64>,
+) -> bool {
+    let Some(ceiling) = ceiling else {
+        return true;
+    };
+    matches!(
+        operand_carrier_bound(program, machine, state, operand),
+        Some(Some(bound)) if bound <= ceiling
+    )
 }
 
 /// Whether recorded `left >= right + floor` relations compose a ceiling
@@ -597,7 +656,12 @@ pub(super) fn unsigned_increase_fits(
 /// still adds distance (`x >= x + k`, `k > 0`) is a contradiction no live
 /// environment can contain, so cyclic chases cannot form and the walk
 /// always terminates.
-fn composed_ceiling_gap(relations: &[Relation], value: &Operand, needed: i64) -> bool {
+fn composed_ceiling_gap(
+    relations: &[Relation],
+    value: &Operand,
+    needed: i64,
+    admits: impl Fn(&Operand) -> bool,
+) -> bool {
     if needed <= 0 {
         return true;
     }
@@ -633,7 +697,7 @@ fn composed_ceiling_gap(relations: &[Relation], value: &Operand, needed: i64) ->
                     improved = true;
                 }
             }
-            if gap >= needed {
+            if gap >= needed && admits(&relation.left) {
                 return true;
             }
         }

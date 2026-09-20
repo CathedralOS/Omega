@@ -10,9 +10,13 @@ non-const value binder and supplies a valid representation. `const` remains an
 explicit requirement for static knowledge, not a universal property of generics.
 
 The [dependent-value specification](../spec/language/dependent_values.md) defines
-this systems fragment. Examples show intended contracts; implementation support
-for relational proofs and views remains narrower. General mathematical
-foundations have their separate [proof contract](../spec/proofs/contracts.md).
+this systems fragment. The forms below are checked end to end; a strict
+relational bound also discharges representability through the ceiling's own
+carrier (`self.count < self.cap` proves `self.count + 1` fits because `cap`'s
+declared type bounds it). Equality facts do not yet transport through writes,
+and solver-general proofs and dependent views remain narrower. General
+mathematical foundations have their separate
+[proof contract](../spec/proofs/contracts.md).
 
 ## Dependent Contracts
 
