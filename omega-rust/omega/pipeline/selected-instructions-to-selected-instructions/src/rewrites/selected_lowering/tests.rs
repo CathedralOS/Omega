@@ -156,7 +156,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(pair.rewritten(), MachineSemanticKind::ExactAddI64Immediate);
         assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
         assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
-        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::ISOLATED);
     }
     assert_eq!(
         add_rule,
@@ -208,7 +208,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         compare_right_rule.machine_effects(),
-        PairMachineEffects::Isolated
+        PairMachineEffects::ISOLATED
     );
     assert_eq!(compare_right_rule.victim_operand(), 1);
     // The compare-immediate form delivers its result through the implicit
@@ -233,7 +233,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         compare_left_rule.machine_effects(),
-        PairMachineEffects::OperandSwappedUnitDefs
+        PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS
     );
     assert_eq!(compare_left_rule.victim_operand(), 0);
     assert_eq!(
@@ -268,7 +268,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(indexed_rule.unit_effects(), PairUnitEffects::Isolated);
     assert_eq!(
         indexed_rule.machine_effects(),
-        PairMachineEffects::IndexedPointerReadFold { index_operand: 1 }
+        PairMachineEffects::indexed_pointer_read_fold(1)
     );
     assert_eq!(
         indexed_rule.rewrite_consumer(SelectedInstructionKind::Load8Indexed, 12, None),
@@ -299,7 +299,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(copy_rule.victim_operand(), 0);
     assert_eq!(copy_rule.result(), PairResultDisposition::ScalarRegister);
     assert_eq!(copy_rule.unit_effects(), PairUnitEffects::Isolated);
-    assert_eq!(copy_rule.machine_effects(), PairMachineEffects::Isolated);
+    assert_eq!(copy_rule.machine_effects(), PairMachineEffects::ISOLATED);
     assert_eq!(
         copy_rule.immediate_bound(),
         PairImmediateBound::Encoding(u64::MAX)
@@ -325,7 +325,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert!(!pair.admits_immediate(4096));
         assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
         assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
-        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::ISOLATED);
     }
     assert_eq!(
         address_offset_rule,
@@ -411,7 +411,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         divide_rule.machine_effects(),
-        PairMachineEffects::FaultDischargedByLiteral
+        PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL
     );
     assert_eq!(
         divide_rule.rewrite_consumer(
@@ -484,7 +484,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         remainder_rule.machine_effects(),
-        PairMachineEffects::FaultDischargedByLiteral
+        PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL
     );
     let u64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
@@ -573,7 +573,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         remainder_zero_rule.machine_effects(),
-        PairMachineEffects::FaultDischargedByObligation
+        PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION
     );
     assert_eq!(
         remainder_zero_rule.rewrite_consumer(remainder_kind, 0, Some(u64_scalar)),
@@ -664,7 +664,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         divide_zero_rule.machine_effects(),
-        PairMachineEffects::FaultDischargedByObligation
+        PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION
     );
     let divide_kind = SelectedInstructionKind::ExactDivideU64 {
         obligation,
@@ -735,7 +735,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(pair.fold_immediate(0), Some(0));
         assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
         assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
-        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::ISOLATED);
     }
     assert_eq!(
         and_zero_rule.operand_shape(),
@@ -801,7 +801,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(pair.fold_immediate(0), Some(0));
         assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
         assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
-        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::ISOLATED);
     }
     assert_eq!(
         xor_zero_rule.operand_shape(),
@@ -868,7 +868,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(pair.fold_immediate(0), Some(0));
         assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
         assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
-        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::ISOLATED);
     }
     assert_eq!(
         wrapping_add_zero_rule.operand_shape(),
@@ -940,7 +940,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(pair.fold_immediate(u64::MAX), Some(u64::MAX));
         assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
         assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
-        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::ISOLATED);
     }
     // The same consumer kind and `Use` positions the and-zero
     // annihilator grammar covers — the literal bound alone keeps the
@@ -1043,7 +1043,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::DeadConsumerUnitDefs
+            PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // surviving-operand copy; a different carrier or consumer kind
@@ -1160,7 +1160,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::DeadConsumerUnitDefs
+            PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // surviving-operand copy; a different carrier, the saturating-add
@@ -1273,7 +1273,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs
+            PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // surviving-operand copy; a different carrier, the exact-divide
@@ -1383,7 +1383,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::FaultDischargedByObligationDeadUnitDefs
+            PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // materialized zero; a different carrier, the exact-divide kind
@@ -1494,7 +1494,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::DeadConsumerUnitDefs
+            PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // materialized zero; a different carrier, the saturating-add or
@@ -1608,7 +1608,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::DeadConsumerUnitDefs
+            PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // materialized maximum; a different carrier, a signed carrier,
@@ -1736,7 +1736,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         remainder_minus_one_rule.machine_effects(),
-        PairMachineEffects::FaultDischargedByLiteral
+        PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL
     );
     assert_eq!(
         remainder_minus_one_rule.rewrite_consumer(remainder_kind, 0, Some(u64_scalar)),
@@ -1826,7 +1826,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.machine_effects(),
-            PairMachineEffects::DeadConsumerUnitDefs
+            PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
         );
         // Every rule rewrites only its own carrier's kind into the
         // materialized zero — the folded immediate `fold_immediate`
@@ -2333,7 +2333,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         .chain(SelectedInstructionPairRule::WRAPPING_ADD_ZERO_COPIES)
         .chain(SelectedInstructionPairRule::BITWISE_AND_ONES_COPIES)
         {
-            assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
+            assert_eq!(rule.machine_effects(), PairMachineEffects::ISOLATED);
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
             let rewritten = declaration(rule.rewritten());
@@ -2363,7 +2363,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             let rule = SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12;
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::OperandSwappedUnitDefs
+                PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -2659,7 +2659,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for rule in SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPIES {
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::DeadConsumerUnitDefs
+                PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -2717,7 +2717,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for rule in SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES {
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::DeadConsumerUnitDefs
+                PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -2776,7 +2776,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for rule in SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES {
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs
+                PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -2836,7 +2836,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for rule in SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS {
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::FaultDischargedByObligationDeadUnitDefs
+                PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -2894,7 +2894,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for rule in SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS {
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::DeadConsumerUnitDefs
+                PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -2952,7 +2952,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for rule in SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS {
             assert_eq!(
                 rule.machine_effects(),
-                PairMachineEffects::DeadConsumerUnitDefs
+                PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
@@ -3003,28 +3003,28 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         for semantic in [MachineSemanticKind::Load64, MachineSemanticKind::Store64] {
             let memory_bound = declaration(semantic);
             let isolated = declaration(MachineSemanticKind::MaterializeI64);
-            assert!(!PairMachineEffects::Isolated.admits_producer(memory_bound));
-            assert!(!PairMachineEffects::Isolated.admits_consumer(memory_bound, isolated));
-            assert!(!PairMachineEffects::Isolated.admits_rewritten(memory_bound));
+            assert!(!PairMachineEffects::ISOLATED.admits_producer(memory_bound));
+            assert!(!PairMachineEffects::ISOLATED.admits_consumer(memory_bound, isolated));
+            assert!(!PairMachineEffects::ISOLATED.admits_rewritten(memory_bound));
         }
         // A branching form carries control-flow, barrier, and trap surface.
         let jump = declaration(MachineSemanticKind::Jump);
         let isolated = declaration(MachineSemanticKind::MaterializeI64);
-        assert!(!PairMachineEffects::Isolated.admits_producer(jump));
-        assert!(!PairMachineEffects::Isolated.admits_consumer(jump, isolated));
-        assert!(!PairMachineEffects::Isolated.admits_rewritten(jump));
+        assert!(!PairMachineEffects::ISOLATED.admits_producer(jump));
+        assert!(!PairMachineEffects::ISOLATED.admits_consumer(jump, isolated));
+        assert!(!PairMachineEffects::ISOLATED.admits_rewritten(jump));
         // A flag-consuming materialization is isolated outside its units but
         // declares implicit unit uses — an implicit use the rewritten form
         // does not carry cannot be dropped silently.
         let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
-        assert!(!PairMachineEffects::Isolated.admits_producer(flag_consuming));
-        assert!(!PairMachineEffects::Isolated.admits_consumer(flag_consuming, isolated));
-        assert!(!PairMachineEffects::Isolated.admits_rewritten(flag_consuming));
+        assert!(!PairMachineEffects::ISOLATED.admits_producer(flag_consuming));
+        assert!(!PairMachineEffects::ISOLATED.admits_consumer(flag_consuming, isolated));
+        assert!(!PairMachineEffects::ISOLATED.admits_rewritten(flag_consuming));
         // A flag-defining consumer cannot feed a scalar-result rewrite: its
         // condition-state definition would not stay defined.
         let compare = declaration(MachineSemanticKind::CompareI64);
         let add_immediate = declaration(MachineSemanticKind::ExactAddI64Immediate);
-        assert!(!PairMachineEffects::Isolated.admits_consumer(compare, add_immediate));
+        assert!(!PairMachineEffects::ISOLATED.admits_consumer(compare, add_immediate));
     }
 }
 

@@ -15,7 +15,10 @@
 //! on the admitted consumer, and on the eliminated producer), the
 //! machine-effect surface carries the non-unit dimensions — memory, trap,
 //! stack, control flow, barrier, call, and cleanup — that each form's
-//! [`MachineEffectDeclaration`] must satisfy, and the operand shape carries
+//! [`MachineEffectDeclaration`] must satisfy, declared as a composition of
+//! the independent [`PairNonUnitSurface`], [`PairFaultDischarge`], and
+//! [`PairUnitDefRelation`] axes rather than one variant per combination,
+//! and the operand shape carries
 //! the consumer-grammar dimension: whether the folded literal is a binary
 //! consumer's right `Use` operand, a commutative binary consumer's left
 //! `Use` operand, a left `Use` operand whose rewrite swaps the operand
@@ -32,30 +35,30 @@
 //! whose operand list continues past its `Def` result with scratch outputs
 //! the fold drops under occurrence-free custody: the clamped saturating-add
 //! rows carry such a bound scratch at operand 3. Beyond the
-//! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
+//! isolated machine-effect surface, [`PairNonUnitSurface::IndexedPointerRead`]
 //! declares the first non-isolated relationship — a consumer that reads
 //! memory through the folded index and a rewritten form that reads the same
 //! bytes through a materialized byte offset — and the trap-carrying
 //! relationships come in two discharge forms:
-//! [`PairMachineEffects::FaultDischargedByLiteral`] declares a consumer
+//! [`PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL`] declares a consumer
 //! whose encoded alternatives may architecturally fault, where the folded
 //! literal is exactly the value that makes the fault unreachable, and
-//! [`PairMachineEffects::FaultDischargedByObligation`] declares the same
+//! [`PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION`] declares the same
 //! may-fault consumer surface where the fault is already unreachable under
 //! the obligation the consumer kind carries — the literal fixes the result,
 //! not the divisor's definedness.
-//! [`PairMachineEffects::DeadConsumerUnitDefs`] declares the dead-unit-def
+//! [`PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS`] declares the dead-unit-def
 //! relationship: a consumer whose implicit unit *definitions* the rewrite
 //! retires because the rewritten form does not define them — the saturating
 //! add's condition-state definition an isolated copy does not carry — where
 //! retiring them is admitted only while no instruction or terminator in the
 //! function implicitly uses a unit the consumer record defines.
-//! [`PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs`] composes
+//! [`PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS`] composes
 //! the two relationships for a may-fault consumer that also retires dead
 //! implicit definitions — the saturating divide, whose divisor-one
 //! literal discharges the encoded fault while its `nzcv` definition or
 //! scratch tail drops under the dead-definitions custody.
-//! [`PairMachineEffects::OperandSwappedUnitDefs`] declares the
+//! [`PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS`] declares the
 //! condition-state reader-flow relationship: a consumer whose implicit
 //! unit *definitions* the rewrite keeps — the compare's target condition
 //! state — under an operand order the rewrite reverses, so the zero
@@ -227,308 +230,290 @@ impl PairUnitEffects {
     }
 }
 
-/// The non-unit machine-effect surface the pair's rewrite may carry, plus the
-/// unit-traffic relation the three declarations must satisfy.
+/// The machine-effect relationships a producer→consumer pair declares,
+/// composed from independent axes rather than one variant per
+/// combination.
 ///
 /// `PairUnitEffects` owns the physical-register-unit traffic carried by the
 /// selected instruction records and constraint rows (implicit uses,
 /// definitions as the declared result channel, clobbers, and operand unit
-/// bindings); this declaration covers the validated
-/// [`MachineEffectDeclaration`] surface — memory, trap, stack, control flow,
-/// barrier, call, and cleanup — for all three instruction forms the rewrite
-/// involves, and the relationship between the consumer's and rewritten
-/// form's encoded implicit-unit traffic. The producer admits the eliminated
-/// producer's, the admitted consumer's, and the rewritten form's catalog
-/// declarations through this dimension; the validator re-derives the same
-/// requirements from its own matching so a descriptor mistake cannot
-/// self-certify.
+/// bindings); this descriptor covers the validated
+/// [`MachineEffectDeclaration`] surface — memory, trap, stack, control
+/// flow, barrier, call, and cleanup — for all three instruction forms the
+/// rewrite involves, and the relationship between the consumer's and
+/// rewritten form's encoded implicit-unit traffic. Its three axes are
+/// independent: `non_unit` relates the consumer's and rewritten form's
+/// non-unit declaration surface, `fault` names which surface discharges
+/// the consumer's encoded architectural fault, and `unit_defs` names what
+/// the rewrite does with the consumer's implicit unit definitions. A new
+/// pair relationship is a row in this product — the saturating divide's
+/// fold, for example, is `fault` discharged by the folded literal
+/// composed with `unit_defs` retiring the condition-state definitions —
+/// not a new variant: admission is the conjunction of the per-axis gates
+/// below. The producer admits the eliminated producer's, the admitted
+/// consumer's, and the rewritten form's catalog declarations through this
+/// dimension; the validator re-derives the same requirements from its own
+/// matching so a descriptor mistake cannot self-certify.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairMachineEffects {
-    /// Every form the rewrite touches is effect-isolated: its declaration
-    /// carries no memory access, no trap or fault behavior, no barrier, call,
-    /// or cleanup behavior, and every encoded alternative falls through
-    /// without memory, stack, or trap traffic.
-    ///
-    /// The three roles differ only in their encoded implicit-unit traffic.
-    /// The eliminated producer must declare none at all — removing the
-    /// instruction would silently drop it. The consumer declares no implicit
-    /// unit uses — a use the rewritten form does not carry would be unit
-    /// state the rewrite silently stops observing — and every unit it
-    /// defines must stay defined by every rewritten alternative, or its
-    /// readers would observe a stale unit. Its clobbers are unrestricted:
-    /// dropping a clobber only narrows what may be destroyed, which is the
-    /// intended refinement when the x86-64 `sub` consumer's `rflags` clobber
-    /// disappears under the flag-preserving immediate form. The rewritten
-    /// form declares no implicit uses or clobbers; its implicit definitions
-    /// are the declared result channel under `PairResultDisposition`.
+pub struct PairMachineEffects {
+    /// The consumer↔rewritten non-unit declaration surface.
+    pub non_unit: PairNonUnitSurface,
+    /// Which surface discharges the consumer's encoded architectural
+    /// fault, if any.
+    pub fault: PairFaultDischarge,
+    /// What the rewrite does with the consumer's implicit unit
+    /// definitions.
+    pub unit_defs: PairUnitDefRelation,
+}
+
+/// The consumer↔rewritten relationship on the non-unit declaration
+/// surface — memory, trap, stack, control flow, barrier, call, and
+/// cleanup — independent of the consumer's fault discharge and
+/// implicit-definition disposition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairNonUnitSurface {
+    /// Both declarations are effect-isolated outside their unit surface:
+    /// no memory access, no hosted trap, barrier, call, or cleanup
+    /// behavior, and every encoded alternative falls through without
+    /// memory or stack traffic. Encoded trap behavior stays governed by
+    /// the [`PairFaultDischarge`] axis.
     Isolated,
-    /// The consumer reads memory through a pointer plus an index operand the
-    /// fold removes; the rewritten form reads the same pointer through a
-    /// materialized byte offset. `index_operand` is the consumer operand
-    /// position the literal victim occupies — it must equal the operand
-    /// shape's declared victim position.
+    /// The consumer reads memory through a pointer plus an index operand
+    /// the fold removes; the rewritten form reads the same pointer
+    /// through a materialized byte offset. `index_operand` is the
+    /// consumer operand position the literal victim occupies — it must
+    /// equal the operand shape's declared victim position.
     ///
-    /// The eliminated producer stays effect-isolated, as under
-    /// [`Isolated`](Self::Isolated). The consumer and rewritten declarations
-    /// must carry an identical non-unit surface — pointer-read memory, the
-    /// same trap, barrier, call, and cleanup behavior — and every consumer
-    /// alternative must be an indexed pointer read whose index is exactly
+    /// The consumer and rewritten declarations must carry an identical
+    /// non-unit surface — pointer-read memory, the same trap, barrier,
+    /// call, and cleanup behavior — and every consumer alternative must
+    /// be an indexed pointer read whose index is exactly
     /// `index_operand`, matched by a direct pointer read over the same
-    /// pointer operand and byte count in every rewritten alternative, with
-    /// pairwise-equal stack, trap, and control encodings. The unit-traffic
-    /// relation is unchanged: no implicit uses on either side, every unit the
-    /// consumer defines still defined by every rewritten alternative, and no
-    /// implicit uses or clobbers on the rewritten form.
-    IndexedPointerReadFold {
-        /// The consumer operand position carrying the folded index register.
+    /// pointer operand and byte count in every rewritten alternative,
+    /// with pairwise-equal stack, trap, and control encodings and the
+    /// isolated unit-traffic relation: no implicit uses on either side,
+    /// every unit the consumer defines still defined, and no implicit
+    /// uses or clobbers on the rewritten form. This relation owns the
+    /// whole pairwise surface, so the `fault` and `unit_defs` axes
+    /// compose only under [`Isolated`](Self::Isolated).
+    IndexedPointerRead {
+        /// The consumer operand position carrying the folded index
+        /// register.
         index_operand: u16,
     },
-    /// The consumer may architecturally fault — its encoded alternatives
-    /// carry `MayArchitecturalFaultV1` — and the folded literal is exactly
-    /// the value that makes every such fault unreachable. Declaring this
-    /// surface attests that the rewrite replaces the consumer's trap
-    /// surface wholesale because the admitted immediate discharges it:
+}
+
+/// How the consumer's encoded architectural fault — an alternative
+/// carrying `MayArchitecturalFaultV1` — is discharged across the fold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairFaultDischarge {
+    /// The consumer encodes no architectural fault: every alternative's
+    /// trap behavior is `NeverV1`.
+    Isolated,
+    /// The consumer may architecturally fault and the folded literal is
+    /// exactly the value that makes every such fault unreachable:
     /// `EXACT_DIVIDE_ONE_COPY` folds a divisor of one, under which an
-    /// unsigned divide can neither divide by zero nor overflow — provided
-    /// the auxiliary `Use` operands the shape drops are provably zero, the
-    /// operand-shape contract's own requirement — and
-    /// `WRAPPING_REMAINDER_ONE_MATERIALIZE` folds a divisor of one, under
-    /// which a signed or unsigned remainder can neither divide by zero nor
-    /// overflow. The eliminated producer
-    /// stays effect-isolated, as under [`Isolated`](Self::Isolated). The
-    /// consumer declaration must be non-unit isolated — no memory, hosted
-    /// trap, barrier, call, or cleanup surface — with alternatives that
-    /// touch no memory, leave the stack unchanged, fall through, carry no
-    /// implicit uses, define no unit the rewritten form does not also
-    /// define, and encode only `NeverV1` or `MayArchitecturalFaultV1` trap
-    /// behavior; clobbers are unrestricted since dropping them only
-    /// narrows what may be destroyed. The rewritten form is fully
-    /// effect-isolated.
-    FaultDischargedByLiteral,
-    /// The consumer may architecturally fault — its encoded alternatives
-    /// carry `MayArchitecturalFaultV1` — and the fault is unreachable under
-    /// the consumer's own carried obligation rather than under the folded
-    /// literal alone: `WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE` folds
-    /// a dividend literal of zero, under which the quotient is zero and
-    /// cannot overflow, and `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` folds
-    /// the same dividend literal of an unsigned exact divide, under which
-    /// the quotient is exactly zero, while the nonzero-divisor obligation
-    /// each kind carries as its accepted fact already excludes the only
-    /// reachable fault — division by zero. Declaring
-    /// this surface attests that the rewrite replaces the consumer's trap
-    /// surface wholesale because every fault case was already unreachable:
-    /// the literal fixes the quotient and the carried obligation fixes the
-    /// divisor. Unlike
-    /// [`FaultDischargedByLiteral`](Self::FaultDischargedByLiteral), the
-    /// folded literal is not by itself the discharging value — a dividend
-    /// of zero with an unproven divisor would still fault.
-    ///
-    /// The eliminated producer stays effect-isolated, as under
-    /// [`Isolated`](Self::Isolated). The consumer declaration must be
-    /// non-unit isolated — no memory, hosted trap, barrier, call, or
-    /// cleanup surface — with alternatives that touch no memory, leave the
-    /// stack unchanged, fall through, carry no implicit uses, define no
-    /// unit the rewritten form does not also define, and encode only
-    /// `NeverV1` or `MayArchitecturalFaultV1` trap behavior; clobbers are
-    /// unrestricted since dropping them only narrows what may be
-    /// destroyed. The rewritten form is fully effect-isolated.
-    FaultDischargedByObligation,
-    /// The consumer implicitly *defines* physical units the rewritten form
-    /// does not define — the target condition state an aarch64
-    /// flag-setting saturating add writes into `nzcv`, which the isolated
-    /// `CopyI64` rewrite does not carry — and removing the consumer retires
-    /// those definitions. Declaring this surface attests that the rewrite
-    /// narrows the defined-unit surface deliberately: the fold is admitted
-    /// only while every unit the consumer record defines is dead in the
-    /// function — no instruction or terminator implicitly uses it — so no
-    /// reader observes a stale unit once the defining instruction
-    /// disappears. Unlike [`Isolated`](Self::Isolated), coverage of the
-    /// consumer's implicit definitions by the rewritten form is not
-    /// required; it is exactly what the relationship retires.
-    ///
-    /// The eliminated producer stays effect-isolated including every
-    /// implicit unit it could have written, as under
-    /// [`Isolated`](Self::Isolated). The consumer declaration must be
-    /// non-unit isolated — no memory, hosted trap, barrier, call, or
-    /// cleanup surface — with alternatives that touch no memory, leave the
-    /// stack unchanged, fall through, and carry no implicit uses: a use
-    /// the rewritten form does not carry would be unit state the rewrite
-    /// silently stops observing. Implicit unit *definitions* are
-    /// unrestricted at the declaration level — the record-level deadness
-    /// gate decides whether retiring them is observable — and clobbers are
-    /// unrestricted since dropping them only narrows what may be
-    /// destroyed: the x86-64 saturating add's `rflags` clobber retires
-    /// under this surface even while a flag-reading branch keeps `rflags`
-    /// live. The rewritten form is fully effect-isolated.
-    DeadConsumerUnitDefs,
-    /// The consumer may architecturally fault *and* implicitly defines
-    /// physical units the rewritten form does not define — the saturating
-    /// divide, whose x86-64 `div`/`idiv` realizations encode
-    /// `MayArchitecturalFaultV1` while its aarch64 signed forms define
-    /// `nzcv`. Declaring this surface attests both relationships at once:
-    /// the folded literal is exactly the value that makes every encoded
-    /// fault unreachable — `x /| 1` can neither divide by zero nor
-    /// overflow, and the signed `MIN /| -1` clamp lies outside the divisor
-    /// this grammar admits — under the
-    /// [`FaultDischargedByLiteral`](Self::FaultDischargedByLiteral)
-    /// contract, and every implicit unit the consumer record defines
-    /// retires under the
-    /// [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs) contract,
-    /// admitted only while no instruction or terminator in the function
-    /// implicitly uses it.
-    ///
-    /// The eliminated producer stays effect-isolated including every
-    /// implicit unit it could have written, as under
-    /// [`Isolated`](Self::Isolated). The consumer declaration must be
-    /// non-unit isolated — no memory, hosted trap, barrier, call, or
-    /// cleanup surface — with alternatives that touch no memory, leave
-    /// the stack unchanged, fall through, carry no implicit uses, and
-    /// encode only `NeverV1` or `MayArchitecturalFaultV1` trap behavior.
-    /// Implicit unit *definitions* are unrestricted at the declaration
-    /// level — the record-level deadness gate decides whether retiring
-    /// them is observable — and clobbers are unrestricted since dropping
-    /// them only narrows what may be destroyed: the x86-64 `rdx`/`rflags`
-    /// clobbers retire under this surface even while a flag-reading
-    /// branch keeps `rflags` live. The rewritten form is fully
-    /// effect-isolated.
-    FaultDischargedByLiteralDeadUnitDefs,
-    /// The consumer may architecturally fault *and* implicitly defines
-    /// physical units the rewritten form does not define — the saturating
-    /// divide, whose x86-64 `div`/`idiv` realizations encode
-    /// `MayArchitecturalFaultV1` while its aarch64 signed forms define
-    /// `nzcv` — but the fault is unreachable under the consumer's own
-    /// carried obligation rather than under the folded literal:
-    /// `SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS` folds a dividend
+    /// unsigned divide can neither divide by zero nor overflow —
+    /// provided the auxiliary `Use` operands the shape drops are
+    /// provably zero, the operand-shape contract's own requirement —
+    /// and `WRAPPING_REMAINDER_ONE_MATERIALIZE` folds a divisor of one,
+    /// under which a signed or unsigned remainder can neither divide by
+    /// zero nor overflow. Declaring this surface attests that the
+    /// rewrite replaces the consumer's trap surface wholesale because
+    /// the admitted immediate discharges it: the consumer declaration
+    /// must be non-unit isolated, with alternatives that touch no
+    /// memory, leave the stack unchanged, fall through, carry no
+    /// implicit uses, and encode only `NeverV1` or
+    /// `MayArchitecturalFaultV1` trap behavior. The rewritten form is
+    /// fully effect-isolated because the discharged fault does not
+    /// survive the fold.
+    DischargedByLiteral,
+    /// The consumer may architecturally fault and the fault is
+    /// unreachable under the consumer's own carried obligation rather
+    /// than under the folded literal alone:
+    /// `WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE` folds a dividend
     /// literal of zero, under which the quotient is zero and cannot
-    /// overflow, while the nonzero-divisor obligation the
-    /// `SaturatingDivide` kind carries as its accepted fact already
-    /// excludes the only other reachable fault — division by zero.
-    /// Declaring this surface attests both relationships at once under
-    /// the
-    /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
-    /// and [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs)
-    /// contracts: the folded dividend of zero does not by itself
-    /// discharge the divide-by-zero fault — a zero dividend over an
-    /// unproven divisor would still fault — so the obligation the kind
-    /// names must appear in the instruction's recorded proof custody, and
-    /// every implicit unit the consumer record defines retires only while
-    /// no instruction or terminator in the function implicitly uses it.
-    ///
-    /// The eliminated producer stays effect-isolated including every
-    /// implicit unit it could have written, as under
-    /// [`Isolated`](Self::Isolated). The consumer declaration must be
-    /// non-unit isolated — no memory, hosted trap, barrier, call, or
-    /// cleanup surface — with alternatives that touch no memory, leave
-    /// the stack unchanged, fall through, carry no implicit uses, and
-    /// encode only `NeverV1` or `MayArchitecturalFaultV1` trap behavior.
-    /// Implicit unit *definitions* are unrestricted at the declaration
-    /// level — the record-level deadness gate decides whether retiring
-    /// them is observable — and clobbers are unrestricted since dropping
-    /// them only narrows what may be destroyed. The rewritten form is
-    /// fully effect-isolated: neither the discharged fault nor a retired
-    /// definition may reappear.
-    FaultDischargedByObligationDeadUnitDefs,
-    /// The consumer implicitly *defines* physical units the rewritten
-    /// form keeps — the target condition state a `CompareI64` publishes
-    /// and its `CompareI64Immediate` rewrite keeps publishing — while the
-    /// operand-swapped grammar changes the relation those units encode:
-    /// `literal - x` rewrites to `x - literal`, which preserves the zero
-    /// condition exactly but inverts every ordering predicate. Declaring
-    /// this surface attests that keeping the definitions under the
-    /// reversed comparison is admitted only while the inversion is
-    /// unobservable: every reader each defined unit can reach through
-    /// the function's CFG must be equality-sensing — the
-    /// `MaterializeBooleanEqual` materialization or the generic
-    /// `ConditionalBranchNonZero` terminator — a record-level fact the
-    /// `admits_swapped_condition_defs` gate re-derives from the concrete
-    /// instruction and function, not a fact any catalog declaration
-    /// attests.
-    ///
-    /// The declaration-level surface is otherwise the
-    /// [`Isolated`](Self::Isolated) contract: the eliminated producer
-    /// stays effect-isolated including every implicit unit it could have
-    /// written; the consumer declaration must be non-unit isolated — no
-    /// memory, hosted trap, barrier, call, or cleanup surface — with
-    /// alternatives that touch no memory, leave the stack unchanged,
-    /// fall through, carry no implicit uses, and keep every implicit
-    /// unit they define defined by every rewritten alternative; clobbers
-    /// are unrestricted since dropping them only narrows what may be
-    /// destroyed. The rewritten form is fully effect-isolated.
-    OperandSwappedUnitDefs,
+    /// overflow, `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` folds the same
+    /// dividend literal of an unsigned exact divide, and
+    /// `SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS` the saturating
+    /// divide's, while the nonzero-divisor obligation each kind carries
+    /// as its accepted fact already excludes the only other reachable
+    /// fault — division by zero. Declaring this surface attests that
+    /// the rewrite replaces the consumer's trap surface wholesale
+    /// because every fault case was already unreachable: the literal
+    /// fixes the quotient and the carried obligation fixes the divisor.
+    /// Unlike [`DischargedByLiteral`](Self::DischargedByLiteral), the
+    /// folded literal is not by itself the discharging value — a
+    /// dividend of zero with an unproven divisor would still fault — so
+    /// the obligation the consumer's kind names must appear in the
+    /// instruction's recorded proof custody. The consumer surface is the
+    /// same non-unit isolated, fault-envelope contract
+    /// [`DischargedByLiteral`](Self::DischargedByLiteral) names; the
+    /// rewritten form is fully effect-isolated.
+    DischargedByObligation,
+}
+
+/// What the rewrite does with the consumer's implicit unit
+/// *definitions*.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairUnitDefRelation {
+    /// Every unit the consumer defines stays defined by every rewritten
+    /// alternative — a definition the rewritten form dropped would leave
+    /// its readers observing a stale unit.
+    Covered,
+    /// The consumer implicitly defines physical units the rewritten
+    /// form does not define — the target condition state an aarch64
+    /// flag-setting saturating add writes into `nzcv`, which the
+    /// isolated `CopyI64` rewrite does not carry — and removing the
+    /// consumer retires those definitions. Declaring this surface
+    /// attests that the rewrite narrows the defined-unit surface
+    /// deliberately: the fold is admitted only while every unit the
+    /// consumer record defines is dead in the function — no instruction
+    /// or terminator implicitly uses it — so no reader observes a stale
+    /// unit once the defining instruction disappears. Coverage by the
+    /// rewritten form is not required; it is exactly what the
+    /// relationship retires. Implicit uses stay forbidden: one the
+    /// rewritten form does not carry would be unit state the rewrite
+    /// silently stops observing. Clobbers are unrestricted since
+    /// dropping them only narrows what may be destroyed: the x86-64
+    /// saturating add's `rflags` clobber retires under this surface
+    /// even while a flag-reading branch keeps `rflags` live.
+    RetiredWhenDead,
+    /// The consumer's implicit definitions stay defined by the
+    /// rewritten form while the operand-swapped grammar changes the
+    /// relation they encode: `literal - x` rewrites to `x - literal`,
+    /// which preserves the zero condition exactly but inverts every
+    /// ordering predicate. Declaring this surface attests that keeping
+    /// the definitions under the reversed comparison is admitted only
+    /// while the inversion is unobservable: every reader each defined
+    /// unit can reach through the function's CFG must be
+    /// equality-sensing — the `MaterializeBooleanEqual` materialization
+    /// or the generic `ConditionalBranchNonZero` terminator — a
+    /// record-level fact the `admits_swapped_condition_defs` gate
+    /// re-derives from the concrete instruction and function, not a
+    /// fact any catalog declaration attests. At the declaration level
+    /// the definitions are covered, exactly as under
+    /// [`Covered`](Self::Covered).
+    OperandSwapped,
 }
 
 impl PairMachineEffects {
-    /// Whether the eliminated producer's catalog declaration is
-    /// effect-isolated including every implicit unit it could have written.
-    /// Every landed pair requires this surface: removing the producer must
-    /// drop nothing machine-visible.
-    pub fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
-        match self {
-            Self::Isolated
-            | Self::IndexedPointerReadFold { .. }
-            | Self::FaultDischargedByLiteral
-            | Self::FaultDischargedByObligation
-            | Self::DeadConsumerUnitDefs
-            | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::FaultDischargedByObligationDeadUnitDefs
-            | Self::OperandSwappedUnitDefs => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        isolated_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                            && alternative.encoded.implicit_unit_defs.is_empty()
-                            && alternative.encoded.implicit_unit_clobbers.is_empty()
-                    })
-            }
+    /// Every surface isolated: the consumer is effect-isolated outside
+    /// its unit surface, encodes no architectural fault, declares no
+    /// implicit uses, and every unit it defines stays defined by every
+    /// rewritten alternative. Its clobbers are unrestricted: dropping a
+    /// clobber only narrows what may be destroyed, which is the
+    /// intended refinement when the x86-64 `sub` consumer's `rflags`
+    /// clobber disappears under the flag-preserving immediate form.
+    pub const ISOLATED: Self = Self {
+        non_unit: PairNonUnitSurface::Isolated,
+        fault: PairFaultDischarge::Isolated,
+        unit_defs: PairUnitDefRelation::Covered,
+    };
+
+    /// The indexed pointer read fold: the consumer reads pointer plus
+    /// folded index, the rewritten form reads the same pointer through
+    /// a materialized byte offset.
+    pub const fn indexed_pointer_read_fold(index_operand: u16) -> Self {
+        Self {
+            non_unit: PairNonUnitSurface::IndexedPointerRead { index_operand },
+            fault: PairFaultDischarge::Isolated,
+            unit_defs: PairUnitDefRelation::Covered,
         }
     }
 
+    /// The folded literal discharges every encoded fault; implicit
+    /// definitions stay covered.
+    pub const FAULT_DISCHARGED_BY_LITERAL: Self = Self {
+        fault: PairFaultDischarge::DischargedByLiteral,
+        ..Self::ISOLATED
+    };
+
+    /// The consumer's carried obligation discharges every encoded
+    /// fault; implicit definitions stay covered.
+    pub const FAULT_DISCHARGED_BY_OBLIGATION: Self = Self {
+        fault: PairFaultDischarge::DischargedByObligation,
+        ..Self::ISOLATED
+    };
+
+    /// The consumer's implicit unit definitions retire under the
+    /// record-level deadness gate; no fault surface.
+    pub const DEAD_CONSUMER_UNIT_DEFS: Self = Self {
+        unit_defs: PairUnitDefRelation::RetiredWhenDead,
+        ..Self::ISOLATED
+    };
+
+    /// The saturating divide's composition: the folded literal
+    /// discharges every encoded fault while the consumer's implicit
+    /// unit definitions retire under the deadness gate.
+    pub const FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS: Self = Self {
+        fault: PairFaultDischarge::DischargedByLiteral,
+        unit_defs: PairUnitDefRelation::RetiredWhenDead,
+        ..Self::ISOLATED
+    };
+
+    /// The zero-dividend saturating divide's composition: the
+    /// consumer's carried obligation discharges every encoded fault
+    /// while its implicit unit definitions retire under the deadness
+    /// gate.
+    pub const FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS: Self = Self {
+        fault: PairFaultDischarge::DischargedByObligation,
+        unit_defs: PairUnitDefRelation::RetiredWhenDead,
+        ..Self::ISOLATED
+    };
+
+    /// The operand-swapped composition: implicit definitions stay
+    /// covered while the record-level gate re-derives that every
+    /// reachable reader is equality-sensing.
+    pub const OPERAND_SWAPPED_UNIT_DEFS: Self = Self {
+        unit_defs: PairUnitDefRelation::OperandSwapped,
+        ..Self::ISOLATED
+    };
+
+    /// Whether the eliminated producer's catalog declaration is
+    /// effect-isolated including every implicit unit it could have
+    /// written. Every landed pair requires this surface regardless of
+    /// the declared axes: removing the producer must drop nothing
+    /// machine-visible.
+    pub fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
+        isolated_declaration(declaration)
+            && declaration.alternatives.iter().all(|alternative| {
+                isolated_alternative(alternative)
+                    && alternative.encoded.implicit_unit_uses.is_empty()
+                    && alternative.encoded.implicit_unit_defs.is_empty()
+                    && alternative.encoded.implicit_unit_clobbers.is_empty()
+            })
+    }
+
     /// Whether the admitted consumer's catalog declaration satisfies the
-    /// pair's declared relationship to `rewritten`. For [`Isolated`](Self::Isolated)
-    /// the consumer is effect-isolated outside its unit surface and the
-    /// rewrite may replace that surface wholesale: no implicit uses at all,
-    /// and every implicit definition covered by every alternative the
-    /// rewritten form could select. For
-    /// [`IndexedPointerReadFold`](Self::IndexedPointerReadFold) the consumer
-    /// is the indexed pointer read: the two declarations share the same
-    /// non-unit surface, and every consumer alternative's encoded indexed
-    /// read at the folded operand position is matched by every rewritten
-    /// alternative's direct read over the same pointer and byte count. For
-    /// [`FaultDischargedByLiteral`](Self::FaultDischargedByLiteral) the
-    /// consumer keeps the isolated non-unit surface but may encode an
-    /// architectural fault: the admitted literal is the value that
-    /// discharges it. For
-    /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
-    /// the same may-fault surface is admitted because the consumer's own
-    /// carried obligation — the nonzero divisor a remainder or an exact
-    /// divide requires — already makes the fault unreachable; the literal
-    /// fixes the folded value, not the divisor's definedness. For
-    /// [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs) the consumer
-    /// keeps the isolated non-unit surface with no implicit uses, while
-    /// its implicit definitions need no rewritten coverage — retiring them
-    /// is the point of the relationship, gated separately on the record's
-    /// defined units being dead in the function.
+    /// pair's declared relationship to `rewritten`. Under
+    /// [`Isolated`](PairNonUnitSurface::Isolated) the consumer is
+    /// effect-isolated outside its unit surface: the encoded trap
+    /// envelope the `fault` axis admits and the implicit-definition
+    /// coverage the `unit_defs` axis requires compose over it, while
+    /// implicit uses stay forbidden — one the rewritten form does not
+    /// carry would be unit state the rewrite silently stops observing.
+    /// Under [`IndexedPointerRead`](PairNonUnitSurface::IndexedPointerRead)
+    /// the consumer is the indexed pointer read: the two declarations
+    /// share the same non-unit surface, and every consumer alternative's
+    /// encoded indexed read at the folded operand position is matched by
+    /// every rewritten alternative's direct read over the same pointer
+    /// and byte count.
     pub fn admits_consumer(
         self,
         declaration: &MachineEffectDeclaration,
         rewritten: &MachineEffectDeclaration,
     ) -> bool {
-        match self {
-            // [`OperandSwappedUnitDefs`](Self::OperandSwappedUnitDefs)
-            // shares this arm: its rewrite keeps the consumer's implicit
-            // definitions — under the reversed operand order the
-            // record-level reader audit admits — so the declaration-level
-            // surface is exactly the isolated one, definitions covered by
-            // every rewritten alternative.
-            Self::Isolated | Self::OperandSwappedUnitDefs => {
+        match self.non_unit {
+            PairNonUnitSurface::Isolated => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
-                        isolated_alternative(alternative)
+                        self.fault.consumer_alternative_gate(alternative)
                             && alternative.encoded.implicit_unit_uses.is_empty()
-                            && implicit_defs_covered(alternative, rewritten)
+                            && self.unit_defs.defs_gate(alternative, rewritten)
                     })
             }
-            Self::IndexedPointerReadFold { index_operand } => {
+            PairNonUnitSurface::IndexedPointerRead { index_operand } => {
                 declaration.memory == MachineMemoryEffect::ReadPointerV1
                     && declaration.memory == rewritten.memory
                     && declaration.trap == rewritten.trap
@@ -545,153 +530,60 @@ impl PairMachineEffects {
                         })
                     })
             }
-            // The consumer keeps the isolated non-unit declaration surface
-            // but may encode an architectural fault the literal discharges;
-            // every other encoded dimension is the isolated contract.
-            Self::FaultDischargedByLiteral => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        fault_discharged_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                            && implicit_defs_covered(alternative, rewritten)
-                    })
-            }
-            // The same may-fault surface admitted where the consumer's
-            // carried obligation — not the folded literal — is what makes
-            // the encoded fault unreachable.
-            Self::FaultDischargedByObligation => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        fault_discharged_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                            && implicit_defs_covered(alternative, rewritten)
-                    })
-            }
-            // The consumer keeps the isolated non-unit declaration surface
-            // and may define implicit units the rewritten form does not
-            // carry — retiring them is the relationship's own point, so no
-            // coverage requirement applies at the declaration level. The
-            // deadness of each defined unit is the record-level gate
-            // `admits_dead_consumer_defs` enforces. Implicit uses stay
-            // forbidden: one the rewritten form does not carry would be
-            // unit state the rewrite silently stops observing.
-            Self::DeadConsumerUnitDefs => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        isolated_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                    })
-            }
-            // The consumer keeps the isolated non-unit declaration surface
-            // and may encode an architectural fault the admitted literal
-            // discharges — the same trap envelope
-            // `FaultDischargedByLiteral` admits — while its implicit unit
-            // definitions need no rewritten coverage: retiring them is the
-            // relationship's own point, gated separately on the record's
-            // defined units being dead in the function under the
-            // `DeadConsumerUnitDefs` contract. Implicit uses stay
-            // forbidden: one the rewritten form does not carry would be
-            // unit state the rewrite silently stops observing.
-            Self::FaultDischargedByLiteralDeadUnitDefs => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        fault_discharged_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                    })
-            }
-            // The same fault-carrying, dead-definitions surface admitted
-            // where the consumer's carried obligation — not the folded
-            // literal — is what makes the encoded fault unreachable: the
-            // record-level obligation custody `admits_consumer_obligation`
-            // enforces is what distinguishes this relationship from
-            // `FaultDischargedByLiteralDeadUnitDefs`.
-            Self::FaultDischargedByObligationDeadUnitDefs => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        fault_discharged_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                    })
-            }
         }
     }
 
     /// Whether the admitted consumer's instruction record retains the
-    /// obligation this discharge relationship depends on.
-    /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
-    /// admits a consumer whose encoded fault is unreachable only because
-    /// the obligation its kind names — the proven nonzero divisor a
-    /// `WrappingRemainderI64` or an `ExactDivideU64` carries — is in the
-    /// instruction's recorded proof custody:
-    /// [`FaultDischargedByObligationDeadUnitDefs`](Self::FaultDischargedByObligationDeadUnitDefs)
-    /// admits the same custody for the `SaturatingDivide` kind's carried
-    /// nonzero-divisor obligation. Under either surface the folded literal
-    /// alone does not discharge the fault, so an instruction record not
-    /// retaining the obligation its kind declares cannot fold. Every
-    /// other relationship needs no carried obligation.
+    /// obligation this discharge relationship depends on. Under
+    /// [`DischargedByObligation`](PairFaultDischarge::DischargedByObligation)
+    /// the folded literal alone does not discharge the fault: the
+    /// obligation the consumer's kind names — the proven nonzero divisor
+    /// a `WrappingRemainderI64`, an `ExactDivideU64`, or a
+    /// `SaturatingDivide` carries — must appear in the instruction's
+    /// recorded proof custody, so an instruction record not retaining it
+    /// cannot fold. Every other discharge needs no carried obligation.
     pub fn admits_consumer_obligation(self, consumer: &SelectedInstruction) -> bool {
-        match self {
-            Self::FaultDischargedByObligation => {
-                let obligation = match consumer.kind {
-                    SelectedInstructionKind::WrappingRemainderI64 { obligation, .. }
-                    | SelectedInstructionKind::ExactDivideU64 { obligation, .. } => obligation,
-                    _ => return false,
-                };
-                consumer.provenance.obligations.contains(&obligation)
-            }
-            Self::FaultDischargedByObligationDeadUnitDefs => {
-                let obligation = match consumer.kind {
-                    SelectedInstructionKind::SaturatingDivide { obligation, .. } => obligation,
-                    _ => return false,
-                };
-                consumer.provenance.obligations.contains(&obligation)
-            }
-            Self::Isolated
-            | Self::IndexedPointerReadFold { .. }
-            | Self::FaultDischargedByLiteral
-            | Self::DeadConsumerUnitDefs
-            | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::OperandSwappedUnitDefs => true,
+        if self.fault != PairFaultDischarge::DischargedByObligation {
+            return true;
         }
+        let obligation = match consumer.kind {
+            SelectedInstructionKind::WrappingRemainderI64 { obligation, .. }
+            | SelectedInstructionKind::ExactDivideU64 { obligation, .. }
+            | SelectedInstructionKind::SaturatingDivide { obligation, .. } => obligation,
+            _ => return false,
+        };
+        consumer.provenance.obligations.contains(&obligation)
     }
 
     /// Whether the admitted consumer's instruction record retires only
     /// unobserved unit state. Under
-    /// [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs) the record must
-    /// declare no implicit unit *uses* — one the rewritten form does not
-    /// carry would silently stop being observed — and every unit it
-    /// *defines* must be dead in `function`: no instruction or terminator
-    /// may implicitly use it, or its readers would observe a stale unit
-    /// once the defining instruction disappears. A use textually before
-    /// the definition still counts — it reads the unit on a later loop
-    /// iteration — so the whole-function scan is the only sound order.
-    /// Every other relationship keeps its definitions by coverage and
-    /// needs no record-level deadness gate.
+    /// [`RetiredWhenDead`](PairUnitDefRelation::RetiredWhenDead) the
+    /// record must declare no implicit unit *uses* — one the rewritten
+    /// form does not carry would be unit state the rewrite silently
+    /// stops observing — and every unit it defines must be dead in the
+    /// function, so no reader observes a stale unit once the defining
+    /// instruction disappears. Every other relation keeps the defined
+    /// units on the rewritten form and needs no record-level gate.
     pub fn admits_dead_consumer_defs(
         self,
         consumer: &SelectedInstruction,
         function: &SelectedFunction,
     ) -> bool {
-        match self {
-            Self::DeadConsumerUnitDefs
-            | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::FaultDischargedByObligationDeadUnitDefs => {
+        match self.unit_defs {
+            PairUnitDefRelation::RetiredWhenDead => {
                 consumer.implicit_uses.is_empty()
                     && consumer
                         .implicit_defs
                         .iter()
                         .all(|unit| !implicit_unit_used(function, *unit))
             }
-            Self::Isolated
-            | Self::IndexedPointerReadFold { .. }
-            | Self::FaultDischargedByLiteral
-            | Self::FaultDischargedByObligation
-            | Self::OperandSwappedUnitDefs => true,
+            PairUnitDefRelation::Covered | PairUnitDefRelation::OperandSwapped => true,
         }
     }
 
     /// Whether the operand-swapped rewrite's preserved implicit
     /// definitions stay unobservable to ordering-sensitive readers.
-    /// [`OperandSwappedUnitDefs`](Self::OperandSwappedUnitDefs) keeps the
+    /// [`OperandSwapped`](PairUnitDefRelation::OperandSwapped) keeps the
     /// consumer's implicit unit *definitions* on the rewritten form but
     /// reverses the comparison's operand order — `literal - x` becomes
     /// `x - literal` — so the zero condition each defined unit's
@@ -705,7 +597,7 @@ impl PairMachineEffects {
     /// same register the subtraction itself is unchanged — `v - v` and
     /// the surviving `v - v` are the identical comparison — so no reader
     /// can observe the rewrite and the audit does not apply. Every other
-    /// relationship keeps the operand order and needs no flow gate.
+    /// relation keeps the operand order and needs no flow gate.
     pub fn admits_swapped_condition_defs(
         self,
         consumer: &SelectedInstruction,
@@ -713,8 +605,8 @@ impl PairMachineEffects {
         block_index: usize,
         consumer_index: usize,
     ) -> bool {
-        match self {
-            Self::OperandSwappedUnitDefs => {
+        match self.unit_defs {
+            PairUnitDefRelation::OperandSwapped => {
                 let [left, right, ..] = consumer.operands.as_slice() else {
                     return false;
                 };
@@ -729,37 +621,25 @@ impl PairMachineEffects {
                             )
                         }))
             }
-            Self::Isolated
-            | Self::IndexedPointerReadFold { .. }
-            | Self::FaultDischargedByLiteral
-            | Self::FaultDischargedByObligation
-            | Self::DeadConsumerUnitDefs
-            | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::FaultDischargedByObligationDeadUnitDefs => true,
+            PairUnitDefRelation::Covered | PairUnitDefRelation::RetiredWhenDead => true,
         }
     }
 
-    /// Whether the rewritten form's catalog declaration satisfies the pair's
-    /// declared shape. [`Isolated`](Self::Isolated) requires an
-    /// effect-isolated form with no implicit unit uses or clobbers beyond
-    /// its result channel; [`IndexedPointerReadFold`](Self::IndexedPointerReadFold)
-    /// requires the plain pointer-read form whose alternatives all read
-    /// memory through a pointer operand and byte offset, fall through, leave
-    /// the stack unchanged, and declare no implicit uses or clobbers;
-    /// [`FaultDischargedByLiteral`](Self::FaultDischargedByLiteral) and
-    /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
-    /// require the same fully isolated surface as
-    /// [`Isolated`](Self::Isolated) because the consumer's fault does not
-    /// survive the fold; [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs)
-    /// requires it because the consumer's dead definitions and clobbers
-    /// must not reappear on the rewritten form.
+    /// Whether the rewritten form's catalog declaration satisfies the
+    /// pair's declared shape. Under
+    /// [`Isolated`](PairNonUnitSurface::Isolated) the rewritten form is
+    /// fully effect-isolated with no implicit unit uses or clobbers
+    /// beyond its result channel: a discharged fault does not reappear
+    /// anywhere in the rewrite, and a retired definition or clobber must
+    /// not either. Under
+    /// [`IndexedPointerRead`](PairNonUnitSurface::IndexedPointerRead)
+    /// the rewritten form is the plain pointer read whose alternatives
+    /// all read memory through a pointer operand and byte offset, fall
+    /// through, leave the stack unchanged, and declare no implicit uses
+    /// or clobbers.
     pub fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
-        match self {
-            Self::Isolated
-            | Self::DeadConsumerUnitDefs
-            | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::FaultDischargedByObligationDeadUnitDefs
-            | Self::OperandSwappedUnitDefs => {
+        match self.non_unit {
+            PairNonUnitSurface::Isolated => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -767,7 +647,7 @@ impl PairMachineEffects {
                             && alternative.encoded.implicit_unit_clobbers.is_empty()
                     })
             }
-            Self::IndexedPointerReadFold { .. } => {
+            PairNonUnitSurface::IndexedPointerRead { .. } => {
                 declaration.memory == MachineMemoryEffect::ReadPointerV1
                     && declaration.alternatives.iter().all(|alternative| {
                         matches!(
@@ -780,16 +660,40 @@ impl PairMachineEffects {
                             && alternative.encoded.implicit_unit_clobbers.is_empty()
                     })
             }
-            // The folded form is fully isolated: the discharged fault does
-            // not reappear anywhere in the rewrite.
-            Self::FaultDischargedByLiteral | Self::FaultDischargedByObligation => {
-                isolated_declaration(declaration)
-                    && declaration.alternatives.iter().all(|alternative| {
-                        isolated_alternative(alternative)
-                            && alternative.encoded.implicit_unit_uses.is_empty()
-                            && alternative.encoded.implicit_unit_clobbers.is_empty()
-                    })
+        }
+    }
+}
+
+impl PairFaultDischarge {
+    /// The encoded trap surface this discharge admits on the consumer's
+    /// alternatives: a faultless consumer stays fully isolated; a
+    /// discharged fault admits the `MayArchitecturalFaultV1` envelope
+    /// the named discharge contract retires.
+    fn consumer_alternative_gate(self, alternative: &MachineAlternative) -> bool {
+        match self {
+            Self::Isolated => isolated_alternative(alternative),
+            Self::DischargedByLiteral | Self::DischargedByObligation => {
+                fault_discharged_alternative(alternative)
             }
+        }
+    }
+}
+
+impl PairUnitDefRelation {
+    /// The declaration-level coverage this relation requires of the
+    /// consumer's implicit definitions: definitions the rewrite keeps —
+    /// whether the operand order is preserved or swapped — must stay
+    /// defined by every rewritten alternative, while definitions the
+    /// rewrite retires need no coverage: the record-level deadness gate
+    /// decides whether retiring them is observable.
+    fn defs_gate(
+        self,
+        consumer: &MachineAlternative,
+        rewritten: &MachineEffectDeclaration,
+    ) -> bool {
+        match self {
+            Self::Covered | Self::OperandSwapped => implicit_defs_covered(consumer, rewritten),
+            Self::RetiredWhenDead => true,
         }
     }
 }
@@ -1019,7 +923,7 @@ pub enum PairOperandShape {
     /// attests only that the swapped result channel preserves the
     /// equality predicate while inverting every ordering predicate; the
     /// companion
-    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OperandSwappedUnitDefs)
+    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS)
     /// relationship's record-level reader audit decides whether the
     /// inversion is observable. Only a consumer whose output is the
     /// condition state may declare it — a scalar `Def` result would carry
@@ -1209,7 +1113,7 @@ impl SelectedInstructionPairRule {
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
-        machine_effects: PairMachineEffects::Isolated,
+        machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the left operand of `ExactAddI64`:
     /// exact addition commutes, so `literal + x` rewrites to the same
@@ -1228,7 +1132,7 @@ impl SelectedInstructionPairRule {
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
-        machine_effects: PairMachineEffects::Isolated,
+        machine_effects: PairMachineEffects::ISOLATED,
     };
     pub const COMPARE_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
@@ -1238,7 +1142,7 @@ impl SelectedInstructionPairRule {
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ImplicitUnits,
         unit_effects: PairUnitEffects::Isolated,
-        machine_effects: PairMachineEffects::Isolated,
+        machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the operand-0 `Use` — the
     /// minuend — of `CompareI64`: `literal - x` rewrites to the
@@ -1247,7 +1151,7 @@ impl SelectedInstructionPairRule {
     /// whose ordering predicates invert. The same catalog selection
     /// admits both operand positions; the pair disambiguates by which
     /// `Use` position the folded literal occupies. Under
-    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OperandSwappedUnitDefs)
+    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS)
     /// the rewrite keeps the consumer's implicit unit definitions — the
     /// target condition state — bit-identical while changing the
     /// relation they encode, admitted only while every reader each
@@ -1255,7 +1159,7 @@ impl SelectedInstructionPairRule {
     /// equality-sensing.
     pub const COMPARE_LEFT_IMMEDIATE_U12: Self = Self {
         operand_shape: PairOperandShape::BinaryLeftLiteralOperandSwap,
-        machine_effects: PairMachineEffects::OperandSwappedUnitDefs,
+        machine_effects: PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS,
         ..Self::COMPARE_IMMEDIATE_U12
     };
 
@@ -1274,7 +1178,7 @@ impl SelectedInstructionPairRule {
         immediate_bound: PairImmediateBound::Encoding(u64::MAX),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
-        machine_effects: PairMachineEffects::Isolated,
+        machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU8`: the result is the
     /// literal's low eight bits materialized directly.
@@ -1353,12 +1257,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Encoding(4095),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
-            machine_effects: PairMachineEffects::IndexedPointerReadFold { index_operand: 1 },
+            machine_effects: PairMachineEffects::indexed_pointer_read_fold(1),
         };
         assert!(
             matches!(
-                rule.machine_effects,
-                PairMachineEffects::IndexedPointerReadFold { index_operand }
+                rule.machine_effects.non_unit,
+                PairNonUnitSurface::IndexedPointerRead { index_operand }
                     if index_operand == rule.victim_operand()
             ),
             "the folded operand is the indexed read's index operand"
@@ -1372,7 +1276,7 @@ impl SelectedInstructionPairRule {
     /// folded literal. Both forms are effect-isolated — neither touches
     /// memory, traps, or implicit units — so the rewrite replaces the
     /// consumer's surface wholesale under the ordinary
-    /// [`Isolated`](PairMachineEffects::Isolated) relationship.
+    /// [`Isolated`](PairMachineEffects::ISOLATED) relationship.
     ///
     /// The immediate bound is the narrowest byte-offset field any target's
     /// `AddressOffset` encoder admits: aarch64 `add xD, xN, #imm12` carries a
@@ -1386,7 +1290,7 @@ impl SelectedInstructionPairRule {
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
-        machine_effects: PairMachineEffects::Isolated,
+        machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the operand-0 backing operand of
     /// `ByteViewAddress`: the projection computes `(backing + offset)`
@@ -1408,7 +1312,7 @@ impl SelectedInstructionPairRule {
     /// dimensions a `div` realization brings: the consumer may encode an
     /// architectural fault — divide by zero or quotient overflow — which
     /// the folded divisor of one discharges under
-    /// [`FaultDischargedByLiteral`](PairMachineEffects::FaultDischargedByLiteral),
+    /// [`FaultDischargedByLiteral`](PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL),
     /// its operands may carry the register pins the pinned-operand form
     /// requires under
     /// [`BoundConsumerOperands`](PairUnitEffects::BoundConsumerOperands),
@@ -1429,12 +1333,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByLiteral,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL,
         };
         assert!(
             matches!(
                 rule.machine_effects,
-                PairMachineEffects::FaultDischargedByLiteral
+                PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(1)),
             "the fault discharge holds only for the divisor literal one"
         );
@@ -1453,7 +1357,7 @@ impl SelectedInstructionPairRule {
     /// divide-by-zero case the encoding could still name is unreachable
     /// only because the `ExactDivideU64` kind carries its proven nonzero
     /// divisor as an accepted obligation — the fold declares
-    /// [`FaultDischargedByObligation`](PairMachineEffects::FaultDischargedByObligation)
+    /// [`FaultDischargedByObligation`](PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION)
     /// so the descriptor never claims the literal did the obligation's
     /// work. The operands may carry the register pins the pinned-operand
     /// realization requires under
@@ -1481,12 +1385,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByObligation,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION,
         };
         assert!(
             matches!(
                 rule.machine_effects,
-                PairMachineEffects::FaultDischargedByObligation
+                PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
             "the obligation discharge holds only for the dividend literal zero"
         );
@@ -1502,7 +1406,7 @@ impl SelectedInstructionPairRule {
     /// `idiv`-class realization brings: the consumer may encode an
     /// architectural fault — divide by zero or quotient overflow — which
     /// the folded divisor of one discharges under
-    /// [`FaultDischargedByLiteral`](PairMachineEffects::FaultDischargedByLiteral),
+    /// [`FaultDischargedByLiteral`](PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL),
     /// its operands may carry the register pins and early-clobber marks a
     /// pinned-scratch realization requires under
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
@@ -1524,12 +1428,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByLiteral,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL,
         };
         assert!(
             matches!(
                 rule.machine_effects,
-                PairMachineEffects::FaultDischargedByLiteral
+                PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(1)),
             "the fault discharge holds only for the divisor literal one"
         );
@@ -1547,7 +1451,7 @@ impl SelectedInstructionPairRule {
     /// the consumer may encode an architectural fault — divide by zero
     /// or quotient overflow — which the folded divisor of minus one
     /// discharges under
-    /// [`FaultDischargedByLiteral`](PairMachineEffects::FaultDischargedByLiteral):
+    /// [`FaultDischargedByLiteral`](PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL):
     /// a divisor of `-1` can never divide by zero, and the one dividend
     /// whose `idiv` would overflow is the case the kind defines away —
     /// the x86-64 realization's `-1` guard skips the divide for exactly
@@ -1576,12 +1480,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(u64::MAX),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByLiteral,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL,
         };
         assert!(
             matches!(
                 rule.machine_effects,
-                PairMachineEffects::FaultDischargedByLiteral
+                PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(u64::MAX)),
             "the fault discharge holds only for the divisor literal minus one"
         );
@@ -1601,7 +1505,7 @@ impl SelectedInstructionPairRule {
     /// unreachable only because the `WrappingRemainderI64` kind carries
     /// its proven nonzero divisor as an accepted obligation — the fold
     /// declares
-    /// [`FaultDischargedByObligation`](PairMachineEffects::FaultDischargedByObligation)
+    /// [`FaultDischargedByObligation`](PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION)
     /// so the descriptor never claims the literal did the obligation's
     /// work. The operands may carry the register pins and early-clobber
     /// marks a pinned-scratch realization requires under
@@ -1626,12 +1530,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByObligation,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION,
         };
         assert!(
             matches!(
                 rule.machine_effects,
-                PairMachineEffects::FaultDischargedByObligation
+                PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
             "the obligation discharge holds only for the dividend literal zero"
         );
@@ -1646,7 +1550,7 @@ impl SelectedInstructionPairRule {
     /// target — the consumer's flag clobber, where one is declared, dies
     /// with the folded form — and neither side pins or binds an operand,
     /// so the ordinary
-    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` is dropped because the constant result never reads
     /// it, under the
@@ -1662,7 +1566,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
-            machine_effects: PairMachineEffects::Isolated,
+            machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
             matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -1702,7 +1606,7 @@ impl SelectedInstructionPairRule {
     /// every target — the consumer's flag clobber, where one is declared,
     /// dies with the folded form — and neither side pins or binds an
     /// operand, so the ordinary
-    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
     /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
@@ -1716,7 +1620,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
-            machine_effects: PairMachineEffects::Isolated,
+            machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
             matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -1755,7 +1659,7 @@ impl SelectedInstructionPairRule {
     /// binds the flag-transparent add row, so unlike the bitwise forms
     /// there is no flag clobber to retire — and neither side pins or
     /// binds an operand, so the ordinary
-    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
     /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
@@ -1769,7 +1673,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
-            machine_effects: PairMachineEffects::Isolated,
+            machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
             matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -1807,7 +1711,7 @@ impl SelectedInstructionPairRule {
     /// effect-isolated on every target — the consumer's flag clobber,
     /// where one is declared, dies with the folded form — and neither
     /// side pins or binds an operand, so the ordinary
-    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
     /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
@@ -1825,7 +1729,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(u64::MAX),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
-            machine_effects: PairMachineEffects::Isolated,
+            machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
             matches!(rule.immediate_bound, PairImmediateBound::Exactly(u64::MAX)),
@@ -1865,7 +1769,7 @@ impl SelectedInstructionPairRule {
     /// the rewrite retires: the three-operand u64 saturating-add row
     /// defines `nzcv` on aarch64 — its flag-setting `adds` realization —
     /// while the isolated `CopyI64` defines nothing. Under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// that definition may retire only while it is dead in the function —
     /// a conditional branch reading `nzcv` would go stale — and the
     /// consumer's clobbers retire wholesale, as the x86-64 row's `rflags`
@@ -1889,7 +1793,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -1927,7 +1831,7 @@ impl SelectedInstructionPairRule {
     /// each dropped `Def` register must occur nowhere else in the
     /// function. The unit surface is the family's own: the aarch64
     /// clamped row still defines `nzcv` — retired under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// only while dead in the function — both targets mark the dropped
     /// result and scratch `early_clobber`, admitted under
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
@@ -1941,7 +1845,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             !matches!(carrier, SaturatingCarrier::U64)
@@ -2012,7 +1916,7 @@ impl SelectedInstructionPairRule {
     /// define `nzcv` on aarch64 — every carrier's realization is
     /// flag-setting — while the isolated `MaterializeI64` defines
     /// nothing, so under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// that definition may retire only while it is dead in the function,
     /// and the consumer's clobbers retire wholesale, as the x86-64 row's
     /// `rflags` clobber does. The consumer's operands may carry the
@@ -2033,7 +1937,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             !carrier.is_signed()
@@ -2100,7 +2004,7 @@ impl SelectedInstructionPairRule {
     /// saturating-subtract row defines `nzcv` on aarch64 — its
     /// flag-setting `subs` realization — while the isolated `CopyI64`
     /// defines nothing. Under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// that definition may retire only while it is dead in the function —
     /// a conditional branch reading `nzcv` would go stale — and the
     /// consumer's clobbers retire wholesale, as the x86-64 row's `rflags`
@@ -2121,7 +2025,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             !carrier.is_signed() && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -2144,7 +2048,7 @@ impl SelectedInstructionPairRule {
     /// each dropped `Def` register must occur nowhere else in the
     /// function. The unit surface is the family's own: the aarch64
     /// clamped row still defines `nzcv` — retired under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// only while dead in the function — both targets mark the dropped
     /// result and scratch `early_clobber`, admitted under
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
@@ -2158,7 +2062,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             carrier.is_signed() && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -2205,7 +2109,7 @@ impl SelectedInstructionPairRule {
     /// saturating-subtract row defines `nzcv` on aarch64 — its
     /// flag-setting `subs` realization — while the isolated
     /// `MaterializeI64` defines nothing, so under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// that definition may retire only while it is dead in the function,
     /// and the consumer's clobbers retire wholesale, as the x86-64 row's
     /// `rflags` clobber does. The consumer's operands may carry the
@@ -2225,7 +2129,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             !carrier.is_signed() && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
@@ -2275,7 +2179,7 @@ impl SelectedInstructionPairRule {
     /// saturating-subtract row defines `nzcv` on aarch64 — its
     /// flag-setting `subs` realization — while the isolated
     /// `MaterializeI64` defines nothing, so under
-    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// that definition may retire only while it is dead in the function,
     /// and the consumer's clobbers retire wholesale, as the x86-64 row's
     /// `rflags` clobber does. The consumer's operands may carry the
@@ -2295,7 +2199,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+            machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
             !carrier.is_signed()
@@ -2338,7 +2242,7 @@ impl SelectedInstructionPairRule {
     /// This is the first family whose consumer both may architecturally
     /// fault *and* retires implicit unit definitions the rewritten form
     /// does not carry, so it declares
-    /// [`FaultDischargedByLiteralDeadUnitDefs`](PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs):
+    /// [`FaultDischargedByLiteralDeadUnitDefs`](PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS):
     /// the divisor literal of one discharges the encoded
     /// `MayArchitecturalFaultV1` an x86-64 `div`/`idiv` realization
     /// carries — a divide by one can neither divide by zero nor overflow,
@@ -2373,7 +2277,7 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS,
         };
         assert!(
             matches!(rule.immediate_bound, PairImmediateBound::Exactly(1)),
@@ -2415,7 +2319,7 @@ impl SelectedInstructionPairRule {
     /// could still name is unreachable only because the
     /// `SaturatingDivide` kind carries its proven nonzero divisor as an
     /// accepted obligation — the fold declares
-    /// [`FaultDischargedByObligationDeadUnitDefs`](PairMachineEffects::FaultDischargedByObligationDeadUnitDefs)
+    /// [`FaultDischargedByObligationDeadUnitDefs`](PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS)
     /// so the descriptor never claims the literal did the obligation's
     /// work, and every implicit unit the consumer record defines — the
     /// `nzcv` an aarch64 signed row writes — retires only while dead in
@@ -2452,12 +2356,12 @@ impl SelectedInstructionPairRule {
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
-            machine_effects: PairMachineEffects::FaultDischargedByObligationDeadUnitDefs,
+            machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS,
         };
         assert!(
             matches!(
                 rule.machine_effects,
-                PairMachineEffects::FaultDischargedByObligationDeadUnitDefs
+                PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
             "the obligation discharge holds only for the dividend literal zero"
         );
