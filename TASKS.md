@@ -8917,7 +8917,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the whole non-executing surface before the multi-hour run. Remaining: the
   Windows x64 execution itself — `sh tests/bootstrap/omega-parser/run.sh` on a
   MINGW/MSYS x64 host; no audited seed executes on Linux or macOS x86_64.
-- **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-WINDOWS-ROUTE.** Mined candidate — scope verified,
+  resolved: re-mine of the omega-parser bootstrap gate's Windows route
+  (sibling alias of OMEGA-PARSER-GATE-WINDOWS-ROUTE / OMEGA-PARSER-GATE-
+  WINDOWS-VALIDATION, both resolved on the board). The host-free
+  `--identity` leg already landed: `tests/bootstrap/omega-parser/run.sh
+  --identity` validates every bound identity plus DCREQ request framing,
+  customer assembly, and expected fixture on any Python-3 host
+  (verified green on Linux x86-64 at this revision). The residual —
+  `sh tests/bootstrap/omega-parser/run.sh` on a MINGW/MSYS x64 host —
+  is a host leg: no audited seed executes on Linux or macOS x86_64, so
+  nothing is implementable under this name on this box. Sibling re-mine
+  stubs on the same surface: OMEGA-PARSER-GATE-WINDOWS-ROUTE,
+  OMEGA-PARSER-GATE-WINDOWS-VALIDATION.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
 - **OPTIMIZATION-CATALOG-EXECUTION-ROUTE.** Mined candidate — resolved
