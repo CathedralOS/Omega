@@ -122,11 +122,33 @@ pub(super) fn check_call_result_qualifications(
                 return Some(());
             }
 
+            let call_parameters =
+                crate::semantic_calls::call_target_parameters(program, call.target_symbol);
+
             // Preserve the existing bare-result issuance route, including its
-            // exact carrier/subject checks. It does not require a receiving
-            // local, nor authorize minting nested fields of another carrier.
+            // exact carrier/subject checks. Fresh supply must be fresh: a
+            // call that consumes a live owned claim of the same content
+            // family transfers that input, and transferred input is not
+            // fresh supply. Such results must be justified through the
+            // conservation or unique-forwarding routes below; counting them
+            // as issuance would record the same custody twice. The route
+            // does not require a receiving local, nor authorize minting
+            // nested fields of another carrier.
             // Provider selection/admission remains an independent gate.
             if path.is_empty()
+                && match (call_parameters, projection) {
+                    (Some(parameters), Some(projection)) => !consumes_qualified_input(
+                        program,
+                        facts,
+                        &invocation,
+                        parameters,
+                        projection,
+                    ),
+                    // Non-content provenance carries no owned custody to
+                    // transfer; keep its contract-only route.
+                    (Some(_), None) => true,
+                    (None, _) => false,
+                }
                 && facts.proof.contract_facts.iter().any(|(_, contract)| {
                     let checked_trees::ContractProofFactOwner::StateSignature {
                         owner_symbol,
@@ -180,8 +202,7 @@ pub(super) fn check_call_result_qualifications(
             // route is not silently accepted as a predicate-only theory.
             let projection = projection?;
             result_claim(program, facts, &invocation, path)?;
-            let parameters =
-                crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
+            let parameters = call_parameters?;
             if facts
                 .qualifications
                 .content
@@ -360,6 +381,119 @@ fn projection_places<'term>(
     }
 }
 
+/// The actual argument expression bound to one formal position, including
+/// the implicit receiver.
+fn input_argument(
+    program: &TypedTrees,
+    invocation: &Invocation<'_>,
+    parameters: &[StateParameter],
+    position: usize,
+) -> Option<ExpressionHandle> {
+    let arguments = program
+        .expression_table
+        .expression_handles(invocation.call.arguments);
+    let explicit_self =
+        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
+    let parameter = parameters.get(position)?;
+    if parameter.is_self && !explicit_self {
+        Some(invocation.call.receiver)
+    } else {
+        let argument_position = parameters[..position]
+            .iter()
+            .filter(|parameter| explicit_self || !parameter.is_self)
+            .count();
+        arguments.get(argument_position).copied()
+    }
+}
+
+/// Whether the call consumes a live owned claim carrying this exact content
+/// family: a pre-call membership fact on a place rooted at an actual
+/// argument, transferred into the call. Issuance must not be credited for
+/// such a call — its result is at most a transfer.
+fn consumes_qualified_input(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    invocation: &Invocation<'_>,
+    parameters: &[StateParameter],
+    projection: &ContentProjectionPlan,
+) -> bool {
+    let Some(state_flow) = facts.flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == invocation.machine && state.state_symbol == invocation.state)
+            .then_some(state)
+    }) else {
+        return false;
+    };
+    let Some(call_flow) = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state_flow.calls)
+        .iter()
+        .find(|call| {
+            call.statement_index == invocation.statement
+                && call.call_ordinal == invocation.ordinal
+                && call.target_symbol == invocation.call.target_symbol
+        })
+    else {
+        return false;
+    };
+    let mut qualified_places = Vec::new();
+    for reference in facts
+        .flow
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(call_flow.entry_semantic_contexts)
+    {
+        for fact in facts
+            .semantic
+            .context_view(facts.semantic.contexts.get(reference.context))
+            .facts()
+        {
+            if !matches!(fact.payload,
+                FactPayload::DomainMembership { domain_symbol, semantic_domain, .. }
+                | FactPayload::ContractDomainMembership { domain_symbol, semantic_domain, .. }
+                if domain_symbol == projection.domain
+                    && semantic_domain == projection.semantic_domain)
+            {
+                continue;
+            }
+            let FactPlace::Place(place) = fact.place else {
+                continue;
+            };
+            let place = facts.semantic.places.get(place);
+            qualified_places.push((
+                place.root,
+                facts.semantic.place_segments.span_or_empty(place.segments),
+            ));
+        }
+    }
+    parameters.iter().enumerate().any(|(position, _)| {
+        let Some(argument) = input_argument(program, invocation, parameters, position) else {
+            return false;
+        };
+        let Some(actual) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            invocation.state,
+            invocation.statement,
+            argument,
+        ) else {
+            return false;
+        };
+        qualified_places.iter().any(|(root, segments)| {
+            *root == actual.root
+                && unique_claim(
+                    facts,
+                    invocation,
+                    PermissionEventKind::Transfer,
+                    *root,
+                    segments,
+                    false,
+                )
+                .is_some()
+        })
+    })
+}
+
 fn input_claim(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -369,21 +503,8 @@ fn input_claim(
     path: &[PlaceSegment],
     projection: &ContentProjectionPlan,
 ) -> Option<PermissionClaimIdentity> {
-    let arguments = program
-        .expression_table
-        .expression_handles(invocation.call.arguments);
-    let explicit_self =
-        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
     let parameter = parameters.get(position)?;
-    let argument = if parameter.is_self && !explicit_self {
-        invocation.call.receiver
-    } else {
-        let argument_position = parameters[..position]
-            .iter()
-            .filter(|parameter| explicit_self || !parameter.is_self)
-            .count();
-        *arguments.get(argument_position)?
-    };
+    let argument = input_argument(program, invocation, parameters, position)?;
     let projections = crate::flow::literal_value_projections(
         program,
         argument,
@@ -552,6 +673,7 @@ mod tests {
     use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
     use source_files_to_tokens::Lexer;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+    use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn fixture(requires_only: bool) -> CheckedTrees {
         let source = r#"
@@ -734,6 +856,122 @@ mod tests {
             .get_mut(second.0)
             .claim_identity = first.1;
         assert_replay(&checked, false);
+    }
+
+    fn issuance_fixture() -> CheckedTrees {
+        let source = r#"
+            data ByteUnit {}
+            data CountedQuantity<Unit> { magnitude: u64; }
+            trait Content<A> { machine project(subject: &Self) -> A; }
+            data Region [linear] { length: u64; }
+            domain Region::Granted established by Provider::grant;
+            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
+            satisfies Content<CountedQuantity<ByteUnit>>::project
+            { CountedQuantity { magnitude: region.length } }
+            boundary trait Provider {
+                machine grant(raw: Region) -> Region ensures result in Granted;
+            }
+            machine obtain(provider: &Provider, raw: Region) -> Region in Granted
+            reaches Provider
+            {
+                provider.grant(raw)
+            }
+        "#;
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize issuance fixture");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse issuance fixture");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve issuance fixture");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type issuance fixture");
+        let checked = crate::lower_typed_trees(typed).expect("check issuance fixture");
+        assert_replay(&checked, true);
+        checked
+    }
+
+    #[test]
+    fn replay_accepts_authorized_issuance_occurrence() {
+        issuance_fixture();
+    }
+
+    #[test]
+    fn transferred_input_is_not_fresh_supply() {
+        // `held` already carries `Granted`; feeding it through the issuance
+        // route must not count the same custody as fresh supply. `grant`
+        // declares no conservation or forwarding relation for it, so the
+        // result qualification cannot be established.
+        let source = r#"
+            data ByteUnit {}
+            data CountedQuantity<Unit> { magnitude: u64; }
+            trait Content<A> { machine project(subject: &Self) -> A; }
+            data Region [linear] { length: u64; }
+            domain Region::Granted established by Provider::grant;
+            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
+            satisfies Content<CountedQuantity<ByteUnit>>::project
+            { CountedQuantity { magnitude: region.length } }
+            boundary trait Provider {
+                machine grant(raw: Region) -> Region ensures result in Granted;
+            }
+            machine launder(provider: &Provider, held: Region in Granted) -> Region in Granted
+            reaches Provider
+            {
+                provider.grant(held)
+            }
+        "#;
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize launder fixture");
+        let syntax = parse_syntax_trees(&tokens).expect("parse launder fixture");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve launder fixture");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type launder fixture");
+        let error = crate::lower_typed_trees(typed)
+            .expect_err("transferred input must not mint fresh supply");
+        assert!(
+            error.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot establish call-result qualification")),
+            "expected call-result qualification rejection, got: {error:#?}"
+        );
+    }
+
+    #[test]
+    fn declared_forwarding_is_not_issuance_but_still_admitted() {
+        // A boundary requirement that consumes a live `Granted` claim and
+        // returns the same family is a transfer. It stays admissible through
+        // the unique-forwarding route — never through the issuance route.
+        let source = r#"
+            data ByteUnit {}
+            data CountedQuantity<Unit> { magnitude: u64; }
+            trait Content<A> { machine project(subject: &Self) -> A; }
+            data Region [linear] { length: u64; }
+            domain Region::Granted established by Provider::grant;
+            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
+            satisfies Content<CountedQuantity<ByteUnit>>::project
+            { CountedQuantity { magnitude: region.length } }
+            boundary trait Provider {
+                machine grant(raw: Region) -> Region ensures result in Granted;
+            }
+            boundary trait Relay {
+                machine relay(held: Region in Granted) -> Region ensures result in Granted;
+            }
+            machine launder(relay: &Relay, held: Region in Granted) -> Region in Granted
+            reaches Relay
+            {
+                let forwarded: Region in Granted = relay.relay(held);
+                forwarded
+            }
+        "#;
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize relay fixture");
+        let syntax = parse_syntax_trees(&tokens).expect("parse relay fixture");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve relay fixture");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type relay fixture");
+        crate::lower_typed_trees(typed)
+            .expect("declared forwarding stays admissible through the transfer route");
     }
 
     #[test]
