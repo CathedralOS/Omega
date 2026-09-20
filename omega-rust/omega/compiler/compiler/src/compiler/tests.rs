@@ -114,6 +114,28 @@ fn checked_admission_and_compilation_do_not_write_debug_dumps() {
     assert!(!fixture.root.join("build").exists());
 }
 
+#[test]
+fn timings_request_carries_the_recorded_stage_ladder_to_the_report() {
+    let fixture = MultiTargetFixture::new(
+        "machine main() { }",
+        r#"machine build(builder: &mut Build) { builder.application("timings"); }"#,
+    );
+    let report = compile(fixture.request().with_timings(true))
+        .and_then(CompileOutcomes::into_single_report)
+        .unwrap();
+    assert!(!report.timings().is_empty());
+    assert!(
+        report
+            .timings()
+            .iter()
+            .all(|timing| timing.phase.contains(" -> "))
+    );
+    let quiet = compile(fixture.request())
+        .and_then(CompileOutcomes::into_single_report)
+        .unwrap();
+    assert!(quiet.timings().is_empty());
+}
+
 /// Flag every file under `root` that is not an authored source, the published
 /// executable, or a member of the content-addressed `completed/` output set.
 fn collect_unexpected_publications(

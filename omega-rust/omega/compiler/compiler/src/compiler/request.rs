@@ -26,6 +26,9 @@ pub enum RequestedCompileProduct {
 pub(super) struct SharedCompileInputs {
     pub(super) root_path: PathBuf,
     pub(super) requested_product: RequestedCompileProduct,
+    /// Collect per-stage measurements into every checked record's timing
+    /// accumulator; the report carries the recorded ladder.
+    pub(super) timings: bool,
 
     pub(super) package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
@@ -145,6 +148,7 @@ impl CompileRequest {
             shared: SharedCompileInputs {
                 root_path: options.root_path,
                 requested_product: RequestedCompileProduct::Check,
+                timings: false,
 
                 package_sources: None,
             },
@@ -244,6 +248,12 @@ impl CompileRequest {
         for configuration in &mut self.configurations {
             configuration.optimization_rollback = rollback.clone();
         }
+        self
+    }
+
+    /// Record per-stage timings on every produced report.
+    pub fn with_timings(mut self, timings: bool) -> Self {
+        self.shared.timings = timings;
         self
     }
 
