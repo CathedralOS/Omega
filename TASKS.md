@@ -8271,7 +8271,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   request/options admission slice remains with it.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
-- **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
+- **INDEXED-OPERAND-ATTACHED-RECEIVER.** Resolved — scope verified, covered
+  (re-verified `d74f2145b9`, linux x86-64: `cargo nextest run -p
+  typed-trees-to-checked-trees --lib -E 'test(multiplicity::)'` — 196/196
+  pass). Same indexing-through-attached-receiver surface as the resolved
+  sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub:
+  `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]`
+  transitions under `&self`/`&mut self` custody, loan lifetime across
+  successors, and index-argument consumption;
+  `tests/multiplicity/borrowed_observations.rs` pins reborrows into the
+  attached receiver and rejects a borrowed indexed collection moving into an
+  owned receiver; affine extraction still rejects; the indexed operand route
+  through the receiver_self_match loan is additionally pinned by
+  BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8
+  `borrowed_observations` green at `d05ec39a5d`). No independent slice exists
+  here.
 - **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
   covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
   indexing-through-borrowed-attached-receiver surface is implemented and
