@@ -235,7 +235,7 @@ machine build(builder: &mut Build) {
     builder.depend_as("ordinary_console", Source::Path {
         location: "../console"
     });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
@@ -246,14 +246,14 @@ machine build(builder: &mut Build) {
         r#"use ordinary_console::main;
 use omega::language::core::service;
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
     self.console.exit_process(70);
 }
 
-pub machine terminate(console: Service<Console> in Bound, return_code: i32)
+pub machine terminate(console: Service<Console>, return_code: i32)
 reaches Console
 invokes console;
 {
@@ -610,7 +610,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         Some(&root_policy),
     )
     .expect("fresh policy admits consumer-bound Console evidence");
-    assert_eq!(evidence.schema().version(), 5);
+    assert_eq!(evidence.schema().version(), 6);
     let root_evidence = evidence
         .packages()
         .iter()
