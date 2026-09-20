@@ -522,6 +522,11 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
                 ..
+            } | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source: Some(
+                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+                ),
+                ..
             }
         ) {
             // A constructor is an argument-position event, not another call

@@ -793,7 +793,7 @@ pub(crate) fn validate_transfer_shape(
                                 } if type_ids.iter().any(|(identity, id)| identity == &argument.type_identity && *id == referent))
                         }))
             });
-            let unrestricted_array = target.multiplicity == Multiplicity::Unrestricted
+            let unrestricted_whole = target.multiplicity == Multiplicity::Unrestricted
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 && argument.path.is_empty()
                 && structural_types.iter().any(|declaration| {
@@ -802,6 +802,7 @@ pub(crate) fn validate_transfer_shape(
                             declaration.shape,
                             StructuralTypeShape::FixedArray { .. }
                                 | StructuralTypeShape::Record { .. }
+                                | StructuralTypeShape::Sum { .. }
                         )
                 });
             // A live result binding lends one of its record's scalar leaves
@@ -842,7 +843,7 @@ pub(crate) fn validate_transfer_shape(
                     ))
                 || argument.access != target.access
                 || target.multiplicity
-                    != if unrestricted_array
+                    != if unrestricted_whole
                         || record_borrow
                         || reference_borrow
                         || scalar_leaf_borrow

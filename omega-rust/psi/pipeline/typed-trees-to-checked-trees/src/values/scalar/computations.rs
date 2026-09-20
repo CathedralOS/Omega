@@ -242,6 +242,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     };
                     builder.record_call_arguments(
                         pure,
+                        &mut structural_values,
                         statement_ordinal,
                         call_ordinal,
                         call.target_symbol,
@@ -266,6 +267,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         // become computations, before the destination enters scope.
                         builder.record_call_arguments(
                             pure,
+                            &mut structural_values,
                             statement_ordinal,
                             0,
                             call.target_symbol,
@@ -317,6 +319,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 if let StatementNode::Call(call) = statement {
                     builder.record_call_arguments(
                         pure,
+                        &mut structural_values,
                         statement_ordinal,
                         0,
                         call.target_symbol,
@@ -330,6 +333,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 {
                     builder.record_call_arguments(
                         pure,
+                        &mut structural_values,
                         statement_ordinal,
                         0,
                         call.target_symbol,
