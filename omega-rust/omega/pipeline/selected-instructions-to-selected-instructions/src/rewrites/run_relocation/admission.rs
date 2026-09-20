@@ -8,14 +8,13 @@
 //! window, and no boundary settlement inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId};
+use selected_instructions::SelectedInstructionId;
 
 use super::RunRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     pub block_index: usize,
     /// The run's first member index in the block body.
     pub first_index: usize,
@@ -36,7 +35,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, RunRelocationError> {
+) -> Result<Admission, RunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(RunRelocationError::SourceMismatch);
@@ -154,7 +153,6 @@ pub(super) fn admit<'source>(
         return Err(RunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,
