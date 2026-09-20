@@ -6601,7 +6601,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **MATHEMATICAL-FOUNDATIONS-REAL** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
 - **MODEL-FREE-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
-- **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
+- **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; scope verified, covered — module-scoped `const` on builtin carriers is already landed end-to-end: `wiki/spec/language/constants.md` authors `pub const PAGE_SIZE: u64 = 4096` at package/module scope; `syntax-trees-to-symbol-resolved-trees/tests/constant_carriers.rs` proves `module constants; const SIZE: u8 = 255` resolves with declared landing and authored selection occurrence preserved; `compiler/tests/package_compilation_inputs/module_constants.rs` pins floating-carrier conflicts, nominal/qualified/imported carriers, wrong-carrier rejection and empty arrays in exact copy carriers. Anonymous numeric initializers retain exact arithmetic to the declared landing boundary. The adjacent computed/structured-carrier leg (machine calls in initializers, `builtin_operators`/`call_selections` admission in `const_evaluation/const_initializers.rs`) is **MODULE-CONSTANT-COMPUTED-CARRIER**'s row and sits under the live FLOAT-IDENTITY-LITERAL-CARRIER claim (expires 21:41Z); const-generic applications are under TARGET-SEMANTIC-APPLICATIONS (23:46Z).
 - **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
 - **MULTI-TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
 - **NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
