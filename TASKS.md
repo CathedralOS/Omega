@@ -6374,7 +6374,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-HOST-ROW-MATRIX (22:11Z). Prerequisite: a seeded macOS arm64
   host (per SEED-HOST-CHAIN-LEGS' audited host list).
 - **BENCHMARK-MEASURABLE-SUBJECT-CORPUS** — mined candidate; verify scope then implement.
-- **BENCHMARK-PRIME-COUNTER-ROW** — mined candidate; verify scope then implement.
+- **BENCHMARK-PRIME-COUNTER-ROW.** Scope verified at `1a772e4ae1`: the
+  mined stub names a measured `benchmark.py` row for
+  `samples/cli/arithmetic/prime_counter` (README's example subject,
+  `--expected-exit 8`). Its recorded blocker is repaired — the `i32`
+  remainder now legalizes via `ExactRemainderI64` (landed `3c1ead6df4`,
+  re-verified `6d00135b89`: `samples_with_documented_exit_run_correctly`
+  compiles and runs prime_counter to exit 8 on linux x86-64). Producing
+  the row itself remains fenced: `tools/benchmark` (the `records/` sink)
+  is claimed by BENCHMARK-COMPARISON-OCCURRENCE-GATE until 22:09Z,
+  `wiki/drafts/benchmarks.md` + `tools/tests/test_benchmark.py` by
+  BENCHMARK-HOST-ROW-MATRIX until 22:11Z, and the subject path
+  `samples/cli/arithmetic/prime_counter` by PRIME-COUNTER-REMAINDER-LEGALIZATION
+  until 2026-09-21T01:14Z. Next action after those leases: run
+  `benchmark.py measure --root samples/cli/arithmetic/prime_counter/main.omg
+  --target linux_x86_64 --expected-exit 8` and commit the record plus the
+  coverage row. Sibling re-mine name: PRIME-COUNTER-BENCHMARK-ROW.
 - **BENCHMARK-PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **BENCHMARK-PROOF-SUBJECT-SELECTION** — mined candidate; verify scope then implement.
