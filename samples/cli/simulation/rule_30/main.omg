@@ -1,0 +1,83 @@
+// Rule 30 elementary cellular automaton -- evolves a 31-cell row packed into
+// one 64-bit word for 16 generations from a single centre seed and streams
+// each generation as a '#'/space line through Console::write_byte. The whole
+// generation is one bit-parallel step: `next = (left) XOR (centre OR right)`
+// shifted so bit i holds cell i, clipped back into the 31-bit row after every
+// step. Renders the Sierpinski-like pattern from below -- a small
+// deterministic evolution workload the simulation corpus did not hold.
+// Expected exit: 0.
+// Expected output contains: #
+
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console>;
+    cells: u64 in Wrapping;        // the 31-bit row (bit i = cell i), seed bit 15
+    g: i32 [0..=16];             // guard-proven generation counter
+    i: i32 [0..=31];             // render index (guard-proven)
+    b: u64;                      // the cell bit under render
+    pause: [u8; 256];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
+    self.cells = 32768; // single live cell in the centre (bit 15)
+    self.g = 0;
+    transition { _ -> gen_loop() }
+
+    state gen_loop(&mut self) {
+        transition self.g < 16 { true -> render_init() _ -> finish() }
+    }
+
+    // --- render the current generation as one row of '#'/' ' bytes ---
+    state render_init(&mut self) {
+        self.i = 0;
+        transition { _ -> render_loop() }
+    }
+    state render_loop(&mut self) {
+        transition self.i >= 0 && self.i < 31 { true -> render_cell() _ -> emit() }
+    }
+    state render_cell(&mut self) {
+        self.b = self.cells >> self.i;
+        transition self.b % 2 == 1 { true -> mark() _ -> blank() }
+    }
+    // A host call kills carried facts: re-guard the index before incrementing.
+    state mark(&mut self) {
+        self.console.write_byte(35);
+        transition self.i >= 0 && self.i < 31 { true -> render_bump() _ -> render_loop() }
+    }
+    state blank(&mut self) {
+        self.console.write_byte(32);
+        transition self.i >= 0 && self.i < 31 { true -> render_bump() _ -> render_loop() }
+    }
+    state render_bump(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> render_loop() }
+    }
+    state emit(&mut self) {
+        self.console.write_line("");
+        transition { _ -> evolve() }
+    }
+
+    // --- one bit-parallel generation step, clipped back into the row ---
+    state evolve(&mut self) {
+        self.cells =
+            ((self.cells << 1) ^ (self.cells | (self.cells >> 1))) % 2147483648;
+        transition { _ -> gen_next() }
+    }
+    // Re-guard `g < 16` so the increment proves into [0..=16].
+    state gen_next(&mut self) {
+        transition self.g < 16 { true -> g_bump() _ -> gen_loop() }
+    }
+    state g_bump(&mut self) {
+        self.g = self.g + 1;
+        transition { _ -> gen_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        _ = block self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
+}
