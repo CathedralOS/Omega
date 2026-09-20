@@ -35,11 +35,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Remaining work:
 
   - `selected-instructions-to-selected-instructions/src/rewrites/` holds about
-    40 rewrite modules (`copy_removal`, `dead_store`, `load_forwarding`,
-    `store_motion`, `address_fold`, `literal_compare`, `redundant_extension`,
+    38 rewrite modules (`copy_removal`, `dead_store`, `load_forwarding`,
+    `store_motion`, `address_fold`, `literal_minuend`, `redundant_extension`,
     the relocation and interchange families) whose entrances, such as
     `remove_selected_copy` and `eliminate_selected_dead_store`, are called only
-    from their own tests. `optimize_selected_instructions` runs
+    from their own tests. `literal_compare` and `literal_arithmetic` were
+    deleted as second producers of folds the cataloged pair rules already
+    produce (their general-case nomination leg stays with
+    `DECLARATIVE-PEEPHOLES`). `optimize_selected_instructions` runs
     `run_selected_lowering_optimizations` and nothing else, and none of these
     rewrites has an exact name in
     [rules.md](omega-rust/omega/representations/optimization-core/rules.md).
@@ -66,7 +69,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   stages. Renaming a helper or adding a wrapper is not completion.
 
   Flag: three owners carry validated, replayed and mutation-tested machinery
-  that no executable route reaches (about 40 selected rewrites, 18 spill
+  that no executable route reaches (about 38 selected rewrites, 18 spill
   families, the ProgramStorage wrapper object). Each new slice adds tests and
   board text for code the compiler never runs. The general mechanism is the
   one [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay)
@@ -644,10 +647,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   compiler-produced selected programs, each as an
   [atomic candidate with independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation).
   Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
-  `src/rewrites/` already holds 37 modules for these transformations:
-  `copy_removal`, `redundant_extension`, `address_fold`, `literal_arithmetic`,
-  seven compare and flag rewrites (`literal_*`, `constant_*`, `boundary_*`,
-  `dead_compare`), and 26 interchange and relocation families. Each entrance
+  `src/rewrites/` already holds 35 modules for these transformations:
+  `copy_removal`, `redundant_extension`, `address_fold`, six compare and flag
+  rewrites (`literal_minuend`, `constant_*`, `boundary_*`, `dead_compare`),
+  and 26 interchange and relocation families. The `literal_compare` and
+  `literal_arithmetic` modules were deleted as second producers of the
+  cataloged pair-rule folds. Each entrance
   takes caller-named instruction identities and replays by
   restore-by-content. None is an `Optimization` member, has a catalog row or
   candidate discovery, or has a caller outside its own tests, which
@@ -713,10 +718,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   destination point that derives the crossed positions and edges on every
   path between them and the traversals that gain or lose the run, then
   applies the hazard, dead-path and commutation audits once. Separately,
-  `literal_compare` and `literal_arithmetic` re-implement folds the cataloged
-  pair rules already produce; widen candidate nomination for those
-  descriptors under DECLARATIVE-PEEPHOLES instead of keeping a second
-  producer.
+  `literal_compare` and `literal_arithmetic` re-implemented folds the
+  cataloged pair rules already produce and were deleted; widen candidate
+  nomination for those descriptors under DECLARATIVE-PEEPHOLES to cover the
+  general (non-pressure-nominated) materialization the deleted modules
+  admitted.
 
   DECLARATIVE-PEEPHOLES owns the cataloged
   pair-rule folds. ALIAS-AWARE-MEMORY owns the load, store and mutation
@@ -850,7 +856,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
   has those legs beside its rule, as do the mandatory `runtime_spill` and
   `runtime_rematerialization` recovery rewrites, which have no disabled axis
-  by design. The 40 uncalled rewrite modules under
+  by design. The 38 uncalled rewrite modules under
   `selected-instructions-to-selected-instructions/src/rewrites/` (the
   EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY families) have
   positive, negative, boundary, budget, determinism, fixed-point and

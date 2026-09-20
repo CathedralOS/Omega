@@ -8655,7 +8655,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   note for a future automated gate is that spill codec names (`encode`,
   `decode`) collide workspace-wide and need qualified identities to be
   machine-attributable.
-- **POC-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
+- **POC-REWRITE-ORPHANS** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG, ORPHAN-ENTRANCE-AUDIT, STAGE-ENTRANCE-ORPHAN-AUDIT, PIPELINE-ORPHAN-ELIMINATION.
 - **POC-SELECTED-REWRITE-CATALOG.** Mined candidate — scope verified,
   covered. Re-mines the catalog-execution leg already scoped by
   SELECTED-REWRITE-CATALOG-EXECUTION (which folds into
@@ -8674,6 +8674,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
+||||||| parent of 5ab5bceff2e (omega: delete orphan literal_compare and literal_arithmetic rewrites)
+- **POC-REWRITE-ORPHANS** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG, ORPHAN-ENTRANCE-AUDIT, STAGE-ENTRANCE-ORPHAN-AUDIT, PIPELINE-ORPHAN-ELIMINATION.
+- **POC-SELECTED-REWRITE-CATALOG** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-SEQUENCING** — mined candidate; verify scope then implement.
 - **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
