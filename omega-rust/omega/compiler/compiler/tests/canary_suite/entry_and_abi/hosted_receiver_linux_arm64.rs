@@ -28,8 +28,8 @@ impl Drop for HostedProject {
 }
 
 /// Compile one authored Linux ARM64 receiver application. `bound_service`
-/// selects between `Service<Console> in Bound` and a bare interface field that
-/// must fail closed; `explicit_exit` routes normal completion through
+/// selects between `Service<Console>` and a bare interface field that must
+/// fail closed; `explicit_exit` routes normal completion through
 /// `exit_process(37)` so the provider's own status survives the bridge.
 fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_service: bool) {
     let directory = unique_no_output_build_dir();
@@ -45,7 +45,7 @@ fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_servic
             r#"machine build(builder: &mut Build) {{
     builder.application("linux-arm64-hosted-receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
 }}
 "#
@@ -58,7 +58,7 @@ fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_servic
         ""
     };
     let console_type = if bound_service {
-        "Service<Console> in Bound"
+        "Service<Console>"
     } else {
         "Console"
     };
@@ -98,7 +98,7 @@ machine Main::main(&mut self) reaches Console {{
 "#
         ),
     )
-    .expect("write receiver storage and Bound Console customer");
+    .expect("write receiver storage and fused Console customer");
     let result = compile(CanaryCompileSpec {
         root_path: project.0.join("main.omg"),
         build_dir: Some(project.0.join("build")),
@@ -106,14 +106,12 @@ machine Main::main(&mut self) reaches Console {{
         product: CanaryCompileProduct::NativeArtifact,
     });
     if !bound_service {
-        let diagnostics = result.expect_err("a bare interface field supplies no Bound occurrence");
+        let diagnostics = result.expect_err("a bare interface field is not a service carrier");
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "Linux ARM64 hosted receiver bridge lost exact contract, storage, or entry custody"
-                )),
-            "unexpected missing-establishment rejection: {diagnostics:#?}"
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+            "unexpected bare-carrier rejection: {diagnostics:#?}"
         );
         return;
     }
@@ -228,6 +226,6 @@ fn linux_arm64_hosted_receiver_explicit_process_exit_preserves_its_distinct_outc
 }
 
 #[test]
-fn linux_arm64_hosted_receiver_rejects_bare_interface_without_bound_establishment() {
+fn linux_arm64_hosted_receiver_rejects_bare_interface_field() {
     compile_and_run_linux_arm64_hosted_receiver(false, false);
 }
