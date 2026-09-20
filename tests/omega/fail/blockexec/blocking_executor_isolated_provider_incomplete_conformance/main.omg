@@ -1,0 +1,35 @@
+// BLOCKEXEC — isolated-provider composition fence: twin of
+// `blocking_executor_isolated_provider_conformance_compile` with the
+// conformance block emptied. `IsolatedWorkerProvider` inherits
+// `WorkerProvider::execute`, so a closed conformance that binds no row is
+// incomplete and must reject — ambient machines never fill trait rows.
+
+use blocking_executor::executor;
+use omega::language::core::service;
+
+data Token {
+    id: u64;
+}
+
+data CanaryIsolatedWorkerProvider { }
+
+machine CanaryIsolatedWorkerProvider::execute<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> T
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies WorkerProvider::execute
+via Binding::CompilerIntrinsic;
+
+// The missing inherited `WorkerProvider::execute` row: the conformance
+// declares the marker trait but binds nothing.
+CanaryIsolation:
+    CanaryIsolatedWorkerProvider satisfies IsolatedWorkerProvider
+{
+}
+
+data Main {
+    executor: Executor<Token, Token, 4>;
+}
+
+machine Main::main(&mut self) { }

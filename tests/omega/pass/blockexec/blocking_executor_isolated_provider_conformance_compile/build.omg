@@ -1,0 +1,16 @@
+// Compile canary: the isolated-provider composition leg — this fixture's
+// build reaches the bundled blocking-executor package through an authored
+// `builder.depend` row and selects the canary provider for the
+// `WorkerProvider` slot through ordinary build composition, while main.omg
+// pins the provider's named conformance to the package's
+// `IsolatedWorkerProvider` marker trait.
+
+machine build(builder: &mut Build) {
+    builder.application("blocking-executor-isolated-provider-conformance-compile");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/blocking-executor"
+    });
+    builder.select_provider<blocking_executor::WorkerProvider, CanaryIsolatedWorkerProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
