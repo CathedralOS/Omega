@@ -1098,6 +1098,13 @@ Owners include
   `image-emission/src/hosted_receiver.rs` themselves were UNCLAIMED — a
   retry whose leg touches only those two files can claim them alone.
 
+  Wave leg (z132, origin/main 1f10f6fd40): registered the deliberately
+  checked-only `cli__device__device_extent_access` on
+  `sample_entry_exceptions_are_explicit_and_non_runnable`'s rootless pin
+  list — the sample's own contract declares no source-level entry adapter
+  exists (provider-issued opaque `DeviceLoan`, no build.omg), matching the
+  deliberate trap/proof/firmware members already pinned there.
+
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface UEFI
   bootstrap under [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
   Keep physical firmware arrival distinct from the semantic program continuation;

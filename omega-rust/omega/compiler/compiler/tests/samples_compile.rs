@@ -1103,11 +1103,12 @@ fn sample_entry_exceptions_are_explicit_and_non_runnable() {
     assert_eq!(
         rootless,
         [
+            "cli__device__device_extent_access",
             "cli__probes__trapping_probe",
             "cli__proofs__math_proofs",
             "uefi__uefi_hello",
         ],
-        "only the deliberate trap, proof-only fixtures, and firmware pending its bootstrap adapter may lack an authored root"
+        "only the checked-only device fixture, deliberate trap, proof-only fixtures, and firmware pending its bootstrap adapter may lack an authored root"
     );
 
     let expected_host_unavailable = if host_target_name().starts_with("linux_") {
