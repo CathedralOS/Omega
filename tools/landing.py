@@ -24,6 +24,8 @@ import coordination
 CLAIM_REF = "refs/coordination/omega-landing/main"
 MAIN_REF = "refs/heads/main"
 LEASE_SECONDS = 180
+COORDINATION_FILE = re.compile(
+    r"^(?:TASKS[^/]*\.md|OWNER_QUESTIONS\.md|tools/swarm/waves/.+)$")
 
 LandingError = coordination.CoordinationError
 object_id = coordination.object_id
@@ -170,6 +172,18 @@ class Landing:
         self.git("merge-base", "--is-ancestor", options.base, options.candidate)
         if self.git("rev-list", "--merges", f"{options.base}..{options.candidate}").stdout:
             raise LandingError("The candidate contains merge commits; main must remain linear.")
+        changed = self.git("diff", "--name-only", options.base,
+                           options.candidate).stdout.splitlines()
+        if not changed:
+            raise LandingError("The candidate changes no files; there is nothing to publish. "
+                               "Attach the finding to its claim ticket with `claims.py note` "
+                               "and release the reservation instead.")
+        if not options.board_update and all(COORDINATION_FILE.match(path)
+                                            for path in changed):
+            raise LandingError("The candidate touches only coordination files "
+                               "(TASKS*.md, OWNER_QUESTIONS.md, tools/swarm/waves/). Worker "
+                               "evidence belongs in `claims.py note --ticket <claim>` and the "
+                               "session report; a coordinator board sweep passes --board-update.")
 
     def maintenance(self, snapshot):
         """Persist migration/expiry separately, before interpreting an action.
@@ -326,6 +340,9 @@ def main(arguments=None):
         parser.add_argument("--" + name)
     parser.add_argument("--wait-seconds", type=int, default=0)
     parser.add_argument("--poll-seconds", type=int, default=10)
+    parser.add_argument("--board-update", action="store_true",
+                        help="publish a candidate that touches only coordination files "
+                             "(coordinator board sweeps)")
     options = None
     try:
         options = parser.parse_args(arguments)
@@ -333,6 +350,8 @@ def main(arguments=None):
             raise LandingError("Wait must be 0..43200 seconds; poll must be 1..300 seconds.")
         if options.command != "claim" and options.wait_seconds:
             raise LandingError("--wait-seconds applies only to claim.")
+        if options.board_update and options.command != "publish":
+            raise LandingError("--board-update applies only to publish.")
         if options.command == "enqueue":
             if not options.owner or not options.owner.strip() or len(options.owner) > 200:
                 raise LandingError("Supply a short, recognizable --owner.")
