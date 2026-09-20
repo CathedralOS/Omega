@@ -10168,7 +10168,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SEMANTIC-WRAPPER-OWNERSHIP** — mined candidate; scope verified, covered — resolved sibling OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (TASKS.md:6904) already names this stub and settles the surface: the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete decision is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION; the codec-move leg is deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. No independent slice exists here. Re-verified at `10d93dd448d`: both wrapper modules still sit under `native-realization/src/` unrelocated, both module entrances still have no caller outside their own tests (lib.rs re-export only), PIPELINE-OWNER-CONSOLIDATION stays open (TASKS_OPTIMIZER.md:26), and the surface remains fenced — `optimized_semantic_wrapper_object` under PIPELINE-WRAPPER-OBJECT-ORPHAN (22:46Z) plus pathless board claims OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (00:10Z) and SEMANTIC-WRAPPER-OWNER-RESOLUTION (02:04Z). Other sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
 - **SERVICE-CARRIER-FIXTURE-MIGRATION** — mined candidate; verify scope then implement.
 - **SERVICE-ERA-REPLACEMENT-SUBSTRATE.** Mined candidate — scope verified, resolved — the `Bound` service-era replacement substrate is landed on `origin/main` at `6d00135b89`: `core/service.omg` declares `pub boundary data Service<R>` with the closed identity as the only carrier (`Bound` deleted; documented "any `Service<R> in <domain>` spelling is rejected during source checking"), `typed-trees-to-checked-trees/src/checking/program_validation.rs` rejects bare boundary traits in value position verbatim ("the intrinsic `Service<R>` carrier is the only service value spelling"), and no `in Bound` spelling survives in `source/`, `samples/cli/`, or non-fail `tests/omega/`. The wave evidence row on ENTRY-CONTENT-ROOTS records the landing; residual legs (fused-parameter rejoin gates, receiver lifecycle spellings) are named to their own owners there, not here. Re-verified on linux x86-64 at `12ecbe98f8`: `source/library/core/service.omg:13` still declares `pub boundary data Service<R>` with the `Bound`-deleted note, `program_validation.rs` still emits the "only service value spelling" rejection, and no `in Bound` spelling survives in `source/` or `samples/cli/`.
-- **SHARED-WORD-PREFIX-NATIVE-RUN** — mined candidate; verify scope then implement.
+- **SHARED-WORD-PREFIX-NATIVE-RUN** — scope verified, resolved: the shared
+  hexadecimal word-prefix gate (`tests/beta/compiler/word-prefix.{py,sh}`)
+  runs natively on this host and passes — `sh
+  tests/beta/compiler/word-prefix.sh` at `5b3caaf337` (linux x86-64)
+  materialized the audited Beta compiler artifact and passed 736/736 exact
+  status/stdout/stderr controls (assertion, late-assertion, control-word
+  and data-word cases for every printable initial token byte, both
+  line-ending spellings). The gate is already wired into the closed
+  bootstrap floor — `tests/bootstrap/alpha-beta-edge.sh:163` runs it
+  whenever `ALPHA_SEED_EXECUTABLE=1` (linux x86-64 admitted at
+  `d3776b9890`), so the native run is also exercised inside the edge gate.
+  Cosmetic residual, not a code leg: the edge gate's skip/refusal message
+  at :165 still reads "requires macOS arm64 or Windows x64" without
+  naming Linux. No independent slice remains.
 - **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE** — mined candidate; verify scope then implement.
 - **SINGLE-PROGRAM-ENTRY-SELECTION** — mined candidate; scope verified, covered.
   Re-mines the resolved PROGRAM-ENTRY-SELECTION-DIVISION row's exactly-one axis
