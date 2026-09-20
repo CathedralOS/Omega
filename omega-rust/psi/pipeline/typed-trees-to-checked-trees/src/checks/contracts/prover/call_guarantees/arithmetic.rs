@@ -8,15 +8,14 @@
 //! can project a required field directly to an already bounded caller value.
 //! An unrelated call-result sibling does not change that scalar relationship.
 
+use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, captured_place, direct_place};
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::PrimitiveType;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
@@ -82,8 +81,7 @@ pub(super) fn proves(
         if let Some(proposition) = proposition(
             program,
             facts,
-            machine,
-            state,
+            &Callable::Machine { machine, state },
             expression,
             |occurrence, primitive| {
                 let place = direct_place(program, occurrence)?;
@@ -108,8 +106,7 @@ pub(super) fn at_call(
     proposition(
         program,
         facts,
-        invocation.machine,
-        invocation.state,
+        &invocation.callable,
         expression,
         |occurrence, primitive| {
             if let Some((actual, remaining)) = actual_projection(program, invocation, occurrence)
@@ -146,19 +143,13 @@ fn atom(place: crate::flow::CanonicalPlace, primitive: PrimitiveType) -> ScopedA
 fn proposition(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &Machine,
-    state: &State,
+    callable: &Callable<'_>,
     expression: ExpressionHandle,
     mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticExpression> {
     if !super::super::has_builtin_operators(program, &facts.operators, expression)
-        || !validation::has_builtin_bound_expression_meaning(
-            program,
-            machine,
-            Some(state),
-            expression,
-        )
-        || !predicate(program, machine, state, expression)
+        || !callable.builtin_meaning(program, expression)
+        || !predicate(program, callable, expression)
     {
         return None;
     }
@@ -170,7 +161,7 @@ fn proposition(
     );
     let mut bindings = Vec::new();
     for occurrence in occurrences {
-        let reference = scalar_reference(program, machine, state, occurrence)?;
+        let reference = callable.scalar_reference(program, occurrence)?;
         let primitive = program
             .primitive_type_reference(reference)
             .filter(|primitive| fixed_integer(*primitive))?;
@@ -189,7 +180,9 @@ fn proposition(
             }
             ExpressionNode::Name(_)
                 if validation::reserved_result_place(program, occurrence).is_some_and(
-                    |place| place.machine_symbol == machine.symbol && place.segments.is_empty(),
+                    |place| {
+                        place.machine_symbol == callable.owner_symbol() && place.segments.is_empty()
+                    },
                 ) =>
             {
                 ScopedArithmeticBinder::Result
@@ -207,19 +200,13 @@ fn proposition(
     })
 }
 
-fn predicate(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> bool {
+fn predicate(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHandle) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
     match binary.operator {
         BinaryOperator::And => {
-            predicate(program, machine, state, binary.left)
-                && predicate(program, machine, state, binary.right)
+            predicate(program, callable, binary.left) && predicate(program, callable, binary.right)
         }
         BinaryOperator::Equal
         | BinaryOperator::NotEqual
@@ -227,30 +214,24 @@ fn predicate(
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual => {
-            term(program, machine, state, binary.left)
-                && term(program, machine, state, binary.right)
+            term(program, callable, binary.left) && term(program, callable, binary.right)
         }
         _ => false,
     }
 }
 
-fn term(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> bool {
+fn term(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHandle) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => scalar_reference(program, machine, state, expression)
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable.scalar_reference(program, expression)
             .and_then(|reference| program.primitive_type_reference(reference)).is_some_and(fixed_integer),
         ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply) => {
             [binary.left, binary.right].into_iter().all(|operand| {
-                term(program, machine, state, operand)
-                    && scalar_reference(program, machine, state, operand)
+                term(program, callable, operand)
+                    && callable.scalar_reference(program, operand)
                         .map(|reference| program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Exact)
                         .unwrap_or_else(|| matches!(program.expression_table.expression(operand), ExpressionNode::Integer(literal) if literal.landing().is_none()))
             })
@@ -259,20 +240,6 @@ fn term(
         // meaning/capture evidence; no syntax-only polynomial interpretation.
         _ => false,
     }
-}
-
-fn scalar_reference(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    validation::reserved_result_place(program, expression)
-        .filter(|place| place.machine_symbol == machine.symbol)
-        .map(|place| place.type_reference)
-        .or_else(|| {
-            validation::expression_result_type_reference(program, machine, state, expression)
-        })
 }
 
 fn fixed_integer(primitive: PrimitiveType) -> bool {

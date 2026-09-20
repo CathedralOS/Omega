@@ -12,6 +12,8 @@ use typed_trees::types::TypeReferenceHandle;
 /// declaration-owned field coordinates, without inventing a storage symbol.
 #[derive(Debug, Clone)]
 pub struct ReservedResultPlace {
+    /// Exact callable declaration: a machine or a requirement signature, not
+    /// the trait containing that requirement.
     pub machine_symbol: symbols::SymbolHandle,
     pub root: ExpressionHandle,
     pub type_reference: TypeReferenceHandle,
@@ -104,7 +106,7 @@ pub(crate) fn type_reference(
     reserved_result_owner(program, expression).map(|(_, type_reference)| type_reference)
 }
 
-/// Identify the exact machine owning a reserved result occurrence. Matching
+/// Identify the exact callable owning a reserved result occurrence. Matching
 /// carrier types do not establish ownership, and an authored parameter named
 /// `result` takes precedence over the reserved contract form.
 pub fn reserved_result_owner(
@@ -136,11 +138,33 @@ fn contract_occurrence_owner(
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
     let mut owner = None;
-    for machine in program.machines() {
-        let Some(entry) = program.machine_states(machine).first() else {
-            continue;
-        };
-        for contract in program.machine_contracts(machine) {
+    let machines = program.machines().iter().filter_map(|machine| {
+        let entry = program.machine_states(machine).first()?;
+        Some((
+            machine.symbol,
+            entry.return_type,
+            program.state_parameters(entry),
+            program.machine_contracts(machine),
+        ))
+    });
+    let requirements = program.traits().iter().flat_map(|definition| {
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .map(|signature| {
+                (
+                    signature.symbol,
+                    signature.return_type,
+                    program.state_signature_parameters(signature),
+                    program.state_signature_contracts(signature),
+                )
+            })
+    });
+    // The same occurrence-membership check serves both declarations. A trait
+    // symbol cannot distinguish sibling requirements, and manufacturing a
+    // machine for a bodyless signature would give it the wrong result owner.
+    for (callable, return_type, parameters, contracts) in machines.chain(requirements) {
+        for contract in contracts {
             let mut nodes = Vec::new();
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 match fact {
@@ -173,20 +197,22 @@ fn contract_occurrence_owner(
             }
             // Spelling is only the reserved-form discriminator. The full
             // expression handle must belong to this owning ensures clause;
-            // another machine with an equal result type is not an owner.
+            // another callable with an equal result type is not an owner.
             if contract.kind != SignatureContractKind::Ensures
-                || !entry.return_type.is_valid()
-                || program
-                    .state_parameters(entry)
+                || !callable.is_valid()
+                || !program
+                    .type_reference_table
+                    .contains_type_reference(return_type)
+                || parameters
                     .iter()
                     .any(|parameter| parameter.name.as_str() == "result")
             {
                 return None;
             }
-            if owner.is_some_and(|(symbol, _)| symbol != machine.symbol) {
+            if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
                 return None;
             }
-            owner = Some((machine.symbol, entry.return_type));
+            owner = Some((callable, return_type));
         }
     }
     owner
@@ -362,6 +388,133 @@ mod tests {
                 .then_some(handle)
             })
             .collect()
+    }
+
+    const REQUIREMENT_RESULTS: &str = "boundary trait Geometry {
+        machine first(input: u64) -> u64 ensures result == input;
+        machine second(input: u64) -> u64 ensures result == input;
+    }";
+
+    #[test]
+    fn requirement_result_scalars_keep_exact_signature_owners() {
+        let program = typed(REQUIREMENT_RESULTS);
+        let signatures = program.trait_machine_signatures(&program.traits()[0]);
+        let occurrences = result_occurrences(&program);
+        assert_eq!(occurrences.len(), 2);
+        let owners = occurrences
+            .iter()
+            .map(|expression| {
+                let (owner, reference) =
+                    reserved_result_owner(&program, *expression).expect("requirement result owner");
+                assert_eq!(
+                    program.primitive_type_reference(reference),
+                    Some(typed_trees::types::PrimitiveType::U64)
+                );
+                assert!(signatures.iter().any(|signature| signature.symbol == owner));
+                assert_ne!(owner, program.traits()[0].symbol);
+                owner
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(owners[0], owners[1]);
+    }
+
+    #[test]
+    fn requirement_result_nested_fields_support_integer_embedding() {
+        let program = typed(
+            "data Range { length: u64; }
+            data Packet { range: Range; }
+            data Foreign { length: u64; }
+            boundary trait Geometry {
+                machine make(input: u64) -> Packet
+                ensures embed(result.range.length) == embed(input);
+            }",
+        );
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| {
+                matches!(node, ExpressionNode::Member(member) if member.member.as_str() == "length")
+                    .then_some(handle)
+            })
+            .expect("nested length occurrence");
+        let place =
+            reserved_result_place(&program, expression).expect("signature result projection");
+        assert_eq!(place.segments.len(), 2);
+        assert_eq!(
+            place.machine_symbol,
+            program.trait_machine_signatures(&program.traits()[0])[0].symbol
+        );
+        assert_eq!(
+            program.primitive_type_reference(place.type_reference),
+            Some(typed_trees::types::PrimitiveType::U64)
+        );
+        assert!(
+            program
+                .expression_table
+                .iter_expressions()
+                .any(|(handle, _)| {
+                    crate::proof_contracts::proof_embeddings::integer_embedding_argument(
+                        &program, handle,
+                    ) == Some((typed_trees::types::PrimitiveType::U64, expression))
+                })
+        );
+        let mut grafted = program.clone();
+        let unauthored = grafted
+            .expression_table
+            .insert(program.expression_table.expression(expression).clone());
+        assert!(reserved_result_place(&grafted, unauthored).is_none());
+        let foreign = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Foreign")
+            .expect("foreign data");
+        let typed_trees::data::DataMember::Field(field) = &program.data_members(foreign)[0] else {
+            panic!("foreign length field");
+        };
+        let mut substituted = program.clone();
+        let ExpressionNode::Member(member) =
+            substituted.expression_table.expression_mut(expression)
+        else {
+            panic!("length projection");
+        };
+        member.member_symbol = field.symbol;
+        assert!(reserved_result_place(&substituted, expression).is_none());
+    }
+
+    #[test]
+    fn requirement_result_rejects_shadowing_and_requires_occurrences() {
+        for source in [
+            "boundary trait Geometry { machine make(result: u64) -> u64 ensures result == 1; }",
+            "boundary trait Geometry { machine make(input: u64) -> u64 requires result == input; }",
+        ] {
+            let program = typed(source);
+            let occurrences = result_occurrences(&program);
+            assert!(!occurrences.is_empty());
+            for expression in occurrences {
+                assert!(reserved_result_owner(&program, expression).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn requirement_result_rejects_ambiguous_owner_and_invalid_result_type() {
+        let program = typed(REQUIREMENT_RESULTS);
+        let signatures = program.traits()[0].machines;
+        let first = signatures.start();
+        let second = arena::Handle::from_parts(first.arena_index() + 1, first.generation());
+        let first_contracts = program.trait_machine_signatures.get(first).contracts;
+        let root = result_occurrences(&program)[0];
+        let mut ambiguous = program.clone();
+        ambiguous.trait_machine_signatures.get_mut(second).contracts = first_contracts;
+        assert!(reserved_result_owner(&ambiguous, root).is_none());
+        for reference in [
+            TypeReferenceHandle::invalid(),
+            arena::Handle::from_parts(u32::MAX, 1),
+        ] {
+            let mut invalid = program.clone();
+            invalid.trait_machine_signatures.get_mut(first).return_type = reference;
+            assert!(reserved_result_owner(&invalid, root).is_none());
+        }
     }
 
     #[test]

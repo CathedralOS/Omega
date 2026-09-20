@@ -20,7 +20,8 @@ pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{fresh_payloadless_case, is_fresh_payloadless_structural_value};
 pub use result_type::{
-    arithmetic_result_type_reference, expression_result_type_reference, join_result_type_references,
+    arithmetic_result_type_reference, expression_result_type_reference,
+    join_result_type_references, parameter_expression_result_type_reference,
 };
 mod reference_values;
 pub(crate) use reference_values::place_forwards_mutable_reference;

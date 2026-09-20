@@ -31,12 +31,9 @@ impl AvailableGuarantee<'_> {
         program: &TypedTrees,
         expression: ExpressionHandle,
     ) -> bool {
-        validation::has_builtin_decomposed_guard_meaning(
-            program,
-            self.invocation.machine,
-            Some(self.invocation.state),
-            expression,
-        )
+        self.invocation
+            .callable
+            .decomposed_builtin_meaning(program, expression)
     }
 
     pub(in crate::checks) fn is_result(
@@ -45,7 +42,8 @@ impl AvailableGuarantee<'_> {
         expression: ExpressionHandle,
     ) -> bool {
         validation::reserved_result_place(program, expression).is_some_and(|result| {
-            result.machine_symbol == self.invocation.machine.symbol && result.segments.is_empty()
+            result.machine_symbol == self.invocation.callable.owner_symbol()
+                && result.segments.is_empty()
         })
     }
 
@@ -195,10 +193,9 @@ fn owns_guarantee(
 ) -> bool {
     source.is_valid()
         && matches!(program.proof_facts.get(source), typed_trees::domain::ProofFact::Expression(actual) if *actual == expression)
-        && program
-            .machine_contracts(supplied.machine)
-            .iter()
-            .chain(program.state_contracts(supplied.state))
+        && supplied
+            .callable
+            .contracts(program)
             .filter(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Ensures
             })

@@ -1,6 +1,80 @@
 use super::parse_typed_trees;
 use crate::lower_typed_trees;
 
+#[test]
+fn boundary_result_guarantees_bind_the_exact_invocation() {
+    for (actual, after, accepted) in [
+        ("input", "", true),
+        ("other", "", false),
+        ("input", "value.remaining = 0;", false),
+        ("input", "input = 0;", false),
+    ] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+                 boundary trait Counts {{
+                     machine produce(input: u64) -> Count
+                     ensures result.remaining == input;
+                 }}
+                 machine consume(value: Count, expected: u64)
+                 requires value.remaining == expected {{}}
+                 machine caller(service: &Counts, mut input: u64, other: u64)
+                 reaches Counts
+                 {{ let mut value: Count = service.produce({actual});
+                    {after}
+                    consume(value, input); }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn boundary_result_guarantees_compose_with_caller_bounds() {
+    for (bound, accepted) in [("48", true), ("47", false)] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+                 boundary trait Counts {{
+                     machine produce(input: u64, requested: u64) -> Count
+                     requires requested <= input
+                     ensures result.remaining == input - requested;
+                 }}
+                 machine consume(value: Count) requires 32 <= value.remaining {{}}
+                 machine caller(service: &Counts, input: u64)
+                 requires {bound} <= input
+                 reaches Counts
+                 {{ let value: Count = service.produce(input, 16);
+                    consume(value); }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn boundary_result_guarantees_preserve_input_write_ceilings() {
+    for (argument, accepted) in [("input", true), ("current", false)] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+                 boundary trait Counts {{
+                     machine produce(input: u64, target: &mut u64) -> Count
+                     ensures result.remaining == input;
+                 }}
+                 machine consume(value: Count, expected: u64)
+                 requires value.remaining == expected {{}}
+                 machine caller(service: &Counts, input: u64) reaches Counts {{
+                     let mut current: u64 = input;
+                     let value: Count = service.produce({argument}, &mut current);
+                     consume(value, {argument});
+                 }}"
+            ),
+            accepted,
+        );
+    }
+}
+
 fn check(source: &str, accepted: bool) {
     match lower_typed_trees(parse_typed_trees(source)) {
         Ok(_) => assert!(accepted, "unproved caller requirement accepted:\n{source}"),

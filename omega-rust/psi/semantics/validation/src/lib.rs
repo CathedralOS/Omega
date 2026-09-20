@@ -31,6 +31,7 @@ pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{scalar_state_contracts_are_qualifications, scalar_type_tags};
+pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
 pub use value_custody::claim_frontier::{ClaimFrontierClaim, linear_claim_frontier};
 pub use value_custody::owned_value_source::{
     affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
@@ -148,7 +149,8 @@ pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
-    arithmetic_result_type_reference, expression_result_type_reference, join_result_type_references,
+    arithmetic_result_type_reference, expression_result_type_reference,
+    join_result_type_references, parameter_expression_result_type_reference,
 };
 pub use value_custody::expression_types::{
     fresh_payloadless_case, is_fresh_payloadless_structural_value,

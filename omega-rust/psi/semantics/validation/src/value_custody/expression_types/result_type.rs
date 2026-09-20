@@ -45,6 +45,29 @@ pub fn expression_result_type_reference(
     )
 }
 
+/// Interpret an abstract callable's expression in its exact declaration
+/// telescope. Parameters and reserved result occurrences retain their owner;
+/// computed nodes share the selected-result rules used by executable states.
+pub fn parameter_expression_result_type_reference(
+    program: &TypedTrees,
+    owner_symbol: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !owner_symbol.is_valid() {
+        return None;
+    }
+    result_type(
+        program,
+        ExpressionOwner::Parameters {
+            owner_symbol,
+            parameters,
+        },
+        expression,
+        &mut Vec::new(),
+    )
+}
+
 // Domain predicates use the same selected-result rules as state expressions.
 // Only declaration-backed leaves differ: self belongs to the domain carrier,
 // while static indices retain their own declared types.
@@ -68,6 +91,10 @@ enum ExpressionOwner<'program> {
         state: &'program State,
     },
     Domain(&'program typed_trees::domain::DomainDefinition),
+    Parameters {
+        owner_symbol: symbols::SymbolHandle,
+        parameters: &'program [typed_trees::signature::StateParameter],
+    },
 }
 
 impl ExpressionOwner<'_> {
@@ -75,6 +102,7 @@ impl ExpressionOwner<'_> {
         match self {
             Self::State { machine, .. } => machine.symbol,
             Self::Domain(domain) => domain.symbol,
+            Self::Parameters { owner_symbol, .. } => owner_symbol,
         }
     }
 }
@@ -185,6 +213,17 @@ fn result_type(
             }
         }
         _ => match owner {
+            ExpressionOwner::Parameters {
+                owner_symbol,
+                parameters,
+            } => crate::reserved_result_place(program, expression)
+                .filter(|place| place.machine_symbol == owner_symbol)
+                .map(|place| place.type_reference)
+                .or_else(|| {
+                    crate::value_custody::places::parameter_scoped_type_reference(
+                        program, parameters, expression,
+                    )
+                }),
             ExpressionOwner::State { machine, state } => {
                 crate::value_custody::places::declared_place_type_raw(
                     program,
@@ -370,14 +409,15 @@ fn binary_result(
     }
     match binary.operator {
         CaseMembership => {
-            let ExpressionOwner::State { machine, .. } = owner else {
-                return None;
+            let builtin = match owner {
+                ExpressionOwner::State { machine, .. } =>
+                    crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                        program, machine, None, expression, binary),
+                ExpressionOwner::Parameters { .. } | ExpressionOwner::Domain(_) => false,
             };
-            crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                program, machine, None, expression, binary,
-            )
-            .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
-            .flatten()
+            builtin
+                .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
+                .flatten()
         }
         And | Or => operands
             .into_iter()
