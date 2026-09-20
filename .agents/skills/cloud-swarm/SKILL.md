@@ -99,6 +99,12 @@ lists them; `get` returning 403 means foreign-parented.
   guarantees expiry). A blocked worker costs ~1-5 min and produces a structured
   verdict — cheap, but the real width limiter is unfenced path supply, not
   session count. TASKS.md regenerates legs as landings append board notes.
+- **Mass-fires settle in waves.** After firing ~200 suspended workers at once,
+  ~half return verdicts within ~10-15 min (blocked churn + fast mine/fuzz
+  legs). The coordinator must run drain→record→refire cycles continuously —
+  never wait for notifications. Refire `waiting_for_user` AND `suspended`
+  every cycle, indiscriminately; alternate retry prompts with mine legs so
+  blocked churn still manufactures board supply.
 
 ### Coordinator pre-partitioning (the fix for churn)
 
