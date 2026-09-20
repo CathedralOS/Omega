@@ -808,13 +808,46 @@ fn retire_leaves_the_image_resident_until_the_caller_releases() {
 #[test]
 fn release_drops_only_resident_images() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (installed, _code) = install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+    let (installed, code) = install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
     let unknown = InstalledCodeId::from_normalized_identity(77).unwrap();
 
     assert!(!provider.release(unknown).unwrap());
+    let _retired = retire_through_provider(&mut provider, code);
     assert!(provider.release(installed).unwrap());
     assert_eq!(provider.installed_image(installed), None);
     assert!(!provider.release(installed).unwrap());
+}
+
+#[test]
+fn release_refuses_a_range_whose_execution_state_was_never_unwound() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+
+    // Freshly installed: execute authority granted and write authority
+    // suspended, so freeing the range would reclaim storage under a mapping
+    // no retirement proved unreachable.
+    let error = provider
+        .release(installed_id)
+        .expect_err("an undrained range cannot be released");
+    assert!(error.0.contains("execution state"));
+    assert!(provider.installed_image(installed_id).is_some());
+
+    // Sealing changes nothing: the still-served mapping stays resident.
+    let _reference = seal_through_provider(&provider, &installed, entry_id(1041));
+    let error = provider
+        .release(installed_id)
+        .expect_err("a sealed mapping still cannot be released");
+    assert!(error.0.contains("execution state"));
+    assert!(provider.installed_image(installed_id).is_some());
+
+    // Once retirement unwinds the execution state the same release frees.
+    // `reference` borrows `installed` and is never used again, so the move
+    // into `retire_through_provider` is reachable.
+    let retired = retire_through_provider(&mut provider, installed);
+    assert!(provider.release(installed_id).unwrap());
+    assert_eq!(provider.installed_image(installed_id), None);
+    let _ = retired;
 }
 
 /// Park a realization whose drain cannot complete: the provider performs the

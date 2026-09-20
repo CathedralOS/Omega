@@ -315,18 +315,27 @@ impl OwnedImageProvider {
 
     /// Drop the resident image of a drained realization. This is storage
     /// release only — it mints no retirement or quarantine evidence, and the
-    /// caller must already hold the lifecycle outcome before calling it. A
-    /// quarantined image refuses: its range stays reserved until a wider
-    /// isolation domain retires, and a provider that freed it would have
-    /// reported `range_reserved` falsely.
+    /// caller must already hold the lifecycle outcome before calling it. Two
+    /// refusals keep the lifecycle honest: a quarantined image's range stays
+    /// reserved until a wider isolation domain retires, and an image still
+    /// carrying execution state — execute authority granted or write
+    /// authority suspended — refuses because freeing it would reclaim
+    /// storage under a mapping no retirement proved unreachable. Only an
+    /// image whose execution state `retire` already unwound is freeable.
     pub fn release(&mut self, installed: InstalledCodeId) -> Result<bool, InstallationDiagnostic> {
-        if self
-            .images
-            .get(&installed)
-            .is_some_and(|image| image.quarantined)
-        {
+        let Some(image) = self.images.get(&installed) else {
+            return Ok(false);
+        };
+        if image.quarantined {
             return Err(InstallationDiagnostic(
                 "a quarantined range stays reserved; releasing it is not this provider's to decide"
+                    .into(),
+            ));
+        }
+        if image.execute_enabled || image.write_suspended {
+            return Err(InstallationDiagnostic(
+                "the range still carries execution state; retire the realization before releasing \
+                 its storage"
                     .into(),
             ));
         }
