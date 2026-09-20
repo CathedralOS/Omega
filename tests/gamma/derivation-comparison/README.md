@@ -9,7 +9,23 @@ The contract is [COMPARISON.md](../../../bootstrap/proofs/checker/COMPARISON.md)
 The gate materializes the complete canonical checker implementation once. Each
 source is the exact concatenation of `diagnostic.gamma`, one whole named file
 in `entries/`, and that implementation. `source.tsv` pins every composition in
-the explicit `fixtures.py` entry order. No functions are extracted. Host code
+the explicit `fixtures.py` entry order. The gate-local prefix files are bound
+in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_derivation_comparison_prefixes_identity` before packing:
+
+| file | bytes | SHA-256 |
+| --- | --- | --- |
+| `diagnostic.gamma` | 2,999 | `84e7a38014645379516949ce58fb9fb6f93ef87abb6b2bd2539b1f5795ccccd3` |
+| `entries/budget.gamma` | 569 | `335eb658f739240d4b5f6101562872c158b8cf04ceeeb16c7ac7ef63eb04aca4` |
+| `entries/invalid.gamma` | 750 | `9eee13b41741dafed34df7c3eed902c4fa1d26a4dc3cf2fdf6083250249a2a8d` |
+| `entries/pending.gamma` | 420 | `ff3cb286d0946d8930013783020ab39d99174f4c522878f88da79fcfbf6e170a` |
+| `entries/resume.gamma` | 655 | `e496e6a604c1a461952a8ca38c317bf90cb28a44d74a24a449280c67cf5d92f3` |
+| `entries/retention.gamma` | 1,017 | `7a84754c984ca008e8408210cbc2be2710bdb459fa851a66a676bbe854f2a94a` |
+| `entries/root.gamma` | 390 | `8f4783644bc40aa45a1f58a1bdc4a11d7a1022e5f6e2d0f61a40fb0dc33ef1ad` |
+| `entries/session.gamma` | 368 | `8f1ea6dd838b0c770cdfc56d745a1bfa7f493fef677118378d376bc103a47a4b` |
+| `entries/witness.gamma` | 349 | `2ba9d62188b05e802231ab0da5be0add5751e866bb2b4a2342d1a7019ccc0375` |
+
+No functions are extracted. Host code
 only authors literal wire fields, frames inputs, and compares exact observations;
 it never traverses terms to decide equality or produces a semantic proof.
 

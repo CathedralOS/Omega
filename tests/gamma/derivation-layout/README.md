@@ -5,7 +5,11 @@ Run `sh tests/gamma/derivation-layout/run.sh` on macOS arm64 with `python3` and
 is not yet validated. Other hosts fail explicitly.
 
 The gate materializes the complete role-selected derivation-checker source
-closure with one explicit ordinary-Gamma diagnostic entry. The diagnostic
+closure with one explicit ordinary-Gamma diagnostic entry: the bound
+`main.gamma` prefix, 1,198 bytes, SHA-256
+`49b1d9e459cfcb6b81f84725fc5855f4554174102a3b78269627ae91de0e2985`, recorded
+in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_derivation_layout_entry_identity` before packing. The diagnostic
 returns process status zero only to publish an owned outcome: tag 3 plus three
 u32 section ends is 13 bytes; tags 1 and 2 plus their four existing failure
 fields are 17 bytes. Tag 3 means physical layout, never formation, proof

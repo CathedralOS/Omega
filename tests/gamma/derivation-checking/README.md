@@ -22,6 +22,11 @@ proposition, and artifact custody remain separate requirements.
 
 [run.sh](run.sh) resolves bootstrap roles and materializes the complete
 canonical implementation closure with the explicit diagnostic entry. The
+closure prefixes the bound checker member bytes with this gate's
+`main.gamma` entry, bound at 1,155 bytes, SHA-256
+`8601e23955e3054eba95a2b5e7e2dd2a92d4ae47c8cb9bf49d9ce77c295a16a2`; the pin
+lives in `tools/bootstrap/proofs/sources_env.sh` and
+`require_derivation_checking_entry_identity` runs before the pack. The
 composition's line count, byte count, and SHA-256 must match
 [source.tsv](source.tsv). No production functions are extracted or replaced.
 [gate.py](gate.py) only frames those exact bytes, invokes the evaluator, and
