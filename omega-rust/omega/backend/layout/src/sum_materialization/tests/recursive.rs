@@ -13,6 +13,107 @@ use layout_plans::ConventionalRecursiveRecordSumPathsLayoutReport;
 use layout_plans::ConventionalSumLayoutReport;
 
 #[test]
+#[cfg(target_pointer_width = "64")]
+fn recursive_empty_arrays_follow_inside_out_extent_arithmetic() {
+    for element in ["Choice", "Cell"] {
+        let program = checked(&format!(
+            "data Choice [copy] {{ case Empty; case Number(value: u64); }}
+             data Cell [copy] {{ choice: Choice; }}
+             data Outer [copy] {{ empty: [[[{element}; 0]; 4294967296]; 4294967296]; }}"
+        ));
+        let plan = crate::build_layout_plan(&program, NativeTarget::host(), &[]).unwrap();
+        let outer = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Outer")
+            .unwrap();
+        let report = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &program,
+            &plan,
+            outer.symbol,
+        )
+        .expect("huge outer dimensions cannot overflow an empty inner array");
+        assert!(matches!(
+            report.children[0].hop,
+            ConventionalRecordSumChildHop::Index {
+                element_count: 0,
+                ..
+            }
+        ));
+
+        let overflowing = checked(&format!(
+            "data Choice [copy] {{ case Empty; case Number(value: u64); }}
+             data Cell [copy] {{ choice: Choice; }}
+             data Outer [copy] {{ empty: [[[{element}; 4294967296]; 4294967296]; 0]; }}"
+        ));
+        assert!(
+            crate::build_layout_plan(&overflowing, NativeTarget::host(), &[]).is_err(),
+            "a zero outer count cannot excuse overflowing inner element geometry"
+        );
+    }
+}
+
+#[test]
+fn recursive_empty_array_rows_reject_substituted_element_geometry() {
+    let checked = checked(
+        "data Choice [copy] { case Empty; case Number(value: u64); }
+         data Cell [copy] { choice: Choice; }
+         data Outer [copy] { choices: [Choice; 0]; cells: [Cell; 0]; live: u64; }",
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let outer = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .unwrap();
+    let DataShape::Record { fields } = unique_data_layout(&plan, outer.symbol, "Outer")
+        .unwrap()
+        .shape
+    else {
+        panic!("Outer is a record");
+    };
+    project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        outer.symbol,
+    )
+    .unwrap();
+    for field_index in 0..2 {
+        for mutation in 0..5 {
+            let mut malformed = plan.clone();
+            let field = &mut malformed.fields.span_mut_or_empty(fields)[field_index];
+            match mutation {
+                0 => field.type_symbol = outer.symbol,
+                1 => {
+                    let TypeLayoutDescriptor::FixedArray { length, .. } =
+                        &mut field.type_descriptor
+                    else {
+                        panic!("the fixture field is an array");
+                    };
+                    *length = 1;
+                }
+                2 => field.layout.alignment = 1,
+                3 => field.layout.size = 16,
+                4 => malformed.repeated_fields.push(crate::RepeatedFieldLayout {
+                    field: field.symbol,
+                    element_stride: 16,
+                }),
+                _ => unreachable!(),
+            }
+            assert!(
+                project_conventional_record_with_recursive_nested_sums_materialization_layout(
+                    &checked,
+                    &malformed,
+                    outer.symbol,
+                )
+                .is_err(),
+                "field {field_index}, mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn recursive_inner_siblings_retain_complete_ordered_custody() {
     let checked = checked(
         "data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u16); }
@@ -423,21 +524,6 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             ByteOrder::LittleEndian,
         )
         .unwrap();
-        // Zero-length array hops stay fenced at every depth. Nested literal
-        // arrays flatten into one packed row under the general recursive
-        // rule, so `NestedChoiceArray` joins the admitted cohort below.
-        {
-            let name = "ZeroChoices";
-            assert!(
-                project_conventional_record_with_recursive_nested_sums_materialization_layout(
-                    &checked,
-                    &plan,
-                    definition(name).symbol,
-                )
-                .is_err(),
-                "{name} at depth {depth} must retain its unsupported-shape fence"
-            );
-        }
         // Former shallow/deep/singular-cohort fences are not semantic
         // constraints: direct sums, direct sum arrays, direct record arrays,
         // and nested record paths coexist at one level under the general
@@ -453,6 +539,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             "RecordArrays",
             "InnerRecordArrays",
             "NestedChoiceArray",
+            "ZeroChoices",
         ] {
             let result =
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
@@ -1619,8 +1706,8 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
     // stride, the flat leaf index `matrix[k]` spells `k = outer * 2 + inner`,
     // and every declared level's arity is still enforced on the value.
     // `[[Layer0; 2]; 2]` flattens the same way with the record element's own
-    // leaf report retained once beside the packed row. Zero-length hops and
-    // values whose per-level arity drifts stay fenced.
+    // leaf report retained once beside the packed row. Zero-length hops
+    // retain their element geometry; per-level value arity must still agree.
     let checked = checked(
         "data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u16); }
          data Layer0 [copy] { #1 first: Choice; #2 second: Choice; }
@@ -1635,16 +1722,20 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
             .find(|definition| definition.name.as_str() == name)
             .unwrap()
     };
-    let zero_error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+    let zero = project_conventional_record_with_recursive_nested_sums_materialization_layout(
         &checked,
         &plan,
         definition("ZeroNested").symbol,
     )
-    .expect_err("a zero-length nested hop must reject");
-    assert!(
-        format!("{zero_error:?}").contains("must have nonzero literal length"),
-        "{zero_error:?}"
-    );
+    .expect("a zero-length nested hop retains one empty row");
+    assert_eq!(zero.outer_layout.size, Some(0));
+    assert!(matches!(
+        zero.children[0].hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 0,
+            element_stride: 8
+        }
+    ));
 
     let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
         &checked,

@@ -14,6 +14,96 @@ use crate::{
 };
 
 #[test]
+fn empty_interiors_preserve_geometry_without_requiring_a_write_path() {
+    let (mut layout, _) = sum_array_layout();
+    layout.size = Some(8);
+    let carrier = SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 0, 24);
+    let value = SymbolicFieldValue::new("header", 64, data()).unwrap();
+    let derive = |layout: &LayoutPlanReport, carriers: &[SymbolicFieldInnerLayout]| {
+        derive_symbolic_materialization_with_inner_layouts(
+            layout,
+            carriers,
+            std::slice::from_ref(&value),
+            post_handoff_context(),
+            |_| None,
+        )
+    };
+    derive(&layout, std::slice::from_ref(&carrier)).unwrap();
+
+    // A zero-count row is not permission to skip validating its evidence.
+    for mutation in 0..4 {
+        let mut malformed = layout.clone();
+        match mutation {
+            0 => malformed.entries[1].placement = LayoutPlacementReport::At { offset: 9 },
+            1 => malformed.entries.push(malformed.entries[1].clone()),
+            2 => {
+                malformed.entries[1].placement = LayoutPlacementReport::IntegerAt {
+                    offset: 8,
+                    stored_width: 8,
+                    interpretation: crate::IntegerInterpretation::Unsigned,
+                }
+            }
+            3 => malformed.entries[1].member_identity = Some(2),
+            _ => unreachable!(),
+        }
+        assert!(
+            derive(&malformed, std::slice::from_ref(&carrier)).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    assert!(derive(&layout, &[carrier.clone(), carrier.clone()]).is_err());
+    assert!(
+        derive(
+            &layout,
+            &[SymbolicFieldInnerLayout::new_sum_array(
+                "sums",
+                sum_layout(),
+                0,
+                16
+            )]
+        )
+        .is_err()
+    );
+    let mut escaping_sum = sum_layout();
+    escaping_sum.cases[1].payload_fields[0].offset = 24;
+    assert!(
+        derive(
+            &layout,
+            &[SymbolicFieldInnerLayout::new_sum_array(
+                "sums",
+                escaping_sum,
+                0,
+                24
+            )]
+        )
+        .is_err()
+    );
+
+    let interior = LayoutPlanReport {
+        schema_report_fingerprint: 2,
+        entries: vec![LayoutFieldEntryReport {
+            field: "choice".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::At { offset: 0 },
+        }],
+        offsets: Some(vec![0]),
+        size: Some(24),
+        align: 8,
+    };
+    let record_carrier = |interior| {
+        SymbolicFieldInnerLayout::new_record_array("sums", interior, 0, 24)
+            .with_inner_layout(SymbolicFieldInnerLayout::new_sum("choice", sum_layout()))
+    };
+    derive(&layout, &[record_carrier(interior.clone())]).unwrap();
+    let mut escaping_interior = interior;
+    escaping_interior.entries[0].placement = LayoutPlacementReport::At { offset: 8 };
+    assert!(
+        derive(&layout, &[record_carrier(escaping_interior)]).is_err(),
+        "a malformed descendant cannot hide behind an empty ancestor"
+    );
+}
+
+#[test]
 fn symbolic_inner_materialization_bounds_record_path_depth() {
     let (layout, carrier) = deeply_nested_layout();
 
@@ -706,8 +796,8 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
         error.0
     );
 
-    // Repeated interiors need a nonzero count and a stride covering the whole
-    // element extent so elements cannot overlap.
+    // Empty interiors have no addressable elements. Every retained stride
+    // still covers the complete element extent.
     let (array_layout, _) = sum_array_layout();
     let zero_count = SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 0, 24);
     let indexed_path = SymbolicFieldValue::new_indexed("sums", 0, 64, entry())
@@ -723,11 +813,11 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
         post_handoff_context(),
         |_| None,
     )
-    .expect_err("a zero-element repeated sum interior must reject");
+    .expect_err("indexing a zero-element repeated sum interior must reject");
     assert!(
         error
             .0
-            .contains("inner layout for `sums` repeats its interior zero times"),
+            .contains("element index 0 is outside its 0 element placements"),
         "{}",
         error.0
     );
@@ -866,9 +956,9 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     )
     .expect_err("more element placements than the carrier's count is drift");
     assert!(
-        error.0.contains(
-            "repeated sum field `sums[1]` retains 3 element placements, but its carrier claims 2 elements"
-        ),
+        error
+            .0
+            .contains("inner layout for `sums` element placements drift from its count or stride"),
         "{}",
         error.0
     );
@@ -897,9 +987,9 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     )
     .expect_err("element placements drifting from the carrier's stride must reject");
     assert!(
-        error.0.contains(
-            "repeated sum field `sums[1]` element placements drift from the carrier's 24-byte stride"
-        ),
+        error
+            .0
+            .contains("inner layout for `sums` element placements drift from its count or stride"),
         "{}",
         error.0
     );
@@ -921,9 +1011,9 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     )
     .expect_err("a repeated interior escaping the record extent must reject");
     assert!(
-        error.0.contains(
-            "repeated interior for `sums[1]` exceeds the enclosing 40-byte record extent"
-        ),
+        error
+            .0
+            .contains("interior layout for `sums` exceeds the enclosing 40-byte record extent"),
         "{}",
         error.0
     );

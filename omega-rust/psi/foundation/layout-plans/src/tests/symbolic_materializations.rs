@@ -629,7 +629,7 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     assert!(
         error
             .0
-            .contains("requires the outer field `address` to use a whole `At` placement"),
+            .contains("inner layout for `address` requires a whole `At` placement"),
         "{}",
         error.0
     );
@@ -662,7 +662,7 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     assert!(
         error
             .0
-            .contains("requires the outer field `address` to use a whole `At` placement"),
+            .contains("inner layout for `address` requires a whole `At` placement"),
         "{}",
         error.0
     );
@@ -1178,7 +1178,7 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
     assert!(
         error
             .0
-            .contains("requires the enclosing field `slot.sub` to use a whole `At` placement"),
+            .contains("inner layout for `slot.sub` requires a whole `At` placement"),
         "{}",
         error.0
     );

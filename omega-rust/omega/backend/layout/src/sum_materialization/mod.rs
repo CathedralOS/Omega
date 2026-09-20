@@ -157,9 +157,9 @@ struct RecordLevelChildren<'a> {
 /// Project one record level's direct conventional-sum children from the exact
 /// target runtime layout. Every runtime-relevant field classifies under the
 /// same rule at every depth: a direct pure sum or mixed common-field/case
-/// shape emits one `ConventionalSumFieldLayoutReport`; a nonzero literal
+/// shape emits one `ConventionalSumFieldLayoutReport`; a literal
 /// `[S; N]` field whose element resolves to a conventional pure or mixed sum
-/// emits one compact `ConventionalSumArrayFieldLayoutReport`; a nonzero
+/// emits one compact `ConventionalSumArrayFieldLayoutReport`; a
 /// literal `[R; N]` field whose record element still reaches sums enters
 /// `record_array_paths` for the caller's own depth rule; a record field still
 /// reaching sums enters `record_paths` for the caller's own depth rule;
@@ -169,7 +169,9 @@ struct RecordLevelChildren<'a> {
 /// `project_field_placement_entries`. Under `LiteralArrayHopRule::Flattened`,
 /// arrays reaching sums through consecutive literal element hops — nested
 /// literal arrays of sums or of records still reaching sums — flatten into
-/// one packed row; non-literal lengths and zero-length hops remain fenced.
+/// one packed row, including zero repetitions with complete element geometry.
+/// Non-literal lengths remain fenced; the standalone rungs retain their
+/// nonzero-length restriction.
 fn project_record_level_children<'a>(
     program: &'a CheckedTrees,
     plan: &'a LayoutPlan,
@@ -259,6 +261,12 @@ fn project_record_level_children<'a>(
                             }
                             _ => break,
                         }
+                    }
+                    if literal_array_hops == LiteralArrayHopRule::OuterOnly && *length == 0 {
+                        return Err(Diagnostic::error(format!(
+                            "{owner} field `{}` must have nonzero literal length",
+                            declared.name
+                        )));
                     }
                     let Some(named) = exact_named_data(program, element_reference)? else {
                         return Err(Diagnostic::error(format!(
@@ -572,8 +580,8 @@ fn laid_innermost_array_descriptor<'d>(
 /// Project the compact report row for one direct fixed-array-of-sums field
 /// whose innermost element resolves to `element_named`, a conventional pure
 /// sum. `hops` carries every consecutive literal arity, outermost first, and
-/// must be nonzero at every level; the packed row's `element_count` is their
-/// product. The complete all-case element layout is retained once with the
+/// the packed row's `element_count` is their product. Empty arrays still
+/// validate and retain the complete all-case element layout once with the
 /// exact count and stride.
 fn project_sum_array_row(
     program: &CheckedTrees,
@@ -584,12 +592,6 @@ fn project_sum_array_row(
     hops: &[usize],
     owner: &str,
 ) -> Result<ConventionalSumArrayFieldLayoutReport, Diagnostic> {
-    if hops.contains(&0) {
-        return Err(Diagnostic::error(format!(
-            "{owner} field `{}` must have nonzero literal length",
-            declared.name
-        )));
-    }
     let element_layout =
         project_conventional_sum_materialization_layout(program, plan, element_named.symbol)?;
     let laid_element =
@@ -615,6 +617,9 @@ fn project_sum_array_row(
     }
     let element_count = u64::try_from(
         hops.iter()
+            // Match layout construction from the innermost array outward:
+            // an empty inner array stays empty even under huge outer counts.
+            .rev()
             .try_fold(1usize, |count, hop| count.checked_mul(*hop))
             .ok_or_else(|| {
                 Diagnostic::error(format!(
@@ -683,7 +688,7 @@ fn project_sum_array_row(
 /// Project the compact report row for one direct fixed-array-of-records
 /// field whose innermost record element still reaches conventional sums.
 /// `candidate.hops` carries every consecutive literal arity, outermost
-/// first, and must be nonzero at every level; the packed row's
+/// first; the packed row's
 /// `element_count` is their product. The element's complete recursive report
 /// is retained once with the exact count and stride, so every index shares
 /// the same record interior rather than multiplying rows by element.
@@ -698,12 +703,6 @@ fn project_record_array_row(
     let declared = candidate.declared;
     let laid = candidate.laid;
     let element_named = candidate.named;
-    if candidate.hops.contains(&0) {
-        return Err(Diagnostic::error(format!(
-            "{owner} field `{}` must have nonzero literal length",
-            declared.name
-        )));
-    }
     let inner =
         project_recursive_paths(program, plan, element_named.symbol, reachability, depth + 1)?;
     let laid_element = laid_innermost_array_descriptor(
@@ -735,6 +734,7 @@ fn project_record_array_row(
         candidate
             .hops
             .iter()
+            .rev()
             .try_fold(1usize, |count, hop| count.checked_mul(*hop))
             .ok_or_else(|| {
                 Diagnostic::error(format!(

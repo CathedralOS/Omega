@@ -1158,100 +1158,38 @@ Owners include
   without treating cross-target emission as physical execution.
 
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
-  and its target-dependent realization as one
+  and target-dependent realization as one
   [derived consumer](wiki/spec/layouts/plans.md#derived-consumers) of a
-  normalized plan: paths and bounds stay exact until assignment, and physical
-  lowering may choose instruction bytes and a context register but not which
-  semantic slot a write addresses. One bounded recursion already classifies
-  every record level's children — direct sums, literal `[S; N]` sum arrays,
-  literal `[R; N]` record arrays, and record fields still reaching sums
-  (`project_record_level_children` in
-  `omega-rust/omega/backend/layout/src/sum_materialization/mod.rs`, under
-  `CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`); the carrier fold joins them in one
-  field-keyed namespace (`SymbolicFieldInnerLayout::from_recursive_sum_paths`
-  in `omega-rust/psi/foundation/layout-plans/src/symbolic_values/mod.rs`), and
-  build-time evaluation retains, replays and fingerprints the same custody.
-  The record-array shape now runs the pinned writer-lowering leg:
-  `record_array_symbolic_materialization_realizes_on_both_linux_isas` in
-  `omega-rust/omega/compiler/compiler/tests/layout_plans/writer_lowering.rs`
-  projects a leaf level carrying a direct sum beside a literal `[R; N]` record
-  array, folds the `RecordArray` carrier, composes `field At + index * stride
-  + interior offset` for `members[i].<path>` writes, and lowers/replays the
-  post-handoff writer on both Linux ISAs (native execution on x86-64). The
-  nested literal array shape runs the same leg as one packed repeated row:
-  `nested_array_symbolic_materialization_realizes_on_both_linux_isas` folds
-  `[[S; N]; M]` and `[[R; N]; M]` fields into the count-and-stride row the
-  carriers already carry — element count is the hop product, stride is the
-  innermost element extent, the path spells the flat leaf index `field[k]`
-  with `k = outer * N + inner` — and per-level arity stays enforced on the
-  build-time value. Carry record depth as data and extend that owner rather
-  than adding depth-specific implementations. Outer fields carrying
-  per-element, `IntegerAt`, or `Bits` placements transcribe through the same
-  reports, so a symbolic path crosses the whole
-  [placement vocabulary](wiki/spec/layouts/plans.md#placement-vocabulary),
-  not only whole-field `At` entries. Mixed common-field/case shapes and
-  their literal arrays now run the same compact element row end to end:
-  `ConventionalSumLayoutReport` retains the leading common fields beside the
-  case overlay, the symbolic walker admits the one-hop `field[i].common`
-  leaf beside `field[i].Case.payload`, the ConstMaterializable rungs encode
-  the merged common + case payload spelling per element, and
-  `mixed_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
-  lowers the mixed-element writer on both Linux ISAs (native execution on
-  x86-64). Fully-applied const-generic instances now materialize through
-  the same recursion — checking substitutes `Neighbor<const M: u64>` into
-  closed `[copy]` records whose `cells: [Choice; M]` lengths arrive
-  literal, so `validate_closed_copy_record` admits them beside authored
-  records and `generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
-  writes `grid.cells[i]` and `grids[i].cells[j]` on both Linux ISAs
-  (native execution on x86-64).
+  normalized plan. Paths and bounds stay exact until assignment; physical
+  lowering chooses instruction bytes and context registers, not semantic slots.
+  Extend the existing recursive record/sum owner in
+  `omega-rust/omega/backend/layout/src/sum_materialization/mod.rs` and the
+  carrier preparation/walker in
+  `omega-rust/psi/foundation/layout-plans/src/symbolic_materialization.rs`.
+  One ordered `{ outer_layout, children }` report retains field/index hops
+  and sum/record interiors; do not add depth-specific implementations or
+  per-shape report channels.
 
   Remaining work:
 
-  - Shapes the recursion still fences: an array length still symbolic at
-    layout time — the unapplied template (`type_parameters` rejects it),
-    or a `ConstCall`/`ConstParameter` surviving outside the connected
-    pipeline — plus zero-count instantiations like `Neighbor<0>`, which
-    keep the nonzero literal-length row fence. ConstMaterializable value
-    materialization keeps its own uniform `generic_instance` fence;
-    lifting it is a separate custody surface, not this chain. The
-    standalone rungs keep their single-hop fence verbatim, so an
-    array-of-arrays reaching sums still rejects outside the recursive
-    owner.
-  - The Linux aarch64 native leg has never executed. That harness selects its
-    guarded C driver by `cfg(target_arch)`, so only the x86-64 arm has run;
-    every other host takes the emission-only path.
+  - Array lengths still symbolic at layout time remain fenced: unapplied
+    templates or a `ConstCall`/`ConstParameter` surviving outside the connected
+    pipeline. Closed literal/generic zero-count arrays are no longer this gap.
+    ConstMaterializable value materialization retains its separate
+    `generic_instance` fence. Standalone rungs retain their narrower single-hop
+    and nonzero-length contracts.
+  - Obtain matching-host Linux AArch64 execution evidence. The writer harness
+    validates both Linux ISA fragments and executes on Linux x86-64/AArch64
+    or macOS AArch64; macOS execution does not close the Linux runtime row.
+    Resume with `cargo nextest run -p compiler --test layout_plans writer_lowering
+    --no-fail-fast --no-tests fail` on Linux AArch64. The empty-array regression
+    in `layout_plans/writer_lowering.rs` also pins direct/indexed-write rejection,
+    live sibling writes and empty nested/generic carriers.
 
-  Acceptance: nested field and index canaries realize on both Linux ISAs, each
-  executing the lowered fragment on its matching host and comparing the image
-  with the Rust reference writer. Both ISAs agree on the normalized fragment
-  fingerprint and the writer invocation while emitting their own bytes.
-
-  Flag: the recursive report now spells the mechanism this flag asked for.
-  `ConventionalRecursiveRecordSumPathsLayoutReport` is one
-  `{ outer_layout, children }` level: every child row in `children`
-  (`ConventionalRecordSumChildLayoutReport`) carries the member's `field`
-  and `member_identity`, a `ConventionalRecordSumChildHop` — `Field`, or
-  `Index { element_count, element_stride }` — and a
-  `ConventionalRecordSumChildInterior` (a `Sum` layout report or the
-  recursive `Record` report), all in authored member order. The
-  `Leaf`/`Branch` split and the per-kind `paths` / `child_sum_layouts` /
-  `child_sum_array_layouts` / `child_record_array_layouts` channels are
-  gone, and `CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT` applies to the one
-  channel. The carrier fold matches: `SymbolicFieldInteriorLayout` is
-  `{ hop, interior }` — repetition is data on the hop — with
-  `SymbolicFieldInterior::{Record, Sum}` as the only per-kind variants,
-  so a fenced shape arrives as one more row rather than one more
-  channel. Custody folds the same way:
-  `ValidatedConstRecordWithRecursiveNestedSumsMaterialization` is a
-  single struct retaining `children` (`ValidatedConstRecordSumChild-
-  Materialization::{Sum, SumArray, Record, RecordArray}`) in authored
-  order beside one `path_layout`, one byte image and one merged
-  `omega.const-materializable-recursive-level-children.v1` fingerprint.
-  Still per-shape: the standalone ConstMaterializable rungs keep their
-  own channels — `ConventionalNestedRecordSumPath(s)LayoutReport` and
-  the remaining `ValidatedConst*` selection types under
-  `build-time-evaluation/src/layouts/layout_plans/` — fenced to the
-  single-hop shapes the remaining-work note names.
+  Acceptance: nested field/index canaries execute on both Linux ISAs and compare
+  destination bytes with the reference image, including guard bytes. Both ISAs
+  must retain the same normalized fragment fingerprint and writer invocation
+  while emitting their own bytes.
 
 ## P3 - Terminal Psi, PCC, and observation
 
