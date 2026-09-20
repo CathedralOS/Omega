@@ -222,6 +222,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &[],
         None,
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -241,6 +242,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &exact,
         &fixture.0.join("consumed"),
         &[],
+        None,
         None,
         None,
         TargetEntryDiscovery::Disabled,
@@ -309,6 +311,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &[],
         None,
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -332,6 +335,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &exact,
         &fixture.0.join("final"),
         &[],
+        None,
         None,
         None,
         TargetEntryDiscovery::Disabled,
@@ -657,6 +661,7 @@ fn assert_root_console_permissions(
         &[],
         None,
         Some(&snapshot),
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -983,6 +988,7 @@ fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf()
         &exact,
         &fixture.0.join("discovery"),
         &[],
+        None,
         None,
         None,
         TargetEntryDiscovery::Dependencies,

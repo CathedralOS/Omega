@@ -5449,8 +5449,9 @@ Owners include
   (`compiler/tests/build_config_granted/checkpoints_and_snapshots.rs`,
   `compiler/tests/build_snapshot_outputs.rs`,
   `omega/tests/package_commands/generated.rs`). Restricted-build acceptance
-  now surfaces compiler-derived requests in review output; dependency-purpose
-  binding still does not exist.
+  now surfaces compiler-derived requests in review output, and restricted
+  grants bind to the checked occurrence's `PackageCheckedContext`; the
+  evaluator-side invocation gate still does not exist.
 
   Remaining work:
 
@@ -5459,15 +5460,25 @@ Owners include
     Candidate review already projects normalized request meaning and retains
     explicit decision rows in the lock. The consuming-lock join in
     `packages/manager/src/review/restricted_build_grants.rs` rejects missing,
-    changed, or wrong-context consent before consuming a checked result, but
-    that is too late to authorize the build action itself. Move the decision
-    and actual invocation-grant check ahead of execution, retaining incomplete
-    audit state and exact candidate scope for install/update review and resume.
-    Audit-only inspection must not issue grants. Exercise newly added, widened,
-    transitive, rejected, and interrupted requests through those commands.
-    Keep captured immutable inputs and compiler-owned bounded private staging
-    outside restricted-action consent; generic sponsors for supplied host
-    directories remain restricted. Controls live in
+    changed, or wrong-context consent before consuming a checked result, and
+    a `RestrictedBuildCheckpoint` — the accepted target's granted request
+    meanings keyed by package identity and `PackageCheckedContext` — now
+    threads through `compile_dependency_closure` so a consuming compile
+    joins each occurrence's projected requests before its review is
+    retained or its generated-source bundle hands off to a dependent;
+    `UngrantedRestrictedBuildRequests` carries the pending meanings for
+    install/update review and resume, and audit-only callers pass no
+    checkpoint and issue no grants. Still ahead of this item: carry the
+    checkpoint through the admitted execution request so the offending
+    occurrence's own build effect waits on the grant (the `checking`
+    request carrier and `build_continuation` seam), and wire the consuming
+    operations (`operations::check_project`, `check_locked_sources`,
+    `compile_project`) to supply it instead of joining after the pass.
+    Exercise newly added, widened, transitive, rejected, and interrupted
+    requests through those commands.
+    Keep captured immutable inputs and compiler-owned bounded private
+    staging outside restricted-action consent; generic sponsors for
+    supplied host directories remain restricted. Controls live in
     `packages/manager/src/review/candidate/compilation/tests/restricted_build_grants.rs`
     and `omega/tests/build_input_inventory.rs`. Do not introduce an arbitrary
     recursive build API or a new host protocol as part of this join.
@@ -5475,8 +5486,15 @@ Owners include
     and generated handoff. Build/product occurrences already have independent
     producer reviews, lock policy and reconstruction; acceptance for one must
     not authorize a restricted action by the other, even on the same target.
-    Exercise checkpoint drift with the dual-role generated-source customer in
-    `omega/tests/package_commands/build_purposes.rs`.
+    The checkpoint keys grants by that exact context — a cross-purpose probe
+    in the controls shows a product acceptance authorizing none of the same
+    package's build-context meanings — and the in-pass join runs ahead of
+    the generated-source handoff. Checkpoint drift through the dual-role
+    generated-source customer in `omega/tests/package_commands/build_purposes.rs`
+    still needs a CLI route that produces restricted requests: every real
+    manager flow today sponsors private staging, so the requests project
+    empty and the exercise stays in the candidate controls until the
+    operations wiring lands.
 
   Acceptance: initial install and an update adding a restricted helper request
   both stop before its host effect and show package, dependency path,
