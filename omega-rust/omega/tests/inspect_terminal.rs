@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[path = "../src/inspection/evidence.rs"]
 mod evidence;
+#[path = "inspect_terminal/integer_comparison_custody.rs"]
+mod integer_comparison_custody;
 #[path = "inspect_terminal/owned_scalar_cycles.rs"]
 mod owned_scalar_cycles;
 #[path = "inspect_terminal/package_projects.rs"]

@@ -9096,7 +9096,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   leg: fragments in other docs linking *into* pipeline.md (e.g.
   `TASKS_OPTIMIZER.md` → `#connected-program-route`) are outside this audit's
   document scope.
-- **PIPELINE-ORPHAN-ELIMINATION** — mined candidate; verify scope then implement.
+- **PIPELINE-ORPHAN-ELIMINATION.** The audit's residual slice: one dead stage
+  output eliminated —
+  `checked-compilation-to-terminal-artifact::validate_lowered_integer_comparison_custody`
+  was exported but uncalled; `inspect-terminal` now runs the join (wired on
+  `main` by `92fff9c073a` via the `compiler` facade) and this slice pins it —
+  `omega/tests/inspect_terminal/integer_comparison_custody.rs` drives a real
+  selected `==` occurrence through the route and rejects a negated recorded
+  triple. Remaining audit surface: other stage and coordinator entrances — the
+  named families belong to PIPELINE-REWRITE-ORPHANS,
+  PIPELINE-SPILL-FAMILY-ORPHANS, and PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **PIPELINE-OWNER-CONSOLIDATION** — mined candidate; verify scope then implement.
 - **PIPELINE-PLACEMENT-AUDIT.** Resolved — sibling stub of the landed
   pipeline audit family (see PIPELINE-ROUTE-CONFORMANCE-AUDIT). The crate
