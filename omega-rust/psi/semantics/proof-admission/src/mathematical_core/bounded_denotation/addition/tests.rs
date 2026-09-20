@@ -342,29 +342,155 @@ fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
     }
 }
 
+fn closed_addend_rule_axioms(
+    integer: IntegerType,
+    lower: bool,
+    left: IntegerValue,
+    right: IntegerValue,
+) -> usize {
+    let literal = |value| ScalarTerm::integer(integer, value).unwrap();
+    let endpoint = if lower {
+        integer.minimum_value()
+    } else {
+        integer.maximum_value()
+    };
+    let left = literal(left);
+    let right = literal(right);
+    let root =
+        ScalarTerm::exact_integer_subtract(integer, literal(endpoint), right.clone()).unwrap();
+    let premise = if lower {
+        Proposition::LessOrEqual(root.clone(), left.clone())
+    } else {
+        Proposition::LessOrEqual(left.clone(), root.clone())
+    };
+    let sum = IntegerMathTerm::Add(
+        Box::new(mathematical(&left)),
+        Box::new(mathematical(&right)),
+    );
+    let goal = if lower {
+        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::literal(endpoint), sum)
+    } else {
+        Proposition::IntegerMathLessOrEqual(sum, IntegerMathTerm::literal(endpoint))
+    };
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: IntegerAffineWitness {
+                root,
+                target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    let context = PropositionContext::from_value_types([]).unwrap();
+    let assumptions = [premise];
+    verify_bounded_certificate(
+        &context,
+        &goal,
+        &assumptions,
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    elaboration.node(&proof).unwrap();
+    assert!(
+        elaboration.denotation.addition.laws.is_empty(),
+        "closed goals derive from numeral laws, not the law chain"
+    );
+    elaboration.denotation.rule_axioms.len()
+}
+
 #[test]
-fn closed_addends_keep_canonical_values_and_explicit_instance_fallback() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
-    for (left_value, right_value) in [
-        (0, 0),
-        (1, 2),
-        (u128::MAX, 0),
-        (0, u128::MAX),
-        (u128::MAX, u128::MAX),
-    ] {
-        let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
-        let left = literal(left_value);
-        let right = literal(right_value);
-        let root =
-            ScalarTerm::exact_integer_subtract(integer, literal(u128::MAX), right.clone()).unwrap();
-        let premise = Proposition::LessOrEqual(left.clone(), root.clone());
-        let goal = Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::Add(
-                Box::new(mathematical(&left)),
-                Box::new(mathematical(&right)),
+fn closed_addend_bounds_derive_from_numeral_laws() {
+    let wide = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+    for (left, right) in [(0, 0), (1, 2), (u128::MAX, 0), (0, u128::MAX)] {
+        assert_eq!(
+            closed_addend_rule_axioms(
+                wide,
+                false,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
             ),
-            mathematical(&literal(u128::MAX)),
+            0
         );
+    }
+    let signed = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    for (left, right) in [
+        (IntegerValue::Signed(-100), IntegerValue::Signed(10)),
+        (IntegerValue::Signed(-118), IntegerValue::Signed(-10)),
+    ] {
+        assert_eq!(closed_addend_rule_axioms(signed, true, left, right), 0);
+    }
+}
+
+#[test]
+fn closed_addend_false_goal_empties_the_checked_premise() {
+    // `u128::MAX + u128::MAX <= u128::MAX` is a false relation between
+    // numerals; the checked premise `MAX <= MAX - MAX` is contradictory, so
+    // empty elimination derives the goal without an instance axiom.
+    let wide = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+    assert_eq!(
+        closed_addend_rule_axioms(
+            wide,
+            false,
+            IntegerValue::Unsigned(u128::MAX),
+            IntegerValue::Unsigned(u128::MAX),
+        ),
+        0
+    );
+    // The same bridge inside the carrier: `200 + 100 > 255` over u8.
+    let narrow = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    assert_eq!(
+        closed_addend_rule_axioms(
+            narrow,
+            false,
+            IntegerValue::Unsigned(200),
+            IntegerValue::Unsigned(100),
+        ),
+        0
+    );
+}
+
+#[test]
+fn correlated_add_closed_addend_keeps_open_sum_on_the_law_chain() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let context = PropositionContext::from_value_types(
+        (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let endpoint = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
+    let decrement = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
+    let difference =
+        ScalarTerm::exact_integer_subtract(integer, value(4), decrement.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(value(1), value(3));
+    let sum = IntegerMathTerm::Add(
+        Box::new(mathematical(&value(1))),
+        Box::new(mathematical(&decrement)),
+    );
+    let goal = Proposition::IntegerMathLessOrEqual(sum, mathematical(&endpoint));
+    for reversed in [false, true] {
+        let equality = |left, right| {
+            if reversed {
+                Proposition::Equal(right, left)
+            } else {
+                Proposition::Equal(left, right)
+            }
+        };
+        let axioms = [
+            equality(value(4), endpoint.clone()),
+            equality(value(3), difference.clone()),
+        ];
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::IntegerAffineBound {
@@ -373,29 +499,82 @@ fn closed_addends_keep_canonical_values_and_explicit_instance_fallback() {
                     rule: ProofRule::Assumption { index: 0 },
                 }),
                 witness: IntegerAffineWitness {
-                    root,
-                    target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
-                    definition_axioms: Vec::new(),
-                    literal_axioms: Vec::new(),
+                    root: value(3),
+                    target: ScalarTerm::exact_integer_add(integer, value(1), decrement.clone())
+                        .unwrap(),
+                    definition_axioms: vec![1],
+                    literal_axioms: vec![Some(0)],
                 },
             },
         };
-        let context = PropositionContext::from_value_types([]).unwrap();
-        let assumptions = [premise];
         verify_bounded_certificate(
             &context,
             &goal,
-            &assumptions,
-            &[],
+            std::slice::from_ref(&premise),
+            &axioms,
             &proof,
             &mut Budget::default(),
         )
         .unwrap();
         let parameters = BTreeSet::new();
+        let assumptions = [premise.clone()];
         let mut elaboration =
-            Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+            Elaboration::new(&context, &goal, &assumptions, &axioms, &parameters).unwrap();
         elaboration.node(&proof).unwrap();
-        assert_eq!(elaboration.denotation.rule_axioms.len(), 1);
-        assert!(elaboration.denotation.addition.laws.is_empty());
+        assert!(elaboration.denotation.rule_axioms.is_empty());
+        assert_eq!(elaboration.denotation.addition.laws.len(), 2);
     }
+}
+
+#[test]
+fn open_sum_over_closed_difference_keeps_the_instance_fallback() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let left = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
+    let context =
+        PropositionContext::from_value_types([(ValueId::new(1).unwrap(), scalar)]).unwrap();
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let right = literal(7);
+    let root = ScalarTerm::exact_integer_subtract(integer, literal(255), right.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(left.clone(), root.clone());
+    let goal = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&right)),
+        ),
+        mathematical(&literal(255)),
+    );
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: IntegerAffineWitness {
+                root,
+                target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    let assumptions = [premise];
+    verify_bounded_certificate(
+        &context,
+        &goal,
+        &assumptions,
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    elaboration.node(&proof).unwrap();
+    // `add 248 7 = 255` needs a numeral-operation equation, which the fixed
+    // laws do not state; the checked implication stays an explicit axiom.
+    assert_eq!(elaboration.denotation.rule_axioms.len(), 1);
+    assert!(elaboration.denotation.addition.laws.is_empty());
 }

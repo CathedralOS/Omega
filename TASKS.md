@@ -1602,16 +1602,20 @@ Owners include
     and non-strict antitonicity laws. Contradictory closed premises use fixed
     irreflexivity and checked empty elimination. These laws remain explicit
     assumptions. Mathematical subtraction shares that operation. Open addition
-    also retains its operands;
-    correlated lower and upper bounds with an open right addend use fixed
-    addition monotonicity and subtraction cancellation, including exact SSA
-    subtraction definitions and carrier-endpoint equalities. An already admitted
-    open expression stays opaque if composing a child would introduce a resource
-    refusal. Still
-    to do: closed endpoint bridges for correlated addition, other bound-witness forms,
-    multiple-equation or nested transport, and transport outside the supported
-    `Int` vocabulary. Other operations remain opaque; unsupported arithmetic
-    derivations, including `x + 0 = x`, still assume their conclusions.
+    also retains its operands; correlated lower and upper bounds use fixed
+    addition monotonicity and subtraction cancellation whenever the sum and
+    difference stay unreduced, including exact SSA subtraction definitions and
+    carrier-endpoint equalities; conclusions whose endpoints both evaluate are
+    decided on their canonical constants — strict order by the binary numeral
+    laws, equality by `refl`, and a false relation by empty elimination
+    through a checked false premise — so a closed right addend no longer
+    forces an instance axiom. An already admitted open expression stays opaque
+    if composing a child would introduce a resource refusal. Still to do: a
+    numeral-operation equation for an open sum over a closed difference and
+    other bound-witness forms, multiple-equation or nested transport, and
+    transport outside the supported `Int` vocabulary. Other operations remain
+    opaque; unsupported arithmetic derivations, including `x + 0 = x`, still
+    assume their conclusions.
   - Check indexed-scheme applications produced from source declarations, per
     [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
     exact parameters, indices, payloads, case constraints and recursive uses.
