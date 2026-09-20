@@ -2522,6 +2522,17 @@ Owners include
     stay independent of later source writes. The builtin bound-meaning floor
     in `record_dependencies` (`facts/dependencies.rs`) decides what may be a
     range premise. It is not a read-set limit; do not widen it under this item.
+  - The "immutable owned scalar parameters survive renaming and forwarding
+    only with preservation at every hop" contract is pinned by unit tests in
+    `checks/borrows/persistent/tests.rs` (swarm w9): stable-index provenance
+    rebases across a call frame only through immutable local-copy chains onto
+    immutable target parameters, while mutable targets, non-name arguments,
+    arity mismatches, and any unresolvable segment retire the path, and
+    segment overlap stays fail-closed on mixed or mismatched stable indexes.
+    Extending establishment into `overlap/`, `elision`/`view_link`/`loans`,
+    `src/tests/borrow`, `checks/ranges`, `checked_trees/borrow.rs`, and
+    `contracts/calls.rs` was fenced to other workers during that leg; those
+    surfaces remain open for their owners.
 
   Acceptance: `tests/omega` pass canaries exercise each newly supported
   establishment point with disjoint loans, writes, and exclusive call operands;
