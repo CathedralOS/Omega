@@ -2523,20 +2523,30 @@ Owners include
   allocator semantics to the compiler.
 
   `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a
-  fallible request returning and consuming both `Attempt` cases, a `BumpVec`
-  reservation with one optional retained buffer, fallible growth from the tail,
-  reset through either retained-slot case, full original-capacity reuse after
-  returning both allocations without a runtime guard, and one resident
-  place/read/retire; six `fail/memory/bump_allocator_*` controls pin the
-  rejections. Its header records the contract edges found so far. This is source
+  fallible request returning and consuming both `Attempt` cases, tail-ward
+  `release` of the newest allocation while an older stays live (a third
+  request consumes the restored residual and reset still waits for the
+  remaining pair), a `BumpVec` reservation with one optional retained buffer,
+  fallible growth from the tail, reset through either retained-slot case,
+  full original-capacity reuse after returning both allocations without a
+  runtime guard, and one resident place/read/retire; six
+  `fail/memory/bump_allocator_*` controls pin the rejections. Its header
+  records the contract edges found so far — the release chain added one:
+  reclaim is tail-ward only, because the boundary composes adjacent pairs and
+  no gap form expresses an interior hole, so a `Vec<T>`-style owner can
+  shrink this backing only from the newest end. This is source
   checking only: the fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster,
   `Main::main` is empty, and `ExtentPartition`/`ResidentStorage` are
   fixture-local boundary traits with no conformer or selected provider.
   Split/merge conservation and resident establishment are asserted boundary
-  laws, and nothing lowers or executes.
+  laws, and nothing lowers or executes. New expected-reject controls
+  (`source/library/alloc` and `tests/omega/fail/memory`) were claimed by
+  ENTRY-CONTENT-ROOTS this wave; a `release` of a resident-bearing region —
+  the tail-ward analogue of `reset_with_live_resident` — waits on that
+  path release.
 
-  Resume evidence: macOS ARM64, 2026-09-19, `a7e13e3530` plus the reset
-  conservation change: the focused command below accepts the fixture, and
+  Resume evidence: Linux x86-64, 2026-09-20, the tail-ward release chain:
+  the focused command below accepts the fixture, and
   `OMEGA_FAIL_CANARY_FILTER=memory/bump_allocator_` with the
   `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
   selector rejects all six controls. Both use `RUST_MIN_STACK=67108864`.

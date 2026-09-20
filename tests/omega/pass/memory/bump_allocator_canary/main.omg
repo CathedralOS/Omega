@@ -45,6 +45,15 @@
 // Its checked postcondition composes both merge calls and the saved length;
 // `exercise` uses it to allocate the full original capacity without a guard.
 //
+// Reclaim is tail-ward only. `release` merges the newest allocation back
+// into the tail while older regions stay live — the boundary composes only
+// adjacent pairs, and an interior region under a still-live newer
+// allocation has no adjacent `Split` to fold through. That shape is the
+// bump discipline: a `Vec<T>`-style owner can shrink or reset this backing
+// only from the newest end, never from the middle. `release` restores the
+// residual from the recomposed tail's own geometry, the same accounting
+// `reset` uses.
+//
 // Shape decisions a next reader needs:
 //
 // - `Granted` cannot be minted from geometry, and a checked callable may
@@ -71,10 +80,14 @@
 // - An ordinary machine cannot restate the boundary's `separate` law as
 //   its own `ensures`, so `allocate` and `reset` keep the exact
 //   conservation inside their bodies instead of publishing it.
-// - Returning an allocation does not rewind the tail. A returned region
-//   stays a separate qualified value until reset, which consumes every
-//   returned region together with the tail and recomposes the original
-//   range. Because `Extent` is linear, a still-live allocation cannot be
+// - Returning the newest allocation rewinds the tail: `release` merges
+//   that one region back through the adjacent `Split` while older regions
+//   stay live. An interior region cannot return — under a still-live
+//   newer allocation it has no adjacent tail to merge through, and no
+//   gap form exists to express the hole. Everything older instead stays
+//   qualified-separate until `reset`, which consumes every outstanding
+//   region together with the tail and recomposes the original range.
+//   Because `Extent` is linear, a still-live allocation cannot be
 //   dropped to reach reset; a partial reset has no spelling.
 //
 // Discoveries from the fallible-request and container slices, which bound
@@ -267,6 +280,30 @@ reaches ExtentPartition
     });
     let restored_residual: u64 = whole.length;
     Bump { tail: whole, remaining: restored_residual }
+}
+
+// Return the newest tail-adjacent allocation while older allocations stay
+// live. `returned` must still be `Vacant` — a region holding a live
+// resident does not satisfy the parameter. The recomposed tail's own
+// geometry restores the residual; the strategy's custody is conserved by
+// the same merge law `reset` composes.
+machine release(
+    partition: &ExtentPartition,
+    strategy: Bump,
+    returned: Extent in Granted & Vacant
+) -> Bump
+ensures
+    embed(result.tail.length) == embed(returned.length) + embed(strategy.tail.length);
+    embed(result.remaining) == embed(returned.length) + embed(strategy.tail.length)
+reaches ExtentPartition
+{
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let grown: Extent in Granted & Vacant = partition.merge(Split {
+        taken: returned,
+        rest: tail,
+    });
+    let restored_residual: u64 = grown.length;
+    Bump { tail: grown, remaining: restored_residual }
 }
 
 // The reservation half of a `Vec<T>`-style owner over the bump chain: one
@@ -505,6 +542,60 @@ reaches ExtentPartition
     state rejected(strategy: Bump) -> Extent {
         strategy.tail as Extent
     }
+}
+
+// Two coexisting allocations, then a partial cleanup: the newest region
+// returns through `release` while the oldest stays live, a third
+// allocation comes out of the restored tail, and `reset` still waits for
+// the remaining pair — a live first allocation has no spelling here
+// because `Extent` is linear. The third request's bound follows from the
+// residual `release` restored, not a caller-invented floor — the same
+// rule `exercise`'s second request follows — and the closing reset
+// restores the full original capacity for one unguarded reuse.
+machine exercise_release(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition
+{
+    let issued_first: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: capacity },
+        16,
+    );
+    let issued_second: Issued = allocate(
+        partition,
+        Bump {
+            tail: issued_first.strategy.tail,
+            remaining: issued_first.strategy.remaining,
+        },
+        32,
+    );
+    // `issued_first.allocation` stays live while the second region returns.
+    let grown: Bump = release(
+        partition,
+        issued_second.strategy,
+        issued_second.allocation,
+    );
+    let issued_third: Issued = allocate(partition, grown, 24);
+    let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
+    let third_allocation: Extent in Granted & Vacant = issued_third.allocation;
+    let restored: Bump = reset(
+        partition,
+        issued_third.strategy,
+        first_allocation,
+        third_allocation,
+    );
+    let reused: Issued = allocate(partition, restored, capacity);
+    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+        taken: reused.allocation,
+        rest: reused.strategy.tail,
+    });
+    recomposed as Extent
 }
 
 // The reservation container over the chain: open a 16-byte buffer, then
