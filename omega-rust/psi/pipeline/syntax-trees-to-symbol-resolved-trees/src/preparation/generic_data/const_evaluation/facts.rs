@@ -397,6 +397,16 @@ fn evaluate_named_const_domain(
         }
     };
     let Some(domain) = domain else {
+        // A `Carry::*` atom is compiler-owned grant evidence, not a selectable
+        // domain: membership needs an admitted carry receipt the const subject
+        // cannot produce at its declaration site.
+        if authored == "Carry::Portable"
+            || language_core::CarryPermission::from_name(authored).is_some()
+        {
+            return Err(format!(
+                "domain constraint `{authored}` names a compiler carry permission; const declarations cannot supply its boundary-grant evidence",
+            ));
+        }
         return Ok(None);
     };
     let Some(index_parameters) =
@@ -443,6 +453,64 @@ fn module_domain_key(
     }
 }
 
+/// Whether the concrete const carrier satisfies every requirement a domain
+/// declares on its abstract carrier parameter — the checked application
+/// evidence the bound calls for. Builtin scalar carriers are `copy` and ride
+/// the permissive carry policy; a named `data` carrier answers from its
+/// authored `properties`. Any other carrier declines rather than guessing.
+fn carrier_satisfies_declared_bounds(
+    syntax: &SyntaxTrees,
+    carrier: &str,
+    bounds: &syntax_trees::item::DataProperties,
+) -> bool {
+    let properties = primitive_scalar_properties(carrier).or_else(|| {
+        syntax.root_items().find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == carrier => {
+                Some(definition.properties)
+            }
+            _ => None,
+        })
+    });
+    let Some(properties) = properties else {
+        return false;
+    };
+    match bounds.multiplicity {
+        language_core::Multiplicity::Unrestricted
+            if properties.multiplicity != language_core::Multiplicity::Unrestricted =>
+        {
+            return false;
+        }
+        language_core::Multiplicity::Linear
+            if properties.multiplicity != language_core::Multiplicity::Linear =>
+        {
+            return false;
+        }
+        _ => {}
+    }
+    if let Some(required) = bounds.carry {
+        let effective = properties
+            .carry
+            .unwrap_or(language_core::CarryPolicy::STRICT);
+        if !effective.permits(required) {
+            return false;
+        }
+    }
+    true
+}
+
+/// The declared properties every builtin scalar spelling answers: primitives
+/// copy freely and carry every axis permissively.
+fn primitive_scalar_properties(name: &str) -> Option<syntax_trees::item::DataProperties> {
+    match name {
+        "bool" | "f32" | "f64" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+        | "addr" => Some(syntax_trees::item::DataProperties {
+            multiplicity: language_core::Multiplicity::Unrestricted,
+            carry: Some(language_core::CarryPolicy::PERMISSIVE),
+        }),
+        _ => None,
+    }
+}
+
 /// Replay one already-selected domain declaration's facts against `value`
 /// with `self` bound and the application's closed index binders mapped in
 /// `parameter_values` (empty for a monomorphic domain). Unindexed and closed
@@ -485,10 +553,15 @@ fn evaluate_selected_domain_facts(
                 && domain_target_name == Some(parameter.name.as_str())
         });
     let (self_value, self_fields, self_elements) = if let Some(parameter) = carrier_parameter {
-        // Property-bound discharge belongs to typed application checking.
-        // Omitting the abstract `self` binding keeps selected carrier operations
-        // there too, while closed index-only predicates reuse ordinary replay.
-        if parameter.bounds != syntax_trees::item::DataProperties::default() {
+        // An authored bound on the abstract carrier is application evidence:
+        // check the concrete carrier's declared properties instead of
+        // declining outright. An unsatisfied or unprovable bound keeps the
+        // fence, and `self` still binds nothing, so facts that read the
+        // abstract carrier keep needing typed application checking while
+        // closed carrier-independent predicates reuse ordinary replay.
+        if parameter.bounds != syntax_trees::item::DataProperties::default()
+            && !carrier_satisfies_declared_bounds(syntax, carrier, &parameter.bounds)
+        {
             return Ok(None);
         }
         (None, None, None)
