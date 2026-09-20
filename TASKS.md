@@ -6181,7 +6181,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GAMMA-NATIVE-CERTIFICATE-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GAMMA-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GAMMA-PROVISION-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
-- **GAMMA-SEED-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GATE-LOCAL-DRIVER-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **GENERAL-LICM** — mined candidate; verify scope then implement.
