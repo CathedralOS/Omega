@@ -4,7 +4,7 @@ The governing contract is [FORMATION.md](../../../bootstrap/proofs/checker/FORMA
 with literal fields defined by [FORMAT.md](../../../bootstrap/proofs/checker/FORMAT.md).
 
 Run `sh tests/gamma/derivation-formation/run.sh` from the repository root on
-macOS arm64 or Windows x64 in Git Bash. Both routes require Python 3 and the
+macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Both routes require Python 3 and the
 selected checked-in Alpha seed; macOS also requires `codesign`. Windows runtime
 validation is not implied by the portable entrypoint.
 

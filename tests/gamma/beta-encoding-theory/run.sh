@@ -35,8 +35,8 @@ if [ "$ENCODING_GATE" = "full_subject.py" ] || [ "${MUTATION_MODE:-}" = "--self-
     exec python3 -B "$GATE_DIR/$ENCODING_GATE" ${MUTATION_MODE:-}
 fi
 case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Beta encoding theory: unsupported host; needs macOS arm64 or Windows x64" >&2
+    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64|Linux-x86_64) ;;
+    *) echo "Beta encoding theory: unsupported host; needs macOS arm64, Windows x64, or Linux x86-64" >&2
        exit 2 ;;
 esac
 

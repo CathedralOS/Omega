@@ -32,7 +32,7 @@ identities are pinned alongside this generator in `gate.py`; the receipt is
 always produced by the selected Delta compiler, never constructed by the host.
 
 Run from the repository root with Python 3 and a POSIX shell, on macOS arm64
-or Windows x64 in Git Bash:
+or Linux x86-64, or Windows x64 in Git Bash:
 
 ```sh
 sh tests/delta/generated-function-census/run.sh

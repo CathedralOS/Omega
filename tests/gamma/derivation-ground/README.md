@@ -1,7 +1,7 @@
 # Sorted ground terms gate
 
 Run `sh tests/gamma/derivation-ground/run.sh` from the repository root on macOS
-arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha seed
+arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha seed
 are required; macOS additionally requires `codesign`. A portable entrypoint does
 not establish Windows runtime validation.
 

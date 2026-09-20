@@ -21,7 +21,7 @@ expected result is [42](expected.txt).
 ([main.epsilon](main.epsilon)) reachable for refusal coverage:
 `python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --diagnostic`.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-executable/run.sh

@@ -99,7 +99,7 @@ and summary lines — never assigned a judgment to force agreement.
 sh tests/epsilon/refinement/run.sh
 ```
 
-The gate needs macOS arm64 or Windows x64 (the bound Gamma tape runs
+The gate needs macOS arm64, Linux x86-64, or Windows x64 (the bound Gamma tape runs
 natively) and `python3`. The canonical evaluator receipt is reconstructed
 once per run (~5 minutes), the ~120 synthetic-corpus request executions take
 a few minutes, and the D-member leg is the slow part: the edge's per-customer
