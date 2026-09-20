@@ -44,6 +44,14 @@ fn authored_field_equality_and_inequality_supply_no_primitive_guard_bounds() {
                     format!("!(({comparison}) == false)"),
                 ] {
                     let (selected, fallback) = field_guard_environments(&declaration, &condition);
+                    assert!(
+                        selected.ordered_values.is_empty(),
+                        "{condition}: authored equality supplies no builtin order"
+                    );
+                    assert!(
+                        fallback.ordered_values.is_empty(),
+                        "{condition}: authored inequality supplies no complementary builtin order"
+                    );
                     assert_eq!(
                         selected.get("input"),
                         None,
