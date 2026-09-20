@@ -1021,6 +1021,7 @@ fn duplicate_overload_and_visibility_admissions_reject() {
     // Each fixture pins its expected.txt fragment through checked semantics.
     for name in [
         fixture_roster::DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::DUPLICATE_ATTACHED_MACHINE_OVERLOAD_REJECTED,
         fixture_roster::DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
         fixture_roster::DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED,
         fixture_roster::IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,
