@@ -207,8 +207,9 @@ capture pairs <= 60,672*N*N + 5,680*N + 2,980*S + 1,118
 ```
 
 This is a closed admitted-source envelope for the previously open `sum(T)`
-aggregate, not a demonstration that the total fits the 40,265,318-pair arena:
-the envelope already exceeds the arena at `N = 26` even with `S = 0`. The capture
+aggregate, not a demonstration that the total fits the 3,422,453,760-pair
+arena: the envelope already exceeds the arena at `N = 238` even with `S = 0`.
+The capture
 term is therefore no longer an unbounded expression, and the remaining
 allocation question reduces to whether real admitted-source allocation can be
 shown — by a sharper structural argument or by measured evidence — to stay
@@ -244,7 +245,8 @@ The preceding unbatched collector's nonfinal argument continuation allocated
 **five** pairs (two frame, three payload), not six. Counting only product cuts
 2 through 257 gives
 `5 * sum(j=2..257, 65,535 - 254*j - 1) = 41,780,480` pairs, already above
-the 40,265,318-pair arena. Its first 257 product cuts also required at least
+the retired 40,265,318-pair arena (the current profile allocates
+3,422,453,760 pairs). Its first 257 product cuts also required at least
 183,609,879,296 binding comparisons. These are source-derived bounds, not
 observed evaluator exhaustion or measured durations.
 

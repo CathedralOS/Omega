@@ -21,7 +21,7 @@ occurrence, in the same style as the
 It does not re-charge the parser or grammar worklist: their retained nodes,
 spines, and frames are preflighted under the
 [syntax provision](syntax/README.md#syntax-storage), which bounds them below
-2,857,368 pairs at 40 bytes each — already inside the 40,265,318-pair arena.
+2,857,368 pairs at 40 bytes each — already inside the 3,422,453,760-pair arena.
 Envelope and token admission, accessors, and token predicates allocate no
 pairs; each phase's `compiler_complete` or `compiler_failure` outcome is
 charged once in the tables below.

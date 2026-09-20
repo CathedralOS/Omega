@@ -451,7 +451,8 @@ This family does not witness a missing heap outcome. Parser and grammar
 allocation is exactly `40 * (5,658*n + 140)` bytes, so 504 trees fit the syntax
 ledger and 505 cannot complete grammar. Lowering allocates 50,504 pairs per
 tree; syntax, tree lowering, and arithmetic typing together use 30,876,188 pairs
-at 504 trees, below Gamma's 40,265,318-pair provision. That subtotal excludes
+at 504 trees, below the retired 40,265,318-pair provision (the selected
+evaluator now allocates 3,422,453,760 pairs). That subtotal excludes
 catalogs, phase carriers, the fixed main and publication; it is not a complete
 heap upper bound. Larger printed receipts can also encounter the existing
 payload refusal. Do not keep doubling this family as if a heap failure were
