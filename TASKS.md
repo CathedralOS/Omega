@@ -6542,7 +6542,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **KNOWN-BASELINE-FAILURES-DOC-REFRESH** — mined candidate; verify scope then implement.
 - **KNOWN-BASELINE-FAILURES-REFRESH** — mined candidate; verify scope then implement.
 - **LEARNED-COST-MODEL** — mined candidate; verify scope then implement.
-- **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — mined candidate; verify scope then implement.
+- **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — landed. The original Unit-only demand entry point kept a compat surface in `object_artifact/stack_demand.rs`: `derive_unit_stack_demand` forwarding to `derive_stack_demand` and `pub type UnitStackDemand = StackDemand`, both doc-marked "new callers should use" the canonical names with only test callers left. Removed the wrapper, alias, and their `image-emission` re-exports; the two `object_replays.rs` call sites now use `derive_stack_demand`/`StackDemand`. Deliberately retained: `NativeArtifact as RetainedNativeArtifact` (compilation-report), whose compatibility name is pinned by `tests/architecture/layering.rs` and now carries report-domain vocabulary (`CompileOutputKind::RetainedNativeArtifact`, `retained_native_artifact()`); and `legacy_cli_alias` in `representations/target`, a still-live transitional CLI normalization seam rather than a dead wrapper.
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES** — mined candidate; verify scope then implement.
 - **LIFETIME-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.

@@ -8,9 +8,8 @@ use super::{
 };
 use image_emission::{
     ObjectError, build_installation_record, build_object_artifact, decode_installation_record,
-    derive_installation_stack_demand, derive_stack_demand, derive_unit_stack_demand,
-    emit_executable_image, emit_object_container, encode_installation_record,
-    validate_installation_record,
+    derive_installation_stack_demand, derive_stack_demand, emit_executable_image,
+    emit_object_container, encode_installation_record, validate_installation_record,
 };
 use machine_code::{
     InternalCallRelocation, ScalarCallStackEvidence, ScalarConditionalCondition,
@@ -1536,8 +1535,8 @@ fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
     add_empty_unit_cleanup(&mut plan.functions[0]);
     account_x86_unit_call(&mut plan);
     let artifact = build_object_artifact(&plan).expect("accounted Unit artifact");
-    let demand = derive_unit_stack_demand(&artifact, machine_id(2))
-        .expect("acyclic Unit closure stack demand");
+    let demand =
+        derive_stack_demand(&artifact, machine_id(2)).expect("acyclic Unit closure stack demand");
     assert_eq!(demand.psi(), plan.psi);
     assert_eq!(demand.target(), plan.target);
     assert_eq!(demand.entry(), machine_id(2));
@@ -1556,7 +1555,7 @@ fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
     account_x86_unit_call(&mut unaccounted);
     let artifact = build_object_artifact(&unaccounted).expect("partly accounted artifact");
     assert_eq!(
-        derive_unit_stack_demand(&artifact, machine_id(2)),
+        derive_stack_demand(&artifact, machine_id(2)),
         Err(ObjectError::UnaccountedTerminalStack(machine_id(1)))
     );
 }
