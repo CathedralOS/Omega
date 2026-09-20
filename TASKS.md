@@ -9796,7 +9796,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z; pair descriptors under
   COMPOSABLE-PAIR-DESCRIPTORS 23:57Z; `address_fold` under
   REWRITE-VALIDATOR-INDEPENDENCE 00:19Z+1d). Folds into
-  SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice.
+  SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice. Re-verified
+  `5b3caaf337`: fence set moved — `rewrites/mod.rs` + `rewrites/catalog.rs`
+  now sit under GENERAL-SCHEDULE-RELOCATION (~05:01Z), routing still fenced.
 - **SELECTED-OPTIMIZATION-DIRECT-READS.** Mined candidate — resolved,
   covered. Re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL
   surface (the direct-reads leg): `selected_optimization.rs` no longer
