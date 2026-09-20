@@ -839,7 +839,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `records/cli_mvp__linux_x86_64__default.json` measured at
   87d8b22713 on a Linux x86-64 host (dev-profile `omega`, 3 compile +
   5 run samples, exit 0). Remaining: rows for further subjects and
-  nonempty selections through the same `measure` command, and the
+  nonempty selections through the same `measure` command — at
+  e48558bd41 every `depend()`-ing subject fails native realization with
+  `Terminal proposal must retain every integer comparison occurrence
+  exactly once` (the uncovered comparison is std-internal; verified on
+  `cli_mvp` at default and `CopyPropagation`-disabled selections, ~23.5
+  min to rejection), so new linux_x86_64 rows wait on the
+  comparison-occurrence producer covering std plumbing — and the
   windows_x86_64, macos_arm64, linux_arm64, and uefi_x86_64 legs on
   matching hosts — unavailable on this host and recorded as such in
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md).

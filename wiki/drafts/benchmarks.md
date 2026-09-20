@@ -56,6 +56,32 @@ Unavailable host legs, explicit rather than absent:
 - Cross-target compile legs (`--no-run`) measure compile-time and
   code-size but mark `runtime_ms` as `skipped`.
 
+## Frontier: no measurable subject at e48558bd41
+
+A w9 benchmarks session attempted two further `linux_x86_64` rows on
+this host at `e48558bd41` — `cli_mvp` with `CopyPropagation` disabled
+and a `cli_mvp` default-selection re-measure. Both compiles ran ~23.5
+minutes to the same rejection:
+
+```text
+cannot realize accepted package production:
+  Terminal proposal must retain every integer comparison occurrence
+  exactly once
+```
+
+The failure is selection-independent and subject-independent:
+`cli_mvp`'s authored code contains no integer comparisons, so the
+uncovered occurrence lives in the shared `std`/entry plumbing every
+`depend()`-ing subject compiles. The only subjects without a
+`build.omg` dependency — `math_proofs` and `structural_proofs` — emit
+no runtime code (no selected `ProgramEntry`) and one fails earlier at
+checked-call selection. No committed row can be produced at this
+revision; the gate is the comparison-occurrence producer/validator pair
+landed by `29ca2fd46e` (tracked under CRASH-CONTRACT, the same failure
+`euclid_gcd`'s README already records). New `linux_x86_64` rows resume
+the moment `omega --target linux_x86_64 <subject>` publishes an
+artifact again.
+
 ## Reading a row
 
 `key.selection.enabled`/`disabled` name the exact rules in effect, not
