@@ -6132,6 +6132,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **COMPILER-EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; verify scope then implement.
 - **COMPILER-OBSERVATION-OUTPUTS** — mined candidate; verify scope then implement.
 - **COMPILER-OBSERVATION-PRODUCTS** — mined candidate; verify scope then implement.
+  Verified scope: the surface this name points at is deliberately closed —
+  [product boundaries](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
+  state compilation produces only the requested product and diagnostics
+  (`CheckOnly`/`TerminalArtifact`/`RetainedNativeArtifact`/`NativeExecutable`/
+  `ObjectContainer`/`BuildArtifacts` on `CompileReport`), never optional
+  JSON/HTML/debug dumps, disassembly or timing files; "there is no
+  full/output-only observation policy". Per
+  [wiki/spec/build/observations.md](wiki/spec/build/observations.md), build
+  observations are retained execution facts (canonical input identity,
+  attempted operations, output custody) — not a second admission policy or a
+  new product kind, and no source doc authorizes one. The existing
+  observation-carrying products sit under live claims: `compile_report.rs`
+  (CUSTODY-MATRIX-HARNESS-MIGRATION, 23:25Z), `pcc.rs` + crate manifest
+  (PCC-PRODUCT-PUBLICATION, 22:38Z), `terminal_product/integer_comparisons.rs`
+  (BENCHMARK-COMPARISON-OCCURRENCE-GATE, 22:09Z). A new observation product
+  would first need a concrete authorized design. Sibling re-mine name:
+  COMPILER-OBSERVATION-OUTPUTS.
 - **COMPILER-PASS-PROFILE-INSTRUMENTATION** — mined candidate; verify scope then implement.
 - **COMPILER-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
 - **COMPILER-PASS-PROFILING** — mined candidate; verify scope then implement.
