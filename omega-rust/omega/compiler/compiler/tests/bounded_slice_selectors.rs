@@ -11,7 +11,9 @@ use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 #[allow(dead_code)]
 mod native_function;
 
-fn checked_source(source: &str) -> compiler::CheckedCompilation {
+fn check_source(
+    source: &str,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
     let root = std::env::temp_dir().join(format!(
         "omega-bounded-slice-selectors-{}-{}",
@@ -35,12 +37,16 @@ fn checked_source(source: &str) -> compiler::CheckedCompilation {
     let checked = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&main, Some("linux_x86_64"))
-    })
-    .unwrap_or_else(|diagnostics| panic!("bounded endpoint source: {diagnostics:#?}"));
+    });
     std::fs::remove_file(&main).unwrap();
     std::fs::remove_dir(&root).unwrap();
     assert!(!root.exists());
     checked
+}
+
+fn checked_source(source: &str) -> compiler::CheckedCompilation {
+    check_source(source)
+        .unwrap_or_else(|diagnostics| panic!("bounded endpoint source: {diagnostics:#?}"))
 }
 
 #[test]
@@ -57,6 +63,36 @@ fn bounded_generic_endpoints_execute_after_source_removal() {
         }
     "#,
     );
+    assert_endpoint_executes(checked);
+}
+
+#[test]
+fn typed_range_endpoint_drives_inferred_capacity_through_native_execution() {
+    assert_endpoint_executes(checked_source(TYPED_RANGE_SOURCE));
+}
+
+const TYPED_RANGE_SOURCE: &str = r#"
+        machine identity<T>(value: T) -> T { value }
+        machine capacity<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine main() -> u64 {
+            let value: u64[0..=identity<u64>(7)] = 3;
+            capacity(value)
+        }
+    "#;
+
+#[test]
+fn typed_range_endpoint_rejects_value_beyond_computed_bound() {
+    let source = TYPED_RANGE_SOURCE.replace("= 3;", "= 8;");
+    let errors = check_source(&source)
+        .map(|_| ())
+        .expect_err("folded range must still constrain its stored value");
+    assert!(
+        errors.iter().any(|error| error.message.contains("range")),
+        "{errors:#?}"
+    );
+}
+
+fn assert_endpoint_executes(checked: compiler::CheckedCompilation) {
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "main")
         .produce_artifact()
         .expect("bounded endpoint calls publish Terminal");

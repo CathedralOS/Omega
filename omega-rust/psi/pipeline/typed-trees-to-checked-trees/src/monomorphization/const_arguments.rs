@@ -206,7 +206,18 @@ fn validate_arguments(
 ) -> Result<(), Diagnostic> {
     let mut const_index = 0;
     for (ordinal, argument) in arguments.iter().enumerate() {
-        if argument.type_reference.is_valid() {
+        // Proposals are grouped by kind after validation. Named types must
+        // retain their authored slot just like structural types; otherwise
+        // `<7, u8>` can silently become `<u8, 7>`. A const-only template keeps
+        // its more specific "requires a const value" diagnostic below.
+        let named_type = argument.symbol.is_valid()
+            && matches!(
+                program.symbols.get(argument.symbol).kind,
+                SymbolKind::BuiltinType | SymbolKind::Data
+            );
+        if argument.type_reference.is_valid()
+            || (named_type && !candidate.template.type_parameters.is_empty())
+        {
             let template = &program.machines()[candidate.template.machine_index];
             if !program
                 .machine_type_parameters(template)
@@ -214,11 +225,13 @@ fn validate_arguments(
                 .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             {
                 return Err(Diagnostic::error(format!(
-                    "machine `{}` static argument {} requires its declared binder kind, not a structural type argument",
+                    "machine `{}` static argument {} requires its declared binder kind, not a type argument",
                     candidate.template.template_name,
                     ordinal + 1
                 )));
             }
+        }
+        if argument.type_reference.is_valid() {
             if !program
                 .type_reference_table
                 .contains_type_reference(argument.type_reference)
@@ -233,6 +246,24 @@ fn validate_arguments(
                 ));
             }
             continue;
+        }
+        // An unused type binder is still a type, not an unsupplied data
+        // constructor. Check the selected declaration before specialization
+        // can erase this argument from the executable call.
+        if named_type
+            && argument.application.is_none()
+            && program.symbols.get(argument.symbol).kind == SymbolKind::Data
+            && let Some(definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == argument.symbol)
+            && (!definition.type_parameters.is_empty()
+                || !definition.lifetime_parameters.is_empty())
+        {
+            return Err(Diagnostic::error(format!(
+                "static type argument `{}` selects generic data without its complete type/lifetime arguments",
+                definition.name,
+            )));
         }
         let declaration = program.const_declarations().iter().find(|declaration| {
             argument.symbol.is_valid() && declaration.symbol == argument.symbol

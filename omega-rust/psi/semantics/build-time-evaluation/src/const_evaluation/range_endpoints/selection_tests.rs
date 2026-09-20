@@ -104,40 +104,45 @@ fn retain_qualifier_selection(
 
 #[test]
 fn own_call_and_qualifier_selections_reject_before_body_evaluation() {
-    for body in ["256", "1u64 / 0"] {
-        for attach_to_receiver in [false, true] {
-            let (mut program, retained_source, authority) =
-                program_with_retained_requester(&format!(
-                    "data Limits {{}} machine Limits::capacity() -> u64 {{ {body} }}
-                     machine bounded(value: u64[0..=Limits::capacity() + 1]) {{}}"
-                ));
-            let call = pending_endpoints(&program).unwrap().remove(0);
-            let selected = if attach_to_receiver {
-                let ExpressionNode::Call(node) =
-                    program.expression_table.expression(call.expression)
-                else {
-                    panic!("authored call");
+    for (binders, arguments) in [("", ""), ("<T>", "<u64>")] {
+        for body in ["256", "1u64 / 0"] {
+            for attach_to_receiver in [false, true] {
+                let (mut program, retained_source, authority) =
+                    program_with_retained_requester(&format!(
+                        "data Limits {{}} machine Limits::capacity{binders}() -> u64 {{ {body} }}
+                     machine bounded(value: u64[0..=Limits::capacity{arguments}() + 1]) {{}}"
+                    ));
+                let call = pending_endpoints(&program).unwrap().remove(0);
+                let selected = if attach_to_receiver {
+                    let ExpressionNode::Call(node) =
+                        program.expression_table.expression(call.expression)
+                    else {
+                        panic!("authored call");
+                    };
+                    node.receiver
+                } else {
+                    call.expression
                 };
-                node.receiver
-            } else {
-                call.expression
-            };
-            assert!(selected.is_valid());
-            retain_qualifier_selection(&mut program, selected, retained_source);
-            let errors = evaluate_const_range_endpoints(&mut program, Some(Arc::new(authority)))
-                .expect_err("callee authority cannot authorize a retained qualifier occurrence");
-            assert_eq!(errors.len(), 1, "{errors:?}");
-            assert!(
-                errors[0].message.contains("retained-requester")
-                    && errors[0]
-                        .message
-                        .contains("without direct dependency authority"),
-                "{body}: {errors:?}"
-            );
-            assert!(matches!(
-                program.expression_table.expression(call.expression),
-                ExpressionNode::Call(_)
-            ));
+                assert!(selected.is_valid());
+                retain_qualifier_selection(&mut program, selected, retained_source);
+                let errors =
+                    evaluate_const_range_endpoints(&mut program, Some(Arc::new(authority)))
+                        .expect_err(
+                            "callee authority cannot authorize a retained qualifier occurrence",
+                        );
+                assert_eq!(errors.len(), 1, "{errors:?}");
+                assert!(
+                    errors[0].message.contains("retained-requester")
+                        && errors[0]
+                            .message
+                            .contains("without direct dependency authority"),
+                    "{body}: {errors:?}"
+                );
+                assert!(matches!(
+                    program.expression_table.expression(call.expression),
+                    ExpressionNode::Call(_)
+                ));
+            }
         }
     }
 }

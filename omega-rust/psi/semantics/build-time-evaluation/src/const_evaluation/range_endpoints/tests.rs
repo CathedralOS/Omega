@@ -721,6 +721,103 @@ fn fully_supplied_static_applications_fold_through_their_specialized_instance() 
 }
 
 #[test]
+fn closed_type_arguments_use_the_specialized_endpoint_signature() {
+    for (carrier, value) in [("u8", "255"), ("u64", "18446744073709551615")] {
+        let mut program = typed(&format!(
+            "machine identity<T>(value: T) -> T {{ value }}
+             machine keep(value: {carrier}[0..=identity<{carrier}>({value})]) {{}}"
+        ));
+        let pending = pending_endpoints(&program).unwrap();
+        assert_eq!(pending.len(), 1, "closed {carrier} application is pending");
+        evaluate_const_range_endpoints(&mut program, None)
+            .unwrap_or_else(|errors| panic!("{carrier}: {errors:?}"));
+        assert_eq!(
+            validation::closed_integer_range_bound(&program, pending[0].expression)
+                .map(|bound| bound.to_string()),
+            Some(value.to_owned())
+        );
+    }
+}
+
+#[test]
+fn typed_endpoint_applications_preserve_argument_and_contract_rejections() {
+    for (source, fragment) in [
+        (
+            "machine identity<T>(value: T) -> T { value }
+             machine keep(value: u64[0..=identity<u8>(256)]) {}",
+            "cannot land exactly",
+        ),
+        (
+            "machine identity<T>(value: T) -> T { value }
+             machine keep(value: u64[0..=identity<u8>(7u64)]) {}",
+            "destination carrier",
+        ),
+        (
+            "machine identity<T>(value: T) -> T { value }
+             machine keep(value: u64[0..=identity<bool>(true)]) {}",
+            "exact builtin integer carrier",
+        ),
+        (
+            "machine bound<T, const N: u64>() -> u64 { N }
+             machine keep(value: u64[0..=bound<u8>()]) {}",
+            "static arguments",
+        ),
+        (
+            "machine bound<T, const N: u64>() -> u64 requires N <= 7 { N }
+             machine keep(value: u64[0..=bound<u8, 8>()]) {}",
+            "require",
+        ),
+    ] {
+        let mut program = typed(source);
+        let pending = pending_endpoints(&program).unwrap();
+        assert_eq!(pending.len(), 1, "{source}");
+        let errors = evaluate_const_range_endpoints(&mut program, None)
+            .expect_err("specialization cannot erase an endpoint obligation");
+        assert!(
+            errors.iter().any(|error| error.message.contains(fragment)),
+            "expected {fragment}: {errors:?}"
+        );
+        assert!(matches!(
+            program.expression_table.expression(pending[0].expression),
+            ExpressionNode::Call(_)
+        ));
+    }
+}
+
+#[test]
+fn endpoint_type_and_const_arguments_share_the_ordinary_complete_tuple() {
+    let mut program = typed(
+        "data Marker {}
+         machine bound<T, const N: u64>() -> u64 { N }
+         machine keep(value: u64[0..=bound<Marker, 7>()]) {}",
+    );
+    let pending = pending_endpoints(&program).unwrap();
+    assert_eq!(pending.len(), 1);
+    evaluate_const_range_endpoints(&mut program, None).unwrap();
+    assert_eq!(
+        validation::closed_integer_range_bound(&program, pending[0].expression)
+            .map(|bound| bound.to_string()),
+        Some("7".to_owned())
+    );
+    for source in [
+        "machine bound<T, const N: u64>() -> u64 { N }
+         machine keep(value: u64[0..=bound<u8, u64>()]) {}",
+        "machine bound<T, const N: u64>() -> u64 { N }
+         machine keep(value: u64[0..=bound<7, u8>()]) {}",
+        "machine identity<T>(value: T) -> T { value }
+         machine keep<T>(value: u64[0..=identity<T>(7)]) {}",
+        "data Marker<T> { value: T; }
+         machine bound<T, const N: u64>() -> u64 { N }
+         machine keep(value: u64[0..=bound<Marker, 7>()]) {}",
+    ] {
+        assert!(
+            checked_pipeline(source).is_err(),
+            "wrong-kind or open endpoint must reject: {source}"
+        );
+    }
+}
+
+#[test]
 fn inference_needing_and_partial_static_applications_stay_rejected() {
     // An application with no static arguments needs inference and is not an
     // endpoint call at all; a partially supplied one is pending so the
