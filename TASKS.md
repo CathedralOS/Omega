@@ -5672,7 +5672,21 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 
 - **LEARNED-OPTIMIZATION-COST-MODEL.** Learned cost model (includes LEARNED-COST-MODEL).
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE).
-- **GRAPH-COST-MODEL-STUDY.** Graph cost-model study.
+- **GRAPH-COST-MODEL-STUDY.** Study whether typed operation/state graph
+  features can rank optimization candidates before expensive measurement
+  (source: `wiki/drafts/learned_optimization_policy.md`; the policy surface
+  in `abstract-operations-to-abstract-operations`' `pass_manager/external_policy`
+  already projects only independently validated candidates). Study recorded in
+  `wiki/drafts/graph_cost_model_study.md`: the structural substrate exists —
+  `ValidatedCandidateSummary`/`ExternalCandidateFeatures` rows, the
+  `predicted_cost_delta` baseline in `pass_manager/baseline.rs`, and decision
+  recording with replay-on-equality. The missing evidence is measured
+  prediction improvement over that scalar cost delta on a versioned workload
+  corpus. Remaining legs: workload-corpus instrumentation (see
+  WORKLOAD-CORPUS-AND-MULTIVERSIONING), a deterministic graph-feature
+  projection joined under the versioned decision schema, and the empirical
+  comparison itself, which belongs to the Omega-written product compiler per
+  the spec's nonauthoritative-policy clause.
 - **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
 - **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing (workload versioning under multiple specialization variants). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: these are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification; the versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records, and specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question.
 - **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized variants.
