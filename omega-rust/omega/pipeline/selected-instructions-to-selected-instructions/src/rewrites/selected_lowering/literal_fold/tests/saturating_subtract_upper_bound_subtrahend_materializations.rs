@@ -152,7 +152,7 @@ fn saturating_subtract_upper_bound_fold_rewrites_every_unsigned_carrier_consumer
             // materialize row: the dropped minuend `Use` and the
             // consumer's early-clobber mark are gone, and so is every
             // unit effect the saturating form carried.
-            // `DeadConsumerUnitDefs` retires the aarch64 `nzcv`
+            // `RetiredWhenDead` retires the aarch64 `nzcv`
             // definition — dead in these fixtures — and the x86-64
             // `rflags` clobber unconditionally, because dropping a
             // clobber only narrows destruction.
@@ -528,7 +528,7 @@ fn saturating_subtract_upper_bound_fold_rejects_while_another_instruction_reads_
 
 #[test]
 fn saturating_subtract_upper_bound_fold_rejects_a_consumer_implicitly_using_a_unit() {
-    // `DeadConsumerUnitDefs` forbids the consumer's own implicit uses
+    // `RetiredWhenDead` forbids the consumer's own implicit uses
     // too: a use the `MaterializeI64` does not carry would silently stop
     // being observed. Forging the branch row's condition-state use onto
     // the consumer — `nzcv` on aarch64, `rflags` on x86-64 — fails the

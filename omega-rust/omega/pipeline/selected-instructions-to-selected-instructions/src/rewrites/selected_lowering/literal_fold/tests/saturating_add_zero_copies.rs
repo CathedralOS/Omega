@@ -123,7 +123,7 @@ fn saturating_add_zero_fold_rewrites_the_consumer_to_a_surviving_operand_copy() 
             // result `Def` — redensified to `VirtualRegisterId(1)` — from
             // the clean copy row: the consumer's early-clobber mark is
             // gone, and so is every unit effect the saturating form
-            // carried. `DeadConsumerUnitDefs` retires the aarch64 `nzcv`
+            // carried. `RetiredWhenDead` retires the aarch64 `nzcv`
             // definition — dead in these fixtures — and the x86-64
             // `rflags` clobber unconditionally, because dropping a clobber
             // only narrows destruction.
@@ -394,7 +394,7 @@ fn saturating_add_zero_fold_rejects_while_another_instruction_reads_the_defined_
 
 #[test]
 fn saturating_add_zero_fold_rejects_a_consumer_implicitly_using_a_unit() {
-    // `DeadConsumerUnitDefs` forbids the consumer's own implicit uses too:
+    // `RetiredWhenDead` forbids the consumer's own implicit uses too:
     // a use the `CopyI64` does not carry would silently stop being
     // observed. Forging the branch row's condition-state use onto the
     // consumer — `nzcv` on aarch64, `rflags` on x86-64 — fails the gate on
