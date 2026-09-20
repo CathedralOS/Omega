@@ -59,10 +59,11 @@ fn fixed_view_homes(
 /// and a capacity decline — placement pressure or front-end work-budget
 /// exhaustion — hands the still-owned legality to runtime spill with the
 /// declined policy and verdict recorded for replay-bound selection
-/// evidence. Probing is confined to that declared policy: the leaf-local
-/// default path is entered only because unresolved entry transitions still
-/// need the copies this sequence materializes, so a decline there could
-/// never reach spill recovery and keeps the staged `FixedSegments` surface.
+/// evidence. Probing is confined to that declared policy: the
+/// shared-source-exit default path is entered only because unresolved entry
+/// transitions still need the copies this sequence materializes, so a
+/// decline there could never reach spill recovery and keeps the staged
+/// `FixedSegments` surface.
 /// Every other probe outcome falls through to the staged sequence, which
 /// reproduces any non-decline failure unchanged.
 fn fixed_view_allocation(
@@ -140,10 +141,13 @@ pub fn stage_shared_entry_fixed_view_register_allocation(
 }
 
 /// Default-path recovery for unresolved fixed-view transitions. The
-/// immediate-site policy admits the boundaries authenticated by recorded
-/// fixed-site transitions — one copy in the site's own block immediately
-/// before the fixed use of a source-scalar register — so it needs no
-/// declared recovery selection and stays rejected for every other shape.
+/// shared-source-exit policy admits the boundaries authenticated by
+/// recorded fixed-site transitions and makes the placement decision the
+/// site legs could not: boundaries leaving one source segment end through
+/// connectors out of a single block's terminator share one copy there — a
+/// dominating point cheaper than one copy per use — while every other
+/// boundary keeps a copy at its own site. The leg needs no declared
+/// recovery selection and stays rejected for every other shape.
 ///
 /// This staged-homes form keeps post-copy assignment terminal; the production
 /// route composes residual pressure through
@@ -151,17 +155,23 @@ pub fn stage_shared_entry_fixed_view_register_allocation(
 pub fn stage_leaf_local_fixed_view_register_allocation(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<crate::StagedOptimizedRegisterHomesAfterFixedViewCopies, RegisterAllocationError> {
-    fixed_view_homes(legality, FixedViewCopyPolicy::ImmediateBeforeFixedUseV1)
+    fixed_view_homes(
+        legality,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+    )
 }
 
-/// The immediate-site sequence in its composing form: the route the default
-/// allocation path takes on unresolved fixed-site transitions, publishing one
-/// retained allocation whether post-copy homes or the runtime-spill
-/// composition resolved the program.
+/// The shared-source-exit sequence in its composing form: the route the
+/// default allocation path takes on unresolved fixed-site transitions,
+/// publishing one retained allocation whether post-copy homes or the
+/// runtime-spill composition resolved the program.
 pub fn stage_leaf_local_fixed_view_register_allocation_composing(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
-    fixed_view_allocation(legality, FixedViewCopyPolicy::ImmediateBeforeFixedUseV1)
+    fixed_view_allocation(
+        legality,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+    )
 }
 
 /// The declared active-resident route in its composing form: the sweep is

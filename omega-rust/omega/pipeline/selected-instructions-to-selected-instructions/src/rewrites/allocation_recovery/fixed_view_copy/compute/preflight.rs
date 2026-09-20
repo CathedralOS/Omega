@@ -1,6 +1,6 @@
 //! Source-custody preflight, work accounting, and insertion-site discovery.
 use super::{
-    BTreeSet, OptimizationWorkUsage, RegisterInstructionConstraint, RegisterOperandAccess,
+    OptimizationWorkUsage, RegisterInstructionConstraint, RegisterOperandAccess,
     SelectedInstructionId, SelectedTerminator, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
@@ -84,13 +84,15 @@ pub(super) fn work_usage(
     let commits = match policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
         | FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => requirements,
-        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => boundaries
-            .iter()
-            .map(|boundary| boundary.function)
-            .collect::<BTreeSet<_>>()
-            .len()
-            .try_into()
-            .map_err(|_| FixedViewCopyError::WorkOverflow)?,
+        // The shared-exit legs commit one copy per emission the boundary
+        // partition produces — a shared source-exit copy or one site copy
+        // for a boundary that cannot share.
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1
+        | FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => {
+            let references = boundaries.iter().collect::<Vec<_>>();
+            u64::try_from(super::super::emission::copy_emissions(&references).len())
+                .map_err(|_| FixedViewCopyError::WorkOverflow)?
+        }
     };
     Ok(OptimizationWorkUsage {
         rule_evaluations: functions,

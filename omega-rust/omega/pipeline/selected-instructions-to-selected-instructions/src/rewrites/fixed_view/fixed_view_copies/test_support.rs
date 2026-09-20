@@ -12,6 +12,9 @@ fn other_fixed_view_copy_policy(policy: FixedViewCopyPolicy) -> FixedViewCopyPol
         FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => {
             FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
         }
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => {
+            FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+        }
     }
 }
 

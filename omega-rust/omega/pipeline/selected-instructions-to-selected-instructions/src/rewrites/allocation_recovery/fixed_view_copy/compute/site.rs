@@ -10,10 +10,108 @@ use super::{
 };
 use register_model::RegisterConstraintKey;
 
+/// The virtual register a boundary copies from, under the leaf-local or
+/// immediate admission gate: `leaf_local` admits only live-in entry
+/// parameters still carrying their entry fixed view; the immediate form
+/// admits any origin that still names a scalar source value.
+pub(super) fn admitted_source<'a>(
+    function_index: usize,
+    function: &'a selected_instructions::SelectedFunction,
+    boundary: &super::super::evidence::AuthenticatedFixedViewBoundary,
+    leaf_local: bool,
+) -> Result<
+    (
+        &'a selected_instructions::VirtualRegister,
+        semantic_vocabulary::ValueId,
+    ),
+    FixedViewCopyError,
+> {
+    let source_register = function
+        .virtual_registers
+        .get(usize::try_from(boundary.virtual_register.0).map_err(|_| {
+            FixedViewCopyError::UnsupportedSourceRegister {
+                function: function_index,
+                register: boundary.virtual_register.0,
+            }
+        })?)
+        .filter(|register| {
+            register.id == boundary.virtual_register
+                && register.class == boundary.class
+                && (!leaf_local || register.entry_fixed_view == Some(boundary.from_view))
+        })
+        .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
+            function: function_index,
+            register: boundary.virtual_register.0,
+        })?;
+    // V1 admits only live-in entry parameters; the immediate form
+    // admits any origin that still names a scalar source value.
+    let source_value = match (leaf_local, source_register.origin) {
+        (_, VirtualRegisterOrigin::EntryParameter { source_value, .. })
+        | (
+            false,
+            VirtualRegisterOrigin::InstructionResult { source_value, .. }
+            | VirtualRegisterOrigin::BlockParameter { source_value, .. }
+            | VirtualRegisterOrigin::ScalarAbiAddress { source_value, .. },
+        ) => source_value,
+        _ => {
+            return Err(FixedViewCopyError::UnsupportedSourceRegister {
+                function: function_index,
+                register: boundary.virtual_register.0,
+            });
+        }
+    };
+    if !is_u64(source_register.scalar_type) {
+        return Err(FixedViewCopyError::UnsupportedSourceRegister {
+            function: function_index,
+            register: boundary.virtual_register.0,
+        });
+    }
+    Ok((source_register, source_value))
+}
+
+/// The block a boundary's fixed-use site must still be found in, reading the
+/// source register under the destination view — `leaf_local` confines the
+/// site to a leaf `Return` terminator while the immediate form admits the
+/// site's own block at any operand-Use position.
+pub(super) fn destination_block(
+    function_index: usize,
+    function: &selected_instructions::SelectedFunction,
+    boundary: &super::super::evidence::AuthenticatedFixedViewBoundary,
+    instruction: SelectedInstructionId,
+    operand: u16,
+    source: VirtualRegisterId,
+    leaf_local: bool,
+) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    let block = if leaf_local {
+        find_leaf_block(
+            function_index,
+            function,
+            instruction,
+            operand,
+            source,
+            boundary.to_view,
+        )?
+    } else {
+        find_site_block(
+            function_index,
+            function,
+            instruction,
+            operand,
+            source,
+            boundary.to_view,
+        )?
+    };
+    if block != boundary.block {
+        return Err(FixedViewCopyError::SegmentEvidenceMismatch);
+    }
+    Ok(block)
+}
+
 /// Build and apply one copy per authenticated boundary. `leaf_local` selects
 /// the V1 admission gate (live-in entry parameters only, destination confined
 /// to a leaf return block); the immediate form admits any origin that still
 /// names a scalar source value and places the copy in the site's own block.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build_site_copies(
     function_index: usize,
     source_function: &selected_instructions::SelectedFunction,
@@ -43,42 +141,9 @@ pub(super) fn build_site_copies(
         if !destinations.insert((instruction, operand)) {
             return Err(FixedViewCopyError::NonCanonicalCopies);
         }
-        let source_register = source_function
-            .virtual_registers
-            .get(usize::try_from(boundary.virtual_register.0).map_err(|_| {
-                FixedViewCopyError::UnsupportedSourceRegister {
-                    function: function_index,
-                    register: boundary.virtual_register.0,
-                }
-            })?)
-            .filter(|register| {
-                register.id == boundary.virtual_register
-                    && register.class == boundary.class
-                    && (!leaf_local || register.entry_fixed_view == Some(boundary.from_view))
-            })
-            .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
-                function: function_index,
-                register: boundary.virtual_register.0,
-            })?;
-        // V1 admits only live-in entry parameters; the immediate form
-        // admits any origin that still names a scalar source value.
-        let source_value = match (leaf_local, source_register.origin) {
-            (_, VirtualRegisterOrigin::EntryParameter { source_value, .. })
-            | (
-                false,
-                VirtualRegisterOrigin::InstructionResult { source_value, .. }
-                | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-                | VirtualRegisterOrigin::ScalarAbiAddress { source_value, .. },
-            ) => source_value,
-            _ => {
-                return Err(FixedViewCopyError::UnsupportedSourceRegister {
-                    function: function_index,
-                    register: boundary.virtual_register.0,
-                });
-            }
-        };
-        if !is_u64(source_register.scalar_type)
-            || copy_row.operands[0].class != source_register.class
+        let (source_register, source_value) =
+            admitted_source(function_index, source_function, boundary, leaf_local)?;
+        if copy_row.operands[0].class != source_register.class
             || copy_row.operands[1].class != source_register.class
         {
             return Err(FixedViewCopyError::UnsupportedSourceRegister {
@@ -103,31 +168,15 @@ pub(super) fn build_site_copies(
             )?,
             from_view: boundary.from_view,
             to_view: boundary.to_view,
-            insertion_block: {
-                let block = if leaf_local {
-                    find_leaf_block(
-                        function_index,
-                        source_function,
-                        instruction,
-                        operand,
-                        source_register.id,
-                        boundary.to_view,
-                    )?
-                } else {
-                    find_site_block(
-                        function_index,
-                        source_function,
-                        instruction,
-                        operand,
-                        source_register.id,
-                        boundary.to_view,
-                    )?
-                };
-                if block != boundary.block {
-                    return Err(FixedViewCopyError::SegmentEvidenceMismatch);
-                }
-                block
-            },
+            insertion_block: destination_block(
+                function_index,
+                source_function,
+                boundary,
+                instruction,
+                operand,
+                source_register.id,
+                leaf_local,
+            )?,
             before_instruction: instruction,
             destinations: vec![FixedViewCopyDestination {
                 site: boundary.site,

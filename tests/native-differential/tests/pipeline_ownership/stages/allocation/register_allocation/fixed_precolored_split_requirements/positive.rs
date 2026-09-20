@@ -123,7 +123,7 @@ fn chained_forwarded_parameter_completes_the_leaf_local_fixed_view_sequence() {
         let custody = homes.custody().source().source();
         assert_eq!(
             custody.policy(),
-            crate::tests::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+            crate::tests::FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1
         );
         assert_eq!(custody.copy_count(), 0);
     }

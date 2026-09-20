@@ -431,28 +431,39 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   homes, rematerialization ahead of private storage, and the fixed/precolored
   interval stages on the default route already exist. Fixed-use splitting in
   `selected-instructions-to-selected-instructions`:
-  `src/rewrites/allocation_recovery/fixed_view_copy/` now has two legs —
+  `src/rewrites/allocation_recovery/fixed_view_copy/` now has three legs —
   `LeafLocalBeforeFixedUseV1` copies a `u64` `EntryParameter` live-in before a
-  `Return` operand in a leaf block, and `ImmediateBeforeFixedUseV1` copies any
+  `Return` operand in a leaf block, `ImmediateBeforeFixedUseV1` copies any
   scalar source-value origin in the boundary's own block immediately before
   each pinned operand-Use site (ordinary or terminator position), admitting
-  chained pinned segments. Allocation legality licenses every operand Use
-  site with all other views pinned on the register as candidate sources, so a
-  value used at two incompatible operand views allocates through recorded
-  split copies and post-copy reanalysis instead of failing
-  `UnresolvedEntryTransitions`; independent replay rebuilds each site copy
-  from current facts. Splitting still fires only on declared fixed-use
-  boundaries — there are no allocation-chosen split points, and other
-  pressure cases go to rematerialization or runtime spill.
+  chained pinned segments, and `SharedSourceExitBeforeFixedUseV1` — the
+  default path — partitions the boundaries of one register, source segment
+  and domain, and view transition, and emits one copy per partition unit:
+  boundaries whose recorded fragments all enter through connectors out of a
+  single block's shared terminator share one copy at that dominating
+  source-segment end, cheaper than one copy per use, while every boundary
+  lacking that connector evidence keeps a copy at its own site. The declared
+  `SharedEntryAfterCompareBeforeBranchV1` selection runs the same partition
+  under its entry-parameter admission gate — refusing any boundary the
+  partition cannot share — rather than its former whole-function
+  compare/branch/leaf template. Allocation legality licenses every operand
+  Use site with all other views pinned on the register as candidate sources,
+  so a value used at two incompatible operand views allocates through
+  recorded split copies and post-copy reanalysis instead of failing
+  `UnresolvedEntryTransitions`; independent replay rebuilds each emission —
+  shared exit or site copy — from current facts. Splitting still fires only
+  on declared fixed-use boundaries — there are no allocation-chosen split
+  points inside a pressure region, and other pressure cases go to
+  rematerialization or runtime spill.
 
   Remaining work:
 
   - Split a live range at allocation-chosen points and home each segment
     independently, across a pressure region rather than only at pinned
-    operand uses: choose the split placement (a dominating point when one
-    copy is cheaper than one per use), insert the connecting copies through
-    the selected rewrite owner, then accept homes only over fresh liveness,
-    ranges and legality.
+    operand uses: the shared-exit leg already chooses one dominating copy
+    over a fixed-use fan-out; what remains is choosing split placement and
+    connecting copies inside a pressure region with no pinned sites, then
+    accepting homes only over fresh liveness, ranges and legality.
   - Lift the limits in `src/analyses/fixed_precolored_split_requirements/`.
     Tied registers, early-clobber domains, and ranges whose fragments join,
     cycle or lack a source connector reject as `UnsupportedTiedRegister`,
@@ -473,14 +484,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   analyses reject. `SPILL-REALIZATION` owns private storage; this item adds
   no slot.
 
-  Flag: one of the two allocation-recovery selections,
-  `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`, is a whole-function
-  template. `fixed_view_copy/compute/shared_entry.rs` requires exactly two
-  boundaries of one `u64` entry parameter, an entry block holding a single
-  `CompareI64Zero`, and a `ConditionalBranch` to two distinct return leaves.
-  General splitting with a copy-placement decision (one copy at a dominating
-  point when that is cheaper than one per use) should replace this selection,
-  not gain a sibling per CFG arrangement.
+  Resolved flag: the `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`
+  whole-function template is replaced by the shared-source-exit partition —
+  `fixed_view_copy/emission.rs` groups boundaries by register, source segment
+  and domain, and view transition and emits one copy per unit, so the
+  declared selection keeps its entry-parameter gate while the copy-placement
+  decision (one copy at a dominating shared segment end when cheaper than one
+  per use) lives in the default path, not in a sibling per CFG arrangement.
 
 - **FRAME-LAYOUT.** Complete exact nonzero-frame realization. Red-zone policy,
   stack probing, unwind information, stable-address loans, the general-call
