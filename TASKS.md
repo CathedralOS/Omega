@@ -7977,7 +7977,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PHYSICAL-ENTRY-END-TO-END** — mined candidate; verify scope then implement.
 - **PIN-CONNECTED-PIPELINE-ROUTE** — mined candidate; verify scope then implement.
 - **PIPELINE-CRATE-SWEEP** — mined candidate; verify scope then implement.
-- **PIPELINE-DOC-LINK-DRIFT** — mined candidate; verify scope then implement.
+- **PIPELINE-DOC-LINK-DRIFT.** Resolved — the drift audit is landed and
+  extended: `route_conformance.rs` (added for PIPELINE-ROUTE-CONFORMANCE-
+  AUDIT at `1ccc88fb51`) already pins that every pipeline.md link target
+  resolves to a real file; the unpinned surface was `#fragment` targets, which
+  `resolve()` strips — a renamed or deleted heading drifted silently. This
+  slice adds `every_doc_link_fragment_resolves_to_a_heading`: every
+  `target#fragment` in pipeline.md must resolve to a markdown file containing
+  a heading whose GitHub anchor form (lowercase, `-`/`_` kept, spaces→`-`)
+  equals the fragment. Verified on this revision: `cargo nextest run
+  -p omega-architecture-test --test representation_ownership -E
+  'test(~route_conformance)' 6/6 pass on Linux x86-64; both current fragment
+  links (`domains.md#aliases-and-identity`,
+  `effects.md#published-identity-and-installation-rows`) resolve. Remaining
+  leg: fragments in other docs linking *into* pipeline.md (e.g.
+  `TASKS_OPTIMIZER.md` → `#connected-program-route`) are outside this audit's
+  document scope.
 - **PIPELINE-ORPHAN-ELIMINATION** — mined candidate; verify scope then implement.
 - **PIPELINE-OWNER-CONSOLIDATION** — mined candidate; verify scope then implement.
 - **PIPELINE-PLACEMENT-AUDIT** — mined candidate; verify scope then implement.
