@@ -8,6 +8,7 @@
 // two generators and is the atom from which the Real quotient relation will
 // be built.
 use omega::language::core::rat;
+use omega::language::core::nat_metric;
 
 machine cauchy_at<machine Sequence, machine Modulus>(
     precision: Nat,
@@ -150,3 +151,71 @@ ensures
     let right: Rat = Right(right_index);
     rat_close_triangle_split(left, middle, right, precision);
 }
+
+// HETEROGENEOUS MODULUS COMPOSITION.  `converges_together_at_triangle_split`
+// transports closeness across one shared modulus; the quotient relation's
+// transitivity instead has to compose two independent witnesses: Left~Middle
+// certified by LeftModulus and Middle~Right by RightModulus.  The composed
+// modulus for a requested precision is the doubled-precision maximum
+// `nat_max(LeftModulus(2e), RightModulus(2e))` -- beyond it, both premises hold
+// at 2e and the rational triangle law closes the gap at e.  A machine-level
+// combinator keeps the composed modulus a static machine, so it occupies a
+// `where machine` binder exactly like an atomic modulus.
+machine doubled_nat_max_modulus<machine FirstModulus, machine SecondModulus>(
+    precision: Nat
+) -> Nat
+where machine FirstModulus(precision: Nat) -> Nat;
+where machine SecondModulus(precision: Nat) -> Nat;
+{
+    let doubled_precision: Nat = add(precision, precision);
+    let first_threshold: Nat = FirstModulus(doubled_precision);
+    let second_threshold: Nat = SecondModulus(doubled_precision);
+    transition { _ -> (nat_max(first_threshold, second_threshold)) }
+}
+
+// Threshold transfer for the composed modulus: an index that has crossed both
+// doubled-precision thresholds has crossed their nat_max.  This discharges the
+// composed-modulus admissibility facts of the heterogeneous transitivity
+// theorem from the per-modulus premises' thresholds: the caller supplies both
+// premise thresholds at 2e and receives the composed threshold at e.
+machine doubled_nat_max_threshold<
+    machine FirstModulus,
+    machine SecondModulus
+>(
+    precision: Nat,
+    index: Nat
+)
+where machine FirstModulus(precision: Nat) -> Nat;
+where machine SecondModulus(precision: Nat) -> Nat;
+requires
+    (saturating_sub(
+        FirstModulus(add(precision, precision)),
+        index
+    )) == Nat::Zero;
+    (saturating_sub(
+        SecondModulus(add(precision, precision)),
+        index
+    )) == Nat::Zero
+ensures
+    (saturating_sub(
+        doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision),
+        index
+    )) == Nat::Zero
+{
+    nat_max_le(
+        FirstModulus(add(precision, precision)),
+        SecondModulus(add(precision, precision)),
+        index
+    );
+}
+
+// NEXT STEP (unproved at this writing): the heterogeneous transitivity theorem
+// itself, `converges_together_at_composed` -- Left~Middle at 2e under
+// LeftModulus and Middle~Right at 2e under RightModulus entail Left~Right at e
+// under ComposedModulus.  Two checker capabilities still gate it, identically
+// to `converges_together_at_triangle_split` above: a static-machine call's
+// field projection `(Middle(middle_index)).den` cannot discharge
+// rat_close_triangle_split's positivity requires (only a parameter's `.den`
+// reaches the discharge site today), and an ensures naming the
+// machine-parameterized `converges_together_at` application is outside every
+// entailment tier (math roster N3).
