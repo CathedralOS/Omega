@@ -3094,16 +3094,19 @@ Owners include
   token/owner/shape space, alpha-normalized by each binder's first-occurrence
   position so `combine<T,U>(T,U)` and `combine<A,B>(B,A)` collide at the
   second declaration instead of surfacing as use-site ambiguity. Use sites select
-  by operand type, and the checked stage rewrites each resolved binary use
-  into an ordinary call on the declaration's entry state
-  (`typed-trees-to-checked-trees/src/operators/token_bound_machine_calls.rs`).
+  by operand type, and the checked stage rewrites each resolved binary or
+  indexed use into an ordinary call on the declaration's entry state
+  (`typed-trees-to-checked-trees/src/operators/token_bound_machine_calls.rs`),
+  normalizing `[..]` endpoints first: an omitted start supplies literal zero
+  to an integer start parameter and an inclusive end supplies its `end + 1`
+  form gated on an integer end operand, while open-ended uses still reject.
   Token-bearing `boundary machine` signatures lower to the existing boundary
   slot, bare bodyless signatures are admitted only by exact catalog custody,
   and a bodyless nonboundary machine rejects at its declaration. That does not
   establish the contract: the introducer still parses, 208 `operator`
-  declarations remain in `.omg` sources, only binary positions have body
-  supply, both pass canaries are checked-only, and the three settled rules
-  below are not enforced.
+  declarations remain in `.omg` sources, only binary and indexed positions
+  have body supply, both pass canaries are checked-only, and the three
+  settled rules below are not enforced.
 
   Remaining work:
 
@@ -3173,8 +3176,12 @@ Owners include
     noncommutative operation stays usable without rewrites; the constant-three
     operation shows AC implies neither zero identity nor integer addition.
   - Body supply outside binary expressions. `token_bound_machine_calls.rs`
-    rejects `[]`, `[..]` and match-arm equality selections of a token-bearing
-    machine, and a token use inside a build machine fails closed. Indexing uses
+    binds attached `[]` uses and closed `[..]` uses (`start..end`, `..end`,
+    `start..=end`, `..=end`) under the spec's range normalization, but
+    match-arm equality selections still reject, open-ended `start..`/`..`
+    uses still reject because the omitted endpoint is the collection's
+    length -- which a declared `[..]` telescope cannot form -- and a token
+    use inside a build machine fails closed. Indexing uses
     [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges):
     route attached `[]`/`[..]` through the loan formation named method calls
     use. Re-author the recorded failure
