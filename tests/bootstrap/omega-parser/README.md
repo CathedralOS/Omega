@@ -17,7 +17,12 @@ Both routes require `python3`, Git's Unix tools on Windows, and the correspondin
 checked-in Alpha seed. macOS also requires `codesign`. The shell wrapper uses
 the shared bootstrap paths and evaluator-stamping helpers; Python owns the
 same framing, invocation, and comparison logic on both hosts. No PowerShell
-installation is required. Windows execution has not yet been validated.
+installation is required. On the Windows route `python3` resolves to a
+Windows interpreter, which cannot open MSYS virtual paths; the wrapper
+translates the gate script, scratch directory, and execution-driver paths to
+Windows form via `cygpath` before invoking it, and the sourced materializers
+require the interpreter under its `python3` name. Windows execution has not
+yet been validated.
 
 The host-free identity leg validates everything except the two evaluator
 executions — the bound materializers, every pinned member/entry/customer
