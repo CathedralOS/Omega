@@ -6939,7 +6939,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION** — mined candidate; verify scope then implement.
 - **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF** — mined candidate; verify scope then implement.
-- **PACKAGE-INPUTS-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PACKAGE-INPUTS-PSI-FAILURES** — mined candidate; verify scope then implement.
 - **PACKAGE-LOCK-SOURCE-IDENTITY** — mined candidate; verify scope then implement.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; verify scope then implement.
