@@ -28,7 +28,7 @@ pub use call_keys::{
 };
 pub use constraint_catalog::{
     Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog,
-    validate_aarch64_register_constraint_catalog,
+    aarch64_register_constraint_catalog_for, validate_aarch64_register_constraint_catalog,
 };
 pub use float_scalar_calls::*;
 pub use indirect_results::*;
@@ -51,4 +51,7 @@ pub use operation_keys::{
     AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64,
     AARCH64_SUBTRACT_I64_IMMEDIATE,
 };
-pub use physical_model::{aarch64_fixed_register_view, aarch64_physical_register_model};
+pub use physical_model::{
+    aarch64_fixed_register_view, aarch64_physical_register_model,
+    canonical_aarch64_physical_register_model_identity, validated_aarch64_physical_register_model,
+};

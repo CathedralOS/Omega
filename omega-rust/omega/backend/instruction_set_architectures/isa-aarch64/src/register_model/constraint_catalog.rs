@@ -23,8 +23,9 @@ use crate::register_model::{
     AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_normalized_foreign_call_keys,
     aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
     aarch64_darwin_normalized_foreign_call_keys, aarch64_darwin_register_call_keys,
-    aarch64_darwin_register_unit_call_keys, aarch64_physical_register_model,
-    aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
+    aarch64_darwin_register_unit_call_keys, aarch64_register_aggregate_call_keys,
+    aarch64_register_aggregate_return_keys, canonical_aarch64_physical_register_model_identity,
+    validated_aarch64_physical_register_model,
 };
 use crate::register_model::{float_scalar_calls, indirect_results, mixed_calls};
 use crate::{
@@ -891,12 +892,12 @@ pub fn validate_aarch64_register_constraint_catalog(
             Aarch64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
         );
     }
-    if model.model() != &aarch64_physical_register_model() {
+    if model.identity() != canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel);
     }
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(Aarch64RegisterConstraintCatalogValidationError::Structural)?;
-    let canonical = aarch64_register_constraint_catalog(model);
+    let canonical = aarch64_register_constraint_catalog_for(model);
     // Structural validation requires strictly sorted, unique actual keys;
     // the canonical factory sorts its rows before publication.
     let actual_rows = &validated.catalog().constraints;
@@ -923,4 +924,24 @@ pub fn validate_aarch64_register_constraint_catalog(
         );
     }
     Ok(validated)
+}
+
+/// Borrow the canonical catalog when `model` is the canonical AArch64
+/// model, and build a fresh owned catalog for any other validated model.
+///
+/// The catalog is a pure function of the validated model. Encode and
+/// validate paths run once per instruction row; reusing the process-wide
+/// canonical instance keeps each row at a hash lookup instead of rebuilding
+/// the full inventory.
+pub fn aarch64_register_constraint_catalog_for(
+    model: &ValidatedPhysicalRegisterModel,
+) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
+    static CANONICAL: std::sync::OnceLock<RegisterConstraintCatalog> = std::sync::OnceLock::new();
+    if model.identity() == canonical_aarch64_physical_register_model_identity() {
+        std::borrow::Cow::Borrowed(CANONICAL.get_or_init(|| {
+            aarch64_register_constraint_catalog(validated_aarch64_physical_register_model())
+        }))
+    } else {
+        std::borrow::Cow::Owned(aarch64_register_constraint_catalog(model))
+    }
 }

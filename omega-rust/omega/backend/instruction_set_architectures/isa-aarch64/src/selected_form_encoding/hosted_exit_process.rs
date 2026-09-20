@@ -76,7 +76,7 @@ fn request(
     operands: &[RegisterViewId],
 ) -> Result<u8, Aarch64SelectedFormEncodingError> {
     if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
-        || physical.model() != &crate::aarch64_physical_register_model()
+        || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || kind != SelectedInstructionKind::HostedExitProcessI32
         || alternative
             != (MachineAlternativeKey {
