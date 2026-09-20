@@ -134,17 +134,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   [promotions/ControlFlowCleanup.md](omega-rust/omega/representations/optimization-core/promotions/ControlFlowCleanup.md)
   and
   [promotions/DeadPureScalarElimination.md](omega-rust/omega/representations/optimization-core/promotions/DeadPureScalarElimination.md),
-  each recording that rule's coverage state with `Approved status`, owner
-  approval, and measurement evidence still `PENDING`. The
-  DeadPureScalarElimination record's target-matrix field cites
-  `no_selection_golden/rollback.rs::dead_scalar_rollback_rejoins_exact_ordinary_path_on_every_target`,
-  which retains byte-identical artifacts under the exact-rule rollback on
-  every hosted target for a program carrying dead scalar work.
-  `omega-architecture-test`'s
+  each recording that rule's coverage state with a completed `Rollback
+  evidence` field (the every-target rejoin legs in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`)
+  and `Approved status`, owner approval, and measurement evidence still
+  `PENDING` — the measurement leg waits on the native realization failure the
+  BENCHMARKS item records (every `depend()`-ing subject rejects at the
+  integer-comparison-occurrence gate). `omega-architecture-test`'s
   `exact_rule_rollout_is_complete_and_promotion_gated` keeps the inventory and
-  every staged record in step and resolves each record's backticked
-  `path`/`path::subject` evidence citations against the checkout, so a
-  promotion leg passes only on artifacts that exist and name their subjects.
+  every staged record in step, requires the `Rollback evidence` field for
+  promotion, confines every `path`/`path::subject` citation to
+  repository-relative names with nonempty subjects, and rejects contradictory
+  duplicate label lines, so a promotion leg passes only on the contract's full
+  evidence set.
   Acceptance: the command passes from a clean checkout and every promoted
   exact rule has the evidence the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
