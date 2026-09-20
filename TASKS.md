@@ -6563,7 +6563,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Delta compiler and executing it — live under `tests/epsilon` (DELTA-COMPILER
   claim, expires ~21:48Z) and require a seed-execution host (macOS arm64 or
   Windows x64). No unowned in-fence slice; this row records the resolution.
-- **DELTA-EPSILON-CLOSURE-COMPILE.** Mined candidate; verify scope then implement.
+- **DELTA-EPSILON-CLOSURE-COMPILE.** Mined candidate; scope verified — a named
+  sibling stub of EPSILON-EVALUATOR-BOOTSTRAP-PATH's resolved surface
+  (`83f5477357`, which lists this row among the same-path re-mines). The
+  compile leg is exactly the unclosed leg that resolution assigns elsewhere:
+  compiling the bound evaluator closure (plus `execution_driver.delta`)
+  through the bound Delta compiler — `tests/epsilon`, held by the
+  DELTA-COMPILER claim — and the Delta-compiler run itself requires a
+  seed-execution host (macOS arm64 or Windows x64, unavailable on Linux
+  x86-64 by landed design). Everything this row could own in-fence is
+  already done (epsilon-identity materialization/refusal, source-closure
+  manifest check) or owned (tests/epsilon legs). No independent slice exists.
 - **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
 - **DELTA-EVALUATOR-EXHAUSTION-TRIAGE** — mined candidate; verify scope then implement.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; verify scope then implement.
