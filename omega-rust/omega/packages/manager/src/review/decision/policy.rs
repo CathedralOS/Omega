@@ -5,6 +5,7 @@
 //! reconstructing the compiler result or manufacturing evidence of review.
 
 use super::ReviewOnlyRootPolicyDisposition;
+use crate::review::timings;
 use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
 use std::fmt;
 
@@ -126,6 +127,7 @@ pub fn resolve_package_policy_decisions(
     comparison: [u8; 32],
     decisions: &[PackagePolicyDecision],
 ) -> Result<PackagePolicyResolution, PackagePolicyDecisionError> {
+    let _stage = timings::stage("policy_decision_resolution");
     use PackagePolicyDecisionError as Error;
     use PackagePolicyDecisionSubject as Subject;
 

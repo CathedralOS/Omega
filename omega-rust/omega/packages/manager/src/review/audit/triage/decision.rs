@@ -3,6 +3,7 @@
 use crate::declarations::PackageKey;
 use crate::review::candidate::PackageReviewEvidence;
 use crate::review::compare::changed_review_risk;
+use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
@@ -105,6 +106,7 @@ impl CompilerReviewTriage {
 /// authority and opaque representation-TCB rows recommend audit immediately;
 /// the absence of an old package is not itself a conflict.
 pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> CompilerReviewTriage {
+    let _stage = timings::stage("triage");
     CompilerReviewTriage {
         decisions: candidate
             .reviews()
@@ -141,6 +143,7 @@ pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> Com
 pub fn triage_update_without_admission_baseline(
     candidate: &CompilerIssuedPackageReviewSet,
 ) -> CompilerReviewTriage {
+    let _stage = timings::stage("triage");
     CompilerReviewTriage {
         decisions: candidate
             .reviews()
@@ -180,6 +183,7 @@ pub(crate) fn triage_review_update_records<B: PackageReviewEvidence>(
     candidate: &CompilerIssuedPackageReviewSet,
     unavailable_baseline_sources: &BTreeSet<PackageKey>,
 ) -> CompilerReviewTriage {
+    let _stage = timings::stage("triage");
     let baseline_by_name = reviews_by_name(baseline);
     let candidate_by_name = reviews_by_name(candidate.reviews());
     let names = baseline_by_name

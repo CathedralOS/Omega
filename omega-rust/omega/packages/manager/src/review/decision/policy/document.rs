@@ -9,6 +9,7 @@ use super::{
     PackagePolicyResolution, ReviewOnlyRootPolicyDisposition, resolve_package_policy_decisions,
 };
 use crate::review::PackagePolicyChangeSet;
+use crate::review::timings;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +46,7 @@ pub fn render_package_policy_review(
     changes: &PackagePolicyChangeSet,
     maximum_bytes: usize,
 ) -> Result<String, PackagePolicyReviewError> {
+    let _stage = timings::stage("review_document_rendering");
     Ok(render::template(changes, maximum_bytes)?.text)
 }
 
@@ -57,6 +59,7 @@ pub fn recover_package_policy_review(
     text: &str,
     maximum_bytes: usize,
 ) -> Result<PackagePolicyResolution, PackagePolicyReviewError> {
+    let _stage = timings::stage("review_document_recovery");
     use PackagePolicyReviewError as Error;
     if text.len() > maximum_bytes {
         return Err(Error::ByteLimit);
