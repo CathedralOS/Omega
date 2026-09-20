@@ -10803,6 +10803,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling re-mine names on this cluster: SELECTED-REWRITE-CATALOG-DISPOSITION,
   -OR-DELETE, -ROUTE, -WIRING, SELECTED-REWRITES-CATALOG-OR-DELETE (delete
   leg landed: literal_compare/literal_arithmetic removed), POC-SELECTED-REWRITE-CATALOG.
+  This session (zergling-z21, base `a0b906db93` + work branch): retired
+  `rewrites/literal_minuend` as a second producer — its fold
+  (`MaterializeI64` feeding operand-0 `Use` of `CompareI64` → swapped
+  `CompareI64Immediate`, equality-sensing-unit-reader audit) is already
+  executed by pair rule `COMPARE_LEFT_IMMEDIATE_U12` under selection
+  `SelectedIncomingU12CompareImmediate`, and the module had no route or
+  live caller. Deleted `literal_minuend.rs` + `literal_minuend/`, its
+  `ValidatedSelectedAnalysis` impls in `analyses/selected_input.rs`, its
+  catalog row (catalog now 49 rows / 34 orphaned under
+  EXACT-MACHINE-SIMPLIFICATIONS), and pinned all five retired paths in
+  `optimizer_source_organization::retired_paths`. Verified: `cargo
+  nextest run -p selected-instructions-to-selected-instructions` 1520/1520,
+  `cargo clippy --all-targets` clean, `fmt --check` clean,
+  omega-architecture-test optimizer_source_organization pass. Not covered
+  by the pair rule and lost with the module: literal `0` at the minuend
+  selecting dedicated `CompareI64Zero` — a codegen refinement, no semantic
+  producer gap (the pair rule emits `CompareI64Immediate(_, 0)`); recovery
+  belongs to the DECLARATIVE-PEEPHOLES pair-widening leg as a
+  `COMPARE_LEFT_ZERO` grammar. Next acceptance: the vocabulary member +
+  catalog executor for the remaining 34 orphans still needs the
+  `optimization-core` naming handoff (WORKSPACE-ROLLOUT per the parent
+  row).
 - **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
   at 6d00135b89 — re-mines the keep-or-delete leg of the
   SELECTED-REWRITE-CATALOG cluster; the verdict is recorded on sibling
