@@ -8151,8 +8151,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the crate surface is held under sibling claims this wave (POC-REWRITE-
   ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG, SELECTED-OPTIMIZATION-ANCESTRY-
   REMOVAL). No independent slice exists; the row folds into the cluster.
-- **SELECTED-REWRITE-CATALOG-EXECUTION** — mined candidate; verify scope then implement.
-  Verified scope: re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
+- **SELECTED-REWRITE-CATALOG-EXECUTION.** Mined candidate; scope verified
+  at 6d00135b89 — re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
   (TASKS_OPTIMIZER.md:641) — "give the stage an execution route under
   catalogs and independent replay": each of the 35 `Orphaned` rewrite
   modules in `rewrites/module_catalog.rs` needs a catalog entry executed by
@@ -8169,9 +8169,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling re-mine names on this cluster: SELECTED-REWRITE-CATALOG-DISPOSITION,
   -OR-DELETE, -ROUTE, -WIRING, SELECTED-REWRITES-CATALOG-OR-DELETE (delete
   leg landed: literal_compare/literal_arithmetic removed), POC-SELECTED-REWRITE-CATALOG.
-- **SELECTED-REWRITE-CATALOG-OR-DELETE** — mined candidate; verify scope then implement.
-- **SELECTED-REWRITE-CATALOG-ROUTE** — mined candidate; verify scope then implement.
-- **SELECTED-REWRITE-CATALOG-WIRING** — mined candidate; verify scope then implement.
+- **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
+  at 6d00135b89 — re-mines the keep-or-delete leg of the
+  SELECTED-REWRITE-CATALOG cluster; the verdict is recorded on sibling
+  SELECTED-REWRITE-CATALOG-DISPOSITION (Resolved): the delete leg is
+  already exercised (SELECTED-REWRITES-CATALOG-OR-DELETE removed
+  `rewrites/literal_compare` + `rewrites/literal_arithmetic`, roots pinned
+  in `optimizer_source_organization::retired_paths`), and disposition is
+  indivisible from the catalog leg it feeds — folds into
+  SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS.
+- **SELECTED-REWRITE-CATALOG-ROUTE.** Mined candidate; scope verified at
+  6d00135b89 — re-mines the route leg of the same cluster: the stage
+  entrance (`optimize_selected_instructions` /
+  `run_selected_lowering_optimizations` in
+  `selected-instructions-to-selected-instructions/src/selected_optimization.rs`)
+  currently runs only the identity route and the selected-lowering pair
+  folds; each of the 35 `Orphaned` modules in
+  `rewrites/module_catalog.rs` needs a catalog entry dispatched there.
+  Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
+  EXACT-MACHINE-SIMPLIFICATIONS; implementing surfaces fenced (rewrites/
+  {mod.rs,module_catalog.rs} under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z,
+  pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS 23:57Z).
+- **SELECTED-REWRITE-CATALOG-WIRING.** Mined candidate; scope verified at
+  6d00135b89 — re-mines the wiring leg of the same cluster: retained
+  rewrite records in `rewrites/mod.rs`'s catalog plus the stage-entrance
+  dispatch. Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
+  EXACT-MACHINE-SIMPLIFICATIONS; no independent slice (see sibling
+  SELECTED-REWRITE-CATALOG-DISPOSITION's owner-chain routing).
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
 - **SELECTIVE-ARITHMETIC-EXPANSION** — scope verified 2026-09-20: this mined
   stub re-covers open work already owned by **MATCH-SELECTIVE-LOWERING**. Its
