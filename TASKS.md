@@ -7274,7 +7274,51 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
   REMOVAL, STAGED-ANCESTRY-ELIMINATION.
 - **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
-- **STAGE-ENTRANCE-ORPHAN-AUDIT** — mined candidate; verify scope then implement.
+- **STAGE-ENTRANCE-ORPHAN-AUDIT** — mined candidate.
+  Audit executed at `280c4a83b6` (the residual leg of
+  PIPELINE-OWNER-CONSOLIDATION: "a public stage entrance that no
+  coordinator or successor stage calls is an orphan output"). Method: for
+  every `omega-rust/{psi,omega}/pipeline/*` crate, every `pub fn` was
+  cross-referenced against all callers outside its own crate and outside
+  its own tests. Findings beyond the three named families (the ~40
+  `rewrites/` entrances, 18 `unsequenced_spill_stages/`, and the
+  `optimized_semantic_wrapper_{encoding,object}` entrances — all still
+  caller-less at this rev):
+  - `selected-instructions-to-register-homes`: `stage_fixed_view_
+    register_allocation` (assignment/recovery.rs) — a second allocation
+    stage entrance re-exported beside `stage_register_allocation`; no
+    caller.
+  - `symbol-resolved-trees-to-typed-trees`: `lower_symbol_resolved_trees_
+    owned` — owned-input sibling of the used `lower_symbol_resolved_trees`
+    entrance; def + lib.rs re-export only.
+  - `checked-trees-to-lowered-psi`: uncalled `lower_*`/`install_*`/`produce_*`
+    proof sub-passes re-exported at lib.rs
+    (`lower_content_conservation_plan`,
+    `install_non_executable_quotient_correspondences`,
+    `lower_boundary_content_guarantees`,
+    `lower_content_identity_reshuffles`,
+    `lower_content_partition_compositions`,
+    `lower_float_meaning_{equality,projection}`,
+    `produce_checked_canonical_integer_proof`).
+  - `abstract-operations-to-abstract-operations`: a large specialization
+    proposal/validation surface (`propose_*`,
+    `validate_*_specialization`, `bind_revision`/`commit_revision`,
+    `replay_psi_registry`, `compute_cold_parallel`, …) is def+re-export
+    only; `optimization-unit-semantics` touches a same-named
+    `validate_state_argument_specialization`, so per-name audit needed
+    before any removal.
+  - `abstract-operations-to-target-operations`: `lower_to_target_
+    operations_and_native_callbacks` is re-exported at lib.rs beside the
+    used `lower_optimized_to_target_operations` entrance but is still
+    delegated to internally — competing public entrance, not dead code.
+  Test-support `*_for_test`/`corrupt_*` helpers and crate-internal
+  methods are excluded (not stage entrances). Remediation belongs to the
+  sibling rows: POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*,
+  POC-WRAPPER-OBJECT-PLACEMENT (live claims: PIPELINE-WRAPPER-OBJECT-
+  ORPHAN 22:46Z) plus a new slice for the entrances named above; the
+  coordinator should also retire ORPHAN-ENTRANCE-AUDIT, ORPHAN-STAGE-
+  ENTRANCE-AUDIT, ORPHAN-STAGE-OUTPUT-AUDIT, STAGE-ANCESTRY-DIRECT-READS,
+  STAGE-CRATE-OWNERSHIP-AUDIT as re-mines of this same sweep.
 - **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **STAGED-LOCAL-CRASH-LOWERING** — mined candidate; verify scope then implement.
 - **STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION** — mined candidate; verify scope then implement.
