@@ -238,7 +238,8 @@ class HostRowMatrix(unittest.TestCase):
         windows = next(
             line for line in output.splitlines() if "windows_x86_64" in line
         )
-        self.assertIn("unavailable (os.wait4 absent on Windows)", windows)
+        self.assertIn("measurable", windows)
+        self.assertNotIn("unavailable", windows)
         uefi = next(
             line for line in output.splitlines() if "uefi_x86_64" in line
         )

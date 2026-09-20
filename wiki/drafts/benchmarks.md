@@ -41,9 +41,7 @@ vocabulary: `measured` quotes the record's own status and headline
 number; `measurable` legs run on any build host that invokes
 `measure`; `pending <host>` needs the named runtime environment;
 `unavailable (<reason>)` carries the structural gap the leg cannot
-report a number for — `os.wait4` absent on Windows keeps the
-`windows_x86_64` peak-RSS leg unavailable even once a Windows host
-measures it, and `uefi_x86_64` runtime waits on QEMU or hardware.
+report a number for — `uefi_x86_64` runtime waits on QEMU or hardware.
 Records for targets outside `HOST_LEGS` append after the catalogued
 rows. Regenerate with the `matrix` command after a row lands and paste
 the table between the markers; `tools/tests/test_benchmark.py` fails
@@ -52,11 +50,11 @@ when this block drifts.
 <!-- benchmark-matrix:start -->
 | Target | Host leg | Subject | Selection | compile_time_ms | peak_memory_bytes | code_size_bytes | runtime_ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| linux_arm64 | Linux ARM64 host | — | — | measurable | measurable | measurable | pending Linux ARM64 host |
+| linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28473.3 ms | measured 150872064 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 375860 ms | measured 237670400 B compile | measured 8192 B | measured 1.42244 ms |
 | macos_arm64 | macOS ARM64 host | — | — | measurable | measurable | measurable | pending macOS ARM64 host |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
-| windows_x86_64 | Windows x86-64 host | — | — | measurable | unavailable (os.wait4 absent on Windows) | measurable | pending Windows x86-64 host |
+| windows_x86_64 | Windows x86-64 host | — | — | measurable | measurable | measurable | pending Windows x86-64 host |
 | uefi_x86_64 | QEMU or UEFI hardware | — | — | measurable | pending (run leg needs a UEFI runtime) | measurable | unavailable (needs QEMU or UEFI hardware) |
 | cross_platform_cli | build host | — | — | measurable | measurable | measurable | pending build host |
 | local_unchecked | build host | — | — | measurable | measurable | measurable | pending build host |
