@@ -65,6 +65,7 @@ fn execution() -> (TerminalExecution, Operation) {
         block_id,
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id,
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
@@ -95,6 +96,7 @@ fn execution() -> (TerminalExecution, Operation) {
                 target: block_id,
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: place(2),
                     path: Vec::new(),

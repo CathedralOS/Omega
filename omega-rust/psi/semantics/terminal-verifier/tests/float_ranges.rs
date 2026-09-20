@@ -38,6 +38,7 @@ fn constant_delivery_module(range: ScalarFloatRange, argument_bits: u64) -> Term
                 result: OperationResult::Scalar(declaration(call_result, f64())),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: range.machine,
                     arguments: vec![caller_constant],
                     requirement_obligations: Vec::new(),
@@ -71,6 +72,7 @@ fn forwarding_module(
             result: OperationResult::Scalar(declaration(call_result, f64())),
             kind: OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee_range.machine,
                 arguments: vec![caller_parameter],
                 requirement_obligations: Vec::new(),
@@ -145,6 +147,7 @@ fn float_module(
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -175,6 +178,7 @@ fn float_module(
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -406,6 +410,7 @@ fn f32_carrier_retains_binary32_endpoints() {
 fn empty_contract(raw: u64) -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(raw).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),

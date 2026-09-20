@@ -92,6 +92,7 @@ fn empty_machine(
         entry: block_id(id),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(id),
             parameters: Vec::new(),
@@ -103,6 +104,7 @@ fn empty_machine(
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(id).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

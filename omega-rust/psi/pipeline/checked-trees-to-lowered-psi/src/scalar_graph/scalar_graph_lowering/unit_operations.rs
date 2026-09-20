@@ -6,6 +6,20 @@ use super::{
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredUnitCall;
+
+/// The target machine's published erased-proof arity: the entry plan's
+/// roster length.
+fn target_erased_proof_arity(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<usize, LoweringError> {
+    Ok(
+        UnitBody::find(&checked.facts.flow.terminal_unit_effects, machine)?
+            .entry()?
+            .erased_proof_parameters
+            .len(),
+    )
+}
 use crate::unit::attached_unit::bodies::UnitBody;
 use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
 
@@ -55,6 +69,7 @@ pub(super) fn prepare(
         service_reach,
         scalar_arguments,
         erased_scalar_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
     } = operation
@@ -64,6 +79,19 @@ pub(super) fn prepare(
     if !erased_scalar_arguments.is_empty() {
         return unsupported("scalar graph Unit call has no erased argument lane");
     }
+    if erased_proof_arguments.len() != target_erased_proof_arity(checked, *target_machine)? {
+        return unsupported("scalar Unit call erased proof roster drifted from its target");
+    }
+    let erased_proof_arguments = erased_proof_arguments
+        .iter()
+        .map(|term| {
+            crate::scalar_graph::scalar_contracts::checked_proof_term(
+                checked,
+                term,
+                &state.erased_proof_parameters,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let body = UnitBody::find(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
     let target = body.entry()?;
     if body.result()? != checked_trees::CheckedControlResultPlan::Unit
@@ -288,6 +316,7 @@ pub(super) fn prepare(
                     },
                 )
                 .collect(),
+            erased_proof_arguments,
             structural_arguments: lowered_arguments,
             // The admission guard above keeps authored crash contracts out of
             // this lane, but an inferred ceiling is body evidence, not an

@@ -25,6 +25,7 @@ pub(super) fn local_cse_verified() -> VerifiedPsiOptimizationUnit {
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
@@ -77,6 +78,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
@@ -167,6 +169,7 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
@@ -246,6 +249,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
         vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: child,
                 parameters: Vec::new(),
@@ -263,6 +267,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -274,6 +279,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_371).unwrap(),
                     target: child,
@@ -335,6 +341,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
         vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: join,
                 parameters: vec![declaration(join_input, integer)],
@@ -362,6 +369,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: left,
                 parameters: Vec::new(),
@@ -388,6 +396,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_466).unwrap(),
                     target: join,
@@ -398,6 +407,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -417,6 +427,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     condition,
                     when_true: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_467).unwrap(),
                         target: left,
@@ -425,6 +436,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     },
                     when_false: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_468).unwrap(),
                         target: right,
@@ -435,6 +447,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: right,
                 parameters: Vec::new(),
@@ -461,6 +474,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_470).unwrap(),
                     target: join,

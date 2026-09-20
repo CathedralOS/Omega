@@ -371,11 +371,13 @@ fn cross_block_literal_requires_dominating_establishment() {
         target: id(901),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(901),
         parameters: Vec::new(),
@@ -405,6 +407,7 @@ fn cross_block_literal_requires_dominating_establishment() {
             target: id(902),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -413,11 +416,13 @@ fn cross_block_literal_requires_dominating_establishment() {
             target: id(901),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(902),
         parameters: Vec::new(),
@@ -428,6 +433,7 @@ fn cross_block_literal_requires_dominating_establishment() {
             target: id(901),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },

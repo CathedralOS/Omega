@@ -155,6 +155,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
@@ -267,6 +268,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
@@ -454,6 +456,7 @@ pub(super) fn effect_module() -> TerminalModule {
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -464,6 +467,7 @@ pub(super) fn effect_module() -> TerminalModule {
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 arguments: Vec::new(),
                                 callee: machine_id(2),
                                 structural_arguments: vec![StructuralArgument {
@@ -523,6 +527,7 @@ pub(super) fn effect_module() -> TerminalModule {
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -669,6 +674,7 @@ pub(super) fn payloadless_call_module() -> TerminalModule {
         entry: block_id(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -702,6 +708,7 @@ pub(super) fn payloadless_call_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -761,6 +768,7 @@ pub(super) fn unit_module() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
@@ -772,6 +780,7 @@ pub(super) fn unit_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -451,6 +451,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
                 callee,
                 arguments,
                 erased_arguments,
+                erased_proof_arguments,
                 structural_arguments,
                 claim_transfers,
                 requirement_obligations,
@@ -468,6 +469,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
                 || !target_helper_ids.insert(*callee)
                 || !arguments.is_empty()
                 || !erased_arguments.is_empty()
+                || !erased_proof_arguments.is_empty()
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
                 || !requirement_obligations.is_empty()

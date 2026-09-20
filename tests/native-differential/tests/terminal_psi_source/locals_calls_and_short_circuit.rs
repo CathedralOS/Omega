@@ -200,6 +200,7 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
         callee,
         arguments,
         erased_arguments: _,
+        erased_proof_arguments: _,
         requirement_obligations,
         crash_continuations,
     } = &call.kind

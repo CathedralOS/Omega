@@ -37,6 +37,7 @@ fn successor() -> SuccessorEdge {
         target: BlockId::new(2).unwrap(),
         arguments: vec![ValueId::new(2).unwrap(), ValueId::new(1).unwrap()],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![view_argument(2), view_argument(1)],
         trivial_affine_discards: Vec::new(),
     }
@@ -74,6 +75,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
             entry,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -85,6 +87,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
             target,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: target,
                 parameters,
                 structural_parameters,
@@ -267,6 +270,7 @@ fn jump_swaps_views_and_scalars_once_after_fuel_replenishment() {
         target: successor.target,
         arguments: successor.arguments,
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: successor.structural_arguments,
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -283,6 +287,7 @@ fn conditional_only_snapshots_selected_arm_and_resumes_once() {
                 target: BlockId::new(999).unwrap(),
                 arguments: vec![ValueId::new(999).unwrap()],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![view_argument(999)],
                 ..successor()
             },
@@ -293,6 +298,7 @@ fn conditional_only_snapshots_selected_arm_and_resumes_once() {
                 target: BlockId::new(999).unwrap(),
                 arguments: vec![ValueId::new(999).unwrap()],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![view_argument(999)],
                 ..successor()
             },

@@ -70,6 +70,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     };
     let successor = |edge, target| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: id(edge),
         target: id(target),
         arguments: Vec::new(),
@@ -80,6 +81,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(101),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -128,6 +130,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(102),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -152,6 +155,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(103),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

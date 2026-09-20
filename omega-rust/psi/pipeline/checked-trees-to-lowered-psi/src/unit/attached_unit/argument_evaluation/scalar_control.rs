@@ -52,7 +52,8 @@ impl Evaluation {
         )
         .with_arrays(&self.arrays)
         .with_cases(&self.cases)
-        .with_fields(&self.record_fields);
+        .with_fields(&self.record_fields)
+        .enter_proof_scope(&self.erased_proof_formals);
         let mut arm = |destination: &CheckedScalarBranchDestination| {
             let CheckedScalarBranchDestination::Return {
                 statement_ordinal,
@@ -114,6 +115,7 @@ impl Evaluation {
                     target,
                     arguments: crate::scalar_graph::scalar_computations::parameters(&source_types),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: self.proof_formal_forwarding(),
                 }
             }
             CheckedScalarStateTerminator::Conditional {
@@ -133,11 +135,13 @@ impl Evaluation {
                         true_target,
                         crate::scalar_graph::scalar_computations::parameters(&source_types),
                         Vec::new(),
+                        self.proof_formal_forwarding(),
                     ),
                     (
                         false_target,
                         crate::scalar_graph::scalar_computations::parameters(&source_types),
                         Vec::new(),
+                        self.proof_formal_forwarding(),
                     ),
                     when_false,
                     &mut expansion,
@@ -184,11 +188,13 @@ impl Evaluation {
                             target,
                             crate::scalar_graph::scalar_computations::parameters(&source_types),
                             Vec::new(),
+                            self.proof_formal_forwarding(),
                         ),
                         (
                             next,
                             crate::scalar_graph::scalar_computations::parameters(&source_types),
                             Vec::new(),
+                            self.proof_formal_forwarding(),
                         ),
                         &mut expansion,
                     )?;
@@ -197,6 +203,7 @@ impl Evaluation {
                         structural_effects: Vec::new(),
                         parameter_types: source_types.clone(),
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         bindings: Vec::new(),
                         terminator,
                     });
@@ -207,6 +214,7 @@ impl Evaluation {
                     target: next,
                     arguments: crate::scalar_graph::scalar_computations::parameters(&source_types),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: self.proof_formal_forwarding(),
                 }
             }
             _ => return unsupported("ordered scalar completion requires a returning tail"),
@@ -216,6 +224,7 @@ impl Evaluation {
             structural_effects: Vec::new(),
             parameter_types: source_types,
             erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             terminator,
         });

@@ -325,6 +325,7 @@ pub(crate) fn materialize_dynamic_realizations(
                     id: block,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations,
                     terminator,
                 }],

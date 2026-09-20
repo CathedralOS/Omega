@@ -22,6 +22,7 @@ fn block_unit_module() -> TerminalModule {
         &mut caller.blocks[1].terminator,
         Terminator::Jump {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(150).unwrap(),
             target: block,
             arguments: Vec::new(),
@@ -36,6 +37,7 @@ fn block_unit_module() -> TerminalModule {
     );
     let mut arrived = terminal_psi::Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block,
         parameters: Vec::new(),
         structural_parameters: vec![parameter],

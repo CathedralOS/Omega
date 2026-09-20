@@ -926,6 +926,7 @@ fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
         callee,
         arguments,
         erased_arguments: _,
+        erased_proof_arguments: _,
         structural_arguments,
         claim_transfers,
         returned_claim_transfers,

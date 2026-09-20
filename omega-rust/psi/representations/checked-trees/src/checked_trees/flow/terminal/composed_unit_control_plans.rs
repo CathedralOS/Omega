@@ -8,6 +8,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
 };
+use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
@@ -68,6 +69,9 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Erased formals whose carriers are proof-only and admit no scalar
+    /// lane. The contract term lane carries their semantic type identities.
+    pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     /// Lowered `requires` clauses for a non-entry state, in authored contract
     /// order. `None` marks a clause outside the admitted closed namespace;
     /// emission admits the state only when every row is `Some`.

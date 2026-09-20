@@ -222,6 +222,7 @@ pub(super) fn emit(
                 target,
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             })
@@ -230,6 +231,7 @@ pub(super) fn emit(
             id: evaluation.current,
             parameters: std::mem::take(&mut evaluation.parameters),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: std::mem::take(&mut evaluation.block_structural_parameters),
             operations: operations[evaluation.operation_start..].to_vec(),
             terminator: Terminator::Conditional {
@@ -270,6 +272,7 @@ pub(super) fn emit(
             id: selected_evaluation.current,
             parameters: selected_evaluation.parameters,
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: selected_evaluation.block_structural_parameters,
             operations: operations[selected_evaluation.operation_start..].to_vec(),
             terminator,

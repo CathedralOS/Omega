@@ -154,6 +154,7 @@ pub(crate) fn build_check_facts(
         program,
         &operators,
         &validation_facts.exact_integer_casts,
+        &mut values.proof_terms.terms,
     );
     // One frame resolver serves the whole immutable fact-construction window:
     // flow classification, terminal ranking projections, termination progress
@@ -180,6 +181,7 @@ pub(crate) fn build_check_facts(
         &operators,
         &flow,
         &mut values.scalar_expressions,
+        &mut values.proof_terms.terms,
         &validation_facts.exact_integer_casts,
     );
     (values.scalar_computations, values.structural_values) =

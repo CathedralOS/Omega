@@ -380,6 +380,7 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
             entry: id(102, BlockId::new),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id(102, BlockId::new),
                 parameters: Vec::new(),
@@ -391,6 +392,7 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(104, semantic_vocabulary::ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

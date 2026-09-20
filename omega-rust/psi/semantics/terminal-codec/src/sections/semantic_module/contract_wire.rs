@@ -13,6 +13,9 @@ use terminal_psi::{
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_proposition, encode_proposition};
 use crate::sections::semantic_module::machine_wire::{decode_declarations, encode_declarations};
+use crate::sections::semantic_module::proof_term_wire::{
+    decode_proof_formals, decode_proof_terms, encode_proof_formals, encode_proof_terms,
+};
 use crate::sections::semantic_module::scalar_term_wire::{
     decode_scalar_terms, encode_scalar_terms,
 };
@@ -32,6 +35,7 @@ pub(crate) fn encode_successor_edge(
         writer.id(*argument);
     }
     encode_scalar_terms(writer, &successor.erased_arguments)?;
+    encode_proof_terms(writer, &successor.erased_proof_arguments)?;
     encode_structural_arguments(writer, &successor.structural_arguments)?;
     writer.len(
         "conditional successor trivial affine discards",
@@ -54,6 +58,7 @@ pub(crate) fn encode_contract(
         "erased scalar formals",
         &contract.erased_scalar_formals,
     )?;
+    encode_proof_formals(writer, &contract.erased_proof_formals)?;
     writer.len("requires", contract.requires.len())?;
     for proposition in &contract.requires {
         encode_proposition(writer, proposition, 0)?;
@@ -136,6 +141,7 @@ pub(crate) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<Successor
         target,
         arguments,
         erased_arguments: decode_scalar_terms(reader)?,
+        erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
         trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
     })
@@ -145,6 +151,7 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
     let id = reader.id("ContractId")?;
     let crash_routes = decode_crash_routes(reader)?;
     let erased_scalar_formals = decode_declarations(reader)?;
+    let erased_proof_formals = decode_proof_formals(reader)?;
     let requires_count = reader.count()?;
     let mut requires = Vec::new();
     for _ in 0..requires_count {
@@ -184,6 +191,7 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
         id,
         crash_routes,
         erased_scalar_formals,
+        erased_proof_formals,
         requires,
         ensures,
         outcome_specific_ensures,

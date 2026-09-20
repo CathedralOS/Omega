@@ -660,6 +660,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             entry: BlockId::new(10).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(10).expect("block"),
                 parameters: Vec::new(),
@@ -681,6 +682,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(10).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -787,6 +789,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
             entry: BlockId::new(20).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(20).expect("block"),
                 parameters: Vec::new(),
@@ -808,6 +811,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(20).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1044,6 +1048,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             entry: BlockId::new(30).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(30).expect("block"),
                 parameters: Vec::new(),
@@ -1065,6 +1070,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(30).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

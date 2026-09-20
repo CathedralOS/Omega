@@ -43,6 +43,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -53,12 +54,14 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
                 target: block_id(3),
                 arguments: vec![value_id(10)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: vec![place_id(4)],
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
@@ -135,6 +138,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -147,6 +151,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
                     target: block_id(3),
                     arguments: vec![value_id(10)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: vec![place_id(4)],
                 },
                 when_false: SuccessorEdge {
@@ -155,12 +160,14 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
                     target: block_id(4),
                     arguments: vec![value_id(10)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: vec![place_id(2)],
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
@@ -177,6 +184,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {
@@ -341,6 +349,7 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(2),
             structural_arguments: vec![StructuralArgument {
@@ -446,6 +455,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     *crash_continuations = vec![route(30)];
     let bridge = |block, parameter, edge| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(block),
         parameters: vec![declaration(parameter)],
@@ -456,6 +466,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             target: completion.id,
             arguments: vec![value_id(parameter)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -463,6 +474,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     module.machines[0].blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -475,6 +487,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
                     target: block_id(101),
                     arguments: vec![value_id(11)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -483,6 +496,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
                     target: block_id(102),
                     arguments: vec![value_id(11)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
@@ -517,6 +531,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             target: block_id(102),
             arguments: vec![value_id(50)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -525,6 +540,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             target: block_id(103),
             arguments: vec![value_id(50)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };

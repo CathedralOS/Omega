@@ -30,6 +30,7 @@ fn successor(edge: u64, target: u64, view: Option<u64>) -> SuccessorEdge {
         target: id(target, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: view
             .into_iter()
             .map(|place| StructuralArgument {
@@ -116,6 +117,7 @@ fn current_observations() -> TerminalModule {
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(5, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -125,6 +127,7 @@ fn current_observations() -> TerminalModule {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),

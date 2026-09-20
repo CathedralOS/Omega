@@ -738,6 +738,7 @@ fn exact_shared_cohort_observation(
         callee,
         arguments,
         erased_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -748,6 +749,7 @@ fn exact_shared_cohort_observation(
     };
     if !arguments.is_empty()
         || !erased_arguments.is_empty()
+        || !erased_proof_arguments.is_empty()
         || !matches!(structural_arguments.len(), 2 | 3)
     {
         return false;
@@ -1030,6 +1032,107 @@ pub(crate) fn validate_erased_argument_terms(
             })?;
     }
     Ok(())
+}
+
+/// Every ProofTerm in an erased-proof-argument lane must be well formed and
+/// each `Formal` it carries must name an erased proof formal already in scope
+/// for the caller (`formals_in_scope`). At each roster position the actual's
+/// carrier type identity must equal the callee formal's declared identity;
+/// `Construction` fields recurse with the structural field's own identity left
+/// to the term's internal consistency, since no proof-type catalog exists at
+/// this level. Proof actuals never introduce carriers the caller does not
+/// already declare.
+pub(crate) fn validate_erased_proof_terms(
+    formals_in_scope: &[terminal_psi::ErasedProofFormal],
+    expected: &[terminal_psi::ErasedProofFormal],
+    actuals: &[semantic_vocabulary::ProofTerm],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    if actuals.len() != expected.len() {
+        return Err(ModuleError::ErasedProofArgumentArityMismatch {
+            operation,
+            expected: expected.len(),
+            actual: actuals.len(),
+        });
+    }
+    for (expected_formal, term) in expected.iter().zip(actuals) {
+        validate_erased_proof_term(
+            formals_in_scope,
+            Some(expected_formal.type_identity.as_str()),
+            term,
+            operation,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_erased_proof_term(
+    formals_in_scope: &[terminal_psi::ErasedProofFormal],
+    expected_type: Option<&str>,
+    term: &semantic_vocabulary::ProofTerm,
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    term.validate().map_err(ModuleError::MalformedProposition)?;
+    match term {
+        semantic_vocabulary::ProofTerm::Construction {
+            type_identity,
+            fields,
+            ..
+        } => {
+            if let Some(expected) = expected_type.filter(|expected| type_identity != *expected) {
+                return Err(ModuleError::ErasedProofArgumentTypeMismatch {
+                    operation,
+                    expected: expected.to_owned(),
+                    actual: type_identity.clone(),
+                });
+            }
+            for field in fields {
+                validate_erased_proof_term(formals_in_scope, None, &field.term, operation)?;
+            }
+            Ok(())
+        }
+        semantic_vocabulary::ProofTerm::Formal { position } => {
+            let formal = formals_in_scope
+                .get(usize::try_from(*position).unwrap_or(usize::MAX))
+                .ok_or(ModuleError::ErasedProofArgumentUnknownFormal { operation })?;
+            if let Some(expected) =
+                expected_type.filter(|expected| formal.type_identity != *expected)
+            {
+                return Err(ModuleError::ErasedProofArgumentTypeMismatch {
+                    operation,
+                    expected: expected.to_owned(),
+                    actual: formal.type_identity.clone(),
+                });
+            }
+            Ok(())
+        }
+    }
+}
+
+/// The erased proof formals in scope for one operation: the erased-proof
+/// roster of the block that owns the operation, or empty when the operation
+/// belongs to no block.
+pub(crate) fn proof_formals_in_scope(
+    machine: &TerminalMachine,
+    operation: OperationId,
+) -> &[terminal_psi::ErasedProofFormal] {
+    machine
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .operations
+                .iter()
+                .any(|candidate| candidate.id == operation)
+        })
+        .map(|block| {
+            if block.erased_proof_formals.is_empty() {
+                machine.contract.erased_proof_formals.as_slice()
+            } else {
+                block.erased_proof_formals.as_slice()
+            }
+        })
+        .unwrap_or(&[])
 }
 
 pub(crate) fn machine_value_types(

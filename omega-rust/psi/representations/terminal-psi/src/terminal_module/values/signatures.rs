@@ -19,6 +19,19 @@ impl ValueDeclaration {
     }
 }
 
+/// One erased formal whose carrier is proof-only data (for example a
+/// recursive proof type with no scalar layout). It has no `ValueId`, no
+/// runtime storage, and no operand lane; `ProofTerm::Formal` actuals name it
+/// positionally within the owning `erased_proof_formals` roster.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErasedProofFormal {
+    /// Dense zero-based position of the erased authored parameter, used only
+    /// for diagnostics.
+    pub source_position: u32,
+    /// Canonical display-path identity of the proof-only carrier type.
+    pub type_identity: String,
+}
+
 /// The normal result shape of one terminal machine.
 ///
 /// Unit is the absence of a runtime value. It therefore has no `ValueId`, no

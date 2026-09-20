@@ -530,6 +530,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             transfers,
                             scalar_arguments,
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discard_parameter_positions: cleanup
                                 .trivial_affine_discard_parameter_positions
                                 .clone(),

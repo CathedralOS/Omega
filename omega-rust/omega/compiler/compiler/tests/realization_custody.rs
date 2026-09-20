@@ -85,6 +85,7 @@ fn calling_module() -> TerminalModule {
         outcome_specific_ensures: Vec::new(),
         crash_routes: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
     };
     let machine = |id: u64,
                    parameters: Vec<ValueDeclaration>,
@@ -112,6 +113,7 @@ fn calling_module() -> TerminalModule {
             id: entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations,
             terminator,
         }],
@@ -158,6 +160,7 @@ fn calling_module() -> TerminalModule {
                     callee: MachineId::new(2).unwrap(),
                     arguments: vec![ValueId::new(14).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                 },

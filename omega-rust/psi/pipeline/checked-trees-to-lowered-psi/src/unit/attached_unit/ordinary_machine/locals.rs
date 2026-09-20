@@ -58,6 +58,7 @@ impl MachineEmission<'_> {
                 evaluated,
                 &operand_scalar_values,
                 &signatures::find(self.machine_signatures, plan.machine)?.erased_scalar_parameters,
+                &signatures::find(self.machine_signatures, plan.machine)?.erased_proof_parameters,
                 self.parameters,
                 &self.local_places,
                 &self.structural_result_places,

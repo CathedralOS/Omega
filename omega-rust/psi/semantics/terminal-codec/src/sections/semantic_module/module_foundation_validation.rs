@@ -370,6 +370,7 @@ fn validate_operation_foundation(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,

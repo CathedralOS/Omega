@@ -39,6 +39,7 @@ pub(super) fn module(bytes: Vec<u8>, byte_index: u64, nested: bool) -> TerminalM
         result: OperationResult::Scalar(scalar(ordinal, 64)),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(callee),
             arguments: vec![value_id(argument)],
             structural_arguments: vec![StructuralArgument {

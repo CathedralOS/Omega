@@ -152,6 +152,7 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let OperationKind::CallUnit {
         arguments,
         erased_arguments: _,
+        erased_proof_arguments: _,
         callee,
         structural_arguments,
         claim_transfers,
@@ -232,6 +233,7 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
         let OperationKind::CallUnit {
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             callee,
             structural_arguments,
             claim_transfers,

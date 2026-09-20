@@ -131,6 +131,7 @@ pub(super) fn validate<'a>(
                 service_reach,
                 scalar_arguments,
                 erased_scalar_arguments: _,
+                erased_proof_arguments: _,
                 structural_arguments,
                 claim_transfers,
             } => {
