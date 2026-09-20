@@ -11229,7 +11229,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_x86_64 slice outside a claimed fence exists. Sibling re-mine
   stubs: SQUALR-GEOMETRY-PARITY-GAPS, SQUALR-GEOMETRY-PARITY-RESIDUE.
 - **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-GEOMETRY-WINDOWS-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
-- **SQUALR-GEOMETRY-WINDOWS-NATIVE** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-WINDOWS-NATIVE.** Mined candidate — scope verified at
+  `3533f7d0e8`, covered + host-gated: third re-mine of the same Windows
+  leg of the app repo's GEOMETRY-PARITY gate as resolved siblings
+  SQUALR-GEOMETRY-WINDOWS-RUN (:11218) and SQUALR-GEOMETRY-WINDOWS-
+  VALIDATION (:11231, itself re-mining GEOMETRY-WINDOWS-VALIDATION).
+  Same acceptance — `python tools/verify.py native --timeout 600
+  --omega <executable>` on a Windows host against the pinned
+  `samples/apps/squalr` build graph; recorded geometry evidence is macOS
+  ARM64 + Linux x86-64, Windows "was not run". Doubly gated: no Windows
+  development host exists in this environment and `samples/apps/squalr`
+  is wholesale dir-fenced (SQUALR-TARGETS-AND-THROUGHPUT + file fences).
+  A Linux `--target windows_x86_64` emit leg does not satisfy the
+  run-based acceptance. A same-item claim is live (Devin /
+  squalr-geometry-windows-native, exp 02:35Z); nothing independent to
+  add while it stands.
 - **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; scope verified, re-mine of
   the resolved sibling GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7203) —
   same acceptance: `python tools/verify.py native --timeout 600 --omega
