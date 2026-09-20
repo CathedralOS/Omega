@@ -7172,7 +7172,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-DIFFERENTIAL-MATRIX** — mined candidate; verify scope then implement.
 - **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
-- **NON-X86-LAYOUT-RELAXATION** — mined candidate; verify scope then implement.
+- **NON-X86-LAYOUT-RELAXATION** — mined candidate; scope verified at `8734480a01`, no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
   Verified scope at `ac4e4eee9b`: already landed — the mined clause is the
   `wiki/drafts/proof_search_cache.md` requirement that cache keys carry
