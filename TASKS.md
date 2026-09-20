@@ -6546,6 +6546,35 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (18 matrices, 6,942 lines).
 - **CUSTODY-MUTATION-COVERAGE** — mined candidate; verify scope then implement.
 - **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT** — mined candidate; verify scope then implement.
+  Verified scope at `0e8bb1bdad`: re-mines the OMEGA-D clause
+  (`TASKS_BOOTSTRAP.md`, "Its diagnostic scalar entry adapter is not
+  package/Build admission or the final ProgramEntry contract. Replace that
+  adapter through the real request and target route, preserving actual
+  emitted-byte execution as the outer acceptance check."). The adapter is the
+  `OmegaScalarCompiler::compile(source, entry)` surface in
+  `bootstrap/5_omega/scalar_compilation.epsilon`: a caller-supplied entry-name
+  string matched in `finish_machine`/`select`, plus the `adapter()` trampoline
+  state emitting `emit_jump_label(19, machine_labels[selected])` + `emit_r(0,0)`
+  ahead of the machine bodies. The real route exists in pieces: the OCREQ
+  envelope and field readers live in `bootstrap/5_omega/request_and_utf8.epsilon`
+  (`frame_ocreq`, `OmegaRequestStructure`), the request spec carries the subject
+  + `product: alpha_bootstrap_tape` + `target_profile` (never an entry name —
+  roots/entry derive from admitted build execution,
+  `wiki/spec/build/compiler_request.md`), and the real contract binds entry
+  through `builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main)`.
+  Replacement is not a single-member edit: the gate harness and all nine
+  control members under `tests/bootstrap/omega-executable/` call
+  `compile(source, entry)` directly, and `controls_g.epsilon` pins the
+  trampoline bytes (`tape.bytes[0] == 19`, `decode_address(1) == 11`), so
+  retiring the adapter requires coordinated changes inside that directory —
+  held this wave by OMEGA-D (`bootstrap/5_omega` + `tests/bootstrap/omega-executable`
+  + `wiki/spec/build/compiler_request.md`, 22:27Z) and
+  ALPHA-SEED-CONTAINER-NATIVE-VALIDATION (`tests/bootstrap/omega-executable`,
+  00:42Z). The `bootstrap/5_omega` side of the fence was claimed because
+  OMEGA-D's path entry is comma-joined and does not prefix-match; no epsilon
+  edit lands without the harness side. Sibling re-mines of the same OMEGA-D
+  clause for coordinator retirement: D-OCREQ-ENTRY-BINDING and
+  D-REQUEST-ADMISSION-ROUTE.
 - **D-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **D-REQUEST-ADMISSION-ROUTE** — mined candidate; verify scope then implement.
 - **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
