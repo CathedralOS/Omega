@@ -397,10 +397,11 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 102 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 103 + `u16` vocabulary
 marker 107 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
+<!-- module-table-order -->
 | # | Module table | Row |
 | --- | --- | --- |
 | 1 | scalar qualification catalog | the four counted catalog tables above |
@@ -1295,6 +1296,24 @@ counted requirement propositions, counted semantic-axiom propositions, and a
 | Optimization execution | Selection/output semantic provenance is rejoined at decoding. Internal proof identities and portable preservation evidence remain distinct; absent PCC does not waive transformation checking. |
 | Installation | Separate `PSIINST\0` bytes and identity, retaining realization evidence without granting admission. |
 | Debug map | Replaceable presentation metadata bound to the exact semantic subject, never program meaning. |
+
+Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
+marker; the semantic module, sealed proof section, obligation ledger, and
+debug map envelopes then carry the shared `u16` vocabulary marker (107). A
+receiver rejects an unknown magic or stale marker before reading any counted
+table. The installation record `PSIINST\0` is emitted outside this codec.
+
+<!-- envelope-markers -->
+| Envelope | Magic | `u16` marker | Vocabulary field |
+| --- | --- | --- | --- |
+| semantic module | `PSITERM\0` | 103 | yes |
+| proof bundle | `PSIPRF\0\0` | 33 | no |
+| sealed proof section | `PSIPSC\0\0` | 1 | yes |
+| obligation ledger | `PSIOBLG\0` | 3 | yes |
+| canonical artifact | `PSIART\0\0` | 2 | no |
+| PCC proof sidecar | `PCCPROOF` | 1 | no |
+| debug map | `PSIDBG\0\0` | 1 | yes |
+| optimization execution | `PSIOEXE\0` | 1 | no |
 
 The reconstructed manifest binds each present component under its own hash domain.
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence
