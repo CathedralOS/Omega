@@ -6389,7 +6389,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **EPOCH-AGGREGATE-SNAPSHOTS** — mined candidate; verify scope then implement.
 - **EPSILON-BOOTSTRAP-CHAIN** — mined candidate; verify scope then implement.
 - **EPSILON-EVALUATOR-BOOTSTRAP-PATH.** Scope verified at `83f5477357` — the mined alias names the Delta→Epsilon evaluator bootstrap path. Its in-fence surface is complete and green on Linux x86-64: `tests/bootstrap/epsilon-identity.sh` materializes the exact packed evaluator closure and refuses corrupted manifest/member/driver/entry/receipt shapes, and the source-closure gate checks the fixture plus the canonical `epsilon_compiler.delta.sources` manifest. The remaining legs — compiling the bound evaluator plus `execution_driver.delta` through the bound Delta compiler and executing the evaluator's entries — live under `tests/epsilon`, currently claimed by DELTA-COMPILER, and seed execution needs an audited host (macOS arm64 or Windows x64, none available here). Sibling stubs on the same path: BOOTSTRAP-EPSILON-EVALUATOR, DELTA-EPSILON-CLOSURE-COMPILE, DELTA-EPSILON-CLOSURE-EXECUTION, DELTA-EPSILON-CLOSURE-ACCEPTANCE, EPSILON-BOOTSTRAP-CHAIN.
-- **EPSILON-SCALAR-COMPILATION-EXTENSION** — mined candidate; verify scope then implement.
+- **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
+  the extension point is concrete and bounded —
+  `bootstrap/5_omega/scalar_compilation.epsilon` `fold_operator` admits 10 of
+  the 18 `OmegaBinaryOperatorKind` cases (arithmetic `Add..BitwiseXor`) and
+  `mark_unsupported`s the 8 Boolean-result operators: `Equal`, `NotEqual`,
+  `Less`, `LessEqual`, `Greater`, `GreaterEqual`, `And`, `Or` — the comment
+  records "Comparison and logical operators produce Boolean results this
+  slice does not implement". Extending means folding those eight to the
+  §7-defined 0/1 results, plus the typing question of whether a Boolean
+  operand composes inside `i32` arithmetic in the Omega subset (Epsilon's
+  `true == 1` rule does not automatically transfer). Two surfaces gate the
+  leg: `bootstrap/5_omega/omega_compiler.epsilon.sources` pins the member
+  digest (claimed by OMEGA-D-SCALAR-SEQUENCING until 23:33Z) and the
+  d-composition/refinement acceptance gates live under `tests/epsilon`
+  (claimed by DELTA-COMPILER until 21:48Z). Per FEATURE_LEDGER's decision
+  method, extension also needs a concrete `D`-side use to cite.
 - **EXACT-PROGRAM-ENTRY-MULTIPLICITY.** Verified on `main`: entry
   multiplicity is already enforced end to end — `admission/selection.rs`
   requires exactly one binding per required catalog slot, exactly one
