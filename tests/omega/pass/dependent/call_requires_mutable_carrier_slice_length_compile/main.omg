@@ -1,0 +1,26 @@
+// COMPILE CANARY. A `mut` formal's `.len` and a `let mut` local's saved
+// initializer both name entry-value atoms while nothing in the state writes
+// them: `relay` saves `items.len` into `m` even though `items` is a mutable
+// formal and `m` is a mutable local, and `inner`'s `requires rest.len <=
+// capacity` discharges as `items.len <= items.len`.
+data Main {
+}
+
+machine Main::main(&mut self) -> u64 {
+    let items: &[i32] = &[7, 8, 9];
+    transition { _ -> self.relay(items) }
+}
+
+machine Main::relay(&mut self, mut items: &[i32]) -> u64 {
+    let mut m: u64 = items.len;
+    transition { _ -> self.inner(items, m) }
+}
+
+machine Main::inner(&mut self, rest: &[i32], capacity: u64) -> u64
+requires rest.len <= capacity
+{
+    transition rest.len > 0 {
+        true -> 3
+        false -> 0
+    }
+}

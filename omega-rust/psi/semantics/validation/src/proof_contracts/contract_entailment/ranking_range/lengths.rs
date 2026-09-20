@@ -313,9 +313,8 @@ pub(super) fn actual(
 /// fills from `bindings`; a state-local `let` binding or a declared fixed
 /// array's slice view instead carries a constant the callee's requires row
 /// substitutes exactly -- the saved caller observation the boundary keeps.
-/// Only shapes whose extent is fixed by declaration qualify: a `let mut`
-/// local's initializer is its incoming value, not the value later writes may
-/// leave, so mutable locals produce nothing here; an arbitrary call or borrow
+/// Only immutable shapes qualify: a `let mut` local can trade its extent for
+/// another descriptor at any later write, and an arbitrary call or borrow
 /// produces nothing either.
 pub(super) fn produced_length(
     program: &TypedTrees,
@@ -339,9 +338,9 @@ pub(super) fn produced_length(
             {
                 return None;
             }
-            // The name must resolve to exactly one immutable local declaration
-            // of this state: zero means the name is a formal or unknown, two
-            // means the statement list is ambiguous, and a mutable local's
+            // The name must resolve to exactly one local declaration of this
+            // state: zero means the name is a formal or unknown, two means the
+            // statement list is ambiguous, and a mutable or written local's
             // incoming extent is not the value the call site observes.
             let locals = program
                 .statement_table
@@ -358,6 +357,7 @@ pub(super) fn produced_length(
             if local.is_mutable
                 || !local.initial_value.is_valid()
                 || binding_is_exclusively_exposed(program, state, path.symbol)
+                || binding_is_written(program, state, path.symbol)
             {
                 return None;
             }
@@ -392,6 +392,92 @@ pub(super) fn binding_is_exclusively_exposed(
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
+    let mut nodes = Vec::new();
+    for root in statement_expression_roots(program, state) {
+        crate::value_custody::expression_types::collect_expression_nodes(program, root, &mut nodes);
+    }
+    nodes
+        .iter()
+        .any(|node| match program.expression_table.expression(*node) {
+            ExpressionNode::Borrow(borrow) => {
+                borrow.access.is_exclusive()
+                    && borrow_root_symbol(program, borrow.target) == Some(symbol)
+            }
+            _ => false,
+        })
+}
+
+/// An entry observation names the value the call edge still sees only while
+/// nothing in `state` writes the carrier. `binding_is_exclusively_exposed`
+/// covers `&mut`/`&out` borrow expressions; the remaining write channels are
+/// an assignment whose target path descends to `symbol`, a receiver call
+/// whose callee claims a mutable `self`, and a sealed atomic operation on
+/// the place. Reads and moves leave the observed value alone -- a moved
+/// name cannot be an actual afterwards. The scan is state-wide for the same
+/// reason as the borrow scan: obligation order is not statement order.
+pub(super) fn binding_is_written(
+    program: &TypedTrees,
+    state: &State,
+    symbol: SymbolHandle,
+) -> bool {
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+    {
+        match statement {
+            StatementNode::Assignment(assignment)
+                if borrow_root_symbol(program, assignment.target) == Some(symbol) =>
+            {
+                return true;
+            }
+            StatementNode::Call(call)
+                if call.receiver_root_symbol == symbol
+                    && call_receiver_is_mutable(program, call.target_symbol) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    let mut nodes = Vec::new();
+    for root in statement_expression_roots(program, state) {
+        crate::value_custody::expression_types::collect_expression_nodes(program, root, &mut nodes);
+    }
+    nodes
+        .iter()
+        .any(|node| match program.expression_table.expression(*node) {
+            ExpressionNode::Call(call) => {
+                call.receiver.is_valid()
+                    && borrow_root_symbol(program, call.receiver) == Some(symbol)
+                    && call_receiver_is_mutable(program, call.target_symbol)
+            }
+            ExpressionNode::Atomic(atomic) => {
+                borrow_root_symbol(program, atomic.value) == Some(symbol)
+                    || borrow_root_symbol(program, atomic.result) == Some(symbol)
+            }
+            _ => false,
+        })
+}
+
+/// Whether the callee selected for `target_symbol` claims a mutable `self`
+/// receiver -- the write channel a `place.step()` call on a mutable local
+/// uses without ever spelling a borrow expression. An unresolvable callee
+/// is treated as mutating.
+fn call_receiver_is_mutable(program: &TypedTrees, target_symbol: SymbolHandle) -> bool {
+    crate::machine_calls::calls::machine_state_by_symbol(program, target_symbol)
+        .map(|(_, callee)| {
+            program
+                .state_parameters(callee)
+                .iter()
+                .any(|parameter| parameter.is_self && parameter.is_mutable)
+        })
+        .unwrap_or(true)
+}
+
+/// Every expression root a statement of `state` can carry: the channels a
+/// nested borrow or receiver call could reach an observed carrier through.
+fn statement_expression_roots(program: &TypedTrees, state: &State) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
     for statement in program
         .statement_table
@@ -435,19 +521,7 @@ pub(super) fn binding_is_exclusively_exposed(
             }
         }
     }
-    let mut nodes = Vec::new();
-    for root in roots {
-        crate::value_custody::expression_types::collect_expression_nodes(program, root, &mut nodes);
-    }
-    nodes
-        .iter()
-        .any(|node| match program.expression_table.expression(*node) {
-            ExpressionNode::Borrow(borrow) => {
-                borrow.access.is_exclusive()
-                    && borrow_root_symbol(program, borrow.target) == Some(symbol)
-            }
-            _ => false,
-        })
+    roots
 }
 
 /// The root symbol a borrowable place path descends from: `view`, `view.field`,
