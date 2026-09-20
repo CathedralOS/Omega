@@ -7283,7 +7283,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   22:28Z), and `build-output`
   (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
   exists; retire or re-scope once the sibling lane lands detection.
-- **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; verify scope then implement.
+- **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
