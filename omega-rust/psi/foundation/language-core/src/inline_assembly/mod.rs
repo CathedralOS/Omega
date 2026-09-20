@@ -781,7 +781,20 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 
         // These spell control edges which cannot be represented by the current
         // source form. Direct state jumps use the checked `jmp state(...)` arm.
-        "ret" | "retq" | "retaa" | "retab" | "call" | "callq" | "br" | "blr" => {
+        // The list covers the common return/call/branch spellings on both
+        // supported ISAs — x86 far/AT&T forms, the whole conditional-branch
+        // (`j*`) and `loop` families, software interrupts, and the AArch64
+        // branch/compare-and-branch/test-and-branch family (`b.cond` spellings
+        // already refuse at their `b` mnemonic head) — so each refuses for the
+        // semantic reason rather than as arbitrary unknown text. Supervisor
+        // traps (`svc`/`hvc`/`smc`/`brk`) are service-admission candidates, not
+        // hidden exits, and stay unrecognized here.
+        "ret" | "retq" | "retaa" | "retab" | "retf" | "lret" | "call" | "callq" | "jmpq"
+        | "ljmp" | "br" | "blr" | "b" | "bl" | "bx" | "blx" | "cbz" | "cbnz" | "tbz" | "tbnz"
+        | "loop" | "loope" | "loopne" | "loopz" | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int"
+        | "int3" | "into" | "je" | "jne" | "jz" | "jnz" | "ja" | "jae" | "jb" | "jbe" | "jna"
+        | "jnae" | "jnb" | "jnbe" | "jg" | "jge" | "jl" | "jle" | "jng" | "jnge" | "jnl"
+        | "jnle" | "jo" | "jno" | "js" | "jns" | "jp" | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => {
             Refused(HiddenControlExit)
         }
 
@@ -804,8 +817,29 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         }),
 
         // Recognize common memory-addressing spellings so they refuse for the
-        // semantic reason, not as arbitrary unknown text.
-        "ldr" | "str" | "ldp" | "stp" | "push" | "pop" => Refused(UnmodeledMemoryAccess),
+        // semantic reason, not as arbitrary unknown text. The list covers the
+        // AArch64 width/signed/unscaled/unprivileged variants, the exclusive,
+        // acquire/release and LSE read-modify-write families, x86 exchange and
+        // compare-exchange forms, the implicit-operand string and port-string
+        // instructions, AT&T stack forms, and frame setup — each always reads
+        // or writes memory, so no spelling here is a register-only contract
+        // candidate. Address-arithmetic (`lea`) and ordering (`dmb`/`dsb`)
+        // spellings do not access memory and stay unrecognized rather than
+        // borrowing this refusal.
+        "ldr" | "str" | "ldp" | "stp" | "push" | "pop" | "pushq" | "popq" | "pusha" | "popa"
+        | "pushal" | "popal" | "enter" | "leave" | "ldrb" | "ldrh" | "ldrsb" | "ldrsh"
+        | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb" | "ldurh" | "ldursb" | "ldursh"
+        | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb" | "ldtrh" | "ldtrsb" | "ldtrsh"
+        | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldxr" | "ldxrb" | "ldxrh" | "stxr" | "stxrb"
+        | "stxrh" | "ldaxr" | "ldaxrb" | "ldaxrh" | "stlxr" | "stlxrb" | "stlxrh" | "ldxp"
+        | "stxp" | "ldaxp" | "stlxp" | "ldar" | "ldarb" | "ldarh" | "stlr" | "stlrb" | "stlrh"
+        | "swp" | "swpb" | "swph" | "swpa" | "swpal" | "swpl" | "cas" | "casb" | "cash"
+        | "casa" | "casal" | "casp" | "caspa" | "caspal" | "caspl" | "ldadd" | "ldaddb"
+        | "ldaddh" | "ldclr" | "ldeor" | "ldset" | "ldsmax" | "ldsmin" | "ldumax" | "ldumin"
+        | "xchg" | "xadd" | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat" | "xlatb" | "movsb"
+        | "movsw" | "movsq" | "lodsb" | "lodsw" | "lodsq" | "stosb" | "stosw" | "stosq"
+        | "scasb" | "scasw" | "scasq" | "cmpsb" | "cmpsw" | "cmpsq" | "insb" | "insw" | "outsb"
+        | "outsw" => Refused(UnmodeledMemoryAccess),
         _ => return None,
     };
     Some(entry)
