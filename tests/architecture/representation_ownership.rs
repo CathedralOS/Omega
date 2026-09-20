@@ -843,10 +843,17 @@ fn shared_vocabulary_representations_need_no_program_root() {
     for (package, roots) in [
         // The optimization name registry, selections, contracts, identities
         // and decision-record schemas shared by every optimization stage and
-        // report; the crate runs no optimizer and holds no optimized program.
+        // report, plus the test-support substitution-matrix vocabulary that
+        // custody families reuse; the crate runs no optimizer and holds no
+        // optimized program.
         (
             "optimization-core",
-            &["decisions.rs", "report_request.rs", "selection.rs"][..],
+            &[
+                "decisions.rs",
+                "mutation_matrix.rs",
+                "report_request.rs",
+                "selection.rs",
+            ][..],
         ),
         // Declarative per-architecture register facts — units, views, classes,
         // the operand constraint catalog, reservation profiles and

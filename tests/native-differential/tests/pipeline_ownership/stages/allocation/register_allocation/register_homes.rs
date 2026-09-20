@@ -227,81 +227,50 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
 
 #[test]
 fn optimized_register_home_custody_rejects_every_one_field_substitution() {
-    use OptimizedRegisterHomeCustodyFieldForTest::*;
-    let fields: [(&str, OptimizedRegisterHomeCustodyFieldForTest); 18] = [
-        ("psi", Psi),
-        ("target", Target),
-        ("entry", Entry),
-        ("optimization", Optimization),
-        ("projection", Projection),
-        ("manifest", Manifest),
-        ("optimization_unit", OptimizationUnit),
-        ("fuel_schedule", FuelSchedule),
-        ("register_environment", RegisterEnvironment),
-        ("allocator_availability", AllocatorAvailability),
-        ("selected", Selected),
-        ("liveness", Liveness),
-        ("ranges", Ranges),
-        ("legality", Legality),
-        ("homes", Homes),
-        ("post_allocation_manifest", PostAllocationManifest),
-        ("function_count", FunctionCount),
-        ("assignment_count", AssignmentCount),
-    ];
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let build = |target: NativeTarget| {
-            stage_optimized_register_homes(
-                stage_optimized_allocation_legality(
-                    stage_optimized_live_ranges(
-                        stage_optimized_liveness(staged_conditional(target)).unwrap(),
-                    )
-                    .unwrap(),
+    use optimization_core::{
+        MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+    };
+    let build = |target: NativeTarget| {
+        stage_optimized_register_homes(
+            stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_conditional(target)).unwrap(),
                 )
                 .unwrap(),
             )
-            .unwrap()
-        };
-        // The donor keeps the corruptor signature uniform with nested-source
-        // families; no baseline field consumes it.
-        let donor = build(match target.architecture {
-            target::Architecture::X86_64 => NativeTarget::linux_arm64(),
-            _ => NativeTarget::linux_x64(),
-        });
-        assert_ne!(
-            build(target).custody(),
-            donor.custody(),
-            "{target:?}: the foreign target must produce a distinct custody receipt",
-        );
-        for (name, field) in fields {
-            let mut substituted = build(target);
-            let honest = substituted.custody();
-            substituted.corrupt_custody_for_test(field, &donor);
-            assert_ne!(
-                substituted.custody(),
-                honest,
-                "{target:?}: mutation `{name}` must change the retained custody receipt",
-            );
-            let rebuilt = validate_optimized_register_home_custody(
-                substituted.legality_stage(),
-                substituted.homes(),
-                substituted.post_allocation_manifest(),
-            )
-            .unwrap_or_else(|error| {
-                panic!(
-                    "{target:?}: honest replay must still succeed after custody mutation `{name}`: {error:?}"
+            .unwrap(),
+        )
+        .unwrap()
+    };
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+            family: "optimized register-home custody",
+            fields: OptimizedRegisterHomeCustodyFieldForTest::INVENTORY,
+            honest: &|| build(target),
+            // The donor keeps the corruptor signature uniform with
+            // nested-source families; no baseline field consumes it.
+            donor: build(match target.architecture {
+                target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+                _ => NativeTarget::linux_x64(),
+            }),
+            custody: &|staged| staged.custody(),
+            substitute: &|staged, field, donor| staged.corrupt_custody_for_test(field, donor),
+            check: &|staged| {
+                validate_optimized_register_home_custody(
+                    staged.legality_stage(),
+                    staged.homes(),
+                    staged.post_allocation_manifest(),
                 )
-            });
-            assert_ne!(
-                rebuilt,
-                substituted.custody(),
-                "{target:?}: independent replay must reject substituted homes-custody field {name}",
-            );
-            assert_eq!(
-                substituted.replay_allocation().err(),
-                Some(AllocationReplayError::ReceiptMismatch),
-                "{target:?}: allocation replay must reject substituted homes-custody field {name}",
-            );
-        }
+            },
+            outcome: &|_| MutationOutcome::RebuiltCustodyDiffers,
+            joined_replay: Some(&|substituted, field| {
+                assert_eq!(
+                    substituted.replay_allocation().err(),
+                    Some(AllocationReplayError::ReceiptMismatch),
+                    "{target:?}: allocation replay must reject substituted homes-custody field {field:?}",
+                )
+            }),
+        });
     }
 }
 

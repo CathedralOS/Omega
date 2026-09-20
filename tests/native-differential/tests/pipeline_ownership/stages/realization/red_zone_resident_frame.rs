@@ -228,6 +228,9 @@ fn expected_frame_displacement(
         Address::HostedReadByte { .. } | Address::HostedWriteByteI32 { .. } => {
             panic!("hosted address kinds do not occur in this fixture")
         }
+        Address::SaveFloatingControl { .. } | Address::RestoreFloatingControl { .. } => {
+            panic!("floating-control saves do not occur in this fixture")
+        }
     }
 }
 

@@ -8,7 +8,10 @@ version.workspace = true
 path = "src/lib.rs"
 
 [features]
-test-support = ["selected-instructions-to-selected-instructions/test-support"]
+test-support = [
+    "selected-instructions-to-selected-instructions/test-support",
+    "optimization-core/test-support",
+]
 
 [dependencies]
 selected-instructions-to-selected-instructions = { path = "../selected-instructions-to-selected-instructions" }
@@ -34,3 +37,4 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 selected-instructions-to-selected-instructions = { path = "../selected-instructions-to-selected-instructions", features = ["test-support"] }
+optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }

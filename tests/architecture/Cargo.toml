@@ -76,6 +76,10 @@ validation = { path = "../../omega-rust/psi/semantics/validation" }
 serde_json = "1.0"
 
 [[test]]
+name = "custody_mutation_matrix"
+path = "custody_mutation_matrix.rs"
+
+[[test]]
 name = "glob_self_imports"
 path = "glob_self_imports.rs"
 

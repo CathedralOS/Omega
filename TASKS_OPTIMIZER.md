@@ -258,19 +258,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   encoding and named as such. A new record family lands with its matrix rather
   than acquiring one later.
 
-  Flag: the matrices are hand-written, one per record shape.
-  `image-emission/tests/artifacts/installation_function_nested_custody.rs` alone
-  holds 18 of them in 6,942 lines, and six such files run 15,157 lines
+  Mechanism: `optimization-core`'s `test-support` feature now carries the
+  shared substitution harness. `custody_field_inventory!` declares a family's
+  `*FieldForTest` vocabulary once and derives its `INVENTORY`, so the covered
+  field set comes from the record's declared inventory rather than a parallel
+  handwritten list; `run_one_field_substitution_matrix` consumes a
+  `OneFieldSubstitutionMatrix` naming the honest builder, foreign donor,
+  retained-custody view, honest-recomputation hook, and independent checker,
+  with `MutationOutcome` selecting exact-error versus rebuilt-custody
+  rejection and an optional `joined_replay` leg for wrapper replay errors.
+  `OptimizedRegisterHomeCustodyFieldForTest` is converted as the in-memory
+  proof — the canonical-encoding proof converted beside it,
+  `OfflinePolicyRegressionManifestFieldForTest`, retired upstream with the
+  offline trainer in `55ba7f6ab3`. The `custody_mutation_matrix`
+  architecture test fails when a declared `*FieldForTest` inventory has no
+  matrix consumer — or when a derived `INVENTORY` never reaches the shared
+  driver.
+
+  Flag: most matrices still predate the harness — handwritten loops over
+  per-family field lists. `image-emission/tests/artifacts/installation_function_nested_custody.rs`
+  alone holds 18 of them in 6,942 lines, and six such files run 15,157 lines
   together; only the wrapper-object matrix under
-  `native-realization/src/optimized_semantic_wrapper_object/tests/` is factored
-  into a reusable shape, and the pipeline families declare their inventories
-  through per-family `*FieldForTest` enums and `corrupt_custody_for_test`
-  hooks without a shared driver. Nothing fails when a family has no matrix.
-  The general mechanism is one substitution harness driven by each record's
-  canonical field inventory plus a per-family honest-recomputation hook, so
-  that a new family declares its fields instead of adding another
-  several-hundred-line test, and a family with no entry fails a repository
-  gate.
+  `native-realization/src/optimized_semantic_wrapper_object/tests/` is
+  factored into a reusable shape. Converting a family is now mechanical —
+  declare the enum through `custody_field_inventory!`, hand the driver the
+  hook and checker — but the legacy matrices have not moved to it yet.
 
 ## Psi optimization and loops
 
