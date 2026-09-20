@@ -69,8 +69,13 @@ diagnostic coordinates.
 
 The [source-to-executable gate](../../tests/bootstrap/omega-executable/README.md)
 connects parsed nullary scalar machines to range checking and the shared Alpha
-encoder. It is a diagnostic invocation route over the complete compiler source,
-not the final package/Build/request interface. The compiler checks all admitted
+encoder. Its entry is the real request route: a canonical OCREQ V1 frame
+carries the source package, and the entry runs D's own request shape passes
+plus a bounded subject re-walk before selecting the bound `main` entry
+machine — the route and target supply the entry contract rather than an
+adapter-supplied spelling. The retired raw-source adapter stays reachable
+under the gate's `--diagnostic` lane for refusal coverage. The compiler checks
+all admitted
 machine bodies, resolves an explicitly supplied entry, and refuses unsupported
 forms rather than treating them as opaque executable code. Its first result type
 is `u8` over literal operands joined by the arithmetic, bitwise, and shift

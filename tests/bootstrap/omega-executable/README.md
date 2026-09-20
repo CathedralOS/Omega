@@ -1,24 +1,25 @@
 # Omega source to an Alpha executable
 
 This gate connects the complete manifested Epsilon-written Omega compiler to
-its existing parser and Alpha tape encoder. The input is
-[ordinary Omega source](program.omg), not a hand-authored tape. Its selected
-machine returns a byte; the diagnostic entry adapter calls that machine and
-halts Alpha with its return value. The expected result is [42](expected.txt).
-
-`--ocreq` selects the real request route: [main_ocreq.epsilon](main_ocreq.epsilon)
-frames nothing itself — the gate frames the canonical OCREQ V1 request (one
-application package snapshotting the source as a single `.omg` regular file,
+its existing parser and Alpha tape encoder through the real request route:
+the gate frames the canonical OCREQ V1 request (one application package
+snapshotting [program.omg](program.omg) as a single `.omg` regular file,
 empty edges, `alpha_bootstrap_tape` product on the `alpha_bootstrap` profile,
-bound SHA-256 subject commitment), and the adapter runs D's own
+bound SHA-256 subject commitment), and
+[main_ocreq.epsilon](main_ocreq.epsilon) runs D's own
 `OmegaRequestStructure::check` shape passes, extracts the root package's single
 `.omg` member, compiles it, and publishes the unwrapped artifact on `Complete`
 or exactly one OCOUT V1 frame on failure. The admitted slice is
 `alpha_bootstrap_tape` plus a single-source application root; shape-valid
 requests outside it refuse `malformed_request` at the first out-of-slice
-coordinate. The diagnostic adapter remains the `run.sh` entry while the new
-route awaits its canonical binding; on a seed host the route is exercised as
-`python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --ocreq`.
+coordinate. The target's ProgramEntry contract names the entry machine `main`,
+so entry selection is bound by the route, not by an adapter-supplied spelling.
+The emitted tape halts Alpha with the selected machine's return value. The
+expected result is [42](expected.txt).
+
+`--diagnostic` keeps the retired raw-source adapter
+([main.epsilon](main.epsilon)) reachable for refusal coverage:
+`python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --diagnostic`.
 
 From the repository root on macOS arm64, or Windows x64 with Git Bash:
 
@@ -29,8 +30,9 @@ sh tests/bootstrap/omega-executable/run.sh
 The gate requires Python 3, the selected checked-in Alpha seed and the existing
 shell tools; macOS also requires `codesign`. It reconstructs the Epsilon
 execution receipt through the selected Gamma-written Delta compiler, checks
-the complete Epsilon-written Omega compiler plus its diagnostic harness, feeds
-it the source bytes, and stamps and executes only the actual successful output.
+the complete Epsilon-written Omega compiler plus its request-route entry,
+seals the source into the canonical request, and stamps and executes only the
+actual successful output.
 No Rust compiler, host parser, host typechecker, or host code generator supplies
 the program's meaning. Python frames, invokes, compares, and stores bytes.
 
@@ -78,15 +80,16 @@ specifies. Receivers, `self` paths, machine or runtime arguments,
 parameterized states, locals, assignments, `let` bindings, and non-literal
 guards stay `Incomplete` coverage refusals.
 
-The harness selects `answer`. Another source can be exercised without changing
-compiler code:
+The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
+binds. Another source can be exercised without changing compiler code:
 
 ```sh
 sh tests/bootstrap/omega-executable/run.sh --source path/to/program.omg --expect 7
 ```
 
 `--expect-compile 1` expects a compiler rejection; `--expect-compile 2` expects
-an unsupported form. Both require an exact failure outcome without a tape prefix.
+an unsupported form. Both require an exact failure outcome: the request route
+publishes one closed OCOUT frame, the diagnostic lane publishes no tape.
 The harness owns those diagnostic statuses; they are not new OCOUT wire numbers.
 Resource and internal failures remain distinct from successful compilation.
 
@@ -148,13 +151,14 @@ checks the same observation and executes the same emitted program.
 
 ## Bound customer entries
 
-Every entry the harness may select is bound: `main.epsilon` and the eight
-controls files are gate-local inputs packed on top of the bound member
-closure, never part of the manifested members.
+Every entry the harness may select is bound: `main_ocreq.epsilon`,
+`main.epsilon`, and the eight controls files are gate-local inputs packed on
+top of the bound member closure, never part of the manifested members.
 
 | Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
 | --- | ---: | --- | ---: | --- |
-| `main.epsilon` | 1,759 | `4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b` | 559,920 | `7c9112e3c15d995c8d5d188b2568cb39915992c9769206924463c314a84a3948` |
+| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 559,918 | `fcf88cc850822c90a3caaf38a89d8bf594312b1e4ef154bc2ac63cb7234674cc` |
+| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 577,414 | `0195756cd505588cd1aa2aa22c4f7465fd09c4f5c299c4011bd7a71025b2828c` |
 | `controls.epsilon` | 3,339 | `44b8f0d15df414a80728918560ef988341537cfa25c0e21d6240a52c7f72f91b` | 561,500 | `f22dbae93f2b1cc4478fdaf1d7053dd2d9f6405bb1d651fec13a234e884361b8` |
 | `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 561,245 | `e9d4627c6226ba39359708d5163010499210386dcb51e82577e89e757734a5c1` |
 | `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 560,985 | `72ef281f99dd95a96287807d3e7d200b412aa831e570a3c290474eec59046d53` |
@@ -173,10 +177,9 @@ verifies each packed customer, compiler bytes plus entry, against this table.
 This is a component-level source-to-executable regression, not the final
 [standalone compiler interface](../../../wiki/spec/build/compiler_request.md).
 It uses the existing private Epsilon execution observation format. It does not
-implement package resolution, Build evaluation, ProgramEntry selection, general
-Omega checking, or a compiler-refinement proof. The scalar invocation adapter
-is explicit test machinery, not a claim to implement the target's final entry
-contract. `main_ocreq.epsilon` exercises the real OCREQ/OCOUT route for the
-`alpha_bootstrap_tape` slice; it stays a gate-local entry (bound by the
-sibling OCREQ entry-binding work, not this record) until the canonical
-request entry replaces the diagnostic adapter outright.
+implement package resolution, Build evaluation, general ProgramEntry
+selection beyond the target's bound `main` name, general Omega checking, or a
+compiler-refinement proof. `main_ocreq.epsilon` is the gate's entry: the real
+OCREQ/OCOUT route for the `alpha_bootstrap_tape` slice, bound like every
+other selectable entry. `main.epsilon` remains bound for the `--diagnostic`
+raw-source lane.
